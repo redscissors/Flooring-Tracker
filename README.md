@@ -36,17 +36,22 @@ You only do this once.
    query**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql),
    and click **Run**. This creates the `app_data` table and the Row-Level
    Security policies that keep each user's data private.
-3. **Get your API keys** — go to **Project Settings → API** and copy:
+3. **Create the attachments storage** — new SQL query, paste
+   [`supabase/storage.sql`](supabase/storage.sql), **Run**. This creates a
+   private `attachments` bucket (for customer photos / spec sheets / PDFs) with
+   policies so each user only sees their own files.
+4. **Lock down sign-up (team-only)** — under **Authentication → Sign In /
+   Providers → Email**, turn **off** "Allow new users to sign up". Then add your
+   people yourself under **Authentication → Users → Add user** (tick *Auto
+   Confirm User*). The app's login screen is sign-in only.
+5. **Get your API keys** — go to **Project Settings → API** and copy:
    - **Project URL** → `VITE_SUPABASE_URL`
    - **anon public** key → `VITE_SUPABASE_ANON_KEY`
-4. **Add them to `.env`** (copy from `.env.example`):
+6. **Add them to `.env`** (copy from `.env.example`):
    ```
    VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
-5. **(Optional) Email confirmation** — under **Authentication → Providers →
-   Email** you can turn off "Confirm email" while testing so new sign-ups can
-   log in immediately. Leave it on for production.
 
 Restart `npm run dev` after editing `.env`.
 
@@ -72,14 +77,27 @@ Any static host works since this is a client-side app. Easiest is **Vercel** or
 
 ## How data & sync work
 
-- All app state (customers, areas, settings, versions) is stored as a single
-  JSON document in one `app_data` row **per user**, written on every change.
+- All app state (customers, areas, products, settings, versions) is stored as a
+  single JSON document in one `app_data` row **per user**, written on every
+  change.
+- **Attachments** (photos, spec sheets, PDFs) are stored as files in the private
+  Supabase **Storage** bucket under `<user_id>/<file_id>`, not in the database
+  row. Only metadata (name, type, size) lives in the JSON.
 - Sync is **last-write-wins**: open the app on two devices and the most recent
   save wins. Fine for a single owner; if you later need real-time multi-editor
   collaboration, the data layer can be moved to relational tables + Supabase
   Realtime.
-- **Backup / Restore** (sidebar) exports/imports the whole dataset as JSON —
-  handy before big deletes or for moving data around.
+- **Backup / Restore** (sidebar) exports/imports the whole dataset as JSON,
+  including attachment file contents — handy before big deletes or for moving
+  data around.
+
+## Not yet wired up
+
+- **AI "Scan handwritten notes."** The original artifact called Anthropic's API
+  directly from the browser, which isn't safe in a deployed app (it would expose
+  the API key). To add it, put the Anthropic key in a serverless function
+  (Netlify Function or Supabase Edge Function) and have the app call that. Left
+  out of this version by choice.
 
 ## Project structure
 
