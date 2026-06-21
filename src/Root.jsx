@@ -1,27 +1,39 @@
 import { useEffect, useState } from "react";
 import { supabase, isConfigured } from "./lib/supabase.js";
 import Auth from "./Auth.jsx";
+import SetPassword from "./SetPassword.jsx";
 import App from "./App.jsx";
 
 export default function Root() {
   const [session, setSession] = useState(null);
   const [ready, setReady] = useState(false);
+  const [recovery, setRecovery] = useState(false);
 
   useEffect(() => {
-    if (!isConfigured) {
-      setReady(true);
-      return;
-    }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setReady(true);
+    if (!isConfigured) { setReady(true); return; }
+
+    // Invite / password-reset links land here with a type marker in the URL.
+    // Treat those users as "needs to set a password".
+    const marker = (window.location.hash || "") + (window.location.search || "");
+    if (marker.includes("type=invite") || marker.includes("type=recovery")) setRecovery(true);
+
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const finishRecovery = () => {
+    setRecovery(false);
+    // Strip the token fragment so a refresh doesn't re-trigger this screen.
+    window.history.replaceState({}, "", window.location.pathname);
+  };
+
   if (!isConfigured) return <SetupNotice />;
   if (!ready) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
+  if (session && recovery) return <SetPassword email={session.user?.email} onDone={finishRecovery} onCancel={() => supabase.auth.signOut()} />;
   if (!session) return <Auth />;
 
   return <App user={session.user} onSignOut={() => supabase.auth.signOut()} />;
