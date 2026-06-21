@@ -43,6 +43,7 @@ export default function App({ user, onSignOut }) {
   const [loading, setLoading] = useState(true);
   const [selId, setSelId] = useState(null);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const [confirm, setConfirm] = useState(null);
@@ -61,27 +62,105 @@ export default function App({ user, onSignOut }) {
   useEffect(() => {
     (async () => {
       try {
+        // Settings still live in the per-user app_data blob.
         const { data: row, error } = await supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle();
         if (error) throw error;
-        if (row && row.data) { const p = row.data; setData({ customers: (p.customers || []).map(normC), settings: mergeSettings(p.settings) }); }
+        const settings = mergeSettings(row?.data?.settings);
+
+        // One-time migration: move any customers still embedded in the blob into
+        // the customers table (and relocate their attachment files), then strip
+        // them from the blob. Idempotent — safe to run on every load.
+        const legacy = row?.data?.customers;
+        if (Array.isArray(legacy) && legacy.length) {
+          await migrateLegacyCustomers(legacy.map(normC), settings);
+        }
+
+        const customers = await loadCustomers();
+        setData({ customers, settings });
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
+
+  // Fetch every customer the current user may see: their own + all public ones.
+  const loadCustomers = async () => {
+    const { data: rows, error } = await supabase.from("customers").select("id, owner_id, visibility, data, created_at");
+    if (error) throw error;
+    return (rows || []).map((r) => ({ ...normC(r.data || {}), id: r.id, ownerId: r.owner_id, visibility: r.visibility }));
+  };
+
+  const migrateLegacyCustomers = async (legacy, settings) => {
+    for (const c of legacy) {
+      // Move attachment files from <user_id>/<file_id> to <customer_id>/<file_id>.
+      for (const m of (c.attachments || [])) {
+        try {
+          const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(`${user.id}/${m.id}`);
+          if (!blob) continue;
+          await supabase.storage.from(ATT_BUCKET).upload(`${c.id}/${m.id}`, blob, { contentType: m.type, upsert: true });
+          await supabase.storage.from(ATT_BUCKET).remove([`${user.id}/${m.id}`]);
+        } catch (x) { /* best-effort */ }
+      }
+      const { ownerId, visibility, ...rest } = c;
+      await supabase.from("customers").upsert(
+        { id: c.id, owner_id: user.id, visibility: "private", data: rest, created_at: new Date(c.createdAt || Date.now()).toISOString() },
+        { onConflict: "id", ignoreDuplicates: true }
+      );
+    }
+    // Drop the migrated array from the blob; keep settings.
+    await supabase.from("app_data").upsert({ user_id: user.id, data: { settings } }, { onConflict: "user_id" });
+  };
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
-  const persist = async (next) => { setData(next); try { const { error } = await supabase.from("app_data").upsert({ user_id: user.id, data: next }, { onConflict: "user_id" }); if (error) throw error; if (saveOkTimer.current) clearTimeout(saveOkTimer.current); setSaveOk(true); saveOkTimer.current = setTimeout(() => setSaveOk(false), 2000); } catch (e) { ping("Save failed — export a backup"); } };
   const ping = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
-  const setSettings = (patch) => persist({ ...data, settings: { ...data.settings, ...patch } });
+  const flashSaved = () => { if (saveOkTimer.current) clearTimeout(saveOkTimer.current); setSaveOk(true); saveOkTimer.current = setTimeout(() => setSaveOk(false), 2000); };
+
+  // Strip the in-memory-only sharing fields before writing the Customer to jsonb.
+  const custData = ({ ownerId, visibility, ...rest }) => rest;
+
+  // Settings remain in the per-user app_data blob.
+  const setSettings = (patch) => {
+    const next = { ...data, settings: { ...data.settings, ...patch } };
+    setData(next);
+    (async () => { try { const { error } = await supabase.from("app_data").upsert({ user_id: user.id, data: { settings: next.settings } }, { onConflict: "user_id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+  };
   const settings = data.settings;
   const sel = data.customers.find((c) => c.id === selId) || null;
-  const updateCust = (id, patch) => persist({ ...data, customers: data.customers.map((c) => c.id === id ? { ...c, ...patch } : c) });
 
-  const addCustomer = () => { const c = newCustomer(); persist({ ...data, customers: [c, ...data.customers] }); setSelId(c.id); setSidebarOpen(false); };
+  // Every customer-content mutation goes through here: optimistic state update +
+  // an UPDATE of that one row's data. (owner_id / visibility are never sent here
+  // so the guard trigger only ever fires for the explicit visibility toggle.)
+  const updateCust = (id, patch) => {
+    const next = { ...data, customers: data.customers.map((c) => c.id === id ? { ...c, ...patch } : c) };
+    setData(next);
+    const cust = next.customers.find((c) => c.id === id);
+    (async () => { try { const { error } = await supabase.from("customers").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+  };
+
+  const isOwner = (c) => c && c.ownerId === user.id;
+  const canDelete = (c) => c && (isOwner(c) || (c.visibility === "public" && Date.now() - (c.createdAt || 0) > 30 * 24 * 60 * 60 * 1000));
+
+  const setVisibility = (id, visibility) => {
+    setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === id ? { ...c, visibility } : c) }));
+    (async () => { try { const { error } = await supabase.from("customers").update({ visibility }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't change sharing"); } })();
+  };
+
+  const addCustomer = () => {
+    const c = { ...newCustomer(), ownerId: user.id, visibility: "private" };
+    setData((prev) => ({ ...prev, customers: [c, ...prev.customers] }));
+    setSelId(c.id); setSidebarOpen(false);
+    (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "private", data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+  };
   const pickCustomer = (id) => { setSelId(id); setSidebarOpen(false); };
-  const delCustomer = (id) => { persist({ ...data, customers: data.customers.filter((c) => c.id !== id) }); if (selId === id) setSelId(null); setConfirm(null); };
+  const delCustomer = async (id) => {
+    const cust = data.customers.find((c) => c.id === id);
+    if (cust) { for (const m of (cust.attachments || [])) { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(id, m.id)]); } catch (x) { } } }
+    setData((prev) => ({ ...prev, customers: prev.customers.filter((c) => c.id !== id) }));
+    if (selId === id) setSelId(null);
+    setConfirm(null);
+    try { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
+  };
   const addArea = () => { const a = newArea(); updateCust(sel.id, { categories: [...sel.categories, a] }); setFocusArea(a.id); };
   const updArea = (aid, patch) => updateCust(sel.id, { categories: sel.categories.map((a) => a.id === aid ? { ...a, ...patch } : a) });
   const delArea = (aid) => updateCust(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
@@ -89,10 +168,10 @@ export default function App({ user, onSignOut }) {
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
 
-  const attPath = (id) => `${user.id}/${id}`;
-  const addAttachment = async (e) => { const f = e.target.files?.[0]; if (!f) return; const id = uid(); try { const { error } = await supabase.storage.from(ATT_BUCKET).upload(attPath(id), f, { contentType: f.type, upsert: true }); if (error) throw error; updateCust(sel.id, { attachments: [...(sel.attachments || []), { id, name: f.name, type: f.type, size: f.size }] }); ping("Attachment added"); } catch (x) { ping("Upload failed — file may be too large"); } e.target.value = ""; };
-  const openAttachment = async (m) => { try { const { data: blob, error } = await supabase.storage.from(ATT_BUCKET).download(attPath(m.id)); if (error) throw error; const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = m.name; a.click(); URL.revokeObjectURL(u); } catch (x) { ping("Could not load attachment"); } };
-  const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(m.id)]); } catch (x) { } updateCust(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
+  const attPath = (custId, fileId) => `${custId}/${fileId}`;
+  const addAttachment = async (e) => { const f = e.target.files?.[0]; if (!f) return; const id = uid(); try { const { error } = await supabase.storage.from(ATT_BUCKET).upload(attPath(sel.id, id), f, { contentType: f.type, upsert: true }); if (error) throw error; updateCust(sel.id, { attachments: [...(sel.attachments || []), { id, name: f.name, type: f.type, size: f.size }] }); ping("Attachment added"); } catch (x) { ping("Upload failed — file may be too large"); } e.target.value = ""; };
+  const openAttachment = async (m) => { try { const { data: blob, error } = await supabase.storage.from(ATT_BUCKET).download(attPath(sel.id, m.id)); if (error) throw error; const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = m.name; a.click(); URL.revokeObjectURL(u); } catch (x) { ping("Could not load attachment"); } };
+  const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(sel.id, m.id)]); } catch (x) { } updateCust(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
 
   const startVersionName = () => { setVersionName(`Version ${(sel.versions?.length || 0) + 1}`); setNamingVersion(true); };
   const confirmVersion = () => { const label = versionName.trim() || `Version ${(sel.versions?.length || 0) + 1}`; updateCust(sel.id, { versions: [{ id: uid(), label, savedAt: Date.now(), snapshot: JSON.parse(JSON.stringify(sel.categories)) }, ...(sel.versions || [])] }); setNamingVersion(false); setVersionName(""); ping("Version saved"); };
@@ -106,19 +185,48 @@ export default function App({ user, onSignOut }) {
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
-  const exportBackup = async () => { const attachments = {}; for (const c of data.customers) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } } dl(new Blob([JSON.stringify({ ...data, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`); };
-  const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try { const p = JSON.parse(fr.result); if (p.attachments) for (const [id, val] of Object.entries(p.attachments)) { try { await supabase.storage.from(ATT_BUCKET).upload(attPath(id), dataURLToBlob(val), { upsert: true }); } catch (x) { } } persist({ customers: (p.customers || []).map(normC), settings: mergeSettings(p.settings) }); ping("Backup restored"); } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
+  const exportBackup = async () => { const attachments = {}; for (const c of data.customers) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } } dl(new Blob([JSON.stringify({ ...data, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`); };
+  const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
+    const p = JSON.parse(fr.result);
+    // Restore each customer as a new owned, private row (with a fresh id so it
+    // can't collide with an existing public customer), then upload its files.
+    const restored = [];
+    for (const raw of (p.customers || [])) {
+      const c = { ...normC(raw), id: uid(), ownerId: user.id, visibility: "private" };
+      const idMap = {};
+      c.attachments = (c.attachments || []).map((m) => { const nid = uid(); idMap[m.id] = nid; return { ...m, id: nid }; });
+      try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "private", data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
+      for (const m of c.attachments) { const val = p.attachments?.[Object.keys(idMap).find((k) => idMap[k] === m.id)]; if (!val) continue; try { await supabase.storage.from(ATT_BUCKET).upload(attPath(c.id, m.id), dataURLToBlob(val), { upsert: true }); } catch (x) { } }
+      restored.push(c);
+    }
+    if (p.settings) setSettings(mergeSettings(p.settings));
+    setData((prev) => ({ ...prev, customers: [...restored, ...prev.customers] }));
+    ping("Backup restored");
+  } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
   let totalSqft = 0, flooringPrice = 0, groutCost = 0, mortarCost = 0; const gAgg = {}, mAgg = {};
   sel?.categories.forEach((a) => a.products.forEach((p) => { if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; flooringPrice += sf * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", unit: G.unit, exact: 0 }; gAgg[k].exact += G.exact; } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, unit: M.unit, exact: 0 }; mAgg[k].exact += M.exact; } }));
   const gList = Object.values(gAgg).map((g) => ({ ...g, order: Math.ceil(g.exact) }));
   const mList = Object.values(mAgg).map((m) => ({ ...m, order: Math.ceil(m.exact) }));
   const hasMat = gList.length || mList.length; const grandTotal = flooringPrice + groutCost + mortarCost;
+  const sortCustomers = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : (b.createdAt || 0) - (a.createdAt || 0));
   const filtered = data.customers.filter((c) => { const q = search.toLowerCase(); return !q || [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)); });
+  const mineList = sortCustomers(filtered.filter((c) => c.ownerId === user.id));
+  const sharedList = sortCustomers(filtered.filter((c) => c.ownerId !== user.id));
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "text-xs font-medium text-slate-500 mb-1 block";
+
+  const renderCustItem = (c) => (
+    <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2 ${selId === c.id ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"}`}>
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${selId === c.id ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 rounded px-1 py-px shrink-0">Public</span>}</div>
+        <div className="text-xs text-slate-400 truncate">{c.categories.length} area{c.categories.length !== 1 ? "s" : ""}{c.address ? ` · ${c.address}` : ""}</div>
+      </div>
+    </button>
+  );
 
   return (
     <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
@@ -141,18 +249,24 @@ export default function App({ user, onSignOut }) {
             <div className="flex-1"><div className="font-semibold tracking-tight">FloorTrack</div><div className="text-xs text-slate-400 -mt-0.5">Selection manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
-          <div className="p-2.5">
+          <div className="p-2.5 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" className={inp + " pl-8"} /></div>
-            <button onClick={addCustomer} className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 transition"><Plus size={16} /> New Customer</button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 shrink-0">Sort</span>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={inp + " py-1"}>
+                <option value="newest">Newest first</option>
+                <option value="name">Alphabetical</option>
+              </select>
+            </div>
+            <button onClick={addCustomer} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 transition"><Plus size={16} /> New Customer</button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {filtered.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">{search ? "No matches" : "No customers yet"}</div>}
-            {filtered.map((c) => (
-              <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2 ${selId === c.id ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${selId === c.id ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
-                <div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{c.name || "Untitled"}</div><div className="text-xs text-slate-400 truncate">{c.categories.length} area{c.categories.length !== 1 ? "s" : ""}{c.address ? ` · ${c.address}` : ""}</div></div>
-              </button>
-            ))}
+            {mineList.map((c) => renderCustItem(c))}
+            {sharedList.length > 0 && (
+              <div className="mt-3 mb-1 px-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Shared with everyone</div>
+            )}
+            {sharedList.map((c) => renderCustItem(c))}
           </div>
           <div className="p-2.5 border-t border-slate-100 space-y-2">
             <div className="flex gap-2">
@@ -186,6 +300,13 @@ export default function App({ user, onSignOut }) {
                   {saveOk && <span className="text-xs text-indigo-600 font-medium whitespace-nowrap">Saved ✓</span>}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {isOwner(sel) ? (
+                    <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs" title="Who can see this customer">
+                      {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 ${sel.visibility === v ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
+                    </div>
+                  ) : (
+                    <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-md px-2.5 py-1.5">Shared</span>
+                  )}
                   {namingVersion ? (
                     <div className="flex items-center gap-1">
                       <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} className="text-sm rounded-md border border-slate-200 px-2 py-1.5 w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -198,7 +319,7 @@ export default function App({ user, onSignOut }) {
                   <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><History size={15} /> {(sel.versions?.length || 0)}</button>
                   <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><FileText size={15} /> CSV</button>
                   <button onClick={() => window.print()} className="flex items-center gap-1.5 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5"><Printer size={15} /> Print</button>
-                  <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>
+                  {canDelete(sel) && <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>}
                 </div>
               </div>
 
@@ -430,7 +551,7 @@ export default function App({ user, onSignOut }) {
 
       {confirm && (
         <Modal onClose={() => setConfirm(null)} title="Delete customer?">
-          <p className="text-sm text-slate-500 mb-4">This permanently removes the customer and all their selections, versions, and attachments. Consider a backup export first.</p>
+          <p className="text-sm text-slate-500 mb-4">This permanently removes the customer and all their selections, versions, and attachments{confirm && !isOwner(data.customers.find((c) => c.id === confirm.id)) ? " — including for everyone it's shared with" : ""}. Consider a backup export first.</p>
           <div className="flex justify-end gap-2"><button onClick={() => setConfirm(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button><button onClick={() => delCustomer(confirm.id)} className="text-sm rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700">Delete</button></div>
         </Modal>
       )}

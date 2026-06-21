@@ -45,3 +45,79 @@ drop trigger if exists app_data_updated_at on public.app_data;
 create trigger app_data_updated_at
   before update on public.app_data
   for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- Customers
+--
+-- Each customer is its own row so that customers can be shared. A customer is
+-- either "private" (only the owner can see it) or "public" (every signed-in
+-- user can see AND edit it). app_data now holds only per-user settings; the
+-- customers array was migrated out of that blob into this table.
+--
+-- `id` is text (not uuid) because customer ids are generated client-side by the
+-- app's uid() helper, and the migration reuses those existing ids unchanged.
+-- The whole Customer object lives in `data` jsonb, exactly as before.
+-- ---------------------------------------------------------------------------
+create table if not exists public.customers (
+  id         text primary key,
+  owner_id   uuid not null references auth.users (id) on delete cascade,
+  visibility text not null default 'private' check (visibility in ('private', 'public')),
+  data       jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists customers_owner_id_idx on public.customers (owner_id);
+create index if not exists customers_visibility_idx on public.customers (visibility);
+
+alter table public.customers enable row level security;
+
+-- Read: your own customers, plus every public one.
+drop policy if exists "customer select" on public.customers;
+create policy "customer select" on public.customers
+  for select using (owner_id = auth.uid() or visibility = 'public');
+
+-- Insert: you may only create customers you own.
+drop policy if exists "customer insert" on public.customers;
+create policy "customer insert" on public.customers
+  for insert with check (owner_id = auth.uid());
+
+-- Update: owners always; anyone may edit a public customer's content. The guard
+-- trigger below stops non-owners from changing owner_id or visibility.
+drop policy if exists "customer update" on public.customers;
+create policy "customer update" on public.customers
+  for update using (owner_id = auth.uid() or visibility = 'public')
+  with check (owner_id = auth.uid() or visibility = 'public');
+
+-- Delete: the owner anytime; anyone else once a public customer is 30+ days old
+-- (counted from creation).
+drop policy if exists "customer delete" on public.customers;
+create policy "customer delete" on public.customers
+  for delete using (
+    owner_id = auth.uid()
+    or (visibility = 'public' and created_at < now() - interval '30 days')
+  );
+
+-- Only the owner may reassign ownership or flip visibility. Everyone else can
+-- still edit the data of a public customer (handled by the update policy).
+create or replace function public.customers_guard()
+returns trigger language plpgsql as $$
+begin
+  if (new.owner_id is distinct from old.owner_id
+      or new.visibility is distinct from old.visibility)
+     and auth.uid() <> old.owner_id then
+    raise exception 'Only the owner can change ownership or visibility';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists customers_guard on public.customers;
+create trigger customers_guard
+  before update on public.customers
+  for each row execute function public.customers_guard();
+
+drop trigger if exists customers_updated_at on public.customers;
+create trigger customers_updated_at
+  before update on public.customers
+  for each row execute function public.set_updated_at();

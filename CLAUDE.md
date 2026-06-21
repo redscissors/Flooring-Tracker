@@ -43,15 +43,21 @@ src/
   App.jsx           # the FloorTrack application (props: { user, onSignOut })
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
-  schema.sql        # run once: app_data table + RLS
+  schema.sql        # run once: app_data + customers tables + RLS
   storage.sql       # run once: attachments bucket + storage policies
 netlify.toml        # build config for Netlify
 ```
 
-## Data model (stored in `app_data.data` jsonb)
+## Data model
+
+Customers live in their own `customers` table (one row each) so they can be
+shared; per-user `settings` still live in the `app_data.data` jsonb blob.
 
 ```
-{ customers: Customer[], settings: Settings }
+app_data.data : { settings: Settings }          // per user
+
+customers row : { id (text), owner_id (uuid), visibility:"private|public",
+                  data: Customer, created_at, updated_at }
 
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], versions: Version[], attachments: Att[] }
@@ -64,6 +70,16 @@ Version  { id, label, savedAt, snapshot: Area[] }
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...} }
 ```
+
+**Sharing.** `visibility` is `private` (owner only) or `public` (every signed-in
+user can see AND edit it — last-write-wins). RLS enforces this: read = own or
+public; edit = own or public; delete = owner anytime, or anyone once a *public*
+customer is 30+ days old (from `created_at`); a trigger blocks non-owners from
+changing `owner_id`/`visibility`. In memory each customer carries `ownerId` +
+`visibility` (stripped out by `custData()` before writing the jsonb). Attachment
+files are stored at `<customer_id>/<file_id>` so storage policies can follow the
+same rules. Existing data is migrated out of the old `app_data` blob on first
+load (`migrateLegacyCustomers`).
 
 ## Material math (tile only)
 
@@ -81,8 +97,12 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
 
 ## Conventions
 
-- Every mutation goes through `persist(next)` → `setState` + upsert to Supabase.
-  Keep that single write path; don't write to Supabase ad hoc.
+- Customer mutations go through `updateCust(id, patch)` → optimistic `setData` +
+  an `UPDATE` of that one row's `data`. Sharing changes use `setVisibility`,
+  create/delete use `addCustomer`/`delCustomer`, and settings use `setSettings`
+  (writes the `app_data` blob). Keep these write paths; don't write ad hoc.
+  `updateCust` never sends `owner_id`/`visibility`, so the guard trigger only
+  fires for the explicit visibility toggle.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
 - The theme (monochrome, inspired by matthaeusjandl.com) works by **overriding
