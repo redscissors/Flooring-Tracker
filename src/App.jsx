@@ -215,7 +215,7 @@ export default function App({ user, onSignOut }) {
   const sharedList = sortCustomers(filtered.filter((c) => c.ownerId !== user.id));
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
-  const inp = "w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
+  const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "text-xs font-medium text-slate-500 mb-1 block";
 
   const renderCustItem = (c) => (
@@ -310,7 +310,7 @@ export default function App({ user, onSignOut }) {
                   <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
                     {isOwner(sel) ? (
                       <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs" title="Who can see this customer">
-                        {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 ${sel.visibility === v ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
+                        {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 ${sel.visibility === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
                       </div>
                     ) : (
                       <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-md px-2.5 py-1.5">Shared</span>
@@ -367,17 +367,18 @@ export default function App({ user, onSignOut }) {
                         const thickKnown = THICK.some((t) => t.v === String(p.thickness));
                         return (
                           <div key={p.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-                            <div className="grid grid-cols-12 gap-1.5 items-center">
+                            <div className="flex flex-wrap gap-1.5 items-center">
                               {p.type === "tile" ? (<>
-                                <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className={inp + " col-span-2"} placeholder="Length" title="Length (in)" />
-                                <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className={inp + " col-span-2"} placeholder="Width" title="Width (in)" />
-                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className={inp + " col-span-2"} title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className={inp + " col-span-4"} placeholder="Brand / color" />
+                                <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className={inp + " !w-12 shrink-0 px-1.5"} placeholder="L" title="Length (in)" />
+                                <span className="text-slate-300 text-sm shrink-0">×</span>
+                                <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className={inp + " !w-12 shrink-0 px-1.5"} placeholder="W" title="Width (in)" />
+                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className={inp + " !w-20 shrink-0"} title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
+                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className={inp + " flex-1 min-w-[8rem]"} placeholder="Brand / color" />
                               </>) : (<>
-                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className={inp + " col-span-3"} placeholder="Size" />
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className={inp + " col-span-7"} placeholder="Brand / color" />
+                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className={inp + " !w-28 shrink-0"} placeholder="Size" />
+                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className={inp + " flex-1 min-w-[8rem]"} placeholder="Brand / color" />
                               </>)}
-                              <div className="col-span-2 relative"><span className="absolute left-2 top-1.5 text-slate-400 text-sm">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className={inp + " pl-5"} placeholder="/sqft" title="Price per sq ft" /></div>
+                              <div className="relative w-20 shrink-0"><span className="absolute left-2 top-1.5 text-slate-400 text-sm">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className={inp + " pl-5"} placeholder="/sqft" title="Price per sq ft" /></div>
                             </div>
 
                             <div className="flex flex-wrap gap-1 mt-1.5">
@@ -398,7 +399,7 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                   <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                                     <input type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} className={inp + " !w-14"} placeholder="0" />
-                                    <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 py-1.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
+                                    <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 py-1.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                                     {p.qtyType === "sqft" && num(p.priceSqft) === 0 && <span className="text-xs text-slate-500 whitespace-nowrap">{sf} sf</span>}
                                   </div>
                                 </div>
@@ -407,13 +408,13 @@ export default function App({ user, onSignOut }) {
                                   <div className="flex items-center gap-2">
                                     <button onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: !p.grout.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.grout.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.grout.checked && <Check size={12} />}</button>
                                     <span className="text-sm font-medium flex-1">Grout</span>
-                                    {p.grout.checked && <span className="flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 bg-white" /><span className="font-semibold">{G ? G.unit : settings.grouts[p.grout.product]?.unit}</span></span>}
+                                    {p.grout.checked && <span className="flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{G ? G.unit : settings.grouts[p.grout.product]?.unit}</span></span>}
                                   </div>
                                   {p.grout.checked && (
                                     <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
-                                      <select value={p.grout.product} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, product: e.target.value } })} className={inp + " flex-1 min-w-[7rem]"}>{GROUTS.map((g) => <option key={g}>{g}</option>)}</select>
+                                      <select value={p.grout.product} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, product: e.target.value } })} className={inp + " flex-[2] min-w-[7rem]"}>{GROUTS.map((g) => <option key={g}>{g}</option>)}</select>
                                       <select value={p.grout.color} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, color: e.target.value } })} className={inp + " flex-1 min-w-[6rem]"}><option value="">Color…</option>{COLORS.map((c) => <option key={c}>{c}</option>)}</select>
-                                      <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">{JOINTS.map((j) => <button key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-2 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
+                                      <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
                                       {!G && <div className="w-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
                                     </div>
                                   )}
@@ -423,7 +424,7 @@ export default function App({ user, onSignOut }) {
                                   <div className="flex items-center gap-2">
                                     <button onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: !p.mortar.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.mortar.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.mortar.checked && <Check size={12} />}</button>
                                     <span className="text-sm font-medium flex-1">Mortar</span>
-                                    {p.mortar.checked && <span className="flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 bg-white" /><span className="font-semibold">{M ? M.unit : settings.mortars[p.mortar.product]?.unit}</span></span>}
+                                    {p.mortar.checked && <span className="flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{M ? M.unit : settings.mortars[p.mortar.product]?.unit}</span></span>}
                                   </div>
                                   {p.mortar.checked && (
                                     <div className="mt-1.5">
@@ -435,7 +436,7 @@ export default function App({ user, onSignOut }) {
                             ) : (
                               <div className="flex items-center gap-2 mt-1.5">
                                 <input type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} className={inp + " !w-16 shrink-0"} placeholder="0" />
-                                <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 py-1.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
+                                <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 py-1.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                                 {p.qtyType === "sqft" && <span className="text-xs text-slate-500 whitespace-nowrap">{sf} sq ft{num(p.priceSqft) > 0 && <span className="text-slate-700 font-medium"> · {money(line)}</span>}</span>}
                               </div>
                             )}
