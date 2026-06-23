@@ -62,13 +62,18 @@ create table if not exists public.customers (
   id         text primary key,
   owner_id   uuid not null references auth.users (id) on delete cascade,
   visibility text not null default 'private' check (visibility in ('private', 'public')),
+  archived   boolean not null default false,
   data       jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+-- For installs created before the archive feature.
+alter table public.customers add column if not exists archived boolean not null default false;
+
 create index if not exists customers_owner_id_idx on public.customers (owner_id);
 create index if not exists customers_visibility_idx on public.customers (visibility);
+create index if not exists customers_archived_idx on public.customers (archived);
 
 alter table public.customers enable row level security;
 
@@ -100,6 +105,9 @@ create policy "customer delete" on public.customers
 
 -- Only the owner may reassign ownership or flip visibility. Everyone else can
 -- still edit the data of a public customer (handled by the update policy).
+-- NOTE: `archived` is deliberately NOT guarded here. Archiving must be open to
+-- anyone who can edit a public job (not just the owner), so it rides the update
+-- policy like ordinary content edits. See docs/adr/0001-archived-as-ungated-column.md.
 create or replace function public.customers_guard()
 returns trigger language plpgsql as $$
 begin

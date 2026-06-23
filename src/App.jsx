@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
@@ -44,6 +44,7 @@ export default function App({ user, onSignOut }) {
   const [selId, setSelId] = useState(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [showArchive, setShowArchive] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const [confirm, setConfirm] = useState(null);
@@ -83,11 +84,40 @@ export default function App({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
-  // Fetch every customer the current user may see: their own + all public ones.
+  // Fetch every customer the current user may see (own + public), but LIGHT:
+  // only the fields the list draws/searches/sorts, projected out of the jsonb
+  // server-side. The heavy detail (categories/products/versions/attachments)
+  // stays on the server until a customer is opened (see loadDetail).
   const loadCustomers = async () => {
-    const { data: rows, error } = await supabase.from("customers").select("id, owner_id, visibility, data, created_at");
+    const { data: rows, error } = await supabase
+      .from("customers")
+      .select("id, owner_id, visibility, archived, created_at, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email");
     if (error) throw error;
-    return (rows || []).map((r) => ({ ...normC(r.data || {}), id: r.id, ownerId: r.owner_id, visibility: r.visibility }));
+    return (rows || []).map((r) => ({
+      id: r.id, ownerId: r.owner_id, visibility: r.visibility, archived: !!r.archived,
+      createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+      name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
+      _full: false,
+    }));
+  };
+
+  // Lazy-load one customer's full record on open, merging it into the light row.
+  // The column-backed fields (ownerId/visibility/archived) are re-applied over
+  // the jsonb so they always win.
+  const loadDetail = async (id) => {
+    const existing = data.customers.find((c) => c.id === id);
+    if (!existing || existing._full) return;
+    try {
+      const { data: row, error } = await supabase.from("customers").select("data").eq("id", id).maybeSingle();
+      if (error) throw error;
+      const full = normC(row?.data || {});
+      setData((prev) => ({
+        ...prev,
+        customers: prev.customers.map((c) => c.id === id
+          ? { ...c, ...full, id: c.id, ownerId: c.ownerId, visibility: c.visibility, archived: c.archived, createdAt: c.createdAt, _full: true }
+          : c),
+      }));
+    } catch (e) { ping("Could not open customer — check connection"); }
   };
 
   const migrateLegacyCustomers = async (legacy, settings) => {
@@ -116,8 +146,9 @@ export default function App({ user, onSignOut }) {
   const ping = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const flashSaved = () => { if (saveOkTimer.current) clearTimeout(saveOkTimer.current); setSaveOk(true); saveOkTimer.current = setTimeout(() => setSaveOk(false), 2000); };
 
-  // Strip the in-memory-only sharing fields before writing the Customer to jsonb.
-  const custData = ({ ownerId, visibility, ...rest }) => rest;
+  // Strip the column-backed and in-memory-only fields before writing to jsonb.
+  // (ownerId/visibility/archived are their own columns; _full is load state.)
+  const custData = ({ ownerId, visibility, archived, _full, ...rest }) => rest;
 
   // Settings remain in the per-user app_data blob.
   const setSettings = (patch) => {
@@ -139,6 +170,7 @@ export default function App({ user, onSignOut }) {
   };
 
   const isOwner = (c) => c && c.ownerId === user.id;
+  const canEdit = (c) => c && (isOwner(c) || c.visibility === "public");
   const canDelete = (c) => c && (isOwner(c) || (c.visibility === "public" && Date.now() - (c.createdAt || 0) > 30 * 24 * 60 * 60 * 1000));
 
   const setVisibility = (id, visibility) => {
@@ -146,13 +178,21 @@ export default function App({ user, onSignOut }) {
     (async () => { try { const { error } = await supabase.from("customers").update({ visibility }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't change sharing"); } })();
   };
 
+  // Narrow write: touches only the archived column, never the data blob, so it
+  // can't clobber a concurrent editor's changes. No owner check — anyone who can
+  // edit a public job may archive/restore it (the guard trigger lets this pass).
+  const setArchived = (id, archived) => {
+    setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === id ? { ...c, archived } : c) }));
+    (async () => { try { const { error } = await supabase.from("customers").update({ archived }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't change archive status"); } })();
+  };
+
   const addCustomer = () => {
-    const c = { ...newCustomer(), ownerId: user.id, visibility: "private" };
+    const c = { ...newCustomer(), ownerId: user.id, visibility: "private", archived: false, _full: true };
     setData((prev) => ({ ...prev, customers: [c, ...prev.customers] }));
     setSelId(c.id); setSidebarOpen(false);
     (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "private", data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
-  const pickCustomer = (id) => { setSelId(id); setSidebarOpen(false); };
+  const pickCustomer = (id) => { setSelId(id); setSidebarOpen(false); loadDetail(id); };
   const delCustomer = async (id) => {
     const cust = data.customers.find((c) => c.id === id);
     if (cust) { for (const m of (cust.attachments || [])) { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(id, m.id)]); } catch (x) { } } }
@@ -185,14 +225,25 @@ export default function App({ user, onSignOut }) {
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
-  const exportBackup = async () => { const attachments = {}; for (const c of data.customers) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } } dl(new Blob([JSON.stringify({ ...data, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`); };
+  const exportBackup = async () => {
+    // The in-memory list is light, so pull every full record before backing up.
+    let customers;
+    try {
+      const { data: rows, error } = await supabase.from("customers").select("id, owner_id, visibility, archived, data, created_at");
+      if (error) throw error;
+      customers = (rows || []).map((r) => ({ ...normC(r.data || {}), id: r.id, ownerId: r.owner_id, visibility: r.visibility, archived: !!r.archived }));
+    } catch (e) { ping("Backup failed — check connection"); return; }
+    const attachments = {};
+    for (const c of customers) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } }
+    dl(new Blob([JSON.stringify({ customers, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`);
+  };
   const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
     const p = JSON.parse(fr.result);
     // Restore each customer as a new owned, private row (with a fresh id so it
     // can't collide with an existing public customer), then upload its files.
     const restored = [];
     for (const raw of (p.customers || [])) {
-      const c = { ...normC(raw), id: uid(), ownerId: user.id, visibility: "private" };
+      const c = { ...normC(raw), id: uid(), ownerId: user.id, visibility: "private", archived: false, _full: true };
       const idMap = {};
       c.attachments = (c.attachments || []).map((m) => { const nid = uid(); idMap[m.id] = nid; return { ...m, id: nid }; });
       try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "private", data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
@@ -205,14 +256,22 @@ export default function App({ user, onSignOut }) {
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
   let totalSqft = 0, flooringPrice = 0, groutCost = 0, mortarCost = 0; const gAgg = {}, mAgg = {};
-  sel?.categories.forEach((a) => a.products.forEach((p) => { if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; flooringPrice += sf * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", unit: G.unit, exact: 0 }; gAgg[k].exact += G.exact; } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, unit: M.unit, exact: 0 }; mAgg[k].exact += M.exact; } }));
+  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; flooringPrice += sf * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", unit: G.unit, exact: 0 }; gAgg[k].exact += G.exact; } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, unit: M.unit, exact: 0 }; mAgg[k].exact += M.exact; } }));
   const gList = Object.values(gAgg).map((g) => ({ ...g, order: Math.ceil(g.exact) }));
   const mList = Object.values(mAgg).map((m) => ({ ...m, order: Math.ceil(m.exact) }));
   const hasMat = gList.length || mList.length; const grandTotal = flooringPrice + groutCost + mortarCost;
   const sortCustomers = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : (b.createdAt || 0) - (a.createdAt || 0));
-  const filtered = data.customers.filter((c) => { const q = search.toLowerCase(); return !q || [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)); });
+  // When searching, span both active and archived (archived rows are badged in
+  // the list). With no search, the active list hides archived jobs and the
+  // archive view shows only them.
+  const q = search.trim().toLowerCase();
+  const filtered = data.customers.filter((c) => {
+    if (q) return [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q));
+    return showArchive ? c.archived : !c.archived;
+  });
   const mineList = sortCustomers(filtered.filter((c) => c.ownerId === user.id));
   const sharedList = sortCustomers(filtered.filter((c) => c.ownerId !== user.id));
+  const archivedCount = data.customers.filter((c) => c.archived).length;
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
@@ -222,8 +281,8 @@ export default function App({ user, onSignOut }) {
     <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2 ${selId === c.id ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${selId === c.id ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 rounded px-1 py-px shrink-0">Public</span>}</div>
-        <div className="text-xs text-slate-400 truncate">{c.categories.length} area{c.categories.length !== 1 ? "s" : ""}{c.address ? ` · ${c.address}` : ""}</div>
+        <div className="text-sm font-medium truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 rounded px-1 py-px shrink-0">Public</span>}{c.archived && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-200 rounded px-1 py-px shrink-0">Archived</span>}</div>
+        {c.address && <div className="text-xs text-slate-400 truncate">{c.address}</div>}
       </div>
     </button>
   );
@@ -257,6 +316,11 @@ export default function App({ user, onSignOut }) {
                 <option value="newest">Newest first</option>
                 <option value="name">Alphabetical</option>
               </select>
+            </div>
+            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+              {[["Active", false], ["Archived", true]].map(([label, v]) => (
+                <button key={label} onClick={() => setShowArchive(v)} className={`flex-1 px-2.5 py-1.5 ${showArchive === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}{v && archivedCount ? ` (${archivedCount})` : ""}</button>
+              ))}
             </div>
             <button onClick={addCustomer} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 transition"><Plus size={16} /> New Customer</button>
           </div>
@@ -292,6 +356,8 @@ export default function App({ user, onSignOut }) {
               <h2 className="text-lg font-semibold">Select or create a customer</h2>
               <p className="text-sm text-slate-400 mt-1 max-w-xs">Tap the menu to pick a customer, or add a new one.</p>
             </div>
+          ) : !sel._full ? (
+            <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <div className="max-w-4xl mx-auto p-3 md:p-5">
               <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 mb-4">
@@ -325,6 +391,7 @@ export default function App({ user, onSignOut }) {
                       <button onClick={startVersionName} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><Save size={15} /> Version</button>
                     )}
                     <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><History size={15} /> {(sel.versions?.length || 0)}</button>
+                    {canEdit(sel) && <button onClick={() => setArchived(sel.id, !sel.archived)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5" title={sel.archived ? "Restore to active list" : "Archive this job"}>{sel.archived ? <><ArchiveRestore size={15} /> Restore</> : <><Archive size={15} /> Archive</>}</button>}
                     <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><FileText size={15} /> CSV</button>
                     <button onClick={() => window.print()} className="flex items-center gap-1.5 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5"><Printer size={15} /> Print</button>
                     {canDelete(sel) && <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>}
@@ -481,7 +548,7 @@ export default function App({ user, onSignOut }) {
 
       {/* PRINT VIEW */}
       <div className="hidden print:block text-black p-2">
-        {sel && (
+        {sel && sel._full && (
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-3 mb-4">
               <div><div className="text-2xl font-bold">{sel.name}</div><div className="text-sm">{sel.address}</div><div className="text-sm">{[sel.phone, sel.email].filter(Boolean).join(" · ")}</div></div>
