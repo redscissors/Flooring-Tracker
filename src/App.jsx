@@ -50,6 +50,7 @@ export default function App({ user, onSignOut }) {
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState("");
   const [focusArea, setFocusArea] = useState(null);
+  const [focusName, setFocusName] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
@@ -58,6 +59,11 @@ export default function App({ user, onSignOut }) {
   const fileRef = useRef(null);
   const attRef = useRef(null);
   const areaRefs = useRef({});
+  const nameRef = useRef(null);
+  const addressRef = useRef(null);
+  const phoneRef = useRef(null);
+  const emailRef = useRef(null);
+  const addAreaRef = useRef(null);
   const saveOkTimer = useRef(null);
 
   useEffect(() => {
@@ -141,6 +147,7 @@ export default function App({ user, onSignOut }) {
     await supabase.from("app_data").upsert({ user_id: user.id, data: { settings } }, { onConflict: "user_id" });
   };
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
+  useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
   const ping = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
@@ -189,7 +196,7 @@ export default function App({ user, onSignOut }) {
   const addCustomer = () => {
     const c = { ...newCustomer(), ownerId: user.id, visibility: "private", archived: false, _full: true };
     setData((prev) => ({ ...prev, customers: [c, ...prev.customers] }));
-    setSelId(c.id); setSidebarOpen(false);
+    setSelId(c.id); setSidebarOpen(false); setFocusName(true);
     (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "private", data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
   const pickCustomer = (id) => { setSelId(id); setSidebarOpen(false); loadDetail(id); };
@@ -202,6 +209,7 @@ export default function App({ user, onSignOut }) {
     try { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
   };
   const addArea = () => { const a = newArea(); updateCust(sel.id, { categories: [...sel.categories, a] }); setFocusArea(a.id); };
+  const tabTo = (ref) => (e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); ref.current?.focus(); ref.current?.select?.(); } };
   const updArea = (aid, patch) => updateCust(sel.id, { categories: sel.categories.map((a) => a.id === aid ? { ...a, ...patch } : a) });
   const delArea = (aid) => updateCust(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: [...a.products, newProduct()] }); };
@@ -364,13 +372,13 @@ export default function App({ user, onSignOut }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <input value={sel.name} onChange={(e) => updateCust(sel.id, { name: e.target.value })} placeholder="Customer name" className="text-2xl md:text-3xl font-bold tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 flex-1" />
+                      <input ref={nameRef} onKeyDown={tabTo(addressRef)} value={sel.name} onChange={(e) => updateCust(sel.id, { name: e.target.value })} placeholder="Customer name" className={"text-2xl md:text-3xl font-bold tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 flex-1 rounded-sm transition" + (focusName ? " ring-2 ring-indigo-500 ring-offset-2 bg-indigo-50/50" : "")} />
                       {saveOk && <span className="text-xs text-indigo-600 font-medium whitespace-nowrap">Saved ✓</span>}
                     </div>
                     <div className="mt-2 flex flex-col sm:flex-row sm:flex-wrap gap-x-5 gap-y-1 text-sm text-slate-500">
-                      <span className="flex items-center gap-1.5 min-w-0 sm:flex-1 sm:min-w-[12rem]"><MapPin size={14} className="shrink-0 text-slate-400" /><input value={sel.address} onChange={(e) => updateCust(sel.id, { address: e.target.value })} placeholder="Address" className="bg-transparent focus:outline-none border-b border-transparent hover:border-slate-200 focus:border-indigo-500 min-w-0 flex-1" /></span>
-                      <span className="flex items-center gap-1.5"><Phone size={14} className="shrink-0 text-slate-400" /><input value={sel.phone} onChange={(e) => updateCust(sel.id, { phone: fmtPhone(e.target.value) })} placeholder="(216) 555-0192" className="bg-transparent focus:outline-none border-b border-transparent hover:border-slate-200 focus:border-indigo-500 w-36" /></span>
-                      <span className="flex items-center gap-1.5"><Mail size={14} className="shrink-0 text-slate-400" /><input value={sel.email} onChange={(e) => updateCust(sel.id, { email: e.target.value })} placeholder="Email" className="bg-transparent focus:outline-none border-b border-transparent hover:border-slate-200 focus:border-indigo-500 w-44" /></span>
+                      <span className="flex items-center gap-1.5 min-w-0 sm:flex-1 sm:min-w-[12rem]"><MapPin size={14} className="shrink-0 text-slate-400" /><input ref={addressRef} onKeyDown={tabTo(phoneRef)} value={sel.address} onChange={(e) => updateCust(sel.id, { address: e.target.value })} placeholder="Address" className="bg-transparent focus:outline-none border-b border-transparent hover:border-slate-200 focus:border-indigo-500 min-w-0 flex-1" /></span>
+                      <span className="flex items-center gap-1.5"><Phone size={14} className="shrink-0 text-slate-400" /><input ref={phoneRef} onKeyDown={tabTo(emailRef)} value={sel.phone} onChange={(e) => updateCust(sel.id, { phone: fmtPhone(e.target.value) })} placeholder="(216) 555-0192" className="bg-transparent focus:outline-none border-b border-transparent hover:border-slate-200 focus:border-indigo-500 w-36" /></span>
+                      <span className="flex items-center gap-1.5"><Mail size={14} className="shrink-0 text-slate-400" /><input ref={emailRef} onKeyDown={tabTo(addAreaRef)} value={sel.email} onChange={(e) => updateCust(sel.id, { email: e.target.value })} placeholder="Email" className="bg-transparent focus:outline-none border-b border-transparent hover:border-slate-200 focus:border-indigo-500 w-44" /></span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
@@ -411,7 +419,7 @@ export default function App({ user, onSignOut }) {
               <div className="flex items-center justify-between mb-2 gap-2">
                 <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Areas &amp; Selections</h3>
                 <div className="flex items-center gap-3">
-                  <button onClick={addArea} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"><Plus size={15} /> Add area</button>
+                  <button ref={addAreaRef} onClick={addArea} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"><Plus size={15} /> Add area</button>
                 </div>
               </div>
 
