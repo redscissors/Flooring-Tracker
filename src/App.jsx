@@ -377,9 +377,8 @@ export default function App({ user, onSignOut }) {
         {/* Main */}
         <main className="flex-1 overflow-y-auto">
           {!sel ? (
-            <div className="relative h-full flex flex-col items-center justify-center text-center px-6 overflow-hidden">
-              <div aria-hidden className="pointer-events-none absolute top-1/4 right-1/4 w-72 h-72 bg-[#5D7052]/10 blur-3xl" style={{ borderRadius: "60% 40% 30% 70% / 60% 30% 70% 40%" }} />
-              <div className="relative w-20 h-20 bg-indigo-100 flex items-center justify-center mb-5" style={{ borderRadius: "30% 70% 70% 30% / 30% 30% 70% 70%" }}><User size={30} className="text-indigo-500" /></div>
+            <div className="h-full flex flex-col items-center justify-center text-center px-6">
+              <div className="w-20 h-20 rounded-3xl bg-indigo-100 flex items-center justify-center mb-5"><User size={30} className="text-indigo-500" /></div>
               <h2 className="ft-display text-2xl font-bold">Select or create a customer</h2>
               <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Tap the menu to pick a customer, or add a new one.</p>
             </div>
@@ -387,7 +386,7 @@ export default function App({ user, onSignOut }) {
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <div className="max-w-4xl mx-auto p-3 md:p-5">
-              <div className="bg-white rounded-2xl rounded-tl-[2.5rem] border border-slate-200 p-4 md:p-5 mb-4 ft-lift">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 mb-4 ft-lift">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
