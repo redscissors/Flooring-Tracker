@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, groutExact, mortarExact, getGrout, getMortar } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, LATICRETE_COLORS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, groutExact, mortarExact, getGrout, getMortar } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -110,6 +110,40 @@ test("normalizeSettings attaches derived maps matching the flat seed numbers", (
   const flat = mergeSettings(undefined);
   assert.equal(s.grouts["PermaColor Select"].coverage, flat.grouts["PermaColor Select"].coverage);
   assert.equal(s.mortars["ProLite"].tier1, flat.mortars["ProLite"].tier1);
+});
+
+// --- Per-product grout colors ------------------------------------------------
+
+test("seedCatalog seeds Laticrete grouts with the Laticrete colors, leaves others empty", () => {
+  const cat = seedCatalog(mergeSettings(undefined));
+  const laticrete = cat.companies.find((c) => c.name === "Laticrete");
+  for (const g of laticrete.grouts) assert.deepEqual(g.colors, LATICRETE_COLORS);
+});
+
+test("resolveCatalog exposes each grout's colors by name", () => {
+  const { grouts } = resolveCatalog(seedCatalog(mergeSettings(undefined)));
+  assert.deepEqual(grouts["PermaColor Select"].colors, LATICRETE_COLORS);
+});
+
+test("colors are per product — a newly added grout starts with no colors", () => {
+  const cat = seedCatalog(mergeSettings(undefined));
+  const co = cat.companies.find((c) => c.name === "Laticrete");
+  const next = { companies: cat.companies.map((c) => c.id === co.id ? { ...c, grouts: [...c.grouts, { name: "TEC Power Grout", enabled: true, coverage: 100, unit: "bags", price: 0 }] } : c) };
+  const { grouts } = resolveCatalog(normalizeCatalog(next));
+  assert.deepEqual(grouts["TEC Power Grout"].colors, []);
+});
+
+test("normalizeCatalog backfills colors by name for a grout saved before colors existed", () => {
+  // A pre-colors catalog record: a Laticrete grout with no `colors` field.
+  const raw = { companies: [{ name: "Laticrete", enabled: true, grouts: [{ name: "PermaColor Select", enabled: true, coverage: 110, unit: "bags", price: 0 }], mortars: [] }] };
+  const { grouts } = resolveCatalog(normalizeCatalog(raw));
+  assert.deepEqual(grouts["PermaColor Select"].colors, LATICRETE_COLORS);
+});
+
+test("normalizeCatalog respects an explicitly empty color list (clearing sticks)", () => {
+  const raw = { companies: [{ name: "Laticrete", enabled: true, grouts: [{ name: "PermaColor Select", enabled: true, coverage: 110, unit: "bags", price: 0, colors: [] }], mortars: [] }] };
+  const { grouts } = resolveCatalog(normalizeCatalog(raw));
+  assert.deepEqual(grouts["PermaColor Select"].colors, []);
 });
 
 // --- Slice 03: math sources numbers from the catalog by name -----------------

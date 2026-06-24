@@ -7,7 +7,7 @@ const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet" };
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
-const COLORS = ["Mushroom", "Natural Gray", "Bright White", "Dusty Grey", "Desert Khaki", "Latte", "Antique White", "Marble Beige", "Light Pewter", "Parchment", "Raven", "Sterling Silver", "Mocha", "Smoke Grey", "Silver Shadow", "Sand Beige", "Sauterne", "Platinum", "Midnight Black", "Espresso", "Butter Cream", "Silk", "Slate Grey", "Almond", "Toasted Almond", "Hemp", "Hot Cocoa", "Terra Cotta", "Quarry Red", "Chestnut Brown", "Autumn Green", "Twilight Blue", "Sandstone", "Fossil", "Walnut", "Mink", "Steamship", "Iron", "Frosty", "Stormy Grey"];
+const parseColors = (text) => String(text).split(/[\n,]/).map((c) => c.trim()).filter(Boolean);
 
 const ATT_BUCKET = "attachments";
 const SHARED_SETTINGS_ID = "singleton";
@@ -455,6 +455,10 @@ export default function App({ user, onSignOut }) {
                         const groutNames = offeredGrouts(settings.catalog), mortarNames = offeredMortars(settings.catalog);
                         const groutOpts = groutNames.includes(p.grout.product) ? groutNames : [p.grout.product, ...groutNames];
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
+                        // Colors follow the selected grout product. A previously-saved color that
+                        // isn't in that product's list is injected back so it still shows.
+                        const productColors = settings.grouts[p.grout.product]?.colors || [];
+                        const colorOpts = p.grout.color && !productColors.includes(p.grout.color) ? [p.grout.color, ...productColors] : productColors;
                         return (
                           <div key={p.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
                             <div className="flex flex-wrap gap-1.5 items-center">
@@ -503,7 +507,7 @@ export default function App({ user, onSignOut }) {
                                   {p.grout.checked && (
                                     <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
                                       <select value={p.grout.product} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, product: e.target.value } })} className={inp + " flex-[2] min-w-[7rem]"}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</select>
-                                      <select value={p.grout.color} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, color: e.target.value } })} className={inp + " flex-1 min-w-[6rem]"}><option value="">Color…</option>{COLORS.map((c) => <option key={c}>{c}</option>)}</select>
+                                      <select value={p.grout.color} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, color: e.target.value } })} className={inp + " flex-1 min-w-[6rem]"}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</select>
                                       <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
                                       {!G && <div className="w-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
                                     </div>
@@ -673,9 +677,14 @@ function CatalogSettings({ catalog, onChange, inp, lbl }) {
   // by default so the list stays tidy as products accumulate.
   const [expanded, setExpanded] = useState(() => new Set());
   const toggleExpanded = (id) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  // Raw text being typed into a grout's color box, keyed by product id. Kept
+  // separate from the stored string[] so a trailing comma/newline mid-edit
+  // survives the parse round-trip.
+  const [colorDraft, setColorDraft] = useState({});
 
   const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
   const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
+  const editColors = (cid, pid, text) => { setColorDraft((d) => ({ ...d, [pid]: text })); setProduct(cid, "grouts", pid, { colors: parseColors(text) }); };
 
   const kindLabel = (kind) => kind === "grouts" ? "grout" : "mortar";
   const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "" } : { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "" }); setError(""); };
@@ -719,10 +728,16 @@ function CatalogSettings({ catalog, onChange, inp, lbl }) {
                   <span className="text-xs text-slate-400">Grout</span>
                 </div>
                 {g.enabled && (
-                  <div className="grid grid-cols-3 gap-2 mt-1.5">
-                    {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
-                    {txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}
-                    {numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}
+                  <div className="mt-1.5 space-y-1.5">
+                    <div className="grid grid-cols-3 gap-2">
+                      {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
+                      {txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}
+                      {numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}
+                    </div>
+                    <div>
+                      <label className={lbl}>Colors <span className="text-slate-400 font-normal">(comma- or line-separated · {(g.colors || []).length})</span></label>
+                      <textarea value={colorDraft[g.id] ?? (g.colors || []).join(", ")} onChange={(e) => editColors(co.id, g.id, e.target.value)} className={inp + " h-16 leading-snug"} placeholder="Bright White, Natural Gray, …" />
+                    </div>
                   </div>
                 )}
               </div>

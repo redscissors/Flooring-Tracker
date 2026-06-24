@@ -7,6 +7,11 @@
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO"];
 export const MORTARS = ["ProLite", "AcrylPro"];
 
+// The colors Laticrete's grouts ship with. Colors are per grout product (each
+// catalog grout carries its own list); this is just the built-in seed for the
+// Laticrete grouts and the backfill for records saved before colors existed.
+export const LATICRETE_COLORS = ["Mushroom", "Natural Gray", "Bright White", "Dusty Grey", "Desert Khaki", "Latte", "Antique White", "Marble Beige", "Light Pewter", "Parchment", "Raven", "Sterling Silver", "Mocha", "Smoke Grey", "Silver Shadow", "Sand Beige", "Sauterne", "Platinum", "Midnight Black", "Espresso", "Butter Cream", "Silk", "Slate Grey", "Almond", "Toasted Almond", "Hemp", "Hot Cocoa", "Terra Cotta", "Quarry Red", "Chestnut Brown", "Autumn Green", "Twilight Blue", "Sandstone", "Fossil", "Walnut", "Mink", "Steamship", "Iron", "Frosty", "Stormy Grey"];
+
 export const DEFAULTS = {
   wastePct: 10,
   mortars: { "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 0 }, "AcrylPro": { tier1: 40, tier2: 15, tier3: 10, unit: "gallons", price: 0 } },
@@ -74,11 +79,11 @@ const cid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(3
 // team extends/toggles from here; there is no "move product" action, so this is
 // the starting grouping.
 const SEED_COMPANIES = [
-  { name: "Laticrete", grouts: ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO"], mortars: [] },
+  { name: "Laticrete", grouts: ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO"], groutColors: LATICRETE_COLORS, mortars: [] },
   { name: "Custom Building Products", grouts: [], mortars: ["ProLite", "AcrylPro"] },
 ];
 
-const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0 });
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, colors: Array.isArray(g?.colors) ? g.colors : [] });
 const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0 });
 
 // Build a fresh catalog from a flat Settings object (waste-free), grouping the
@@ -92,7 +97,7 @@ export function seedCatalog(flat) {
   const seededM = new Set(SEED_COMPANIES.flatMap((c) => c.mortars));
   const companies = SEED_COMPANIES.map((co) => ({
     id: cid(), name: co.name, enabled: true,
-    grouts: co.grouts.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
+    grouts: co.grouts.map((name) => ({ id: cid(), name, enabled: true, ...groutFields({ ...(g[name] || {}), colors: g[name]?.colors ?? co.groutColors }) })),
     mortars: co.mortars.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
   }));
   const extraG = Object.keys(g).filter((n) => !seededG.has(n));
@@ -107,7 +112,15 @@ export function seedCatalog(flat) {
   return { companies };
 }
 
-const normGroutProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...groutFields(p) });
+// A grout saved before colors existed has no `colors`; backfill it from the
+// seed by name so Laticrete grouts keep their list. An explicit (even empty)
+// array is respected — clearing colors then sticks.
+const seededColorsFor = (name) => {
+  const target = normName(name);
+  for (const co of SEED_COMPANIES) if (co.groutColors && co.grouts.some((g) => normName(g) === target)) return co.groutColors;
+  return [];
+};
+const normGroutProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...groutFields(p), colors: Array.isArray(p?.colors) ? p.colors : seededColorsFor(p?.name) });
 const normMortarProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...mortarFields(p) });
 
 export function normalizeCatalog(catalog) {

@@ -33,8 +33,16 @@ references its grout/mortar **by name** — the material math looks up
 4. **Seed from today's built-ins.** The catalog starts pre-filled with the
    current built-in products under the *same names*, so every existing job keeps
    resolving; the team assigns them to companies and extends from there.
-5. **Colors stay out.** The grout color list remains the single shared list it is
-   today, unmanaged by this feature.
+5. ~~**Colors stay out.** The grout color list remains the single shared list it is
+   today, unmanaged by this feature.~~ **Superseded (2026-06-24):** the single
+   shared color list was the Laticrete palette, so every grout — including ones
+   added later like TEC Power Grout — showed Laticrete's colors. Colors are now
+   **per grout product**: each catalog grout carries its own `colors: string[]`,
+   editable in the catalog editor; the job's Color dropdown is filtered to the
+   selected grout's list. The built-in Laticrete grouts seed with the former
+   global list, and catalogs saved before colors existed are backfilled by name
+   so they keep it; an explicitly emptied list is respected. A job still stores
+   its chosen color as a frozen string, unchanged.
 
 ## Why
 
