@@ -12,7 +12,7 @@ body,
 /* Theme (Monochrome, inspired by matthaeusjandl.com) — global so the login
    screen and the app share one palette. Works by overriding Tailwind's
    slate/indigo utility classes. Extend here, not per-component. */
-:root{--ft-cream:#f4f4f4;--ft-card:#eaeaea;--ft-prod:#e2e2e2;--ft-field:#ffffff;--ft-border:#dcdcdc;--ft-border-soft:#ededed;--ft-border-strong:#cfcfcf;--ft-text:#000000;--ft-muted:#6b6b6b;--ft-accent:#000000;--ft-accent-press:#2b2b2b;--ft-accent-deep:#000000;--ft-tint:#ececec;--ft-tint-border:#cfcfcf;--ft-deep:#000000;}
+:root{--ft-cream:#f4f4f4;--ft-card:#eaeaea;--ft-prod:#e2e2e2;--ft-field:#ffffff;--ft-border:#dcdcdc;--ft-border-soft:#ededed;--ft-border-strong:#cfcfcf;--ft-text:#000000;--ft-muted:#6b6b6b;--ft-accent:#303030;--ft-accent-press:#2b2b2b;--ft-accent-deep:#303030;--ft-tint:#ececec;--ft-tint-border:#cfcfcf;--ft-deep:#303030;}
 .bg-slate-50{background-color:var(--ft-cream);}
 .bg-white{background-color:var(--ft-card);}
 .bg-slate-50\/50{background-color:var(--ft-prod);}

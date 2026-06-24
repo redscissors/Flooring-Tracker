@@ -74,10 +74,10 @@ Then `update_profile` with what you gathered (`years`, `frameworks`, `domains`,
 `roles`, `strengths`, `gaps`, `analogy_hooks`). The profile is dev-owned, dated,
 and **editable later**.
 
-**Hard limits for step a:**
-- **Never credit a level.** The profile carries no scores; `update_profile`
+**Limits for step a:**
+- **Level stays unscored here.** The profile carries no scores; `update_profile`
   rejects any attempt to write one.
-- **Never credit the project axis.** "I know NestJS" must not become "knows our
+- **The project axis stays uncredited.** "I know NestJS" doesn't become "knows our
   conventions" — knowing the framework ≠ knowing *our* system (the central
   cold-start trap). Framework experience is judgment-axis context and an analogy
   hook; it never touches the project axis.
@@ -110,6 +110,17 @@ make a 10-year dev prove they know an `if` statement). Run as **two
 code-separated sections** so *ordering* reinforces the is/ought firewall:
 **c1 (judgment, code-free) → read the code → c2 (project, repo-grounded).**
 
+**The quiz characterizes the dev's *altitude*, not their claim list.** Its job
+is to read *how high and how reliably the dev reasons*, not to tick off every
+concept they named. Probes ride on the claimed concepts (you stay grounded in
+a+b — you don't probe at random), but you choose a **representative, diagnostic
+sample** that reveals *level*, and you deliberately vary difficulty to find
+where reasoning holds and where it breaks — that boundary *is* the altitude
+signal. You do **not** need one probe per claim; the concept a probe rides on
+is incidental to what it tells you about level. Concepts you don't probe aren't
+lost — triage infers an entry pitch for them from the rows you *do* seed (see
+the mentor skill's triage).
+
 ### Seeding rule (applies to everything c writes)
 
 Whatever c demonstrates seeds the developer model **conservatively**:
@@ -134,14 +145,21 @@ its `move`, `self_tag`, `claim`, `provenance`).
 
 ### c1 — judgment axis, *code-free* (runs first, always)
 
-Authored **from the dev's own a+b claims and `probe_targets`** — not from a
-pre-baked bank. Pitch each probe at the claimed altitude and step down to find
-footing. The probes' **answers are sourced from external references, never this
+Authored fresh — **never from a pre-baked bank** — aimed at **two things at
+once: depth on what they claimed, and breadth across the rest of the stack.**
+The a+b claims set the *starting altitude*, not the *boundary* of what you
+probe. By the end of c1 you want a **broad picture of the dev across the whole
+stack** — UX/frontend, API and system design, data modeling, database/indexing,
+performance, concurrency, testing, security, and the like — not just the corners
+they volunteered. Those areas are an *illustrative span* to check yourself
+against, **not a fixed checklist**: author each probe yourself, pitched and
+sourced as below. Within each area, pitch at the claimed altitude and step down
+to find footing. The probes' **answers are sourced from external references, never this
 repo** (the is/ought firewall); write down what a sound answer contains
 *before* you score it.
 
 Two examples — these show the **shape**, the subject is incidental; do **not**
-reach for these concepts, author yours off what the dev actually claimed:
+reach for these concepts, author your own across the areas you're sweeping:
 
 > *(developing-band, judgment)* "You've got two functions that are 80%
 > identical. Walk me through how you decide whether to extract the shared part
@@ -155,8 +173,9 @@ reach for these concepts, author yours off what the dev actually claimed:
 > derives authorization server-side; validates/normalizes all input at the
 > boundary.*
 
-Each probe targets a distinct claimed competency; the band steps to the dev's
-claimed altitude.
+Each probe earns its place by what it reveals about *level* — pick the most
+diagnostic samples across the dev's claimed range, not one per claim; the
+*difficulty* steps to the claimed altitude and down to find footing.
 
 - **Read no repo code in c1.** Judgment is transferable, so the repo's code is a
   confound here and a code-as-ought anchor — zero benefit, real risk.
@@ -171,6 +190,19 @@ claimed altitude.
   registry seeds: from the claims in front of you, pitched at this dev (a
   junior's starting vocabulary and a senior's differ), never from a fixed list.
 - Score from the **reasoning the dev produces**, under the seeding rule.
+- **Breadth scales with claimed reach — and respects it.** A dev who claims
+  broad or senior experience gets a *wider* sweep: span most of the stack,
+  because breadth-of-transfer is what a senior claim *is*, and you're testing
+  whether the altitude holds across domains, not just their favorites. A junior
+  or narrowly-scoped dev gets a *narrower* one — probing advanced system design
+  or index tuning on someone who's never touched it produces floundering, not
+  signal.
+- **Record unencountered territory as a gap, not a low row.** When a probe
+  lands on something the dev has simply *never seen* — not weak reasoning, just
+  no exposure — stop stepping down: record it as a **profile gap**
+  (`update_profile`, e.g. `gaps`) and leave the model **`unseen`**. A
+  never-encountered area is `unseen`, not `beginner`; only demonstrated *weak
+  reasoning* seeds a low row.
 
 ### — read the code —
 
@@ -179,9 +211,10 @@ claimed altitude.
 representative code. This read is **descriptive only** — it selects and grounds
 *what* to probe, **never** *what counts as correct*. The documented standard
 (docs/ADRs/rules) is the answer key; **code that diverges is deficient, not the
-answer.** You may delegate this read to a subagent to keep context clean, but
-the **ordering — c1 before any code read — is the load-bearing defense**, not
-the delegation.
+answer.** You may delegate this read to a subagent to keep your context clean —
+worth doing when the area is large or your context is already heavy — but the
+ordering (c1 before any code read) is the load-bearing defense here, not the
+delegation.
 
 ### c2 — project axis, *repo-grounded* (runs only if b surfaced prior exposure)
 
@@ -211,72 +244,48 @@ exist only after the code-read, the preview/trim happens **per section** — a
 genuinely-new dev (c1 only) gets **one** budget moment.
 
 1. **You author as many candidate probes as you judge warranted — no generation
-   cap — and lean generous: start with more, not fewer.** Every claim left
-   unprobed stays `unseen` in the model, so under-probing silently under-credits;
-   the dev can always trim. But each probe must earn its place by covering a
-   **distinct** claim or facet — a second probe on an already-covered claim is
-   padding, a probe on an untouched claim is coverage. Generous for coverage,
-   never padded for length.
+   cap — and lean generous: start with more, not fewer.** But each must earn its
+   place as a **distinct sample** — pinning down the dev's competence at a
+   *level* or in an *area* the others don't reach. More probes → a finer,
+   broader read; a second probe on ground you've already mapped is padding, a
+   probe at an untested altitude or in an unswept area is signal. Generous for
+   resolution and breadth, never padded for length.
 2. **State the count** to the dev: "I have N probes that would cover your claims;
    we can do all N, trim to fewer, or add more."
 3. **The dev's only lever is the count.** They may say "trim to 20" or "give me
    more." They do **not** choose *which* questions and do **not** set difficulty.
 4. **You always choose which probes are kept** — selecting to maximize
    diagnostic coverage across the claims — and **you own difficulty.**
-5. **Trimming reduces evidence → more conservative results.** Claims a trimmed
-   quiz never probes are left **`unseen`** in the model — **never credited as
-   passed.** Tell the dev this is the cost of trimming, in plain language.
-   Expanding adds evidence. **Neither lever can inflate a level** — that is what
+5. **Trimming coarsens the altitude read → more conservative results.** Concepts
+   a trimmed quiz never probes stay **`unseen`** in the model — but that's a
+   thinner *sample*, not a permanent verdict: triage will pitch them from their
+   neighbors, and real tasks will probe them directly. Tell the dev trimming
+   costs resolution, not credit — cheaper than it sounds, because the gaps get
+   filled later, not lost. **Neither lever can inflate a level** — that is what
    keeps self-report non-load-bearing even while the dev steers.
 
 ---
 
 ## Dev-requested quiz, anytime (same machinery) — D12 / D13 / UAT-12
 
-A dev can request a quiz at **any** time, not just at cold-start. It reuses the
-**same machinery** as cold-start step c: the same probe authoring (off claims
-and profile probe targets), the same
-**dev-controlled length lever** (the filtering invariant above — you state the
-candidate count, the dev trims/expands the *count only*, you always pick *which*
-probes and own difficulty, trimmed-away claims stay `unseen`), and the same
-capture (`append_exchange` per probe exchange, with `move` / `self_tag` /
-`claim` / `provenance`). A self-requested quiz is itself **valuable retrieval
-practice** (doctrine rule 6), independent of what it moves on the model.
+A dev can request a quiz at **any** time, not just at cold-start, and it reuses
+cold-start step c wholesale: the same probe authoring (off claims and profile
+probe targets), the same dev-controlled length lever (the filtering invariant
+above), the same capture (`append_exchange` per probe), and the same
+mentor-administered / assessor-verdicted split — you run the probes, you do
+**not** `update_model`; spawn the assessor (per
+`.claude/skills/mentor/assessor.md`) over the evidence-log material to issue the
+verdict. (The standalone-first-run seeding exception in step c does **not**
+extend here — a model already exists, so let the assessor verdict.)
 
-### What its evidence may move — and what it may not
-
-A dev-requested quiz is a **within-task / out-of-task retrieval** event, *not* a
-real-task recurrence. So its reasoning evidence:
-
-- **moves a `provisional` read only** — it can sharpen the provisional Level
-  estimate (up *or* down — it cuts both ways: a weak answer pulls the read down
-  just as a strong one supports it), within the cold-start seeding rule.
-- **never `confirms`** — it is not a confirmation-eligible demonstration; only
-  recurrence on an **independent, later real task** promotes `provisional →
-  confirmed` (D10). Quiz answers are not distinct task refs.
-- **never exceeds the `competent` cap** — the Goodhart guard. Optimizing
-  quiz-able "owned" counts would measure *apparent*, not durable, learning; the
-  cap is what makes a self-requested quiz safe to take freely.
-- **does not clear staleness** — a long-`provisional` concept stays a stale /
-  re-test candidate after a quiz; **only recurrence on a real task** discharges
-  it. (Staleness is surfaced only at mentor triage, never here.)
-
-These are not yours to police by hand — they are `update_model`'s hard
-write-invariants (`provisional ⇒ level ≤ competent`; `confirmed ⇒ ≥2 distinct
-task refs`). The quiz produces evidence; the floor is enforced downstream.
-
-### Mentor-administered, assessor-verdicted (the global invariant)
-
-Like every quiz in this system, a dev-requested quiz is **mentor-administered
-and assessor-verdicted**. You author and run the probes and `append_exchange`
-each one — that is the evidence-log material. You do **not** `update_model` on a
-dev-requested quiz: spawn the **independent assessor** (per
-`.claude/skills/mentor/assessor.md`) over the resulting evidence-log material so
-it issues the verdict and writes the provisional-only move, exactly as at
-task wrap-up. (The narrow exception in step c — seeding the model directly on a
-*standalone first-run calibration* with no diff to read — does **not** extend to
-the anytime quiz: a model already exists, so let the assessor verdict.) This
-keeps the firewall intact — the mentor never grades, including on a quiz it ran.
+What's *different* from a real task: a quiz is **retrieval, not recurrence**, so
+its evidence can only sharpen a `provisional` read (up or down), never
+`confirm` it, never exceed the `competent` cap, and never clear staleness — only
+recurrence on an independent, later real task does those. These are
+`update_model`'s hard write-invariants (`provisional ⇒ level ≤ competent`;
+`confirmed ⇒ ≥2 distinct task refs`), not yours to police; the quiz just
+produces evidence, and a self-requested quiz is **valuable retrieval practice**
+(doctrine rule 6) regardless of what it moves.
 
 ### Flagged concepts are pitched first — never imposed (D13)
 

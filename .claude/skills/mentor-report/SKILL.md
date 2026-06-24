@@ -57,9 +57,11 @@ the main checkout root, e.g. `../.mentor-data/growth-report-<date>.html` —
 and tell the dev the path. Never write it inside the repo; it is a private
 growth record, not a project artifact.
 
-`template.html` (in this skill's directory) is the **approved visual spec**:
-reuse its CSS and section structure verbatim and replace every piece of
-content with live store data. Its sections, in order:
+`template.html` (in this skill's directory) is the **approved visual spec**.
+Read it before rendering, then reuse its CSS and section structure verbatim and
+replace every piece of content with live store data. The list below is the
+*content* each section must carry — the markup and styling come from
+`template.html`, so follow the file for those. Its sections, in order:
 
 1. **Hero** — title, the "this is a map, not a grade" framing, generated-date
    chip, profile chips.
@@ -99,7 +101,7 @@ added to the MCP for this — rendering is this skill's job.
 ### If there are no open escalations
 
 Present the report path, point out anything notable (a promotion, a new flag),
-and **stop**. A pure-read session makes no writes and does **not** invoke
+and stop there. A pure-read session makes no writes and doesn't invoke
 `/mentor-end` — the assessor has nothing to consume.
 
 ---
@@ -163,5 +165,5 @@ Per-type actions:
   resolved escalations, applies and clears any `consequence_pending`, and
   rebuilds merged rows from the unified ledger.
 - **No rulings** → no handoff.
-- Either way, do **not** regenerate the report; the dev re-runs
+- Either way, leave the report as-is; the dev re-runs
   `/mentor-report` when they want a fresh one.

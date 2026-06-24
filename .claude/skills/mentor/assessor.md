@@ -212,7 +212,11 @@ Roll the per-exchange verdicts up per **concept** (the registry key is the join
 - **Evidence** — the **recurrence ledger**: compact `<task> <verdict> (<date>)`
   entries using *your* `did_verdict`s (not the mentor's `self_tag`s), bounded to
   recent + varied + a count. The full history stays derivable from the log via
-  the concept key — the model is a projection, not a second store.
+  the concept key — the model is a projection, not a second store. Each entry's
+  `task` must be a **delimiter-free ref** (a Jira key like `MS-2051` or a kebab
+  slug) — not a prose subtask label — or `update_model` rejects the row
+  `ledger-entry-malformed` (`detail` names the offending field); `date` is
+  `yyyy-mm-dd` (a full ISO timestamp is accepted and normalized).
 - **Gap** — the terse remaining gap (one phrase).
 - **Next** — the feed-forward next step (doctrine rule 5). This is also where
   **unresolved owned-vs-assisted concepts are flagged** (Step 4).

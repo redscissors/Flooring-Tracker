@@ -256,7 +256,7 @@
       <span class="chip">~17 yrs, self-taught</span>
       <span class="chip">Angular · NestJS · PostgreSQL · TypeScript</span>
       <span class="chip">Senior dev · PM · DevOps</span>
-      <span class="chip">ERP / logistics domain</span>
+      <span class="chip">ERP / millwork domain</span>
     </div>
   </header>
 
@@ -661,7 +661,7 @@
       <h5>To rule on it, weigh</h5>
       <p>• Expected image sizes and upload volume for release notes (low → API-routed cost is negligible).<br>
          • Whether release-note authoring is internal-only (lower threat surface for a direct-upload path).<br>
-         • Any precedent elsewhere in the codebase for how other user-supplied assets are ingested.</p>
+         • Any precedent in KONECT/KITS for how other user-supplied assets are ingested.</p>
       <div class="decide">
         <div class="dl">Your call</div>
         Which pattern is our standard going forward? Whatever you decide becomes the precedent the next similar
@@ -686,7 +686,7 @@
          validated by class-validator decorators at the controller boundary; service methods may assume their inputs
          are already valid."</p>
       <h5>What the code does</h5>
-      <p>The release-notes endpoints (<code>src/release-notes/*.controller.ts</code>) accept
+      <p>The release-notes endpoints (<code>apps/millwork-system-api/src/release-notes/*.controller.ts</code>) accept
          raw DTOs and validate inside the service instead — the controller does no decorator validation.</p>
       <h5>The drafted fix (one commit, rule + ADR together)</h5>
       <p>Edits the rule entry <i>and</i> the ADR it references in the same diff, so the <code>check</code> and its
