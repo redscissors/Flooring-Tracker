@@ -129,3 +129,50 @@ drop trigger if exists customers_updated_at on public.customers;
 create trigger customers_updated_at
   before update on public.customers
   for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- Shared settings (ADR 0002)
+--
+-- Shop-wide configuration shared by the whole team: the waste factor plus the
+-- grout/mortar catalog. ONE singleton row, read and written by every signed-in
+-- user (mirroring the "public customer" sharing rule, not the per-user app_data
+-- rule). Saved whole; last-write-wins is accepted deliberately (settings edits
+-- are rare). The former per-user app_data settings path is retired.
+-- ---------------------------------------------------------------------------
+create table if not exists public.shared_settings (
+  id         text primary key default 'singleton',
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.shared_settings enable row level security;
+
+-- Any authenticated user may read and write the shared settings.
+drop policy if exists "shared settings select" on public.shared_settings;
+create policy "shared settings select" on public.shared_settings
+  for select to authenticated using (true);
+
+drop policy if exists "shared settings insert" on public.shared_settings;
+create policy "shared settings insert" on public.shared_settings
+  for insert to authenticated with check (true);
+
+drop policy if exists "shared settings update" on public.shared_settings;
+create policy "shared settings update" on public.shared_settings
+  for update to authenticated using (true) with check (true);
+
+drop trigger if exists shared_settings_updated_at on public.shared_settings;
+create trigger shared_settings_updated_at
+  before update on public.shared_settings
+  for each row execute function public.set_updated_at();
+
+-- One-time HITL seed (issue 002, slice 01): collapse per-user settings into the
+-- single shared record using the designated canonical user's current settings.
+-- `on conflict do nothing` makes this safe to re-run — it never clobbers an
+-- already-seeded record. Change the email to re-point the canonical source.
+insert into public.shared_settings (id, data)
+select 'singleton', ad.data->'settings'
+from public.app_data ad
+join auth.users u on u.id = ad.user_id
+where u.email = 'redscissors5@yahoo.com'
+  and ad.data ? 'settings'
+on conflict (id) do nothing;

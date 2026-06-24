@@ -1,24 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
+import { GROUTS, MORTARS, DEFAULTS, num, mergeSettings, groutExact, mortarExact, getGrout, getMortar } from "./catalog.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet" };
-const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO"];
-const MORTARS = ["ProLite", "AcrylPro"];
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 const COLORS = ["Mushroom", "Natural Gray", "Bright White", "Dusty Grey", "Desert Khaki", "Latte", "Antique White", "Marble Beige", "Light Pewter", "Parchment", "Raven", "Sterling Silver", "Mocha", "Smoke Grey", "Silver Shadow", "Sand Beige", "Sauterne", "Platinum", "Midnight Black", "Espresso", "Butter Cream", "Silk", "Slate Grey", "Almond", "Toasted Almond", "Hemp", "Hot Cocoa", "Terra Cotta", "Quarry Red", "Chestnut Brown", "Autumn Green", "Twilight Blue", "Sandstone", "Fossil", "Walnut", "Mink", "Steamship", "Iron", "Frosty", "Stormy Grey"];
 
-const DEFAULTS = {
-  wastePct: 10,
-  mortars: { "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 0 }, "AcrylPro": { tier1: 40, tier2: 15, tier3: 10, unit: "gallons", price: 0 } },
-  grouts: { "PermaColor Select": { coverage: 110, unit: "bags", price: 0 }, "SpectraLOCK 1": { coverage: 85, unit: "units", price: 0 }, "SpectraLOCK PRO": { coverage: 90, unit: "units", price: 0 } },
-};
-const REF = ((12 + 12) / (12 * 12)) * 0.375 * 0.125;
 const ATT_BUCKET = "attachments";
+const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
-const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtPhone = (v) => { const d = (v || "").replace(/\D/g, "").slice(0, 10); if (d.length < 4) return d; if (d.length < 7) return `(${d.slice(0, 3)}) ${d.slice(3)}`; return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`; };
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
@@ -31,12 +24,6 @@ const newCustomer = () => ({ id: uid(), name: "New Customer", address: "", phone
 const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness ?? "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: GROUTS.includes(p.grout?.product) ? p.grout.product : "PermaColor Select", color: p.grout?.color || "", joint: p.grout?.joint ?? 0.125, manual: p.grout?.manual ?? "" }, mortar: { checked: !!p.mortar?.checked, product: MORTARS.includes(p.mortar?.product) ? p.mortar.product : "ProLite", manual: p.mortar?.manual ?? "" } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
-const mergeSettings = (s) => ({ wastePct: s?.wastePct ?? 10, mortars: MORTARS.reduce((o, k) => ({ ...o, [k]: { ...DEFAULTS.mortars[k], ...((s?.mortars?.[k]) || (k === "ProLite" ? s?.mortar : null) || {}) } }), {}), grouts: GROUTS.reduce((o, k) => ({ ...o, [k]: { ...DEFAULTS.grouts[k], ...(s?.grouts?.[k] || {}) } }), {}) });
-
-function mortarExact(p, s) { if (p.type !== "tile" || p.qtyType !== "sqft") return null; const sqft = num(p.qty); if (!sqft) return 0; const longest = Math.max(num(p.L), num(p.W)); if (!longest) return null; const m = s.mortars[p.mortar.product]; if (!m) return null; const cov = longest < 8 ? m.tier1 : longest <= 15 ? m.tier2 : m.tier3; return sqft * (1 + num(s.wastePct) / 100) / (num(cov) || 1); }
-function getMortar(p, s) { if (p.type !== "tile" || !p.mortar.checked) return null; const m = s.mortars[p.mortar.product] || {}; if (p.mortar.manual !== "" && p.mortar.manual != null) { const v = num(p.mortar.manual); return { exact: v, order: v, unit: m.unit, price: num(m.price), product: p.mortar.product }; } const ex = mortarExact(p, s); if (ex == null) return null; return { exact: ex, order: Math.ceil(ex), unit: m.unit, price: num(m.price), product: p.mortar.product }; }
-function groutExact(p, s) { if (p.type !== "tile" || p.qtyType !== "sqft") return null; const sqft = num(p.qty), L = num(p.L), W = num(p.W), T = num(p.thickness), J = num(p.grout.joint); if (!sqft || !L || !W || !T || !J) return null; const vol = ((L + W) / (L * W)) * T * J; if (!vol) return null; const cov = num(s.grouts[p.grout.product]?.coverage) * (REF / vol); return sqft * (1 + num(s.wastePct) / 100) / (cov || 1); }
-function getGrout(p, s) { if (p.type !== "tile" || !p.grout.checked) return null; const g = s.grouts[p.grout.product] || {}; if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), product: p.grout.product, color: p.grout.color }; } const ex = groutExact(p, s); if (ex == null) return null; return { exact: ex, order: Math.ceil(ex), unit: g.unit, price: num(g.price), product: p.grout.product, color: p.grout.color }; }
 
 export default function App({ user, onSignOut }) {
   const [data, setData] = useState({ customers: [], settings: DEFAULTS });
@@ -69,17 +56,21 @@ export default function App({ user, onSignOut }) {
   useEffect(() => {
     (async () => {
       try {
-        // Settings still live in the per-user app_data blob.
+        // The legacy per-user blob is still read: to pick up any customers
+        // awaiting migration, and as the seed fallback for the shared settings.
         const { data: row, error } = await supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle();
         if (error) throw error;
-        const settings = mergeSettings(row?.data?.settings);
+
+        // Settings now live in one shared record every signed-in user reads and
+        // writes (ADR 0002), no longer in per-user app_data.
+        const settings = await loadSharedSettings(row?.data?.settings);
 
         // One-time migration: move any customers still embedded in the blob into
         // the customers table (and relocate their attachment files), then strip
         // them from the blob. Idempotent — safe to run on every load.
         const legacy = row?.data?.customers;
         if (Array.isArray(legacy) && legacy.length) {
-          await migrateLegacyCustomers(legacy.map(normC), settings);
+          await migrateLegacyCustomers(legacy.map(normC));
         }
 
         const customers = await loadCustomers();
@@ -126,7 +117,19 @@ export default function App({ user, onSignOut }) {
     } catch (e) { ping("Could not open customer — check connection"); }
   };
 
-  const migrateLegacyCustomers = async (legacy, settings) => {
+  // Read the one shared settings record. If it is missing or empty (the seed
+  // migration hasn't run yet), seed it from this user's former per-user settings
+  // — falling back to built-in defaults — so the team starts from real numbers.
+  const loadSharedSettings = async (fallbackRaw) => {
+    const { data: row, error } = await supabase.from("shared_settings").select("data").eq("id", SHARED_SETTINGS_ID).maybeSingle();
+    if (error) throw error;
+    if (row?.data && Object.keys(row.data).length) return mergeSettings(row.data);
+    const seeded = mergeSettings(fallbackRaw);
+    try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: seeded }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
+    return seeded;
+  };
+
+  const migrateLegacyCustomers = async (legacy) => {
     for (const c of legacy) {
       // Move attachment files from <user_id>/<file_id> to <customer_id>/<file_id>.
       for (const m of (c.attachments || [])) {
@@ -143,8 +146,9 @@ export default function App({ user, onSignOut }) {
         { onConflict: "id", ignoreDuplicates: true }
       );
     }
-    // Drop the migrated array from the blob; keep settings.
-    await supabase.from("app_data").upsert({ user_id: user.id, data: { settings } }, { onConflict: "user_id" });
+    // Drop the migrated array from the blob. Settings have moved to the shared
+    // store, so nothing else needs to live here anymore.
+    await supabase.from("app_data").upsert({ user_id: user.id, data: {} }, { onConflict: "user_id" });
   };
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
@@ -157,11 +161,12 @@ export default function App({ user, onSignOut }) {
   // (ownerId/visibility/archived are their own columns; _full is load state.)
   const custData = ({ ownerId, visibility, archived, _full, ...rest }) => rest;
 
-  // Settings remain in the per-user app_data blob.
+  // Settings live in one shared record (ADR 0002) — last-write-wins across the
+  // whole team, the same as a Public customer's data.
   const setSettings = (patch) => {
     const next = { ...data, settings: { ...data.settings, ...patch } };
     setData(next);
-    (async () => { try { const { error } = await supabase.from("app_data").upsert({ user_id: user.id, data: { settings: next.settings } }, { onConflict: "user_id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    (async () => { try { const { error } = await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: next.settings }, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
   const settings = data.settings;
   const sel = data.customers.find((c) => c.id === selId) || null;

@@ -5,3 +5,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | # | Title | Status | Date |
 |---|---|---|---|
 | [0001](0001-archived-as-ungated-column.md) | `archived` is a top-level column, deliberately outside the owner guard | Accepted | 2026-06-22 |
+| [0002](0002-shared-grout-mortar-catalog.md) | Shared grout/mortar catalog: one shared store, linked by unique name | Accepted | 2026-06-23 |
