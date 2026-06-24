@@ -19,7 +19,16 @@ body {
    so the login screen and the app share one palette. Works by overriding
    Tailwind's slate/indigo utility classes. Extend here, not per-component.
    Warm linen background, terracotta accent, Inter/Oswald type. */
-:root{--ft-cream:#EDE8E1;--ft-card:#FAF8F5;--ft-prod:#F1ECE4;--ft-field:#FAF8F5;--ft-border:#C9C2B8;--ft-border-soft:#DDD7CC;--ft-border-strong:#B8B0A4;--ft-text:#2B2825;--ft-muted:#8a8275;--ft-accent:#B5654A;--ft-accent-press:#a05841;--ft-accent-deep:#B5654A;--ft-tint:#F3E5DF;--ft-tint-border:#d8b7ab;--ft-deep:#2B2825;}
+:root{--ft-cream:#EDE8E1;--ft-card:#FAF8F5;--ft-prod:#F1ECE4;--ft-field:#FAF8F5;--ft-border:#C9C2B8;--ft-border-soft:#DDD7CC;--ft-border-strong:#B8B0A4;--ft-text:#2B2825;--ft-muted:#8a8275;--ft-accent:#B5654A;--ft-accent-press:#a05841;--ft-accent-deep:#B5654A;--ft-tint:#F3E5DF;--ft-tint-border:#d8b7ab;--ft-deep:#2B2825;--ft-plum:#7d6a8a;--ft-plum-deep:#6f5d7d;--ft-plum-tint:#efe9f2;--ft-slate:#5C6B73;}
+
+/* Crisp 2px corners on every interactive surface (editorial, not soft-UI).
+   rounded-full stays circular for avatars and round badges. */
+.rounded-sm,.rounded,.rounded-md,.rounded-lg,.rounded-xl,.rounded-2xl{border-radius:2px;}
+
+/* Plum is the second surface accent — it marks "shared / public" customers,
+   set against terracotta's "private / primary action" to read as two surfaces. */
+.ft-public{color:var(--ft-plum-deep);background-color:var(--ft-plum-tint);}
+.ft-plum-fill{background-color:var(--ft-plum);}
 
 /* Oswald display face — brand header, page titles */
 .ft-display{font-family:'Oswald',ui-sans-serif,system-ui,sans-serif;}

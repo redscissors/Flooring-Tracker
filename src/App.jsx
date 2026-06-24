@@ -307,7 +307,7 @@ export default function App({ user, onSignOut }) {
     <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2 ${selId === c.id ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${selId === c.id ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 rounded px-1 py-px shrink-0">Public</span>}{c.archived && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-200 rounded px-1 py-px shrink-0">Archived</span>}</div>
+        <div className="text-sm font-medium truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="ft-public text-[10px] font-semibold uppercase tracking-wide rounded px-1 py-px shrink-0">Public</span>}{c.archived && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-200 rounded px-1 py-px shrink-0">Archived</span>}</div>
         {c.address && <div className="text-xs text-slate-400 truncate">{c.address}</div>}
       </div>
     </button>
@@ -402,10 +402,10 @@ export default function App({ user, onSignOut }) {
                   <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
                     {isOwner(sel) ? (
                       <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs" title="Who can see this customer">
-                        {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 ${sel.visibility === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
+                        {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 ${sel.visibility === v ? (v === "public" ? "ft-plum-fill text-white" : "bg-indigo-600 text-white") : "ft-field text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
                       </div>
                     ) : (
-                      <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-md px-2.5 py-1.5">Shared</span>
+                      <span className="ft-public text-xs font-medium rounded-md px-2.5 py-1.5">Shared</span>
                     )}
                     {namingVersion ? (
                       <div className="flex items-center gap-1">
