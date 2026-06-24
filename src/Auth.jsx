@@ -37,16 +37,17 @@ export default function Auth() {
     }
   };
 
-  const inp = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
+  const inp = "ft-field w-full rounded-full border border-slate-200 px-4 h-12 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus:ring-offset-2 focus:ring-offset-[#FDFCF8] focus:border-transparent transition";
+  const btn = "w-full rounded-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold h-12 transition-all duration-300 hover:scale-[1.02] active:scale-95 shadow-[0_4px_20px_-2px_rgba(93,112,82,0.25)]";
 
   return (
-    <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}>
-      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center"><Layers size={20} className="text-white" /></div>
+    <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "'Nunito', ui-sans-serif, system-ui, sans-serif" }}>
+      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-3xl p-7 ft-lift">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_4px_16px_-4px_rgba(93,112,82,0.4)]"><Layers size={22} className="text-white" /></div>
           <div>
-            <div className="ft-display font-semibold uppercase tracking-[0.18em]">FloorTrack</div>
-            <div className="text-xs text-slate-400 -mt-0.5">{mode === "reset" ? "Set a new password" : "Sign in to continue"}</div>
+            <div className="ft-display text-2xl font-bold leading-none">FloorTrack</div>
+            <div className="text-xs text-slate-400 mt-1">{mode === "reset" ? "Set a new password" : "Sign in to continue"}</div>
           </div>
         </div>
 
@@ -60,11 +61,11 @@ export default function Auth() {
               <label className="text-xs font-medium text-slate-500 mb-1 block">Password</label>
               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inp} autoComplete="current-password" />
             </div>
-            {err && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{err}</div>}
-            <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
+            {err && <div className="text-sm text-red-600 bg-red-50 rounded-2xl px-4 py-2.5">{err}</div>}
+            <button type="submit" disabled={busy} className={btn}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
-            <button type="button" onClick={() => { setMode("reset"); setErr(""); setMsg(""); }} className="w-full text-center text-xs text-indigo-600 hover:underline">
+            <button type="button" onClick={() => { setMode("reset"); setErr(""); setMsg(""); }} className="w-full text-center text-xs text-indigo-600 hover:underline pt-1">
               Forgot password? / First time setting one up
             </button>
           </form>
@@ -75,9 +76,9 @@ export default function Auth() {
               <label className="text-xs font-medium text-slate-500 mb-1 block">Email</label>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inp} autoComplete="email" />
             </div>
-            {err && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{err}</div>}
-            {msg && <div className="text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">{msg}</div>}
-            <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
+            {err && <div className="text-sm text-red-600 bg-red-50 rounded-2xl px-4 py-2.5">{err}</div>}
+            {msg && <div className="text-sm text-emerald-700 bg-emerald-50 rounded-2xl px-4 py-2.5">{msg}</div>}
+            <button type="submit" disabled={busy} className={btn}>
               {busy ? "Sending…" : "Send password link"}
             </button>
             <button type="button" onClick={() => { setMode("signin"); setErr(""); setMsg(""); }} className="w-full text-center text-xs text-slate-400 hover:text-slate-600">

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,26 +12,79 @@ body,
 }
 
 body {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+  color: var(--ft-text);
 }
 
-/* Theme (Keim — warm editorial, inspired by high-end materials retail) — global
-   so the login screen and the app share one palette. Works by overriding
-   Tailwind's slate/indigo utility classes. Extend here, not per-component.
-   Warm linen background, terracotta accent, Inter/Oswald type. */
-:root{--ft-cream:#EDE8E1;--ft-card:#FAF8F5;--ft-prod:#F1ECE4;--ft-field:#FAF8F5;--ft-border:#C9C2B8;--ft-border-soft:#DDD7CC;--ft-border-strong:#B8B0A4;--ft-text:#2B2825;--ft-muted:#8a8275;--ft-accent:#B5654A;--ft-accent-press:#a05841;--ft-accent-deep:#B5654A;--ft-tint:#F3E5DF;--ft-tint-border:#d8b7ab;--ft-deep:#2B2825;--ft-plum:#7d6a8a;--ft-plum-deep:#6f5d7d;--ft-plum-tint:#efe9f2;--ft-slate:#5C6B73;}
+/* Theme (Organic / Natural — wabi-sabi warmth, inspired by forest floor, clay,
+   and unbleached paper) — global so the login screen and the app share one
+   palette. Works by overriding Tailwind's slate/indigo utility classes. Extend
+   here, not per-component. Moss-green primary, terracotta "shared" accent,
+   rice-paper background, Fraunces/Nunito type, soft tinted shadows. */
+:root{
+  --ft-cream:#FDFCF8;        /* rice-paper page */
+  --ft-card:#FEFEFA;         /* lifted card surface */
+  --ft-prod:#F0EBE5;         /* stone — recessed/muted panel */
+  --ft-field:#FCFBF7;        /* input fill */
+  --ft-border:#DED8CF;       /* raw timber */
+  --ft-border-soft:#E8E3DA;
+  --ft-border-strong:#CBC4B8;
+  --ft-text:#2C2C24;         /* deep loam */
+  --ft-muted:#78786C;        /* dried grass */
+  --ft-accent:#5D7052;       /* moss green — primary action */
+  --ft-accent-press:#4D5E44;
+  --ft-accent-deep:#52643f;
+  --ft-tint:#EAEEE4;         /* pale moss — selected/soft fill */
+  --ft-tint-border:#C3CFB8;
+  --ft-deep:#2C2C24;         /* deep loam — dark surfaces */
+  --ft-plum:#C18C5D;         /* terracotta / clay — "shared / public" */
+  --ft-plum-deep:#A9743F;
+  --ft-plum-tint:#F4EADF;
+  --ft-slate:#78786C;
+  --ft-soft-shadow:0 4px 20px -6px rgba(93,112,82,0.18);
+  --ft-float-shadow:0 14px 38px -14px rgba(93,112,82,0.22);
+}
 
-/* Crisp 2px corners on every interactive surface (editorial, not soft-UI).
-   rounded-full stays circular for avatars and round badges. */
-.rounded-sm,.rounded,.rounded-md,.rounded-lg,.rounded-xl,.rounded-2xl{border-radius:2px;}
+/* Soft, hand-shaped corners — "there are no straight lines in nature."
+   Containers/cards read as generously rounded (rounded-2xl ≈ 24px,
+   rounded-3xl ≈ 32px); the smaller steps stay soft for inner panels. */
+.rounded-sm{border-radius:8px;}
+.rounded,.rounded-md{border-radius:12px;}
+.rounded-lg{border-radius:16px;}
+.rounded-xl{border-radius:20px;}
+.rounded-2xl{border-radius:24px;}
+.rounded-3xl{border-radius:32px;}
+/* rounded-full stays circular for avatars, pills, and round badges. */
 
-/* Plum is the second surface accent — it marks "shared / public" customers,
-   set against terracotta's "private / primary action" to read as two surfaces. */
+/* Form controls and standalone buttons are full pills — the system's signature
+   for anything interactive. !important because the app's rounded-* utility
+   classes would otherwise out-specify a bare element selector. Segmented button
+   groups clip their children with overflow-hidden on a rounded parent, so the
+   inner buttons reset to square to preserve the joined-toggle look. */
+input:not([type="checkbox"]):not([type="radio"]),select,textarea,button{border-radius:9999px !important;}
+.overflow-hidden>button{border-radius:0 !important;}
+
+/* Paper-grain overlay — the tactile signature of the style. Fixed, never
+   intercepts clicks, multiply blend at low opacity for an unbleached feel. */
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  pointer-events:none;
+  mix-blend-mode:multiply;
+  opacity:0.04;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Terracotta is the second surface accent — it marks "shared / public"
+   customers, set against moss green's "private / primary action" so the two
+   read as distinct surfaces. */
 .ft-public{color:var(--ft-plum-deep);background-color:var(--ft-plum-tint);}
 .ft-plum-fill{background-color:var(--ft-plum);}
 
-/* Oswald display face — brand header, page titles */
-.ft-display{font-family:'Oswald',ui-sans-serif,system-ui,sans-serif;}
+/* Fraunces display face — brand wordmark, page titles. Warm old-style serif. */
+.ft-display{font-family:'Fraunces',ui-serif,Georgia,serif;letter-spacing:-0.01em;}
 
 .bg-slate-50{background-color:var(--ft-cream);}
 .bg-white{background-color:var(--ft-card);}
@@ -42,15 +95,15 @@ body {
 .bg-indigo-50\/40{background-color:var(--ft-tint);}
 .bg-indigo-100{background-color:var(--ft-tint);}
 .bg-slate-900{background-color:var(--ft-deep);}
-.bg-slate-100{background-color:#E4DED4;}
-.bg-slate-200{background-color:#D8D1C5;}
+.bg-slate-100{background-color:#EBE6DE;}
+.bg-slate-200{background-color:#DED8CF;}
 .text-slate-800{color:var(--ft-text);}
 .text-slate-900{color:var(--ft-text);}
 .text-slate-700{color:#3a352f;}
 .text-slate-600{color:#5a544c;}
 .text-slate-500{color:var(--ft-muted);}
-.text-slate-400{color:#a39a8b;}
-.text-slate-300{color:#c2b9aa;}
+.text-slate-400{color:#9a9385;}
+.text-slate-300{color:#bdb5a6;}
 .text-indigo-400,.text-indigo-500,.text-indigo-600,.text-indigo-700{color:var(--ft-accent-deep);}
 .border-slate-200{border-color:var(--ft-border);}
 .border-slate-100{border-color:var(--ft-border-soft);}
@@ -59,12 +112,31 @@ body {
 .border-indigo-300{border-color:var(--ft-tint-border);}
 .ring-indigo-200{--tw-ring-color:var(--ft-tint-border);}
 .ring-indigo-500{--tw-ring-color:var(--ft-accent);}
-.hover\:bg-slate-50:hover{background-color:#E4DED4;}
+.hover\:bg-slate-50:hover{background-color:#EBE6DE;}
 .hover\:bg-indigo-700:hover{background-color:var(--ft-accent-press);}
 .hover\:text-indigo-700:hover{color:var(--ft-accent-press);}
 .hover\:border-slate-200:hover{border-color:var(--ft-border);}
 .hover\:text-slate-600:hover{color:#5a544c;}
 .focus\:ring-indigo-500:focus{--tw-ring-color:var(--ft-accent);}
 .placeholder\:text-slate-300::placeholder{color:#b3ab9d;}
-.ft-rail{background-color:#F1ECE4;}
-@media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }
+.ft-rail{background-color:#F4F0EA;}
+
+/* Top-level cards lift gently off the rice-paper page with a moss-tinted
+   shadow. Applied as an opt-in class (not to every .bg-white) so nested inner
+   panels don't stack shadow-on-shadow. */
+.ft-lift{box-shadow:var(--ft-soft-shadow);}
+
+/* On-palette status colors — keep alerts within the earthy range rather than
+   default web red/green. Burnt sienna for errors, deep moss for success. */
+.text-red-600{color:#A85448;}
+.bg-red-50{background-color:#F6E9E5;}
+.text-emerald-700{color:var(--ft-accent-deep);}
+.bg-emerald-50{background-color:var(--ft-tint);}
+
+@media print{
+  @page{ margin:1.4cm }
+  body{ -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  body::after{ display:none }
+  .bg-slate-50{background-color:#fff;}
+  .ft-lift{box-shadow:none;}
+}

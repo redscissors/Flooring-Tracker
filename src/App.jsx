@@ -314,14 +314,14 @@ export default function App({ user, onSignOut }) {
   );
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}>
+    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: "'Nunito', ui-sans-serif, system-ui, sans-serif" }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
           <div className="flex items-center gap-2 px-3 py-2 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center"><Layers size={13} className="text-white" /></div>
-            <span className="font-semibold text-sm truncate flex-1">{sel ? sel.name : "FloorTrack"}</span>
+            <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center shrink-0"><Layers size={14} className="text-white" /></div>
+            <span className="ft-display font-bold text-base truncate flex-1">{sel ? sel.name : "FloorTrack"}</span>
           </div>
         )}
 
@@ -330,8 +330,8 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center"><Layers size={18} className="text-white" /></div>
-            <div className="flex-1"><div className="ft-display font-semibold uppercase tracking-[0.18em] text-[15px]">FloorTrack</div><div className="text-xs text-slate-400 -mt-0.5">Selection manager</div></div>
+            <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_3px_12px_-3px_rgba(93,112,82,0.4)]"><Layers size={18} className="text-white" /></div>
+            <div className="flex-1"><div className="ft-display font-bold text-xl leading-none">FloorTrack</div><div className="text-xs text-slate-400 mt-0.5">Selection manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -378,15 +378,15 @@ export default function App({ user, onSignOut }) {
         <main className="flex-1 overflow-y-auto">
           {!sel ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-6">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4"><User size={28} className="text-indigo-500" /></div>
-              <h2 className="text-lg font-semibold">Select or create a customer</h2>
-              <p className="text-sm text-slate-400 mt-1 max-w-xs">Tap the menu to pick a customer, or add a new one.</p>
+              <div className="w-20 h-20 rounded-3xl bg-indigo-100 flex items-center justify-center mb-5"><User size={30} className="text-indigo-500" /></div>
+              <h2 className="ft-display text-2xl font-bold">Select or create a customer</h2>
+              <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Tap the menu to pick a customer, or add a new one.</p>
             </div>
           ) : !sel._full ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <div className="max-w-4xl mx-auto p-3 md:p-5">
-              <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 mb-4">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 mb-4 ft-lift">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -445,7 +445,7 @@ export default function App({ user, onSignOut }) {
 
               <div className="space-y-3">
                 {sel.categories.map((a) => (
-                  <div key={a.id} className="bg-white rounded-xl border border-slate-200 p-3">
+                  <div key={a.id} className="bg-white rounded-2xl border border-slate-200 p-3 ft-lift">
                     <div className="flex items-center gap-2">
                       <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="font-semibold text-base bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 focus:outline-none flex-1 min-w-0" />
                       <input value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
@@ -554,7 +554,7 @@ export default function App({ user, onSignOut }) {
 
               {(totalSqft > 0 || hasMat) && (
                 <div className="mt-4 space-y-3">
-                  <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-start justify-between gap-3 flex-wrap">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-3 flex items-start justify-between gap-3 flex-wrap ft-lift">
                     <div className="text-sm text-slate-500 pt-1">Total flooring: <span className="font-semibold text-slate-800">{totalSqft.toLocaleString()} sq ft</span></div>
                     <div className="text-sm text-right space-y-0.5">
                       <div className="text-slate-500">Flooring <span className="font-medium text-slate-700">{money(flooringPrice)}</span></div>
@@ -663,8 +663,8 @@ export default function App({ user, onSignOut }) {
 function Modal({ title, children, onClose }) {
   return (
     <div className="print:hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+      <div className="bg-white rounded-[2rem] w-full max-w-xl max-h-[88vh] overflow-y-auto p-5 ft-lift" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4"><h3 className="ft-display font-bold text-xl">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
         {children}
       </div>
     </div>

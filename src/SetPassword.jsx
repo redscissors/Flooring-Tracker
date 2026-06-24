@@ -28,16 +28,16 @@ export default function SetPassword({ email, onDone, onCancel }) {
     }
   };
 
-  const inp = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
+  const inp = "ft-field w-full rounded-full border border-slate-200 px-4 h-12 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus:ring-offset-2 focus:ring-offset-[#FDFCF8] focus:border-transparent transition";
 
   return (
-    <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
-      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center"><Layers size={20} className="text-white" /></div>
+    <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "'Nunito', ui-sans-serif, system-ui, sans-serif" }}>
+      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-3xl p-7 ft-lift">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_4px_16px_-4px_rgba(93,112,82,0.4)]"><Layers size={22} className="text-white" /></div>
           <div>
-            <div className="font-semibold tracking-tight">Set your password</div>
-            <div className="text-xs text-slate-400 -mt-0.5">{email ? email : "Create a password to finish setting up"}</div>
+            <div className="ft-display text-xl font-bold leading-none">Set your password</div>
+            <div className="text-xs text-slate-400 mt-1">{email ? email : "Create a password to finish setting up"}</div>
           </div>
         </div>
 
@@ -51,9 +51,9 @@ export default function SetPassword({ email, onDone, onCancel }) {
             <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inp} autoComplete="new-password" />
           </div>
 
-          {err && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{err}</div>}
+          {err && <div className="text-sm text-red-600 bg-red-50 rounded-2xl px-4 py-2.5">{err}</div>}
 
-          <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
+          <button type="submit" disabled={busy} className="w-full rounded-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold h-12 transition-all duration-300 hover:scale-[1.02] active:scale-95 shadow-[0_4px_20px_-2px_rgba(93,112,82,0.25)]">
             {busy ? "Saving…" : "Set password & continue"}
           </button>
         </form>
