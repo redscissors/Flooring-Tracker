@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore, ChevronRight, ChevronDown } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, offeredGrouts, offeredMortars, isDuplicateName, addCompany, addProduct } from "./catalog.js";
 
@@ -669,6 +669,10 @@ function CatalogSettings({ catalog, onChange, inp, lbl }) {
   const [adding, setAdding] = useState(null); // { companyId, kind }
   const [draft, setDraft] = useState({});
   const [error, setError] = useState("");
+  // Which companies are expanded — view state only, never persisted. Collapsed
+  // by default so the list stays tidy as products accumulate.
+  const [expanded, setExpanded] = useState(() => new Set());
+  const toggleExpanded = (id) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
   const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
   const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
@@ -699,9 +703,12 @@ function CatalogSettings({ catalog, onChange, inp, lbl }) {
       {catalog.companies.map((co) => (
         <div key={co.id} className="border border-slate-200 rounded-lg p-2.5">
           <div className="flex items-center gap-2">
+            <button onClick={() => toggleExpanded(co.id)} className="text-slate-400 hover:text-slate-600 shrink-0" title={expanded.has(co.id) ? "Collapse" : "Expand"}>{expanded.has(co.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button>
             {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
-            <span className={`text-sm font-semibold flex-1 ${co.enabled ? "" : "text-slate-400"}`}>{co.name}</span>
+            <button onClick={() => toggleExpanded(co.id)} className={`text-sm font-semibold flex-1 text-left ${co.enabled ? "" : "text-slate-400"}`}>{co.name}</button>
+            <span className="text-xs text-slate-400 shrink-0">{co.grouts.length + co.mortars.length}</span>
           </div>
+          {expanded.has(co.id) && (
           <div className="mt-1.5 space-y-1.5 pl-7">
             {co.grouts.length === 0 && co.mortars.length === 0 && <div className="text-xs text-slate-400">No products yet.</div>}
             {co.grouts.map((g) => (
@@ -770,6 +777,7 @@ function CatalogSettings({ catalog, onChange, inp, lbl }) {
               </div>
             )}
           </div>
+          )}
         </div>
       ))}
       <div className="flex gap-2 items-center pt-1">
