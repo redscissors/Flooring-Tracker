@@ -147,3 +147,41 @@ test("a selection naming a product with no catalog entry degrades gracefully (no
   const manual = tile({ grout: { checked: true, product: "Ghost Grout", color: "", joint: 0.125, manual: "7" } });
   assert.equal(getGrout(manual, s).order, 7);
 });
+
+// --- Slice 04: enabled checkboxes drive dropdown eligibility -----------------
+
+import { isOffered, offeredGrouts, offeredMortars } from "./catalog.js";
+
+test("isOffered requires both the company and the product to be enabled", () => {
+  assert.equal(isOffered({ enabled: true }, { enabled: true }), true);
+  assert.equal(isOffered({ enabled: false }, { enabled: true }), false);
+  assert.equal(isOffered({ enabled: true }, { enabled: false }), false);
+  assert.equal(isOffered({ enabled: false }, { enabled: false }), false);
+});
+
+test("disabling a company suppresses all of its products from the offered list", () => {
+  const s = normalizeSettings(undefined);
+  const laticrete = s.catalog.companies.find((c) => c.name === "Laticrete");
+  laticrete.enabled = false;
+  const offered = offeredGrouts(s.catalog);
+  assert.equal(offered.includes("PermaColor Select"), false);
+  assert.equal(offered.includes("SpectraLOCK 1"), false);
+});
+
+test("disabling one product hides only that product, others remain offered", () => {
+  const s = normalizeSettings(undefined);
+  const laticrete = s.catalog.companies.find((c) => c.name === "Laticrete");
+  laticrete.grouts.find((g) => g.name === "PermaColor Select").enabled = false;
+  const offered = offeredGrouts(s.catalog);
+  assert.equal(offered.includes("PermaColor Select"), false);
+  assert.equal(offered.includes("SpectraLOCK 1"), true);
+});
+
+test("a disabled product still resolves by name so an existing job keeps calculating", () => {
+  const s = normalizeSettings(undefined);
+  s.catalog.companies.forEach((c) => c.grouts.forEach((g) => { g.enabled = false; }));
+  s.catalog.companies.forEach((c) => { c.enabled = false; });
+  assert.equal(offeredGrouts(s.catalog).length, 0); // nothing offered
+  const s2 = { ...s, ...resolveCatalog(s.catalog) };
+  assert.ok(groutExact(tile(), s2) > 0); // but the math still resolves it
+});

@@ -135,6 +135,19 @@ export function resolveCatalog(catalog) {
   return { grouts, mortars };
 }
 
+// A product is offered in a job dropdown only when BOTH its company and itself
+// are enabled. (resolveCatalog above deliberately ignores enabled — offering is
+// a forward-looking control, resolving is for already-saved jobs.)
+export const isOffered = (company, product) => !!(company?.enabled && product?.enabled);
+
+const offeredNames = (catalog, kind) => {
+  const names = [];
+  for (const co of (catalog?.companies || [])) for (const p of (co[kind] || [])) if (isOffered(co, p)) names.push(p.name);
+  return names;
+};
+export const offeredGrouts = (catalog) => offeredNames(catalog, "grouts");
+export const offeredMortars = (catalog) => offeredNames(catalog, "mortars");
+
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { wastePct, catalog } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });

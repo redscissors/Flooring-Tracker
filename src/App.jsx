@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar } from "./catalog.js";
+import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, offeredGrouts, offeredMortars } from "./catalog.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet" };
@@ -452,7 +452,7 @@ export default function App({ user, onSignOut }) {
                         // Dropdowns are driven by the catalog (resolve-by-name). A selection
                         // whose stored product is no longer offered is injected back as an
                         // option so it still shows — same pattern as tile thickness above.
-                        const groutNames = Object.keys(settings.grouts), mortarNames = Object.keys(settings.mortars);
+                        const groutNames = offeredGrouts(settings.catalog), mortarNames = offeredMortars(settings.catalog);
                         const groutOpts = groutNames.includes(p.grout.product) ? groutNames : [p.grout.product, ...groutNames];
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         return (
@@ -624,31 +624,8 @@ export default function App({ user, onSignOut }) {
           <p className="text-sm text-slate-500 mb-4">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
           <div className="mb-4"><label className={lbl}>Waste factor (%)</label><input type="number" value={settings.wastePct} onChange={(e) => setSettings({ wastePct: e.target.value })} className={inp + " w-28"} /></div>
           <div className="font-medium text-sm mb-1">Grout &amp; mortar catalog</div>
-          <p className="text-xs text-slate-400 mb-2">Products grouped by company. These feed the grout/mortar dropdowns on a job.</p>
-          <div className="space-y-2">
-            {settings.catalog.companies.map((co) => (
-              <div key={co.id} className="border border-slate-200 rounded-lg p-2.5">
-                <div className="text-sm font-semibold mb-1.5">{co.name}</div>
-                {co.grouts.length === 0 && co.mortars.length === 0 && <div className="text-xs text-slate-400">No products.</div>}
-                {co.grouts.map((g) => (
-                  <div key={g.id} className="text-sm py-1 border-t border-slate-100 first:border-t-0 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                    <span className="font-medium">{g.name}</span>
-                    <span className="text-xs text-slate-400">Grout</span>
-                    <span className="text-xs text-slate-500">{num(g.coverage)} sq ft/{g.unit}</span>
-                    <span className="text-xs text-slate-500">{money(num(g.price))}/{g.unit}</span>
-                  </div>
-                ))}
-                {co.mortars.map((m) => (
-                  <div key={m.id} className="text-sm py-1 border-t border-slate-100 first:border-t-0 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                    <span className="font-medium">{m.name}</span>
-                    <span className="text-xs text-slate-400">Mortar</span>
-                    <span className="text-xs text-slate-500">&lt;8": {num(m.tier1)} · 8–15": {num(m.tier2)} · &gt;15": {num(m.tier3)} sq ft/{m.unit}</span>
-                    <span className="text-xs text-slate-500">{money(num(m.price))}/{m.unit}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
+          <CatalogSettings catalog={settings.catalog} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} />
         </Modal>
       )}
 
@@ -679,6 +656,73 @@ function Modal({ title, children, onClose }) {
         <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
         {children}
       </div>
+    </div>
+  );
+}
+
+// The shared grout/mortar catalog editor: a Company → Product tree. Each company
+// and product has an enabled checkbox (show/hide for the job dropdowns); a
+// product's numbers are shown and editable only while it is enabled, but stay
+// stored when off. All edits flow up through onChange(newCatalog).
+function CatalogSettings({ catalog, onChange, inp, lbl }) {
+  const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
+  const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
+  const box = (on, onClick, title) => (
+    <button onClick={onClick} title={title} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${on ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{on && <Check size={12} />}</button>
+  );
+  const numField = (label, value, onVal) => (
+    <div><label className={lbl}>{label}</label><input type="number" value={value} onChange={(e) => onVal(e.target.value)} className={inp} /></div>
+  );
+  const txtField = (label, value, onVal) => (
+    <div><label className={lbl}>{label}</label><input value={value} onChange={(e) => onVal(e.target.value)} className={inp} /></div>
+  );
+  return (
+    <div className="space-y-2">
+      {catalog.companies.map((co) => (
+        <div key={co.id} className="border border-slate-200 rounded-lg p-2.5">
+          <div className="flex items-center gap-2">
+            {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
+            <span className={`text-sm font-semibold flex-1 ${co.enabled ? "" : "text-slate-400"}`}>{co.name}</span>
+          </div>
+          <div className="mt-1.5 space-y-1.5 pl-7">
+            {co.grouts.length === 0 && co.mortars.length === 0 && <div className="text-xs text-slate-400">No products yet.</div>}
+            {co.grouts.map((g) => (
+              <div key={g.id} className={`rounded-md border px-2.5 py-1.5 ${g.enabled ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
+                <div className="flex items-center gap-2">
+                  {box(g.enabled, () => setProduct(co.id, "grouts", g.id, { enabled: !g.enabled }))}
+                  <span className={`text-sm font-medium flex-1 ${g.enabled ? "" : "text-slate-400"}`}>{g.name}</span>
+                  <span className="text-xs text-slate-400">Grout</span>
+                </div>
+                {g.enabled && (
+                  <div className="grid grid-cols-3 gap-2 mt-1.5">
+                    {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
+                    {txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}
+                    {numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {co.mortars.map((m) => (
+              <div key={m.id} className={`rounded-md border px-2.5 py-1.5 ${m.enabled ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
+                <div className="flex items-center gap-2">
+                  {box(m.enabled, () => setProduct(co.id, "mortars", m.id, { enabled: !m.enabled }))}
+                  <span className={`text-sm font-medium flex-1 ${m.enabled ? "" : "text-slate-400"}`}>{m.name}</span>
+                  <span className="text-xs text-slate-400">Mortar</span>
+                </div>
+                {m.enabled && (
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1.5">
+                    {numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}
+                    {numField('8"–15"', m.tier2, (v) => setProduct(co.id, "mortars", m.id, { tier2: v }))}
+                    {numField('> 15"', m.tier3, (v) => setProduct(co.id, "mortars", m.id, { tier3: v }))}
+                    {txtField("Unit", m.unit, (v) => setProduct(co.id, "mortars", m.id, { unit: v }))}
+                    {numField("$/unit", m.price, (v) => setProduct(co.id, "mortars", m.id, { price: v }))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
