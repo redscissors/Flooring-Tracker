@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, offeredGrouts, offeredMortars } from "./catalog.js";
+import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, offeredGrouts, offeredMortars, isDuplicateName, addCompany, addProduct } from "./catalog.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet" };
@@ -665,8 +665,26 @@ function Modal({ title, children, onClose }) {
 // product's numbers are shown and editable only while it is enabled, but stay
 // stored when off. All edits flow up through onChange(newCatalog).
 function CatalogSettings({ catalog, onChange, inp, lbl }) {
+  const [newCompany, setNewCompany] = useState("");
+  const [adding, setAdding] = useState(null); // { companyId, kind }
+  const [draft, setDraft] = useState({});
+  const [error, setError] = useState("");
+
   const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
   const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
+
+  const kindLabel = (kind) => kind === "grouts" ? "grout" : "mortar";
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "" } : { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "" }); setError(""); };
+  const cancelAdd = () => { setAdding(null); setError(""); };
+  const submitAdd = () => {
+    const name = (draft.name || "").trim();
+    if (!name) { setError("Product name is required."); return; }
+    if (isDuplicateName(catalog, adding.kind, name)) { setError(`A ${kindLabel(adding.kind)} named "${name}" already exists.`); return; }
+    onChange(addProduct(catalog, adding.companyId, adding.kind, { ...draft, name }));
+    setAdding(null); setError("");
+  };
+  const submitCompany = () => { const name = newCompany.trim(); if (!name) return; onChange(addCompany(catalog, name)); setNewCompany(""); };
+
   const box = (on, onClick, title) => (
     <button onClick={onClick} title={title} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${on ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{on && <Check size={12} />}</button>
   );
@@ -720,9 +738,44 @@ function CatalogSettings({ catalog, onChange, inp, lbl }) {
                 )}
               </div>
             ))}
+            {adding && adding.companyId === co.id ? (
+              <div className="rounded-md border border-indigo-200 bg-white px-2.5 py-2">
+                <div className="text-xs font-medium mb-1.5">New {kindLabel(adding.kind)} product</div>
+                <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp + " mb-1.5"} />
+                {adding.kind === "grouts" ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
+                    {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+                    {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {numField('Tile < 8"', draft.tier1, (v) => setDraft({ ...draft, tier1: v }))}
+                    {numField('8"–15"', draft.tier2, (v) => setDraft({ ...draft, tier2: v }))}
+                    {numField('> 15"', draft.tier3, (v) => setDraft({ ...draft, tier3: v }))}
+                    {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+                    {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+                  </div>
+                )}
+                {error && <div className="text-xs text-red-500 mt-1.5">{error}</div>}
+                <div className="flex gap-2 mt-2">
+                  <button onClick={submitAdd} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700">Add</button>
+                  <button onClick={cancelAdd} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 pt-0.5">
+                <button onClick={() => startAdd(co.id, "grouts")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Grout</button>
+                <button onClick={() => startAdd(co.id, "mortars")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Mortar</button>
+              </div>
+            )}
           </div>
         </div>
       ))}
+      <div className="flex gap-2 items-center pt-1">
+        <input placeholder="New company name" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitCompany(); }} className={inp + " flex-1"} />
+        <button onClick={submitCompany} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1 shrink-0"><Plus size={14} /> Company</button>
+      </div>
     </div>
   );
 }

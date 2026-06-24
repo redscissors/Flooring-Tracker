@@ -122,6 +122,31 @@ export function normalizeCatalog(catalog) {
   };
 }
 
+// Names are matched case- and whitespace-insensitively, consistent with how a
+// job's stored name keys into the catalog at lookup time. Product names must be
+// unique within grout and within mortar (a name may be reused across the two).
+const normName = (s) => String(s ?? "").trim().toLowerCase();
+
+export function isDuplicateName(catalog, kind, name) {
+  const target = normName(name);
+  if (!target) return false;
+  for (const co of (catalog?.companies || [])) for (const p of (co[kind] || [])) if (normName(p.name) === target) return true;
+  return false;
+}
+
+export function addCompany(catalog, name) {
+  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [] };
+  return { companies: [...(catalog?.companies || []), company] };
+}
+
+// Append a product (defaulting to enabled) under a company. Uniqueness is the
+// caller's gate (see isDuplicateName) — this is the pure append.
+export function addProduct(catalog, companyId, kind, fields) {
+  const base = { id: cid(), name: String(fields?.name || "").trim(), enabled: true };
+  const product = kind === "grouts" ? { ...base, ...groutFields(fields) } : { ...base, ...mortarFields(fields) };
+  return { companies: (catalog?.companies || []).map((co) => co.id === companyId ? { ...co, [kind]: [...(co[kind] || []), product] } : co) };
+}
+
 // Flatten the catalog into name→numbers maps for the material math. Resolves
 // EVERY product regardless of enabled state, so a saved job that picked a
 // since-hidden product still computes. Names are unique per kind, so last write

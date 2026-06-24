@@ -185,3 +185,52 @@ test("a disabled product still resolves by name so an existing job keeps calcula
   const s2 = { ...s, ...resolveCatalog(s.catalog) };
   assert.ok(groutExact(tile(), s2) > 0); // but the math still resolves it
 });
+
+// --- Slice 05: add companies/products + unique-name rule ---------------------
+
+import { isDuplicateName, addCompany, addProduct } from "./catalog.js";
+
+test("isDuplicateName rejects a duplicate within the grout namespace", () => {
+  const s = normalizeSettings(undefined);
+  assert.equal(isDuplicateName(s.catalog, "grouts", "PermaColor Select"), true);
+  assert.equal(isDuplicateName(s.catalog, "grouts", "Brand New Grout"), false);
+});
+
+test("isDuplicateName rejects a duplicate within the mortar namespace", () => {
+  const s = normalizeSettings(undefined);
+  assert.equal(isDuplicateName(s.catalog, "mortars", "ProLite"), true);
+  assert.equal(isDuplicateName(s.catalog, "mortars", "Brand New Mortar"), false);
+});
+
+test("the same name is allowed across grout vs mortar (separate namespaces)", () => {
+  const s = normalizeSettings(undefined);
+  assert.equal(isDuplicateName(s.catalog, "mortars", "PermaColor Select"), false);
+  assert.equal(isDuplicateName(s.catalog, "grouts", "ProLite"), false);
+});
+
+test("isDuplicateName matches case- and whitespace-insensitively (lookup-consistent)", () => {
+  const s = normalizeSettings(undefined);
+  assert.equal(isDuplicateName(s.catalog, "grouts", "  permacolor select  "), true);
+  assert.equal(isDuplicateName(s.catalog, "grouts", "PERMACOLOR SELECT"), true);
+  assert.equal(isDuplicateName(s.catalog, "grouts", ""), false);
+});
+
+test("addCompany appends an enabled, empty company", () => {
+  const s = normalizeSettings(undefined);
+  const cat = addCompany(s.catalog, "MAPEI");
+  const added = cat.companies.find((c) => c.name === "MAPEI");
+  assert.ok(added);
+  assert.equal(added.enabled, true);
+  assert.deepEqual(added.grouts, []);
+  assert.deepEqual(added.mortars, []);
+});
+
+test("addProduct appends an enabled product whose numbers resolve by name", () => {
+  const s = normalizeSettings(undefined);
+  const co = s.catalog.companies.find((c) => c.name === "Laticrete");
+  const cat = addProduct(s.catalog, co.id, "grouts", { name: "PermaColor Pro", coverage: 120, unit: "bags", price: 30 });
+  const { grouts } = resolveCatalog(cat);
+  assert.equal(grouts["PermaColor Pro"].coverage, 120);
+  const addedCo = cat.companies.find((c) => c.id === co.id);
+  assert.equal(addedCo.grouts.find((g) => g.name === "PermaColor Pro").enabled, true);
+});
