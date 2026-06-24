@@ -60,3 +60,93 @@ export function getGrout(p, s) {
   const ex = groutExact(p, s); if (ex == null) return null;
   return { exact: ex, order: Math.ceil(ex), unit: g.unit, price: num(g.price), product: p.grout.product, color: p.grout.color };
 }
+
+// --- Catalog (Company → Product) — ADR 0002 ----------------------------------
+// The catalog is the source of truth for which grout/mortar products exist and
+// their numbers. Jobs link to a product by NAME only; the math resolves a name
+// against the flattened catalog regardless of enabled state, so a job using a
+// now-hidden product still calculates. Names are unique within grout and within
+// mortar (enforced when adding — slice 05).
+
+const cid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+
+// How the built-in products are grouped under companies when first seeded. The
+// team extends/toggles from here; there is no "move product" action, so this is
+// the starting grouping.
+const SEED_COMPANIES = [
+  { name: "Laticrete", grouts: ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO"], mortars: [] },
+  { name: "Custom Building Products", grouts: [], mortars: ["ProLite", "AcrylPro"] },
+];
+
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0 });
+const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0 });
+
+// Build a fresh catalog from a flat Settings object (waste-free), grouping the
+// built-in names under SEED_COMPANIES and carrying each product's numbers
+// through unchanged. Any flat name not covered by a seed company lands under an
+// "Unassigned" company so nothing is dropped.
+export function seedCatalog(flat) {
+  const g = (flat && flat.grouts) || DEFAULTS.grouts;
+  const m = (flat && flat.mortars) || DEFAULTS.mortars;
+  const seededG = new Set(SEED_COMPANIES.flatMap((c) => c.grouts));
+  const seededM = new Set(SEED_COMPANIES.flatMap((c) => c.mortars));
+  const companies = SEED_COMPANIES.map((co) => ({
+    id: cid(), name: co.name, enabled: true,
+    grouts: co.grouts.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
+    mortars: co.mortars.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
+  }));
+  const extraG = Object.keys(g).filter((n) => !seededG.has(n));
+  const extraM = Object.keys(m).filter((n) => !seededM.has(n));
+  if (extraG.length || extraM.length) {
+    companies.push({
+      id: cid(), name: "Unassigned", enabled: true,
+      grouts: extraG.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
+      mortars: extraM.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
+    });
+  }
+  return { companies };
+}
+
+const normGroutProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...groutFields(p) });
+const normMortarProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...mortarFields(p) });
+
+export function normalizeCatalog(catalog) {
+  return {
+    companies: (catalog?.companies || []).map((co) => ({
+      id: co?.id || cid(),
+      name: co?.name || "Company",
+      enabled: co?.enabled !== false,
+      grouts: (co?.grouts || []).map(normGroutProduct),
+      mortars: (co?.mortars || []).map(normMortarProduct),
+    })),
+  };
+}
+
+// Flatten the catalog into name→numbers maps for the material math. Resolves
+// EVERY product regardless of enabled state, so a saved job that picked a
+// since-hidden product still computes. Names are unique per kind, so last write
+// on a duplicate would win — but uniqueness is enforced on add.
+export function resolveCatalog(catalog) {
+  const grouts = {}, mortars = {};
+  for (const co of (catalog?.companies || [])) {
+    for (const p of (co.grouts || [])) grouts[p.name] = groutFields(p);
+    for (const p of (co.mortars || [])) mortars[p.name] = mortarFields(p);
+  }
+  return { grouts, mortars };
+}
+
+// The in-memory settings object carries the catalog plus derived grouts/mortars
+// maps the math reads. Only { wastePct, catalog } is persisted.
+export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
+export const serializeSettings = (s) => ({ wastePct: s.wastePct, catalog: s.catalog });
+
+// Entry point for loaded/imported settings: backfill a pre-catalog record by
+// seeding the catalog from its flat numbers (preserving tuned values), or
+// normalize an existing catalog. Always attaches the derived maps.
+export function normalizeSettings(raw) {
+  const wastePct = raw?.wastePct ?? 10;
+  const catalog = (raw?.catalog && Array.isArray(raw.catalog.companies))
+    ? normalizeCatalog(raw.catalog)
+    : seedCatalog(mergeSettings(raw));
+  return withDerived({ wastePct, catalog });
+}

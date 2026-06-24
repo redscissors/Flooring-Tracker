@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { GROUTS, MORTARS, DEFAULTS, num, mergeSettings, groutExact, mortarExact, getGrout, getMortar } from "./catalog.js";
+import { GROUTS, MORTARS, num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar } from "./catalog.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet" };
@@ -26,7 +26,7 @@ const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note 
 const normC = (c) => ({ ...c, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
 
 export default function App({ user, onSignOut }) {
-  const [data, setData] = useState({ customers: [], settings: DEFAULTS });
+  const [data, setData] = useState(() => ({ customers: [], settings: normalizeSettings() }));
   const [loading, setLoading] = useState(true);
   const [selId, setSelId] = useState(null);
   const [search, setSearch] = useState("");
@@ -123,10 +123,14 @@ export default function App({ user, onSignOut }) {
   const loadSharedSettings = async (fallbackRaw) => {
     const { data: row, error } = await supabase.from("shared_settings").select("data").eq("id", SHARED_SETTINGS_ID).maybeSingle();
     if (error) throw error;
-    if (row?.data && Object.keys(row.data).length) return mergeSettings(row.data);
-    const seeded = mergeSettings(fallbackRaw);
-    try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: seeded }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
-    return seeded;
+    const hasRow = row?.data && Object.keys(row.data).length;
+    const settings = normalizeSettings(hasRow ? row.data : fallbackRaw);
+    // Persist when the stored record is missing or still pre-catalog, so the
+    // backfilled catalog (with stable ids) becomes the canonical shared copy.
+    if (!hasRow || !row.data.catalog) {
+      try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
+    }
+    return settings;
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -164,9 +168,9 @@ export default function App({ user, onSignOut }) {
   // Settings live in one shared record (ADR 0002) — last-write-wins across the
   // whole team, the same as a Public customer's data.
   const setSettings = (patch) => {
-    const next = { ...data, settings: { ...data.settings, ...patch } };
+    const next = { ...data, settings: withDerived({ ...data.settings, ...patch }) };
     setData(next);
-    (async () => { try { const { error } = await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: next.settings }, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    (async () => { try { const { error } = await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(next.settings) }, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
   const settings = data.settings;
   const sel = data.customers.find((c) => c.id === selId) || null;
@@ -263,7 +267,7 @@ export default function App({ user, onSignOut }) {
       for (const m of c.attachments) { const val = p.attachments?.[Object.keys(idMap).find((k) => idMap[k] === m.id)]; if (!val) continue; try { await supabase.storage.from(ATT_BUCKET).upload(attPath(c.id, m.id), dataURLToBlob(val), { upsert: true }); } catch (x) { } }
       restored.push(c);
     }
-    if (p.settings) setSettings(mergeSettings(p.settings));
+    if (p.settings) setSettings(serializeSettings(normalizeSettings(p.settings)));
     setData((prev) => ({ ...prev, customers: [...restored, ...prev.customers] }));
     ping("Backup restored");
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
@@ -613,27 +617,31 @@ export default function App({ user, onSignOut }) {
         <Modal onClose={() => setShowSettings(false)} title="Coverage, Pricing & Settings">
           <p className="text-sm text-slate-500 mb-4">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
           <div className="mb-4"><label className={lbl}>Waste factor (%)</label><input type="number" value={settings.wastePct} onChange={(e) => setSettings({ wastePct: e.target.value })} className={inp + " w-28"} /></div>
-          <div className="font-medium text-sm mb-1">Grout</div>
-          <div className="grid grid-cols-12 gap-2 text-xs text-slate-400 mb-1 px-0.5"><div className="col-span-5">Product</div><div className="col-span-3">Cov. (sq ft/unit)</div><div className="col-span-2">Unit</div><div className="col-span-2">$/unit</div></div>
-          <div className="space-y-2 mb-4">
-            {GROUTS.map((g) => { const G = settings.grouts[g]; const set = (patch) => setSettings({ grouts: { ...settings.grouts, [g]: { ...G, ...patch } } }); return (
-              <div key={g} className="grid grid-cols-12 gap-2 items-center"><div className="col-span-5 text-sm">{g}</div><div className="col-span-3"><input type="number" value={G.coverage} onChange={(e) => set({ coverage: e.target.value })} className={inp} /></div><div className="col-span-2"><input value={G.unit} onChange={(e) => set({ unit: e.target.value })} className={inp} /></div><div className="col-span-2"><input type="number" value={G.price} onChange={(e) => set({ price: e.target.value })} className={inp} /></div></div>
-            ); })}
-          </div>
-          <div className="font-medium text-sm mb-1">Mortar — sq ft per unit by tile size</div>
-          <div className="space-y-3">
-            {MORTARS.map((mk) => { const M = settings.mortars[mk]; const set = (patch) => setSettings({ mortars: { ...settings.mortars, [mk]: { ...M, ...patch } } }); return (
-              <div key={mk} className="border border-slate-200 rounded-lg p-2.5">
-                <div className="text-sm font-medium mb-1.5">{mk} <span className="text-xs text-slate-400 font-normal">per {M.unit}</span></div>
-                <div className="grid grid-cols-5 gap-2">
-                  <div><label className={lbl}>Tile &lt; 8"</label><input type="number" value={M.tier1} onChange={(e) => set({ tier1: e.target.value })} className={inp} /></div>
-                  <div><label className={lbl}>8"–15"</label><input type="number" value={M.tier2} onChange={(e) => set({ tier2: e.target.value })} className={inp} /></div>
-                  <div><label className={lbl}>&gt; 15"</label><input type="number" value={M.tier3} onChange={(e) => set({ tier3: e.target.value })} className={inp} /></div>
-                  <div><label className={lbl}>Unit</label><input value={M.unit} onChange={(e) => set({ unit: e.target.value })} className={inp} /></div>
-                  <div><label className={lbl}>$/unit</label><input type="number" value={M.price} onChange={(e) => set({ price: e.target.value })} className={inp} /></div>
-                </div>
+          <div className="font-medium text-sm mb-1">Grout &amp; mortar catalog</div>
+          <p className="text-xs text-slate-400 mb-2">Products grouped by company. These feed the grout/mortar dropdowns on a job.</p>
+          <div className="space-y-2">
+            {settings.catalog.companies.map((co) => (
+              <div key={co.id} className="border border-slate-200 rounded-lg p-2.5">
+                <div className="text-sm font-semibold mb-1.5">{co.name}</div>
+                {co.grouts.length === 0 && co.mortars.length === 0 && <div className="text-xs text-slate-400">No products.</div>}
+                {co.grouts.map((g) => (
+                  <div key={g.id} className="text-sm py-1 border-t border-slate-100 first:border-t-0 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                    <span className="font-medium">{g.name}</span>
+                    <span className="text-xs text-slate-400">Grout</span>
+                    <span className="text-xs text-slate-500">{num(g.coverage)} sq ft/{g.unit}</span>
+                    <span className="text-xs text-slate-500">{money(num(g.price))}/{g.unit}</span>
+                  </div>
+                ))}
+                {co.mortars.map((m) => (
+                  <div key={m.id} className="text-sm py-1 border-t border-slate-100 first:border-t-0 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                    <span className="font-medium">{m.name}</span>
+                    <span className="text-xs text-slate-400">Mortar</span>
+                    <span className="text-xs text-slate-500">&lt;8": {num(m.tier1)} · 8–15": {num(m.tier2)} · &gt;15": {num(m.tier3)} sq ft/{m.unit}</span>
+                    <span className="text-xs text-slate-500">{money(num(m.price))}/{m.unit}</span>
+                  </div>
+                ))}
               </div>
-            ); })}
+            ))}
           </div>
         </Modal>
       )}
