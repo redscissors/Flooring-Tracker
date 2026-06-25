@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, MapPin, Phone, Mail, Archive, ArchiveRestore, ChevronRight, ChevronDown } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, offeredGrouts, offeredMortars, isDuplicateName, addCompany, addProduct } from "./catalog.js";
@@ -61,6 +61,26 @@ export default function App({ user, onSignOut }) {
   const emailRef = useRef(null);
   const addAreaRef = useRef(null);
   const saveOkTimer = useRef(null);
+
+  // FLIP: slide the flooring-type labels to their new spots when the selection
+  // reorders them. Offset coords (not getBoundingClientRect) so the scaled
+  // wrapper doesn't skew the distances; WAAPI so we don't clobber CSS classes.
+  const flipPos = useRef(new Map());
+  useLayoutEffect(() => {
+    const prev = flipPos.current;
+    const next = new Map();
+    document.querySelectorAll("[data-flip]").forEach((el) => {
+      const id = el.getAttribute("data-flip");
+      const pos = { left: el.offsetLeft, top: el.offsetTop };
+      next.set(id, pos);
+      const old = prev.get(id);
+      if (old) {
+        const dx = old.left - pos.left, dy = old.top - pos.top;
+        if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0,0)" }], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+      }
+    });
+    flipPos.current = next;
+  });
 
   useEffect(() => {
     (async () => {
@@ -443,16 +463,16 @@ export default function App({ user, onSignOut }) {
 
               {sel.categories.length === 0 && <div className="bg-white rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {sel.categories.map((a) => (
-                  <div key={a.id} className="bg-white rounded-xl border border-slate-200 p-3">
+                  <div key={a.id} className="bg-white rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center gap-2">
                       <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="font-semibold text-base bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 focus:outline-none flex-1 min-w-0" />
                       <input value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
                       <button onClick={() => delArea(a.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
                     </div>
 
-                    <div className="space-y-2 mt-2">
+                    <div className="mt-2 divide-y divide-slate-100">
                       {a.products.map((p) => {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
@@ -467,27 +487,31 @@ export default function App({ user, onSignOut }) {
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         return (
-                          <div key={p.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
-                            <div className="flex flex-wrap gap-1.5 items-center">
-                              {p.type === "tile" ? (<>
-                                <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className={inp + " !w-12 shrink-0 px-1.5"} placeholder="L" title="Length (in)" />
-                                <span className="text-slate-300 text-sm shrink-0">×</span>
-                                <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className={inp + " !w-12 shrink-0 px-1.5"} placeholder="W" title="Width (in)" />
-                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className={inp + " !w-20 shrink-0"} title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className={inp + " flex-1 min-w-[8rem]"} placeholder="Brand / color" />
-                              </>) : (<>
-                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className={inp + " !w-28 shrink-0"} placeholder="Size" />
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className={inp + " flex-1 min-w-[8rem]"} placeholder="Brand / color" />
-                              </>)}
-                              <div className="relative w-20 shrink-0"><span className="absolute left-2 top-1.5 text-slate-400 text-sm">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className={inp + " pl-5"} placeholder="/sqft" title="Price per sq ft" /></div>
-                            </div>
-
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {TYPES.map((t) => (
-                                <button key={t} onClick={() => updProduct(a.id, p.id, { type: t })} className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs ${p.type === t ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}><span className={`w-3 h-3 rounded-sm flex items-center justify-center ${p.type === t ? "bg-indigo-600" : "border border-slate-300"}`}>{p.type === t && <Check size={9} className="text-white" />}</span>{TLBL[t]}</button>
-                              ))}
+                          <div key={p.id} className="py-2 first:pt-0.5">
+                            <div className="flex items-end -mb-0.5 relative z-10">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 origin-bottom-left scale-[0.7]">
+                                {(TYPES.includes(p.type) ? [p.type, ...TYPES.filter((t) => t !== p.type)] : TYPES).map((t) => (
+                                  <button key={t} data-flip={`${p.id}:${t}`} onClick={() => updProduct(a.id, p.id, { type: t })} className={`transition-[color,font-size] duration-200 ${p.type === t ? "text-indigo-700 font-medium text-2xl bg-slate-100 rounded-t-md rounded-br-md border-[3px] border-b-0 border-[#a0a0a0] px-2 pt-1 pb-2 relative z-10" : "text-slate-500 hover:text-slate-700 text-xs"}`}>{TLBL[t]}</button>
+                                ))}
+                              </div>
                               <span className="flex-1" />
                               {a.products.length > 1 && <button onClick={() => delProduct(a.id, p.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>}
+                            </div>
+
+                            <div className="flex items-stretch h-9 w-full rounded-md border-2 border-[#a0a0a0] bg-slate-100 text-sm overflow-hidden">
+                              {p.type === "tile" ? (<>
+                                <div className="flex items-center shrink-0 pl-1">
+                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-slate-50" placeholder="L" title="Length (in)" />
+                                  <span className="text-slate-300 shrink-0">×</span>
+                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-slate-50" placeholder="W" title="Width (in)" />
+                                </div>
+                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
+                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="Brand / color" />
+                              </>) : (<>
+                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className="w-28 shrink-0 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="Size" />
+                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="Brand / color" />
+                              </>)}
+                              <div className="relative w-20 shrink-0 border-l border-slate-200"><span className="absolute left-2 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-5 pr-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="/sqft" title="Price per sq ft" /></div>
                             </div>
 
                             {p.type === "tile" ? (
