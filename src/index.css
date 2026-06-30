@@ -9,49 +9,82 @@ body,
   margin: 0;
 }
 
-/* Theme (Monochrome, inspired by matthaeusjandl.com) — global so the login
-   screen and the app share one palette. Works by overriding Tailwind's
-   slate/indigo utility classes. Extend here, not per-component. */
-:root{--ft-cream:#f4f4f4;--ft-card:#ffffff;--ft-prod:#f9f9f9;--ft-field:#ffffff;--ft-border:#e6e6e6;--ft-border-soft:#efefef;--ft-border-strong:#dadada;--ft-text:#000000;--ft-muted:#6b6b6b;--ft-accent:#303030;--ft-accent-press:#2b2b2b;--ft-accent-deep:#303030;--ft-tint:#ececec;--ft-tint-border:#cfcfcf;--ft-deep:#303030;}
+body {
+  font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Theme (Editorial): serif display, warm paper palette, monospace eyebrows,
+   terracotta accent. Global so the login screen and app share one palette;
+   works by overriding Tailwind slate/indigo classes. Primary fills map to ink;
+   the terracotta brand is reserved for eyebrows, markers, links, and focus. */
+:root{
+  --ft-cream:#f5f1ea;            /* paper — app background */
+  --ft-card:#fffdf9;             /* cards & inputs */
+  --ft-prod:#fbf8f2;
+  --ft-field:#fffdf9;
+  --ft-fieldbar:color-mix(in oklab, var(--ft-text) 5%, var(--ft-card));
+  --ft-border:#ddd4c6;           /* line */
+  --ft-border-soft:color-mix(in oklab, var(--ft-text) 7%, transparent);
+  --ft-border-strong:#cbbfad;
+  --ft-text:#1c1815;             /* ink */
+  --ft-muted:#8a7f72;
+  --ft-accent:#1c1815;           /* primary fills use ink */
+  --ft-accent-press:#34302b;
+  --ft-accent-deep:#1c1815;
+  --ft-brand:#b8623a;            /* terracotta — eyebrows, SKUs, markers, focus */
+  --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
+  --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
+  --ft-tint-border:color-mix(in oklab, var(--ft-brand) 35%, var(--ft-border));
+  --ft-deep:#1c1815;
+  --ft-serif:"Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --ft-mono:"Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Editorial helpers — applied explicitly in the JSX alongside Tailwind. */
+.ft-serif{font-family:var(--ft-serif);font-weight:400;letter-spacing:-.01em;}
+.ft-mono{font-family:var(--ft-mono);}
+.ft-eyebrow{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
+.ft-eyebrow-accent{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand);}
+
 .bg-slate-50{background-color:var(--ft-cream);}
 .bg-white{background-color:var(--ft-card);}
 .bg-slate-50\/50{background-color:var(--ft-prod);}
 .ft-field{background-color:var(--ft-field);}
+.ft-fieldbar{background-color:var(--ft-fieldbar);}
 .bg-indigo-600{background-color:var(--ft-accent);}
 .bg-indigo-50{background-color:var(--ft-tint);}
 .bg-indigo-50\/40{background-color:var(--ft-tint);}
 .bg-indigo-100{background-color:var(--ft-tint);}
 .bg-slate-900{background-color:var(--ft-deep);}
-.bg-slate-100{background-color:#ececec;}
-.bg-slate-200{background-color:#dedede;}
+.bg-slate-100{background-color:var(--ft-fieldbar);}
+.bg-slate-200{background-color:color-mix(in oklab, var(--ft-text) 10%, transparent);}
 .text-slate-800{color:var(--ft-text);}
-.text-slate-900{color:#000000;}
-.text-slate-700{color:#222222;}
-.text-slate-600{color:#444444;}
+.text-slate-900{color:var(--ft-text);}
+.text-slate-700{color:color-mix(in oklab, var(--ft-text) 88%, var(--ft-muted));}
+.text-slate-600{color:color-mix(in oklab, var(--ft-text) 60%, var(--ft-muted));}
 .text-slate-500{color:var(--ft-muted);}
-.text-slate-400{color:#8c8c8c;}
-.text-slate-300{color:#bdbdbd;}
-.text-indigo-400,.text-indigo-500,.text-indigo-600,.text-indigo-700{color:var(--ft-accent-deep);}
+.text-slate-400{color:var(--ft-muted);}
+.text-slate-300{color:color-mix(in oklab, var(--ft-text) 42%, transparent);}
+.text-indigo-400,.text-indigo-500,.text-indigo-600,.text-indigo-700{color:var(--ft-brand);}
 .border-slate-200{border-color:var(--ft-border);}
 .border-slate-100{border-color:var(--ft-border-soft);}
 .border-slate-300{border-color:var(--ft-border-strong);}
 .border-indigo-200{border-color:var(--ft-tint-border);}
-.border-indigo-300{border-color:#bdbdbd;}
-.ring-indigo-200{--tw-ring-color:var(--ft-tint-border);}
-.ring-indigo-500{--tw-ring-color:var(--ft-accent);}
-.hover\:bg-slate-50:hover{background-color:#efefef;}
+.border-indigo-300{border-color:var(--ft-tint-border);}
+.ring-indigo-200{--tw-ring-color:var(--ft-brand-soft);}
+.ring-indigo-500{--tw-ring-color:var(--ft-brand);}
+.hover\:bg-slate-50:hover{background-color:color-mix(in oklab, var(--ft-brand) 7%, transparent);}
 .hover\:bg-indigo-700:hover{background-color:var(--ft-accent-press);}
-.hover\:text-indigo-700:hover{color:var(--ft-accent-press);}
+.hover\:text-indigo-700:hover{color:var(--ft-brand);}
 .hover\:border-slate-200:hover{border-color:var(--ft-border);}
-.hover\:text-slate-600:hover{color:#444444;}
-.focus\:ring-indigo-500:focus{--tw-ring-color:var(--ft-accent);}
-.placeholder\:text-slate-300::placeholder{color:#bdbdbd;}
-.ft-rail{background-color:#f4f4f4;}
+.hover\:text-slate-600:hover{color:color-mix(in oklab, var(--ft-text) 60%, var(--ft-muted));}
+.focus\:ring-indigo-500:focus{--tw-ring-color:var(--ft-brand);}
+.placeholder\:text-slate-300::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);}
+input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);opacity:1;}
+.ft-rail{background-color:var(--ft-cream);}
 
-/* Corner radius — tight & near-square for a cleaner, more cohesive look.
-   Collapse Tailwind's whole rounded-* scale to two values: small controls
-   and larger panels. rounded-full stays full (circular dots/avatars). */
-:root{--ft-r:3px;--ft-r-lg:5px;}
+/* Corner radius — editorial panels & controls at 5px; pills stay full. */
+:root{--ft-r:5px;--ft-r-lg:5px;}
 .rounded-sm,.rounded,.rounded-md{border-radius:var(--ft-r);}
 .rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl{border-radius:var(--ft-r-lg);}
 

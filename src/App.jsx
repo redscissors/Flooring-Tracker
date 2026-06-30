@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Layers, User, Package, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, offeredGrouts, offeredMortars, isDuplicateName, addCompany, addProduct } from "./catalog.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet" };
+// Editorial accents: each flooring type colours its selection card's left border
+// and active chip; each area's index marker cycles through the area palette.
+const TYPE_ACCENT = { tile: "oklch(0.55 0.08 232)", hardwood: "oklch(0.58 0.10 60)", vinyl: "oklch(0.55 0.07 158)", laminate: "oklch(0.57 0.10 32)", carpet: "oklch(0.53 0.08 320)" };
+const AREA_ACCENTS = ["oklch(0.60 0.11 45)", "oklch(0.58 0.07 232)", "oklch(0.56 0.10 350)", "oklch(0.57 0.08 145)", "oklch(0.63 0.10 75)", "oklch(0.57 0.07 200)"];
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 // Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
@@ -301,7 +305,8 @@ export default function App({ user, onSignOut }) {
   (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; flooringPrice += sf * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", unit: G.unit, exact: 0 }; gAgg[k].exact += G.exact; } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, unit: M.unit, exact: 0 }; mAgg[k].exact += M.exact; } }));
   const gList = Object.values(gAgg).map((g) => ({ ...g, order: Math.ceil(g.exact) }));
   const mList = Object.values(mAgg).map((m) => ({ ...m, order: Math.ceil(m.exact) }));
-  const hasMat = gList.length || mList.length; const grandTotal = flooringPrice + groutCost + mortarCost;
+  const hasMat = gList.length > 0 || mList.length > 0; const grandTotal = flooringPrice + groutCost + mortarCost;
+  const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
   const sortCustomers = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : (b.createdAt || 0) - (a.createdAt || 0));
   // When searching, span both active and archived (archived rows are badged in
   // the list). With no search, the active list hides archived jobs and the
@@ -317,27 +322,32 @@ export default function App({ user, onSignOut }) {
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
-  const lbl = "text-xs font-medium text-slate-500 mb-1 block";
+  const lbl = "ft-eyebrow text-[10px] mb-1 block";
 
-  const renderCustItem = (c) => (
-    <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2 ${selId === c.id ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"}`}>
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${selId === c.id ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 rounded px-1 py-px shrink-0">Public</span>}{c.archived && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-200 rounded px-1 py-px shrink-0">Archived</span>}</div>
-        {c.address && <div className="text-xs text-slate-400 truncate">{c.address}</div>}
-      </div>
-    </button>
-  );
+  const renderCustItem = (c) => {
+    const on = selId === c.id;
+    const areaCount = c._full ? (c.categories?.length || 0) : null;
+    const sub = c.address || (areaCount != null ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "");
+    return (
+      <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
+        <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13.5px] font-semibold truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="ft-eyebrow text-[8.5px] tracking-[.1em] bg-indigo-50 rounded px-1.5 py-0.5 shrink-0" style={{ color: "var(--ft-brand)" }}>Public</span>}{c.archived && <span className="ft-eyebrow text-[8.5px] tracking-[.1em] bg-slate-200 rounded px-1.5 py-0.5 shrink-0">Archived</span>}</div>
+          {sub && <div className="text-[11.5px] text-slate-400 truncate mt-px">{sub}</div>}
+        </div>
+      </button>
+    );
+  };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: '"Hanken Grotesk", ui-sans-serif, system-ui, sans-serif' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
-          <div className="flex items-center gap-2 px-3 py-2 ft-rail border-b border-slate-200">
+          <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center"><Layers size={13} className="text-white" /></div>
-            <span className="font-semibold text-sm truncate flex-1">{sel ? sel.name : "FloorTrack"}</span>
+            <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center ft-serif text-white" style={{ fontSize: 15 }}>F</div>
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : "FloorTrack"}</span>
           </div>
         )}
 
@@ -345,32 +355,30 @@ export default function App({ user, onSignOut }) {
 
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center"><Layers size={18} className="text-white" /></div>
-            <div className="flex-1"><div className="font-semibold tracking-tight">FloorTrack</div><div className="text-xs text-slate-400 -mt-0.5">Selection manager</div></div>
+          <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
+            <div className="w-[34px] h-[34px] rounded-lg bg-indigo-600 flex items-center justify-center ft-serif text-white shrink-0" style={{ fontSize: 20 }}>F</div>
+            <div className="flex-1 min-w-0"><div className="ft-serif text-xl leading-none">FloorTrack</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
-            <div className="relative"><Search size={16} className="absolute left-2.5 top-2 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" className={inp + " pl-8"} /></div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 shrink-0">Sort</span>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={inp + " py-1"}>
-                <option value="newest">Newest first</option>
-                <option value="name">Alphabetical</option>
-              </select>
+            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" className={inp + " pl-8"} /></div>
+            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+              {[["Newest", "newest"], ["A–Z", "name"]].map(([label, v]) => (
+                <button key={v} onClick={() => setSortBy(v)} className={`flex-1 px-2.5 py-1.5 font-semibold ${sortBy === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
+              ))}
             </div>
             <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
               {[["Active", false], ["Archived", true]].map(([label, v]) => (
                 <button key={label} onClick={() => setShowArchive(v)} className={`flex-1 px-2.5 py-1.5 ${showArchive === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}{v && archivedCount ? ` (${archivedCount})` : ""}</button>
               ))}
             </div>
-            <button onClick={addCustomer} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-1.5 transition"><Plus size={16} /> New Customer</button>
+            <button onClick={addCustomer} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {filtered.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">{search ? "No matches" : "No customers yet"}</div>}
             {mineList.map((c) => renderCustItem(c))}
             {sharedList.length > 0 && (
-              <div className="mt-3 mb-1 px-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Shared with everyone</div>
+              <div className="mt-4 mb-1.5 px-2.5 ft-eyebrow text-[9px]">Shared with everyone</div>
             )}
             {sharedList.map((c) => renderCustItem(c))}
           </div>
@@ -394,49 +402,60 @@ export default function App({ user, onSignOut }) {
         <main className="flex-1 overflow-y-auto">
           {!sel ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-6">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4"><User size={28} className="text-indigo-500" /></div>
-              <h2 className="text-lg font-semibold">Select or create a customer</h2>
-              <p className="text-sm text-slate-400 mt-1 max-w-xs">Tap the menu to pick a customer, or add a new one.</p>
+              <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center mb-4 ft-serif" style={{ background: "color-mix(in oklab, var(--ft-brand) 14%, transparent)", color: "var(--ft-brand)", fontSize: 30 }}>F</div>
+              <h2 className="ft-serif text-2xl">Select or create a customer</h2>
+              <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building selections.</p>
             </div>
           ) : !sel._full ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <div className="max-w-4xl mx-auto p-3 md:p-5">
-              <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 mb-4">
-                <div className="flex items-start justify-between gap-3">
+              <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="min-w-0 flex-1">
+                    <div className="ft-eyebrow-accent text-[10px] mb-2.5">Tile &amp; Flooring Selections</div>
                     <div className="flex items-center gap-2">
-                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateCust(sel.id, { name: e.target.value })} placeholder="Customer name" className={"text-2xl md:text-3xl font-bold tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 flex-1 rounded-sm transition" + (focusName ? " ring-2 ring-indigo-500 ring-offset-2 bg-indigo-50/50" : "")} />
-                      {saveOk && <span className="text-xs text-indigo-600 font-medium whitespace-nowrap">Saved ✓</span>}
+                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateCust(sel.id, { name: e.target.value })} placeholder="Customer name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(30px,5vw,52px)", lineHeight: 1 }} />
+                      {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+                    </div>
+                    <div className="mt-2.5 flex items-center gap-2 text-sm text-slate-500 flex-wrap">
+                      <input value={sel.address} onChange={(e) => updateCust(sel.id, { address: e.target.value })} placeholder="Address" className="bg-transparent focus:outline-none min-w-0" />
+                      <span className="text-slate-300">·</span>
+                      <input value={sel.phone} onChange={(e) => updateCust(sel.id, { phone: e.target.value })} placeholder="Phone" className="bg-transparent focus:outline-none w-28" />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
-                    {isOwner(sel) ? (
-                      <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs" title="Who can see this customer">
-                        {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 ${sel.visibility === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
-                      </div>
-                    ) : (
-                      <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-md px-2.5 py-1.5">Shared</span>
-                    )}
-                    {namingVersion ? (
-                      <div className="flex items-center gap-1">
-                        <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} className="text-sm rounded-md border border-slate-200 px-2 py-1.5 w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <button onClick={confirmVersion} className="flex items-center gap-1 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5"><Check size={15} /></button>
-                        <button onClick={() => setNamingVersion(false)} className="rounded-md border border-slate-200 hover:bg-slate-50 px-2 py-1.5 text-slate-400"><X size={15} /></button>
-                      </div>
-                    ) : (
-                      <button onClick={startVersionName} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><Save size={15} /> Version</button>
-                    )}
-                    <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><History size={15} /> {(sel.versions?.length || 0)}</button>
-                    {canEdit(sel) && <button onClick={() => setArchived(sel.id, !sel.archived)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5" title={sel.archived ? "Restore to active list" : "Archive this job"}>{sel.archived ? <><ArchiveRestore size={15} /> Restore</> : <><Archive size={15} /> Archive</>}</button>}
-                    <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5"><FileText size={15} /> CSV</button>
-                    <button onClick={() => window.print()} className="flex items-center gap-1.5 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5"><Printer size={15} /> Print</button>
-                    {canDelete(sel) && <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>}
+                  <div className="text-right shrink-0">
+                    <div className="ft-eyebrow text-[9.5px]">Project estimate</div>
+                    <div className="ft-serif" style={{ fontSize: "clamp(30px,4.5vw,46px)", lineHeight: 1, marginTop: 2 }}>{money(grandTotal)}</div>
+                    <div className="ft-mono text-[11px] text-slate-500 mt-1.5">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-slate-100"><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateCust(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><Paperclip size={13} /> Attachments <span className="text-slate-300">(not printed)</span></span>
+                <div className="ft-noprint mt-4 pt-4 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                  {isOwner(sel) ? (
+                    <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs" title="Who can see this customer">
+                      {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 font-semibold ${sel.visibility === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
+                    </div>
+                  ) : (
+                    <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-md px-2.5 py-1.5">Shared</span>
+                  )}
+                  {namingVersion ? (
+                    <div className="flex items-center gap-1">
+                      <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} className="text-sm rounded-md border border-slate-200 px-2 py-1.5 w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <button onClick={confirmVersion} className="flex items-center gap-1 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5"><Check size={15} /></button>
+                      <button onClick={() => setNamingVersion(false)} className="rounded-full border border-slate-200 hover:bg-slate-50 px-2 py-1.5 text-slate-400"><X size={15} /></button>
+                    </div>
+                  ) : (
+                    <button onClick={startVersionName} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><Save size={15} /> Version</button>
+                  )}
+                  <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><History size={15} /> {(sel.versions?.length || 0)}</button>
+                  {canEdit(sel) && <button onClick={() => setArchived(sel.id, !sel.archived)} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5" title={sel.archived ? "Restore to active list" : "Archive this job"}>{sel.archived ? <><ArchiveRestore size={15} /> Restore</> : <><Archive size={15} /> Archive</>}</button>}
+                  <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><FileText size={15} /> CSV</button>
+                  <button onClick={() => window.print()} className="flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 font-semibold"><Printer size={15} /> Print</button>
+                  {canDelete(sel) && <button onClick={() => setConfirm({ id: sel.id })} className="rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>}
+                </div>
+                <div className="mt-4"><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateCust(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+                <div className="ft-noprint mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="ft-eyebrow text-[9px] flex items-center gap-1"><Paperclip size={12} /> Attachments <span className="text-slate-300 normal-case tracking-normal">(not printed)</span></span>
                   {(sel.attachments || []).map((m) => (
                     <span key={m.id} className="flex items-center gap-1.5 rounded-md bg-slate-100 pl-2 pr-1 py-1 text-xs"><button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[10rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button><button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={12} /></button></span>
                   ))}
@@ -445,25 +464,27 @@ export default function App({ user, onSignOut }) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Areas &amp; Selections</h3>
-                <div className="flex items-center gap-3">
-                  <button ref={addAreaRef} onClick={addArea} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"><Plus size={15} /> Add area</button>
-                </div>
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <h2 className="ft-serif" style={{ fontSize: "clamp(24px,3vw,34px)", lineHeight: 1 }}>Areas &amp; Selections</h2>
+                <button ref={addAreaRef} onClick={addArea} className="ft-noprint flex items-center gap-1.5 text-sm font-semibold rounded-full border border-dashed border-slate-300 px-3.5 py-1.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
               </div>
 
-              {sel.categories.length === 0 && <div className="bg-white rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
+              {sel.categories.length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
               <div className="space-y-4">
-                {sel.categories.map((a) => (
-                  <div key={a.id} className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-2">
-                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="font-semibold text-base bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 focus:outline-none flex-1 min-w-0" />
+                {sel.categories.map((a, ai) => {
+                  const areaColor = AREA_ACCENTS[ai % AREA_ACCENTS.length];
+                  return (
+                  <div key={a.id} className="bg-white rounded-lg border border-slate-200 p-4 md:p-5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: areaColor }} />
+                      <span className="ft-mono text-sm shrink-0" style={{ color: areaColor }}>{String(ai + 1).padStart(2, "0")}</span>
+                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none flex-1 min-w-0" style={{ fontSize: 23, lineHeight: 1 }} />
                       <input value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
-                      <button onClick={() => delArea(a.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
+                      <button onClick={() => delArea(a.id)} className="ft-noprint text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
                     </div>
 
-                    <div className="mt-2 divide-y divide-slate-100">
+                    <div className="mt-3 space-y-3">
                       {a.products.map((p) => {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
@@ -477,40 +498,44 @@ export default function App({ user, onSignOut }) {
                         const colorBase = colorsFor(p.grout.product);
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
+                        const selAccent = TYPE_ACCENT[p.type] || "var(--ft-text)";
+                        const typeOrder = TYPES.includes(p.type) ? [p.type, ...TYPES.filter((t) => t !== p.type)] : TYPES;
                         return (
-                          <div key={p.id} className="py-2 first:pt-0.5">
-                            <div className="flex items-end -mb-0.5 relative z-10">
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 origin-bottom-left scale-[0.7]">
-                                {(TYPES.includes(p.type) ? [p.type, ...TYPES.filter((t) => t !== p.type)] : TYPES).map((t) => (
-                                  <button key={t} data-flip={`${p.id}:${t}`} onClick={() => updProduct(a.id, p.id, { type: t })} className={`transition-[color,font-size] duration-200 ${p.type === t ? "text-indigo-700 font-medium text-2xl bg-slate-100 rounded-t-md rounded-br-md border-[3px] border-b-0 border-[#a0a0a0] px-2 pt-1 pb-2 relative z-10" : "text-slate-500 hover:text-slate-700 text-xs"}`}>{TLBL[t]}</button>
-                                ))}
+                          <div key={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
+                            <div className="ft-noprint flex items-center gap-2 mb-2.5">
+                              <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                                {typeOrder.map((t) => {
+                                  const on = p.type === t;
+                                  return (
+                                    <button key={t} data-flip={`${p.id}:${t}`} onClick={() => updProduct(a.id, p.id, { type: t })} className="rounded-full px-2.5 py-1 text-xs font-semibold transition" style={on ? { color: TYPE_ACCENT[t], background: `color-mix(in oklab, ${TYPE_ACCENT[t]} 15%, transparent)`, border: `1px solid ${TYPE_ACCENT[t]}` } : { color: "var(--ft-muted)", border: "1px solid transparent" }}>{TLBL[t]}</button>
+                                  );
+                                })}
                               </div>
-                              <span className="flex-1" />
-                              {a.products.length > 1 && <button onClick={() => delProduct(a.id, p.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>}
+                              {a.products.length > 1 && <button onClick={() => delProduct(a.id, p.id)} className="shrink-0 flex items-center gap-1 text-xs text-slate-400 hover:text-red-500"><X size={13} /> remove</button>}
                             </div>
 
-                            <div className="flex items-stretch h-9 w-full rounded-md border-2 border-[#a0a0a0] bg-slate-100 text-sm overflow-hidden">
+                            <div className="flex items-stretch h-9 w-full rounded-md border border-slate-200 ft-fieldbar text-sm overflow-hidden">
                               {p.type === "tile" ? (<>
                                 <div className="flex items-center shrink-0 pl-1">
-                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-slate-50" placeholder="L" title="Length (in)" />
+                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
                                   <span className="text-slate-300 shrink-0">×</span>
-                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-slate-50" placeholder="W" title="Width (in)" />
+                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="W" title="Width (in)" />
                                 </div>
-                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="Brand / color" />
+                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
+                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
                               </>) : (<>
-                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className="w-28 shrink-0 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="Size" />
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="Brand / color" />
+                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className="w-28 shrink-0 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Size" />
+                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
                               </>)}
-                              <div className="relative w-20 shrink-0 border-l border-slate-200"><span className="absolute left-2 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-5 pr-2 py-1.5 bg-transparent focus:outline-none focus:bg-slate-50" placeholder="/sqft" title="Price per sq ft" /></div>
+                              <div className="relative w-20 shrink-0 border-l border-slate-200"><span className="absolute left-2 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-5 pr-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="/sqft" title="Price per sq ft" /></div>
                             </div>
 
                             {p.type === "tile" ? (
-                              <div className="border-t border-slate-200 pt-2 mt-2 grid grid-cols-1 md:grid-cols-[0.8fr_1.7fr_1.1fr] gap-2 items-start">
+                              <div className="border-t border-slate-100 pt-2.5 mt-2.5 grid grid-cols-1 md:grid-cols-[0.85fr_1.45fr_1fr] gap-2 items-start">
                                 {/* Quantity */}
                                 <div className="rounded-md border border-slate-100 bg-white px-2.5 py-1.5">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium flex-1">Sq Ft</span>
+                                    <span className="text-sm font-semibold flex-1">Quantity</span>
                                     {p.qtyType === "sqft" && num(p.priceSqft) > 0 && <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">{money(line)}</span>}
                                   </div>
                                   <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
@@ -562,32 +587,45 @@ export default function App({ user, onSignOut }) {
                         );
                       })}
                     </div>
-                    <button onClick={() => addProduct(a.id)} className="mt-2 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"><Plus size={14} /> Add product</button>
+                    <button onClick={() => addProduct(a.id)} className="ft-noprint mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md border border-dashed border-slate-300 py-2 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={14} /> Add product</button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {(totalSqft > 0 || hasMat) && (
-                <div className="mt-4 space-y-3">
-                  <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-start justify-between gap-3 flex-wrap">
-                    <div className="text-sm text-slate-500 pt-1">Total flooring: <span className="font-semibold text-slate-800">{totalSqft.toLocaleString()} sq ft</span></div>
-                    <div className="text-sm text-right space-y-0.5">
-                      <div className="text-slate-500">Flooring <span className="font-medium text-slate-700">{money(flooringPrice)}</span></div>
-                      {groutCost > 0 && <div className="text-slate-500">Grout <span className="font-medium text-slate-700">{money(groutCost)}</span></div>}
-                      {mortarCost > 0 && <div className="text-slate-500">Mortar <span className="font-medium text-slate-700">{money(mortarCost)}</span></div>}
-                      <div className="text-slate-900 font-semibold border-t border-slate-200 pt-1 mt-1">Estimated material total {money(grandTotal)}</div>
+                <div className="mt-5 bg-white border border-slate-200 rounded-lg" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
+                  <div className="ft-eyebrow-accent text-[10px] mb-1.5">Materials Estimate</div>
+                  <h3 className="ft-serif mb-5" style={{ fontSize: "clamp(22px,2.6vw,30px)", lineHeight: 1 }}>Order summary</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
+                    <div>
+                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Grout</div>
+                      {gList.length === 0 ? <div className="text-sm text-slate-400">—</div> : gList.map((g, i) => (
+                        <div key={"g" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
+                          <span className="text-[13px] font-medium">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}</span>
+                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap">{g.order} {g.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Mortar</div>
+                      {mList.length === 0 ? <div className="text-sm text-slate-400">—</div> : mList.map((m, i) => (
+                        <div key={"m" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
+                          <span className="text-[13px] font-medium">{m.product}</span>
+                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap">{m.order} {m.unit}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Flooring</span><span className="ft-mono text-[13px]">{money(flooringPrice)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Grout</span><span className="ft-mono text-[13px]">{money(groutCost)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Mortar</span><span className="ft-mono text-[13px]">{money(mortarCost)}</span></div>
+                        <div className="flex items-center justify-between items-baseline mt-1.5 pt-3" style={{ borderTop: "2px solid var(--ft-text)" }}><span className="text-sm font-semibold">Total</span><span className="ft-serif" style={{ fontSize: 30, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-3">Figures include {settings.wastePct}% material waste. Verify before ordering.</div>
                     </div>
                   </div>
-                  {hasMat && (
-                    <div className="bg-slate-900 text-white rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-2 text-sm font-semibold"><Package size={16} /> Material Order Summary <span className="text-xs text-slate-400 font-normal">(combined)</span></div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {mList.map((m, i) => <div key={"m" + i} className="bg-white/5 rounded-lg p-2.5"><div className="text-xl font-semibold">{m.order} <span className="text-sm font-normal text-slate-300">{m.unit}</span></div><div className="text-xs text-slate-300">{m.product} · {m.exact.toFixed(2)} exact</div></div>)}
-                        {gList.map((g, i) => <div key={"g" + i} className="bg-white/5 rounded-lg p-2.5"><div className="text-xl font-semibold">{g.order} <span className="text-sm font-normal text-slate-300">{g.unit}</span></div><div className="text-xs text-slate-300">{g.product}{g.color !== "—" ? ` · ${g.color}` : ""} · {g.exact.toFixed(2)} exact</div></div>)}
-                      </div>
-                      <div className="text-xs text-slate-400 mt-2">"Exact" is the un-rounded need (incl. {settings.wastePct}% waste). Verify before ordering.</div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -600,8 +638,8 @@ export default function App({ user, onSignOut }) {
         {sel && sel._full && (
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-3 mb-4">
-              <div><div className="text-2xl font-bold">{sel.name}</div></div>
-              <div className="text-right text-sm"><div className="font-semibold">Flooring &amp; Tile Selections</div><div>{new Date().toLocaleDateString()}</div></div>
+              <div><div className="ft-serif text-3xl">{sel.name}</div></div>
+              <div className="text-right text-sm"><div className="ft-eyebrow text-[9px]">Tile &amp; Flooring Selections</div><div>{new Date().toLocaleDateString()}</div></div>
             </div>
             {sel.notes && <div className="text-sm mb-4 italic">{sel.notes}</div>}
             {sel.categories.map((a) => (
@@ -672,16 +710,16 @@ export default function App({ user, onSignOut }) {
         </Modal>
       )}
 
-      {toast && <div className="print:hidden fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">{toast}</div>}
+      {toast && <div className="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg z-50">{toast}</div>}
     </div>
   );
 }
 
 function Modal({ title, children, onClose }) {
   return (
-    <div className="print:hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+    <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4"><h3 className="ft-serif text-2xl">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
         {children}
       </div>
     </div>
