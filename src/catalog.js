@@ -108,6 +108,11 @@ const SEED_COMPANIES = [
   { name: "Custom Building Products", grouts: ["CEG-Lite"], mortars: ["ProLite", "AcrylPro"] },
   { name: "Tec", grouts: ["Tec Power Grout"], mortars: [] },
   { name: "Schluter", grouts: [], mortars: ["Schluter All Set"] },
+  { name: "James Hardie", grouts: [], mortars: [] },
+  { name: "Wedi", grouts: [], mortars: [] },
+  { name: "Fortifiber", grouts: [], mortars: [] },
+  { name: "MP Global", grouts: [], mortars: [] },
+  { name: "Sika", grouts: [], mortars: [] },
 ];
 
 // Starter underlayment/backer products, grouped by company. Coverage numbers are
@@ -117,12 +122,19 @@ const SEED_COMPANIES = [
 // are added by the team through the Settings catalog editor.
 const SEED_UNDERLAYMENTS = [
   { company: "Schluter", name: "Ditra Underlayment Uncoupling Membrane", coverage: 54, unit: "rolls", price: 0, types: ["tile"] },
+  { company: "Custom Building Products", name: "RedGard Uncoupling Membrane", coverage: 54, unit: "rolls", price: 0, types: ["tile"] },
+  { company: "James Hardie", name: "HardieBacker", coverage: 15, unit: "sheets", price: 0, types: ["tile"] },
+  { company: "Wedi", name: "Wedi S-Dry", coverage: 100, unit: "rolls", price: 0, types: ["tile"] },
+  { company: "Fortifiber", name: "Aquabar B", coverage: 500, unit: "rolls", price: 0, types: ["hardwood"] },
+  { company: "MP Global", name: "FloorMuffler UltraSeal", coverage: 100, unit: "rolls", price: 0, types: ["hardwood", "laminate"] },
+  { company: "Sika", name: "Sika MB Rapid Seal", coverage: 200, unit: "units", price: 0, types: ["hardwood", "vinyl", "laminate"] },
 ];
 
 const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0 });
 const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0 });
 const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)) });
-const seedUnderlaysFor = (companyName) => SEED_UNDERLAYMENTS.filter((u) => u.company === companyName).map((u) => ({ id: cid(), name: u.name, enabled: true, ...underlayFields(u) }));
+const seedUnderlay = (u) => ({ id: cid(), name: u.name, enabled: true, ...underlayFields(u) });
+const seedUnderlaysFor = (companyName) => SEED_UNDERLAYMENTS.filter((u) => u.company === companyName).map(seedUnderlay);
 
 // Build a fresh catalog from a flat Settings object (waste-free), grouping the
 // built-in names under SEED_COMPANIES and carrying each product's numbers
@@ -156,13 +168,24 @@ const normGroutProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enab
 const normMortarProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...mortarFields(p) });
 const normUnderlayProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...underlayFields(p) });
 
-// Underlayment is a later addition (the catalog predates it). Records seeded
-// before it exist with no underlayments at all; when we see such a catalog, drop
-// the starter underlayments into their companies by name so the built-in Ditra
-// entry appears. Once any underlayment exists we leave the catalog untouched.
+// Starter underlayments are merged by NAME: any SEED_UNDERLAYMENTS entry whose
+// name is missing from the whole catalog is added under its seed company
+// (created if absent). Existing products are never touched, so team-tuned
+// coverage/price numbers survive — but renaming a seeded product will make the
+// backfill re-add it under the original name.
 function backfillUnderlayments(companies) {
-  if (companies.some((co) => (co.underlayments || []).length)) return companies;
-  return companies.map((co) => { const seeds = seedUnderlaysFor(co.name); return seeds.length ? { ...co, underlayments: [...co.underlayments, ...seeds] } : co; });
+  const have = new Set(companies.flatMap((co) => (co.underlayments || []).map((p) => normName(p.name))));
+  const missing = SEED_UNDERLAYMENTS.filter((u) => !have.has(normName(u.name)));
+  if (!missing.length) return companies;
+  const out = companies.map((co) => {
+    const seeds = missing.filter((u) => normName(u.company) === normName(co.name)).map(seedUnderlay);
+    return seeds.length ? { ...co, underlayments: [...co.underlayments, ...seeds] } : co;
+  });
+  const haveCompany = new Set(companies.map((co) => normName(co.name)));
+  for (const name of [...new Set(missing.map((u) => u.company))]) {
+    if (!haveCompany.has(normName(name))) out.push({ id: cid(), name, enabled: true, grouts: [], mortars: [], underlayments: missing.filter((u) => u.company === name).map(seedUnderlay) });
+  }
+  return out;
 }
 
 export function normalizeCatalog(catalog) {
@@ -177,9 +200,12 @@ export function normalizeCatalog(catalog) {
   return { companies: backfillUnderlayments(companies) };
 }
 
-// True when the stored catalog has no underlayment products yet — used by the
-// loader to decide whether the backfilled starters need persisting.
-export const catalogHasUnderlayments = (catalog) => !!(catalog?.companies || []).some((co) => (co.underlayments || []).length);
+// True when the stored catalog already contains every starter underlayment —
+// used by the loader to decide whether the merged-in seeds need persisting.
+export const catalogHasSeedUnderlayments = (catalog) => {
+  const have = new Set((catalog?.companies || []).flatMap((co) => (co.underlayments || []).map((p) => normName(p.name))));
+  return SEED_UNDERLAYMENTS.every((u) => have.has(normName(u.name)));
+};
 
 // Names are matched case- and whitespace-insensitively, consistent with how a
 // job's stored name keys into the catalog at lookup time. Product names must be

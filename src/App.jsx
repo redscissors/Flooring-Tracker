@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown, Hand } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasUnderlayments, isDuplicateName, addCompany, addProduct } from "./catalog.js";
+import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct } from "./catalog.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -180,10 +180,10 @@ export default function App({ user, onSignOut }) {
     if (error) throw error;
     const hasRow = row?.data && Object.keys(row.data).length;
     const settings = normalizeSettings(hasRow ? row.data : fallbackRaw);
-    // Persist when the stored record is missing, still pre-catalog, or predates
-    // the underlayment kind, so the backfilled catalog (with stable ids) becomes
-    // the canonical shared copy.
-    if (!hasRow || !row.data.catalog || !catalogHasUnderlayments(row.data.catalog)) {
+    // Persist when the stored record is missing, still pre-catalog, or lacks
+    // any of the starter underlayments, so the backfilled catalog (with stable
+    // ids) becomes the canonical shared copy.
+    if (!hasRow || !row.data.catalog || !catalogHasSeedUnderlayments(row.data.catalog)) {
       try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
     }
     return settings;

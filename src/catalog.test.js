@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, offeredUnderlayments, catalogHasUnderlayments } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -63,7 +63,7 @@ const allMortarNames = (catalog) => catalog.companies.flatMap((c) => c.mortars.m
 
 test("seedCatalog builds the expected companies from the built-ins", () => {
   const cat = seedCatalog(mergeSettings(undefined));
-  assert.deepEqual(cat.companies.map((c) => c.name), ["Laticrete", "Custom Building Products", "Tec", "Schluter"]);
+  assert.deepEqual(cat.companies.map((c) => c.name), ["Laticrete", "Custom Building Products", "Tec", "Schluter", "James Hardie", "Wedi", "Fortifiber", "MP Global", "Sika"]);
   assert.deepEqual(allGroutNames(cat).sort(), [...GROUTS].sort());
   assert.deepEqual(allMortarNames(cat).sort(), [...MORTARS].sort());
 });
@@ -282,12 +282,47 @@ test("offeredUnderlayments filters by flooring type; unchecked box returns null 
   assert.equal(getUnderlay({ ...un(), underlay: { checked: false, product: "", manual: "" } }, s), null);
 });
 
-test("backfill: a pre-underlayment catalog gains Ditra; catalogHasUnderlayments tracks it", () => {
+test("backfill: a pre-underlayment catalog gains every starter; catalogHasSeedUnderlayments tracks it", () => {
   const seeded = seedCatalog(mergeSettings(undefined));
   // Simulate the stored shared catalog from before underlayments existed.
   const legacy = { companies: seeded.companies.map(({ underlayments, ...co }) => co) };
-  assert.equal(catalogHasUnderlayments(legacy), false);
+  assert.equal(catalogHasSeedUnderlayments(legacy), false);
   const normalized = normalizeCatalog(legacy);
-  assert.equal(catalogHasUnderlayments(normalized), true);
+  assert.equal(catalogHasSeedUnderlayments(normalized), true);
   assert.ok(offeredUnderlayments(normalized, "tile").includes("Ditra Underlayment Uncoupling Membrane"));
+});
+
+test("backfill merges new starters into a catalog that already has Ditra, without duplicating it", () => {
+  // Simulate the live shared catalog from when Ditra was the only starter: the
+  // original four companies, underlayments stripped everywhere except Schluter.
+  const seeded = seedCatalog(mergeSettings(undefined));
+  const legacy = {
+    companies: seeded.companies
+      .filter((co) => ["Laticrete", "Custom Building Products", "Tec", "Schluter"].includes(co.name))
+      .map((co) => ({ ...co, underlayments: co.name === "Schluter" ? co.underlayments : [] })),
+  };
+  assert.equal(catalogHasSeedUnderlayments(legacy), false);
+  const normalized = normalizeCatalog(legacy);
+  assert.equal(catalogHasSeedUnderlayments(normalized), true);
+  // Ditra untouched (same id, no duplicate).
+  const ditras = normalized.companies.flatMap((co) => co.underlayments.filter((u) => u.name === "Ditra Underlayment Uncoupling Membrane"));
+  assert.equal(ditras.length, 1);
+  assert.equal(ditras[0].id, legacy.companies.find((co) => co.name === "Schluter").underlayments[0].id);
+  // New tile options land under existing and newly created companies.
+  const tileNames = offeredUnderlayments(normalized, "tile");
+  for (const n of ["RedGard Uncoupling Membrane", "HardieBacker", "Wedi S-Dry"]) assert.ok(tileNames.includes(n), `${n} offered for tile`);
+  assert.ok(normalized.companies.some((co) => co.name === "James Hardie"), "missing seed company created");
+  // Type scoping for the non-tile starters.
+  const hw = offeredUnderlayments(normalized, "hardwood");
+  for (const n of ["Aquabar B", "FloorMuffler UltraSeal", "Sika MB Rapid Seal"]) assert.ok(hw.includes(n), `${n} offered for hardwood`);
+  const lam = offeredUnderlayments(normalized, "laminate");
+  assert.ok(lam.includes("FloorMuffler UltraSeal"));
+  assert.ok(lam.includes("Sika MB Rapid Seal"));
+  assert.equal(lam.includes("Aquabar B"), false);
+  const vinyl = offeredUnderlayments(normalized, "vinyl");
+  assert.ok(vinyl.includes("Sika MB Rapid Seal"));
+  assert.equal(vinyl.includes("FloorMuffler UltraSeal"), false);
+  // Re-running the backfill on its own output is a no-op (no duplicates).
+  const again = normalizeCatalog(normalized);
+  assert.equal(again.companies.flatMap((co) => co.underlayments).length, normalized.companies.flatMap((co) => co.underlayments).length);
 });
