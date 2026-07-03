@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -146,6 +146,42 @@ test("a selection naming a product with no catalog entry degrades gracefully (no
   // A manual override still produces an order even for an unknown product.
   const manual = tile({ grout: { checked: true, product: "Ghost Grout", color: "", joint: 0.125, manual: "7" } });
   assert.equal(getGrout(manual, s).order, 7);
+});
+
+// --- Cartons: flooring sold by the carton/sheet --------------------------------
+
+test("cartonExact: waste-adjusted square footage over the carton's coverage", () => {
+  const s = normalizeSettings(undefined); // 10% waste
+  const p = tile({ qty: "200", cartonSf: "23.5", cartonUnit: "CT", cartonManual: "" });
+  assert.equal(cartonExact(p, s), 200 * 1.1 / 23.5);
+  const C = getCarton(p, s);
+  assert.equal(C.order, Math.ceil(200 * 1.1 / 23.5)); // 10 whole cartons
+  assert.equal(C.sf, 23.5);
+  assert.equal(C.unit, "ct");
+});
+
+test("getCarton: an exact carton count doesn't over-order from float noise", () => {
+  const s = normalizeSettings(undefined);
+  // 200 sf at 10% waste over 22 sf/ct is exactly 10 cartons.
+  const C = getCarton(tile({ qty: "200", cartonSf: "22", cartonManual: "" }), s);
+  assert.equal(C.order, 10);
+});
+
+test("getCarton: a manual total overrides the calculation, same as grout/mortar", () => {
+  const s = normalizeSettings(undefined);
+  const p = tile({ qty: "200", cartonSf: "23.5", cartonUnit: "SH", cartonManual: "12" });
+  const C = getCarton(p, s);
+  assert.equal(C.order, 12);
+  assert.equal(C.unit, "sh");
+});
+
+test("getCarton never applies to misc lines, count rows, or rows without a carton size", () => {
+  const s = normalizeSettings(undefined);
+  assert.equal(getCarton(tile({ type: "misc", cartonSf: "20", cartonManual: "" }), s), null);
+  assert.equal(getCarton(tile({ qtyType: "count", cartonSf: "20", cartonManual: "" }), s), null);
+  assert.equal(getCarton(tile({ cartonSf: "", cartonManual: "" }), s), null);
+  // Vinyl/hardwood/etc. get cartons too — only misc is excluded.
+  assert.ok(getCarton({ type: "vinyl", qtyType: "sqft", qty: "100", cartonSf: "27.39", cartonUnit: "CT", cartonManual: "" }, s));
 });
 
 // --- Slice 04: enabled checkboxes drive dropdown eligibility -----------------

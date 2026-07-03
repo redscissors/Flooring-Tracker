@@ -74,11 +74,17 @@ Customer { id, name, address, phone, email, notes, createdAt,
 Area     { id, name, note, products: Product[] }
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
-           qtyType:"sqft|count", qty, note,
+           qtyType:"sqft|count", qty,
+           cartonSf, cartonUnit, cartonManual, note,
            grout:{checked,product,color,joint,manual}, mortar:{checked,product,manual},
            underlay:{checked,product,manual,install} }
            // underlay.install = also order the catalog-defined install
            // materials (backer mortar, screws) for the chosen underlayment
+           // cartonSf = sq ft one carton/sheet covers (any type but misc;
+           // snapshotted from the book's SF/CT or typed). With it set, the
+           // order is whole cartons — exact = sqft×(1+waste)/cartonSf, order =
+           // ceil, cartonManual overrides (like grout) — and the line total is
+           // ordered cartons × cartonSf × priceSqft instead of sqft × priceSqft.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...} }
 ```
@@ -95,7 +101,11 @@ versions. Version access follows the customer's RLS rules.
 imported (Settings, browser-side parse with a diff preview) into `stock_items`,
 shared team-wide. Typing/picking a SKU on a product row **snapshots** the
 item's values onto the row — nothing reads the stock table at calc time, so
-re-imports never change saved estimates. The row keeps `sku` so the UI can
+re-imports never change saved estimates. Items sold by the carton/sheet (U/M
+`CT`/`SH`) fill their real flooring type even when the book has only a
+per-carton price ($/sqft derives as price ÷ sf-per-carton) and snapshot their
+SF/CT coverage onto the row (`cartonSf`), so quantities and totals compute in
+whole cartons. The row keeps `sku` so the UI can
 flag price drift ("price book now $X") and retired SKUs. Items missing from a
 re-import are marked `active=false`, never deleted. The import also updates
 ADR-0002 catalog prices when a catalog product name uniquely matches one book

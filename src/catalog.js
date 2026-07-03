@@ -69,6 +69,29 @@ export function getGrout(p, s) {
   return { exact: ex, order: Math.ceil(ex), unit: g.unit, price: num(g.price), product: p.grout.product, color: p.grout.color };
 }
 
+// Flooring sold by the carton/sheet: p.cartonSf is the sq ft one carton covers
+// (snapshotted from the price book's SF/CT column, or typed). Same shape as
+// grout/mortar — exact carries the waste factor, order rounds up to whole
+// cartons, a manual total overrides. Never applies to misc lines or
+// count-quantity rows.
+export function cartonExact(p, s) {
+  if (p.type === "misc" || p.qtyType !== "sqft") return null;
+  const per = num(p.cartonSf); if (!per) return null;
+  const sqft = num(p.qty); if (!sqft) return 0;
+  return sqft * (1 + num(s.wastePct) / 100) / per;
+}
+
+export function getCarton(p, s) {
+  if (p.type === "misc" || p.qtyType !== "sqft") return null;
+  const per = num(p.cartonSf); if (!per) return null;
+  const unit = String(p.cartonUnit || "CT").toLowerCase();
+  if (p.cartonManual !== "" && p.cartonManual != null) { const v = num(p.cartonManual); return { exact: v, order: v, sf: per, unit }; }
+  const ex = cartonExact(p, s); if (ex == null) return null;
+  // Round away float noise before ceiling: 200 sf at 22 sf/ct is exactly 10
+  // cartons, not 11 (200 * 1.1 = 220.00000000000003).
+  return { exact: ex, order: Math.ceil(Math.round(ex * 1e6) / 1e6), sf: per, unit };
+}
+
 // Underlayment / backer coverage is a flat area rate: one unit (roll, sheet,
 // bag) covers `coverage` sq ft, so it scales straight off square footage with
 // the waste factor — no tile-size volumetrics like grout. Applies to every
