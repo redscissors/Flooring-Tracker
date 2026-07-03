@@ -41,10 +41,14 @@ src/
   Root.jsx          # Supabase config check + auth session gate
   Auth.jsx          # sign-in screen (sign-up disabled by design)
   App.jsx           # the FloorTrack application (props: { user, onSignOut })
+  catalog.js        # settings normalization + material math + shared catalog
+  pricebook.js      # stock price book .xlsx -> flat stock items (ADR 0003)
+  stock.js          # stock search / SKU fill / drift / import diff / catalog sync
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies
+  stock.sql         # run once: stock_items table + RLS (stock price book)
 netlify.toml        # build config for Netlify
 ```
 
@@ -62,11 +66,14 @@ customers row : { id (text), owner_id (uuid), visibility:"private|public",
 versions row  : { id (text), customer_id, label, auto (bool), saved_at,
                   snapshot: Area[] }            // one row per saved version
 
+stock row     : { sku (text pk), active (bool), data: StockItem, updated_at }
+                  // one row per price book SKU; imports upsert, never delete
+
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[] }
 Area     { id, name, note, products: Product[] }
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
-           L, W, thickness, sizeText, brandColor, priceSqft,
+           sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty, note,
            grout:{checked,product,color,joint,manual}, mortar:{checked,product,manual},
            underlay:{checked,product,manual,install} }
@@ -83,6 +90,16 @@ Besides hand-named versions (unlimited), an **auto version** is saved when a
 customer is deselected (or the user signs out) with its `categories` changed
 since open — the newest 5 autos per customer are kept, autos never evict named
 versions. Version access follows the customer's RLS rules.
+
+**Stock price book** (issue 004, ADR 0003). The shop's price book workbook is
+imported (Settings, browser-side parse with a diff preview) into `stock_items`,
+shared team-wide. Typing/picking a SKU on a product row **snapshots** the
+item's values onto the row — nothing reads the stock table at calc time, so
+re-imports never change saved estimates. The row keeps `sku` so the UI can
+flag price drift ("price book now $X") and retired SKUs. Items missing from a
+re-import are marked `active=false`, never deleted. The import also updates
+ADR-0002 catalog prices when a catalog product name uniquely matches one book
+price.
 
 **Sharing.** `visibility` is `private` (owner only) or `public` (every signed-in
 user can see AND edit it — last-write-wins). RLS enforces this: read = own or
@@ -114,7 +131,9 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   an `UPDATE` of that one row's `data`. Sharing changes use `setVisibility`,
   archiving uses `setArchived`, create/delete use `addCustomer`/`delCustomer`,
   versions use `insertVersion`/`delVersion`/`loadVersion` (their own table,
-  never the blob), and settings use `setSettings`. Keep these write paths;
+  never the blob), and settings use `setSettings`. Stock rows are written only by
+  the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
+  `active=false` marks — no deletes). Keep these write paths;
   don't write ad hoc. `updateCust` never sends `owner_id`/`visibility`, so the
   guard trigger only fires for the explicit visibility toggle.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend

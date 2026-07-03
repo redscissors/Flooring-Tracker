@@ -1,0 +1,163 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
+
+const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
+
+// --- size / thickness parsing -------------------------------------------------
+
+test("parseTileSize handles the price book's size spellings", () => {
+  assert.deepEqual(parseTileSize("12x24"), ["12", "24"]);
+  assert.deepEqual(parseTileSize('2x8"'), ["2", "8"]);
+  assert.deepEqual(parseTileSize("4X12"), ["4", "12"]);
+  assert.deepEqual(parseTileSize("2 x 6"), ["2", "6"]);
+  assert.equal(parseTileSize("Esagonia"), null);
+  assert.equal(parseTileSize('6"'), null);
+});
+
+test("parseThickness handles fractions, millimeters and decimals", () => {
+  assert.equal(parseThickness('3/8"'), "0.375");
+  assert.equal(parseThickness("10MM"), "0.3937");
+  assert.equal(parseThickness("8.5 MM"), "0.3346");
+  assert.equal(parseThickness("0.75"), "0.75");
+  assert.equal(parseThickness(""), null);
+  assert.equal(parseThickness("thick"), null);
+});
+
+// --- filling a product row -----------------------------------------------------
+
+test("a tile stock item snapshots type, size, thickness and $/sqft onto the row", () => {
+  const it = normStockItem({ sku: "1518114", data: { type: "tile", unit: "CT", size: "4x15", thickness: '3/8"', description: "Marazzi Terramater Moss", brand: "Marazzi", price: 102.79, priceSqft: 9.9893 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.sku, "1518114");
+  assert.equal(patch.type, "tile");
+  assert.equal(patch.L, "4");
+  assert.equal(patch.W, "15");
+  assert.equal(patch.thickness, "0.375");
+  assert.equal(patch.priceSqft, "9.99");
+  assert.equal(patch.qtyType, "sqft");
+  assert.match(patch.brandColor, /Terramater Moss/);
+});
+
+test("a hardwood item fills sizeText; brand prefixes when not already in the description", () => {
+  const it = normStockItem({ sku: "05068", data: { type: "hardwood", size: '2-1/4"', description: "Clear Red Oak", brand: "Sheoga", price: 94.38, priceSqft: 4.29, sfPerUnit: 22 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "hardwood");
+  assert.equal(patch.sizeText, '2-1/4"');
+  assert.equal(patch.brandColor, "Sheoga Clear Red Oak");
+  assert.equal(patch.priceSqft, "4.29");
+});
+
+test("an accessory (no per-sqft price) fills as a Miscellaneous line with its flat price", () => {
+  const it = normStockItem({ sku: "55006", data: { type: null, size: '2¼ x 12"', description: "Red Oak — Self Rim", price: 30.99 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "misc");
+  assert.equal(patch.priceSqft, "30.99");
+  assert.match(patch.brandColor, /Red Oak — Self Rim — 2¼ x 12"/);
+});
+
+test("an unpriced trim SKU still links and describes, leaving price empty", () => {
+  const it = normStockItem({ sku: "13191", data: { type: null, description: "Acacia Tiger's Eye — Reducer", price: null } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "misc");
+  assert.equal(patch.priceSqft, undefined);
+  assert.equal(patch.sku, "13191");
+});
+
+// --- drift -----------------------------------------------------------------------
+
+test("stockDrift flags a snapshot whose price the book has since changed", () => {
+  const it = normStockItem({ sku: "1", data: { type: "tile", priceSqft: 5.15, price: 50 } });
+  assert.deepEqual(stockDrift(it, { priceSqft: "4.79" }), { from: 4.79, to: 5.15 });
+  assert.equal(stockDrift(it, { priceSqft: "5.15" }), null);
+  assert.equal(stockDrift(it, { priceSqft: "" }), null);
+  assert.equal(stockDrift(null, { priceSqft: "4.79" }), null);
+});
+
+// --- search ---------------------------------------------------------------------
+
+test("searchStock matches SKU prefixes and word queries, skipping retired items", () => {
+  const items = [
+    item({ sku: "28920", description: "Acacia Tiger's Eye", brand: "Mannington Aduramax" }),
+    item({ sku: "28921", description: "Old thing", discontinued: true }),
+    item({ sku: "55006", description: "Red Oak — Self Rim", sheet: "Wood Vents", active: false }),
+    item({ sku: "55007", description: "Red Oak — Self Rim", sheet: "Wood Vents" }),
+  ];
+  assert.deepEqual(searchStock(items, "289").map((i) => i.sku), ["28920"]); // 28921 is discontinued
+  assert.deepEqual(searchStock(items, "oak vent").map((i) => i.sku), ["55007"]); // sheet text searchable, inactive skipped
+  assert.deepEqual(searchStock(items, "a"), []); // too short
+  assert.equal(findStock(items, "55006").sku, "55006"); // findStock still resolves retired SKUs
+});
+
+// --- import diff ------------------------------------------------------------------
+
+test("diffStock: added / changed / missing / unchanged, and re-activation counts as a change", () => {
+  const existing = [
+    item({ sku: "1", price: 10 }),
+    item({ sku: "2", price: 20 }),
+    item({ sku: "3", price: 30 }),
+    normStockItem({ sku: "4", active: false, data: { description: "Test item", price: 40 } }),
+  ];
+  const parsed = [
+    item({ sku: "1", price: 10 }), // unchanged
+    item({ sku: "2", price: 25 }), // price change
+    item({ sku: "4", price: 40 }), // back in the book
+    item({ sku: "5", price: 50 }), // new
+  ];
+  const d = diffStock(existing, parsed);
+  assert.deepEqual(d.added.map((i) => i.sku), ["5"]);
+  assert.deepEqual(d.changed.map((c) => c.item.sku), ["2", "4"]);
+  assert.deepEqual(d.changed[0].fields, ["price"]);
+  assert.deepEqual(d.missing.map((i) => i.sku), ["3"]); // sku 4 was already inactive
+  assert.deepEqual(d.unchanged.map((i) => i.sku), ["1"]);
+});
+
+test("stockData strips the column-backed fields from what goes into jsonb", () => {
+  const d = stockData(item({ sku: "9", price: 1 }));
+  assert.equal(d.sku, undefined);
+  assert.equal(d.active, undefined);
+  assert.equal(d.updatedAt, undefined);
+  assert.equal(d.price, 1);
+});
+
+// --- catalog price sync ---------------------------------------------------------------
+
+const catalog = () => ({ companies: [{
+  id: "c1", name: "Co", enabled: true,
+  grouts: [{ id: "g1", name: "Tec Power Grout", enabled: true, coverage: 100, unit: "bags", price: 30 }],
+  mortars: [
+    { id: "m1", name: "ProLite", enabled: true, tier1: 90, tier2: 60, tier3: 45, unit: "bags", price: 35 },
+    { id: "m2", name: "Schluter All Set", enabled: true, tier1: 90, tier2: 60, tier3: 45, unit: "bags", price: 0 },
+  ],
+  underlayments: [{ id: "u1", name: "FloorMuffler UltraSeal", enabled: true, coverage: 100, unit: "rolls", price: 0, types: [], install: [] }],
+}] });
+
+test("syncCatalogPrices updates on a unique price, skips ambiguous name matches", () => {
+  const items = [
+    // many colors, one price → counts as a unique price for Tec Power Grout
+    item({ sku: "26742", product: "TEC Power Grout", description: "TEC Power Grout — Birch", price: 33.53 }),
+    item({ sku: "26736", product: "TEC Power Grout", description: "TEC Power Grout — Bright White", price: 33.53 }),
+    // "ProLite" matches two differently-priced mortars → left alone
+    item({ sku: "29438", description: "Custom Prolite Mortar White", price: 39.99 }),
+    item({ sku: "29177", description: "Custom Prolite Rapid Set Gray", price: 58.04 }),
+    item({ sku: "23051", description: "Schluter All Set White", price: 39.21 }),
+    // space-insensitive match: "FloorMuffler" ~ "Floor Muffler"
+    item({ sku: "28882", description: "Floor Muffler w/ Ultraseal", price: 45 }),
+  ];
+  const { catalog: next, changes } = syncCatalogPrices(catalog(), items);
+  const co = next.companies[0];
+  assert.equal(co.grouts[0].price, 33.53);
+  assert.equal(co.mortars[0].price, 35); // ProLite untouched (ambiguous)
+  assert.equal(co.mortars[1].price, 39.21);
+  assert.equal(co.underlayments[0].price, 45);
+  assert.deepEqual(changes.map((c) => c.name).sort(), ["FloorMuffler UltraSeal", "Schluter All Set", "Tec Power Grout"]);
+});
+
+test("syncCatalogPrices ignores discontinued/inactive items and no-ops on equal prices", () => {
+  const items = [
+    item({ sku: "1", product: "TEC Power Grout", description: "TEC Power Grout — Birch", price: 99, discontinued: true }),
+    item({ sku: "2", description: "Schluter All Set White", price: 39.21, active: false }),
+  ];
+  const { changes } = syncCatalogPrices(catalog(), items);
+  assert.equal(changes.length, 0);
+});

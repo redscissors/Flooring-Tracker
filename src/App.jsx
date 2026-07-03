@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown, Hand } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct } from "./catalog.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
+import { parsePriceBook } from "./pricebook.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -39,6 +41,45 @@ const FitSelect = ({ display, className = "", sm, children, ...rest }) => {
   );
 };
 
+// SKU typeahead for a product row. Typing stores the text on the row (a SKU is
+// just a field); picking a suggestion snapshots the stock item's values onto
+// the row via onPick. Search matches SKU prefixes or words in the item text.
+function SkuPicker({ value, stock, onChange, onPick }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const results = open ? searchStock(stock, value) : [];
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  const pick = (it) => { onPick(it); setOpen(false); };
+  return (
+    <div ref={wrapRef} className="relative w-24 shrink-0 h-9 border-r border-slate-200">
+      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
+        className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row" />
+      {open && results.length > 0 && (
+        <div className="absolute left-0 top-full mt-1 w-80 max-w-[80vw] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg z-30">
+          {results.map((it) => (
+            <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              <div className="flex items-baseline gap-2">
+                <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+                <span className="text-xs font-medium truncate flex-1">{it.description || it.product || it.section}</span>
+              </div>
+              <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
+                <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
+                <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ATT_BUCKET = "attachments";
 const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -46,11 +87,11 @@ const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDig
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
-const newProduct = () => ({ id: uid(), type: "tile", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
+const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
 const newArea = () => ({ id: uid(), name: "New Area", note: "", products: [newProduct()] });
 const newCustomer = () => ({ id: uid(), name: "New Customer", address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [] });
 
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness ?? "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", joint: p.grout?.joint ?? 0.125, manual: p.grout?.manual ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness ?? "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", joint: p.grout?.joint ?? 0.125, manual: p.grout?.manual ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
 
@@ -80,6 +121,13 @@ export default function App({ user, onSignOut }) {
   const [allOpen, setAllOpen] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  // Stock price book (ADR 0003): all active+retired items, loaded once — the
+  // SKU picker and drift chips search this in memory. Empty until the team has
+  // run supabase/stock.sql and imported the workbook.
+  const [stock, setStock] = useState([]);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const pbRef = useRef(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState("");
   const [focusArea, setFocusArea] = useState(null);
@@ -168,6 +216,9 @@ export default function App({ user, onSignOut }) {
 
         const customers = await loadCustomers();
         setData({ customers, settings });
+        // Best-effort: installs that haven't run supabase/stock.sql yet just
+        // don't get the SKU picker.
+        try { setStock(await loadStock()); } catch (x) { }
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
     })();
@@ -238,6 +289,59 @@ export default function App({ user, onSignOut }) {
       try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
     }
     return settings;
+  };
+
+  const loadStock = async () => {
+    const { data: rows, error } = await supabase.from("stock_items").select("sku, active, data, updated_at");
+    if (error) throw error;
+    return (rows || []).map(normStockItem);
+  };
+
+  // Parse a freshly exported price book workbook in the browser and show what
+  // an import would change — nothing is written until the preview is applied.
+  const importPriceBook = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    (async () => {
+      setImporting(true);
+      try {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+        const sheets = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
+        const { items, warnings } = parsePriceBook(sheets);
+        if (!items.length) { ping("No stock items found in that file"); }
+        else {
+          const parsed = items.map((it) => ({ ...it, active: true }));
+          setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed) });
+        }
+      } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); }
+      setImporting(false);
+    })();
+  };
+
+  // Upsert by SKU: new + changed items, plus active-off rows for items that
+  // dropped out of the book (never deleted — old selections keep resolving).
+  // Catalog products whose price the book pins get updated through the normal
+  // settings write path.
+  const applyImport = async () => {
+    const { diff, sync } = importPreview;
+    setImportPreview(null);
+    const upserts = [
+      ...diff.added.map((it) => ({ sku: it.sku, active: true, data: stockData(it) })),
+      ...diff.changed.map(({ item }) => ({ sku: item.sku, active: true, data: stockData(item) })),
+      ...diff.missing.map((it) => ({ sku: it.sku, active: false, data: stockData(it) })),
+    ];
+    try {
+      for (let i = 0; i < upserts.length; i += 200) {
+        const { error } = await supabase.from("stock_items").upsert(upserts.slice(i, i + 200), { onConflict: "sku" });
+        if (error) throw error;
+      }
+      if (sync.changes.length) setSettings({ catalog: sync.catalog });
+      setStock(await loadStock());
+      flashSaved();
+      ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
+    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -528,8 +632,8 @@ export default function App({ user, onSignOut }) {
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
-    const head = ["Customer", "Area", "Type", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
-    sel.categories.forEach((a) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const line = p.type === "misc" ? num(p.priceSqft) : p.qtyType === "sqft" ? num(p.qty) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, a.name, TLBL[p.type], size, p.brandColor, p.priceSqft, p.qtyType, p.qty, line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
+    const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
+    sel.categories.forEach((a) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const line = p.type === "misc" ? num(p.priceSqft) : p.qtyType === "sqft" ? num(p.qty) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, a.name, TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
@@ -878,6 +982,16 @@ export default function App({ user, onSignOut }) {
                         );
                         const selAccent = TYPE_ACCENT[p.type] || "var(--ft-text)";
                         const typeOrder = TYPES.includes(p.type) ? [p.type, ...TYPES.filter((t) => t !== p.type)] : TYPES;
+                        // Stock link: the row keeps its snapshotted values; the
+                        // chip below only points out drift from the current book.
+                        const stockItem = findStock(stock, p.sku);
+                        const drift = stockDrift(stockItem, p);
+                        const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
+                        const skuBox = stock.length > 0 ? (
+                          <SkuPicker value={p.sku || ""} stock={stock}
+                            onChange={(v) => updProduct(a.id, p.id, { sku: v })}
+                            onPick={(it) => updProduct(a.id, p.id, stockPatch(it, p))} />
+                        ) : null;
                         return (
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
                             <div className="ft-noprint flex items-center gap-2 mb-2.5">
@@ -894,6 +1008,7 @@ export default function App({ user, onSignOut }) {
 
                             <div className="flex flex-wrap items-stretch w-full rounded-md border border-slate-200 ft-fieldbar text-sm overflow-hidden">
                               {p.type === "tile" ? (<>
+                                {skuBox}
                                 <div className="flex items-center shrink-0 h-9 pl-1">
                                   <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
                                   <span className="text-slate-300 shrink-0">×</span>
@@ -901,9 +1016,11 @@ export default function App({ user, onSignOut }) {
                                 </div>
                                 <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 h-9 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
-                              </>) : p.type === "misc" ? (
+                              </>) : p.type === "misc" ? (<>
+                                {skuBox}
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Description" />
-                              ) : (<>
+                              </>) : (<>
+                                {skuBox}
                                 <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className="w-28 shrink-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
                               </>)}
@@ -914,6 +1031,15 @@ export default function App({ user, onSignOut }) {
                                 <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                               </>)}
                             </div>
+                            {(drift || stockRetired) && (
+                              <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
+                                {drift && (<>
+                                  <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
+                                  <button onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
+                                </>)}
+                                {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
+                              </div>
+                            )}
                             {p.type !== "misc" && p.qtyType === "sqft" && sf > 0 && (
                               <div className="mt-1.5 flex items-baseline justify-end gap-2 text-sm">
                                 <span className="text-xs text-slate-500">{sf} sf</span>
@@ -1044,9 +1170,9 @@ export default function App({ user, onSignOut }) {
                   return (
                     <div key={p.id} className="mt-2 text-sm">
                       {p.type === "misc" ? (
-                        <div><b>{TLBL[p.type]}</b>{p.brandColor ? ` · ${p.brandColor}` : ""}{num(p.priceSqft) > 0 ? ` = ${money(num(p.priceSqft))}` : ""}</div>
+                        <div><b>{TLBL[p.type]}</b>{p.brandColor ? ` · ${p.brandColor}` : ""}{p.sku ? ` · SKU ${p.sku}` : ""}{num(p.priceSqft) > 0 ? ` = ${money(num(p.priceSqft))}` : ""}</div>
                       ) : (
-                        <div><b>{TLBL[p.type]}</b>{size ? ` · ${size}` : ""}{p.brandColor ? ` · ${p.brandColor}` : ""}{p.qty ? ` · ${p.qty} ${p.qtyType === "sqft" ? "sq ft" : "units"}` : ""}{num(p.priceSqft) > 0 ? ` @ ${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}${line > 0 ? ` = ${money(line)}` : ""}` : ""}</div>
+                        <div><b>{TLBL[p.type]}</b>{size ? ` · ${size}` : ""}{p.brandColor ? ` · ${p.brandColor}` : ""}{p.sku ? ` · SKU ${p.sku}` : ""}{p.qty ? ` · ${p.qty} ${p.qtyType === "sqft" ? "sq ft" : "units"}` : ""}{num(p.priceSqft) > 0 ? ` @ ${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}${line > 0 ? ` = ${money(line)}` : ""}` : ""}</div>
                       )}
                       {p.type === "tile" && p.grout.checked && (G && G.order > 0 ? <div className="ml-3">Grout: {p.grout.product}{p.grout.color ? ` — ${p.grout.color}` : ""}{j ? `, ${j} joint` : ""} → {G.order} {G.unit} ({G.exact.toFixed(2)}){G.price > 0 ? ` = ${money(G.order * G.price)}` : ""}</div> : <div className="ml-3">Grout: {p.grout.product}{p.grout.color ? ` — ${p.grout.color}` : ""}{j ? `, ${j} joint` : ""}</div>)}
                       {M && (M.order > 0 ? <div className="ml-3">Mortar: {M.product} → {M.order} {M.unit} ({M.exact.toFixed(2)}){M.price > 0 ? ` = ${money(M.order * M.price)}` : ""}</div> : <div className="ml-3">Mortar: {M.product}</div>)}
@@ -1089,11 +1215,72 @@ export default function App({ user, onSignOut }) {
         <Modal onClose={() => setShowSettings(false)} title="Coverage, Pricing & Settings">
           <p className="text-sm text-slate-500 mb-4">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
           <div className="mb-4"><label className={lbl}>Waste factor (%)</label><input type="number" value={settings.wastePct} onChange={(e) => setSettings({ wastePct: e.target.value })} className={inp + " w-28"} /></div>
+          <div className="font-medium text-sm mb-1">Stock price book</div>
+          <p className="text-xs text-slate-400 mb-2">
+            {stock.length > 0
+              ? `${stock.filter((s) => s.active).length} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
+              : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
+            Importing the price book .xlsx shows a preview of what changed before anything is saved. Entering a SKU on a product row copies that item's values onto the row; later price changes never rewrite saved selections.
+          </p>
+          <button onClick={() => pbRef.current?.click()} disabled={importing} className="mb-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import price book (.xlsx)"}</button>
+          <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
           <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
           <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected. Underlayments are offered only for the flooring types you tag them with.</p>
           <CatalogSettings catalog={settings.catalog} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
         </Modal>
       )}
+
+      {importPreview && (() => {
+        const { parsed, diff, warnings, sync } = importPreview;
+        const total = diff.added.length + diff.changed.length + diff.missing.length;
+        const money2 = (n) => (n == null ? "—" : money(n));
+        const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
+        return (
+          <Modal onClose={() => setImportPreview(null)} title="Import price book">
+            <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
+            {total === 0 && sync.changes.length === 0 && <p className="text-sm text-slate-400 mb-3">Everything already matches the current stock list — nothing to apply.</p>}
+            {diff.changed.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>Changed items</label>
+                <div className="max-h-44 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100 text-xs">
+                  {diff.changed.slice(0, 60).map(({ item, prev, fields }) => (
+                    <div key={item.sku} className="px-2.5 py-1.5 flex items-baseline gap-2">
+                      <span className="ft-mono text-slate-400 shrink-0">{item.sku}</span>
+                      <span className="truncate flex-1">{item.description}</span>
+                      <span className="shrink-0 ft-mono">{fields.includes("price") || fields.includes("priceSqft") ? <>{money2(itemPrice(prev))} → <b>{money2(itemPrice(item))}</b></> : <span className="text-slate-400">{fields.join(", ") || "re-activated"}</span>}</span>
+                    </div>
+                  ))}
+                  {diff.changed.length > 60 && <div className="px-2.5 py-1.5 text-slate-400">…and {diff.changed.length - 60} more</div>}
+                </div>
+              </div>
+            )}
+            {diff.missing.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>No longer listed (marked inactive, never deleted)</label>
+                <div className="text-xs text-slate-500 max-h-24 overflow-y-auto rounded-md border border-slate-200 px-2.5 py-1.5">{diff.missing.slice(0, 30).map((it) => it.sku).join(", ")}{diff.missing.length > 30 ? ` …and ${diff.missing.length - 30} more` : ""}</div>
+              </div>
+            )}
+            {sync.changes.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>Catalog price updates (grout / mortar / underlayment)</label>
+                <div className="max-h-32 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100 text-xs">
+                  {sync.changes.map((c) => <div key={c.name} className="px-2.5 py-1.5 flex items-baseline gap-2"><span className="truncate flex-1">{c.name}</span><span className="shrink-0 ft-mono">{money(c.from)} → <b>{money(c.to)}</b></span><span className="ft-mono text-slate-400 shrink-0">SKU {c.sku}</span></div>)}
+                </div>
+              </div>
+            )}
+            {warnings.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>Warnings</label>
+                <div className="text-xs text-amber-600 space-y-1 max-h-28 overflow-y-auto">{warnings.slice(0, 12).map((w, i) => <div key={i}>{w}</div>)}{warnings.length > 12 && <div>…and {warnings.length - 12} more</div>}</div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setImportPreview(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import</button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {showVersions && sel && (
         <Modal onClose={() => setShowVersions(false)} title="Saved Versions">
