@@ -40,3 +40,15 @@ Verified against the shop's new workbook (697 items; 155 Mannington Aduramax
 trims parse with the existing fixed-column layout — the "missing transitions"
 were a display cap + missing synonym, not a parser gap; a re-import of the new
 book brings them in).
+
+## Follow-up round (user feedback)
+
+- The dropdown panel was clipped to the row's height: the product-row field
+  bar (and the settings modal) use `overflow-hidden`, which clips absolutely
+  positioned children. Both dropdowns now render through a portal on `<body>`
+  with fixed coordinates anchored to the input (tracked on scroll/resize).
+- Settings catalog products can now be **deleted**, not just disabled, behind
+  an inline confirm that warns saved jobs will stop calculating. Empty
+  companies get a delete button too. Deleting a starter underlayment
+  tombstones its name in `catalog.removedSeeds` — otherwise the seed backfill
+  in `normalizeCatalog` would silently resurrect it on the next load.

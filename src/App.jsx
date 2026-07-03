@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown, Hand } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct } from "./catalog.js";
+import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 
@@ -58,14 +59,31 @@ const StockHit = ({ it }) => (
 
 const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${total} matches — keep typing to narrow` : `${total} match${total === 1 ? "" : "es"}`;
 
-// Close an open dropdown when the pointer lands outside `ref`.
-const useClickOutside = (ref, open, onClose) => {
+// Dropdown panels render in a portal on <body>: the product-row field bar and
+// the settings modal both clip absolutely-positioned children (overflow), so
+// the panel anchors to the input with fixed coordinates instead. Returns the
+// anchor's viewport rect (tracked through scroll/resize) and dismisses on a
+// pointer-down outside both the anchor and the panel.
+const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const r = anchorRef.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
+  return pos;
 };
 
 // SKU typeahead for a product row. Typing stores the text on the row (a SKU is
@@ -79,10 +97,11 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // SKUs, in click order
   const wrapRef = useRef(null);
+  const panelRef = useRef(null);
   const matches = open ? searchStock(stock, value) : [];
   const results = matches.slice(0, SKU_SHOW);
   const close = () => { setOpen(false); setPicked([]); };
-  useClickOutside(wrapRef, open, close);
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { onPick(it); close(); };
   const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
   // Resolve against the full stock list, not the current matches — the user
@@ -109,8 +128,9 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey}
         className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
-      {open && (results.length > 0 || picked.length > 0) && (
-        <div className="absolute left-0 top-full mt-1 w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-30">
+      {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-72 overflow-y-auto">
             {results.map((it, i) => {
               const sel = picked.includes(it.sku);
@@ -132,8 +152,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
               <span className="ml-auto shrink-0">Shift-click to pick several</span>
             )}
           </div>
-        </div>
-      )}
+        </div>, document.body)}
     </div>
   );
 }
@@ -145,17 +164,18 @@ function StockSearch({ stock, onPick, inp }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
+  const panelRef = useRef(null);
   const matches = open ? searchStock(stock, q) : [];
   const results = matches.slice(0, SKU_SHOW);
-  useClickOutside(wrapRef, open, () => setOpen(false));
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   const pick = (it) => { onPick(it); setQ(`${it.sku} — ${it.description || it.product}`); setOpen(false); };
   return (
     <div ref={wrapRef} className="relative mb-1.5">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
         className={inp} placeholder="Search the price book to pre-fill (optional)…" />
-      {open && results.length > 0 && (
-        <div className="absolute left-0 top-full mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg z-30">
+      {open && pos && results.length > 0 && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-60 overflow-y-auto">
             {results.map((it) => (
               <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
@@ -164,8 +184,7 @@ function StockSearch({ stock, onPick, inp }) {
             ))}
           </div>
           <div className="px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
-        </div>
-      )}
+        </div>, document.body)}
     </div>
   );
 }
@@ -1425,6 +1444,7 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
   const [adding, setAdding] = useState(null); // { companyId, kind }
   const [draft, setDraft] = useState({});
   const [error, setError] = useState("");
+  const [confirmDel, setConfirmDel] = useState(null); // { companyId, kind, productId }
   // Which companies are expanded — view state only, never persisted. Collapsed
   // by default so the list stays tidy as products accumulate.
   const [expanded, setExpanded] = useState(() => new Set());
@@ -1464,6 +1484,16 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
   const box = (on, onClick, title) => (
     <button onClick={onClick} title={title} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${on ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{on && <Check size={12} />}</button>
   );
+  const delButton = (co, kind, p) => (
+    <button onClick={() => setConfirmDel({ companyId: co.id, kind, productId: p.id })} title={`Delete ${p.name}`} className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
+  );
+  const delConfirm = (co, kind, p) => confirmDel && confirmDel.companyId === co.id && confirmDel.kind === kind && confirmDel.productId === p.id && (
+    <div className="flex items-center gap-2 mt-1.5 text-xs">
+      <span className="text-red-600 flex-1">Delete "{p.name}"? Saved jobs that use it keep the name but stop calculating. To just hide it from new jobs, uncheck it instead.</span>
+      <button onClick={() => { onChange(removeProduct(catalog, co.id, kind, p.id)); setConfirmDel(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
+      <button onClick={() => setConfirmDel(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+    </div>
+  );
   const numField = (label, value, onVal) => (
     <div><label className={lbl}>{label}</label><input type="number" value={value} onChange={(e) => onVal(e.target.value)} className={inp} /></div>
   );
@@ -1490,6 +1520,9 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
             {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
             <button onClick={() => toggleExpanded(co.id)} className={`text-sm font-semibold flex-1 text-left ${co.enabled ? "" : "text-slate-400"}`}>{co.name}</button>
             <span className="text-xs text-slate-400 shrink-0">{co.grouts.length + co.mortars.length + (co.underlayments?.length || 0)}</span>
+            {co.grouts.length + co.mortars.length + (co.underlayments?.length || 0) === 0 && (
+              <button onClick={() => onChange(removeCompany(catalog, co.id))} title="Delete this empty company" className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={14} /></button>
+            )}
           </div>
           {expanded.has(co.id) && (
           <div className="mt-1.5 space-y-1.5 pl-7">
@@ -1500,7 +1533,9 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                   {box(g.enabled, () => setProduct(co.id, "grouts", g.id, { enabled: !g.enabled }))}
                   <span className={`text-sm font-medium flex-1 ${g.enabled ? "" : "text-slate-400"}`}>{g.name}</span>
                   <span className="text-xs text-slate-400">Grout</span>
+                  {delButton(co, "grouts", g)}
                 </div>
+                {delConfirm(co, "grouts", g)}
                 {g.enabled && (
                   <div className="grid grid-cols-3 gap-2 mt-1.5">
                     {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
@@ -1516,7 +1551,9 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                   {box(m.enabled, () => setProduct(co.id, "mortars", m.id, { enabled: !m.enabled }))}
                   <span className={`text-sm font-medium flex-1 ${m.enabled ? "" : "text-slate-400"}`}>{m.name}</span>
                   <span className="text-xs text-slate-400">Mortar</span>
+                  {delButton(co, "mortars", m)}
                 </div>
+                {delConfirm(co, "mortars", m)}
                 {m.enabled && (
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1.5">
                     {numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}
@@ -1534,7 +1571,9 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                   {box(u.enabled, () => setProduct(co.id, "underlayments", u.id, { enabled: !u.enabled }))}
                   <span className={`text-sm font-medium flex-1 ${u.enabled ? "" : "text-slate-400"}`}>{u.name}</span>
                   <span className="text-xs text-slate-400">Underlayment</span>
+                  {delButton(co, "underlayments", u)}
                 </div>
+                {delConfirm(co, "underlayments", u)}
                 {u.enabled && (
                   <div className="mt-1.5 space-y-2">
                     <div className="grid grid-cols-3 gap-2">

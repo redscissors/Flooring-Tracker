@@ -193,5 +193,5 @@ export function syncCatalogPrices(catalog, items) {
     });
     return { ...co, grouts: syncKind(co.grouts), mortars: syncKind(co.mortars), underlayments: syncKind(co.underlayments) };
   });
-  return { catalog: { companies }, changes };
+  return { catalog: { ...catalog, companies }, changes };
 }

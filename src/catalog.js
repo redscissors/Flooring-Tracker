@@ -229,10 +229,11 @@ const normUnderlayProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", e
 // name is missing from the whole catalog is added under its seed company
 // (created if absent). Existing products are never touched, so team-tuned
 // coverage/price numbers survive — but renaming a seeded product will make the
-// backfill re-add it under the original name.
-function backfillUnderlayments(companies) {
+// backfill re-add it under the original name. Seeds the team deleted are
+// tombstoned in catalog.removedSeeds so they stay deleted across loads.
+function backfillUnderlayments(companies, removedSeeds) {
   const have = new Set(companies.flatMap((co) => (co.underlayments || []).map((p) => normName(p.name))));
-  const missing = SEED_UNDERLAYMENTS.filter((u) => !have.has(normName(u.name)));
+  const missing = SEED_UNDERLAYMENTS.filter((u) => !have.has(normName(u.name)) && !removedSeeds.includes(normName(u.name)));
   if (!missing.length) return companies;
   const out = companies.map((co) => {
     const seeds = missing.filter((u) => normName(u.company) === normName(co.name)).map(seedUnderlay);
@@ -246,6 +247,7 @@ function backfillUnderlayments(companies) {
 }
 
 export function normalizeCatalog(catalog) {
+  const removedSeeds = (Array.isArray(catalog?.removedSeeds) ? catalog.removedSeeds : []).map(normName);
   const companies = (catalog?.companies || []).map((co) => ({
     id: co?.id || cid(),
     name: co?.name || "Company",
@@ -254,15 +256,17 @@ export function normalizeCatalog(catalog) {
     mortars: (co?.mortars || []).map(normMortarProduct),
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
   }));
-  return { companies: backfillUnderlayments(companies) };
+  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds };
 }
 
 // True when the stored catalog already contains every starter underlayment
 // (including install-material defaults on the ones that seed them) — used by
-// the loader to decide whether the merged-in seeds need persisting.
+// the loader to decide whether the merged-in seeds need persisting. Tombstoned
+// seeds count as present: there is nothing to merge back in.
 export const catalogHasSeedUnderlayments = (catalog) => {
+  const removed = (catalog?.removedSeeds || []).map(normName);
   const have = new Map((catalog?.companies || []).flatMap((co) => (co.underlayments || []).map((p) => [normName(p.name), p])));
-  return SEED_UNDERLAYMENTS.every((u) => { const p = have.get(normName(u.name)); return p && (!u.install || p.install !== undefined); });
+  return SEED_UNDERLAYMENTS.every((u) => { if (removed.includes(normName(u.name))) return true; const p = have.get(normName(u.name)); return p && (!u.install || p.install !== undefined); });
 };
 
 // Names are matched case- and whitespace-insensitively, consistent with how a
@@ -279,7 +283,7 @@ export function isDuplicateName(catalog, kind, name) {
 
 export function addCompany(catalog, name) {
   const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [] };
-  return { companies: [...(catalog?.companies || []), company] };
+  return { ...catalog, companies: [...(catalog?.companies || []), company] };
 }
 
 // Append a product (defaulting to enabled) under a company. Uniqueness is the
@@ -288,7 +292,29 @@ export function addProduct(catalog, companyId, kind, fields) {
   const base = { id: cid(), name: String(fields?.name || "").trim(), enabled: true };
   const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : underlayFields(fields);
   const product = { ...base, ...shape };
-  return { companies: (catalog?.companies || []).map((co) => co.id === companyId ? { ...co, [kind]: [...(co[kind] || []), product] } : co) };
+  return { ...catalog, companies: (catalog?.companies || []).map((co) => co.id === companyId ? { ...co, [kind]: [...(co[kind] || []), product] } : co) };
+}
+
+// Deleting is permanent and sharper than disabling: saved jobs keep the name
+// they stored, but the math can no longer resolve it, so their quantities stop
+// calculating. A deleted starter underlayment is tombstoned so the seed
+// backfill doesn't resurrect it on the next load.
+export function removeProduct(catalog, companyId, kind, productId) {
+  let removedName = null;
+  const companies = (catalog?.companies || []).map((co) => {
+    if (co.id !== companyId) return co;
+    const target = (co[kind] || []).find((p) => p.id === productId);
+    if (target) removedName = normName(target.name);
+    return { ...co, [kind]: (co[kind] || []).filter((p) => p.id !== productId) };
+  });
+  const seedGone = kind === "underlayments" && removedName && SEED_UNDERLAYMENTS.some((u) => normName(u.name) === removedName);
+  const removedSeeds = seedGone ? [...new Set([...(catalog?.removedSeeds || []), removedName])] : (catalog?.removedSeeds || []);
+  return { ...catalog, companies, removedSeeds };
+}
+
+// UI only offers this for empty companies — delete the products first.
+export function removeCompany(catalog, companyId) {
+  return { ...catalog, companies: (catalog?.companies || []).filter((co) => co.id !== companyId) };
 }
 
 // Flatten the catalog into name→numbers maps for the material math. Resolves
