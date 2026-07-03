@@ -41,39 +41,129 @@ const FitSelect = ({ display, className = "", sm, children, ...rest }) => {
   );
 };
 
-// SKU typeahead for a product row. Typing stores the text on the row (a SKU is
-// just a field); picking a suggestion snapshots the stock item's values onto
-// the row via onPick. Search matches SKU prefixes or words in the item text.
-function SkuPicker({ value, stock, onChange, onPick }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-  const results = open ? searchStock(stock, value) : [];
+const SKU_SHOW = 30;
+
+const StockHit = ({ it }) => (
+  <>
+    <div className="flex items-baseline gap-2">
+      <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <span className="text-xs font-medium truncate flex-1">{it.description || it.product || it.section}</span>
+    </div>
+    <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
+      <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
+      <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
+    </div>
+  </>
+);
+
+const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${total} matches — keep typing to narrow` : `${total} match${total === 1 ? "" : "es"}`;
+
+// Close an open dropdown when the pointer lands outside `ref`.
+const useClickOutside = (ref, open, onClose) => {
   useEffect(() => {
     if (!open) return;
-    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
-  const pick = (it) => { onPick(it); setOpen(false); };
+};
+
+// SKU typeahead for a product row. Typing stores the text on the row (a SKU is
+// just a field); picking a suggestion snapshots the stock item's values onto
+// the row via onPick. Search matches SKU prefixes or words in the item text.
+// Shift-click (or the leading checkbox) marks several results; committing the
+// selection fills this row with the first item and appends a product row for
+// each of the rest via onPickMany.
+function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [picked, setPicked] = useState([]); // SKUs, in click order
+  const wrapRef = useRef(null);
+  const matches = open ? searchStock(stock, value) : [];
+  const results = matches.slice(0, SKU_SHOW);
+  const close = () => { setOpen(false); setPicked([]); };
+  useClickOutside(wrapRef, open, close);
+  const pick = (it) => { onPick(it); close(); };
+  const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
+  // Resolve against the full stock list, not the current matches — the user
+  // may change search words between picks and the selection must survive that.
+  const commit = () => {
+    const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
+    if (items.length === 1) onPick(items[0]);
+    else if (items.length) onPickMany(items);
+    close();
+  };
+  const onKey = (e) => {
+    if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
+    if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (picked.length) commit();
+      else if (results[hi]) pick(results[hi]);
+      else if (results.length) pick(results[0]);
+    }
+    if (e.key === "Escape") close();
+  };
   return (
-    <div ref={wrapRef} className="relative w-24 shrink-0 h-9 border-r border-slate-200">
-      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+    <div ref={wrapRef} className="relative w-28 shrink-0 h-9 border-r border-slate-200">
+      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
+        onKeyDown={onKey}
+        className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+      {open && (results.length > 0 || picked.length > 0) && (
+        <div className="absolute left-0 top-full mt-1 w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-30">
+          <div className="max-h-72 overflow-y-auto">
+            {results.map((it, i) => {
+              const sel = picked.includes(it.sku);
+              return (
+                <div key={it.sku} onClick={(e) => (e.shiftKey || picked.length ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
+                  <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                    className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
+                  <div className="flex-1 min-w-0"><StockHit it={it} /></div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+            <span className="truncate">{matchSummary(results.length, matches.length)}</span>
+            {picked.length > 0 ? (
+              <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+            ) : (
+              <span className="ml-auto shrink-0">Shift-click to pick several</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Price book lookup for the Settings catalog's add-product form: picking an
+// item pre-fills the draft (name, price, coverage when the book has one). No
+// multi-select — catalog products are added one at a time.
+function StockSearch({ stock, onPick, inp }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const matches = open ? searchStock(stock, q) : [];
+  const results = matches.slice(0, SKU_SHOW);
+  useClickOutside(wrapRef, open, () => setOpen(false));
+  const pick = (it) => { onPick(it); setQ(`${it.sku} — ${it.description || it.product}`); setOpen(false); };
+  return (
+    <div ref={wrapRef} className="relative mb-1.5">
+      <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
-        className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row" />
+        className={inp} placeholder="Search the price book to pre-fill (optional)…" />
       {open && results.length > 0 && (
-        <div className="absolute left-0 top-full mt-1 w-80 max-w-[80vw] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg z-30">
-          {results.map((it) => (
-            <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-              <div className="flex items-baseline gap-2">
-                <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
-                <span className="text-xs font-medium truncate flex-1">{it.description || it.product || it.section}</span>
-              </div>
-              <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
-                <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
-                <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
-              </div>
-            </button>
-          ))}
+        <div className="absolute left-0 top-full mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg z-30">
+          <div className="max-h-60 overflow-y-auto">
+            {results.map((it) => (
+              <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <StockHit it={it} />
+              </button>
+            ))}
+          </div>
+          <div className="px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
         </div>
       )}
     </div>
@@ -464,6 +554,17 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateCust(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: [...a.products, newProduct()] }); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
+  // Multi-pick from the SKU dropdown: the first item fills the anchor row, each
+  // further item becomes its own new product row right below it.
+  const addStockProducts = (aid, pid, items) => {
+    if (!items.length) return;
+    const a = sel.categories.find((x) => x.id === aid);
+    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
+      { ...p, ...stockPatch(items[0], p) },
+      ...items.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
+    ]);
+    updArea(aid, { products });
+  };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
     const p = sel.categories.find((x) => x.id === fromAid)?.products.find((x) => x.id === pid);
@@ -990,7 +1091,8 @@ export default function App({ user, onSignOut }) {
                         const skuBox = stock.length > 0 ? (
                           <SkuPicker value={p.sku || ""} stock={stock}
                             onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                            onPick={(it) => updProduct(a.id, p.id, stockPatch(it, p))} />
+                            onPick={(it) => updProduct(a.id, p.id, stockPatch(it, p))}
+                            onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
                         ) : null;
                         return (
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
@@ -1226,7 +1328,7 @@ export default function App({ user, onSignOut }) {
           <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
           <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
           <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected. Underlayments are offered only for the flooring types you tag them with.</p>
-          <CatalogSettings catalog={settings.catalog} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
+          <CatalogSettings catalog={settings.catalog} stock={stock} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
         </Modal>
       )}
 
@@ -1318,7 +1420,7 @@ function Modal({ title, children, onClose }) {
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
 // product's numbers are shown and editable only while it is enabled, but stay
 // stored when off. All edits flow up through onChange(newCatalog).
-function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
+function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels }) {
   const [newCompany, setNewCompany] = useState("");
   const [adding, setAdding] = useState(null); // { companyId, kind }
   const [draft, setDraft] = useState({});
@@ -1350,6 +1452,14 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
     setAdding(null); setError("");
   };
   const submitCompany = () => { const name = newCompany.trim(); if (!name) return; onChange(addCompany(catalog, name)); setNewCompany(""); };
+  // The book rarely carries coverage, so most items still need it typed in —
+  // mortars always do (three tiers can't come from one number).
+  const fillFromStock = (it) => setDraft((d) => ({
+    ...d,
+    name: it.product || it.description,
+    ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
+    ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
+  }));
 
   const box = (on, onClick, title) => (
     <button onClick={onClick} title={title} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${on ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{on && <Check size={12} />}</button>
@@ -1470,6 +1580,7 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
             {adding && adding.companyId === co.id ? (
               <div className="rounded-md border border-indigo-200 bg-white px-2.5 py-2">
                 <div className="text-xs font-medium mb-1.5">New {kindLabel(adding.kind)} product</div>
+                {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
                 <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp + " mb-1.5"} />
                 {adding.kind === "grouts" ? (
                   <div className="grid grid-cols-3 gap-2">

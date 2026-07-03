@@ -42,10 +42,17 @@ export const stockData = ({ sku, active, updatedAt, ...data }) => data;
 
 const hay = (it) => [it.sku, it.description, it.brand, it.product, it.color, it.section, it.sheet, it.size, it.note].join(" ").toLowerCase();
 
+// The price book labels transition pieces by profile (Reducer, T-Mold, End
+// Cap, Stairnose…), so the trade word "transition" would find nothing without
+// this synonym.
+const TRANSITION_RE = /transition|reducer|t-mold|end cap|stairnos|threshold/;
+const wordHit = (h, w) => (/^transitions?$/.test(w) ? TRANSITION_RE.test(h) : h.includes(w));
+
 // SKU prefix or every word somewhere in the item's text. Active items only —
 // a discontinued/removed item shouldn't be offered for new selections (rows
-// that already hold its SKU keep their snapshot regardless).
-export function searchStock(items, query, limit = 8) {
+// that already hold its SKU keep their snapshot regardless). Returns every
+// match; display code slices and says how many more there are.
+export function searchStock(items, query) {
   const q = str(query).toLowerCase();
   if (q.length < 2) return [];
   const words = q.split(/\s+/).filter(Boolean);
@@ -53,8 +60,8 @@ export function searchStock(items, query, limit = 8) {
   for (const it of items) {
     if (!it.active || it.discontinued) continue;
     const h = hay(it);
-    const ok = /^\d+$/.test(q) ? it.sku.startsWith(q) : words.every((w) => h.includes(w));
-    if (ok) { out.push(it); if (out.length >= limit) break; }
+    const ok = /^\d+$/.test(q) ? it.sku.startsWith(q) : words.every((w) => wordHit(h, w));
+    if (ok) out.push(it);
   }
   return out;
 }

@@ -99,7 +99,11 @@ re-imports never change saved estimates. The row keeps `sku` so the UI can
 flag price drift ("price book now $X") and retired SKUs. Items missing from a
 re-import are marked `active=false`, never deleted. The import also updates
 ADR-0002 catalog prices when a catalog product name uniquely matches one book
-price.
+price. The SKU box searches by SKU prefix or words ("transition" is a synonym
+for the book's trim labels — reducer, t-mold, end cap, stairnose…); shift-click
+selects several matches and adds each as its own product row, and the Settings
+catalog's add-product form can pre-fill name/price/coverage from a price book
+search.
 
 **Sharing.** `visibility` is `private` (owner only) or `public` (every signed-in
 user can see AND edit it — last-write-wins). RLS enforces this: read = own or

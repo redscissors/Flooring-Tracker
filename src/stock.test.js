@@ -89,6 +89,24 @@ test("searchStock matches SKU prefixes and word queries, skipping retired items"
   assert.equal(findStock(items, "55006").sku, "55006"); // findStock still resolves retired SKUs
 });
 
+test("searchStock returns every match — display code does the truncating", () => {
+  const items = Array.from({ length: 40 }, (_, i) => item({ sku: String(10000 + i), description: "Napa Tannin — Stairnose" }));
+  assert.equal(searchStock(items, "stairnose").length, 40);
+});
+
+test("'transition' matches the book's trim profile labels", () => {
+  const items = [
+    item({ sku: "28870", description: "Napa Tannin", brand: "Mannington Aduramax" }),
+    item({ sku: "13137", description: "Napa Tannin — Reducer", brand: "Mannington Aduramax" }),
+    item({ sku: "13165", description: "Napa Tannin — Stairnose", brand: "Mannington Aduramax" }),
+    item({ sku: "1510339", description: "Fresco Canvas — T-Mold", brand: "Mannington Aduramax" }),
+    item({ sku: "23051", description: "Schluter All Set White" }),
+  ];
+  assert.deepEqual(searchStock(items, "transition").map((i) => i.sku), ["13137", "13165", "1510339"]);
+  assert.deepEqual(searchStock(items, "mannington transitions").map((i) => i.sku), ["13137", "13165", "1510339"]);
+  assert.deepEqual(searchStock(items, "napa transition").map((i) => i.sku), ["13137", "13165"]);
+});
+
 // --- import diff ------------------------------------------------------------------
 
 test("diffStock: added / changed / missing / unchanged, and re-activation counts as a change", () => {
