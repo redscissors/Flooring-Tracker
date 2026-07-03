@@ -421,3 +421,45 @@ test("backfill: a stored catalog without the install field gains the seed defaul
   const renorm = normalizeCatalog(cleared);
   assert.deepEqual(renorm.companies.find((c) => c.name === "James Hardie").underlayments.find((u) => u.name === "HardieBacker").install, []);
 });
+
+import { removeProduct, removeCompany } from "./catalog.js";
+
+test("removeProduct deletes the product; the name no longer resolves", () => {
+  const seeded = seedCatalog(mergeSettings(undefined));
+  const laticrete = seeded.companies.find((c) => c.name === "Laticrete");
+  const perma = laticrete.grouts.find((g) => g.name === "PermaColor Select");
+  const next = removeProduct(seeded, laticrete.id, "grouts", perma.id);
+  assert.equal(resolveCatalog(next).grouts["PermaColor Select"], undefined);
+  assert.equal(next.companies.find((c) => c.name === "Laticrete").grouts.some((g) => g.name === "PermaColor Select"), false);
+});
+
+test("a deleted seed underlayment is tombstoned and does not resurrect on normalize", () => {
+  const seeded = normalizeCatalog(seedCatalog(mergeSettings(undefined)));
+  const hardieCo = seeded.companies.find((c) => c.name === "James Hardie");
+  const hardie = hardieCo.underlayments.find((u) => u.name === "HardieBacker");
+  const next = removeProduct(seeded, hardieCo.id, "underlayments", hardie.id);
+  assert.deepEqual(next.removedSeeds, ["hardiebacker"]);
+  const reloaded = normalizeCatalog(next);
+  assert.equal(reloaded.companies.flatMap((c) => c.underlayments).some((u) => u.name === "HardieBacker"), false);
+  assert.equal(catalogHasSeedUnderlayments(reloaded), true); // tombstoned counts as present — nothing to persist
+});
+
+test("removeProduct on a non-seed product leaves removedSeeds alone; add/company ops carry it through", () => {
+  const seeded = normalizeCatalog(seedCatalog(mergeSettings(undefined)));
+  const hardieCo = seeded.companies.find((c) => c.name === "James Hardie");
+  const hardie = hardieCo.underlayments.find((u) => u.name === "HardieBacker");
+  let cat = removeProduct(seeded, hardieCo.id, "underlayments", hardie.id);
+  const tec = cat.companies.find((c) => c.name === "Tec");
+  cat = removeProduct(cat, tec.id, "grouts", tec.grouts[0].id);
+  assert.deepEqual(cat.removedSeeds, ["hardiebacker"]);
+  cat = addCompany(cat, "New Co");
+  cat = addProduct(cat, cat.companies.at(-1).id, "grouts", { name: "X" });
+  assert.deepEqual(cat.removedSeeds, ["hardiebacker"]);
+});
+
+test("removeCompany drops the company", () => {
+  const seeded = seedCatalog(mergeSettings(undefined));
+  const wedi = seeded.companies.find((c) => c.name === "Wedi");
+  const next = removeCompany(seeded, wedi.id);
+  assert.equal(next.companies.some((c) => c.name === "Wedi"), false);
+});

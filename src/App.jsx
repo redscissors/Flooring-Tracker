@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown, Hand } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct } from "./catalog.js";
+import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
+import { parsePriceBook } from "./pricebook.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -39,6 +42,153 @@ const FitSelect = ({ display, className = "", sm, children, ...rest }) => {
   );
 };
 
+const SKU_SHOW = 30;
+
+const StockHit = ({ it }) => (
+  <>
+    <div className="flex items-baseline gap-2">
+      <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <span className="text-xs font-medium truncate flex-1">{it.description || it.product || it.section}</span>
+    </div>
+    <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
+      <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
+      <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
+    </div>
+  </>
+);
+
+const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${total} matches — keep typing to narrow` : `${total} match${total === 1 ? "" : "es"}`;
+
+// Dropdown panels render in a portal on <body>: the product-row field bar and
+// the settings modal both clip absolutely-positioned children (overflow), so
+// the panel anchors to the input with fixed coordinates instead. Returns the
+// anchor's viewport rect (tracked through scroll/resize) and dismisses on a
+// pointer-down outside both the anchor and the panel.
+const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const r = anchorRef.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return pos;
+};
+
+// SKU typeahead for a product row. Typing stores the text on the row (a SKU is
+// just a field); picking a suggestion snapshots the stock item's values onto
+// the row via onPick. Search matches SKU prefixes or words in the item text.
+// Shift-click (or the leading checkbox) marks several results; committing the
+// selection fills this row with the first item and appends a product row for
+// each of the rest via onPickMany.
+function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [picked, setPicked] = useState([]); // SKUs, in click order
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = open ? searchStock(stock, value) : [];
+  const results = matches.slice(0, SKU_SHOW);
+  const close = () => { setOpen(false); setPicked([]); };
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
+  const pick = (it) => { onPick(it); close(); };
+  const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
+  // Resolve against the full stock list, not the current matches — the user
+  // may change search words between picks and the selection must survive that.
+  const commit = () => {
+    const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
+    if (items.length === 1) onPick(items[0]);
+    else if (items.length) onPickMany(items);
+    close();
+  };
+  const onKey = (e) => {
+    if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
+    if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (picked.length) commit();
+      else if (results[hi]) pick(results[hi]);
+      else if (results.length) pick(results[0]);
+    }
+    if (e.key === "Escape") close();
+  };
+  return (
+    <div ref={wrapRef} className="relative w-28 shrink-0 h-9 border-r border-slate-200">
+      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
+        onKeyDown={onKey}
+        className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+      {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
+          <div className="max-h-72 overflow-y-auto">
+            {results.map((it, i) => {
+              const sel = picked.includes(it.sku);
+              return (
+                <div key={it.sku} onClick={(e) => (e.shiftKey || picked.length ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
+                  <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                    className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
+                  <div className="flex-1 min-w-0"><StockHit it={it} /></div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+            <span className="truncate">{matchSummary(results.length, matches.length)}</span>
+            {picked.length > 0 ? (
+              <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+            ) : (
+              <span className="ml-auto shrink-0">Shift-click to pick several</span>
+            )}
+          </div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Price book lookup for the Settings catalog's add-product form: picking an
+// item pre-fills the draft (name, price, coverage when the book has one). No
+// multi-select — catalog products are added one at a time.
+function StockSearch({ stock, onPick, inp }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = open ? searchStock(stock, q) : [];
+  const results = matches.slice(0, SKU_SHOW);
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  const pick = (it) => { onPick(it); setQ(`${it.sku} — ${it.description || it.product}`); setOpen(false); };
+  return (
+    <div ref={wrapRef} className="relative mb-1.5">
+      <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
+        className={inp} placeholder="Search the price book to pre-fill (optional)…" />
+      {open && pos && results.length > 0 && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50">
+          <div className="max-h-60 overflow-y-auto">
+            {results.map((it) => (
+              <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <StockHit it={it} />
+              </button>
+            ))}
+          </div>
+          <div className="px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
 const ATT_BUCKET = "attachments";
 const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -46,11 +196,11 @@ const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDig
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
-const newProduct = () => ({ id: uid(), type: "tile", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
+const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
 const newArea = () => ({ id: uid(), name: "New Area", note: "", products: [newProduct()] });
 const newCustomer = () => ({ id: uid(), name: "New Customer", address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [] });
 
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness ?? "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", joint: p.grout?.joint ?? 0.125, manual: p.grout?.manual ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness ?? "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", joint: p.grout?.joint ?? 0.125, manual: p.grout?.manual ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
 
@@ -80,6 +230,13 @@ export default function App({ user, onSignOut }) {
   const [allOpen, setAllOpen] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  // Stock price book (ADR 0003): all active+retired items, loaded once — the
+  // SKU picker and drift chips search this in memory. Empty until the team has
+  // run supabase/stock.sql and imported the workbook.
+  const [stock, setStock] = useState([]);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const pbRef = useRef(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState("");
   const [focusArea, setFocusArea] = useState(null);
@@ -168,6 +325,9 @@ export default function App({ user, onSignOut }) {
 
         const customers = await loadCustomers();
         setData({ customers, settings });
+        // Best-effort: installs that haven't run supabase/stock.sql yet just
+        // don't get the SKU picker.
+        try { setStock(await loadStock()); } catch (x) { }
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
     })();
@@ -238,6 +398,59 @@ export default function App({ user, onSignOut }) {
       try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
     }
     return settings;
+  };
+
+  const loadStock = async () => {
+    const { data: rows, error } = await supabase.from("stock_items").select("sku, active, data, updated_at");
+    if (error) throw error;
+    return (rows || []).map(normStockItem);
+  };
+
+  // Parse a freshly exported price book workbook in the browser and show what
+  // an import would change — nothing is written until the preview is applied.
+  const importPriceBook = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    (async () => {
+      setImporting(true);
+      try {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+        const sheets = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
+        const { items, warnings } = parsePriceBook(sheets);
+        if (!items.length) { ping("No stock items found in that file"); }
+        else {
+          const parsed = items.map((it) => ({ ...it, active: true }));
+          setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed) });
+        }
+      } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); }
+      setImporting(false);
+    })();
+  };
+
+  // Upsert by SKU: new + changed items, plus active-off rows for items that
+  // dropped out of the book (never deleted — old selections keep resolving).
+  // Catalog products whose price the book pins get updated through the normal
+  // settings write path.
+  const applyImport = async () => {
+    const { diff, sync } = importPreview;
+    setImportPreview(null);
+    const upserts = [
+      ...diff.added.map((it) => ({ sku: it.sku, active: true, data: stockData(it) })),
+      ...diff.changed.map(({ item }) => ({ sku: item.sku, active: true, data: stockData(item) })),
+      ...diff.missing.map((it) => ({ sku: it.sku, active: false, data: stockData(it) })),
+    ];
+    try {
+      for (let i = 0; i < upserts.length; i += 200) {
+        const { error } = await supabase.from("stock_items").upsert(upserts.slice(i, i + 200), { onConflict: "sku" });
+        if (error) throw error;
+      }
+      if (sync.changes.length) setSettings({ catalog: sync.catalog });
+      setStock(await loadStock());
+      flashSaved();
+      ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
+    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -360,6 +573,17 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateCust(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: [...a.products, newProduct()] }); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
+  // Multi-pick from the SKU dropdown: the first item fills the anchor row, each
+  // further item becomes its own new product row right below it.
+  const addStockProducts = (aid, pid, items) => {
+    if (!items.length) return;
+    const a = sel.categories.find((x) => x.id === aid);
+    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
+      { ...p, ...stockPatch(items[0], p) },
+      ...items.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
+    ]);
+    updArea(aid, { products });
+  };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
     const p = sel.categories.find((x) => x.id === fromAid)?.products.find((x) => x.id === pid);
@@ -528,8 +752,8 @@ export default function App({ user, onSignOut }) {
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
-    const head = ["Customer", "Area", "Type", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
-    sel.categories.forEach((a) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const line = p.type === "misc" ? num(p.priceSqft) : p.qtyType === "sqft" ? num(p.qty) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, a.name, TLBL[p.type], size, p.brandColor, p.priceSqft, p.qtyType, p.qty, line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
+    const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
+    sel.categories.forEach((a) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const line = p.type === "misc" ? num(p.priceSqft) : p.qtyType === "sqft" ? num(p.qty) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, a.name, TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
@@ -878,6 +1102,17 @@ export default function App({ user, onSignOut }) {
                         );
                         const selAccent = TYPE_ACCENT[p.type] || "var(--ft-text)";
                         const typeOrder = TYPES.includes(p.type) ? [p.type, ...TYPES.filter((t) => t !== p.type)] : TYPES;
+                        // Stock link: the row keeps its snapshotted values; the
+                        // chip below only points out drift from the current book.
+                        const stockItem = findStock(stock, p.sku);
+                        const drift = stockDrift(stockItem, p);
+                        const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
+                        const skuBox = stock.length > 0 ? (
+                          <SkuPicker value={p.sku || ""} stock={stock}
+                            onChange={(v) => updProduct(a.id, p.id, { sku: v })}
+                            onPick={(it) => updProduct(a.id, p.id, stockPatch(it, p))}
+                            onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
+                        ) : null;
                         return (
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
                             <div className="ft-noprint flex items-center gap-2 mb-2.5">
@@ -894,6 +1129,7 @@ export default function App({ user, onSignOut }) {
 
                             <div className="flex flex-wrap items-stretch w-full rounded-md border border-slate-200 ft-fieldbar text-sm overflow-hidden">
                               {p.type === "tile" ? (<>
+                                {skuBox}
                                 <div className="flex items-center shrink-0 h-9 pl-1">
                                   <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
                                   <span className="text-slate-300 shrink-0">×</span>
@@ -901,9 +1137,11 @@ export default function App({ user, onSignOut }) {
                                 </div>
                                 <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 h-9 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
-                              </>) : p.type === "misc" ? (
+                              </>) : p.type === "misc" ? (<>
+                                {skuBox}
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Description" />
-                              ) : (<>
+                              </>) : (<>
+                                {skuBox}
                                 <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className="w-28 shrink-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
                               </>)}
@@ -914,6 +1152,15 @@ export default function App({ user, onSignOut }) {
                                 <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                               </>)}
                             </div>
+                            {(drift || stockRetired) && (
+                              <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
+                                {drift && (<>
+                                  <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
+                                  <button onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
+                                </>)}
+                                {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
+                              </div>
+                            )}
                             {p.type !== "misc" && p.qtyType === "sqft" && sf > 0 && (
                               <div className="mt-1.5 flex items-baseline justify-end gap-2 text-sm">
                                 <span className="text-xs text-slate-500">{sf} sf</span>
@@ -1044,9 +1291,9 @@ export default function App({ user, onSignOut }) {
                   return (
                     <div key={p.id} className="mt-2 text-sm">
                       {p.type === "misc" ? (
-                        <div><b>{TLBL[p.type]}</b>{p.brandColor ? ` · ${p.brandColor}` : ""}{num(p.priceSqft) > 0 ? ` = ${money(num(p.priceSqft))}` : ""}</div>
+                        <div><b>{TLBL[p.type]}</b>{p.brandColor ? ` · ${p.brandColor}` : ""}{p.sku ? ` · SKU ${p.sku}` : ""}{num(p.priceSqft) > 0 ? ` = ${money(num(p.priceSqft))}` : ""}</div>
                       ) : (
-                        <div><b>{TLBL[p.type]}</b>{size ? ` · ${size}` : ""}{p.brandColor ? ` · ${p.brandColor}` : ""}{p.qty ? ` · ${p.qty} ${p.qtyType === "sqft" ? "sq ft" : "units"}` : ""}{num(p.priceSqft) > 0 ? ` @ ${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}${line > 0 ? ` = ${money(line)}` : ""}` : ""}</div>
+                        <div><b>{TLBL[p.type]}</b>{size ? ` · ${size}` : ""}{p.brandColor ? ` · ${p.brandColor}` : ""}{p.sku ? ` · SKU ${p.sku}` : ""}{p.qty ? ` · ${p.qty} ${p.qtyType === "sqft" ? "sq ft" : "units"}` : ""}{num(p.priceSqft) > 0 ? ` @ ${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}${line > 0 ? ` = ${money(line)}` : ""}` : ""}</div>
                       )}
                       {p.type === "tile" && p.grout.checked && (G && G.order > 0 ? <div className="ml-3">Grout: {p.grout.product}{p.grout.color ? ` — ${p.grout.color}` : ""}{j ? `, ${j} joint` : ""} → {G.order} {G.unit} ({G.exact.toFixed(2)}){G.price > 0 ? ` = ${money(G.order * G.price)}` : ""}</div> : <div className="ml-3">Grout: {p.grout.product}{p.grout.color ? ` — ${p.grout.color}` : ""}{j ? `, ${j} joint` : ""}</div>)}
                       {M && (M.order > 0 ? <div className="ml-3">Mortar: {M.product} → {M.order} {M.unit} ({M.exact.toFixed(2)}){M.price > 0 ? ` = ${money(M.order * M.price)}` : ""}</div> : <div className="ml-3">Mortar: {M.product}</div>)}
@@ -1089,11 +1336,72 @@ export default function App({ user, onSignOut }) {
         <Modal onClose={() => setShowSettings(false)} title="Coverage, Pricing & Settings">
           <p className="text-sm text-slate-500 mb-4">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
           <div className="mb-4"><label className={lbl}>Waste factor (%)</label><input type="number" value={settings.wastePct} onChange={(e) => setSettings({ wastePct: e.target.value })} className={inp + " w-28"} /></div>
+          <div className="font-medium text-sm mb-1">Stock price book</div>
+          <p className="text-xs text-slate-400 mb-2">
+            {stock.length > 0
+              ? `${stock.filter((s) => s.active).length} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
+              : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
+            Importing the price book .xlsx shows a preview of what changed before anything is saved. Entering a SKU on a product row copies that item's values onto the row; later price changes never rewrite saved selections.
+          </p>
+          <button onClick={() => pbRef.current?.click()} disabled={importing} className="mb-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import price book (.xlsx)"}</button>
+          <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
           <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
           <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected. Underlayments are offered only for the flooring types you tag them with.</p>
-          <CatalogSettings catalog={settings.catalog} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
+          <CatalogSettings catalog={settings.catalog} stock={stock} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
         </Modal>
       )}
+
+      {importPreview && (() => {
+        const { parsed, diff, warnings, sync } = importPreview;
+        const total = diff.added.length + diff.changed.length + diff.missing.length;
+        const money2 = (n) => (n == null ? "—" : money(n));
+        const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
+        return (
+          <Modal onClose={() => setImportPreview(null)} title="Import price book">
+            <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
+            {total === 0 && sync.changes.length === 0 && <p className="text-sm text-slate-400 mb-3">Everything already matches the current stock list — nothing to apply.</p>}
+            {diff.changed.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>Changed items</label>
+                <div className="max-h-44 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100 text-xs">
+                  {diff.changed.slice(0, 60).map(({ item, prev, fields }) => (
+                    <div key={item.sku} className="px-2.5 py-1.5 flex items-baseline gap-2">
+                      <span className="ft-mono text-slate-400 shrink-0">{item.sku}</span>
+                      <span className="truncate flex-1">{item.description}</span>
+                      <span className="shrink-0 ft-mono">{fields.includes("price") || fields.includes("priceSqft") ? <>{money2(itemPrice(prev))} → <b>{money2(itemPrice(item))}</b></> : <span className="text-slate-400">{fields.join(", ") || "re-activated"}</span>}</span>
+                    </div>
+                  ))}
+                  {diff.changed.length > 60 && <div className="px-2.5 py-1.5 text-slate-400">…and {diff.changed.length - 60} more</div>}
+                </div>
+              </div>
+            )}
+            {diff.missing.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>No longer listed (marked inactive, never deleted)</label>
+                <div className="text-xs text-slate-500 max-h-24 overflow-y-auto rounded-md border border-slate-200 px-2.5 py-1.5">{diff.missing.slice(0, 30).map((it) => it.sku).join(", ")}{diff.missing.length > 30 ? ` …and ${diff.missing.length - 30} more` : ""}</div>
+              </div>
+            )}
+            {sync.changes.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>Catalog price updates (grout / mortar / underlayment)</label>
+                <div className="max-h-32 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100 text-xs">
+                  {sync.changes.map((c) => <div key={c.name} className="px-2.5 py-1.5 flex items-baseline gap-2"><span className="truncate flex-1">{c.name}</span><span className="shrink-0 ft-mono">{money(c.from)} → <b>{money(c.to)}</b></span><span className="ft-mono text-slate-400 shrink-0">SKU {c.sku}</span></div>)}
+                </div>
+              </div>
+            )}
+            {warnings.length > 0 && (
+              <div className="mb-3">
+                <label className={lbl}>Warnings</label>
+                <div className="text-xs text-amber-600 space-y-1 max-h-28 overflow-y-auto">{warnings.slice(0, 12).map((w, i) => <div key={i}>{w}</div>)}{warnings.length > 12 && <div>…and {warnings.length - 12} more</div>}</div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setImportPreview(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import</button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {showVersions && sel && (
         <Modal onClose={() => setShowVersions(false)} title="Saved Versions">
@@ -1131,11 +1439,12 @@ function Modal({ title, children, onClose }) {
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
 // product's numbers are shown and editable only while it is enabled, but stay
 // stored when off. All edits flow up through onChange(newCatalog).
-function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
+function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels }) {
   const [newCompany, setNewCompany] = useState("");
   const [adding, setAdding] = useState(null); // { companyId, kind }
   const [draft, setDraft] = useState({});
   const [error, setError] = useState("");
+  const [confirmDel, setConfirmDel] = useState(null); // { companyId, kind, productId }
   // Which companies are expanded — view state only, never persisted. Collapsed
   // by default so the list stays tidy as products accumulate.
   const [expanded, setExpanded] = useState(() => new Set());
@@ -1163,9 +1472,27 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
     setAdding(null); setError("");
   };
   const submitCompany = () => { const name = newCompany.trim(); if (!name) return; onChange(addCompany(catalog, name)); setNewCompany(""); };
+  // The book rarely carries coverage, so most items still need it typed in —
+  // mortars always do (three tiers can't come from one number).
+  const fillFromStock = (it) => setDraft((d) => ({
+    ...d,
+    name: it.product || it.description,
+    ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
+    ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
+  }));
 
   const box = (on, onClick, title) => (
     <button onClick={onClick} title={title} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${on ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{on && <Check size={12} />}</button>
+  );
+  const delButton = (co, kind, p) => (
+    <button onClick={() => setConfirmDel({ companyId: co.id, kind, productId: p.id })} title={`Delete ${p.name}`} className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
+  );
+  const delConfirm = (co, kind, p) => confirmDel && confirmDel.companyId === co.id && confirmDel.kind === kind && confirmDel.productId === p.id && (
+    <div className="flex items-center gap-2 mt-1.5 text-xs">
+      <span className="text-red-600 flex-1">Delete "{p.name}"? Saved jobs that use it keep the name but stop calculating. To just hide it from new jobs, uncheck it instead.</span>
+      <button onClick={() => { onChange(removeProduct(catalog, co.id, kind, p.id)); setConfirmDel(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
+      <button onClick={() => setConfirmDel(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+    </div>
   );
   const numField = (label, value, onVal) => (
     <div><label className={lbl}>{label}</label><input type="number" value={value} onChange={(e) => onVal(e.target.value)} className={inp} /></div>
@@ -1193,6 +1520,9 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
             {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
             <button onClick={() => toggleExpanded(co.id)} className={`text-sm font-semibold flex-1 text-left ${co.enabled ? "" : "text-slate-400"}`}>{co.name}</button>
             <span className="text-xs text-slate-400 shrink-0">{co.grouts.length + co.mortars.length + (co.underlayments?.length || 0)}</span>
+            {co.grouts.length + co.mortars.length + (co.underlayments?.length || 0) === 0 && (
+              <button onClick={() => onChange(removeCompany(catalog, co.id))} title="Delete this empty company" className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={14} /></button>
+            )}
           </div>
           {expanded.has(co.id) && (
           <div className="mt-1.5 space-y-1.5 pl-7">
@@ -1203,7 +1533,9 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
                   {box(g.enabled, () => setProduct(co.id, "grouts", g.id, { enabled: !g.enabled }))}
                   <span className={`text-sm font-medium flex-1 ${g.enabled ? "" : "text-slate-400"}`}>{g.name}</span>
                   <span className="text-xs text-slate-400">Grout</span>
+                  {delButton(co, "grouts", g)}
                 </div>
+                {delConfirm(co, "grouts", g)}
                 {g.enabled && (
                   <div className="grid grid-cols-3 gap-2 mt-1.5">
                     {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
@@ -1219,7 +1551,9 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
                   {box(m.enabled, () => setProduct(co.id, "mortars", m.id, { enabled: !m.enabled }))}
                   <span className={`text-sm font-medium flex-1 ${m.enabled ? "" : "text-slate-400"}`}>{m.name}</span>
                   <span className="text-xs text-slate-400">Mortar</span>
+                  {delButton(co, "mortars", m)}
                 </div>
+                {delConfirm(co, "mortars", m)}
                 {m.enabled && (
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1.5">
                     {numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}
@@ -1237,7 +1571,9 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
                   {box(u.enabled, () => setProduct(co.id, "underlayments", u.id, { enabled: !u.enabled }))}
                   <span className={`text-sm font-medium flex-1 ${u.enabled ? "" : "text-slate-400"}`}>{u.name}</span>
                   <span className="text-xs text-slate-400">Underlayment</span>
+                  {delButton(co, "underlayments", u)}
                 </div>
+                {delConfirm(co, "underlayments", u)}
                 {u.enabled && (
                   <div className="mt-1.5 space-y-2">
                     <div className="grid grid-cols-3 gap-2">
@@ -1283,6 +1619,7 @@ function CatalogSettings({ catalog, onChange, inp, lbl, types, typeLabels }) {
             {adding && adding.companyId === co.id ? (
               <div className="rounded-md border border-indigo-200 bg-white px-2.5 py-2">
                 <div className="text-xs font-medium mb-1.5">New {kindLabel(adding.kind)} product</div>
+                {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
                 <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp + " mb-1.5"} />
                 {adding.kind === "grouts" ? (
                   <div className="grid grid-cols-3 gap-2">
