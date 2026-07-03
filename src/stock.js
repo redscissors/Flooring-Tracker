@@ -93,18 +93,27 @@ const label = (it) => {
   return bits.join(" ");
 };
 
+// The per-sq-ft price a stock item carries: the book's SF price when present,
+// else derived from the carton/sheet price and its coverage — mosaic sheets
+// (U/M "SH") often list only a sheet price.
+export const stockPriceSqft = (item) =>
+  item.priceSqft != null ? item.priceSqft
+    : item.price != null && item.sfPerUnit > 0 ? Math.round((item.price / item.sfPerUnit) * 10000) / 10000
+      : null;
+
 // The snapshot patch a picked stock item applies to a product row. Flooring
 // items fill their real type; everything else lands as a Miscellaneous line
 // (description + flat price), which is how the app already models one-off
 // count/accessory charges.
 export function stockPatch(item, product) {
   const patch = { sku: item.sku };
-  const perSqft = item.type && item.priceSqft != null;
-  if (item.type && (perSqft || item.unit === "CT")) {
+  const psf = item.type ? stockPriceSqft(item) : null;
+  if (item.type && (psf != null || item.unit === "CT" || item.unit === "SH")) {
     patch.type = item.type;
     patch.qtyType = "sqft";
     patch.brandColor = label(item);
-    if (item.priceSqft != null) patch.priceSqft = String(round2(item.priceSqft));
+    if (psf != null) patch.priceSqft = String(round2(psf));
+    if (item.sfPerUnit > 0) { patch.cartonSf = String(item.sfPerUnit); patch.cartonUnit = item.unit || "CT"; }
     if (item.type === "tile") {
       const lw = parseTileSize(item.size);
       if (lw) { patch.L = lw[0]; patch.W = lw[1]; }
@@ -123,7 +132,10 @@ export function stockPatch(item, product) {
 }
 
 // Current stock price for the field the snapshot filled.
-const stockPrice = (item) => (item.type && item.priceSqft != null ? round2(item.priceSqft) : item.price);
+const stockPrice = (item) => {
+  const psf = item.type ? stockPriceSqft(item) : null;
+  return psf != null ? round2(psf) : item.price;
+};
 
 // Non-null when the product row's snapshotted price no longer matches the
 // stock list: { from, to }. Manual price edits count as drift too — the chip

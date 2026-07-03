@@ -46,6 +46,20 @@ test("a hardwood item fills sizeText; brand prefixes when not already in the des
   assert.equal(patch.sizeText, '2-1/4"');
   assert.equal(patch.brandColor, "Sheoga Clear Red Oak");
   assert.equal(patch.priceSqft, "4.29");
+  assert.equal(patch.cartonSf, "22"); // SF/CT snapshots as the row's carton size
+  assert.equal(patch.cartonUnit, "CT"); // no U/M column on the Hardwood sheet — default
+});
+
+test("a mosaic sold by the sheet (only a sheet price) still fills as tile, deriving $/sqft", () => {
+  const it = normStockItem({ sku: "1504051", data: { type: "tile", unit: "SH", size: "2x2", description: "Historic Limestone Native", price: 27.99, sfPerUnit: 2 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "tile"); // not demoted to misc
+  assert.equal(patch.L, "2");
+  assert.equal(patch.W, "2");
+  assert.equal(patch.brandColor, "Historic Limestone Native"); // size lands in L/W, not the name
+  assert.equal(patch.priceSqft, "14"); // 27.99 / 2 sf per sheet
+  assert.equal(patch.cartonSf, "2");
+  assert.equal(patch.cartonUnit, "SH");
 });
 
 test("an accessory (no per-sqft price) fills as a Miscellaneous line with its flat price", () => {
@@ -72,6 +86,12 @@ test("stockDrift flags a snapshot whose price the book has since changed", () =>
   assert.equal(stockDrift(it, { priceSqft: "5.15" }), null);
   assert.equal(stockDrift(it, { priceSqft: "" }), null);
   assert.equal(stockDrift(null, { priceSqft: "4.79" }), null);
+});
+
+test("stockDrift compares sheet-priced items against the same derived $/sqft the snapshot filled", () => {
+  const it = normStockItem({ sku: "1504051", data: { type: "tile", unit: "SH", price: 27.99, sfPerUnit: 2 } });
+  assert.equal(stockDrift(it, { priceSqft: "14" }), null); // the snapshot's own value — no false drift
+  assert.deepEqual(stockDrift(it, { priceSqft: "12.5" }), { from: 12.5, to: 14 });
 });
 
 // --- search ---------------------------------------------------------------------
