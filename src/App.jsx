@@ -536,7 +536,7 @@ export default function App({ user, onSignOut }) {
 
   const isOwner = (c) => c && c.ownerId === user.id;
   const canEdit = (c) => c && (isOwner(c) || c.visibility === "public");
-  const canDelete = (c) => c && (isOwner(c) || (c.visibility === "public" && Date.now() - (c.createdAt || 0) > 30 * 24 * 60 * 60 * 1000));
+  const canDelete = (c) => c && (isOwner(c) || c.visibility === "public");
 
   const setVisibility = (id, visibility) => {
     setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === id ? { ...c, visibility, updatedAt: Date.now() } : c) }));
