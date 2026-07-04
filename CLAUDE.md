@@ -117,8 +117,8 @@ search.
 
 **Sharing.** `visibility` is `private` (owner only) or `public` (every signed-in
 user can see AND edit it — last-write-wins). RLS enforces this: read = own or
-public; edit = own or public; delete = owner anytime, or anyone once a *public*
-customer is 30+ days old (from `created_at`); a trigger blocks non-owners from
+public; edit = own or public; delete = owner anytime, or anyone anytime for a
+*public* customer; a trigger blocks non-owners from
 changing `owner_id`/`visibility`. In memory each customer carries `ownerId` +
 `visibility` (stripped out by `custData()` before writing the jsonb). Attachment
 files are stored at `<customer_id>/<file_id>` so storage policies can follow the

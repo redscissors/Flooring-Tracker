@@ -94,13 +94,12 @@ create policy "customer update" on public.customers
   for update using (owner_id = auth.uid() or visibility = 'public')
   with check (owner_id = auth.uid() or visibility = 'public');
 
--- Delete: the owner anytime; anyone else once a public customer is 30+ days old
--- (counted from creation).
+-- Delete: the owner anytime; anyone else may delete a public customer anytime too.
 drop policy if exists "customer delete" on public.customers;
 create policy "customer delete" on public.customers
   for delete using (
     owner_id = auth.uid()
-    or (visibility = 'public' and created_at < now() - interval '30 days')
+    or visibility = 'public'
   );
 
 -- Only the owner may reassign ownership or flip visibility. Everyone else can
