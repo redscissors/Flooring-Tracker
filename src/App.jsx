@@ -195,7 +195,9 @@ const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(3
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
 
-// One product row -> everything the print layouts render for it.
+// One product row -> everything the print layouts render for it. Materials
+// carry a `kind` + aggregation `key`; `inline` rows print under the product
+// (label · qty · name), install extras only reach the bottom breakdown.
 function printProduct(p, s) {
   const G = getGrout(p, s), M = getMortar(p, s), U = getUnderlay(p, s), IN = getUnderlayInstall(p, s) || [];
   const sf = p.qtyType === "sqft" ? num(p.qty) : 0;
@@ -204,20 +206,37 @@ function printProduct(p, s) {
   const j = JOINTS.find((x) => x.v === num(p.grout?.joint))?.label;
   const mats = [];
   if (p.type === "tile" && p.grout?.checked) {
-    const has = G && G.order > 0;
-    mats.push({ label: "Grout", name: `${p.grout.product}${p.grout.color ? " — " + p.grout.color : ""}${j ? `, ${j} joint` : ""}`, order: has ? G.order : 0, unit: has ? G.unit : "", exact: has ? G.exact : 0, cost: has && G.price > 0 ? G.order * G.price : 0 });
+    if (G && G.order > 0) mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", detail: j ? `${j} joint` : "", inline: true, order: G.order, unit: G.unit, exact: G.exact, cost: G.price > 0 ? G.order * G.price : 0 });
     const ck = num(p.grout.caulk);
-    if (ck > 0) mats.push({ label: "Caulk", name: `${p.grout.product}${p.grout.color ? " — " + p.grout.color : ""} matching caulk`, order: ck, unit: "tubes", exact: ck, cost: 0 });
+    if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, cost: 0 });
   }
-  if (M) mats.push({ label: "Mortar", name: M.product, order: M.order, unit: M.unit, exact: M.exact, cost: M.price > 0 ? M.order * M.price : 0 });
-  if (U && U.product) mats.push({ label: underlayLabel(p.type), name: U.product, order: U.order, unit: U.unit, exact: U.exact, cost: U.price > 0 ? U.order * U.price : 0 });
-  IN.forEach((m) => mats.push({ label: "Install", name: m.name, order: m.order, unit: m.unit, exact: m.exact, cost: m.price > 0 ? m.order * m.price : 0 }));
+  if (M) mats.push({ kind: "Mortar", key: `m|${M.product}`, name: M.product, spec: "", detail: "", inline: true, order: M.order, unit: M.unit, exact: M.exact, cost: M.price > 0 ? M.order * M.price : 0 });
+  if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, cost: U.price > 0 ? U.order * U.price : 0 });
+  IN.forEach((m) => mats.push(m.kind === "mortar"
+    ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, cost: m.price > 0 ? m.order * m.price : 0 }
+    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, cost: m.price > 0 ? m.order * m.price : 0 }));
   const size = p.type === "tile" ? `${p.L}" × ${p.W}"${p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : (p.sizeText || "");
   const qtyText = p.type === "misc" ? "" : C ? `${C.order} ${C.unit}` : p.qty ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
   const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
-  return { size, C, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf, total: line + mats.reduce((t, m) => t + m.cost, 0) };
+  return { size, C, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
 }
-const printAreaTotal = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).total, 0);
+// Estimate area headers show the flooring subtotal only — material costs live
+// in the bottom "Setting materials & sundries" breakdown.
+const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
+const PRINT_KINDS = ["Grout", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
+const KSHORT = { Grout: "Grout", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
+const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
+// Whole-job materials for the estimate's bottom breakdown: aggregate exact
+// quantities per item (ceil once at the end, like the on-screen totals) and
+// sum the per-line costs so the breakdown reconciles with the grand total.
+function printMatList(cust, s) {
+  const agg = new Map();
+  (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
+    const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, unit: m.unit, exact: 0, cost: 0 };
+    e.exact += m.exact; e.cost += m.cost; agg.set(m.key, e);
+  })));
+  return [...agg.values()].map((m) => ({ ...m, order: Math.ceil(Math.round(m.exact * 1e6) / 1e6) })).sort((x, y) => PRINT_KINDS.indexOf(x.kind) - PRINT_KINDS.indexOf(y.kind));
+}
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
@@ -844,6 +863,7 @@ export default function App({ user, onSignOut }) {
   const uList = Object.values(uAgg).map((u) => ({ ...u, order: Math.ceil(u.exact) }));
   const cList = Object.values(cAgg).map((c) => ({ ...c, order: Math.ceil(c.exact) }));
   const hasMat = gList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + mortarCost + underlayCost + miscCost;
+  const pMats = sel && sel._full ? printMatList(sel, settings) : [];
   const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
   const sortCustomers = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : (b.createdAt || 0) - (a.createdAt || 0));
   // When searching, span both active and archived (archived rows are badged in
@@ -1421,30 +1441,31 @@ export default function App({ user, onSignOut }) {
           </div>
         ) : (
           <div>
-            <div className="flex justify-between items-end border-b-2 border-black pb-3 mb-4">
+            <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4">
               <div>
-                <div className="ft-eyebrow text-[9px]">Tile &amp; Flooring Selections · {new Date().toLocaleDateString()}</div>
-                <div className="ft-serif text-3xl mt-1">{sel.name}</div>
-                {sel.address && <div className="text-sm text-slate-600">{sel.address}</div>}
+                <div className="ft-serif text-3xl">{sel.name}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
               </div>
               <div className="text-right">
                 <div className="ft-eyebrow text-[9px]">Estimated total</div>
                 <div className="ft-serif text-3xl">{money(grandTotal)}</div>
-                {totalSqft > 0 && <div className="text-xs text-slate-500">{totalSqft.toLocaleString()} sq ft measured{orderedSqft > 0 ? ` · ${sf1(orderedSqft)} sq ft ordered` : ""}</div>}
               </div>
             </div>
-            {sel.notes && <div className="text-sm mb-4 italic">{sel.notes}</div>}
-            {sel.categories.map((a) => (
-              <div key={a.id} className="border-2 border-black mb-4 break-inside-avoid">
-                <div className="flex justify-between items-baseline px-3 py-1.5 bg-black text-white">
-                  <span className="font-bold text-[13.5px]">{a.name}</span>
-                  <span className="ft-mono text-[12.5px]">{money(printAreaTotal(a, settings))}</span>
+            {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
+            {sel.categories.map((a, ai) => (
+              <div key={a.id} className="mb-5 break-inside-avoid">
+                <div className="flex justify-between items-baseline border-b-2 border-black pb-1 mb-1.5">
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="ft-mono text-[11px] text-slate-400">{String(ai + 1).padStart(2, "0")}</span>
+                    <span className="ft-serif text-[21px]">{a.name}</span>
+                  </div>
+                  <span className="ft-mono text-[11px] text-slate-500">{money(printAreaFloor(a, settings))}</span>
                 </div>
-                {a.note && <div className="px-3 pt-1.5 text-xs italic">{a.note}</div>}
-                <div className="px-3 pb-1.5">
-                  <table className="w-full border-collapse text-[12px] mt-1">
+                {a.note && <div className="text-xs italic text-slate-500 mb-1">{a.note}</div>}
+                <div className="pl-3" style={{ borderLeft: "2px solid var(--ft-border-strong)" }}>
+                  <table className="w-full border-collapse text-[12px]">
                     <thead>
-                      <tr className="ft-eyebrow text-[8.5px] text-slate-500">
+                      <tr className="ft-eyebrow text-[8px] text-slate-500">
                         <th className="text-left font-semibold py-0.5 pr-2">Selection</th>
                         <th className="text-left font-semibold py-0.5 pr-2">Size</th>
                         <th className="text-left font-semibold py-0.5 pr-2">SKU</th>
@@ -1454,25 +1475,31 @@ export default function App({ user, onSignOut }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {a.products.map((p) => { const c = printProduct(p, settings); return (
+                      {a.products.map((p) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); return (
                         <Fragment key={p.id}>
-                          <tr className="border-t border-slate-300 align-baseline">
-                            <td className="py-1 pr-2"><b>{p.brandColor || TLBL[p.type]}</b>{p.brandColor && <span className="text-slate-500"> · {TLBL[p.type]}</span>}</td>
-                            <td className="py-1 pr-2 whitespace-nowrap">{c.size}</td>
-                            <td className="py-1 pr-2 ft-mono text-[11px]">{p.sku}</td>
-                            <td className="py-1 pr-2 text-right whitespace-nowrap">{c.qtyText}{c.C && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
-                            <td className="py-1 pr-2 text-right whitespace-nowrap">{c.priceText}</td>
-                            <td className="py-1 text-right font-semibold whitespace-nowrap">{c.line > 0 ? money(c.line) : ""}</td>
+                          <tr className="border-t border-slate-200 align-baseline">
+                            <td className="py-1.5 pr-2"><b className="text-[12.5px]">{p.brandColor || TLBL[p.type]}</b>{p.brandColor && <span className="text-slate-500 text-[10.5px]"> · {TLBL[p.type]}</span>}</td>
+                            <td className="py-1.5 pr-2 whitespace-nowrap text-[11px]">{c.size}</td>
+                            <td className="py-1.5 pr-2 ft-mono text-[10.5px]">{p.sku}</td>
+                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">{p.type === "misc" ? "1" : c.qtyText}{c.C && <span className="text-slate-400 text-[10px]"> = {sf1(c.orderedSf)} sf</span>}</td>
+                            <td className="py-1.5 pr-2 text-right whitespace-nowrap text-[11px]">{c.priceText}</td>
+                            <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.line > 0 ? money(c.line) : ""}</td>
                           </tr>
-                          {c.mats.map((m, i) => (
-                            <tr key={i} className="text-slate-600 align-baseline">
-                              <td className="pl-4 py-0.5 pr-2" colSpan={3}>{m.label}: {m.name}</td>
-                              <td className="py-0.5 pr-2 text-right whitespace-nowrap">{m.order > 0 ? <>{m.order} {m.unit}<span className="text-slate-400 text-[10.5px]"> ({m.exact.toFixed(2)})</span></> : ""}</td>
-                              <td />
-                              <td className="py-0.5 text-right whitespace-nowrap">{m.cost > 0 ? money(m.cost) : ""}</td>
-                            </tr>
-                          ))}
-                          {p.note && <tr><td colSpan={6} className="pl-4 pb-1 italic text-slate-500 text-[11px]">{p.note}</td></tr>}
+                          {inline.length > 0 && (
+                            <tr><td colSpan={6} className="pb-1 pl-4">
+                              {/* Narrower than the table so the order/price/total rails stay scannable. */}
+                              <div style={{ columns: 2, columnGap: 14, maxWidth: 470 }} className="text-[9.5px] leading-snug">
+                                {inline.map((m, i) => (
+                                  <div key={i} className="flex gap-1 break-inside-avoid">
+                                    <span className="ft-eyebrow text-[6.5px] shrink-0 text-right" style={{ width: 34, paddingTop: 2, letterSpacing: ".05em" }}>{KSHORT[m.kind]}</span>
+                                    <span className="ft-mono text-[8.5px] text-slate-500 shrink-0 text-right" style={{ width: 11, paddingTop: 0.5 }}>{m.order}</span>
+                                    <span className="text-slate-700">{m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && ` — ${m.spec}`}{m.detail && <span className="text-slate-400"> · {m.detail}</span>}</>}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td></tr>
+                          )}
+                          {p.note && <tr><td colSpan={6} className="pl-4 pb-1.5 italic text-slate-500 text-[10.5px]">{p.note}</td></tr>}
                         </Fragment>
                       ); })}
                     </tbody>
@@ -1480,12 +1507,37 @@ export default function App({ user, onSignOut }) {
                 </div>
               </div>
             ))}
-            <div className="border-2 border-black px-3 py-2.5 break-inside-avoid">
-              {flooringPrice + miscCost > 0 && <div className="text-[12px] flex justify-between py-0.5"><span className="text-slate-500">Tile &amp; flooring</span><span className="ft-mono">{money(flooringPrice + miscCost)}</span></div>}
-              {groutCost + mortarCost + underlayCost > 0 && <div className="text-[12px] flex justify-between py-0.5"><span className="text-slate-500">Grout, mortar &amp; underlayment</span><span className="ft-mono">{money(groutCost + mortarCost + underlayCost)}</span></div>}
-              <div className="flex justify-between items-baseline border-t-2 border-black mt-1 pt-1.5"><span className="font-bold text-[13px]">Estimated material total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>
+            {pMats.length > 0 && (
+              <div className="break-inside-avoid mb-4">
+                <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-baseline">
+                  <span className="font-bold text-[13px]">Setting materials &amp; sundries</span>
+                  <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + mortarCost + underlayCost)}</span>
+                </div>
+                <div style={{ columns: 2, columnGap: 24 }}>
+                  {PRINT_KINDS.map((k) => ({ k, items: pMats.filter((m) => m.kind === k) })).filter((g) => g.items.length > 0).map(({ k, items }) => (
+                    <div key={k} className="break-inside-avoid mb-2.5">
+                      <div className="ft-eyebrow text-[8px] border-b border-slate-300 pb-0.5 mb-1">{k}</div>
+                      {items.map((m, i) => (
+                        <div key={i} className="text-[11px] flex justify-between gap-2 py-0.5">
+                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}<br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></span>
+                          <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="break-inside-avoid">
+              <div className="border-t-2 border-black pt-1.5 flex justify-between items-baseline">
+                <div className="text-[11px] text-slate-500">
+                  Flooring {money(flooringPrice + miscCost)} · Materials {money(groutCost + mortarCost + underlayCost)}
+                  {totalSqft > 0 && <> · {totalSqft.toLocaleString()} sq ft measured{orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}</>}
+                </div>
+                <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>
+              </div>
+              <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates (incl. {settings.wastePct}% material waste). Confirm against product specs and final measurements before ordering.</div>
             </div>
-            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates (incl. {settings.wastePct}% material waste). Confirm against product specs and final measurements before ordering.</div>
           </div>
         ))}
       </div>
