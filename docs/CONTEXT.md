@@ -34,6 +34,15 @@ The shop-wide configuration shared by every signed-in user — the waste factor 
 the catalog. Replaces the former per-user settings.
 _Avoid_: Preferences, my settings (it is no longer per-person).
 
+**Waste factor**:
+The overage added to measured square footage before ordering. Kept as two rates —
+one for **tile**, one shared by every other flooring type (**hardwood, vinyl,
+laminate, carpet**) — stored as `waste: { tile, floor }`. Tile grout/mortar always
+bill at the tile rate; a carton or underlayment line uses whichever rate matches
+its own flooring type. A pre-split record's single `wastePct` number migrates onto
+both rates, so old data keeps the overage it had.
+_Avoid_: "the 10%" (it is no longer one number).
+
 **Catalog**:
 The shared, team-editable set of grout and mortar products, organized by company,
 that feeds a Selection's grout/mortar dropdowns.

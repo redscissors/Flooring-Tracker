@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -16,7 +16,7 @@ const tile = (over = {}) => ({
 
 test("mergeSettings fills the full shape from built-in defaults when given nothing", () => {
   const s = mergeSettings(undefined);
-  assert.equal(s.wastePct, 10);
+  assert.deepEqual(s.waste, { tile: 10, floor: 10 });
   assert.deepEqual(Object.keys(s.grouts).sort(), [...GROUTS].sort());
   assert.deepEqual(Object.keys(s.mortars).sort(), [...MORTARS].sort());
   assert.equal(s.grouts["PermaColor Select"].coverage, 110);
@@ -30,7 +30,7 @@ test("mergeSettings preserves a designated user's tuned numbers (seed source)", 
     mortars: { "ProLite": { tier1: 88, tier2: 60, tier3: 44, unit: "bags", price: 19 } },
   };
   const s = mergeSettings(raw);
-  assert.equal(s.wastePct, 15);
+  assert.deepEqual(s.waste, { tile: 15, floor: 15 });
   assert.equal(s.grouts["PermaColor Select"].coverage, 95);
   assert.equal(s.grouts["PermaColor Select"].price, 42);
   assert.equal(s.mortars["ProLite"].price, 19);
@@ -54,6 +54,43 @@ test("mergeSettings migrates the legacy single-mortar field onto ProLite", () =>
 test("DEFAULTS exposes the seeded built-in product names", () => {
   assert.deepEqual(Object.keys(DEFAULTS.grouts).sort(), [...GROUTS].sort());
   assert.deepEqual(Object.keys(DEFAULTS.mortars).sort(), [...MORTARS].sort());
+});
+
+// --- Waste split: separate tile vs. other-flooring rates ---------------------
+
+test("normWaste migrates a legacy single wastePct onto both families", () => {
+  assert.deepEqual(normWaste({ wastePct: 18 }), { tile: 18, floor: 18 });
+  assert.deepEqual(normWaste(undefined), { tile: 10, floor: 10 });
+});
+
+test("normWaste keeps an explicit waste split and ignores a stale legacy number", () => {
+  assert.deepEqual(normWaste({ waste: { tile: 8, floor: 12 }, wastePct: 99 }), { tile: 8, floor: 12 });
+  // A half-specified split fills the missing family from the legacy number, then 10.
+  assert.deepEqual(normWaste({ waste: { tile: 8 }, wastePct: 15 }), { tile: 8, floor: 15 });
+  assert.deepEqual(normWaste({ waste: { floor: 12 } }), { tile: 10, floor: 12 });
+});
+
+test("wasteFor picks tile rate for tile, floor rate for every other type", () => {
+  const s = { waste: { tile: 10, floor: 20 } };
+  assert.equal(wasteFor({ type: "tile" }, s), 1.1);
+  for (const t of ["hardwood", "vinyl", "laminate", "carpet"]) assert.equal(wasteFor({ type: t }, s), 1.2);
+});
+
+test("carton/underlay math applies the family-specific waste rate", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
+  // A tile carton uses the tile rate...
+  assert.equal(cartonExact(tile({ qty: "200", cartonSf: "20", cartonManual: "" }), s), 200 * 1.1 / 20);
+  // ...a vinyl carton uses the floor rate.
+  assert.equal(cartonExact({ type: "vinyl", qtyType: "sqft", qty: "200", cartonSf: "20" }, s), 200 * 1.2 / 20);
+});
+
+test("serializeSettings persists the waste split, not the legacy scalar", () => {
+  const s = normalizeSettings({ waste: { tile: 7, floor: 13 } });
+  const out = serializeSettings(s);
+  assert.deepEqual(out.waste, { tile: 7, floor: 13 });
+  assert.equal("wastePct" in out, false);
+  // Round-trips back through normalize unchanged.
+  assert.deepEqual(normalizeSettings(out).waste, { tile: 7, floor: 13 });
 });
 
 // --- Slice 02: catalog shape + seed -----------------------------------------
@@ -91,7 +128,7 @@ test("seeded products all default to enabled, all companies enabled", () => {
 test("normalizeSettings backfills a pre-catalog (flat) record without dropping tuned numbers", () => {
   const preCatalog = { wastePct: 14, grouts: { "PermaColor Select": { coverage: 99, unit: "bags", price: 7 } }, mortars: {} };
   const s = normalizeSettings(preCatalog);
-  assert.equal(s.wastePct, 14);
+  assert.deepEqual(s.waste, { tile: 14, floor: 14 });
   assert.ok(s.catalog.companies.length >= 1);
   assert.equal(s.grouts["PermaColor Select"].coverage, 99); // derived map, tuned value preserved
   assert.equal(s.grouts["PermaColor Select"].price, 7);
@@ -116,7 +153,7 @@ test("normalizeSettings attaches derived maps matching the flat seed numbers", (
 
 test("groutExact/mortarExact from the catalog match the flat-settings result", () => {
   const flat = mergeSettings(undefined);
-  const cat = normalizeSettings(undefined); // { wastePct, catalog, grouts, mortars }
+  const cat = normalizeSettings(undefined); // { waste, catalog, grouts, mortars }
   const p = tile();
   assert.equal(groutExact(p, cat), groutExact(p, flat));
   assert.equal(mortarExact(p, cat), mortarExact(p, flat));
