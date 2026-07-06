@@ -215,7 +215,10 @@ function printProduct(p, s) {
   const j = JOINTS.find((x) => x.v === num(p.grout?.joint))?.label;
   const mats = [];
   if (p.type === "tile" && p.grout?.checked) {
-    if (G) mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", detail: j ? `${j} joint` : "", inline: true, order: G.order, unit: G.unit, exact: G.exact, price: G.price, cost: G.price > 0 ? G.order * G.price : 0 });
+    // Show selected grout even when the quantity can't be computed (e.g. tile
+    // thickness/joint not entered) so it prints like mortar/backer instead of
+    // silently vanishing; blank order/price when uncomputed.
+    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", detail: j ? `${j} joint` : "", inline: true, order: G ? G.order : 0, unit: G ? G.unit : "", exact: G ? G.exact : 0, price: G ? G.price : 0, cost: G && G.price > 0 ? G.order * G.price : 0 });
     const ck = num(p.grout.caulk);
     if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, cost: 0 });
   }
@@ -879,7 +882,9 @@ export default function App({ user, onSignOut }) {
   const q = search.trim().toLowerCase();
   const searchList = q ? sortCustomers(data.customers.filter((c) => [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)))) : null;
   const visible = data.customers;
-  const recentList = !q ? [...visible].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, RECENT_COUNT) : [];
+  // Sorting A–Z means "give me the whole list alphabetical" — the recency
+  // shortcut would contradict that, so it only leads the Newest view.
+  const recentList = !q && sortBy !== "name" ? [...visible].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, RECENT_COUNT) : [];
   const recentIds = new Set(recentList.map((c) => c.id));
   const restList = sortCustomers(visible.filter((c) => !recentIds.has(c.id)));
   const allExpanded = allOpen ?? restList.length <= 25;
