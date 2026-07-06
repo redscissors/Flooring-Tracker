@@ -56,10 +56,12 @@ netlify.toml        # build config for Netlify
 ## Data model
 
 Customers live in their own `customers` table (one row each) so they can be
-shared; per-user `settings` still live in the `app_data.data` jsonb blob.
+shared; the per-user `app_data.data` jsonb blob now holds only that user's
+`profile` (settings moved to the shared record, ADR 0002).
 
 ```
-app_data.data : { settings: Settings }          // per user
+app_data.data : { profile: { name, phone, email } }   // per user; prints as
+                                                      // "Prepared by …" on the estimate
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at }
