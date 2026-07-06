@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
@@ -299,6 +299,10 @@ export default function App({ user, onSignOut }) {
   // SKU picker and drift chips search this in memory. Empty until the team has
   // run supabase/stock.sql and imported the workbook.
   const [stock, setStock] = useState([]);
+  // Team to-do / issue list (issue 006): shared rows, loaded once for the
+  // sidebar badge and refreshed every time the list is opened.
+  const [todos, setTodos] = useState([]);
+  const [showTodos, setShowTodos] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
   const pbRef = useRef(null);
@@ -406,6 +410,9 @@ export default function App({ user, onSignOut }) {
         // Best-effort: installs that haven't run supabase/stock.sql yet just
         // don't get the SKU picker.
         try { setStock(await loadStock()); } catch (x) { }
+        // Best-effort: installs that haven't run supabase/todos.sql yet just
+        // don't get the team to-do list.
+        try { setTodos(await loadTodos()); } catch (x) { }
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
     })();
@@ -815,6 +822,66 @@ export default function App({ user, onSignOut }) {
   }, [selId]);
   const handleSignOut = async () => { await autoSnapshot(selId); onSignOut(); };
 
+  // Team to-do / issue list (issue 006): every item is its own shared row.
+  // Open items order by `position` (smaller = higher); a drag renumbers all
+  // open items 0..n-1 and writes them in one upsert. Done items keep their row
+  // and sort by completion time instead.
+  const todoFromRow = (r) => ({ id: r.id, position: r.position ?? 0, text: r.data?.text || "", done: !!r.data?.done, doneAt: r.data?.doneAt || null, createdBy: r.data?.createdBy || "", createdAt: r.data?.createdAt || null });
+  const todoData = (t) => ({ text: t.text, done: t.done, doneAt: t.doneAt, createdBy: t.createdBy, createdAt: t.createdAt });
+  const loadTodos = async () => {
+    const { data: rows, error } = await supabase.from("todos").select("id, position, data").order("position");
+    if (error) throw error;
+    return (rows || []).map(todoFromRow);
+  };
+  const openTodos = () => {
+    setShowTodos(true); setSidebarOpen(false);
+    // Refresh so the list shows what teammates added since load.
+    loadTodos().then(setTodos).catch(() => { });
+  };
+  const addTodo = (text) => {
+    const top = Math.min(0, ...todos.filter((t) => !t.done).map((t) => t.position));
+    const t = { id: uid(), position: top - 1, text, done: false, doneAt: null, createdBy: profile.name || user.email || "", createdAt: Date.now() };
+    setTodos((prev) => [t, ...prev]);
+    (async () => { try { const { error } = await supabase.from("todos").insert({ id: t.id, position: t.position, data: todoData(t) }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/todos.sql?"); } })();
+  };
+  const updateTodo = (id, patch) => {
+    const next = todos.map((t) => t.id === id ? { ...t, ...patch } : t);
+    setTodos(next);
+    const t = next.find((x) => x.id === id);
+    (async () => { try { const { error } = await supabase.from("todos").update({ position: t.position, data: todoData(t) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+  const toggleTodo = (id) => {
+    const t = todos.find((x) => x.id === id);
+    if (!t) return;
+    // Reopening puts the item back on top so it gets looked at again.
+    updateTodo(id, t.done
+      ? { done: false, doneAt: null, position: Math.min(0, ...todos.filter((x) => !x.done).map((x) => x.position)) - 1 }
+      : { done: true, doneAt: Date.now() });
+  };
+  const delTodo = (id) => {
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+    (async () => { try { const { error } = await supabase.from("todos").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
+  };
+  const clearDoneTodos = () => {
+    const ids = todos.filter((t) => t.done).map((t) => t.id);
+    if (!ids.length) return;
+    setTodos((prev) => prev.filter((t) => !t.done));
+    (async () => { try { const { error } = await supabase.from("todos").delete().in("id", ids); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
+  };
+  // `from`/`to` index into the open list; `to` counts positions with the moved
+  // item already lifted out (same convention as moveProduct).
+  const reorderTodos = (from, to) => {
+    const open = todos.filter((t) => !t.done).sort((a, b) => a.position - b.position);
+    const [moved] = open.splice(from, 1);
+    if (!moved) return;
+    open.splice(to, 0, moved);
+    const pos = new Map(open.map((t, i) => [t.id, i]));
+    const next = todos.map((t) => pos.has(t.id) ? { ...t, position: pos.get(t.id) } : t);
+    setTodos(next);
+    const rows = next.filter((t) => pos.has(t.id)).map((t) => ({ id: t.id, position: t.position, data: todoData(t) }));
+    (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
     const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "SF/Carton", "Cartons Exact", "Cartons Order", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Caulk Tubes", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
@@ -973,9 +1040,10 @@ export default function App({ user, onSignOut }) {
           <div className="p-2.5 border-t border-slate-100 space-y-2">
             <div className="flex gap-2">
               <button onClick={() => { setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
-              <button onClick={exportBackup} title="Backup all data" className="rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 text-slate-600"><Download size={15} /></button>
-              <button onClick={() => fileRef.current?.click()} title="Restore backup" className="rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 text-slate-600"><Upload size={15} /></button>
-              <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
+              <button onClick={openTodos} title="Team issues & to-do list" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
+                <ListTodo size={15} /> Issues
+                {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
+              </button>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <button onClick={() => { setShowProfile(true); setSidebarOpen(false); }} title="User settings — your name, phone & email" className="flex items-center gap-2 flex-1 min-w-0 rounded-md hover:bg-slate-50 -mx-1 px-1 py-1 text-left">
@@ -1587,6 +1655,19 @@ export default function App({ user, onSignOut }) {
           <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
           <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected. Underlayments are offered only for the flooring types you tag them with.</p>
           <CatalogSettings catalog={settings.catalog} stock={stock} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
+          <div className="font-medium text-sm mt-5 mb-1">Backup &amp; restore</div>
+          <p className="text-xs text-slate-400 mb-2">Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten.</p>
+          <div className="flex gap-2">
+            <button onClick={exportBackup} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Download size={14} /> Download backup</button>
+            <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Restore backup</button>
+            <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
+          </div>
+        </Modal>
+      )}
+
+      {showTodos && (
+        <Modal onClose={() => setShowTodos(false)} title="Issues & To-Do">
+          <TeamTodos todos={todos} onAdd={addTodo} onToggle={toggleTodo} onDelete={delTodo} onReorder={reorderTodos} onClearDone={clearDoneTodos} inp={inp} />
         </Modal>
       )}
 
@@ -1682,6 +1763,109 @@ function Modal({ title, children, onClose }) {
         <div className="flex items-center justify-between mb-4"><h3 className="ft-serif text-2xl">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
         {children}
       </div>
+    </div>
+  );
+}
+
+// The shared team issue / to-do list (issue 006). Open items are ordered by
+// priority — drag the handle to put the most important on top; done items drop
+// to a struck-through section below. All writes flow up through the on* props.
+function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, inp }) {
+  const [text, setText] = useState("");
+  const [to, setTo] = useState(null); // insertion bar while dragging: { index, y }
+  const listRef = useRef(null);
+  const open = todos.filter((t) => !t.done).sort((a, b) => a.position - b.position);
+  const doneList = todos.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const submit = () => { const v = text.trim(); if (!v) return; onAdd(v); setText(""); };
+
+  // Pointer drag of an open row (mouse + touch): the handle captures the
+  // pointer, the row follows vertically, and the other rows' midpoints decide
+  // the insertion index. Data is written once, on drop, through onReorder.
+  const startDrag = (e, index) => {
+    if (e.button != null && e.button !== 0) return;
+    const handle = e.currentTarget;
+    const row = handle.closest("[data-todo-row]");
+    const list = listRef.current;
+    if (!row || !list) return;
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch (x) { }
+    const startY = e.clientY;
+    let target = index;
+    Object.assign(row.style, { position: "relative", zIndex: 30, scale: "1.02", boxShadow: "0 10px 26px rgba(40,30,20,.18)" });
+    document.body.style.userSelect = "none";
+    const onMove = (ev) => {
+      row.style.translate = `0 ${ev.clientY - startY}px`;
+      const rows = [...list.querySelectorAll("[data-todo-row]")].filter((r) => r !== row);
+      let idx = 0;
+      for (const r of rows) { const rc = r.getBoundingClientRect(); if (ev.clientY > rc.top + rc.height / 2) idx++; }
+      if (idx === target) return;
+      target = idx;
+      if (idx === index) return setTo(null); // dropping back where it came from
+      const lr = list.getBoundingClientRect();
+      const y = rows.length === 0 ? 0 : idx < rows.length ? rows[idx].getBoundingClientRect().top - lr.top - 5 : rows[rows.length - 1].getBoundingClientRect().bottom - lr.top + 3;
+      setTo({ index: idx, y });
+    };
+    const finish = (commit) => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.userSelect = "";
+      Object.assign(row.style, { position: "", zIndex: "", scale: "", boxShadow: "", translate: "" });
+      setTo(null);
+      if (commit && target !== index) onReorder(index, target);
+    };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
+    const onKey = (ev) => { if (ev.key === "Escape") finish(false); };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKey);
+  };
+
+  return (
+    <div>
+      <p className="text-sm text-slate-500 mb-3">Shared with the whole team — anyone can add bugs, feature ideas, or shop reminders. Drag the handle to put the most important on top; check an item off when it's handled.</p>
+      <div className="flex gap-2 mb-3">
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="Add an issue or idea…" className={inp} />
+        <button onClick={submit} disabled={!text.trim()} className="shrink-0 flex items-center gap-1 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 disabled:opacity-50"><Plus size={15} /> Add</button>
+      </div>
+      {open.length === 0 && doneList.length === 0 && <p className="text-sm text-slate-400">Nothing on the list yet. (If new items won't save, run supabase/todos.sql once.)</p>}
+      <div ref={listRef} className="relative space-y-1.5">
+        {to && <div className="absolute left-1 right-1 h-1 rounded-full bg-indigo-600 pointer-events-none z-10" style={{ top: to.y }} />}
+        {open.map((t, i) => (
+          <div key={t.id} data-todo-row className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+            <button onPointerDown={(e) => startDrag(e, i)} title="Drag to reorder" className="shrink-0 mt-0.5 -m-1 p-1 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={14} /></button>
+            <button onClick={() => onToggle(t.id)} title="Mark done" className="shrink-0 mt-0.5 w-[18px] h-[18px] rounded-full border-2 border-slate-300 hover:border-indigo-600 flex items-center justify-center text-transparent hover:text-indigo-600"><Check size={11} strokeWidth={3} /></button>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm leading-snug break-words">{t.text}</div>
+              {(t.createdBy || t.createdAt) && <div className="text-[11px] text-slate-400 mt-0.5">{[t.createdBy, t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ""].filter(Boolean).join(" · ")}</div>}
+            </div>
+            <button onClick={() => onDelete(t.id)} title="Delete" className="shrink-0 mt-0.5 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+          </div>
+        ))}
+      </div>
+      {doneList.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="ft-eyebrow text-[9px]">Done ({doneList.length})</div>
+            <button onClick={onClearDone} className="text-[11px] text-slate-400 hover:text-red-500">Clear done</button>
+          </div>
+          <div className="space-y-1.5">
+            {doneList.map((t) => (
+              <div key={t.id} className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2">
+                <button onClick={() => onToggle(t.id)} title="Reopen — puts it back on top" className="shrink-0 mt-0.5 w-[18px] h-[18px] rounded-full bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700"><Check size={11} strokeWidth={3} /></button>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm leading-snug break-words line-through text-slate-400">{t.text}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{[t.createdBy, t.doneAt ? "done " + new Date(t.doneAt).toLocaleDateString() : ""].filter(Boolean).join(" · ")}</div>
+                </div>
+                <button onClick={() => onDelete(t.id)} title="Delete" className="shrink-0 mt-0.5 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
