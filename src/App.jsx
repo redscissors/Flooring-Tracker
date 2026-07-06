@@ -1439,18 +1439,26 @@ export default function App({ user, onSignOut }) {
           </div>
         ) : (
           <div>
-            <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4">
+            <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4 gap-4">
               <div>
                 <div className="ft-serif text-3xl">{sel.name}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
-                {(profile.name || profile.phone || profile.email) && <div className="text-xs text-slate-500 mt-0.5">Prepared by {[profile.name, profile.phone, profile.email].filter(Boolean).join("  ·  ")}</div>}
               </div>
-              {grandTotal > 0 && (
-                <div className="text-right">
-                  <div className="ft-eyebrow text-[9px]">Estimated total</div>
-                  <div className="ft-serif text-3xl">{money(grandTotal)}</div>
-                </div>
-              )}
+              <div className="flex items-stretch gap-6">
+                {(profile.name || profile.phone || profile.email) && (() => { const pname = profile.name || profile.email; return (
+                  <div className="flex flex-col justify-between text-right">
+                    <div className="ft-eyebrow text-[9px] text-slate-500">Your salesperson</div>
+                    <div className="ft-serif text-2xl leading-none">{pname}</div>
+                    <div className="text-[9.5px] text-slate-500 leading-none">{[profile.phone, profile.email].filter((x) => x && x !== pname).join("  ·  ")}</div>
+                  </div>
+                ); })()}
+                {grandTotal > 0 && (
+                  <div className="text-right">
+                    <div className="ft-eyebrow text-[9px]">Estimated total</div>
+                    <div className="ft-serif text-3xl">{money(grandTotal)}</div>
+                  </div>
+                )}
+              </div>
             </div>
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
             {sel.categories.map((a, ai) => (
@@ -1568,7 +1576,7 @@ export default function App({ user, onSignOut }) {
 
       {showProfile && (
         <Modal onClose={() => setShowProfile(false)} title="User Settings">
-          <p className="text-sm text-slate-500 mb-4">Your contact info prints at the top of the estimate ("Prepared by …") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
+          <p className="text-sm text-slate-500 mb-4">Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
           <div className="space-y-3">
             <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
             <div><label className={lbl}>Phone</label><input value={profile.phone} onChange={(e) => saveProfile({ phone: e.target.value })} placeholder="Phone number" className={inp} /></div>

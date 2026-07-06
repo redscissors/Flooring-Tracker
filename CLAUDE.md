@@ -61,7 +61,7 @@ shared; the per-user `app_data.data` jsonb blob now holds only that user's
 
 ```
 app_data.data : { profile: { name, phone, email } }   // per user; prints as
-                                                      // "Prepared by …" on the estimate
+                                                      // "Your salesperson" on the estimate
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at }
