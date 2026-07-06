@@ -49,6 +49,7 @@ supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies
   stock.sql         # run once: stock_items table + RLS (stock price book)
+  todos.sql         # run once: todos table + RLS (team issue / to-do list)
   migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```
@@ -71,6 +72,10 @@ versions row  : { id (text), customer_id, label, auto (bool), saved_at,
 
 stock row     : { sku (text pk), active (bool), data: StockItem, updated_at }
                   // one row per price book SKU; imports upsert, never delete
+
+todo row      : { id (text pk), position (float — open-item order, smaller = higher),
+                  data: { text, done, doneAt, createdBy, createdAt } }
+                  // team issue / to-do list (issue 006), shared like customers
 
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[] }
@@ -118,6 +123,14 @@ selects several matches and adds each as its own product row, and the Settings
 catalog's add-product form can pre-fill name/price/coverage from a price book
 search.
 
+**Team to-do list** (issue 006). The sidebar's "Issues" button (with an
+open-item count badge) opens a shared list where anyone signed in can add
+bugs/feature ideas, drag open items into priority order, check them off, reopen
+or delete them, and clear the done section. Items live one-per-row in `todos`;
+open items order by `position` (a drag renumbers all open items in one upsert),
+done items sort by completion time. Backup/restore moved off the sidebar into
+the bottom of the Settings modal.
+
 **Sharing** (ADR 0004). Every customer is team-shared: any signed-in user can
 see, edit, and delete any customer (last-write-wins). `owner_id` only records
 who created the row — it grants no special rights and is nulled (not cascaded)
@@ -149,7 +162,8 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   an `UPDATE` of that one row's `data`. Create/delete use
   `addCustomer`/`delCustomer`, versions use
   `insertVersion`/`delVersion`/`loadVersion` (their own table, never the blob),
-  and settings use `setSettings`. Stock rows are written only by
+  settings use `setSettings`, and to-do items use `addTodo`/`updateTodo`/
+  `delTodo`/`reorderTodos`/`clearDoneTodos`. Stock rows are written only by
   the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
   `active=false` marks — no deletes). Keep these write paths;
   don't write ad hoc.
