@@ -1,6 +1,6 @@
 # ADR 0001 — `archived` is a top-level column, deliberately outside the owner guard
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0004](0004-all-customers-team-shared.md) — archive and visibility removed entirely
 - **Date:** 2026-06-22
 - **Scope:** system-wide (customers data model + RLS)
 - **Related:** `.scratch/001_customer-scale-and-archive/ticket.md`

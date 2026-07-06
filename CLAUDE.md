@@ -49,6 +49,7 @@ supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies
   stock.sql         # run once: stock_items table + RLS (stock price book)
+  migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```
 
@@ -60,8 +61,8 @@ shared; per-user `settings` still live in the `app_data.data` jsonb blob.
 ```
 app_data.data : { settings: Settings }          // per user
 
-customers row : { id (text), owner_id (uuid), visibility:"private|public",
-                  archived (bool), data: Customer, created_at, updated_at }
+customers row : { id (text), owner_id (uuid, nullable "created by"),
+                  data: Customer, created_at, updated_at }
 
 versions row  : { id (text), customer_id, label, auto (bool), saved_at,
                   snapshot: Area[] }            // one row per saved version
@@ -95,7 +96,7 @@ auto, savedAt }`, loaded with the detail); the snapshot is fetched on restore.
 Besides hand-named versions (unlimited), an **auto version** is saved when a
 customer is deselected (or the user signs out) with its `categories` changed
 since open — the newest 5 autos per customer are kept, autos never evict named
-versions. Version access follows the customer's RLS rules.
+versions. Versions, like customers, are open to every signed-in user.
 
 **Stock price book** (issue 004, ADR 0003). The shop's price book workbook is
 imported (Settings, browser-side parse with a diff preview) into `stock_items`,
@@ -115,15 +116,16 @@ selects several matches and adds each as its own product row, and the Settings
 catalog's add-product form can pre-fill name/price/coverage from a price book
 search.
 
-**Sharing.** `visibility` is `private` (owner only) or `public` (every signed-in
-user can see AND edit it — last-write-wins). RLS enforces this: read = own or
-public; edit = own or public; delete = owner anytime, or anyone anytime for a
-*public* customer; a trigger blocks non-owners from
-changing `owner_id`/`visibility`. In memory each customer carries `ownerId` +
-`visibility` (stripped out by `custData()` before writing the jsonb). Attachment
-files are stored at `<customer_id>/<file_id>` so storage policies can follow the
-same rules. Existing data is migrated out of the old `app_data` blob on first
-load (`migrateLegacyCustomers`).
+**Sharing** (ADR 0004). Every customer is team-shared: any signed-in user can
+see, edit, and delete any customer (last-write-wins). `owner_id` only records
+who created the row — it grants no special rights and is nulled (not cascaded)
+if that account is deleted. There is no private/public split and no archive
+flag; old jobs sit behind the sidebar's age buckets ("This month" / "This
+year" / "Older") and search. Attachment files are stored at
+`<customer_id>/<file_id>` in a bucket open to any signed-in user. Existing data
+is migrated out of the old `app_data` blob on first load
+(`migrateLegacyCustomers`); installs created before ADR 0004 run
+`supabase/migrate-shared-only.sql` once.
 
 ## Material math (tile only)
 
@@ -142,14 +144,13 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
 ## Conventions
 
 - Customer mutations go through `updateCust(id, patch)` → optimistic `setData` +
-  an `UPDATE` of that one row's `data`. Sharing changes use `setVisibility`,
-  archiving uses `setArchived`, create/delete use `addCustomer`/`delCustomer`,
-  versions use `insertVersion`/`delVersion`/`loadVersion` (their own table,
-  never the blob), and settings use `setSettings`. Stock rows are written only by
+  an `UPDATE` of that one row's `data`. Create/delete use
+  `addCustomer`/`delCustomer`, versions use
+  `insertVersion`/`delVersion`/`loadVersion` (their own table, never the blob),
+  and settings use `setSettings`. Stock rows are written only by
   the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
   `active=false` marks — no deletes). Keep these write paths;
-  don't write ad hoc. `updateCust` never sends `owner_id`/`visibility`, so the
-  guard trigger only fires for the explicit visibility toggle.
+  don't write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
 - The theme (monochrome, inspired by matthaeusjandl.com) works by **overriding

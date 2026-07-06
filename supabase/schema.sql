@@ -49,80 +49,47 @@ create trigger app_data_updated_at
 -- ---------------------------------------------------------------------------
 -- Customers
 --
--- Each customer is its own row so that customers can be shared. A customer is
--- either "private" (only the owner can see it) or "public" (every signed-in
--- user can see AND edit it). app_data now holds only per-user settings; the
--- customers array was migrated out of that blob into this table.
+-- Each customer is its own row, shared by the whole team: every signed-in user
+-- can see, edit, and delete every customer (last-write-wins, ADR 0004).
+-- owner_id records who created the row; it grants no special rights, and
+-- deleting a user account leaves the customers they created in place.
 --
 -- `id` is text (not uuid) because customer ids are generated client-side by the
 -- app's uid() helper, and the migration reuses those existing ids unchanged.
 -- The whole Customer object lives in `data` jsonb, exactly as before.
+--
+-- Installs created before ADR 0004 (private/public customers + archive flag)
+-- must run supabase/migrate-shared-only.sql once instead of re-running this.
 -- ---------------------------------------------------------------------------
 create table if not exists public.customers (
   id         text primary key,
-  owner_id   uuid not null references auth.users (id) on delete cascade,
-  visibility text not null default 'public' check (visibility in ('private', 'public')),
-  archived   boolean not null default false,
+  owner_id   uuid references auth.users (id) on delete set null,
   data       jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- For installs created before the archive feature.
-alter table public.customers add column if not exists archived boolean not null default false;
-
 create index if not exists customers_owner_id_idx on public.customers (owner_id);
-create index if not exists customers_visibility_idx on public.customers (visibility);
-create index if not exists customers_archived_idx on public.customers (archived);
 
 alter table public.customers enable row level security;
 
--- Read: your own customers, plus every public one.
+-- Every signed-in user may read, edit, and delete every customer. Inserts must
+-- be attributed to the user creating them.
 drop policy if exists "customer select" on public.customers;
 create policy "customer select" on public.customers
-  for select using (owner_id = auth.uid() or visibility = 'public');
+  for select to authenticated using (true);
 
--- Insert: you may only create customers you own.
 drop policy if exists "customer insert" on public.customers;
 create policy "customer insert" on public.customers
-  for insert with check (owner_id = auth.uid());
+  for insert to authenticated with check (owner_id = auth.uid());
 
--- Update: owners always; anyone may edit a public customer's content. The guard
--- trigger below stops non-owners from changing owner_id or visibility.
 drop policy if exists "customer update" on public.customers;
 create policy "customer update" on public.customers
-  for update using (owner_id = auth.uid() or visibility = 'public')
-  with check (owner_id = auth.uid() or visibility = 'public');
+  for update to authenticated using (true) with check (true);
 
--- Delete: the owner anytime; anyone else may delete a public customer anytime too.
 drop policy if exists "customer delete" on public.customers;
 create policy "customer delete" on public.customers
-  for delete using (
-    owner_id = auth.uid()
-    or visibility = 'public'
-  );
-
--- Only the owner may reassign ownership or flip visibility. Everyone else can
--- still edit the data of a public customer (handled by the update policy).
--- NOTE: `archived` is deliberately NOT guarded here. Archiving must be open to
--- anyone who can edit a public job (not just the owner), so it rides the update
--- policy like ordinary content edits. See docs/adr/0001-archived-as-ungated-column.md.
-create or replace function public.customers_guard()
-returns trigger language plpgsql as $$
-begin
-  if (new.owner_id is distinct from old.owner_id
-      or new.visibility is distinct from old.visibility)
-     and auth.uid() <> old.owner_id then
-    raise exception 'Only the owner can change ownership or visibility';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists customers_guard on public.customers;
-create trigger customers_guard
-  before update on public.customers
-  for each row execute function public.customers_guard();
+  for delete to authenticated using (true);
 
 drop trigger if exists customers_updated_at on public.customers;
 create trigger customers_updated_at
@@ -187,29 +154,20 @@ create index if not exists versions_customer_idx on public.versions (customer_id
 
 alter table public.versions enable row level security;
 
--- Access follows the customer row: see the customer -> see its versions;
--- edit the customer -> save/delete its versions. Rows are immutable (no
+-- Customers are team-shared, so versions are too: any signed-in user (the FK
+-- keeps inserts attached to a real customer). Rows are immutable (no
 -- rename/edit feature), so there is deliberately no update policy.
 drop policy if exists "version select" on public.versions;
 create policy "version select" on public.versions
-  for select to authenticated using (
-    exists (select 1 from public.customers c
-            where c.id = customer_id
-              and (c.owner_id = auth.uid() or c.visibility = 'public')));
+  for select to authenticated using (true);
 
 drop policy if exists "version insert" on public.versions;
 create policy "version insert" on public.versions
-  for insert to authenticated with check (
-    exists (select 1 from public.customers c
-            where c.id = customer_id
-              and (c.owner_id = auth.uid() or c.visibility = 'public')));
+  for insert to authenticated with check (true);
 
 drop policy if exists "version delete" on public.versions;
 create policy "version delete" on public.versions
-  for delete to authenticated using (
-    exists (select 1 from public.customers c
-            where c.id = customer_id
-              and (c.owner_id = auth.uid() or c.visibility = 'public')));
+  for delete to authenticated using (true);
 
 -- One-time migration: lift every customer's embedded versions array into rows
 -- (original ids, labels, and timestamps preserved; all hand-saved, so
