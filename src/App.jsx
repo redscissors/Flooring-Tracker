@@ -867,10 +867,10 @@ export default function App({ user, onSignOut }) {
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
-  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { miscCost += num(p.priceSqft) * miscQty(p); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", unit: G.unit, exact: 0 }; gAgg[k].exact += G.exact; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: "tubes", exact: 0 }; cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, unit: M.unit, exact: 0 }; mAgg[k].exact += M.exact; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, unit: U.unit, exact: 0 }; uAgg[k].exact += U.exact; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, unit: m.unit, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
-  const gList = Object.values(gAgg).map((g) => ({ ...g, order: Math.ceil(g.exact) }));
-  const mList = Object.values(mAgg).map((m) => ({ ...m, order: Math.ceil(m.exact) }));
-  const uList = Object.values(uAgg).map((u) => ({ ...u, order: Math.ceil(u.exact) }));
+  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { miscCost += num(p.priceSqft) * miscQty(p); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", unit: G.unit, price: G.price, exact: 0 }; gAgg[k].exact += G.exact; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: "tubes", exact: 0 }; cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, unit: M.unit, price: M.price, exact: 0 }; mAgg[k].exact += M.exact; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, unit: U.unit, price: U.price, exact: 0 }; uAgg[k].exact += U.exact; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
+  const gList = Object.values(gAgg).map((g) => { const order = Math.ceil(g.exact); return { ...g, order, cost: order * num(g.price) }; });
+  const mList = Object.values(mAgg).map((m) => { const order = Math.ceil(m.exact); return { ...m, order, cost: order * num(m.price) }; });
+  const uList = Object.values(uAgg).map((u) => { const order = Math.ceil(u.exact); return { ...u, order, cost: order * num(u.price) }; });
   const cList = Object.values(cAgg).map((c) => ({ ...c, order: Math.ceil(c.exact) }));
   const hasMat = gList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + mortarCost + underlayCost + miscCost;
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
@@ -1362,7 +1362,7 @@ export default function App({ user, onSignOut }) {
                       {gList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
                         <div key={"g" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
                           <span className="text-[13px] font-medium">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap">{g.order} {g.unit}</span>
+                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{g.order} {g.unit}{g.cost > 0 && <span className="block text-[11px] text-slate-400">{money(g.cost)}</span>}</span>
                         </div>
                       ))}
                     </div>
@@ -1371,7 +1371,7 @@ export default function App({ user, onSignOut }) {
                       {mList.length === 0 ? <div className="text-sm text-slate-400">—</div> : mList.map((m, i) => (
                         <div key={"m" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
                           <span className="text-[13px] font-medium">{m.product}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap">{m.order} {m.unit}</span>
+                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{m.order} {m.unit}{m.cost > 0 && <span className="block text-[11px] text-slate-400">{money(m.cost)}</span>}</span>
                         </div>
                       ))}
                     </div>
@@ -1380,7 +1380,7 @@ export default function App({ user, onSignOut }) {
                       {uList.length === 0 ? <div className="text-sm text-slate-400">—</div> : uList.map((u, i) => (
                         <div key={"u" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
                           <span className="text-[13px] font-medium">{u.product}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap">{u.order} {u.unit}</span>
+                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{u.order} {u.unit}{u.cost > 0 && <span className="block text-[11px] text-slate-400">{money(u.cost)}</span>}</span>
                         </div>
                       ))}
                     </div>
