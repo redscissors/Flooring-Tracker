@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
@@ -265,6 +265,7 @@ const lightRow = (r) => ({
 // Version metadata as held in memory — snapshots stay on the server until a
 // restore actually needs one.
 const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
+const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
 const AUTO_KEEP = 5;
 const RECENT_COUNT = 10;
 
@@ -276,6 +277,12 @@ export default function App({ user, onSignOut }) {
   const [sortBy, setSortBy] = useState("newest");
   const [allOpen, setAllOpen] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  // Per-user profile (name/phone/email), printed on the estimate header.
+  const [profile, setProfile] = useState(normProfile());
+  // The rest of this user's app_data blob, kept so profile saves don't clobber
+  // anything else stored there.
+  const appBlobRef = useRef({});
   const [showVersions, setShowVersions] = useState(false);
   // Stock price book (ADR 0003): all active+retired items, loaded once — the
   // SKU picker and drift chips search this in memory. Empty until the team has
@@ -365,6 +372,11 @@ export default function App({ user, onSignOut }) {
         // awaiting migration, and as the seed fallback for the shared settings.
         const { data: row, error } = await supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle();
         if (error) throw error;
+        // Customers and settings have both moved out of this blob (migrated
+        // below / seeded into shared_settings), so drop them from the copy that
+        // profile saves write back.
+        appBlobRef.current = (({ customers, settings, ...rest }) => rest)(row?.data || {});
+        setProfile(normProfile(row?.data?.profile));
 
         // Settings now live in one shared record every signed-in user reads and
         // writes (ADR 0002), no longer in per-user app_data.
@@ -524,9 +536,9 @@ export default function App({ user, onSignOut }) {
         { onConflict: "id", ignoreDuplicates: true }
       );
     }
-    // Drop the migrated array from the blob. Settings have moved to the shared
-    // store, so nothing else needs to live here anymore.
-    await supabase.from("app_data").upsert({ user_id: user.id, data: {} }, { onConflict: "user_id" });
+    // Drop the migrated array from the blob, keeping what still lives there
+    // (the user's profile).
+    await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" });
   };
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
@@ -574,6 +586,12 @@ export default function App({ user, onSignOut }) {
     const next = { ...data, settings: withDerived({ ...data.settings, ...patch }) };
     setData(next);
     (async () => { try { const { error } = await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(next.settings) }, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+  };
+  const saveProfile = (patch) => {
+    const next = { ...profile, ...patch };
+    setProfile(next);
+    appBlobRef.current = { ...appBlobRef.current, profile: next };
+    (async () => { try { const { error } = await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't save your info"); } })();
   };
   const settings = data.settings;
   const sel = data.customers.find((c) => c.id === selId) || null;
@@ -947,8 +965,11 @@ export default function App({ user, onSignOut }) {
               <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-400">
-              <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-semibold shrink-0">{(user.email || "?").slice(0, 1).toUpperCase()}</div>
-              <span className="truncate flex-1" title={user.email}>{user.email}</span>
+              <button onClick={() => { setShowProfile(true); setSidebarOpen(false); }} title="User settings — your name, phone & email" className="flex items-center gap-2 flex-1 min-w-0 rounded-md hover:bg-slate-50 -mx-1 px-1 py-1 text-left">
+                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-semibold shrink-0">{(profile.name || user.email || "?").slice(0, 1).toUpperCase()}</div>
+                <span className="truncate flex-1" title={user.email}>{profile.name || user.email}</span>
+                <Pencil size={12} className="shrink-0 text-slate-300" />
+              </button>
               <span className="w-px h-4 bg-slate-200 shrink-0" />
               <button onClick={handleSignOut} title="Sign out" className="rounded-md border border-slate-200 hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={14} /></button>
             </div>
@@ -1422,6 +1443,7 @@ export default function App({ user, onSignOut }) {
               <div>
                 <div className="ft-serif text-3xl">{sel.name}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
+                {(profile.name || profile.phone || profile.email) && <div className="text-xs text-slate-500 mt-0.5">Prepared by {[profile.name, profile.phone, profile.email].filter(Boolean).join("  ·  ")}</div>}
               </div>
               {grandTotal > 0 && (
                 <div className="text-right">
@@ -1541,6 +1563,18 @@ export default function App({ user, onSignOut }) {
           <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
           <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected. Underlayments are offered only for the flooring types you tag them with.</p>
           <CatalogSettings catalog={settings.catalog} stock={stock} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
+        </Modal>
+      )}
+
+      {showProfile && (
+        <Modal onClose={() => setShowProfile(false)} title="User Settings">
+          <p className="text-sm text-slate-500 mb-4">Your contact info prints at the top of the estimate ("Prepared by …") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
+          <div className="space-y-3">
+            <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
+            <div><label className={lbl}>Phone</label><input value={profile.phone} onChange={(e) => saveProfile({ phone: e.target.value })} placeholder="Phone number" className={inp} /></div>
+            <div><label className={lbl}>Email</label><input value={profile.email} onChange={(e) => saveProfile({ email: e.target.value })} placeholder={user.email || "Email"} className={inp} /></div>
+          </div>
+          <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}. Leave a field blank to keep it off the estimate.</p>
         </Modal>
       )}
 
