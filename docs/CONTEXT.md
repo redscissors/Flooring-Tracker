@@ -52,7 +52,7 @@ unique within grout and within mortar.
 The on/off state on a company or product controlling whether it appears in
 Selection dropdowns. Disabling hides it from *future* picks; it is never deleted
 and never affects already-saved jobs.
-_Avoid_: Active, archived (archived is a Customer concept; this is catalog show/hide).
+_Avoid_: Active, archived (a retired Customer concept — see ADR 0004; this is catalog show/hide).
 
 ## Relationships
 

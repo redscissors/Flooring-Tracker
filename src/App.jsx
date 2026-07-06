@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, Archive, ArchiveRestore, ChevronRight, ChevronDown, Hand } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
@@ -254,9 +254,9 @@ const normC = (c) => ({ ...c, categories: (c.categories || []).map(normA), versi
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
-const LIST_SELECT = "id, owner_id, visibility, archived, created_at, updated_at, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
+const LIST_SELECT = "id, created_at, updated_at, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
 const lightRow = (r) => ({
-  id: r.id, ownerId: r.owner_id, visibility: r.visibility, archived: !!r.archived,
+  id: r.id,
   createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
   updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
@@ -274,7 +274,6 @@ export default function App({ user, onSignOut }) {
   const [selId, setSelId] = useState(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
-  const [showArchive, setShowArchive] = useState(false);
   const [allOpen, setAllOpen] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
@@ -401,9 +400,8 @@ export default function App({ user, onSignOut }) {
   };
 
   // Lazy-load one customer's full record on open, merging it into the light row.
-  // The column-backed fields (ownerId/visibility/archived) are re-applied over
-  // the jsonb so they always win. Version metadata (never snapshots) loads
-  // alongside; snapshots are fetched one at a time on restore.
+  // Version metadata (never snapshots) loads alongside; snapshots are fetched
+  // one at a time on restore.
   const loadDetail = async (id) => {
     const existing = data.customers.find((c) => c.id === id);
     if (!existing || existing._full) return;
@@ -432,7 +430,7 @@ export default function App({ user, onSignOut }) {
       setData((prev) => ({
         ...prev,
         customers: prev.customers.map((c) => c.id === id
-          ? { ...c, ...full, versions, id: c.id, ownerId: c.ownerId, visibility: c.visibility, archived: c.archived, createdAt: c.createdAt, _full: true }
+          ? { ...c, ...full, versions, id: c.id, createdAt: c.createdAt, _full: true }
           : c),
       }));
       baselineRef.current = { id, json: JSON.stringify(full.categories) };
@@ -520,9 +518,9 @@ export default function App({ user, onSignOut }) {
           await supabase.storage.from(ATT_BUCKET).remove([`${user.id}/${m.id}`]);
         } catch (x) { /* best-effort */ }
       }
-      const { ownerId, visibility, ...rest } = c;
+      const { ownerId, visibility, archived, ...rest } = c;
       await supabase.from("customers").upsert(
-        { id: c.id, owner_id: user.id, visibility: "private", data: rest, created_at: new Date(c.createdAt || Date.now()).toISOString() },
+        { id: c.id, owner_id: user.id, data: rest, created_at: new Date(c.createdAt || Date.now()).toISOString() },
         { onConflict: "id", ignoreDuplicates: true }
       );
     }
@@ -565,9 +563,9 @@ export default function App({ user, onSignOut }) {
   const ping = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const flashSaved = () => { if (saveOkTimer.current) clearTimeout(saveOkTimer.current); setSaveOk(true); saveOkTimer.current = setTimeout(() => setSaveOk(false), 2000); };
 
-  // Strip the column-backed and in-memory-only fields before writing to jsonb.
-  // (ownerId/visibility/archived are their own columns; versions live in their
-  // own table; _full is load state; updatedAt mirrors the updated_at column.)
+  // Strip the in-memory-only fields before writing to jsonb (versions live in
+  // their own table; _full is load state; updatedAt mirrors the updated_at
+  // column; ownerId/visibility/archived are legacy fields old records may carry).
   const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, ...rest }) => rest;
 
   // Settings live in one shared record (ADR 0002) — last-write-wins across the
@@ -581,8 +579,7 @@ export default function App({ user, onSignOut }) {
   const sel = data.customers.find((c) => c.id === selId) || null;
 
   // Every customer-content mutation goes through here: optimistic state update +
-  // an UPDATE of that one row's data. (owner_id / visibility are never sent here
-  // so the guard trigger only ever fires for the explicit visibility toggle.)
+  // an UPDATE of that one row's data.
   const updateCust = (id, patch) => {
     const next = { ...data, customers: data.customers.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
     setData(next);
@@ -590,29 +587,12 @@ export default function App({ user, onSignOut }) {
     (async () => { try { const { error } = await supabase.from("customers").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
 
-  const isOwner = (c) => c && c.ownerId === user.id;
-  const canEdit = (c) => c && (isOwner(c) || c.visibility === "public");
-  const canDelete = (c) => c && (isOwner(c) || c.visibility === "public");
-
-  const setVisibility = (id, visibility) => {
-    setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === id ? { ...c, visibility, updatedAt: Date.now() } : c) }));
-    (async () => { try { const { error } = await supabase.from("customers").update({ visibility }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't change sharing"); } })();
-  };
-
-  // Narrow write: touches only the archived column, never the data blob, so it
-  // can't clobber a concurrent editor's changes. No owner check — anyone who can
-  // edit a public job may archive/restore it (the guard trigger lets this pass).
-  const setArchived = (id, archived) => {
-    setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === id ? { ...c, archived, updatedAt: Date.now() } : c) }));
-    (async () => { try { const { error } = await supabase.from("customers").update({ archived }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't change archive status"); } })();
-  };
-
   const addCustomer = () => {
-    const c = { ...newCustomer(), ownerId: user.id, visibility: "public", archived: false, updatedAt: Date.now(), _full: true };
+    const c = { ...newCustomer(), updatedAt: Date.now(), _full: true };
     setData((prev) => ({ ...prev, customers: [c, ...prev.customers] }));
     baselineRef.current = { id: c.id, json: JSON.stringify(c.categories) };
     setSelId(c.id); setSidebarOpen(false); setFocusName(true);
-    (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "public", data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
   const pickCustomer = (id) => { setSelId(id); setSidebarOpen(false); loadDetail(id); };
   const delCustomer = async (id) => {
@@ -820,7 +800,7 @@ export default function App({ user, onSignOut }) {
     let customers;
     try {
       const [{ data: rows, error }, { data: vRows, error: vErr }] = await Promise.all([
-        supabase.from("customers").select("id, owner_id, visibility, archived, data, created_at"),
+        supabase.from("customers").select("id, data, created_at"),
         supabase.from("versions").select("id, customer_id, label, auto, saved_at, snapshot"),
       ]);
       if (error) throw error;
@@ -828,7 +808,7 @@ export default function App({ user, onSignOut }) {
       const byCust = {};
       (vRows || []).forEach((r) => { (byCust[r.customer_id] = byCust[r.customer_id] || []).push({ id: r.id, label: r.label, auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now(), snapshot: r.snapshot || [] }); });
       customers = (rows || []).map((r) => {
-        const c = { ...normC(r.data || {}), id: r.id, ownerId: r.owner_id, visibility: r.visibility, archived: !!r.archived };
+        const c = { ...normC(r.data || {}), id: r.id };
         const table = (byCust[r.id] || []).sort((a, b) => b.savedAt - a.savedAt);
         return { ...c, versions: table.length ? table : c.versions };
       });
@@ -839,14 +819,14 @@ export default function App({ user, onSignOut }) {
   };
   const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
     const p = JSON.parse(fr.result);
-    // Restore each customer as a new owned, private row (with a fresh id so it
-    // can't collide with an existing public customer), then upload its files.
+    // Restore each customer as a new row (with a fresh id so it can't collide
+    // with an existing customer), then upload its files.
     const restored = [];
     for (const raw of (p.customers || [])) {
-      const c = { ...normC(raw), id: uid(), ownerId: user.id, visibility: "private", archived: false, updatedAt: Date.now(), _full: true };
+      const c = { ...normC(raw), id: uid(), updatedAt: Date.now(), _full: true };
       const idMap = {};
       c.attachments = (c.attachments || []).map((m) => { const nid = uid(); idMap[m.id] = nid; return { ...m, id: nid }; });
-      try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, visibility: "private", data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
+      try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
       // Versions restore as table rows with fresh ids — the same path handles
       // backups made before versions moved out of the blob.
       const vRows = (c.versions || []).map((v) => ({ id: uid(), customer_id: c.id, label: v.label || "Version", auto: !!v.auto, saved_at: new Date(v.savedAt || Date.now()).toISOString(), snapshot: v.snapshot || [] }));
@@ -870,14 +850,13 @@ export default function App({ user, onSignOut }) {
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
   const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
   const sortCustomers = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : (b.createdAt || 0) - (a.createdAt || 0));
-  // When searching, span both active and archived (archived rows are badged in
-  // the list). With no search, the list leads with the jobs anyone touched most
-  // recently; everything else sits below in groups (letters when sorted A–Z,
-  // age buckets when sorted Newest) behind an expandable "All customers".
+  // With no search, the list leads with the jobs anyone touched most recently;
+  // everything else sits below in groups (letters when sorted A–Z, age buckets
+  // when sorted Newest) behind an expandable "All customers".
   const q = search.trim().toLowerCase();
   const searchList = q ? sortCustomers(data.customers.filter((c) => [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)))) : null;
-  const visible = data.customers.filter((c) => showArchive ? c.archived : !c.archived);
-  const recentList = !q && !showArchive ? [...visible].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, RECENT_COUNT) : [];
+  const visible = data.customers;
+  const recentList = !q ? [...visible].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, RECENT_COUNT) : [];
   const recentIds = new Set(recentList.map((c) => c.id));
   const restList = sortCustomers(visible.filter((c) => !recentIds.has(c.id)));
   const allExpanded = allOpen ?? restList.length <= 25;
@@ -886,7 +865,6 @@ export default function App({ user, onSignOut }) {
     const age = Date.now() - (c.createdAt || 0);
     return age < 30 * 24 * 3600 * 1000 ? "This month" : age < 365 * 24 * 3600 * 1000 ? "This year" : "Older";
   };
-  const archivedCount = data.customers.filter((c) => c.archived).length;
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
@@ -900,7 +878,7 @@ export default function App({ user, onSignOut }) {
       <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
         <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13.5px] font-semibold truncate flex items-center gap-1.5">{c.name || "Untitled"}{isOwner(c) && c.visibility === "public" && <span className="ft-eyebrow text-[8.5px] tracking-[.1em] bg-indigo-50 rounded px-1.5 py-0.5 shrink-0" style={{ color: "var(--ft-brand)" }}>Public</span>}{c.archived && <span className="ft-eyebrow text-[8.5px] tracking-[.1em] bg-slate-200 rounded px-1.5 py-0.5 shrink-0">Archived</span>}</div>
+          <div className="text-[13.5px] font-semibold truncate">{c.name || "Untitled"}</div>
           {sub && <div className="text-[11.5px] text-slate-400 truncate mt-px">{sub}</div>}
         </div>
       </button>
@@ -935,11 +913,6 @@ export default function App({ user, onSignOut }) {
                 <button key={v} onClick={() => setSortBy(v)} className={`flex-1 px-2.5 py-1.5 font-semibold ${sortBy === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
               ))}
             </div>
-            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
-              {[["Active", false], ["Archived", true]].map(([label, v]) => (
-                <button key={label} onClick={() => setShowArchive(v)} className={`flex-1 px-2.5 py-1.5 ${showArchive === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}{v && archivedCount ? ` (${archivedCount})` : ""}</button>
-              ))}
-            </div>
             <button onClick={addCustomer} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -947,7 +920,7 @@ export default function App({ user, onSignOut }) {
               {searchList.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
               {searchList.map((c) => renderCustItem(c))}
             </>) : (<>
-              {visible.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">{showArchive ? "No archived jobs yet" : "No customers yet"}</div>}
+              {visible.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
               {recentList.length > 0 && restList.length > 0 && <div className="mt-1 mb-1.5 px-2.5 ft-eyebrow text-[9px]">Recent</div>}
               {recentList.map((c) => renderCustItem(c))}
               {restList.length > 0 && recentList.length > 0 && (
@@ -1015,13 +988,6 @@ export default function App({ user, onSignOut }) {
                   </div>
                 </div>
                 <div className="ft-noprint mt-4 pt-4 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
-                  {isOwner(sel) ? (
-                    <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs" title="Who can see this customer">
-                      {["private", "public"].map((v) => <button key={v} onClick={() => setVisibility(sel.id, v)} className={`px-2.5 py-1.5 font-semibold ${sel.visibility === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{v === "private" ? "Private" : "Public"}</button>)}
-                    </div>
-                  ) : (
-                    <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-md px-2.5 py-1.5">Shared</span>
-                  )}
                   {namingVersion ? (
                     <div className="flex items-center gap-1">
                       <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} className="text-sm rounded-md border border-slate-200 px-2 py-1.5 w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -1032,11 +998,10 @@ export default function App({ user, onSignOut }) {
                     <button onClick={startVersionName} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><Save size={15} /> Version</button>
                   )}
                   <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><History size={15} /> {(sel.versions?.length || 0)}</button>
-                  {canEdit(sel) && <button onClick={() => setArchived(sel.id, !sel.archived)} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5" title={sel.archived ? "Restore to active list" : "Archive this job"}>{sel.archived ? <><ArchiveRestore size={15} /> Restore</> : <><Archive size={15} /> Archive</>}</button>}
                   <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><FileText size={15} /> CSV</button>
                   <button onClick={() => setPrintMode("order")} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><ClipboardList size={15} /> Order sheet</button>
                   <button onClick={() => setPrintMode("estimate")} className="flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 font-semibold"><Printer size={15} /> Print</button>
-                  {canDelete(sel) && <button onClick={() => setConfirm({ id: sel.id })} className="rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>}
+                  <button onClick={() => setConfirm({ id: sel.id })} className="rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>
                 </div>
                 <div className="mt-4"><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateCust(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
                 <div className="ft-noprint mt-3 flex items-center gap-2 flex-wrap">
@@ -1642,7 +1607,7 @@ export default function App({ user, onSignOut }) {
 
       {confirm && (
         <Modal onClose={() => setConfirm(null)} title="Delete customer?">
-          <p className="text-sm text-slate-500 mb-4">This permanently removes the customer and all their selections, versions, and attachments{confirm && !isOwner(data.customers.find((c) => c.id === confirm.id)) ? " — including for everyone it's shared with" : ""}. Consider a backup export first.</p>
+          <p className="text-sm text-slate-500 mb-4">This permanently removes the customer — with all their selections, versions, and attachments — for everyone. Consider a backup export first.</p>
           <div className="flex justify-end gap-2"><button onClick={() => setConfirm(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button><button onClick={() => delCustomer(confirm.id)} className="text-sm rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700">Delete</button></div>
         </Modal>
       )}
