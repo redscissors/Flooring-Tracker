@@ -194,6 +194,11 @@ const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
+// Estimate disclaimer wording for the waste factor: one number when tile and
+// other flooring share a rate, both spelled out when they differ.
+const wasteNote = (s) => num(s?.waste?.tile) === num(s?.waste?.floor)
+  ? `${num(s?.waste?.tile)}% material waste`
+  : `material waste (tile ${num(s?.waste?.tile)}%, other flooring ${num(s?.waste?.floor)}%)`;
 // Misc lines are flat-priced; a typed quantity multiplies the price. Only
 // count-mode qty is honored so a stale sqft value left over from a type
 // switch (or legacy rows) can't silently multiply the total.
@@ -1383,7 +1388,7 @@ export default function App({ user, onSignOut }) {
                         {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Miscellaneous</span><span className="ft-mono text-[13px]">{money(miscCost)}</span></div>}
                         <div className="flex items-center justify-between items-baseline mt-1.5 pt-3" style={{ borderTop: "2px solid var(--ft-text)" }}><span className="text-sm font-semibold">Total</span><span className="ft-serif" style={{ fontSize: 30, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-3">Figures include {settings.wastePct}% material waste. Verify before ordering.</div>
+                      <div className="text-[11px] text-slate-400 mt-3">Figures include {wasteNote(settings)}. Verify before ordering.</div>
                     </div>
                   </div>
                 </div>
@@ -1435,7 +1440,7 @@ export default function App({ user, onSignOut }) {
                 ))}
               </tbody>
             </table>
-            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates (incl. {settings.wastePct}% material waste). Confirm against product specs and final measurements before ordering.</div>
+            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
           </div>
         ) : (
           <div>
@@ -1548,7 +1553,7 @@ export default function App({ user, onSignOut }) {
                 </div>
                 {grandTotal > 0 && <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>}
               </div>
-              <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates (incl. {settings.wastePct}% material waste). Confirm against product specs and final measurements before ordering.</div>
+              <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
             </div>
           </div>
         ))}
@@ -1558,7 +1563,10 @@ export default function App({ user, onSignOut }) {
       {showSettings && (
         <Modal onClose={() => setShowSettings(false)} title="Coverage, Pricing & Settings">
           <p className="text-sm text-slate-500 mb-4">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
-          <div className="mb-4"><label className={lbl}>Waste factor (%)</label><input type="number" value={settings.wastePct} onChange={(e) => setSettings({ wastePct: e.target.value })} className={inp + " w-28"} /></div>
+          <div className="mb-4 flex gap-6">
+            <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
+            <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
+          </div>
           <div className="font-medium text-sm mb-1">Stock price book</div>
           <p className="text-xs text-slate-400 mb-2">
             {stock.length > 0

@@ -16,7 +16,7 @@ export const FLOOR_TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 // Schluter All Set numbers are first-pass estimates the team is expected to
 // calibrate against their real-world yields in Settings.
 export const DEFAULTS = {
-  wastePct: 10,
+  waste: { tile: 10, floor: 10 },
   mortars: { "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 0 }, "AcrylPro": { tier1: 40, tier2: 15, tier3: 10, unit: "gallons", price: 0 }, "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 0 } },
   grouts: { "PermaColor Select": { coverage: 110, unit: "bags", price: 0 }, "SpectraLOCK 1": { coverage: 85, unit: "units", price: 0 }, "SpectraLOCK PRO": { coverage: 90, unit: "units", price: 0 }, "CEG-Lite": { coverage: 187, unit: "units", price: 0 }, "Tec Power Grout": { coverage: 45, unit: "bags", price: 0 } },
 };
@@ -26,11 +26,28 @@ export const REF = ((12 + 12) / (12 * 12)) * 0.375 * 0.125;
 
 export const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 
+// Waste is per material family: one rate for tile, one shared by every other
+// flooring type (hardwood/vinyl/laminate/carpet). Records written before the
+// split stored a single `wastePct` number — migrate it onto both families so
+// old data keeps the rate it had. An explicit `waste.tile`/`waste.floor` wins
+// over the legacy number, which wins over the 10% default.
+export const normWaste = (raw) => {
+  const legacy = (raw?.wastePct == null || raw?.wastePct === "") ? null : raw.wastePct;
+  const base = legacy ?? 10;
+  const w = raw?.waste || {};
+  return { tile: w.tile ?? base, floor: w.floor ?? base };
+};
+
+// The waste multiplier a product line calcs against: tile lines use the tile
+// rate, all other flooring types share the floor rate. Misc lines never reach
+// here (their callers exclude them) and carry no waste.
+export const wasteFor = (p, s) => 1 + num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor) / 100;
+
 // Normalize a loaded/imported Settings object back to the full shape, filling
 // gaps from DEFAULTS so older records stay valid. (`s.mortar` is a legacy
 // single-mortar field that predates the per-product map.)
 export const mergeSettings = (s) => ({
-  wastePct: s?.wastePct ?? 10,
+  waste: normWaste(s),
   mortars: MORTARS.reduce((o, k) => ({ ...o, [k]: { ...DEFAULTS.mortars[k], ...((s?.mortars?.[k]) || (k === "ProLite" ? s?.mortar : null) || {}) } }), {}),
   grouts: GROUTS.reduce((o, k) => ({ ...o, [k]: { ...DEFAULTS.grouts[k], ...(s?.grouts?.[k] || {}) } }), {}),
 });
@@ -41,7 +58,7 @@ export function mortarExact(p, s) {
   const longest = Math.max(num(p.L), num(p.W)); if (!longest) return null;
   const m = s.mortars[p.mortar.product]; if (!m) return null;
   const cov = longest < 8 ? m.tier1 : longest <= 15 ? m.tier2 : m.tier3;
-  return sqft * (1 + num(s.wastePct) / 100) / (num(cov) || 1);
+  return sqft * wasteFor(p, s) / (num(cov) || 1);
 }
 
 export function getMortar(p, s) {
@@ -58,7 +75,7 @@ export function groutExact(p, s) {
   if (!sqft || !L || !W || !T || !J) return null;
   const vol = ((L + W) / (L * W)) * T * J; if (!vol) return null;
   const cov = num(s.grouts[p.grout.product]?.coverage) * (REF / vol);
-  return sqft * (1 + num(s.wastePct) / 100) / (cov || 1);
+  return sqft * wasteFor(p, s) / (cov || 1);
 }
 
 export function getGrout(p, s) {
@@ -78,7 +95,7 @@ export function cartonExact(p, s) {
   if (p.type === "misc" || p.qtyType !== "sqft") return null;
   const per = num(p.cartonSf); if (!per) return null;
   const sqft = num(p.qty); if (!sqft) return 0;
-  return sqft * (1 + num(s.wastePct) / 100) / per;
+  return sqft * wasteFor(p, s) / per;
 }
 
 export function getCarton(p, s) {
@@ -101,7 +118,7 @@ export function underlayExact(p, s) {
   const sqft = num(p.qty); if (!sqft) return 0;
   const u = s.underlayments?.[p.underlay.product]; if (!u) return null;
   const cov = num(u.coverage); if (!cov) return null;
-  return sqft * (1 + num(s.wastePct) / 100) / cov;
+  return sqft * wasteFor(p, s) / cov;
 }
 
 export function getUnderlay(p, s) {
@@ -131,7 +148,7 @@ export function getUnderlayInstall(p, s) {
   const sqft = num(p.qty); if (!sqft) return null;
   const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((m) => num(m.coverage) > 0);
   if (!defs.length) return null;
-  const waste = 1 + num(s.wastePct) / 100;
+  const waste = wasteFor(p, s);
   const out = [];
   for (const d of defs) {
     if (p.underlay.installSkip?.[d.id]) continue;
@@ -376,17 +393,17 @@ export const offeredUnderlayments = (catalog, type) => {
 };
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
-// maps the math reads. Only { wastePct, catalog } is persisted.
+// maps the math reads. Only { waste, catalog } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
-export const serializeSettings = (s) => ({ wastePct: s.wastePct, catalog: s.catalog });
+export const serializeSettings = (s) => ({ waste: s.waste, catalog: s.catalog });
 
 // Entry point for loaded/imported settings: backfill a pre-catalog record by
 // seeding the catalog from its flat numbers (preserving tuned values), or
 // normalize an existing catalog. Always attaches the derived maps.
 export function normalizeSettings(raw) {
-  const wastePct = raw?.wastePct ?? 10;
+  const waste = normWaste(raw);
   const catalog = (raw?.catalog && Array.isArray(raw.catalog.companies))
     ? normalizeCatalog(raw.catalog)
     : seedCatalog(mergeSettings(raw));
-  return withDerived({ wastePct, catalog });
+  return withDerived({ waste, catalog });
 }
