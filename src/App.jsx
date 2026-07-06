@@ -206,17 +206,17 @@ function printProduct(p, s) {
   const j = JOINTS.find((x) => x.v === num(p.grout?.joint))?.label;
   const mats = [];
   if (p.type === "tile" && p.grout?.checked) {
-    if (G && G.order > 0) mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", detail: j ? `${j} joint` : "", inline: true, order: G.order, unit: G.unit, exact: G.exact, cost: G.price > 0 ? G.order * G.price : 0 });
+    if (G) mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", detail: j ? `${j} joint` : "", inline: true, order: G.order, unit: G.unit, exact: G.exact, price: G.price, cost: G.price > 0 ? G.order * G.price : 0 });
     const ck = num(p.grout.caulk);
     if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, cost: 0 });
   }
-  if (M) mats.push({ kind: "Mortar", key: `m|${M.product}`, name: M.product, spec: "", detail: "", inline: true, order: M.order, unit: M.unit, exact: M.exact, cost: M.price > 0 ? M.order * M.price : 0 });
-  if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, cost: U.price > 0 ? U.order * U.price : 0 });
+  if (M) mats.push({ kind: "Mortar", key: `m|${M.product}`, name: M.product, spec: "", detail: "", inline: true, order: M.order, unit: M.unit, exact: M.exact, price: M.price, cost: M.price > 0 ? M.order * M.price : 0 });
+  if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, price: U.price, cost: U.price > 0 ? U.order * U.price : 0 });
   IN.forEach((m) => mats.push(m.kind === "mortar"
-    ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, cost: m.price > 0 ? m.order * m.price : 0 }
-    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, cost: m.price > 0 ? m.order * m.price : 0 }));
+    ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }
+    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
   const size = p.type === "tile" ? `${p.L}" × ${p.W}"${p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : (p.sizeText || "");
-  const qtyText = p.type === "misc" ? "" : C ? `${C.order} ${C.unit}` : p.qty ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
+  const qtyText = p.type === "misc" ? "" : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
   const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
   return { size, C, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
 }
@@ -232,7 +232,7 @@ const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") 
 function printMatList(cust, s) {
   const agg = new Map();
   (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
-    const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, unit: m.unit, exact: 0, cost: 0 };
+    const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, unit: m.unit, price: m.price, exact: 0, cost: 0 };
     e.exact += m.exact; e.cost += m.cost; agg.set(m.key, e);
   })));
   return [...agg.values()].map((m) => ({ ...m, order: Math.ceil(Math.round(m.exact * 1e6) / 1e6) })).sort((x, y) => PRINT_KINDS.indexOf(x.kind) - PRINT_KINDS.indexOf(y.kind));
@@ -1420,7 +1420,7 @@ export default function App({ user, onSignOut }) {
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
                     <td className="py-1.5 pr-2 ft-mono text-[11px]">{p.sku}</td>
                     <td className="py-1.5 pr-2 text-slate-500">{a.name}</td>
-                    <td className="py-1.5 text-right font-semibold whitespace-nowrap">{p.type === "misc" ? "1" : c.qtyText}{c.C && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
+                    <td className="py-1.5 text-right font-semibold whitespace-nowrap">{p.type === "misc" ? "1" : c.qtyText}{c.C && c.C.order > 0 && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
                   </tr>
                 ); }))}
                 {[...mList.filter((m) => m.order > 0).map((m) => ({ ...m, kind: "Mortar" })),
@@ -1446,10 +1446,12 @@ export default function App({ user, onSignOut }) {
                 <div className="ft-serif text-3xl">{sel.name}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
               </div>
-              <div className="text-right">
-                <div className="ft-eyebrow text-[9px]">Estimated total</div>
-                <div className="ft-serif text-3xl">{money(grandTotal)}</div>
-              </div>
+              {grandTotal > 0 && (
+                <div className="text-right">
+                  <div className="ft-eyebrow text-[9px]">Estimated total</div>
+                  <div className="ft-serif text-3xl">{money(grandTotal)}</div>
+                </div>
+              )}
             </div>
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
             {sel.categories.map((a, ai) => (
@@ -1459,7 +1461,7 @@ export default function App({ user, onSignOut }) {
                     <span className="ft-mono text-[11px] text-slate-400">{String(ai + 1).padStart(2, "0")}</span>
                     <span className="ft-serif text-[21px]">{a.name}</span>
                   </div>
-                  <span className="ft-mono text-[11px] text-slate-500">{money(printAreaFloor(a, settings))}</span>
+                  {printAreaFloor(a, settings) > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(printAreaFloor(a, settings))}</span>}
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mb-1">{a.note}</div>}
                 <div className="pl-3" style={{ borderLeft: "2px solid var(--ft-border-strong)" }}>
@@ -1481,7 +1483,7 @@ export default function App({ user, onSignOut }) {
                             <td className="py-1.5 pr-2"><b className="text-[12.5px]">{p.brandColor || TLBL[p.type]}</b>{p.brandColor && <span className="text-slate-500 text-[10.5px]"> · {TLBL[p.type]}</span>}</td>
                             <td className="py-1.5 pr-2 whitespace-nowrap text-[11px]">{c.size}</td>
                             <td className="py-1.5 pr-2 ft-mono text-[10.5px]">{p.sku}</td>
-                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">{p.type === "misc" ? "1" : c.qtyText}{c.C && <span className="text-slate-400 text-[10px]"> = {sf1(c.orderedSf)} sf</span>}</td>
+                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">{p.type === "misc" ? "1" : c.qtyText}{c.C && c.C.order > 0 && <span className="text-slate-400 text-[10px]"> = {sf1(c.orderedSf)} sf</span>}</td>
                             <td className="py-1.5 pr-2 text-right whitespace-nowrap text-[11px]">{c.priceText}</td>
                             <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.line > 0 ? money(c.line) : ""}</td>
                           </tr>
@@ -1492,7 +1494,7 @@ export default function App({ user, onSignOut }) {
                                 {inline.map((m, i) => (
                                   <div key={i} className="flex gap-1 break-inside-avoid">
                                     <span className="ft-eyebrow text-[6.5px] shrink-0 text-right" style={{ width: 34, paddingTop: 2, letterSpacing: ".05em" }}>{KSHORT[m.kind]}</span>
-                                    <span className="ft-mono text-[8.5px] text-slate-500 shrink-0 text-right" style={{ width: 11, paddingTop: 0.5 }}>{m.order}</span>
+                                    <span className="ft-mono text-[8.5px] text-slate-500 shrink-0 text-right" style={{ width: 11, paddingTop: 0.5 }}>{m.order > 0 ? m.order : ""}</span>
                                     <span className="text-slate-700">{m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && ` — ${m.spec}`}{m.detail && <span className="text-slate-400"> · {m.detail}</span>}</>}</span>
                                   </div>
                                 ))}
@@ -1511,7 +1513,7 @@ export default function App({ user, onSignOut }) {
               <div className="break-inside-avoid mb-4">
                 <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-baseline">
                   <span className="font-bold text-[13px]">Setting materials &amp; sundries</span>
-                  <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + mortarCost + underlayCost)}</span>
+                  {groutCost + mortarCost + underlayCost > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + mortarCost + underlayCost)}</span>}
                 </div>
                 <div style={{ columns: 2, columnGap: 24 }}>
                   {PRINT_KINDS.map((k) => ({ k, items: pMats.filter((m) => m.kind === k) })).filter((g) => g.items.length > 0).map(({ k, items }) => (
@@ -1519,8 +1521,8 @@ export default function App({ user, onSignOut }) {
                       <div className="ft-eyebrow text-[8px] border-b border-slate-300 pb-0.5 mb-1">{k}</div>
                       {items.map((m, i) => (
                         <div key={i} className="text-[11px] flex justify-between gap-2 py-0.5">
-                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}<br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></span>
-                          <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : "—"}</span>
+                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}{m.order > 0 && <><br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></>}</span>
+                          <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : "—"}</span>
                         </div>
                       ))}
                     </div>
@@ -1531,10 +1533,13 @@ export default function App({ user, onSignOut }) {
             <div className="break-inside-avoid">
               <div className="border-t-2 border-black pt-1.5 flex justify-between items-baseline">
                 <div className="text-[11px] text-slate-500">
-                  Flooring {money(flooringPrice + miscCost)} · Materials {money(groutCost + mortarCost + underlayCost)}
-                  {totalSqft > 0 && <> · {totalSqft.toLocaleString()} sq ft measured{orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}</>}
+                  {[
+                    flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
+                    groutCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + mortarCost + underlayCost)}` : "",
+                    totalSqft > 0 ? `${totalSqft.toLocaleString()} sq ft measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
+                  ].filter(Boolean).join(" · ")}
                 </div>
-                <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>
+                {grandTotal > 0 && <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>}
               </div>
               <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates (incl. {settings.wastePct}% material waste). Confirm against product specs and final measurements before ordering.</div>
             </div>
