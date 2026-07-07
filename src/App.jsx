@@ -92,6 +92,8 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
 // Shift-click (or the leading checkbox) marks several results; committing the
 // selection fills this row with the first item and appends a product row for
 // each of the rest via onPickMany.
+const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
+
 function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
@@ -124,7 +126,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
     if (e.key === "Escape") close();
   };
   return (
-    <div ref={wrapRef} className="relative w-28 shrink-0 h-9 border-r border-slate-200">
+    <div ref={wrapRef} className="relative shrink-0 h-9 border-r border-slate-200" style={{ ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey}
         className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
@@ -1308,30 +1310,30 @@ export default function App({ user, onSignOut }) {
                               {p.type === "tile" ? (<>
                                 {skuBox}
                                 <div className="flex items-center shrink-0 h-9 pl-1">
-                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
+                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} style={fitW(p.L, 1, 0.8)} className="px-0.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
                                   <span className="text-slate-300 shrink-0">×</span>
-                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} className="w-10 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="W" title="Width (in)" />
+                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} style={fitW(p.W, 1, 0.8)} className="px-0.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="W" title="Width (in)" />
                                 </div>
                                 <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 h-9 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
                               </>) : p.type === "misc" ? (<>
                                 {skuBox}
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Description" />
-                                <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} className="w-14 shrink-0 h-9 border-l border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="1" title="Quantity" />
+                                <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} style={fitW(p.qtyType === "count" ? p.qty : "", 2, 0.8)} className="shrink-0 h-9 border-l border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="1" title="Quantity" />
                               </>) : (<>
                                 {skuBox}
-                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} className="w-28 shrink-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} style={fitW(p.sizeText, 5, 1.4)} className="shrink-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
                               </>)}
                               {p.type !== "misc" && <div className="basis-full md:hidden" />}
-                              <div className={`relative w-20 shrink-0 h-9 border-slate-200 ${p.type === "misc" ? "border-l" : "border-t md:border-t-0 md:border-l"}`}><span className="absolute left-2 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-5 pr-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "misc" ? "0.00" : "/sqft"} title={p.type === "misc" ? "Price each" : "Price per sq ft"} /></div>
+                              <div style={fitW(p.priceSqft, 4, 1.6)} className={`relative shrink-0 h-9 border-slate-200 ${p.type === "misc" ? "border-l" : "border-t md:border-t-0 md:border-l"}`}><span className="absolute left-1.5 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-4 pr-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "misc" ? "0.00" : "/sqft"} title={p.type === "misc" ? "Price each" : "Price per sq ft"} /></div>
                               {p.type !== "misc" && (<>
-                                <input type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} className="flex-1 md:flex-none md:w-16 min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-2 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="0" title="Quantity" />
+                                <input type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className="flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="0" title="Quantity" />
                                 <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                                 {p.qtyType === "sqft" && (
                                   <div className="relative shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200">
-                                    <input type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} className="w-24 h-full pl-2 pr-10 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">sf/{(p.cartonUnit || "CT").toLowerCase()}</span>
+                                    <input type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} style={fitW(p.cartonSf, 2, 2.2)} className="h-full pl-1.5 pr-7 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                    <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">sf/{(p.cartonUnit || "CT").toLowerCase()}</span>
                                   </div>
                                 )}
                               </>)}

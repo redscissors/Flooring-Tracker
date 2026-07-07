@@ -51,6 +51,9 @@ body {
 .bg-slate-50\/50{background-color:var(--ft-prod);}
 .ft-field{background-color:var(--ft-field);}
 .ft-fieldbar{background-color:var(--ft-fieldbar);}
+.ft-fieldbar input[type="number"]{-moz-appearance:textfield;appearance:textfield;}
+.ft-fieldbar input[type="number"]::-webkit-outer-spin-button,
+.ft-fieldbar input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 .bg-indigo-600{background-color:var(--ft-accent);}
 .bg-indigo-50{background-color:var(--ft-tint);}
 .bg-indigo-50\/40{background-color:var(--ft-tint);}
