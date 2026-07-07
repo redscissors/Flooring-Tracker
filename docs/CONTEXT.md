@@ -5,12 +5,25 @@ manage customer jobs, product selections, and material estimates.
 
 ## Language
 
-### Jobs and selections
+### Builders, customers, and jobs (see ADR 0005)
 
-**Customer** (a.k.a. Job):
-A single flooring job for one customer, holding its areas, selections, saved
-versions, and attachments.
-_Avoid_: Client, account.
+**Builder**:
+A general contractor or production builder that Customers come from (e.g. a GC
+who sends the shop many buyers). A canonical entry you **link to**, not free
+text, so "P&L" and "P & L" can't split into two groups. Has many Customers;
+optional (a Customer can be direct, with no builder).
+_Avoid_: Company (that's the materials catalog term — see below), GC, vendor.
+
+**Customer**:
+A person or account the shop sells to. Holds contact info (phone, email,
+address) **once** and owns many **Projects**. Optionally sits under a Builder.
+_Avoid_: Client, job (a Customer is no longer a single job — see Project).
+
+**Project** (a.k.a. Job):
+A single flooring job — its areas, selections, saved versions, and attachments.
+Belongs to one Customer. This is what "Customer" meant before ADR 0005; the
+`customers` table was renamed `projects`.
+_Avoid_: Estimate (that's the printed output of a Project), order.
 
 **Area**:
 A named room or zone within a Customer (e.g. "Master Bath") that holds product
@@ -65,7 +78,9 @@ _Avoid_: Active, archived (a retired Customer concept — see ADR 0004; this is 
 
 ## Relationships
 
-- A **Customer** has many **Areas**; an **Area** has many **Selections**.
+- A **Builder** has many **Customers** (a Customer may have none — "direct").
+- A **Customer** has many **Projects**; a **Project** has many **Areas**; an
+  **Area** has many **Selections**.
 - A tile **Selection** references one grout product and one mortar product **by
   name** (not by id or company) — the name is a unique key into the **Catalog**.
 - The **Catalog** has many **Companies**; a **Company** has many **Grout/Mortar
@@ -81,6 +96,10 @@ _Avoid_: Active, archived (a retired Customer concept — see ADR 0004; this is 
   **Selection**; the catalog thing is a **Grout product / Mortar product**.
 - **"Settings" changed meaning.** It was per-user; as of ADR 0002 it is
   **Shared Settings** (shop-wide). Old per-user settings are retired.
+- **"Customer" changed meaning (ADR 0005).** It used to mean a single job; now a
+  Customer is a person/account that owns many **Projects**. The single-job thing
+  is a **Project**. The DB table `customers` was renamed `projects`; a new
+  `customers` table holds the person.
 
 ## Example dialogue
 
