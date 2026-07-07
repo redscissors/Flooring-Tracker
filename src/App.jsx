@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
@@ -323,6 +323,17 @@ function BuilderCombo({ value, builders, onSelect, onAddBuilder, inp }) {
   );
 }
 
+// Compact contact/meta chip: shows the current value (or a muted placeholder
+// label when empty) and highlights while its editor is expanded below.
+function MetaChip({ icon: Icon, label, value, active, onClick }) {
+  return (
+    <button onClick={onClick} className={"flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] transition " + (active ? "bg-indigo-50 text-slate-700 ring-1 ring-indigo-200" : "bg-slate-100 text-slate-500 hover:text-slate-700")}>
+      <Icon size={13} className="opacity-70" />
+      {value ? <span className="max-w-[12rem] truncate font-medium text-slate-700">{value}</span> : <span>{label}</span>}
+    </button>
+  );
+}
+
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
 const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
@@ -384,6 +395,8 @@ export default function App({ user, onSignOut }) {
   const [namingVersion, setNamingVersion] = useState(false);
   const [versionName, setVersionName] = useState("");
   const [saveOk, setSaveOk] = useState(false);
+  const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
+  const [projChip, setProjChip] = useState(null); // which meta chip is expanded (project header)
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -702,6 +715,18 @@ export default function App({ user, onSignOut }) {
   const selCust = data.people.find((c) => c.id === selCustId) || null;
   const builderNameOf = (id) => data.builders.find((b) => b.id === id)?.name || "";
   const projectsOf = (customerId) => data.projects.filter((p) => p.customerId === customerId);
+  const fmtAgo = (ts) => {
+    if (!ts) return "";
+    const d = Math.floor((Date.now() - ts) / 86400000);
+    if (d <= 0) return "today";
+    if (d === 1) return "yesterday";
+    if (d < 7) return `${d} days ago`;
+    if (d < 14) return "1 week ago";
+    if (d < 30) return `${Math.floor(d / 7)} weeks ago`;
+    if (d < 60) return "1 month ago";
+    if (d < 365) return `${Math.floor(d / 30)} months ago`;
+    return new Date(ts).toLocaleDateString();
+  };
 
   // Every project-content mutation goes through here: optimistic state update +
   // an UPDATE of that one row's data blob. customer_id is a column, moved via
@@ -1223,22 +1248,38 @@ export default function App({ user, onSignOut }) {
           {!sel ? (
             selCust ? (
               <div className="max-w-3xl mx-auto p-3 md:p-5">
-                <div className="bg-white rounded-lg border border-slate-200" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
-                  {builderNameOf(selCust.builderId) && <div className="ft-eyebrow-accent text-[10px] mb-2.5">{builderNameOf(selCust.builderId)}</div>}
-                  <div className="flex items-center gap-2">
-                    <input value={selCust.name} onChange={(e) => updatePerson(selCust.id, { name: e.target.value })} placeholder="Customer name" className="ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1" style={{ fontSize: "clamp(28px,4.5vw,44px)", lineHeight: 1 }} />
-                    {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+                <div className="bg-white rounded-lg border border-slate-200" style={{ padding: "clamp(12px,1.8vw,18px)" }}>
+                  <div className="flex items-end justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="ft-eyebrow-accent text-[10px] mb-1.5">{builderNameOf(selCust.builderId) ? `${builderNameOf(selCust.builderId)} · Customer` : "Customer"}</div>
+                      <div className="flex items-center gap-2">
+                        <input value={selCust.name} onChange={(e) => updatePerson(selCust.id, { name: e.target.value })} placeholder="Customer name" className="ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 flex-1" style={{ fontSize: "clamp(26px,4vw,34px)", lineHeight: 1 }} />
+                        {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="ft-serif" style={{ fontSize: "clamp(22px,3vw,28px)", lineHeight: 1 }}>{projectsOf(selCust.id).length}</div>
+                      <div className="ft-eyebrow text-[9px] mt-1">project{projectsOf(selCust.id).length === 1 ? "" : "s"}</div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-                    <div><label className={lbl}>Phone</label><input value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: e.target.value })} className={inp} /></div>
-                    <div><label className={lbl}>Email</label><input value={selCust.email} onChange={(e) => updatePerson(selCust.id, { email: e.target.value })} className={inp} /></div>
-                    <div className="sm:col-span-2"><label className={lbl}>Mailing address</label><input value={selCust.address} onChange={(e) => updatePerson(selCust.id, { address: e.target.value })} className={inp} /></div>
-                    <div className="sm:col-span-2"><label className={lbl}>Builder</label><BuilderCombo value={selCust.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(selCust.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(selCust.id, name)} /></div>
-                    <div className="sm:col-span-2"><label className={lbl}>Customer notes</label><textarea value={selCust.notes} onChange={(e) => updatePerson(selCust.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                    <MetaChip icon={Phone} label="Phone" value={selCust.phone} active={custChip === "phone"} onClick={() => setCustChip(custChip === "phone" ? null : "phone")} />
+                    <MetaChip icon={Mail} label="Email" value={selCust.email} active={custChip === "email"} onClick={() => setCustChip(custChip === "email" ? null : "email")} />
+                    <MetaChip icon={MapPin} label="Address" value={selCust.address} active={custChip === "address"} onClick={() => setCustChip(custChip === "address" ? null : "address")} />
+                    <MetaChip icon={Building2} label="Builder" value={builderNameOf(selCust.builderId)} active={custChip === "builder"} onClick={() => setCustChip(custChip === "builder" ? null : "builder")} />
+                    <MetaChip icon={StickyNote} label="Notes" value={selCust.notes ? "Notes" : ""} active={custChip === "notes"} onClick={() => setCustChip(custChip === "notes" ? null : "notes")} />
+                    <span className="flex-1" />
+                    <button onClick={() => setConfirm({ kind: "person", id: selCust.id })} className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 p-2 text-slate-400" title="Delete customer"><Trash2 size={15} /></button>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
-                    <button onClick={() => setConfirm({ kind: "person", id: selCust.id })} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-3 py-1.5 text-slate-400"><Trash2 size={15} /> Delete customer</button>
-                  </div>
+                  {custChip && (
+                    <div className="mt-3">
+                      {custChip === "phone" && <><label className={lbl}>Phone</label><input autoFocus value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: e.target.value })} className={inp} /></>}
+                      {custChip === "email" && <><label className={lbl}>Email</label><input autoFocus value={selCust.email} onChange={(e) => updatePerson(selCust.id, { email: e.target.value })} className={inp} /></>}
+                      {custChip === "address" && <><label className={lbl}>Mailing address</label><input autoFocus value={selCust.address} onChange={(e) => updatePerson(selCust.id, { address: e.target.value })} className={inp} /></>}
+                      {custChip === "builder" && <><label className={lbl}>Builder</label><BuilderCombo value={selCust.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(selCust.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(selCust.id, name)} /></>}
+                      {custChip === "notes" && <><label className={lbl}>Customer notes</label><textarea autoFocus value={selCust.notes} onChange={(e) => updatePerson(selCust.id, { notes: e.target.value })} rows={2} className={inp} /></>}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between mt-6 mb-3 gap-2">
                   <h2 className="ft-serif" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1 }}>Projects</h2>
@@ -1252,6 +1293,7 @@ export default function App({ user, onSignOut }) {
                         <div className="font-semibold">{p.name || "Untitled project"}</div>
                         {p.address && <div className="text-[12.5px] text-slate-400 truncate mt-px">{p.address}</div>}
                       </div>
+                      {p.updatedAt && <div className="ft-mono text-[11px] text-slate-400 shrink-0 whitespace-nowrap">{fmtAgo(p.updatedAt)}</div>}
                       <ChevronRight size={18} className="text-slate-300 shrink-0" />
                     </button>
                   ))}
@@ -1268,43 +1310,44 @@ export default function App({ user, onSignOut }) {
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <div className="max-w-4xl mx-auto p-3 md:p-5">
-              <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
-                <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(12px,1.8vw,18px)" }}>
+                <div className="flex items-end justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
-                    {(() => {
-                      const cust = data.people.find((c) => c.id === sel.customerId);
-                      const bn = cust ? builderNameOf(cust.builderId) : "";
-                      return (cust || !sel.customerId) ? (
-                        <div className="ft-noprint text-[11.5px] text-slate-400 mb-2 flex items-center gap-1.5 flex-wrap">
-                          {bn && <><span>{bn}</span><ChevronRight size={12} className="text-slate-300" /></>}
-                          {cust ? (
-                            <button onClick={() => pickPerson(cust.id)} className="hover:text-indigo-600 hover:underline">{cust.name || "Customer"}</button>
-                          ) : (
-                            <span className="text-amber-600">Unassigned job</span>
-                          )}
-                          <ChevronRight size={12} className="text-slate-300" />
-                          <span className="text-slate-500">{sel.name || "Project"}</span>
-                        </div>
-                      ) : null;
-                    })()}
-                    <div className="ft-eyebrow-accent text-[10px] mb-2.5">Tile &amp; Flooring Selections</div>
-                    <div className="flex items-center gap-2">
-                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(30px,5vw,52px)", lineHeight: 1 }} />
-                      {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+                    <div className="ft-eyebrow-accent text-[10px] mb-1.5 flex items-center gap-1.5 flex-wrap">
+                      {(() => {
+                        const cust = data.people.find((c) => c.id === sel.customerId);
+                        const bn = cust ? builderNameOf(cust.builderId) : "";
+                        return (
+                          <>
+                            {bn && <span>{bn} ·</span>}
+                            {cust ? (
+                              <button onClick={() => pickPerson(cust.id)} className="hover:underline">{cust.name || "Customer"}</button>
+                            ) : sel.customerId ? (
+                              <span>Customer</span>
+                            ) : (
+                              <span className="text-amber-600">Unassigned job</span>
+                            )}
+                            <span>· Tile &amp; Flooring</span>
+                          </>
+                        );
+                      })()}
                     </div>
-                    <div className="mt-2.5 flex items-center gap-2 text-sm text-slate-500 flex-wrap">
-                      <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Address" className="bg-transparent focus:outline-none min-w-0" />
-                      <span className="text-slate-300">·</span>
-                      <input value={sel.phone} onChange={(e) => updateProject(sel.id, { phone: e.target.value })} placeholder="Phone" className="bg-transparent focus:outline-none w-28" />
+                    <div className="flex items-center gap-2">
+                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(24px,3.6vw,34px)", lineHeight: 1 }} />
+                      {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="ft-eyebrow text-[9.5px]">Project estimate</div>
-                    <div className="ft-serif" style={{ fontSize: "clamp(30px,4.5vw,46px)", lineHeight: 1, marginTop: 2 }}>{money(grandTotal)}</div>
-                    <div className="ft-mono text-[11px] text-slate-500 mt-1.5">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
+                    <div className="ft-serif" style={{ fontSize: "clamp(24px,3.2vw,32px)", lineHeight: 1 }}>{money(grandTotal)}</div>
+                    <div className="ft-mono text-[10.5px] text-slate-500 mt-1">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <div className="ft-noprint mt-4 pt-4 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                <div className="ft-noprint mt-3 pt-3 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                  <MetaChip icon={MapPin} label="Address" value={sel.address} active={projChip === "address"} onClick={() => setProjChip(projChip === "address" ? null : "address")} />
+                  <MetaChip icon={Phone} label="Phone" value={sel.phone} active={projChip === "phone"} onClick={() => setProjChip(projChip === "phone" ? null : "phone")} />
+                  <MetaChip icon={StickyNote} label="Notes" value={sel.notes ? "Notes" : ""} active={projChip === "notes"} onClick={() => setProjChip(projChip === "notes" ? null : "notes")} />
+                  <MetaChip icon={Paperclip} label="Files" value={(sel.attachments || []).length ? `${(sel.attachments || []).length} files` : ""} active={projChip === "files"} onClick={() => setProjChip(projChip === "files" ? null : "files")} />
+                  <span className="flex-1" />
                   {namingVersion ? (
                     <div className="flex items-center gap-1">
                       <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} className="text-sm rounded-md border border-slate-200 px-2 py-1.5 w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -1314,21 +1357,28 @@ export default function App({ user, onSignOut }) {
                   ) : (
                     <button onClick={startVersionName} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><Save size={15} /> Version</button>
                   )}
-                  <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><History size={15} /> {(sel.versions?.length || 0)}</button>
-                  <button onClick={exportCSV} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><FileText size={15} /> CSV</button>
-                  <button onClick={() => setPrintMode("order")} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><ClipboardList size={15} /> Order sheet</button>
+                  <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50 p-2"><History size={15} /></button>
+                  <button onClick={exportCSV} title="Export CSV" className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50 p-2"><FileText size={15} /></button>
+                  <button onClick={() => setPrintMode("order")} title="Order sheet" className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50 p-2"><ClipboardList size={15} /></button>
                   <button onClick={() => setPrintMode("estimate")} className="flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 font-semibold"><Printer size={15} /> Print</button>
-                  <button onClick={() => setConfirm({ id: sel.id })} className="rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>
+                  <button onClick={() => setConfirm({ id: sel.id })} title="Delete project" className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 p-2 text-slate-400"><Trash2 size={15} /></button>
                 </div>
-                <div className="mt-4"><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
-                <div className="ft-noprint mt-3 flex items-center gap-2 flex-wrap">
-                  <span className="ft-eyebrow text-[9px] flex items-center gap-1"><Paperclip size={12} /> Attachments <span className="text-slate-300 normal-case tracking-normal">(not printed)</span></span>
-                  {(sel.attachments || []).map((m) => (
-                    <span key={m.id} className="flex items-center gap-1.5 rounded-md bg-slate-100 pl-2 pr-1 py-1 text-xs"><button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[10rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button><button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={12} /></button></span>
-                  ))}
-                  <button onClick={() => attRef.current?.click()} className="flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"><Plus size={12} /> Add</button>
-                  <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                </div>
+                {projChip === "notes" && (
+                  <div className="ft-noprint mt-3"><label className={lbl}>Project notes</label><textarea autoFocus value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+                )}
+                {(projChip === "address" || projChip === "phone") && (
+                  <div className="ft-noprint mt-3"><label className={lbl}>{projChip === "address" ? "Address" : "Phone"}</label><input autoFocus value={projChip === "address" ? sel.address : sel.phone} onChange={(e) => updateProject(sel.id, { [projChip]: e.target.value })} className={inp} /></div>
+                )}
+                {projChip === "files" && (
+                  <div className="ft-noprint mt-3 flex items-center gap-2 flex-wrap">
+                    <span className="ft-eyebrow text-[9px] flex items-center gap-1"><Paperclip size={12} /> Attachments <span className="text-slate-300 normal-case tracking-normal">(not printed)</span></span>
+                    {(sel.attachments || []).map((m) => (
+                      <span key={m.id} className="flex items-center gap-1.5 rounded-md bg-slate-100 pl-2 pr-1 py-1 text-xs"><button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[10rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button><button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={12} /></button></span>
+                    ))}
+                    <button onClick={() => attRef.current?.click()} className="flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"><Plus size={12} /> Add</button>
+                    <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between mb-3 gap-2">
