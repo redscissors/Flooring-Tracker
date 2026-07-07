@@ -175,6 +175,25 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   utility classes rather than inventing new colors; adjust the `--ft-*` variables
   in `index.css` to retheme.
 
+## Non-negotiables
+
+Three standing rules govern every change. They exist because `main` auto-deploys
+to the live site the sales team quotes real customers from, and there is no CI
+gate — discipline is the only gate.
+
+1. **Never mutate the live Supabase project on your own initiative** — no SQL, no
+   data or storage writes. The `supabase/*.sql` files are run by hand by the owner
+   in the dashboard; an agent ships the file and instructions, never executes it.
+   (Local `npm run dev` talks to the *same* live project — there is no staging, so
+   the code is sandboxed but the data never is.)
+2. **Never push straight to `main`** — every change lands through a PR, even a
+   one-liner, because a push to `main` is a deploy to production.
+3. **No UI or print change merges without preview proof** — show it working
+   (preview screenshot or prototype) before merge.
+
+Rationale, the change-classification table, and the sanctioned write paths live in
+the `floortrack-change-control` skill (`.claude/skills/`).
+
 ## Not yet implemented
 
 - **AI "Scan handwritten notes."** Requires the Anthropic API key to live in a
