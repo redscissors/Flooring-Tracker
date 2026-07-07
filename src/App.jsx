@@ -256,20 +256,35 @@ const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split("
 
 const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "", caulk: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
 const newArea = () => ({ id: uid(), name: "New Area", note: "", products: [newProduct()] });
-const newCustomer = () => ({ id: uid(), name: "New Customer", address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [] });
+// A Project is what a "Customer" used to be: one job/estimate holding areas.
+// It belongs to a Customer (person) via customerId (the projects.customer_id
+// column). See ADR 0005.
+const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [] });
+// A Customer is the person/account that owns many projects and holds contact
+// info once. A Builder is a canonical name-list a customer links to by id.
+const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
+const newBuilder = (name = "") => ({ id: uid(), name });
 
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
 const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
+
+// Customer (person) rows: contact info lives in the data jsonb; builder_id is a
+// real column. personData is what gets written back to the jsonb.
+const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes";
+const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
+const personData = ({ id, createdAt, updatedAt, builderId, ...rest }) => rest;
+const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
-const LIST_SELECT = "id, created_at, updated_at, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
+const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
 const lightRow = (r) => ({
   id: r.id,
+  customerId: r.customer_id ?? null,
   createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
   updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
@@ -283,9 +298,12 @@ const AUTO_KEEP = 5;
 const RECENT_COUNT = 10;
 
 export default function App({ user, onSignOut }) {
-  const [data, setData] = useState(() => ({ customers: [], settings: normalizeSettings() }));
+  const [data, setData] = useState(() => ({ projects: [], people: [], builders: [], settings: normalizeSettings() }));
   const [loading, setLoading] = useState(true);
+  // selId = the open Project (drives the estimate pane). selCustId = the open
+  // Customer (person) when no project is selected (drives the customer view).
   const [selId, setSelId] = useState(null);
+  const [selCustId, setSelCustId] = useState(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [allOpen, setAllOpen] = useState(null);
@@ -407,8 +425,8 @@ export default function App({ user, onSignOut }) {
           await migrateLegacyCustomers(legacy.map(normC));
         }
 
-        const customers = await loadCustomers();
-        setData({ customers, settings });
+        const [projects, people, builders] = await Promise.all([loadProjects(), loadPeople(), loadBuilders()]);
+        setData({ projects, people, builders, settings });
         // Best-effort: installs that haven't run supabase/stock.sql yet just
         // don't get the SKU picker.
         try { setStock(await loadStock()); } catch (x) { }
@@ -425,21 +443,38 @@ export default function App({ user, onSignOut }) {
   // only the fields the list draws/searches/sorts, projected out of the jsonb
   // server-side. The heavy detail (categories/products/versions/attachments)
   // stays on the server until a customer is opened (see loadDetail).
-  const loadCustomers = async () => {
-    const { data: rows, error } = await supabase.from("customers").select(LIST_SELECT);
+  const loadProjects = async () => {
+    const { data: rows, error } = await supabase.from("projects").select(LIST_SELECT);
     if (error) throw error;
     return (rows || []).map(lightRow);
+  };
+  // People (customers) and builders are small — load them whole. Best-effort:
+  // an install that hasn't run supabase/migrate-hierarchy.sql yet just gets
+  // empty lists (the projects list still works on its own).
+  const loadPeople = async () => {
+    try {
+      const { data: rows, error } = await supabase.from("customers").select(PERSON_SELECT);
+      if (error) throw error;
+      return (rows || []).map(personRow);
+    } catch (x) { return []; }
+  };
+  const loadBuilders = async () => {
+    try {
+      const { data: rows, error } = await supabase.from("builders").select("id, name");
+      if (error) throw error;
+      return (rows || []).map(builderRow);
+    } catch (x) { return []; }
   };
 
   // Lazy-load one customer's full record on open, merging it into the light row.
   // Version metadata (never snapshots) loads alongside; snapshots are fetched
   // one at a time on restore.
   const loadDetail = async (id) => {
-    const existing = data.customers.find((c) => c.id === id);
+    const existing = data.projects.find((c) => c.id === id);
     if (!existing || existing._full) return;
     try {
       const [{ data: row, error }, { data: vRows, error: vErr }] = await Promise.all([
-        supabase.from("customers").select("data").eq("id", id).maybeSingle(),
+        supabase.from("projects").select("data").eq("id", id).maybeSingle(),
         supabase.from("versions").select("id, label, auto, saved_at").eq("customer_id", id).order("saved_at", { ascending: false }),
       ]);
       if (error) throw error;
@@ -461,8 +496,8 @@ export default function App({ user, onSignOut }) {
       }
       setData((prev) => ({
         ...prev,
-        customers: prev.customers.map((c) => c.id === id
-          ? { ...c, ...full, versions, id: c.id, createdAt: c.createdAt, _full: true }
+        projects: prev.projects.map((c) => c.id === id
+          ? { ...c, ...full, customerId: c.customerId, versions, id: c.id, createdAt: c.createdAt, _full: true }
           : c),
       }));
       baselineRef.current = { id, json: JSON.stringify(full.categories) };
@@ -550,8 +585,10 @@ export default function App({ user, onSignOut }) {
           await supabase.storage.from(ATT_BUCKET).remove([`${user.id}/${m.id}`]);
         } catch (x) { /* best-effort */ }
       }
-      const { ownerId, visibility, archived, ...rest } = c;
-      await supabase.from("customers").upsert(
+      const { ownerId, visibility, archived, customerId, ...rest } = c;
+      // Late legacy-blob migration lands as an unassigned project (customer_id
+      // null); the owner links it to a customer from the sidebar.
+      await supabase.from("projects").upsert(
         { id: c.id, owner_id: user.id, data: rest, created_at: new Date(c.createdAt || Date.now()).toISOString() },
         { onConflict: "id", ignoreDuplicates: true }
       );
@@ -578,14 +615,14 @@ export default function App({ user, onSignOut }) {
         // Strip characters that would break PostgREST's or=() syntax.
         const pat = "%" + q.replace(/[%_,()"\\]/g, " ").trim() + "%";
         const ors = ["name", "address", "phone", "email"].map((f) => `data->>${f}.ilike.${pat}`).join(",");
-        const { data: rows, error } = await supabase.from("customers").select(LIST_SELECT).or(ors);
+        const { data: rows, error } = await supabase.from("projects").select(LIST_SELECT).or(ors);
         if (error) throw error;
         if (stale) return;
         const found = (rows || []).map(lightRow);
         setData((prev) => {
-          const have = new Set(prev.customers.map((c) => c.id));
+          const have = new Set(prev.projects.map((c) => c.id));
           const fresh = found.filter((r) => !have.has(r.id));
-          return fresh.length ? { ...prev, customers: [...prev.customers, ...fresh] } : prev;
+          return fresh.length ? { ...prev, projects: [...prev.projects, ...fresh] } : prev;
         });
       } catch (e) { /* loaded rows still cover the search */ }
     }, 250);
@@ -598,7 +635,8 @@ export default function App({ user, onSignOut }) {
   // Strip the in-memory-only fields before writing to jsonb (versions live in
   // their own table; _full is load state; updatedAt mirrors the updated_at
   // column; ownerId/visibility/archived are legacy fields old records may carry).
-  const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, ...rest }) => rest;
+  // customerId is the projects.customer_id column, not part of the data blob.
+  const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, customerId, ...rest }) => rest;
 
   // Settings live in one shared record (ADR 0002) — last-write-wins across the
   // whole team, the same as a Public customer's data.
@@ -614,37 +652,82 @@ export default function App({ user, onSignOut }) {
     (async () => { try { const { error } = await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't save your info"); } })();
   };
   const settings = data.settings;
-  const sel = data.customers.find((c) => c.id === selId) || null;
+  const sel = data.projects.find((c) => c.id === selId) || null;
+  const selCust = data.people.find((c) => c.id === selCustId) || null;
+  const builderNameOf = (id) => data.builders.find((b) => b.id === id)?.name || "";
+  const projectsOf = (customerId) => data.projects.filter((p) => p.customerId === customerId);
 
-  // Every customer-content mutation goes through here: optimistic state update +
-  // an UPDATE of that one row's data.
-  const updateCust = (id, patch) => {
-    const next = { ...data, customers: data.customers.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
+  // Every project-content mutation goes through here: optimistic state update +
+  // an UPDATE of that one row's data blob. customer_id is a column, moved via
+  // linkProject — never through here.
+  const updateProject = (id, patch) => {
+    const next = { ...data, projects: data.projects.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
     setData(next);
-    const cust = next.customers.find((c) => c.id === id);
-    (async () => { try { const { error } = await supabase.from("customers").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    const cust = next.projects.find((c) => c.id === id);
+    (async () => { try { const { error } = await supabase.from("projects").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
 
-  const addCustomer = () => {
-    const c = { ...newCustomer(), updatedAt: Date.now(), _full: true };
-    setData((prev) => ({ ...prev, customers: [c, ...prev.customers] }));
+  const addProject = (customerId = null, name = "New Project") => {
+    const c = { ...newProject(customerId, name), updatedAt: Date.now(), _full: true };
+    setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: JSON.stringify(c.categories) };
-    setSelId(c.id); setSidebarOpen(false); setFocusName(true);
-    (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false); setFocusName(true);
+    (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    return c;
   };
-  const pickCustomer = (id) => { setSelId(id); setSidebarOpen(false); loadDetail(id); };
-  const delCustomer = async (id) => {
-    const cust = data.customers.find((c) => c.id === id);
+  const pickProject = (id) => { const p = data.projects.find((c) => c.id === id); setSelId(id); if (p) setSelCustId(p.customerId || null); setSidebarOpen(false); loadDetail(id); };
+  const delProject = async (id) => {
+    const cust = data.projects.find((c) => c.id === id);
     if (cust) { for (const m of (cust.attachments || [])) { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(id, m.id)]); } catch (x) { } } }
-    setData((prev) => ({ ...prev, customers: prev.customers.filter((c) => c.id !== id) }));
+    setData((prev) => ({ ...prev, projects: prev.projects.filter((c) => c.id !== id) }));
     if (selId === id) setSelId(null);
+    setConfirm(null);
+    try { const { error } = await supabase.from("projects").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
+  };
+  // Move a project to a different customer (or unassign with null).
+  const linkProject = (id, customerId) => {
+    setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId: customerId || null, updatedAt: Date.now() } : c) }));
+    (async () => { try { const { error } = await supabase.from("projects").update({ customer_id: customerId || null }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+
+  // --- Customers (people): the person/account that owns projects (ADR 0005). ---
+  const addPerson = (name = "") => {
+    const c = { ...newPerson(name), updatedAt: Date.now() };
+    setData((prev) => ({ ...prev, people: [c, ...prev.people] }));
+    setSelCustId(c.id); setSelId(null); setSidebarOpen(false);
+    (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: null, data: personData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); } })();
+    return c;
+  };
+  const updatePerson = (id, patch) => {
+    const next = { ...data, people: data.people.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
+    setData(next);
+    const c = next.people.find((x) => x.id === id);
+    const upd = {};
+    if ("builderId" in patch) upd.builder_id = c.builderId || null;
+    if (Object.keys(patch).some((k) => k !== "builderId")) upd.data = personData(c);
+    (async () => { try { const { error } = await supabase.from("customers").update(upd).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+  };
+  const delPerson = async (id) => {
+    // Projects survive — the FK nulls their customer_id (on delete set null), so
+    // they resurface under "Unassigned" rather than being deleted.
+    setData((prev) => ({ ...prev, people: prev.people.filter((c) => c.id !== id), projects: prev.projects.map((p) => p.customerId === id ? { ...p, customerId: null } : p) }));
+    if (selCustId === id) setSelCustId(null);
     setConfirm(null);
     try { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
   };
-  const addArea = () => { const a = newArea(); updateCust(sel.id, { categories: [...sel.categories, a] }); setFocusArea(a.id); };
+  const pickPerson = (id) => { setSelCustId(id); setSelId(null); setSidebarOpen(false); };
+
+  // --- Builders: a canonical name list customers link to by id. ---
+  const addBuilder = (name) => {
+    const b = newBuilder(String(name || "").trim());
+    setData((prev) => ({ ...prev, builders: [...prev.builders, b] }));
+    (async () => { try { const { error } = await supabase.from("builders").insert({ id: b.id, owner_id: user.id, name: b.name }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); } })();
+    return b;
+  };
+  const addArea = () => { const a = newArea(); updateProject(sel.id, { categories: [...sel.categories, a] }); setFocusArea(a.id); };
   const tabTo = (ref) => (e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); ref.current?.focus(); ref.current?.select?.(); } };
-  const updArea = (aid, patch) => updateCust(sel.id, { categories: sel.categories.map((a) => a.id === aid ? { ...a, ...patch } : a) });
-  const delArea = (aid) => updateCust(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
+  const updArea = (aid, patch) => updateProject(sel.id, { categories: sel.categories.map((a) => a.id === aid ? { ...a, ...patch } : a) });
+  const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: [...a.products, newProduct()] }); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
   // Multi-pick from the SKU dropdown: the first item fills the anchor row, each
@@ -662,7 +745,7 @@ export default function App({ user, onSignOut }) {
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
     const p = sel.categories.find((x) => x.id === fromAid)?.products.find((x) => x.id === pid);
     if (!p) return;
-    updateCust(sel.id, { categories: sel.categories.map((a) => {
+    updateProject(sel.id, { categories: sel.categories.map((a) => {
       if (a.id !== fromAid && a.id !== toAid) return a;
       let products = a.id === fromAid ? a.products.filter((x) => x.id !== pid) : a.products;
       if (a.id === toAid) { products = [...products]; products.splice(toIndex, 0, p); }
@@ -757,9 +840,9 @@ export default function App({ user, onSignOut }) {
   };
 
   const attPath = (custId, fileId) => `${custId}/${fileId}`;
-  const addAttachment = async (e) => { const f = e.target.files?.[0]; if (!f) return; const id = uid(); try { const { error } = await supabase.storage.from(ATT_BUCKET).upload(attPath(sel.id, id), f, { contentType: f.type, upsert: true }); if (error) throw error; updateCust(sel.id, { attachments: [...(sel.attachments || []), { id, name: f.name, type: f.type, size: f.size }] }); ping("Attachment added"); } catch (x) { ping("Upload failed — file may be too large"); } e.target.value = ""; };
+  const addAttachment = async (e) => { const f = e.target.files?.[0]; if (!f) return; const id = uid(); try { const { error } = await supabase.storage.from(ATT_BUCKET).upload(attPath(sel.id, id), f, { contentType: f.type, upsert: true }); if (error) throw error; updateProject(sel.id, { attachments: [...(sel.attachments || []), { id, name: f.name, type: f.type, size: f.size }] }); ping("Attachment added"); } catch (x) { ping("Upload failed — file may be too large"); } e.target.value = ""; };
   const openAttachment = async (m) => { try { const { data: blob, error } = await supabase.storage.from(ATT_BUCKET).download(attPath(sel.id, m.id)); if (error) throw error; const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = m.name; a.click(); URL.revokeObjectURL(u); } catch (x) { ping("Could not load attachment"); } };
-  const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(sel.id, m.id)]); } catch (x) { } updateCust(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
+  const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(sel.id, m.id)]); } catch (x) { } updateProject(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
 
   // Versions are their own rows (issue 003) — saving/deleting one never touches
   // the customer's data blob. In memory a customer carries version metadata
@@ -778,7 +861,7 @@ export default function App({ user, onSignOut }) {
     setNamingVersion(false); setVersionName("");
     try {
       const v = await insertVersion(cust.id, label, false, cust.categories);
-      setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === cust.id ? { ...c, versions: [v, ...(c.versions || [])] } : c) }));
+      setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === cust.id ? { ...c, versions: [v, ...(c.versions || [])] } : c) }));
       baselineRef.current = { id: cust.id, json: JSON.stringify(cust.categories) };
       flashSaved(); ping("Version saved");
     } catch (e) { ping("Save failed — check connection"); }
@@ -787,12 +870,12 @@ export default function App({ user, onSignOut }) {
     try {
       const { data: row, error } = await supabase.from("versions").select("snapshot").eq("id", v.id).maybeSingle();
       if (error || !row) throw error || new Error("missing");
-      updateCust(sel.id, { categories: (Array.isArray(row.snapshot) ? row.snapshot : []).map(normA) });
+      updateProject(sel.id, { categories: (Array.isArray(row.snapshot) ? row.snapshot : []).map(normA) });
       setShowVersions(false); ping("Version loaded");
     } catch (e) { ping("Could not load version — check connection"); }
   };
   const delVersion = async (vid) => {
-    setData((prev) => ({ ...prev, customers: prev.customers.map((c) => c.id === sel.id ? { ...c, versions: (c.versions || []).filter((v) => v.id !== vid) } : c) }));
+    setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === sel.id ? { ...c, versions: (c.versions || []).filter((v) => v.id !== vid) } : c) }));
     try { const { error } = await supabase.from("versions").delete().eq("id", vid); if (error) throw error; } catch (e) { ping("Delete failed"); }
   };
 
@@ -802,7 +885,7 @@ export default function App({ user, onSignOut }) {
   // pruned; named versions are never touched. Baseline advances only on a
   // successful save so a failed attempt is retried at the next deselect.
   const autoSnapshot = async (id) => {
-    const c = dataRef.current.customers.find((x) => x.id === id);
+    const c = dataRef.current.projects.find((x) => x.id === id);
     const base = baselineRef.current;
     if (!c || !c._full || !base || base.id !== id) return;
     const json = JSON.stringify(c.categories);
@@ -812,7 +895,7 @@ export default function App({ user, onSignOut }) {
       const v = await insertVersion(id, label, true, c.categories);
       baselineRef.current = { id, json };
       const drop = [v, ...(c.versions || []).filter((x) => x.auto)].sort((a, b) => b.savedAt - a.savedAt).slice(AUTO_KEEP).map((x) => x.id);
-      setData((prev) => ({ ...prev, customers: prev.customers.map((x) => x.id === id ? { ...x, versions: [v, ...(x.versions || [])].filter((vv) => !drop.includes(vv.id)) } : x) }));
+      setData((prev) => ({ ...prev, projects: prev.projects.map((x) => x.id === id ? { ...x, versions: [v, ...(x.versions || [])].filter((vv) => !drop.includes(vv.id)) } : x) }));
       if (drop.length) await supabase.from("versions").delete().in("id", drop);
     } catch (e) { /* best-effort — the live data is already saved */ }
   };
@@ -892,41 +975,57 @@ export default function App({ user, onSignOut }) {
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
   const exportBackup = async () => {
-    // The in-memory list is light, so pull every full record before backing up.
-    // Versions come from their own table and are re-embedded per customer, so
-    // the backup file keeps the original (pre-table) shape.
-    let customers;
+    // Pull every full project + all people + builders. Versions come from their
+    // own table and are re-embedded per project (the file keeps the pre-table
+    // snapshot shape). Format v2 uses projects/people/builders; a v1 file (just
+    // `customers`) still restores — see importBackup.
+    let projects, people, builders;
     try {
-      const [{ data: rows, error }, { data: vRows, error: vErr }] = await Promise.all([
-        supabase.from("customers").select("id, data, created_at"),
+      const [{ data: rows, error }, { data: vRows, error: vErr }, { data: pplRows }, { data: bRows }] = await Promise.all([
+        supabase.from("projects").select("id, customer_id, data, created_at"),
         supabase.from("versions").select("id, customer_id, label, auto, saved_at, snapshot"),
+        supabase.from("customers").select("id, builder_id, data, created_at"),
+        supabase.from("builders").select("id, name"),
       ]);
       if (error) throw error;
       if (vErr) throw vErr;
       const byCust = {};
       (vRows || []).forEach((r) => { (byCust[r.customer_id] = byCust[r.customer_id] || []).push({ id: r.id, label: r.label, auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now(), snapshot: r.snapshot || [] }); });
-      customers = (rows || []).map((r) => {
-        const c = { ...normC(r.data || {}), id: r.id };
+      projects = (rows || []).map((r) => {
+        const c = { ...normC(r.data || {}), id: r.id, customerId: r.customer_id ?? null };
         const table = (byCust[r.id] || []).sort((a, b) => b.savedAt - a.savedAt);
         return { ...c, versions: table.length ? table : c.versions };
       });
+      people = (pplRows || []).map((r) => ({ id: r.id, builderId: r.builder_id ?? null, ...(r.data || {}), createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now() }));
+      builders = (bRows || []).map((r) => ({ id: r.id, name: r.name || "" }));
     } catch (e) { ping("Backup failed — check connection"); return; }
     const attachments = {};
-    for (const c of customers) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } }
-    dl(new Blob([JSON.stringify({ customers, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    for (const c of projects) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } }
+    dl(new Blob([JSON.stringify({ version: 2, builders, people, projects, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`);
   };
   const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
     const p = JSON.parse(fr.result);
-    // Restore each customer as a new row (with a fresh id so it can't collide
-    // with an existing customer), then upload its files.
+    // Restore with fresh ids so nothing collides. Builders first, then people
+    // (remap builderId), then projects (remap customerId). A v1 backup (its
+    // projects under `customers`, no people/builders) restores its jobs as
+    // unassigned projects.
+    const bMap = {}, newBuilders = [];
+    for (const raw of (p.builders || [])) {
+      const b = newBuilder(raw.name || ""); bMap[raw.id] = b.id; newBuilders.push(b);
+      try { await supabase.from("builders").insert({ id: b.id, owner_id: user.id, name: b.name }); } catch (x) { }
+    }
+    const cMap = {}, newPeople = [];
+    for (const raw of (p.people || [])) {
+      const c = { ...newPerson(raw.name || ""), phone: raw.phone || "", email: raw.email || "", address: raw.address || "", notes: raw.notes || "", builderId: raw.builderId ? (bMap[raw.builderId] || null) : null, updatedAt: Date.now() };
+      cMap[raw.id] = c.id; newPeople.push(c);
+      try { await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: c.builderId, data: personData(c), created_at: new Date(c.createdAt).toISOString() }); } catch (x) { }
+    }
     const restored = [];
-    for (const raw of (p.customers || [])) {
-      const c = { ...normC(raw), id: uid(), updatedAt: Date.now(), _full: true };
+    for (const raw of (p.projects || p.customers || [])) {
+      const c = { ...normC(raw), id: uid(), customerId: raw.customerId ? (cMap[raw.customerId] || null) : null, updatedAt: Date.now(), _full: true };
       const idMap = {};
       c.attachments = (c.attachments || []).map((m) => { const nid = uid(); idMap[m.id] = nid; return { ...m, id: nid }; });
-      try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
-      // Versions restore as table rows with fresh ids — the same path handles
-      // backups made before versions moved out of the blob.
+      try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: c.customerId, data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
       const vRows = (c.versions || []).map((v) => ({ id: uid(), customer_id: c.id, label: v.label || "Version", auto: !!v.auto, saved_at: new Date(v.savedAt || Date.now()).toISOString(), snapshot: v.snapshot || [] }));
       if (vRows.length) { try { const { error } = await supabase.from("versions").insert(vRows); if (error) throw error; } catch (x) { } }
       c.versions = vRows.map((r) => vMeta(r));
@@ -934,7 +1033,7 @@ export default function App({ user, onSignOut }) {
       restored.push(c);
     }
     if (p.settings) setSettings(serializeSettings(normalizeSettings(p.settings)));
-    setData((prev) => ({ ...prev, customers: [...restored, ...prev.customers] }));
+    setData((prev) => ({ ...prev, builders: [...prev.builders, ...newBuilders], people: [...newPeople, ...prev.people], projects: [...restored, ...prev.projects] }));
     ping("Backup restored");
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
@@ -952,8 +1051,8 @@ export default function App({ user, onSignOut }) {
   // everything else sits below in groups (letters when sorted A–Z, age buckets
   // when sorted Newest) behind an expandable "All customers".
   const q = search.trim().toLowerCase();
-  const searchList = q ? sortCustomers(data.customers.filter((c) => [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)))) : null;
-  const visible = data.customers;
+  const searchList = q ? sortCustomers(data.projects.filter((c) => [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)))) : null;
+  const visible = data.projects;
   // Sorting A–Z means "give me the whole list alphabetical" — the recency
   // shortcut would contradict that, so it only leads the Newest view.
   const recentList = !q && sortBy !== "name" ? [...visible].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, RECENT_COUNT) : [];
@@ -975,7 +1074,7 @@ export default function App({ user, onSignOut }) {
     const areaCount = c._full ? (c.categories?.length || 0) : null;
     const sub = c.address || (areaCount != null ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "");
     return (
-      <button key={c.id} onClick={() => pickCustomer(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
+      <button key={c.id} onClick={() => pickProject(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
         <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
         <div className="min-w-0 flex-1">
           <div className="text-[13.5px] font-semibold truncate">{c.name || "Untitled"}</div>
@@ -1013,7 +1112,7 @@ export default function App({ user, onSignOut }) {
                 <button key={v} onClick={() => setSortBy(v)} className={`flex-1 px-2.5 py-1.5 font-semibold ${sortBy === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
               ))}
             </div>
-            <button onClick={addCustomer} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
+            <button onClick={() => addProject()} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {q ? (<>
@@ -1076,13 +1175,13 @@ export default function App({ user, onSignOut }) {
                   <div className="min-w-0 flex-1">
                     <div className="ft-eyebrow-accent text-[10px] mb-2.5">Tile &amp; Flooring Selections</div>
                     <div className="flex items-center gap-2">
-                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateCust(sel.id, { name: e.target.value })} placeholder="Customer name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(30px,5vw,52px)", lineHeight: 1 }} />
+                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Customer name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(30px,5vw,52px)", lineHeight: 1 }} />
                       {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
                     </div>
                     <div className="mt-2.5 flex items-center gap-2 text-sm text-slate-500 flex-wrap">
-                      <input value={sel.address} onChange={(e) => updateCust(sel.id, { address: e.target.value })} placeholder="Address" className="bg-transparent focus:outline-none min-w-0" />
+                      <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Address" className="bg-transparent focus:outline-none min-w-0" />
                       <span className="text-slate-300">·</span>
-                      <input value={sel.phone} onChange={(e) => updateCust(sel.id, { phone: e.target.value })} placeholder="Phone" className="bg-transparent focus:outline-none w-28" />
+                      <input value={sel.phone} onChange={(e) => updateProject(sel.id, { phone: e.target.value })} placeholder="Phone" className="bg-transparent focus:outline-none w-28" />
                     </div>
                   </div>
                   <div className="text-right shrink-0">
@@ -1107,7 +1206,7 @@ export default function App({ user, onSignOut }) {
                   <button onClick={() => setPrintMode("estimate")} className="flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 font-semibold"><Printer size={15} /> Print</button>
                   <button onClick={() => setConfirm({ id: sel.id })} className="rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-2 py-1.5 text-slate-400"><Trash2 size={15} /></button>
                 </div>
-                <div className="mt-4"><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateCust(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+                <div className="mt-4"><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
                 <div className="ft-noprint mt-3 flex items-center gap-2 flex-wrap">
                   <span className="ft-eyebrow text-[9px] flex items-center gap-1"><Paperclip size={12} /> Attachments <span className="text-slate-300 normal-case tracking-normal">(not printed)</span></span>
                   {(sel.attachments || []).map((m) => (
@@ -1749,7 +1848,7 @@ export default function App({ user, onSignOut }) {
       {confirm && (
         <Modal onClose={() => setConfirm(null)} title="Delete customer?">
           <p className="text-sm text-slate-500 mb-4">This permanently removes the customer — with all their selections, versions, and attachments — for everyone. Consider a backup export first.</p>
-          <div className="flex justify-end gap-2"><button onClick={() => setConfirm(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button><button onClick={() => delCustomer(confirm.id)} className="text-sm rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700">Delete</button></div>
+          <div className="flex justify-end gap-2"><button onClick={() => setConfirm(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button><button onClick={() => delProject(confirm.id)} className="text-sm rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700">Delete</button></div>
         </Modal>
       )}
 
