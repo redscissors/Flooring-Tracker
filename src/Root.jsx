@@ -3,8 +3,13 @@ import { supabase, isConfigured } from "./lib/supabase.js";
 import Auth from "./Auth.jsx";
 import SetPassword from "./SetPassword.jsx";
 import App from "./App.jsx";
+import CompactUiPrototype from "./CompactUiPrototype.jsx"; // PROTOTYPE — remove when folded in
 
 export default function Root() {
+  // PROTOTYPE — throwaway compact-UI preview, dev-only, before the auth gate.
+  if (import.meta.env.DEV && window.location.search.includes("proto=compact")) {
+    return <CompactUiPrototype />;
+  }
   const [session, setSession] = useState(null);
   const [ready, setReady] = useState(false);
   const [recovery, setRecovery] = useState(false);
