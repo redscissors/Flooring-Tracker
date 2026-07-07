@@ -5,6 +5,7 @@ import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
+import { normName, matchName } from "./names.js";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -279,6 +280,49 @@ const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.n
 const personData = ({ id, createdAt, updatedAt, builderId, ...rest }) => rest;
 const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 
+// Builder picker: type to search the canonical list or add a new one. Picking an
+// existing builder links by id; typing a name close to an existing one warns
+// before creating a duplicate ("P & L" vs "P&L") — ADR 0005.
+function BuilderCombo({ value, builders, onSelect, onAddBuilder, inp }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const cur = builders.find((b) => b.id === value) || null;
+  useEffect(() => { setQ(cur ? cur.name : ""); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const typed = q.trim();
+  const matches = builders.filter((b) => !typed || b.name.toLowerCase().includes(typed.toLowerCase()));
+  const exists = builders.some((b) => normName(b.name) === normName(typed));
+  const nd = typed && !exists ? matchName(builders, typed) : null;
+  const pick = (b) => { onSelect(b ? b.id : null); setQ(b ? b.name : ""); setOpen(false); };
+  // onAddBuilder creates + assigns the builder; the value prop then updates and
+  // the effect above syncs the input text.
+  const add = (name) => { onAddBuilder(name); setOpen(false); };
+  return (
+    <div className="relative">
+      <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => { setOpen(false); setQ(cur ? cur.name : ""); }, 150)}
+        placeholder="No builder — type to search or add" className={inp} />
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+          {cur && <div onMouseDown={(e) => { e.preventDefault(); pick(null); }} className="px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 cursor-pointer flex justify-between"><span>Remove builder</span><span className="text-[11px]">direct customer</span></div>}
+          {matches.map((b) => (
+            <div key={b.id} onMouseDown={(e) => { e.preventDefault(); pick(b); }} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer truncate">{b.name}</div>
+          ))}
+          {typed && !exists && (nd ? (
+            <div className="px-3 py-2 text-[12.5px] border-t border-amber-200 bg-amber-50 text-amber-800">
+              ⚠ "{typed}" looks like <b>{nd.item.name}</b>.{" "}
+              <button onMouseDown={(e) => { e.preventDefault(); pick(nd.item); }} className="underline font-medium">Use {nd.item.name}</button>
+              {" · "}
+              <button onMouseDown={(e) => { e.preventDefault(); add(typed); }} className="underline">add "{typed}" anyway</button>
+            </div>
+          ) : (
+            <div onMouseDown={(e) => { e.preventDefault(); add(typed); }} className="px-3 py-2 text-[12.5px] border-t border-slate-100 text-slate-600 hover:bg-slate-50 cursor-pointer">+ Add new builder <b>"{typed}"</b></div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
 const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
@@ -295,7 +339,6 @@ const lightRow = (r) => ({
 const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
 const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
 const AUTO_KEEP = 5;
-const RECENT_COUNT = 10;
 
 export default function App({ user, onSignOut }) {
   const [data, setData] = useState(() => ({ projects: [], people: [], builders: [], settings: normalizeSettings() }));
@@ -304,9 +347,12 @@ export default function App({ user, onSignOut }) {
   // Customer (person) when no project is selected (drives the customer view).
   const [selId, setSelId] = useState(null);
   const [selCustId, setSelCustId] = useState(null);
+  // Which customers are expanded in the sidebar tree.
+  const [openCust, setOpenCust] = useState({});
+  // The "New customer" modal: null when closed, else the draft name string.
+  const [newCust, setNewCust] = useState(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
-  const [allOpen, setAllOpen] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   // Per-user profile (name/phone/email), printed on the estimate header.
@@ -699,12 +745,13 @@ export default function App({ user, onSignOut }) {
     return c;
   };
   const updatePerson = (id, patch) => {
-    const next = { ...data, people: data.people.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
-    setData(next);
-    const c = next.people.find((x) => x.id === id);
+    // Functional update: setting a builder right after adding one (BuilderCombo)
+    // must not clobber the freshly-added builder from a stale closure.
+    setData((prev) => ({ ...prev, people: prev.people.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) }));
+    const merged = { ...(data.people.find((x) => x.id === id) || {}), ...patch };
     const upd = {};
-    if ("builderId" in patch) upd.builder_id = c.builderId || null;
-    if (Object.keys(patch).some((k) => k !== "builderId")) upd.data = personData(c);
+    if ("builderId" in patch) upd.builder_id = patch.builderId || null;
+    if (Object.keys(patch).some((k) => k !== "builderId")) upd.data = personData(merged);
     (async () => { try { const { error } = await supabase.from("customers").update(upd).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
   const delPerson = async (id) => {
@@ -718,10 +765,19 @@ export default function App({ user, onSignOut }) {
   const pickPerson = (id) => { setSelCustId(id); setSelId(null); setSidebarOpen(false); };
 
   // --- Builders: a canonical name list customers link to by id. ---
-  const addBuilder = (name) => {
+  // Create a new builder and assign it to a customer in one flow. The builder
+  // INSERT is awaited before the customer's builder_id UPDATE so the FK
+  // (customers.builder_id -> builders.id) is always satisfied.
+  const addBuilderFor = async (personId, name) => {
     const b = newBuilder(String(name || "").trim());
-    setData((prev) => ({ ...prev, builders: [...prev.builders, b] }));
-    (async () => { try { const { error } = await supabase.from("builders").insert({ id: b.id, owner_id: user.id, name: b.name }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); } })();
+    setData((prev) => ({ ...prev, builders: [...prev.builders, b], people: prev.people.map((c) => c.id === personId ? { ...c, builderId: b.id, updatedAt: Date.now() } : c) }));
+    try {
+      const { error: be } = await supabase.from("builders").insert({ id: b.id, owner_id: user.id, name: b.name });
+      if (be) throw be;
+      const { error: ce } = await supabase.from("customers").update({ builder_id: b.id }).eq("id", personId);
+      if (ce) throw ce;
+      flashSaved();
+    } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); }
     return b;
   };
   const addArea = () => { const a = newArea(); updateProject(sel.id, { categories: [...sel.categories, a] }); setFocusArea(a.id); };
@@ -1046,41 +1102,59 @@ export default function App({ user, onSignOut }) {
   const hasMat = gList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + mortarCost + underlayCost + miscCost;
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
   const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
-  const sortCustomers = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : (b.createdAt || 0) - (a.createdAt || 0));
-  // With no search, the list leads with the jobs anyone touched most recently;
-  // everything else sits below in groups (letters when sorted A–Z, age buckets
-  // when sorted Newest) behind an expandable "All customers".
+  // The sidebar is two-level: Customers (people), each expandable to their
+  // Projects, plus an "Unassigned projects" group for jobs with no customer.
+  // Search spans builder + customer contact + project names (ADR 0005).
   const q = search.trim().toLowerCase();
-  const searchList = q ? sortCustomers(data.projects.filter((c) => [c.name, c.address, c.phone, c.email].some((f) => (f || "").toLowerCase().includes(q)))) : null;
-  const visible = data.projects;
-  // Sorting A–Z means "give me the whole list alphabetical" — the recency
-  // shortcut would contradict that, so it only leads the Newest view.
-  const recentList = !q && sortBy !== "name" ? [...visible].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, RECENT_COUNT) : [];
-  const recentIds = new Set(recentList.map((c) => c.id));
-  const restList = sortCustomers(visible.filter((c) => !recentIds.has(c.id)));
-  const allExpanded = allOpen ?? restList.length <= 25;
-  const groupOf = (c) => {
-    if (sortBy === "name") { const ch = ((c.name || "").trim()[0] || "#").toUpperCase(); return /[A-Z]/.test(ch) ? ch : "#"; }
-    const age = Date.now() - (c.createdAt || 0);
-    return age < 30 * 24 * 3600 * 1000 ? "This month" : age < 365 * 24 * 3600 * 1000 ? "This year" : "Older";
-  };
+  const matchProj = (p) => [p.name, p.address, p.phone, p.email].some((f) => (f || "").toLowerCase().includes(q));
+  const matchPerson = (c) => !q || [c.name, c.phone, c.email, c.address, builderNameOf(c.builderId)].some((f) => (f || "").toLowerCase().includes(q)) || projectsOf(c.id).some(matchProj);
+  // "Newest" bubbles a customer up on any activity — their own edit or any of
+  // their projects'. "A–Z" ignores recency.
+  const personActivity = (c) => Math.max(c.updatedAt || 0, 0, ...projectsOf(c.id).map((p) => p.updatedAt || 0));
+  const sortPeople = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : personActivity(b) - personActivity(a));
+  const peopleList = sortPeople(q ? data.people.filter(matchPerson) : data.people);
+  const unassigned = data.projects.filter((p) => !p.customerId && (!q || matchProj(p)));
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "ft-eyebrow text-[10px] mb-1 block";
 
-  const renderCustItem = (c) => {
-    const on = selId === c.id;
-    const areaCount = c._full ? (c.categories?.length || 0) : null;
-    const sub = c.address || (areaCount != null ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "");
+  const renderProjRow = (p) => {
+    const on = selId === p.id;
     return (
-      <button key={c.id} onClick={() => pickProject(c.id)} className={`w-full text-left rounded-md px-2.5 py-2 mb-0.5 transition flex items-center gap-2.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
-        <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13.5px] font-semibold truncate">{c.name || "Untitled"}</div>
-          {sub && <div className="text-[11.5px] text-slate-400 truncate mt-px">{sub}</div>}
-        </div>
+      <button key={p.id} onClick={() => pickProject(p.id)} className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 border ${on ? "bg-white border-slate-200 shadow-[0_1px_3px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
+        <FileText size={13} className="text-slate-300 shrink-0" />
+        <span className="text-[12.5px] truncate flex-1">{p.name || "Untitled project"}</span>
       </button>
+    );
+  };
+  const renderPersonRow = (c) => {
+    const projs = projectsOf(c.id);
+    const shown = q ? projs.filter(matchProj) : projs;
+    const isOpen = !!openCust[c.id] || (q && projs.some(matchProj));
+    const on = selCustId === c.id && !selId;
+    const bn = builderNameOf(c.builderId);
+    return (
+      <div key={c.id} className="mb-0.5">
+        <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
+          <button onClick={() => setOpenCust((s) => ({ ...s, [c.id]: !isOpen }))} title={isOpen ? "Collapse" : "Expand"} className="p-1.5 text-slate-400 hover:text-slate-600 shrink-0">
+            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+          <button onClick={() => pickPerson(c.id)} className="flex items-center gap-2 min-w-0 flex-1 py-1.5 pr-2 text-left">
+            <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
+              <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
+            </div>
+          </button>
+        </div>
+        {isOpen && (
+          <div className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-slate-200 pl-1.5">
+            {shown.map((p) => renderProjRow(p))}
+            <button onClick={() => addProject(c.id)} className="w-full flex items-center gap-1 px-2 py-1 text-[11.5px] text-slate-400 hover:text-indigo-600"><Plus size={12} /> New project</button>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -1092,7 +1166,7 @@ export default function App({ user, onSignOut }) {
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
             <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center ft-serif text-white" style={{ fontSize: 15 }}>F</div>
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : "FloorTrack"}</span>
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "FloorTrack"}</span>
           </div>
         )}
 
@@ -1106,36 +1180,22 @@ export default function App({ user, onSignOut }) {
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
-            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" className={inp + " pl-8"} /></div>
+            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search builders, customers, jobs…" className={inp + " pl-8"} /></div>
             <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
               {[["Newest", "newest"], ["A–Z", "name"]].map(([label, v]) => (
                 <button key={v} onClick={() => setSortBy(v)} className={`flex-1 px-2.5 py-1.5 font-semibold ${sortBy === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
               ))}
             </div>
-            <button onClick={() => addProject()} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
+            <button onClick={() => setNewCust("")} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
-            {q ? (<>
-              {searchList.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
-              {searchList.map((c) => renderCustItem(c))}
-            </>) : (<>
-              {visible.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
-              {recentList.length > 0 && restList.length > 0 && <div className="mt-1 mb-1.5 px-2.5 ft-eyebrow text-[9px]">Recent</div>}
-              {recentList.map((c) => renderCustItem(c))}
-              {restList.length > 0 && recentList.length > 0 && (
-                <button onClick={() => setAllOpen(!allExpanded)} className="w-full flex items-center gap-1 mt-4 mb-1.5 px-2.5 ft-eyebrow text-[9px] hover:text-slate-600">
-                  {allExpanded ? <ChevronDown size={11} className="shrink-0" /> : <ChevronRight size={11} className="shrink-0" />} All customers ({restList.length})
-                </button>
-              )}
-              {(recentList.length === 0 || allExpanded) && restList.map((c, i) => {
-                const g = groupOf(c), prev = i > 0 ? groupOf(restList[i - 1]) : null;
-                return (
-                  <div key={c.id}>
-                    {g !== prev && <div className={`px-2.5 ft-eyebrow text-[9px] mb-1 ${i === 0 && recentList.length === 0 ? "mt-1" : "mt-3"}`}>{g}</div>}
-                    {renderCustItem(c)}
-                  </div>
-                );
-              })}
+            {data.people.length === 0 && unassigned.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
+            {q && peopleList.length === 0 && unassigned.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
+            {peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
+            {peopleList.map((c) => renderPersonRow(c))}
+            {unassigned.length > 0 && (<>
+              <div className="mt-3 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
+              {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>
           <div className="p-2.5 border-t border-slate-100 space-y-2">
@@ -1161,11 +1221,49 @@ export default function App({ user, onSignOut }) {
         {/* Main */}
         <main ref={mainRef} className="flex-1 overflow-y-auto">
           {!sel ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-6">
-              <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center mb-4 ft-serif" style={{ background: "color-mix(in oklab, var(--ft-brand) 14%, transparent)", color: "var(--ft-brand)", fontSize: 30 }}>F</div>
-              <h2 className="ft-serif text-2xl">Select or create a customer</h2>
-              <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building selections.</p>
-            </div>
+            selCust ? (
+              <div className="max-w-3xl mx-auto p-3 md:p-5">
+                <div className="bg-white rounded-lg border border-slate-200" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
+                  {builderNameOf(selCust.builderId) && <div className="ft-eyebrow-accent text-[10px] mb-2.5">{builderNameOf(selCust.builderId)}</div>}
+                  <div className="flex items-center gap-2">
+                    <input value={selCust.name} onChange={(e) => updatePerson(selCust.id, { name: e.target.value })} placeholder="Customer name" className="ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1" style={{ fontSize: "clamp(28px,4.5vw,44px)", lineHeight: 1 }} />
+                    {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+                    <div><label className={lbl}>Phone</label><input value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: e.target.value })} className={inp} /></div>
+                    <div><label className={lbl}>Email</label><input value={selCust.email} onChange={(e) => updatePerson(selCust.id, { email: e.target.value })} className={inp} /></div>
+                    <div className="sm:col-span-2"><label className={lbl}>Mailing address</label><input value={selCust.address} onChange={(e) => updatePerson(selCust.id, { address: e.target.value })} className={inp} /></div>
+                    <div className="sm:col-span-2"><label className={lbl}>Builder</label><BuilderCombo value={selCust.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(selCust.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(selCust.id, name)} /></div>
+                    <div className="sm:col-span-2"><label className={lbl}>Customer notes</label><textarea value={selCust.notes} onChange={(e) => updatePerson(selCust.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                    <button onClick={() => setConfirm({ kind: "person", id: selCust.id })} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 px-3 py-1.5 text-slate-400"><Trash2 size={15} /> Delete customer</button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-6 mb-3 gap-2">
+                  <h2 className="ft-serif" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1 }}>Projects</h2>
+                  <button onClick={() => addProject(selCust.id)} className="flex items-center gap-1.5 text-sm font-semibold rounded-full border border-dashed border-slate-300 px-3.5 py-1.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> New project</button>
+                </div>
+                {projectsOf(selCust.id).length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No projects yet. Add the first job for this customer.</div>}
+                <div className="space-y-2">
+                  {projectsOf(selCust.id).map((p) => (
+                    <button key={p.id} onClick={() => pickProject(p.id)} className="w-full text-left bg-white rounded-lg border border-slate-200 hover:border-indigo-300 transition p-4 flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold">{p.name || "Untitled project"}</div>
+                        {p.address && <div className="text-[12.5px] text-slate-400 truncate mt-px">{p.address}</div>}
+                      </div>
+                      <ChevronRight size={18} className="text-slate-300 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center mb-4 ft-serif" style={{ background: "color-mix(in oklab, var(--ft-brand) 14%, transparent)", color: "var(--ft-brand)", fontSize: 30 }}>F</div>
+                <h2 className="ft-serif text-2xl">Select or create a customer</h2>
+                <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building projects.</p>
+              </div>
+            )
           ) : !sel._full ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
@@ -1173,9 +1271,25 @@ export default function App({ user, onSignOut }) {
               <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="min-w-0 flex-1">
+                    {(() => {
+                      const cust = data.people.find((c) => c.id === sel.customerId);
+                      const bn = cust ? builderNameOf(cust.builderId) : "";
+                      return (cust || !sel.customerId) ? (
+                        <div className="ft-noprint text-[11.5px] text-slate-400 mb-2 flex items-center gap-1.5 flex-wrap">
+                          {bn && <><span>{bn}</span><ChevronRight size={12} className="text-slate-300" /></>}
+                          {cust ? (
+                            <button onClick={() => pickPerson(cust.id)} className="hover:text-indigo-600 hover:underline">{cust.name || "Customer"}</button>
+                          ) : (
+                            <span className="text-amber-600">Unassigned job</span>
+                          )}
+                          <ChevronRight size={12} className="text-slate-300" />
+                          <span className="text-slate-500">{sel.name || "Project"}</span>
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="ft-eyebrow-accent text-[10px] mb-2.5">Tile &amp; Flooring Selections</div>
                     <div className="flex items-center gap-2">
-                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Customer name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(30px,5vw,52px)", lineHeight: 1 }} />
+                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-1 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(30px,5vw,52px)", lineHeight: 1 }} />
                       {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
                     </div>
                     <div className="mt-2.5 flex items-center gap-2 text-sm text-slate-500 flex-wrap">
@@ -1845,12 +1959,46 @@ export default function App({ user, onSignOut }) {
         </Modal>
       )}
 
-      {confirm && (
+      {confirm && (confirm.kind === "person" ? (
         <Modal onClose={() => setConfirm(null)} title="Delete customer?">
-          <p className="text-sm text-slate-500 mb-4">This permanently removes the customer — with all their selections, versions, and attachments — for everyone. Consider a backup export first.</p>
+          <p className="text-sm text-slate-500 mb-4">This removes the customer for everyone. Their projects are kept but become <b>unassigned</b> — reassign them to another customer afterward. Consider a backup export first.</p>
+          <div className="flex justify-end gap-2"><button onClick={() => setConfirm(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button><button onClick={() => delPerson(confirm.id)} className="text-sm rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700">Delete</button></div>
+        </Modal>
+      ) : (
+        <Modal onClose={() => setConfirm(null)} title="Delete project?">
+          <p className="text-sm text-slate-500 mb-4">This permanently removes the project — with all its selections, versions, and attachments — for everyone. Consider a backup export first.</p>
           <div className="flex justify-end gap-2"><button onClick={() => setConfirm(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button><button onClick={() => delProject(confirm.id)} className="text-sm rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700">Delete</button></div>
         </Modal>
-      )}
+      ))}
+
+      {newCust !== null && (() => {
+        const m = matchName(data.people, newCust);
+        const create = () => { const c = addPerson(newCust.trim()); setNewCust(null); return c; };
+        const useExisting = (id) => { setNewCust(null); pickPerson(id); };
+        const n = m ? projectsOf(m.item.id).length : 0;
+        return (
+          <Modal onClose={() => setNewCust(null)} title="New customer">
+            <p className="text-sm text-slate-500 mb-3">Type the customer's name. If they already exist, jump straight to them instead of making a duplicate.</p>
+            <input autoFocus value={newCust} onChange={(e) => setNewCust(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { if (m) useExisting(m.item.id); else if (newCust.trim()) create(); } if (e.key === "Escape") setNewCust(null); }}
+              placeholder="e.g. Sarah Jones" className={inp} />
+            {m && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-800">
+                <div className="font-semibold mb-0.5">{m.kind === "exact" ? `A customer named "${m.item.name}" already exists` : `Did you mean "${m.item.name}"?`}</div>
+                <div className="text-amber-700">{n} project{n === 1 ? "" : "s"}. Open them instead of creating a duplicate?</div>
+                <div className="flex gap-2 mt-2.5 flex-wrap">
+                  <button onClick={() => useExisting(m.item.id)} className="rounded-md bg-amber-600 text-white px-3 py-1.5 text-[13px] font-medium hover:bg-amber-700">Use {m.item.name}</button>
+                  <button onClick={create} className="rounded-md border border-amber-300 px-3 py-1.5 text-[13px] hover:bg-amber-100">Create separate customer</button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setNewCust(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={create} disabled={!newCust.trim()} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-40">Create customer</button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {toast && <div className="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg z-50">{toast}</div>}
     </div>
