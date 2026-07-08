@@ -392,10 +392,28 @@ export const offeredUnderlayments = (catalog, type) => {
   return names;
 };
 
+// Operational provenance, shared team-wide with the settings record: who last
+// ran the price-book import / backup download, and when. Purely informational —
+// nothing computes from it.
+const normStamp = (v) => {
+  if (!v || typeof v !== "object" || !(num(v.at) > 0)) return null;
+  const s = { at: num(v.at), by: String(v.by || "") };
+  if (v.skus != null && num(v.skus) > 0) s.skus = num(v.skus);
+  return s;
+};
+export const normOps = (raw) => {
+  const lastImport = normStamp(raw?.lastImport), lastBackup = normStamp(raw?.lastBackup);
+  if (!lastImport && !lastBackup) return undefined;
+  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}) };
+};
+
 // The in-memory settings object carries the catalog plus derived grouts/mortars
-// maps the math reads. Only { waste, catalog } is persisted.
+// maps the math reads. Only { waste, catalog, ops } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
-export const serializeSettings = (s) => ({ waste: s.waste, catalog: s.catalog });
+export const serializeSettings = (s) => {
+  const ops = normOps(s.ops);
+  return { waste: s.waste, catalog: s.catalog, ...(ops ? { ops } : {}) };
+};
 
 // Entry point for loaded/imported settings: backfill a pre-catalog record by
 // seeding the catalog from its flat numbers (preserving tuned values), or
@@ -405,5 +423,6 @@ export function normalizeSettings(raw) {
   const catalog = (raw?.catalog && Array.isArray(raw.catalog.companies))
     ? normalizeCatalog(raw.catalog)
     : seedCatalog(mergeSettings(raw));
-  return withDerived({ waste, catalog });
+  const ops = normOps(raw?.ops);
+  return withDerived({ waste, catalog, ...(ops ? { ops } : {}) });
 }

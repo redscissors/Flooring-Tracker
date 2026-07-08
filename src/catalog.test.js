@@ -536,3 +536,33 @@ test("removeCompany drops the company", () => {
   const next = removeCompany(seeded, wedi.id);
   assert.equal(next.companies.some((c) => c.name === "Wedi"), false);
 });
+
+// --- Ops provenance (last import / last backup stamps) ------------------------
+// Shared, informational-only stamps carried with the settings record. They must
+// survive the serialize -> persist -> normalize round trip, and garbage from an
+// old or hand-edited record must normalize away rather than crash.
+
+test("serializeSettings and normalizeSettings round-trip valid ops stamps", () => {
+  const ops = { lastImport: { at: 1751500000000, by: "Dave", skus: 312 }, lastBackup: { at: 1751000000000, by: "Marcus" } };
+  const out = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops }));
+  assert.deepEqual(out.ops, ops);
+  assert.deepEqual(serializeSettings(normalizeSettings(out)).ops, ops);
+});
+
+test("settings without ops stay without ops", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 10 } });
+  assert.equal(s.ops, undefined);
+  assert.equal("ops" in serializeSettings(s), false);
+});
+
+test("garbage ops normalize away instead of persisting", () => {
+  for (const bad of ["yes", 7, { lastImport: "yesterday" }, { lastImport: { by: "Dave" } }, { lastImport: { at: "not a time" } }]) {
+    const s = normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: bad });
+    assert.equal(s.ops, undefined, JSON.stringify(bad));
+  }
+});
+
+test("one valid stamp survives even when the other is garbage", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { lastImport: { at: 5 }, lastBackup: { at: "nope" } } });
+  assert.deepEqual(s.ops, { lastImport: { at: 5, by: "" } });
+});
