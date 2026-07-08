@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -665,4 +665,31 @@ test("getGroutBase: an exact base count doesn't over-order from float noise", ()
   const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39,
     base: { sku: "1519065", name: "PermaColor Sanded Base", unit: "units", price: 24.75, per: 1 } });
   assert.equal(getGroutBase(tile(), s).order, 2);
+});
+
+test("groutBaseList consolidates bases across colors/grouts and applies per", () => {
+  const s = normalizeSettings({
+    waste: { tile: 10, floor: 10 },
+    catalog: { companies: [{ name: "Laticrete", enabled: true, mortars: [], underlayments: [], grouts: [
+      { name: "PermaColor Color Kit", coverage: 100, unit: "kits", price: 5.39, base: { sku: "1519065", name: "PermaColor Sanded Base", unit: "units", price: 24.75, per: 1 } },
+      { name: "Spectralock Part C", coverage: 90, unit: "kits", price: 32.89, base: { sku: "1518984", name: "SpectraLock Comm. Unit", unit: "units", price: 374.99, per: 4 } },
+      { name: "Tec Power Grout", coverage: 45, unit: "bags", price: 33.53 }, // no base
+    ] }] },
+  });
+  // Two colors of the same grout share one consolidated base line: 3 + 2 kits -> 5 bases.
+  const list = groutBaseList([
+    { product: "PermaColor Color Kit", order: 3 },
+    { product: "PermaColor Color Kit", order: 2 },
+    { product: "Spectralock Part C", order: 5 },
+    { product: "Tec Power Grout", order: 4 },
+    { product: "PermaColor Color Kit", order: 0 }, // pending line — no kits yet
+  ], s);
+  assert.equal(list.length, 2);
+  const sanded = list.find((b) => b.sku === "1519065");
+  assert.equal(sanded.order, 5);
+  assert.equal(sanded.cost, 5 * 24.75);
+  const comm = list.find((b) => b.sku === "1518984");
+  assert.equal(comm.exact, 1.25); // 5 kits / per 4
+  assert.equal(comm.order, 2);
+  assert.deepEqual(groutBaseList([{ product: "Tec Power Grout", order: 4 }], s), []);
 });

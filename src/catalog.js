@@ -103,6 +103,29 @@ export function getGroutBase(p, s) {
   return { sku: b.sku || "", name: b.name || "", unit: b.unit, price: num(b.price), per, exact, order: ceilQty(exact) };
 }
 
+// Consolidated base units for a whole job's aggregated grout list (ADR 0006).
+// Takes entries of { product, order } — the SAME aggregated kit counts the
+// totals summary shows — and groups their bases by identity, so two colors of
+// one grout (or two grouts sharing a base) order one combined base line:
+// order = ceil(total kits / per). Both the on-screen order summary and the
+// printed breakdown call this, so they can never disagree.
+export function groutBaseList(groutEntries, s) {
+  const agg = new Map();
+  for (const g of groutEntries || []) {
+    if (!g || !(g.order > 0)) continue;
+    const b = s.grouts[g.product]?.base; if (!b) continue;
+    const key = b.sku || b.name;
+    const e = agg.get(key) || { sku: b.sku || "", name: b.name || b.sku, unit: b.unit, price: num(b.price), per: num(b.per) > 0 ? num(b.per) : 1, kits: 0 };
+    e.kits += g.order;
+    agg.set(key, e);
+  }
+  return [...agg.values()].map((b) => {
+    const exact = b.kits / b.per;
+    const order = ceilQty(exact);
+    return { ...b, exact, order, cost: order * b.price };
+  });
+}
+
 // Flooring sold by the carton/sheet: p.cartonSf is the sq ft one carton covers
 // (snapshotted from the price book's SF/CT column, or typed). Same shape as
 // grout/mortar — exact carries the waste factor, order rounds up to whole

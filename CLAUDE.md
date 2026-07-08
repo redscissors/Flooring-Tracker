@@ -128,6 +128,18 @@ to toggle the alternate variant (Comm. Unit / Unsanded). The pairing is
 data-driven off the book's "Bulk & Base Units" section
 (`stockCompanionBase`/`stockBaseVariant`), so no SKUs are hardcoded.
 
+**Catalog SKU link & grout base units** (ADR 0006). Catalog grout/mortar/
+underlayment products carry an optional price-book `sku` — a display/refresh
+attribute only (jobs still link materials by name, and nothing reads the stock
+table at calc time). It shows on every material line in the order summary and
+print, and lets the import refresh that product's price by exact SKU. A grout
+product can also carry a `base` companion `{ sku, name, unit, price, per }` —
+the two-part grout's base unit — ordered from the **consolidated** kit counts
+(`ceil(total kits / per)`, Commercial unit = per 4) via `groutBaseList`, and
+shown with the grout family in the order summary, estimate breakdown, and
+order sheet. The Settings add-product pre-fill keeps the picked item's SKU and
+auto-attaches a Laticrete pigment's default base.
+
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add
 bugs/feature ideas, drag open items into priority order, check them off, reopen
