@@ -334,6 +334,42 @@ function MetaChip({ icon: Icon, label, value, active, onClick }) {
   );
 }
 
+// Product flooring-type picker: a colour-coded pill that opens a swatch menu of
+// all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
+// card's left border.
+function TypeSelect({ type, onChange }) {
+  const [open, setOpen] = useState(false);
+  const accent = TYPE_ACCENT[type];
+  return (
+    <div className="relative shrink-0">
+      <button onClick={() => setOpen((o) => !o)} title="Product type"
+        className="inline-flex items-center gap-1.5 rounded-full pl-2 pr-1.5 py-1 text-xs font-semibold"
+        style={{ color: accent, background: `color-mix(in oklab, ${accent} 12%, transparent)`, border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)` }}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accent }} />
+        {TLBL[type]}
+        <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (<>
+        <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+        <div className="absolute z-30 mt-1 left-0 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
+          {TYPES.map((t) => {
+            const on = t === type;
+            return (
+              <button key={t} onClick={() => { onChange(t); setOpen(false); }}
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-slate-50 ${on ? "font-semibold" : "text-slate-700"}`}
+                style={on ? { color: TYPE_ACCENT[t] } : undefined}>
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TYPE_ACCENT[t], opacity: on ? 1 : 0.65 }} />
+                {TLBL[t]}
+                {on && <Check size={12} className="ml-auto" />}
+              </button>
+            );
+          })}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
 const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
@@ -1641,7 +1677,6 @@ export default function App({ user, onSignOut }) {
                           </div>
                         );
                         const selAccent = TYPE_ACCENT[p.type] || "var(--ft-text)";
-                        const typeOrder = TYPES.includes(p.type) ? [p.type, ...TYPES.filter((t) => t !== p.type)] : TYPES;
                         // Stock link: the row keeps its snapshotted values; the
                         // chip below only points out drift from the current book.
                         const stockItem = findStock(stock, p.sku);
@@ -1656,14 +1691,7 @@ export default function App({ user, onSignOut }) {
                         return (
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
                             <div className="ft-noprint flex flex-wrap items-center gap-2 mb-2.5">
-                              <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                                {typeOrder.map((t) => {
-                                  const on = p.type === t;
-                                  return (
-                                    <button key={t} data-flip={`${p.id}:${t}`} onClick={() => updProduct(a.id, p.id, { type: t })} className="rounded-full px-2.5 py-1 text-xs font-semibold transition" style={on ? { color: TYPE_ACCENT[t], background: `color-mix(in oklab, ${TYPE_ACCENT[t]} 15%, transparent)`, border: `1px solid ${TYPE_ACCENT[t]}` } : { color: "var(--ft-muted)", border: "1px solid transparent" }}>{TLBL[t]}</button>
-                                  );
-                                })}
-                              </div>
+                              <TypeSelect type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} />
                               {p.type === "misc" && miscQty(p) !== 1 && num(p.priceSqft) > 0 && (
                                 <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
                                   <span>{miscQty(p)} × {money(num(p.priceSqft))}</span>
