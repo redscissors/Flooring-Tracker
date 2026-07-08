@@ -337,12 +337,23 @@ function MetaChip({ icon: Icon, label, value, active, onClick }) {
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
-function TypeSelect({ type, onChange }) {
+function TypeSelect({ type, onChange, triggerRef }) {
   const [open, setOpen] = useState(false);
   const accent = TYPE_ACCENT[type];
+  // Keyboard: a printable letter jumps to the type(s) whose label starts with
+  // it, cycling through them when several share a first letter — so the field
+  // behaves like a native <select> even though it's a custom swatch menu.
+  const pickByLetter = (e) => {
+    if (e.key.length !== 1 || !/[a-z]/i.test(e.key) || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    const hits = TYPES.filter((t) => TLBL[t][0].toLowerCase() === k);
+    if (!hits.length) return;
+    e.preventDefault();
+    onChange(hits[(hits.indexOf(type) + 1) % hits.length]);
+  };
   return (
     <div className="relative shrink-0">
-      <button onClick={() => setOpen((o) => !o)} title="Product type"
+      <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title="Product type"
         className="inline-flex items-center gap-1.5 rounded-full pl-2 pr-1.5 py-1 text-xs font-semibold"
         style={{ color: accent, background: `color-mix(in oklab, ${accent} 12%, transparent)`, border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)` }}>
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accent }} />
@@ -426,6 +437,13 @@ export default function App({ user, onSignOut }) {
   useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
   const [focusName, setFocusName] = useState(false);
+  // Keyboard-flow focus targets (product id): after Add product, land on the
+  // new row's type; after a SKU pick, land on the Sq Ft box (so the footage
+  // still gets keyed) then Tab carries on to the materials; when that line
+  // expands via Enter, land on its first checkbox.
+  const [focusProd, setFocusProd] = useState(null);
+  const [focusQty, setFocusQty] = useState(null);
+  const [focusMatFirst, setFocusMatFirst] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
@@ -449,6 +467,9 @@ export default function App({ user, onSignOut }) {
   const fileRef = useRef(null);
   const attRef = useRef(null);
   const areaRefs = useRef({});
+  const typeRefs = useRef({});
+  const qtyRefs = useRef({});
+  const matFirstRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
   const saveOkTimer = useRef(null);
@@ -696,6 +717,9 @@ export default function App({ user, onSignOut }) {
     await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" });
   };
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
+  useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
+  useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
+  useEffect(() => { if (focusMatFirst && matFirstRefs.current[focusMatFirst]) { matFirstRefs.current[focusMatFirst].focus(); setFocusMatFirst(null); } }, [focusMatFirst, matOpen]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
@@ -848,7 +872,7 @@ export default function App({ user, onSignOut }) {
   const tabTo = (ref) => (e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); ref.current?.focus(); ref.current?.select?.(); } };
   const updArea = (aid, patch) => updateProject(sel.id, { categories: sel.categories.map((a) => a.id === aid ? { ...a, ...patch } : a) });
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
-  const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: [...a.products, newProduct()] }); };
+  const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
   // Multi-pick from the SKU dropdown: the first item fills the anchor row, each
   // further item becomes its own new product row right below it.
@@ -1563,8 +1587,8 @@ export default function App({ user, onSignOut }) {
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: areaColor }} />
                       <span className="ft-mono text-sm shrink-0" style={{ color: areaColor }}>{String(ai + 1).padStart(2, "0")}</span>
                       <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none flex-1 min-w-0" style={{ fontSize: 23, lineHeight: 1 }} />
-                      <input value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
-                      <button onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
+                      <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
+                      <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
                     </div>
                     {confirmArea === a.id && (
                       <div className="ft-noprint flex items-center gap-2 mt-2 text-xs">
@@ -1616,14 +1640,14 @@ export default function App({ user, onSignOut }) {
                         const underlayCard = (
                           <div className={`rounded-md border px-2.5 py-1.5 ${p.underlay.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                              <button onClick={toggleUnderlay} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.underlay.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.checked && <Check size={12} />}</button>
+                              <button ref={(el) => { if (el && p.type !== "tile") matFirstRefs.current[p.id] = el; }} onClick={toggleUnderlay} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.underlay.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.checked && <Check size={12} />}</button>
                               <span className="text-sm font-medium">{underlayLabel(p.type)}</span>
                               {p.underlay.checked && underlayOpts.length > 0 && (
                                 <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0">
                                   <FitSelect value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
                                 </div>
                               )}
-                              {p.underlay.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>}
+                              {p.underlay.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>}
                               {p.underlay.checked && underlayOpts.length === 0 && <div className="order-last basis-full text-xs text-amber-500">No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</div>}
                               {p.underlay.checked && underlayOpts.length > 0 && !U && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft to calculate, or type a total above.</div>}
                             </div>
@@ -1685,13 +1709,13 @@ export default function App({ user, onSignOut }) {
                         const skuBox = stock.length > 0 ? (
                           <SkuPicker value={p.sku || ""} stock={stock}
                             onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                            onPick={(it) => updProduct(a.id, p.id, stockPatch(it, p))}
+                            onPick={(it) => { updProduct(a.id, p.id, stockPatch(it, p)); setFocusQty(p.id); }}
                             onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
                         ) : null;
                         return (
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
                             <div className="ft-noprint flex flex-wrap items-center gap-2 mb-2.5">
-                              <TypeSelect type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} />
+                              <TypeSelect type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               {p.type === "misc" && miscQty(p) !== 1 && num(p.priceSqft) > 0 && (
                                 <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
                                   <span>{miscQty(p)} × {money(num(p.priceSqft))}</span>
@@ -1706,7 +1730,7 @@ export default function App({ user, onSignOut }) {
                                     <span className="text-slate-300">·</span>
                                     <span className="flex items-center gap-1 text-indigo-700">
                                       {cEx != null && <span className="text-slate-400 whitespace-nowrap">{cEx.toFixed(2)} →</span>}
-                                      <input type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} title="Cartons to order — type to override the calculated amount" className="!w-11 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" />
+                                      <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} title="Cartons to order — type to override the calculated amount" className="!w-11 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" />
                                       <span className="font-semibold">{C.unit}</span>
                                       <span className="text-slate-400 whitespace-nowrap">({sf1(C.order * C.sf)} sf)</span>
                                     </span>
@@ -1717,7 +1741,7 @@ export default function App({ user, onSignOut }) {
                                   </>)}
                                 </span>
                               )}
-                              {a.products.length > 1 && <button onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="shrink-0 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>}
+                              {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="shrink-0 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>}
                             </div>
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
                               <div className="ft-noprint flex items-center gap-2 mb-2 text-xs">
@@ -1749,11 +1773,11 @@ export default function App({ user, onSignOut }) {
                               {p.type !== "misc" && <div className="basis-full md:hidden" />}
                               <div style={fitW(p.priceSqft, 4, 1.6)} className={`relative shrink-0 h-9 border-slate-200 ${p.type === "misc" ? "border-l" : "border-t md:border-t-0 md:border-l"}`}><span className="absolute left-1.5 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-4 pr-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "misc" ? "0.00" : "/sqft"} title={p.type === "misc" ? "Price each" : "Price per sq ft"} /></div>
                               {p.type !== "misc" && (<>
-                                <input type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className="flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="0" title="Quantity" />
-                                <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
+                                <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className="flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="0" title="Quantity" />
+                                <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button tabIndex={-1} key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                                 {p.qtyType === "sqft" && (
                                   <div className="relative shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200">
-                                    <input type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} style={fitW(p.cartonSf, 2, 2.2)} className="h-full pl-1.5 pr-7 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                    <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} style={fitW(p.cartonSf, 2, 2.2)} className="h-full pl-1.5 pr-7 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
                                     <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">sf/{(p.cartonUnit || "CT").toLowerCase()}</span>
                                   </div>
                                 )}
@@ -1763,7 +1787,7 @@ export default function App({ user, onSignOut }) {
                               <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
-                                  <button onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
+                                  <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                                 </>)}
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
@@ -1772,7 +1796,7 @@ export default function App({ user, onSignOut }) {
                             {p.type !== "misc" && (
                               <div className="mt-2 rounded-md border border-slate-100 px-2.5 py-1.5">
                                 {!matExpanded ? (
-                                  <button onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="w-full flex items-start gap-1.5 text-left" title="Materials — click to edit">
+                                  <button onClick={() => { setMatOpen((o) => ({ ...o, [p.id]: true })); setFocusMatFirst(p.id); }} className="w-full flex items-start gap-1.5 text-left" title="Materials — click or press Enter to edit">
                                     <ChevronRight size={13} className="text-slate-400 shrink-0 mt-[1px]" />
                                     {matRows.length === 0 ? (
                                       <span className="text-[11px] leading-4 text-slate-400">Associated materials</span>
@@ -1789,7 +1813,7 @@ export default function App({ user, onSignOut }) {
                                     )}
                                   </button>
                                 ) : (<>
-                                  <button onClick={() => setMatOpen((o) => ({ ...o, [p.id]: false }))} className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1.5" title="Collapse">
+                                  <button tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: false }))} className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1.5" title="Collapse">
                                     <ChevronDown size={13} className="shrink-0" /> close
                                   </button>
                                   <div className="space-y-1.5">
@@ -1797,17 +1821,17 @@ export default function App({ user, onSignOut }) {
                                 {/* Grout */}
                                 <div className={`rounded-md border px-2.5 py-1.5 ${p.grout.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
                                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                    <button onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: !p.grout.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.grout.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.grout.checked && <Check size={12} />}</button>
+                                    <button ref={(el) => { if (el) matFirstRefs.current[p.id] = el; }} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: !p.grout.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.grout.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.grout.checked && <Check size={12} />}</button>
                                     <span className="text-sm font-medium">Grout</span>
                                     {p.grout.checked && (
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect value={p.grout.product} display={p.grout.product} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, product: e.target.value } })}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
                                         <FitSelect value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, color: e.target.value } })}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
-                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
+                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
                                         <span className="flex items-center gap-1 text-xs text-slate-500 shrink-0" title="Matching caulk for this grout color — tubes to order; leave blank for none">Caulk<input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
                                       </div>
                                     )}
-                                    {p.grout.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{G ? G.unit : settings.grouts[p.grout.product]?.unit}</span></span>}
+                                    {p.grout.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{G ? G.unit : settings.grouts[p.grout.product]?.unit}</span></span>}
                                     {p.grout.checked && !G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
                                   </div>
                                 </div>
@@ -1821,7 +1845,7 @@ export default function App({ user, onSignOut }) {
                                         <FitSelect value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
                                       </div>
                                     )}
-                                    {p.mortar.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{M ? M.unit : settings.mortars[p.mortar.product]?.unit}</span></span>}
+                                    {p.mortar.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{M ? M.unit : settings.mortars[p.mortar.product]?.unit}</span></span>}
                                   </div>
                                 </div>
                                 </>)}
@@ -1833,7 +1857,7 @@ export default function App({ user, onSignOut }) {
 
                             <div className="mt-2 flex items-end gap-2">
                               <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
-                              <button onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="ft-noprint shrink-0 -m-1 p-1 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={15} /></button>
+                              <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="ft-noprint shrink-0 -m-1 p-1 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={15} /></button>
                             </div>
                           </div>
                         );
@@ -1845,6 +1869,10 @@ export default function App({ user, onSignOut }) {
                   );
                 })}
               </div>
+
+              {sel.categories.length > 0 && (
+                <button onClick={addArea} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
+              )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
                 <div className="mt-5 bg-white border border-slate-200 rounded-lg" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
