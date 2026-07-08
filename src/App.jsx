@@ -397,6 +397,8 @@ export default function App({ user, onSignOut }) {
   const [saveOk, setSaveOk] = useState(false);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [projChip, setProjChip] = useState(null); // which meta chip is expanded (project header)
+  const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
+  useEffect(() => { setViewTab("edit"); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -1126,6 +1128,125 @@ export default function App({ user, onSignOut }) {
   const cList = Object.values(cAgg).map((c) => ({ ...c, order: Math.ceil(c.exact) }));
   const hasMat = gList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + mortarCost + underlayCost + miscCost;
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
+
+  // The estimate "paper", moved verbatim from the hidden print block. It renders in
+  // BOTH the print layout and the on-screen Print preview tab — one source, so the
+  // preview can never drift from what actually prints. Callers guard sel && sel._full.
+  const renderEstimatePaper = () => (
+          <div>
+            <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4 gap-4">
+              <div>
+                <div className="ft-serif text-3xl">{sel.name}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
+              </div>
+              <div className="flex items-stretch gap-6">
+                {(profile.name || profile.phone || profile.email) && (() => { const pname = profile.name || profile.email; return (
+                  <div className="flex flex-col justify-between text-right">
+                    <div className="ft-eyebrow text-[9px] text-slate-500">Your salesperson</div>
+                    <div className="ft-serif text-2xl leading-none">{pname}</div>
+                    <div className="text-[9.5px] text-slate-500 leading-none">{[profile.phone, profile.email].filter((x) => x && x !== pname).join("  ·  ")}</div>
+                  </div>
+                ); })()}
+                {grandTotal > 0 && (
+                  <div className="text-right">
+                    <div className="ft-eyebrow text-[9px]">Estimated total</div>
+                    <div className="ft-serif text-3xl">{money(grandTotal)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
+            {sel.categories.map((a, ai) => (
+              <div key={a.id} className="mb-5 break-inside-avoid">
+                <div className="flex justify-between items-baseline border-b-2 border-black pb-1 mb-1.5">
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="ft-mono text-[11px] text-slate-400">{String(ai + 1).padStart(2, "0")}</span>
+                    <span className="ft-serif text-[21px]">{a.name}</span>
+                  </div>
+                  {printAreaFloor(a, settings) > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(printAreaFloor(a, settings))}</span>}
+                </div>
+                {a.note && <div className="text-xs italic text-slate-500 mb-1">{a.note}</div>}
+                <div className="pl-3" style={{ borderLeft: "2px solid var(--ft-border-strong)" }}>
+                  <table className="w-full border-collapse text-[12px]">
+                    <thead>
+                      <tr className="ft-eyebrow text-[8px] text-slate-500">
+                        <th className="text-left font-semibold py-0.5 pr-2">Selection</th>
+                        <th className="text-left font-semibold py-0.5 pr-2">Size</th>
+                        <th className="text-left font-semibold py-0.5 pr-2">SKU</th>
+                        <th className="text-right font-semibold py-0.5 pr-2">Order</th>
+                        <th className="text-right font-semibold py-0.5 pr-2">Price</th>
+                        <th className="text-right font-semibold py-0.5">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {a.products.map((p) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); return (
+                        <Fragment key={p.id}>
+                          <tr className="border-t border-slate-200 align-baseline">
+                            <td className="py-1.5 pr-2"><b className="text-[12.5px]">{p.brandColor || TLBL[p.type]}</b>{p.brandColor && <span className="text-slate-500 text-[10.5px]"> · {TLBL[p.type]}</span>}</td>
+                            <td className="py-1.5 pr-2 whitespace-nowrap text-[11px]">{c.size}</td>
+                            <td className="py-1.5 pr-2 ft-mono text-[10.5px]">{p.sku}</td>
+                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <span className="text-slate-400 text-[10px]"> = {sf1(c.orderedSf)} sf</span>}</td>
+                            <td className="py-1.5 pr-2 text-right whitespace-nowrap text-[11px]">{c.priceText}</td>
+                            <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.line > 0 ? money(c.line) : ""}</td>
+                          </tr>
+                          {inline.length > 0 && (
+                            <tr><td colSpan={6} className="pb-1 pl-4">
+                              {/* Narrower than the table so the order/price/total rails stay scannable. */}
+                              <div style={{ columns: 2, columnGap: 14, maxWidth: 470 }} className="text-[9.5px] leading-snug">
+                                {inline.map((m, i) => (
+                                  <div key={i} className="flex gap-1 break-inside-avoid">
+                                    <span className="ft-eyebrow text-[6.5px] shrink-0 text-right" style={{ width: 34, paddingTop: 2, letterSpacing: ".05em" }}>{KSHORT[m.kind]}</span>
+                                    <span className="ft-mono text-[8.5px] text-slate-500 shrink-0 text-right" style={{ width: 11, paddingTop: 0.5 }}>{m.order > 0 ? m.order : ""}</span>
+                                    <span className="text-slate-700">{m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && ` — ${m.spec}`}{m.detail && <span className="text-slate-400"> · {m.detail}</span>}</>}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td></tr>
+                          )}
+                          {p.note && <tr><td colSpan={6} className="pl-4 pb-1.5 italic text-slate-500 text-[10.5px]">{p.note}</td></tr>}
+                        </Fragment>
+                      ); })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+            {pMats.length > 0 && (
+              <div className="break-inside-avoid mb-4">
+                <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-baseline">
+                  <span className="font-bold text-[13px]">Setting materials &amp; sundries</span>
+                  {groutCost + mortarCost + underlayCost > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + mortarCost + underlayCost)}</span>}
+                </div>
+                <div style={{ columns: 2, columnGap: 24 }}>
+                  {PRINT_KINDS.map((k) => ({ k, items: pMats.filter((m) => m.kind === k) })).filter((g) => g.items.length > 0).map(({ k, items }) => (
+                    <div key={k} className="break-inside-avoid mb-2.5">
+                      <div className="ft-eyebrow text-[8px] border-b border-slate-300 pb-0.5 mb-1">{k}</div>
+                      {items.map((m, i) => (
+                        <div key={i} className="text-[11px] flex justify-between gap-2 py-0.5">
+                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}{m.order > 0 && <><br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></>}</span>
+                          <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="break-inside-avoid">
+              <div className="border-t-2 border-black pt-1.5 flex justify-between items-baseline">
+                <div className="text-[11px] text-slate-500">
+                  {[
+                    flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
+                    groutCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + mortarCost + underlayCost)}` : "",
+                    totalSqft > 0 ? `${totalSqft.toLocaleString()} sq ft measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
+                  ].filter(Boolean).join(" · ")}
+                </div>
+                {grandTotal > 0 && <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>}
+              </div>
+              <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
+            </div>
+          </div>
+  );
   const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -1310,6 +1431,13 @@ export default function App({ user, onSignOut }) {
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <div className="max-w-4xl mx-auto p-3 md:p-5">
+              <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
+                {[["edit", "Edit"], ["preview", "Print preview"]].map(([k, label]) => (
+                  <button key={k} onClick={() => setViewTab(k)} className={"px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition " + (viewTab === k ? "" : "border-transparent text-slate-400 hover:text-slate-600")} style={viewTab === k ? { color: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : {}}>{label}</button>
+                ))}
+              </div>
+              {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
+              <div className={viewTab === "edit" ? "" : "hidden"}>
               <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(12px,1.8vw,18px)" }}>
                 <div className="flex items-end justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
@@ -1734,6 +1862,17 @@ export default function App({ user, onSignOut }) {
                   </div>
                 </div>
               )}
+              </div>
+              {viewTab === "preview" && (
+                <div className="rounded-lg py-6 px-3 md:px-6" style={{ background: "color-mix(in oklab, var(--ft-text) 6%, var(--ft-cream))" }}>
+                  <div className="bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
+                    {renderEstimatePaper()}
+                  </div>
+                  <div className="text-center mt-4">
+                    <button onClick={() => setPrintMode("estimate")} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -1783,121 +1922,7 @@ export default function App({ user, onSignOut }) {
             </table>
             <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
           </div>
-        ) : (
-          <div>
-            <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4 gap-4">
-              <div>
-                <div className="ft-serif text-3xl">{sel.name}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
-              </div>
-              <div className="flex items-stretch gap-6">
-                {(profile.name || profile.phone || profile.email) && (() => { const pname = profile.name || profile.email; return (
-                  <div className="flex flex-col justify-between text-right">
-                    <div className="ft-eyebrow text-[9px] text-slate-500">Your salesperson</div>
-                    <div className="ft-serif text-2xl leading-none">{pname}</div>
-                    <div className="text-[9.5px] text-slate-500 leading-none">{[profile.phone, profile.email].filter((x) => x && x !== pname).join("  ·  ")}</div>
-                  </div>
-                ); })()}
-                {grandTotal > 0 && (
-                  <div className="text-right">
-                    <div className="ft-eyebrow text-[9px]">Estimated total</div>
-                    <div className="ft-serif text-3xl">{money(grandTotal)}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-            {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
-            {sel.categories.map((a, ai) => (
-              <div key={a.id} className="mb-5 break-inside-avoid">
-                <div className="flex justify-between items-baseline border-b-2 border-black pb-1 mb-1.5">
-                  <div className="flex items-baseline gap-2.5">
-                    <span className="ft-mono text-[11px] text-slate-400">{String(ai + 1).padStart(2, "0")}</span>
-                    <span className="ft-serif text-[21px]">{a.name}</span>
-                  </div>
-                  {printAreaFloor(a, settings) > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(printAreaFloor(a, settings))}</span>}
-                </div>
-                {a.note && <div className="text-xs italic text-slate-500 mb-1">{a.note}</div>}
-                <div className="pl-3" style={{ borderLeft: "2px solid var(--ft-border-strong)" }}>
-                  <table className="w-full border-collapse text-[12px]">
-                    <thead>
-                      <tr className="ft-eyebrow text-[8px] text-slate-500">
-                        <th className="text-left font-semibold py-0.5 pr-2">Selection</th>
-                        <th className="text-left font-semibold py-0.5 pr-2">Size</th>
-                        <th className="text-left font-semibold py-0.5 pr-2">SKU</th>
-                        <th className="text-right font-semibold py-0.5 pr-2">Order</th>
-                        <th className="text-right font-semibold py-0.5 pr-2">Price</th>
-                        <th className="text-right font-semibold py-0.5">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {a.products.map((p) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); return (
-                        <Fragment key={p.id}>
-                          <tr className="border-t border-slate-200 align-baseline">
-                            <td className="py-1.5 pr-2"><b className="text-[12.5px]">{p.brandColor || TLBL[p.type]}</b>{p.brandColor && <span className="text-slate-500 text-[10.5px]"> · {TLBL[p.type]}</span>}</td>
-                            <td className="py-1.5 pr-2 whitespace-nowrap text-[11px]">{c.size}</td>
-                            <td className="py-1.5 pr-2 ft-mono text-[10.5px]">{p.sku}</td>
-                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <span className="text-slate-400 text-[10px]"> = {sf1(c.orderedSf)} sf</span>}</td>
-                            <td className="py-1.5 pr-2 text-right whitespace-nowrap text-[11px]">{c.priceText}</td>
-                            <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.line > 0 ? money(c.line) : ""}</td>
-                          </tr>
-                          {inline.length > 0 && (
-                            <tr><td colSpan={6} className="pb-1 pl-4">
-                              {/* Narrower than the table so the order/price/total rails stay scannable. */}
-                              <div style={{ columns: 2, columnGap: 14, maxWidth: 470 }} className="text-[9.5px] leading-snug">
-                                {inline.map((m, i) => (
-                                  <div key={i} className="flex gap-1 break-inside-avoid">
-                                    <span className="ft-eyebrow text-[6.5px] shrink-0 text-right" style={{ width: 34, paddingTop: 2, letterSpacing: ".05em" }}>{KSHORT[m.kind]}</span>
-                                    <span className="ft-mono text-[8.5px] text-slate-500 shrink-0 text-right" style={{ width: 11, paddingTop: 0.5 }}>{m.order > 0 ? m.order : ""}</span>
-                                    <span className="text-slate-700">{m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && ` — ${m.spec}`}{m.detail && <span className="text-slate-400"> · {m.detail}</span>}</>}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </td></tr>
-                          )}
-                          {p.note && <tr><td colSpan={6} className="pl-4 pb-1.5 italic text-slate-500 text-[10.5px]">{p.note}</td></tr>}
-                        </Fragment>
-                      ); })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-            {pMats.length > 0 && (
-              <div className="break-inside-avoid mb-4">
-                <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-baseline">
-                  <span className="font-bold text-[13px]">Setting materials &amp; sundries</span>
-                  {groutCost + mortarCost + underlayCost > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + mortarCost + underlayCost)}</span>}
-                </div>
-                <div style={{ columns: 2, columnGap: 24 }}>
-                  {PRINT_KINDS.map((k) => ({ k, items: pMats.filter((m) => m.kind === k) })).filter((g) => g.items.length > 0).map(({ k, items }) => (
-                    <div key={k} className="break-inside-avoid mb-2.5">
-                      <div className="ft-eyebrow text-[8px] border-b border-slate-300 pb-0.5 mb-1">{k}</div>
-                      {items.map((m, i) => (
-                        <div key={i} className="text-[11px] flex justify-between gap-2 py-0.5">
-                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}{m.order > 0 && <><br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></>}</span>
-                          <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="break-inside-avoid">
-              <div className="border-t-2 border-black pt-1.5 flex justify-between items-baseline">
-                <div className="text-[11px] text-slate-500">
-                  {[
-                    flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
-                    groutCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + mortarCost + underlayCost)}` : "",
-                    totalSqft > 0 ? `${totalSqft.toLocaleString()} sq ft measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
-                  ].filter(Boolean).join(" · ")}
-                </div>
-                {grandTotal > 0 && <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>}
-              </div>
-              <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
-            </div>
-          </div>
-        ))}
+        ) : renderEstimatePaper())}
       </div>
 
       {/* Settings */}
