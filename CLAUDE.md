@@ -121,7 +121,12 @@ price. The SKU box searches by SKU prefix or words ("transition" is a synonym
 for the book's trim labels — reducer, t-mold, end cap, stairnose…); shift-click
 selects several matches and adds each as its own product row, and the Settings
 catalog's add-product form can pre-fill name/price/coverage from a price book
-search.
+search. A Laticrete pigment (Spectralock Part C, Permacolor Color Kit) is only
+the color; picking one **auto-adds its default base unit** as an extra product
+row (Spectralock → Full, Permacolor → Sanded), and that base row carries a chip
+to toggle the alternate variant (Comm. Unit / Unsanded). The pairing is
+data-driven off the book's "Bulk & Base Units" section
+(`stockCompanionBase`/`stockBaseVariant`), so no SKUs are hardcoded.
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add

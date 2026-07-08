@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant } from "./stock.js";
 
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
 
@@ -198,4 +198,42 @@ test("syncCatalogPrices ignores discontinued/inactive items and no-ops on equal 
   ];
   const { changes } = syncCatalogPrices(catalog(), items);
   assert.equal(changes.length, 0);
+});
+
+// --- Laticrete base-unit companions ---------------------------------------------
+
+const baseStock = () => [
+  normStockItem({ sku: "1518983", data: { section: "Laticrete Bulk & Base Units", brand: "Laticrete", product: "Laticrete SpectraLock Full Unit", description: "SpectraLock Full Unit", style: "Full Unit", size: "0.8 GAL", unit: "EA", price: 132.99 } }),
+  normStockItem({ sku: "1518984", data: { section: "Laticrete Bulk & Base Units", brand: "Laticrete", product: "Laticrete SpectraLock Comm. Unit", description: "SpectraLock Comm. Unit", style: "Comm. Unit", size: "3.2 GAL", unit: "EA", price: 374.99 } }),
+  normStockItem({ sku: "1519065", data: { section: "Laticrete Bulk & Base Units", brand: "Laticrete", product: "Laticrete PermaColor Sanded Base", description: "PermaColor Sanded Base", style: "Sanded Base", size: "10 LB", unit: "EA", price: 24.75 } }),
+  normStockItem({ sku: "1519066", data: { section: "Laticrete Bulk & Base Units", brand: "Laticrete", product: "Laticrete PermaColor Unsanded Base", description: "PermaColor Unsanded Base", style: "Unsanded Base", size: "8 LB", unit: "EA", price: 25.89 } }),
+];
+const pigment = (variant) => normStockItem({ sku: "1518985", data: { section: "Laticrete Grout & Caulk", brand: "Laticrete", product: `Laticrete ${variant}`, description: `85 Almond ${variant}`, color: "85 Almond", unit: "EA", price: 32.89 } });
+
+test("stockCompanionBase pairs a pigment with its default base", () => {
+  const stock = baseStock();
+  assert.equal(stockCompanionBase(pigment("Spectralock Part C"), stock).sku, "1518983"); // Full, not Comm
+  assert.equal(stockCompanionBase(pigment("Permacolor Color Kit"), stock).sku, "1519065"); // Sanded, not Unsanded
+});
+
+test("stockCompanionBase returns null for things that need no base", () => {
+  const stock = baseStock();
+  assert.equal(stockCompanionBase(pigment("Latasil Caulk"), stock), null);
+  assert.equal(stockCompanionBase(stock[0], stock), null); // a base unit itself
+  assert.equal(stockCompanionBase(item({ description: "Marazzi Tile", type: "tile" }), stock), null);
+});
+
+test("stockCompanionBase skips inactive/discontinued bases and no-ops without a book", () => {
+  const stock = baseStock().map((b) => normStockItem({ sku: b.sku, active: false, data: { ...b, section: b.section } }));
+  assert.equal(stockCompanionBase(pigment("Spectralock Part C"), stock), null);
+  assert.equal(stockCompanionBase(pigment("Spectralock Part C"), []), null);
+});
+
+test("stockBaseVariant toggles to the sibling base variant", () => {
+  const stock = baseStock();
+  assert.equal(stockBaseVariant(stock[0], stock).sku, "1518984"); // Full -> Comm
+  assert.equal(stockBaseVariant(stock[1], stock).sku, "1518983"); // Comm -> Full
+  assert.equal(stockBaseVariant(stock[2], stock).sku, "1519066"); // Sanded -> Unsanded
+  assert.equal(stockBaseVariant(stock[3], stock).sku, "1519065"); // Unsanded -> Sanded
+  assert.equal(stockBaseVariant(pigment("Spectralock Part C"), stock), null); // not a base
 });

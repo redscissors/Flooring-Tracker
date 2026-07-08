@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
-import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
 
@@ -874,14 +874,17 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
-  // Multi-pick from the SKU dropdown: the first item fills the anchor row, each
-  // further item becomes its own new product row right below it.
+  // Pick from the SKU dropdown: the first item fills the anchor row, each
+  // further item becomes its own new product row right below it. A Laticrete
+  // pigment (Spectralock Part C, Permacolor Color Kit) drags its default base
+  // unit along as an extra row, since neither is usable without the other.
   const addStockProducts = (aid, pid, items) => {
     if (!items.length) return;
+    const expanded = items.flatMap((it) => { const base = stockCompanionBase(it, stock); return base ? [it, base] : [it]; });
     const a = sel.categories.find((x) => x.id === aid);
     const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...stockPatch(items[0], p) },
-      ...items.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
+      { ...p, ...stockPatch(expanded[0], p) },
+      ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
     ]);
     updArea(aid, { products });
   };
@@ -1706,10 +1709,11 @@ export default function App({ user, onSignOut }) {
                         const stockItem = findStock(stock, p.sku);
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
+                        const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
                         const skuBox = stock.length > 0 ? (
                           <SkuPicker value={p.sku || ""} stock={stock}
                             onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                            onPick={(it) => { updProduct(a.id, p.id, stockPatch(it, p)); setFocusQty(p.id); }}
+                            onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                             onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
                         ) : null;
                         return (
@@ -1783,12 +1787,15 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </>)}
                             </div>
-                            {(drift || stockRetired) && (
+                            {(drift || stockRetired || baseAlt) && (
                               <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                                 </>)}
+                                {baseAlt && (
+                                  <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, stockPatch(baseAlt, p))} className="rounded-full border border-slate-300 text-slate-600 px-2 py-0.5 hover:bg-slate-50 font-medium">Use {baseAlt.style || baseAlt.description}</button>
+                                )}
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
                             )}
