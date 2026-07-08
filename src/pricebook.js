@@ -195,13 +195,26 @@ const ADURA_TRIMS = [[7, "Reducer"], [8, "T-Mold"], [9, "End Cap"], [10, "Stairn
 function parseAduramax(rows, items) {
   let size = "";
   let line = "Mannington Aduramax";
+  // Trim prices sit in a single unlabeled row at the bottom of each visual
+  // group (one price per trim column, shared by every color above it), so the
+  // group's trim rows wait here until that row is seen.
+  let pending = []; // { item, col }
+  const flush = (priceRow) => {
+    if (priceRow) for (const { item, col } of pending) { const p = numOrNull(priceRow[col]); if (p != null) item.price = round2(p); }
+    pending = [];
+  };
   for (const row of rows) {
     const name = str(row[0]);
     const disc = row.some((c) => DISC_RE.test(str(c)));
     if (name && !isSku(row[2]) && !ADURA_TRIMS.some(([i]) => isSku(row[i]))) {
+      flush(null);
       const m = name.match(/^(\d+x\d+)\s/i);
       if (m) size = m[1];
       if (/apex/i.test(name)) { line = "Mannington Adura Apex"; size = ""; }
+      continue;
+    }
+    if (!name && !isSku(row[2]) && !ADURA_TRIMS.some(([i]) => isSku(row[i])) && ADURA_TRIMS.some(([i]) => numOrNull(row[i]) != null)) {
+      flush(row);
       continue;
     }
     if (!name) continue;
@@ -216,13 +229,16 @@ function parseAduramax(rows, items) {
     }
     for (const [i, label] of ADURA_TRIMS) {
       if (!isSku(row[i])) continue;
-      items.push(norm({
+      const trim = norm({
         sku: str(row[i]), sheet: "Mann Aduramax", section: `${line} trims`,
         brand: line, description: `${name} — ${label}`,
         unit: "EA", type: null, discontinued: disc,
-      }));
+      });
+      items.push(trim);
+      pending.push({ item: trim, col: i });
     }
   }
+  flush(null);
 }
 
 // --- Grout & Caulk color matrices ---------------------------------------------
@@ -231,12 +247,47 @@ function parseGroutMatrix(rows, items) {
   let title = "";
   let cols = null; // [{ i, name }]
   let prices = null; // by column index
+  let baseCols = null; // Laticrete "Bulk & Base Units": { size, sku, price } column indices
   for (const row of rows) {
     const c0 = str(row[0]).toUpperCase();
     if (c0 === "COLOR#") {
       cols = [];
-      row.forEach((c, i) => { const v = str(c); if (i > 0 && v) cols.push({ i, name: v }); });
+      row.forEach((c, i) => { const v = collapse(str(c)); if (i > 0 && v) cols.push({ i, name: v }); });
       prices = null;
+      baseCols = null;
+      continue;
+    }
+    // A separately-laid-out sub-table (Laticrete base/bulk units): ITEM | SIZE |
+    // SKU | PRICE, one base unit per row (SpectraLock Full/Comm, PermaColor
+    // Sanded/Unsanded) — the material a Part C or Color Kit pigment is mixed
+    // into, sold on its own SKU.
+    if (c0 === "ITEM") {
+      baseCols = {};
+      row.forEach((c, i) => {
+        const k = str(c).toLowerCase();
+        if (i === 0) return;
+        if (/size/.test(k)) baseCols.size = i;
+        else if (k === "sku") baseCols.sku = i;
+        else if (/price/.test(k)) baseCols.price = i;
+      });
+      cols = null; prices = null;
+      continue;
+    }
+    if (baseCols) {
+      const sku = str(row[baseCols.sku]);
+      if (isSku(sku)) {
+        const variant = collapse(str(row[0])); // "SpectraLock Full Unit"
+        items.push(norm({
+          sku, sheet: "Grout & Caulk", section: title,
+          brand: "Laticrete", product: `Laticrete ${variant}`.trim(),
+          description: variant, style: variant.replace(/^(spectralock|permacolor)\s*/i, ""),
+          size: str(row[baseCols.size]), unit: "EA",
+          price: numOrNull(row[baseCols.price]), type: null,
+        }));
+        continue;
+      }
+      const t = firstText(row, 1);
+      if (t) { title = t; baseCols = null; }
       continue;
     }
     if (!cols) {
@@ -254,19 +305,36 @@ function parseGroutMatrix(rows, items) {
       if (t && !cols.some(({ i }) => isSku(row[i]))) { title = t; cols = null; }
       continue;
     }
+    // Laticrete colors are known by their number ("85 Almond"), and the label
+    // reads color-first ("85 Almond Spectralock Part C"); the TEC/Custom Epoxy
+    // matrices keep their long-standing "Product — Color" form.
+    const isLat = /laticrete/i.test(title);
     for (const { i, name } of cols) {
       if (!isSku(row[i])) continue;
-      const productName = `${title.replace(/grout & caulk/i, "").trim() || title} ${titleCase(name)}`.trim();
-      items.push(norm({
-        sku: str(row[i]), sheet: "Grout & Caulk", section: title,
-        brand: title, description: `${productName} — ${titleCase(color)}`,
-        product: productName, color: titleCase(color),
-        unit: "EA", price: prices ? prices[i] : null,
-        type: null,
-      }));
+      if (isLat) {
+        const colorFull = titleCase(str(row[0]));
+        const variant = titleCase(name);
+        items.push(norm({
+          sku: str(row[i]), sheet: "Grout & Caulk", section: title,
+          brand: "Laticrete", description: `${colorFull} ${variant}`,
+          product: `Laticrete ${variant}`, color: colorFull,
+          unit: "EA", price: prices ? prices[i] : null, type: null,
+        }));
+      } else {
+        const productName = `${title.replace(/grout & caulk/i, "").trim() || title} ${titleCase(name)}`.trim();
+        items.push(norm({
+          sku: str(row[i]), sheet: "Grout & Caulk", section: title,
+          brand: title, description: `${productName} — ${titleCase(color)}`,
+          product: productName, color: titleCase(color),
+          unit: "EA", price: prices ? prices[i] : null,
+          type: null,
+        }));
+      }
     }
   }
 }
+
+const collapse = (s) => str(s).replace(/\s+/g, " ").trim();
 
 const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 

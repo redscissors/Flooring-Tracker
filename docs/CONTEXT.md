@@ -70,6 +70,22 @@ A selectable catalog entry carrying its own numbers (a grout product's coverage
 rate; a mortar product's coverage tiers and price) and an enabled state. Names are
 unique within grout and within mortar.
 
+**Base unit** (see ADR 0006):
+The material half of a two-part grout — the SpectraLock Full/Comm. unit or the
+PermaColor Sanded/Unsanded base — that a pigment (SpectraLock Part C, PermaColor
+Color Kit) is mixed into. Modeled as a **companion of the grout product**: it is
+ordered 1:1 with the grout's kit count (`base order = ceil(grout order / per)`,
+where a Commercial unit is `per` 4) and consolidates into the bottom materials
+summary. Defined once from the price book's "Bulk & Base Units" pairing.
+_Avoid_: "base coat" (that's a mortar), "part B".
+
+**SKU link** (see ADR 0006):
+An optional price-book SKU stored **on a catalog product** (grout/mortar/
+underlayment). It is a product attribute, not the key a Selection stores — jobs
+still link **by name** (ADR 0002). Read only when editing the catalog (pre-fill,
+refresh, defining a base companion), never at calculation time (ADR 0003), and
+shown next to each material in the order totals.
+
 **Enabled** (show/hide):
 The on/off state on a company or product controlling whether it appears in
 Selection dropdowns. Disabling hides it from *future* picks; it is never deleted

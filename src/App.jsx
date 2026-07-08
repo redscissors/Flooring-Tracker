@@ -2,8 +2,8 @@ import { Fragment, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
-import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices } from "./stock.js";
+import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
 
@@ -238,19 +238,30 @@ function printProduct(p, s) {
 // Estimate area headers show the flooring subtotal only — material costs live
 // in the bottom "Setting materials & sundries" breakdown.
 const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
-const PRINT_KINDS = ["Grout", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
-const KSHORT = { Grout: "Grout", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
+const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
+const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
+// The catalog SKU a breakdown row carries (materials resolve by name — the SKU
+// is display-only, per ADR 0006).
+const matSku = (kind, name, s) =>
+  kind === "Grout" ? s.grouts[name]?.sku || ""
+    : kind === "Mortar" ? s.mortars[name]?.sku || ""
+      : kind === "Tile Backer" || kind === "Underlayment" ? s.underlayments?.[name]?.sku || "" : "";
 // Whole-job materials for the estimate's bottom breakdown: aggregate exact
 // quantities per item (ceil once at the end, like the on-screen totals) and
 // sum the per-line costs so the breakdown reconciles with the grand total.
+// Base units derive from the aggregated grout kit counts (ADR 0006) via the
+// same groutBaseList the on-screen summary uses.
 function printMatList(cust, s) {
   const agg = new Map();
   (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
     const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, unit: m.unit, price: m.price, exact: 0, cost: 0 };
     e.exact += m.exact; e.cost += m.cost; agg.set(m.key, e);
   })));
-  return [...agg.values()].map((m) => ({ ...m, order: Math.ceil(Math.round(m.exact * 1e6) / 1e6) })).sort((x, y) => PRINT_KINDS.indexOf(x.kind) - PRINT_KINDS.indexOf(y.kind));
+  const rows = [...agg.values()].map((m) => ({ ...m, sku: matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
+  const bases = groutBaseList(rows.filter((m) => m.kind === "Grout").map((m) => ({ product: m.name, order: m.order })), s)
+    .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
+  return [...rows, ...bases].sort((x, y) => PRINT_KINDS.indexOf(x.kind) - PRINT_KINDS.indexOf(y.kind));
 }
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
@@ -874,14 +885,17 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
-  // Multi-pick from the SKU dropdown: the first item fills the anchor row, each
-  // further item becomes its own new product row right below it.
+  // Pick from the SKU dropdown: the first item fills the anchor row, each
+  // further item becomes its own new product row right below it. A Laticrete
+  // pigment (Spectralock Part C, Permacolor Color Kit) drags its default base
+  // unit along as an extra row, since neither is usable without the other.
   const addStockProducts = (aid, pid, items) => {
     if (!items.length) return;
+    const expanded = items.flatMap((it) => { const base = stockCompanionBase(it, stock); return base ? [it, base] : [it]; });
     const a = sel.categories.find((x) => x.id === aid);
     const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...stockPatch(items[0], p) },
-      ...items.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
+      { ...p, ...stockPatch(expanded[0], p) },
+      ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
     ]);
     updArea(aid, { products });
   };
@@ -1184,11 +1198,15 @@ export default function App({ user, onSignOut }) {
 
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
   (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { miscCost += num(p.priceSqft) * miscQty(p); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: settings.grouts[p.grout.product]?.unit || "units", price: num(settings.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: "tubes", exact: 0 }; cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: settings.mortars[p.mortar.product]?.unit || "units", price: num(settings.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: settings.underlayments?.[p.underlay.product]?.unit || "units", price: num(settings.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
-  const gList = Object.values(gAgg).map((g) => { const order = Math.ceil(g.exact); return { ...g, order, cost: order * num(g.price) }; });
-  const mList = Object.values(mAgg).map((m) => { const order = Math.ceil(m.exact); return { ...m, order, cost: order * num(m.price) }; });
-  const uList = Object.values(uAgg).map((u) => { const order = Math.ceil(u.exact); return { ...u, order, cost: order * num(u.price) }; });
-  const cList = Object.values(cAgg).map((c) => ({ ...c, order: Math.ceil(c.exact) }));
-  const hasMat = gList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + mortarCost + underlayCost + miscCost;
+  const gList = Object.values(gAgg).map((g) => { const order = ceilQty(g.exact); return { ...g, sku: settings.grouts[g.product]?.sku || "", order, cost: order * num(g.price) }; });
+  const mList = Object.values(mAgg).map((m) => { const order = ceilQty(m.exact); return { ...m, sku: settings.mortars[m.product]?.sku || "", order, cost: order * num(m.price) }; });
+  const uList = Object.values(uAgg).map((u) => { const order = ceilQty(u.exact); return { ...u, sku: settings.underlayments?.[u.product]?.sku || "", order, cost: order * num(u.price) }; });
+  const cList = Object.values(cAgg).map((c) => ({ ...c, order: ceilQty(c.exact) }));
+  // Base units ride the CONSOLIDATED kit counts (ADR 0006), so they're derived
+  // from gList — not per line — and their cost joins the grout family's.
+  const bList = groutBaseList(gList, settings);
+  const baseCost = bList.reduce((t, b) => t + b.cost, 0);
+  const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + baseCost + mortarCost + underlayCost + miscCost;
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
 
   // The estimate "paper", moved verbatim from the hidden print block. It renders in
@@ -1277,7 +1295,7 @@ export default function App({ user, onSignOut }) {
               <div className="break-inside-avoid mb-4">
                 <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-baseline">
                   <span className="font-bold text-[13px]">Setting materials &amp; sundries</span>
-                  {groutCost + mortarCost + underlayCost > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + mortarCost + underlayCost)}</span>}
+                  {groutCost + baseCost + mortarCost + underlayCost > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + baseCost + mortarCost + underlayCost)}</span>}
                 </div>
                 <div style={{ columns: 2, columnGap: 24 }}>
                   {PRINT_KINDS.map((k) => ({ k, items: pMats.filter((m) => m.kind === k) })).filter((g) => g.items.length > 0).map(({ k, items }) => (
@@ -1285,7 +1303,7 @@ export default function App({ user, onSignOut }) {
                       <div className="ft-eyebrow text-[8px] border-b border-slate-300 pb-0.5 mb-1">{k}</div>
                       {items.map((m, i) => (
                         <div key={i} className="text-[11px] flex justify-between gap-2 py-0.5">
-                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}{m.order > 0 && <><br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></>}</span>
+                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}{m.sku && <span className="ft-mono text-slate-400 text-[9.5px]"> · {m.sku}</span>}{m.order > 0 && <><br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></>}</span>
                           <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : "—"}</span>
                         </div>
                       ))}
@@ -1299,7 +1317,7 @@ export default function App({ user, onSignOut }) {
                 <div className="text-[11px] text-slate-500">
                   {[
                     flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
-                    groutCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + mortarCost + underlayCost)}` : "",
+                    groutCost + baseCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + baseCost + mortarCost + underlayCost)}` : "",
                     totalSqft > 0 ? `${totalSqft.toLocaleString()} sq ft measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
                   ].filter(Boolean).join(" · ")}
                 </div>
@@ -1706,10 +1724,11 @@ export default function App({ user, onSignOut }) {
                         const stockItem = findStock(stock, p.sku);
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
+                        const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
                         const skuBox = stock.length > 0 ? (
                           <SkuPicker value={p.sku || ""} stock={stock}
                             onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                            onPick={(it) => { updProduct(a.id, p.id, stockPatch(it, p)); setFocusQty(p.id); }}
+                            onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                             onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
                         ) : null;
                         return (
@@ -1783,12 +1802,15 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </>)}
                             </div>
-                            {(drift || stockRetired) && (
+                            {(drift || stockRetired || baseAlt) && (
                               <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                                 </>)}
+                                {baseAlt && (
+                                  <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, stockPatch(baseAlt, p))} className="rounded-full border border-slate-300 text-slate-600 px-2 py-0.5 hover:bg-slate-50 font-medium">Use {baseAlt.style || baseAlt.description}</button>
+                                )}
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
                             )}
@@ -1881,9 +1903,9 @@ export default function App({ user, onSignOut }) {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
                     <div>
                       <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Grout</div>
-                      {gList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
+                      {gList.length + bList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...bList.map((b) => ({ product: b.name, sku: b.sku, color: "—", order: b.order, unit: b.unit, cost: b.cost, price: b.price, pending: false })), ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
                         <div key={"g" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}</span>
+                          <span className="text-[13px] font-medium">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {g.sku}</span>}</span>
                           <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block text-[11px] text-slate-400">{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
                         </div>
                       ))}
@@ -1892,7 +1914,7 @@ export default function App({ user, onSignOut }) {
                       <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Mortar</div>
                       {mList.length === 0 ? <div className="text-sm text-slate-400">—</div> : mList.map((m, i) => (
                         <div key={"m" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{m.product}</span>
+                          <span className="text-[13px] font-medium">{m.product}{m.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {m.sku}</span>}</span>
                           <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block text-[11px] text-slate-400">{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
                         </div>
                       ))}
@@ -1901,7 +1923,7 @@ export default function App({ user, onSignOut }) {
                       <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Underlayment</div>
                       {uList.length === 0 ? <div className="text-sm text-slate-400">—</div> : uList.map((u, i) => (
                         <div key={"u" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{u.product}</span>
+                          <span className="text-[13px] font-medium">{u.product}{u.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {u.sku}</span>}</span>
                           <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block text-[11px] text-slate-400">{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
                         </div>
                       ))}
@@ -1909,7 +1931,7 @@ export default function App({ user, onSignOut }) {
                     <div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Flooring</span><span className="ft-mono text-[13px]">{money(flooringPrice)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Grout</span><span className="ft-mono text-[13px]">{money(groutCost)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Grout</span><span className="ft-mono text-[13px]">{money(groutCost + baseCost)}</span></div>
                         <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Mortar</span><span className="ft-mono text-[13px]">{money(mortarCost)}</span></div>
                         {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Underlayment</span><span className="ft-mono text-[13px]">{money(underlayCost)}</span></div>}
                         {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Miscellaneous</span><span className="ft-mono text-[13px]">{money(miscCost)}</span></div>}
@@ -1966,12 +1988,13 @@ export default function App({ user, onSignOut }) {
                 ); }))}
                 {[...mList.filter((m) => m.order > 0).map((m) => ({ ...m, kind: "Mortar" })),
                   ...gList.filter((g) => g.order > 0).map((g) => ({ ...g, product: `${g.product}${g.color !== "—" ? ` — ${g.color}` : ""}`, kind: "Grout" })),
+                  ...bList.filter((b) => b.order > 0).map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
                   ...cList.filter((c) => c.order > 0).map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
                   ...uList.filter((u) => u.order > 0).map((u) => ({ ...u, kind: "Underlayment" }))].map((m, i) => (
                   <tr key={"mat" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
-                    <td className="py-1.5 pr-2">{m.product}</td>
-                    <td className="py-1.5 pr-2 text-slate-400 text-[11px]">{m.kind}</td>
+                    <td className="py-1.5 pr-2">{m.product} <span className="text-slate-400 text-[10.5px]">{m.kind}</span></td>
+                    <td className="py-1.5 pr-2 ft-mono text-[11px]">{m.sku || ""}</td>
                     <td className="py-1.5 pr-2 text-slate-500">all areas</td>
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{m.order} {m.unit} <span className="text-slate-400 font-normal text-[10.5px]">({m.exact.toFixed(2)})</span></td>
                   </tr>
@@ -2281,7 +2304,7 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
   const mortarNames = catalog.companies.flatMap((c) => c.mortars.map((m) => m.name));
 
   const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlayment";
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "" } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "" } : { name: "", coverage: "", unit: "rolls", price: "", types: [] }); setError(""); };
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
   const submitAdd = () => {
     const name = (draft.name || "").trim();
@@ -2292,12 +2315,16 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
   };
   const submitCompany = () => { const name = newCompany.trim(); if (!name) return; onChange(addCompany(catalog, name)); setNewCompany(""); };
   // The book rarely carries coverage, so most items still need it typed in —
-  // mortars always do (three tiers can't come from one number).
+  // mortars always do (three tiers can't come from one number). The pick keeps
+  // the item's SKU on the product (ADR 0006), and a Laticrete pigment brings
+  // its default base unit along (editable before and after adding).
   const fillFromStock = (it) => setDraft((d) => ({
     ...d,
     name: it.product || it.description,
+    sku: it.sku,
     ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
     ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
+    ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, stock) } : {}),
   }));
 
   const box = (on, onClick, title) => (
@@ -2356,10 +2383,31 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                 </div>
                 {delConfirm(co, "grouts", g)}
                 {g.enabled && (
-                  <div className="grid grid-cols-3 gap-2 mt-1.5">
-                    {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
-                    {txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}
-                    {numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}
+                  <div className="mt-1.5 space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
+                      {txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}
+                      {numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}
+                      {txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}
+                    </div>
+                    <div>
+                      <label className={lbl}>Base unit <span className="text-slate-400 font-normal normal-case tracking-normal">(a two-part grout's base — ordered with the kits and shown in the order summary; "per" = kits one base covers)</span></label>
+                      {g.base ? (
+                        <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_auto]">
+                          {txtField("Name", g.base.name, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, name: v } }))}
+                          {txtField("SKU", g.base.sku, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, sku: v } }))}
+                          {numField("Per", g.base.per, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, per: v } }))}
+                          {txtField("Unit", g.base.unit, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, unit: v } }))}
+                          {numField("$/unit", g.base.price, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, price: v } }))}
+                          <button onClick={() => setProduct(co.id, "grouts", g.id, { base: null })} title="Remove base unit" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
+                        </div>
+                      ) : (
+                        <div>
+                          {stock.length > 0 && <StockSearch stock={stock} inp={inp} onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, per: 1 } })} />}
+                          <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2374,12 +2422,13 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                 </div>
                 {delConfirm(co, "mortars", m)}
                 {m.enabled && (
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mt-1.5">
                     {numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}
                     {numField('8"–15"', m.tier2, (v) => setProduct(co.id, "mortars", m.id, { tier2: v }))}
                     {numField('> 15"', m.tier3, (v) => setProduct(co.id, "mortars", m.id, { tier3: v }))}
                     {txtField("Unit", m.unit, (v) => setProduct(co.id, "mortars", m.id, { unit: v }))}
                     {numField("$/unit", m.price, (v) => setProduct(co.id, "mortars", m.id, { price: v }))}
+                    {txtField("SKU", m.sku || "", (v) => setProduct(co.id, "mortars", m.id, { sku: v }))}
                   </div>
                 )}
               </div>
@@ -2395,10 +2444,11 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                 {delConfirm(co, "underlayments", u)}
                 {u.enabled && (
                   <div className="mt-1.5 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {numField("Cov. sq ft/unit", u.coverage, (v) => setProduct(co.id, "underlayments", u.id, { coverage: v }))}
                       {txtField("Unit", u.unit, (v) => setProduct(co.id, "underlayments", u.id, { unit: v }))}
                       {numField("$/unit", u.price, (v) => setProduct(co.id, "underlayments", u.id, { price: v }))}
+                      {txtField("SKU", u.sku || "", (v) => setProduct(co.id, "underlayments", u.id, { sku: v }))}
                     </div>
                     {typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }))}
                     <div>
@@ -2441,25 +2491,36 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
                 {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
                 <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp + " mb-1.5"} />
                 {adding.kind === "grouts" ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
-                    {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
-                    {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
+                      {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+                      {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+                      {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
+                    </div>
+                    {draft.base && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
+                        <span className="flex-1">Also orders <b>{draft.base.name}</b>{draft.base.sku ? <span className="ft-mono text-slate-400"> · {draft.base.sku}</span> : ""} — 1 per kit (editable after adding)</span>
+                        <button onClick={() => setDraft({ ...draft, base: null })} title="Don't attach a base unit" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
+                      </div>
+                    )}
                   </div>
                 ) : adding.kind === "mortars" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                     {numField('Tile < 8"', draft.tier1, (v) => setDraft({ ...draft, tier1: v }))}
                     {numField('8"–15"', draft.tier2, (v) => setDraft({ ...draft, tier2: v }))}
                     {numField('> 15"', draft.tier3, (v) => setDraft({ ...draft, tier3: v }))}
                     {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
                     {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+                    {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
                       {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
                       {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+                      {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
                     </div>
                     {typeChips(draft.types, (v) => setDraft({ ...draft, types: v }))}
                   </div>

@@ -111,6 +111,24 @@ test("Aduramax: flooring item + companion trim SKUs, size from section, Apex lin
   assert.equal(apex.size, ""); // 6x48 must not leak into the Apex section
 });
 
+test("Aduramax: the group's trailing price row prices every trim in that group", () => {
+  const { items } = parse(sheet("Mann Aduramax", [
+    ["Stock Mannington Vinyl Floors", "", "SKU", "SF/CT", "", "CT Price", "SF Price", "Reducer", "T-Mold", "End Cap", "Stairnosing"],
+    ["6x48 Plank Visuals"],
+    ["Acacia Tiger's Eye", "MAX011", "28920", 27.39, "", 131.1981, 4.79, "13191", "13192", "13194", "13193"],
+    ["Napa Tannin", "MAX061", "28870", 27.39, "", 131.1981, 4.79, "13137", "13151", "13179", "13165"],
+    ["", "", "", "", "", "", "", 46.8, 46.8, 46.8, 94.99],
+    ["7x48 Plank Visuals"],
+    ["Swiss Oak Almond", "MAX740", "94568", 28.52, "", 136.6108, 4.79, "94571", "94570", "94569", "94572"],
+    ["", "", "", "", "", "", "", 50, 50, 50, 99],
+  ]));
+  assert.equal(bySku(items, "13191").price, 46.8);  // Reducer
+  assert.equal(bySku(items, "13193").price, 94.99); // Stairnose
+  assert.equal(bySku(items, "13165").price, 94.99); // second color, same group
+  assert.equal(bySku(items, "94571").price, 50);    // next group's own prices
+  assert.equal(bySku(items, "28920").price, 131.2); // the floor is untouched
+});
+
 // --- Grout & Caulk matrices --------------------------------------------------------
 
 test("grout matrix: product per column, SKU per color cell, first PRICE row wins", () => {
@@ -140,6 +158,34 @@ test("grout matrix: product per column, SKU per color cell, first PRICE row wins
   assert.equal(epoxy.price, 33.29);
   // Part B shared across colors dedupes to one row without warnings.
   assert.equal(items.filter((i) => i.sku === "28865").length, 1);
+});
+
+test("grout matrix: Laticrete reads color-first with its number, base units imported", () => {
+  const { items } = parse(sheet("Grout & Caulk", [
+    ["Laticrete Grout & Caulk"],
+    ["COLOR#", "", "SPECTRALOCK\nPART C", "PERMACOLOR\nCOLOR KIT", "LATASIL\nCAULK"],
+    ["", "", "9LB", "COLOR KIT", "10.3OZ"],
+    ["Price", "", 32.89, 5.39, 22.99],
+    ["85 Almond", "", "1518985", "1519025", "1519067"],
+    ["Laticrete Bulk & Base Units"],
+    ["ITEM", "", "SIZE", "SKU", "PRICE"],
+    ["SpectraLock\nFull Unit", "", "0.8 GAL", "1518983", 132.99],
+    ["PermaColor\nSanded Base", "", "10 LB", "1519066", 24.75],
+  ]));
+  const partC = bySku(items, "1518985");
+  assert.equal(partC.description, "85 Almond Spectralock Part C"); // color-first, number kept, newline collapsed
+  assert.equal(partC.color, "85 Almond");
+  assert.equal(partC.product, "Laticrete Spectralock Part C");
+  assert.equal(partC.price, 32.89);
+  assert.equal(bySku(items, "1519025").description, "85 Almond Permacolor Color Kit");
+  assert.equal(bySku(items, "1519067").description, "85 Almond Latasil Caulk");
+  const full = bySku(items, "1518983");
+  assert.equal(full.section, "Laticrete Bulk & Base Units");
+  assert.equal(full.description, "SpectraLock Full Unit");
+  assert.equal(full.size, "0.8 GAL");
+  assert.equal(full.price, 132.99);
+  assert.equal(full.type, null);
+  assert.equal(bySku(items, "1519066").description, "PermaColor Sanded Base");
 });
 
 // --- Tile Seats, Curbs, Trims --------------------------------------------------------

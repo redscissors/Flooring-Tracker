@@ -148,6 +148,54 @@ export function stockDrift(item, product) {
   return Math.abs(cur - now) > 0.005 ? { from: cur, to: now } : null;
 }
 
+// --- Laticrete base-unit companions ---------------------------------------------
+
+// A Spectralock Part C or Permacolor Color Kit item is only the pigment — it is
+// mixed into a base unit sold on its own SKU. Both live in the price book's
+// "Bulk & Base Units" section, so the pairing stays data-driven (no hardcoded
+// SKUs): the pigment auto-adds the default base, which the row can toggle to the
+// alternate variant.
+const isBaseUnit = (it) => /bulk & base|base unit/i.test(it.section || "");
+const baseFamily = (it) => {
+  const t = `${it.product || ""} ${it.description || ""}`;
+  return /spectralock/i.test(t) ? "spectralock" : /permacolor/i.test(t) ? "permacolor" : null;
+};
+const familyBases = (stock, family) =>
+  stock.filter((it) => it.active && !it.discontinued && isBaseUnit(it) && baseFamily(it) === family);
+
+// The base unit to auto-add when a pigment is picked, or null for anything that
+// needs none (Latasil caulk, the base units themselves, ordinary flooring).
+// Default variant: Full for Spectralock, Sanded for PermaColor.
+export function stockCompanionBase(item, stock) {
+  if (!item || isBaseUnit(item)) return null;
+  const t = `${item.product || ""} ${item.description || ""}`.toLowerCase();
+  let family, isDefault;
+  if (/spectralock/.test(t) && /part\s*c/.test(t)) { family = "spectralock"; isDefault = (b) => /full/i.test(b.description); }
+  else if (/permacolor/.test(t) && /color\s*kit/.test(t)) { family = "permacolor"; isDefault = (b) => /(^|[^n])sanded/i.test(b.description); }
+  else return null;
+  const fam = familyBases(stock, family);
+  return fam.find(isDefault) || fam[0] || null;
+}
+
+// The sibling base variant a base-unit row can switch to (Full ↔ Comm, Sanded ↔
+// Unsanded), or null. Each family ships exactly two variants.
+export function stockBaseVariant(item, stock) {
+  if (!item || !isBaseUnit(item)) return null;
+  const family = baseFamily(item);
+  if (!family) return null;
+  return familyBases(stock, family).find((b) => b.sku !== item.sku) || null;
+}
+
+// The catalog `base` companion (ADR 0006) to attach to a grout product when it
+// is added/refreshed from a picked price-book pigment: its default base at the
+// 1:1 ratio. Returns null when the picked item needs no base. The Settings base
+// editor can later swap to the Commercial variant (per 4) via stockBaseVariant.
+export function stockBaseCompanion(item, stock) {
+  const base = stockCompanionBase(item, stock);
+  if (!base) return null;
+  return { sku: base.sku, name: base.description || base.product, unit: base.unit || "units", price: base.price ?? 0, per: 1 };
+}
+
 // --- import diff -----------------------------------------------------------------
 
 const FIELDS = ["description", "brand", "product", "color", "unit", "size", "thickness", "type", "price", "priceSqft", "sfPerUnit", "coverage", "discontinued"];
@@ -192,15 +240,23 @@ const itemMatches = (name, it) => {
 export function syncCatalogPrices(catalog, items) {
   const changes = [];
   const priced = items.filter((it) => it.active !== false && !it.discontinued && it.price != null);
+  const bySku = new Map(priced.map((it) => [it.sku, it]));
   const companies = (catalog?.companies || []).map((co) => {
     const syncKind = (list) => (list || []).map((p) => {
-      const matches = priced.filter((it) => itemMatches(p.name, it));
-      const prices = [...new Set(matches.map((it) => it.price))];
-      if (prices.length !== 1) return p;
-      const to = prices[0];
+      // A product that carries a SKU (ADR 0006) refreshes from that exact item;
+      // otherwise fall back to the conservative unique-name match.
+      let to, sku;
+      const linked = str(p.sku) ? bySku.get(str(p.sku)) : null;
+      if (linked) { to = linked.price; sku = linked.sku; }
+      else {
+        const matches = priced.filter((it) => itemMatches(p.name, it));
+        const prices = [...new Set(matches.map((it) => it.price))];
+        if (prices.length !== 1) return p;
+        to = prices[0]; sku = matches[0].sku;
+      }
       const from = parseFloat(p.price) || 0;
       if (Math.abs(from - to) <= 0.005) return p;
-      changes.push({ name: p.name, from, to, sku: matches[0].sku });
+      changes.push({ name: p.name, from, to, sku });
       return { ...p, price: to };
     });
     return { ...co, grouts: syncKind(co.grouts), mortars: syncKind(co.mortars), underlayments: syncKind(co.underlayments) };
