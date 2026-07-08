@@ -629,3 +629,40 @@ test("getGroutBase is null when the grout has no base or isn't computed", () => 
     base: { sku: "1519065", name: "PermaColor Sanded Base", per: 1 } });
   assert.equal(getGroutBase(tile({ grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "" } }), withBase), null);
 });
+
+// --- Float noise must not inflate any order quantity ----------------------------
+// 200 sf at 10% waste is 220.00000000000003 in floats; before ceilQty, every
+// exact-boundary quantity ordered one extra unit.
+
+test("getGrout: an exact kit count doesn't over-order from float noise", () => {
+  // 12x12x3/8, 1/8" joint -> cov = coverage; 200 * 1.1 / 110 = exactly 2 kits.
+  const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39 });
+  assert.equal(getGrout(tile(), s).order, 2);
+});
+
+test("getMortar: an exact bag count doesn't over-order from float noise", () => {
+  // 12" tile -> tier2; 200 * 1.1 / 55 = exactly 4 bags.
+  const s = normalizeSettings(undefined);
+  s.mortars["ProLite"] = { ...s.mortars["ProLite"], tier2: 55 };
+  assert.equal(getMortar(tile(), s).order, 4);
+});
+
+test("getUnderlay + install materials: exact counts don't over-order from float noise", () => {
+  // 200 * 1.1 / 55 = exactly 4 rolls; install mortar at coverage 44 -> exactly 5.
+  const s = normalizeSettings({
+    waste: { tile: 10, floor: 10 },
+    catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [{ name: "Schluter All Set", tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 0 }], underlayments: [
+      { name: "Ditra", coverage: 55, unit: "rolls", price: 0, types: ["tile"], install: [{ kind: "mortar", product: "Schluter All Set", coverage: 44 }] },
+    ] }] },
+  });
+  const p = tile({ underlay: { checked: true, product: "Ditra", manual: "", install: true, installMortars: {}, installSkip: {} } });
+  assert.equal(getUnderlay(p, s).order, 4);
+  assert.equal(getUnderlayInstall(p, s)[0].order, 5);
+});
+
+test("getGroutBase: an exact base count doesn't over-order from float noise", () => {
+  // 2 kits over a per-4 Commercial unit -> exact 0.5 -> 1 (and no noise at per 1).
+  const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39,
+    base: { sku: "1519065", name: "PermaColor Sanded Base", unit: "units", price: 24.75, per: 1 } });
+  assert.equal(getGroutBase(tile(), s).order, 2);
+});

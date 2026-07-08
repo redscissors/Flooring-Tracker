@@ -26,6 +26,11 @@ export const REF = ((12 + 12) / (12 * 12)) * 0.375 * 0.125;
 
 export const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 
+// Round away float noise before ceiling: 200 sf at 10% waste over 110 coverage
+// is exactly 2 units, not 3 (200 * 1.1 / 110 = 2.0000000000000004). Every
+// order quantity ceils through here.
+export const ceilQty = (ex) => Math.ceil(Math.round(ex * 1e6) / 1e6);
+
 // Waste is per material family: one rate for tile, one shared by every other
 // flooring type (hardwood/vinyl/laminate/carpet). Records written before the
 // split stored a single `wastePct` number — migrate it onto both families so
@@ -66,7 +71,7 @@ export function getMortar(p, s) {
   const m = s.mortars[p.mortar.product] || {};
   if (p.mortar.manual !== "" && p.mortar.manual != null) { const v = num(p.mortar.manual); return { exact: v, order: v, unit: m.unit, price: num(m.price), product: p.mortar.product }; }
   const ex = mortarExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: Math.ceil(ex), unit: m.unit, price: num(m.price), product: p.mortar.product };
+  return { exact: ex, order: ceilQty(ex), unit: m.unit, price: num(m.price), product: p.mortar.product };
 }
 
 export function groutExact(p, s) {
@@ -83,7 +88,7 @@ export function getGrout(p, s) {
   const g = s.grouts[p.grout.product] || {};
   if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color }; }
   const ex = groutExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: Math.ceil(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color };
+  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color };
 }
 
 // The base unit a two-part grout drags along (ADR 0006). One base per grout kit,
@@ -95,7 +100,7 @@ export function getGroutBase(p, s) {
   const b = (s.grouts[p.grout.product] || {}).base; if (!b) return null;
   const per = num(b.per) > 0 ? num(b.per) : 1;
   const exact = G.order / per;
-  return { sku: b.sku || "", name: b.name || "", unit: b.unit, price: num(b.price), per, exact, order: Math.ceil(exact) };
+  return { sku: b.sku || "", name: b.name || "", unit: b.unit, price: num(b.price), per, exact, order: ceilQty(exact) };
 }
 
 // Flooring sold by the carton/sheet: p.cartonSf is the sq ft one carton covers
@@ -116,9 +121,7 @@ export function getCarton(p, s) {
   const unit = String(p.cartonUnit || "CT").toLowerCase();
   if (p.cartonManual !== "" && p.cartonManual != null) { const v = num(p.cartonManual); return { exact: v, order: v, sf: per, unit }; }
   const ex = cartonExact(p, s); if (ex == null) return null;
-  // Round away float noise before ceiling: 200 sf at 22 sf/ct is exactly 10
-  // cartons, not 11 (200 * 1.1 = 220.00000000000003).
-  return { exact: ex, order: Math.ceil(Math.round(ex * 1e6) / 1e6), sf: per, unit };
+  return { exact: ex, order: ceilQty(ex), sf: per, unit };
 }
 
 // Underlayment / backer coverage is a flat area rate: one unit (roll, sheet,
@@ -140,7 +143,7 @@ export function getUnderlay(p, s) {
   const u = s.underlayments?.[p.underlay.product] || {};
   if (p.underlay.manual !== "" && p.underlay.manual != null) { const v = num(p.underlay.manual); return { exact: v, order: v, unit: u.unit, price: num(u.price), product: p.underlay.product }; }
   const ex = underlayExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: Math.ceil(ex), unit: u.unit, price: num(u.price), product: p.underlay.product };
+  return { exact: ex, order: ceilQty(ex), unit: u.unit, price: num(u.price), product: p.underlay.product };
 }
 
 // The extra materials to put the underlayment itself down (mortar bed, screws),
@@ -169,9 +172,9 @@ export function getUnderlayInstall(p, s) {
       const name = p.underlay.installMortars?.[d.id] || d.product;
       if (!name) continue;
       const m = s.mortars[name];
-      out.push({ kind: "mortar", defId: d.id, name, exact, order: Math.ceil(exact), unit: m?.unit ?? "units", price: num(m?.price) });
+      out.push({ kind: "mortar", defId: d.id, name, exact, order: ceilQty(exact), unit: m?.unit ?? "units", price: num(m?.price) });
     } else {
-      out.push({ kind: "custom", defId: d.id, name: d.name, exact, order: Math.ceil(exact), unit: d.unit, price: num(d.price) });
+      out.push({ kind: "custom", defId: d.id, name: d.name, exact, order: ceilQty(exact), unit: d.unit, price: num(d.price) });
     }
   }
   return out.length ? out : null;
