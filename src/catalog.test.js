@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -565,4 +565,67 @@ test("garbage ops normalize away instead of persisting", () => {
 test("one valid stamp survives even when the other is garbage", () => {
   const s = normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { lastImport: { at: 5 }, lastBackup: { at: "nope" } } });
   assert.deepEqual(s.ops, { lastImport: { at: 5, by: "" } });
+});
+
+// --- ADR 0006: catalog SKU link + grout base-unit companion --------------------
+
+const catWithGrout = (grout) => normalizeSettings({
+  waste: { tile: 10, floor: 10 },
+  catalog: { companies: [{ name: "Laticrete", enabled: true, grouts: [grout], mortars: [], underlayments: [] }] },
+});
+
+test("catalog products carry an optional sku through normalize/resolve", () => {
+  const s = normalizeSettings({
+    waste: { tile: 10, floor: 10 },
+    catalog: { companies: [{ name: "Laticrete", enabled: true,
+      grouts: [{ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39, sku: "1519025" }],
+      mortars: [{ name: "ProLite", tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 30, sku: "9001" }],
+      underlayments: [{ name: "Ditra", coverage: 54, unit: "rolls", price: 0, types: ["tile"], sku: "9002" }] }] },
+  });
+  const { grouts, mortars, underlayments } = resolveCatalog(s.catalog);
+  assert.equal(grouts["PermaColor Select"].sku, "1519025");
+  assert.equal(mortars["ProLite"].sku, "9001");
+  assert.equal(underlayments["Ditra"].sku, "9002");
+  // Absent sku normalizes to "" (old records stay valid).
+  const plain = normalizeSettings(undefined);
+  assert.equal(resolveCatalog(plain.catalog).grouts["PermaColor Select"].sku, "");
+});
+
+test("baseCompanion normalizes: defaults per to 1, drops an identity-less base", () => {
+  const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39, sku: "1519025",
+    base: { sku: "1519065", name: "PermaColor Sanded Base", unit: "units", price: 24.75 } });
+  const base = resolveCatalog(s.catalog).grouts["PermaColor Select"].base;
+  assert.equal(base.per, 1); // defaulted
+  assert.equal(base.name, "PermaColor Sanded Base");
+  assert.equal(base.sku, "1519065");
+  const none = catWithGrout({ name: "PermaColor Select", coverage: 110, base: { unit: "units", price: 5 } });
+  assert.equal(resolveCatalog(none.catalog).grouts["PermaColor Select"].base, null);
+});
+
+test("getGrout exposes the product's sku for the totals summary", () => {
+  const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39, sku: "1519025" });
+  assert.equal(getGrout(tile(), s).sku, "1519025");
+});
+
+test("getGroutBase orders 1:1 with kits, per divides (Commercial unit = 4)", () => {
+  // 200 sf, 12x12x3/8 tile, 1/8 joint, coverage 100, 10% waste -> 2.2 -> 3 kits.
+  const one = catWithGrout({ name: "PermaColor Select", coverage: 100, unit: "units", price: 5.39,
+    base: { sku: "1519065", name: "PermaColor Sanded Base", unit: "units", price: 24.75, per: 1 } });
+  assert.equal(getGrout(tile(), one).order, 3);
+  const b1 = getGroutBase(tile(), one);
+  assert.equal(b1.order, 3);       // one base per kit
+  assert.equal(b1.sku, "1519065");
+  assert.equal(b1.per, 1);
+  const four = catWithGrout({ name: "PermaColor Select", coverage: 100, unit: "units", price: 5.39,
+    base: { sku: "1518984", name: "SpectraLock Comm. Unit", unit: "units", price: 374.99, per: 4 } });
+  assert.equal(getGroutBase(tile(), four).order, 1); // ceil(3/4)
+  assert.equal(getGroutBase(tile(), four).exact, 0.75);
+});
+
+test("getGroutBase is null when the grout has no base or isn't computed", () => {
+  const noBase = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39 });
+  assert.equal(getGroutBase(tile(), noBase), null);
+  const withBase = catWithGrout({ name: "PermaColor Select", coverage: 110,
+    base: { sku: "1519065", name: "PermaColor Sanded Base", per: 1 } });
+  assert.equal(getGroutBase(tile({ grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "" } }), withBase), null);
 });

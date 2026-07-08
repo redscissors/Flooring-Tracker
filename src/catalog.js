@@ -81,9 +81,21 @@ export function groutExact(p, s) {
 export function getGrout(p, s) {
   if (p.type !== "tile" || !p.grout.checked) return null;
   const g = s.grouts[p.grout.product] || {};
-  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), product: p.grout.product, color: p.grout.color }; }
+  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color }; }
   const ex = groutExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: Math.ceil(ex), unit: g.unit, price: num(g.price), product: p.grout.product, color: p.grout.color };
+  return { exact: ex, order: Math.ceil(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color };
+}
+
+// The base unit a two-part grout drags along (ADR 0006). One base per grout kit,
+// divided by `per` (a Commercial unit covers 4), so it rides the grout's own
+// ordered kit count — no separate area math. Null when the grout has no base.
+// `name`/`sku` are the identity the totals summary consolidates on.
+export function getGroutBase(p, s) {
+  const G = getGrout(p, s); if (!G) return null;
+  const b = (s.grouts[p.grout.product] || {}).base; if (!b) return null;
+  const per = num(b.per) > 0 ? num(b.per) : 1;
+  const exact = G.order / per;
+  return { sku: b.sku || "", name: b.name || "", unit: b.unit, price: num(b.price), per, exact, order: Math.ceil(exact) };
 }
 
 // Flooring sold by the carton/sheet: p.cartonSf is the sq ft one carton covers
@@ -218,14 +230,25 @@ const SEED_UNDERLAYMENTS = [
   { company: "Sika", name: "Sika MB Rapid Seal", coverage: 200, unit: "units", price: 0, types: ["hardwood", "vinyl", "laminate"] },
 ];
 
-const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0 });
-const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0 });
+// A grout's "base unit" companion (ADR 0006): the material a two-part grout's
+// pigment is mixed into (SpectraLock Full/Comm, PermaColor Sanded/Unsanded),
+// carried on the grout product and ordered 1:1 with its kits. `per` is how many
+// grout kits one base covers (1 for a Full/Sanded/Unsanded base, 4 for a
+// Commercial unit). Needs a name or SKU to have an identity; absent → null.
+const baseCompanion = (b) => {
+  const name = String(b?.name ?? "").trim(), sku = String(b?.sku ?? "").trim();
+  if (!name && !sku) return null;
+  return { sku, name, unit: b?.unit ?? "units", price: b?.price ?? 0, per: num(b?.per) > 0 ? num(b.per) : 1 };
+};
+const skuField = (p) => String(p?.sku ?? "").trim();
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, sku: skuField(g), base: baseCompanion(g?.base) });
+const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m) });
 // Items stored before the mortar link existed have no `kind` — they normalize
 // to "custom" with their fields intact.
 const installItem = (m) => m?.kind === "mortar"
   ? ({ id: m?.id || cid(), kind: "mortar", product: String(m?.product ?? "").trim(), coverage: m?.coverage ?? 0 })
   : ({ id: m?.id || cid(), kind: "custom", name: String(m?.name ?? "").trim(), coverage: m?.coverage ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0 });
-const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem) });
+const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, sku: skuField(u), types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem) });
 const seedInstallFor = (name) => SEED_UNDERLAYMENTS.find((u) => u.install && normName(u.name) === normName(name))?.install;
 const seedUnderlay = (u) => ({ id: cid(), name: u.name, enabled: true, ...underlayFields(u) });
 const seedUnderlaysFor = (companyName) => SEED_UNDERLAYMENTS.filter((u) => u.company === companyName).map(seedUnderlay);
