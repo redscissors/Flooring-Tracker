@@ -628,7 +628,8 @@ export default function App({ user, onSignOut }) {
         const { error } = await supabase.from("stock_items").upsert(upserts.slice(i, i + 200), { onConflict: "sku" });
         if (error) throw error;
       }
-      if (sync.changes.length) setSettings({ catalog: sync.catalog });
+      const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: diff.added.length + diff.changed.length + diff.unchanged.length } };
+      setSettings(sync.changes.length ? { catalog: sync.catalog, ops } : { ops });
       setStock(await loadStock());
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
@@ -1085,6 +1086,7 @@ export default function App({ user, onSignOut }) {
     const attachments = {};
     for (const c of projects) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } }
     dl(new Blob([JSON.stringify({ version: 2, builders, people, projects, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    setSettings({ ops: { ...(settings.ops || {}), lastBackup: { at: Date.now(), by: profile.name || user.email || "" } } });
   };
   const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
     const p = JSON.parse(fr.result);
@@ -1940,6 +1942,7 @@ export default function App({ user, onSignOut }) {
               : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
             Importing the price book .xlsx shows a preview of what changed before anything is saved. Entering a SKU on a product row copies that item's values onto the row; later price changes never rewrite saved selections.
           </p>
+          {settings.ops?.lastImport && <p className="text-xs text-slate-400 -mt-1 mb-2">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}</p>}
           <button onClick={() => pbRef.current?.click()} disabled={importing} className="mb-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import price book (.xlsx)"}</button>
           <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
           <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
@@ -1947,6 +1950,7 @@ export default function App({ user, onSignOut }) {
           <CatalogSettings catalog={settings.catalog} stock={stock} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
           <div className="font-medium text-sm mt-5 mb-1">Backup &amp; restore</div>
           <p className="text-xs text-slate-400 mb-2">Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten.</p>
+          {settings.ops?.lastBackup && <p className="text-xs text-slate-400 -mt-1 mb-2">Last backup downloaded {new Date(settings.ops.lastBackup.at).toLocaleDateString()}{settings.ops.lastBackup.by ? ` by ${settings.ops.lastBackup.by}` : ""}</p>}
           <div className="flex gap-2">
             <button onClick={exportBackup} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Download size={14} /> Download backup</button>
             <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Restore backup</button>
@@ -2019,7 +2023,7 @@ export default function App({ user, onSignOut }) {
             )}
             <div className="flex justify-end gap-2">
               <button onClick={() => setImportPreview(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-              <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import</button>
+              <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import{total > 0 ? ` — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retired` : ""}</button>
             </div>
           </Modal>
         );
