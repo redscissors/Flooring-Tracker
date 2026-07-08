@@ -186,6 +186,16 @@ export function stockBaseVariant(item, stock) {
   return familyBases(stock, family).find((b) => b.sku !== item.sku) || null;
 }
 
+// The catalog `base` companion (ADR 0006) to attach to a grout product when it
+// is added/refreshed from a picked price-book pigment: its default base at the
+// 1:1 ratio. Returns null when the picked item needs no base. The Settings base
+// editor can later swap to the Commercial variant (per 4) via stockBaseVariant.
+export function stockBaseCompanion(item, stock) {
+  const base = stockCompanionBase(item, stock);
+  if (!base) return null;
+  return { sku: base.sku, name: base.description || base.product, unit: base.unit || "units", price: base.price ?? 0, per: 1 };
+}
+
 // --- import diff -----------------------------------------------------------------
 
 const FIELDS = ["description", "brand", "product", "color", "unit", "size", "thickness", "type", "price", "priceSqft", "sfPerUnit", "coverage", "discontinued"];
@@ -230,15 +240,23 @@ const itemMatches = (name, it) => {
 export function syncCatalogPrices(catalog, items) {
   const changes = [];
   const priced = items.filter((it) => it.active !== false && !it.discontinued && it.price != null);
+  const bySku = new Map(priced.map((it) => [it.sku, it]));
   const companies = (catalog?.companies || []).map((co) => {
     const syncKind = (list) => (list || []).map((p) => {
-      const matches = priced.filter((it) => itemMatches(p.name, it));
-      const prices = [...new Set(matches.map((it) => it.price))];
-      if (prices.length !== 1) return p;
-      const to = prices[0];
+      // A product that carries a SKU (ADR 0006) refreshes from that exact item;
+      // otherwise fall back to the conservative unique-name match.
+      let to, sku;
+      const linked = str(p.sku) ? bySku.get(str(p.sku)) : null;
+      if (linked) { to = linked.price; sku = linked.sku; }
+      else {
+        const matches = priced.filter((it) => itemMatches(p.name, it));
+        const prices = [...new Set(matches.map((it) => it.price))];
+        if (prices.length !== 1) return p;
+        to = prices[0]; sku = matches[0].sku;
+      }
       const from = parseFloat(p.price) || 0;
       if (Math.abs(from - to) <= 0.005) return p;
-      changes.push({ name: p.name, from, to, sku: matches[0].sku });
+      changes.push({ name: p.name, from, to, sku });
       return { ...p, price: to };
     });
     return { ...co, grouts: syncKind(co.grouts), mortars: syncKind(co.mortars), underlayments: syncKind(co.underlayments) };

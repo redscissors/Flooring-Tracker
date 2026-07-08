@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion } from "./stock.js";
 
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
 
@@ -236,4 +236,31 @@ test("stockBaseVariant toggles to the sibling base variant", () => {
   assert.equal(stockBaseVariant(stock[2], stock).sku, "1519066"); // Sanded -> Unsanded
   assert.equal(stockBaseVariant(stock[3], stock).sku, "1519065"); // Unsanded -> Sanded
   assert.equal(stockBaseVariant(pigment("Spectralock Part C"), stock), null); // not a base
+});
+
+// --- ADR 0006: base companion for the catalog, exact-SKU price sync -------------
+
+test("stockBaseCompanion builds the catalog base at a 1:1 ratio, null when none", () => {
+  const stock = baseStock();
+  const c = stockBaseCompanion(pigment("Spectralock Part C"), stock);
+  assert.equal(c.sku, "1518983");
+  assert.equal(c.name, "SpectraLock Full Unit");
+  assert.equal(c.per, 1);
+  assert.equal(c.price, 132.99);
+  assert.equal(stockBaseCompanion(pigment("Latasil Caulk"), stock), null);
+});
+
+test("syncCatalogPrices refreshes a SKU-linked product from that exact item", () => {
+  const items = [
+    item({ sku: "1519025", description: "85 Almond Permacolor Color Kit", price: 5.39 }),
+    item({ sku: "9999", description: "Permacolor Color Kit other color", price: 99 }), // same words, different price
+  ];
+  const cat = { companies: [{ id: "c", name: "Laticrete", enabled: true,
+    grouts: [{ id: "g", name: "PermaColor Color Kit", enabled: true, coverage: 100, unit: "units", price: 0, sku: "1519025" }],
+    mortars: [], underlayments: [] }] };
+  const { catalog: next, changes } = syncCatalogPrices(cat, items);
+  // The SKU wins over the ambiguous name match (name alone would no-op here).
+  assert.equal(next.companies[0].grouts[0].price, 5.39);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].sku, "1519025");
 });
