@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from 
 import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
+import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
@@ -2319,6 +2319,8 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const [confirmDel, setConfirmDel] = useState(null); // { companyId, kind, productId }
   const [menuFor, setMenuFor] = useState(null); // company id with the ⋯ menu open
   const [showOthers, setShowOthers] = useState(false); // "Not in this section" group
+  const [rename, setRename] = useState(null); // { value, error } — renaming the selected product
+  const [coRename, setCoRename] = useState(null); // { id, value } — renaming a company inline
 
   const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
   const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
@@ -2332,9 +2334,9 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const mortarNames = catalog.companies.flatMap((c) => c.mortars.map((m) => m.name));
 
   const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlayment";
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
-  const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); };
+  const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); setRename(null); };
   const submitAdd = () => {
     const name = (draft.name || "").trim();
     if (!name) { setError("Product name is required."); return; }
@@ -2419,7 +2421,13 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const companyHeader = (co) => (
     <div className="px-3 py-1 flex items-center gap-2 relative">
       {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
-      <span className={`ft-eyebrow text-[9px] flex-1 truncate ${co.enabled ? "" : "opacity-50"}`}>{co.name}</span>
+      {coRename?.id === co.id ? (
+        <input autoFocus value={coRename.value} onChange={(e) => setCoRename({ id: co.id, value: e.target.value })}
+          onKeyDown={(e) => { if (e.key === "Enter") { const n = coRename.value.trim(); if (n) setCompany(co.id, { name: n }); setCoRename(null); } if (e.key === "Escape") setCoRename(null); }}
+          onBlur={() => setCoRename(null)} placeholder="Enter to save" className={inp + " flex-1 min-w-0 !py-0.5 !text-xs"} />
+      ) : (
+        <span className={`ft-eyebrow text-[9px] flex-1 truncate ${co.enabled ? "" : "opacity-50"}`}>{co.name}</span>
+      )}
       <button onClick={() => setMenuFor(menuFor === co.id ? null : co.id)} title="Company options" className={`shrink-0 ${menuFor === co.id ? "text-slate-600" : "text-slate-300 hover:text-slate-600"}`}><MoreHorizontal size={14} /></button>
       {menuFor === co.id && (
         <>
@@ -2428,6 +2436,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             {kindsFor.map((kind) => (
               <button key={kind} onClick={() => { setMenuFor(null); startAdd(co.id, kind); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={12} className="text-slate-400" /> Add {kindLabel(kind)}</button>
             ))}
+            <button onClick={() => { setMenuFor(null); setCoRename({ id: co.id, value: co.name }); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Pencil size={12} className="text-slate-400" /> Rename company</button>
             {countAll(co) === 0 && <button onClick={() => { setMenuFor(null); onChange(removeCompany(catalog, co.id)); }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"><Trash2 size={12} /> Delete company</button>}
           </div>
         </>
@@ -2435,18 +2444,41 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     </div>
   );
 
-  const detailHeader = (co, kind, p, tag) => (
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <div className="ft-eyebrow text-[9px] mb-1">{co.name} · {tag}</div>
-        <h2 className="ft-serif text-3xl leading-tight">{p.name}</h2>
+  const detailHeader = (co, kind, p, tag) => {
+    const submitRename = () => {
+      const name = (rename?.value || "").trim();
+      if (!name) { setRename({ ...rename, error: "Name is required." }); return; }
+      if (name.toLowerCase() !== p.name.trim().toLowerCase() && isDuplicateName(catalog, kind, name)) { setRename({ ...rename, error: `A ${kindLabel(kind)} named "${name}" already exists.` }); return; }
+      onChange(renameProduct(catalog, co.id, kind, p.id, name));
+      setRename(null);
+    };
+    return (
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="ft-eyebrow text-[9px] mb-1">{co.name} · {tag}</div>
+          {rename ? (
+            <div className="max-w-md">
+              <div className="flex items-center gap-2">
+                <input autoFocus value={rename.value} onChange={(e) => setRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitRename(); if (e.key === "Escape") setRename(null); }} className={inp + " font-medium"} />
+                <button onClick={submitRename} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700 shrink-0">Save</button>
+                <button onClick={() => setRename(null)} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 shrink-0">Cancel</button>
+              </div>
+              {rename.error && <div className="text-xs text-red-500 mt-1">{rename.error}</div>}
+              <p className="text-[11px] text-amber-600 mt-1.5">Jobs resolve materials by name — saved jobs keep the old name and stop calculating until this product is re-picked on them.</p>
+            </div>
+          ) : (
+            <h2 className="ft-serif text-3xl leading-tight">{p.name}
+              <button onClick={() => setRename({ value: p.name })} title={`Rename ${p.name}`} className="ml-2.5 text-slate-300 hover:text-slate-600 align-middle"><Pencil size={15} /></button>
+            </h2>
+          )}
+        </div>
+        <div className="flex items-center gap-3 shrink-0 pt-1">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(p.enabled, () => setProduct(co.id, kind, p.id, { enabled: !p.enabled }), p.enabled ? "Hide from job dropdowns" : "Offer in job dropdowns")} offered on jobs</label>
+          {delButton(co, kind, p)}
+        </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0 pt-1">
-        <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(p.enabled, () => setProduct(co.id, kind, p.id, { enabled: !p.enabled }), p.enabled ? "Hide from job dropdowns" : "Offer in job dropdowns")} offered on jobs</label>
-        {delButton(co, kind, p)}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderGroutDetail = (co, g) => {
     const family = famFor(g);
@@ -2636,7 +2668,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           </div>
           <nav className="px-2 space-y-0.5">
             {SECTIONS.map(({ id, label, icon: Icon, hint }) => (
-              <button key={id} onClick={() => { setSection(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); }} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${section === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+              <button key={id} onClick={() => { setSection(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); setRename(null); setCoRename(null); }} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${section === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
                 <Icon size={15} className={section === id ? "" : "text-slate-400"} />
                 <span className="flex-1">{label}</span>
                 {hint && <span className={`text-[10px] ${section === id ? "text-white/70" : "text-slate-400"}`}>{hint}</span>}

@@ -495,7 +495,7 @@ test("backfill: a stored catalog without the install field gains the seed defaul
   assert.deepEqual(renorm.companies.find((c) => c.name === "James Hardie").underlayments.find((u) => u.name === "HardieBacker").install, []);
 });
 
-import { removeProduct, removeCompany } from "./catalog.js";
+import { removeProduct, removeCompany, renameProduct } from "./catalog.js";
 
 test("removeProduct deletes the product; the name no longer resolves", () => {
   const seeded = seedCatalog(mergeSettings(undefined));
@@ -528,6 +528,35 @@ test("removeProduct on a non-seed product leaves removedSeeds alone; add/company
   cat = addCompany(cat, "New Co");
   cat = addProduct(cat, cat.companies.at(-1).id, "grouts", { name: "X" });
   assert.deepEqual(cat.removedSeeds, ["hardiebacker"]);
+});
+
+test("renameProduct changes the resolving name and keeps the numbers", () => {
+  const seeded = seedCatalog(mergeSettings(undefined));
+  const laticrete = seeded.companies.find((c) => c.name === "Laticrete");
+  const perma = laticrete.grouts.find((g) => g.name === "PermaColor Select");
+  const before = resolveCatalog(seeded).grouts["PermaColor Select"];
+  const next = renameProduct(seeded, laticrete.id, "grouts", perma.id, "PermaColor Select NS");
+  const grouts = resolveCatalog(next).grouts;
+  assert.equal(grouts["PermaColor Select"], undefined); // old name no longer resolves
+  assert.equal(grouts["PermaColor Select NS"].coverage, before.coverage);
+  assert.equal(next.companies.find((c) => c.name === "Laticrete").grouts.find((g) => g.id === perma.id).name, "PermaColor Select NS");
+  assert.deepEqual(next.removedSeeds ?? [], seeded.removedSeeds ?? []); // grout rename never tombstones
+  // Blank names are rejected, not applied.
+  assert.equal(renameProduct(seeded, laticrete.id, "grouts", perma.id, "   "), seeded);
+});
+
+test("a renamed seed underlayment tombstones its seed name and does not resurrect", () => {
+  const seeded = normalizeCatalog(seedCatalog(mergeSettings(undefined)));
+  const hardieCo = seeded.companies.find((c) => c.name === "James Hardie");
+  const hardie = hardieCo.underlayments.find((u) => u.name === "HardieBacker");
+  const next = renameProduct(seeded, hardieCo.id, "underlayments", hardie.id, "HardieBacker 500");
+  assert.deepEqual(next.removedSeeds, ["hardiebacker"]);
+  const reloaded = normalizeCatalog(next);
+  assert.equal(reloaded.companies.flatMap((c) => c.underlayments).some((u) => u.name === "HardieBacker"), false);
+  assert.equal(reloaded.companies.flatMap((c) => c.underlayments).some((u) => u.name === "HardieBacker 500"), true);
+  // A pure case change is the same seed name — nothing to tombstone.
+  const cased = renameProduct(seeded, hardieCo.id, "underlayments", hardie.id, "HARDIEBACKER");
+  assert.deepEqual(cased.removedSeeds ?? [], []);
 });
 
 test("removeCompany drops the company", () => {

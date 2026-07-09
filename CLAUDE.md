@@ -169,7 +169,10 @@ SKU-bearing field is price-book-search-first with manual entry as the
 fallback. The catalog master list is section-scoped: a company shows under a
 section only when it has products of that section's kinds, the rest sit in a
 collapsed "Companies with no …" group, and each company row's ⋯ menu holds
-the add-product actions (and delete, when empty).
+the add-product actions, rename, and delete (when empty). Products rename in
+place from the detail header (`renameProduct` in catalog.js — same saved-jobs
+consequence as delete since jobs resolve by name, and a renamed seed
+underlayment tombstones its seed name like a deleted one).
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add
