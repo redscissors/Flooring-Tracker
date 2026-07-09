@@ -1656,6 +1656,9 @@ export default function App({ user, onSignOut }) {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
                         const sf = p.qtyType === "sqft" ? num(p.qty) : 0;
+                        // Amber-flag the empty qty box only once the row has identity —
+                        // a freshly added blank row shouldn't glow before you start.
+                        const qtyMissing = p.type !== "misc" && !(num(p.qty) > 0) && !!(p.sku || p.brandColor || num(p.priceSqft) > 0);
                         // Sold by the carton: whole cartons drive the line total.
                         const C = getCarton(p, settings), cEx = cartonExact(p, settings);
                         const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : C ? C.order * C.sf * num(p.priceSqft) : sf * num(p.priceSqft);
@@ -1834,7 +1837,7 @@ export default function App({ user, onSignOut }) {
                               {p.type !== "misc" && <div className="basis-full md:hidden" />}
                               <div style={fitW(p.priceSqft, 4, 1.6)} className={`relative shrink-0 h-9 border-slate-200 ${p.type === "misc" ? "border-l" : "border-t md:border-t-0 md:border-l"}`}><span className="absolute left-1.5 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-4 pr-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "misc" ? "0.00" : "/sqft"} title={p.type === "misc" ? "Price each" : "Price per sq ft"} /></div>
                               {p.type !== "misc" && (<>
-                                <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className="flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="0" title="Quantity" />
+                                <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className={`flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center focus:outline-none focus:bg-white ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : "bg-transparent"}`} placeholder="0" title={qtyMissing ? `Enter ${p.qtyType === "sqft" ? "square footage" : "a quantity"}` : "Quantity"} />
                                 <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button tabIndex={-1} key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
                                 {p.qtyType === "sqft" && (
                                   <div className="relative shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200">
