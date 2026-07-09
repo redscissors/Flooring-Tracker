@@ -197,7 +197,7 @@ export function getUnderlayInstall(p, s) {
       const m = s.mortars[name];
       out.push({ kind: "mortar", defId: d.id, name, exact, order: ceilQty(exact), unit: m?.unit ?? "units", price: num(m?.price) });
     } else {
-      out.push({ kind: "custom", defId: d.id, name: d.name, exact, order: ceilQty(exact), unit: d.unit, price: num(d.price) });
+      out.push({ kind: "custom", defId: d.id, name: d.name, sku: d.sku || "", exact, order: ceilQty(exact), unit: d.unit, price: num(d.price) });
     }
   }
   return out.length ? out : null;
@@ -267,13 +267,15 @@ const baseCompanion = (b) => {
   return { sku, name, unit: b?.unit ?? "units", price: b?.price ?? 0, per: num(b?.per) > 0 ? num(b.per) : 1 };
 };
 const skuField = (p) => String(p?.sku ?? "").trim();
-const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, sku: skuField(g), base: baseCompanion(g?.base) });
+// `book` (ADR 0007): the price-book grout family this product offers its
+// colors from — the stock items' `product` name. Empty = standard color list.
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), base: baseCompanion(g?.base) });
 const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m) });
 // Items stored before the mortar link existed have no `kind` — they normalize
 // to "custom" with their fields intact.
 const installItem = (m) => m?.kind === "mortar"
   ? ({ id: m?.id || cid(), kind: "mortar", product: String(m?.product ?? "").trim(), coverage: m?.coverage ?? 0 })
-  : ({ id: m?.id || cid(), kind: "custom", name: String(m?.name ?? "").trim(), coverage: m?.coverage ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0 });
+  : ({ id: m?.id || cid(), kind: "custom", name: String(m?.name ?? "").trim(), coverage: m?.coverage ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m) });
 const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, sku: skuField(u), types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem) });
 const seedInstallFor = (name) => SEED_UNDERLAYMENTS.find((u) => u.install && normName(u.name) === normName(name))?.install;
 const seedUnderlay = (u) => ({ id: cid(), name: u.name, enabled: true, ...underlayFields(u) });

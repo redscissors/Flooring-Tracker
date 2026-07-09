@@ -477,7 +477,7 @@ test("a stored pre-link install item (no kind) normalizes to a custom row with i
   const legacy = { companies: seeded.companies.map((co) => ({ ...co, underlayments: co.underlayments.map((u) => u.name === "HardieBacker" ? { ...u, install: [legacyItem] } : u) })) };
   const norm = normalizeCatalog(legacy);
   const hardie = norm.companies.find((c) => c.name === "James Hardie").underlayments.find((u) => u.name === "HardieBacker");
-  assert.deepEqual(hardie.install, [{ id: "old1", kind: "custom", name: "Backer mortar", coverage: 40, unit: "bags", price: 12 }]);
+  assert.deepEqual(hardie.install, [{ id: "old1", kind: "custom", name: "Backer mortar", coverage: 40, unit: "bags", price: 12, sku: "" }]);
 });
 
 test("backfill: a stored catalog without the install field gains the seed defaults once", () => {
@@ -692,4 +692,30 @@ test("groutBaseList consolidates bases across colors/grouts and applies per", ()
   assert.equal(comm.exact, 1.25); // 5 kits / per 4
   assert.equal(comm.order, 2);
   assert.deepEqual(groutBaseList([{ product: "Tec Power Grout", order: 4 }], s), []);
+});
+
+// --- ADR 0007: grout book-family link, install-item SKUs ------------------------
+
+test("grout book link normalizes through catalog and resolve; absent book = empty", () => {
+  const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "bags", price: 30, book: " Permacolor Select Grout " });
+  assert.equal(resolveCatalog(s.catalog).grouts["PermaColor Select"].book, "Permacolor Select Grout");
+  // Records saved before ADR 0007 have no book field - they normalize to "".
+  const old = catWithGrout({ name: "Old Grout", coverage: 100 });
+  assert.equal(resolveCatalog(old.catalog).grouts["Old Grout"].book, "");
+});
+
+test("custom install items carry a sku through normalize and into getUnderlayInstall", () => {
+  const s = normalizeSettings(undefined);
+  s.catalog.companies.forEach((co) => co.underlayments.forEach((u) => {
+    if (u.name === "HardieBacker") u.install = u.install.map((m) => m.kind === "custom" ? { ...m, sku: "1600123" } : m);
+  }));
+  const s2 = { ...s, ...resolveCatalog(s.catalog) };
+  const items = getUnderlayInstall(hb(), s2);
+  const screws = items.find((m) => m.kind === "custom");
+  assert.equal(screws.sku, "1600123");
+  // Pre-0007 install items have no sku - they normalize to "" and still calculate.
+  const plain = normalizeSettings(undefined);
+  const old = getUnderlayInstall(hb(), plain).find((m) => m.kind === "custom");
+  assert.equal(old.sku, "");
+  assert.equal(old.order, Math.ceil(200 * 1.1 / 75));
 });

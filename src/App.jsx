@@ -1,9 +1,9 @@
-import { Fragment, useState, useEffect, useRef, useLayoutEffect } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany } from "./catalog.js";
-import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
 
@@ -163,7 +163,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
 // Price book lookup for the Settings catalog's add-product form: picking an
 // item pre-fills the draft (name, price, coverage when the book has one). No
 // multi-select — catalog products are added one at a time.
-function StockSearch({ stock, onPick, inp }) {
+function StockSearch({ stock, onPick, inp, placeholder = "Search the price book to pre-fill (optional)…" }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -176,7 +176,7 @@ function StockSearch({ stock, onPick, inp }) {
     <div ref={wrapRef} className="relative mb-1.5">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
-        className={inp} placeholder="Search the price book to pre-fill (optional)…" />
+        className={inp} placeholder={placeholder} />
       {open && pos && results.length > 0 && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-60 overflow-y-auto">
@@ -187,6 +187,35 @@ function StockSearch({ stock, onPick, inp }) {
             ))}
           </div>
           <div className="px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Grout family lookup (ADR 0007): search the imported book's Grout & Caulk
+// families to link a catalog grout's color source.
+function FamilySearch({ families, onPick, inp }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const t = q.trim().toLowerCase();
+  const matches = open ? families.filter((f) => !t || `${f.brand} ${f.product}`.toLowerCase().includes(t)) : [];
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  const pick = (f) => { onPick(f); setQ(""); setOpen(false); };
+  return (
+    <div ref={wrapRef} className="relative flex-1 min-w-0">
+      <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape") setOpen(false); }}
+        className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
+      {open && pos && matches.length > 0 && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 max-h-60 overflow-y-auto">
+          {matches.map((f) => (
+            <button key={f.product} onClick={() => pick(f)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>
+              <div className="flex items-baseline gap-2 text-[11px] text-slate-400"><span className="truncate">{f.brand}</span>{f.price != null && <span className="ml-auto shrink-0 ft-mono">${f.price.toFixed(2)}</span>}</div>
+            </button>
+          ))}
         </div>, document.body)}
     </div>
   );
@@ -221,7 +250,7 @@ function printProduct(p, s) {
     // Show selected grout even when the quantity can't be computed (e.g. tile
     // thickness/joint not entered) so it prints like mortar/backer instead of
     // silently vanishing; blank order/price when uncomputed.
-    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", detail: j ? `${j} joint` : "", inline: true, order: G ? G.order : 0, unit: G ? G.unit : "", exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0 });
+    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: j ? `${j} joint` : "", inline: true, order: G ? G.order : 0, unit: G ? G.unit : "", exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0 });
     const ck = num(p.grout.caulk);
     if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, cost: 0 });
   }
@@ -229,7 +258,7 @@ function printProduct(p, s) {
   if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, price: U.price, cost: U.price > 0 ? U.order * U.price : 0 });
   IN.forEach((m) => mats.push(m.kind === "mortar"
     ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }
-    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
+    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", sku: m.sku || "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
   const size = p.type === "tile" ? `${p.L}" × ${p.W}"${p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : (p.sizeText || "");
   const qtyText = p.type === "misc" ? String(miscQty(p)) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
   const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) + (miscQty(p) !== 1 ? "/ea" : "") : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
@@ -255,10 +284,12 @@ const matSku = (kind, name, s) =>
 function printMatList(cust, s) {
   const agg = new Map();
   (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
-    const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, unit: m.unit, price: m.price, exact: 0, cost: 0 };
-    e.exact += m.exact; e.cost += m.cost; agg.set(m.key, e);
+    const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, sku: "", unit: m.unit, price: m.price, exact: 0, cost: 0 };
+    e.exact += m.exact; e.cost += m.cost; e.sku = e.sku || m.sku || ""; agg.set(m.key, e);
   })));
-  const rows = [...agg.values()].map((m) => ({ ...m, sku: matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
+  // A selection-snapshotted SKU (the grout color's own SKU, ADR 0007) outranks
+  // the catalog product's SKU; the catalog SKU is the fallback.
+  const rows = [...agg.values()].map((m) => ({ ...m, sku: m.sku || matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
   const bases = groutBaseList(rows.filter((m) => m.kind === "Grout").map((m) => ({ product: m.name, order: m.order })), s)
     .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
   return [...rows, ...bases].sort((x, y) => PRINT_KINDS.indexOf(x.kind) - PRINT_KINDS.indexOf(y.kind));
@@ -266,7 +297,7 @@ function printMatList(cust, s) {
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
-const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", joint: 0.125, manual: "", caulk: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
+const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", sku: "", joint: 0.125, manual: "", caulk: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
 const newArea = () => ({ id: uid(), name: "New Area", note: "", products: [newProduct()] });
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
@@ -280,7 +311,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
 
@@ -434,6 +465,9 @@ export default function App({ user, onSignOut }) {
   // SKU picker and drift chips search this in memory. Empty until the team has
   // run supabase/stock.sql and imported the workbook.
   const [stock, setStock] = useState([]);
+  // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
+  // at edit time only (color dropdowns, Settings linking), never at calc time.
+  const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
   // Team to-do / issue list (issue 006): shared rows, loaded once for the
   // sidebar badge and refreshed every time the list is opened.
   const [todos, setTodos] = useState([]);
@@ -1197,10 +1231,11 @@ export default function App({ user, onSignOut }) {
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
-  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { miscCost += num(p.priceSqft) * miscQty(p); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: settings.grouts[p.grout.product]?.unit || "units", price: num(settings.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: "tubes", exact: 0 }; cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: settings.mortars[p.mortar.product]?.unit || "units", price: num(settings.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: settings.underlayments?.[p.underlay.product]?.unit || "units", price: num(settings.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
-  const gList = Object.values(gAgg).map((g) => { const order = ceilQty(g.exact); return { ...g, sku: settings.grouts[g.product]?.sku || "", order, cost: order * num(g.price) }; });
+  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { miscCost += num(p.priceSqft) * miscQty(p); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: settings.grouts[p.grout.product]?.unit || "units", price: num(settings.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", unit: "tubes", exact: 0 }; cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: settings.mortars[p.mortar.product]?.unit || "units", price: num(settings.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: settings.underlayments?.[p.underlay.product]?.unit || "units", price: num(settings.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
+  // The color's own snapshotted SKU (ADR 0007) outranks the catalog product SKU.
+  const gList = Object.values(gAgg).map((g) => { const order = ceilQty(g.exact); return { ...g, sku: g.colorSku || settings.grouts[g.product]?.sku || "", order, cost: order * num(g.price) }; });
   const mList = Object.values(mAgg).map((m) => { const order = ceilQty(m.exact); return { ...m, sku: settings.mortars[m.product]?.sku || "", order, cost: order * num(m.price) }; });
-  const uList = Object.values(uAgg).map((u) => { const order = ceilQty(u.exact); return { ...u, sku: settings.underlayments?.[u.product]?.sku || "", order, cost: order * num(u.price) }; });
+  const uList = Object.values(uAgg).map((u) => { const order = ceilQty(u.exact); return { ...u, sku: u.itemSku || settings.underlayments?.[u.product]?.sku || "", order, cost: order * num(u.price) }; });
   const cList = Object.values(cAgg).map((c) => ({ ...c, order: ceilQty(c.exact) }));
   // Base units ride the CONSOLIDATED kit counts (ADR 0006), so they're derived
   // from gList — not per line — and their cost joins the grout family's.
@@ -1630,8 +1665,15 @@ export default function App({ user, onSignOut }) {
                         // option so it still shows — same pattern as tile thickness above.
                         const groutNames = offeredGrouts(settings.catalog), mortarNames = offeredMortars(settings.catalog);
                         const groutOpts = groutNames.includes(p.grout.product) ? groutNames : [p.grout.product, ...groutNames];
-                        const colorBase = colorsFor(p.grout.product);
+                        // A grout linked to a price-book family (ADR 0007) offers that
+                        // family's colors; picking one snapshots the color's SKU onto
+                        // the row. Unlinked grouts keep the standard code list.
+                        const gBook = settings.grouts[p.grout.product]?.book || "";
+                        const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
+                        const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
+                        const pickGroutColor = (color) => { const it = gBook ? groutColorItem(stock, gBook, color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, color, sku: it ? it.sku : "" } }); };
+                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, product, sku: it ? it.sku : "" } }); };
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
@@ -1847,8 +1889,9 @@ export default function App({ user, onSignOut }) {
                                     <span className="text-sm font-medium">Grout</span>
                                     {p.grout.checked && (
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
-                                        <FitSelect value={p.grout.product} display={p.grout.product} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, product: e.target.value } })}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                        <FitSelect value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, color: e.target.value } })}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
+                                        <FitSelect value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
+                                        <FitSelect value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
+                                        {p.grout.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku}</span>}
                                         <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
                                         <span className="flex items-center gap-1 text-xs text-slate-500 shrink-0" title="Matching caulk for this grout color — tubes to order; leave blank for none">Caulk<input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
                                       </div>
@@ -2006,36 +2049,14 @@ export default function App({ user, onSignOut }) {
         ) : renderEstimatePaper())}
       </div>
 
-      {/* Settings */}
+      {/* Settings — PC-first workspace (issue 007); all writes still flow
+          through setSettings / the import + backup handlers. */}
       {showSettings && (
-        <Modal onClose={() => setShowSettings(false)} title="Coverage, Pricing & Settings">
-          <p className="text-sm text-slate-500 mb-4">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
-          <div className="mb-4 flex gap-6">
-            <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
-            <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
-          </div>
-          <div className="font-medium text-sm mb-1">Stock price book</div>
-          <p className="text-xs text-slate-400 mb-2">
-            {stock.length > 0
-              ? `${stock.filter((s) => s.active).length} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
-              : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
-            Importing the price book .xlsx shows a preview of what changed before anything is saved. Entering a SKU on a product row copies that item's values onto the row; later price changes never rewrite saved selections.
-          </p>
-          {settings.ops?.lastImport && <p className="text-xs text-slate-400 -mt-1 mb-2">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}</p>}
-          <button onClick={() => pbRef.current?.click()} disabled={importing} className="mb-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import price book (.xlsx)"}</button>
-          <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
-          <div className="font-medium text-sm mb-1">Grout, mortar &amp; underlayment catalog</div>
-          <p className="text-xs text-slate-400 mb-2">Products grouped by company. Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected. Underlayments are offered only for the flooring types you tag them with.</p>
-          <CatalogSettings catalog={settings.catalog} stock={stock} onChange={(c) => setSettings({ catalog: c })} inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
-          <div className="font-medium text-sm mt-5 mb-1">Backup &amp; restore</div>
-          <p className="text-xs text-slate-400 mb-2">Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten.</p>
-          {settings.ops?.lastBackup && <p className="text-xs text-slate-400 -mt-1 mb-2">Last backup downloaded {new Date(settings.ops.lastBackup.at).toLocaleDateString()}{settings.ops.lastBackup.by ? ` by ${settings.ops.lastBackup.by}` : ""}</p>}
-          <div className="flex gap-2">
-            <button onClick={exportBackup} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Download size={14} /> Download backup</button>
-            <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Restore backup</button>
-            <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
-          </div>
-        </Modal>
+        <SettingsWorkspace onClose={() => setShowSettings(false)}
+          settings={settings} setSettings={setSettings} stock={stock} gFamilies={gFamilies}
+          importing={importing} importPriceBook={importPriceBook} pbRef={pbRef}
+          exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
+          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
       )}
 
       {showTodos && (
@@ -2281,22 +2302,27 @@ function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, i
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
 // product's numbers are shown and editable only while it is enabled, but stay
 // stored when off. All edits flow up through onChange(newCatalog).
-function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels }) {
+// The PC-first Settings workspace (issue 007): near-fullscreen, left-nav
+// sections, master→detail catalog editing. Pure UI — every write still flows
+// through setSettings and the import/backup handlers passed in from App.
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels }) {
+  const catalog = settings.catalog;
+  const onChange = (c) => setSettings({ catalog: c });
+  const [section, setSection] = useState("grout");
+  // Master→detail selection: an existing product, or (via `adding`) an
+  // add-draft under a company. View state only, never persisted.
+  const [sel, setSel] = useState(null); // { companyId, kind, productId }
   const [newCompany, setNewCompany] = useState("");
   const [adding, setAdding] = useState(null); // { companyId, kind }
   const [draft, setDraft] = useState({});
   const [error, setError] = useState("");
   const [confirmDel, setConfirmDel] = useState(null); // { companyId, kind, productId }
-  // Which companies are expanded — view state only, never persisted. Collapsed
-  // by default so the list stays tidy as products accumulate.
-  const [expanded, setExpanded] = useState(() => new Set());
-  const toggleExpanded = (id) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
   const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
   const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
   const setInstallItem = (cid, u, mid, patch) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).map((m) => m.id === mid ? { ...m, ...patch } : m) });
   const delInstallItem = (cid, u, mid) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).filter((m) => m.id !== mid) });
-  const newInstallItem = (kind) => kind === "mortar" ? { id: uid(), kind: "mortar", product: "", coverage: "" } : { id: uid(), kind: "custom", name: "", coverage: "", unit: "units", price: "" };
+  const newInstallItem = (kind) => kind === "mortar" ? { id: uid(), kind: "mortar", product: "", coverage: "" } : { id: uid(), kind: "custom", name: "", coverage: "", unit: "units", price: "", sku: "" };
   const addInstallItem = (cid, u, kind) => setProduct(cid, "underlayments", u.id, { install: [...(u.install || []), newInstallItem(kind)] });
   // Switching a row's kind rebuilds it (the field sets don't overlap), keeping
   // only the id and coverage.
@@ -2304,8 +2330,9 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
   const mortarNames = catalog.companies.flatMap((c) => c.mortars.map((m) => m.name));
 
   const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlayment";
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
+  const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); };
   const submitAdd = () => {
     const name = (draft.name || "").trim();
     if (!name) { setError("Product name is required."); return; }
@@ -2325,6 +2352,9 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
     ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
     ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
     ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, stock) } : {}),
+    // A pick from the Grout & Caulk color matrix also suggests the color
+    // family link (ADR 0007) — the grout offers that family's colors.
+    ...(adding.kind === "grouts" && it.sheet === "Grout & Caulk" && it.product && it.color ? { book: it.product } : {}),
   }));
 
   const box = (on, onClick, title) => (
@@ -2357,194 +2387,312 @@ function CatalogSettings({ catalog, stock, onChange, inp, lbl, types, typeLabels
       </div>
     );
   };
-  return (
-    <div className="space-y-2">
-      {catalog.companies.map((co) => (
-        <div key={co.id} className="border border-slate-200 rounded-lg p-2.5">
-          <div className="flex items-center gap-2">
-            <button onClick={() => toggleExpanded(co.id)} className="text-slate-400 hover:text-slate-600 shrink-0" title={expanded.has(co.id) ? "Collapse" : "Expand"}>{expanded.has(co.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button>
-            {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
-            <button onClick={() => toggleExpanded(co.id)} className={`text-sm font-semibold flex-1 text-left ${co.enabled ? "" : "text-slate-400"}`}>{co.name}</button>
-            <span className="text-xs text-slate-400 shrink-0">{co.grouts.length + co.mortars.length + (co.underlayments?.length || 0)}</span>
-            {co.grouts.length + co.mortars.length + (co.underlayments?.length || 0) === 0 && (
-              <button onClick={() => onChange(removeCompany(catalog, co.id))} title="Delete this empty company" className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={14} /></button>
-            )}
+  const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
+  const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
+  const addCo = adding ? catalog.companies.find((c) => c.id === adding.companyId) : null;
+  const kindsFor = section === "grout" ? ["grouts"] : ["mortars", "underlayments"];
+  const kindTag = { grouts: "Grout", mortars: "Mortar", underlayments: "Underlayment" };
+  const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0);
+  const famFor = (g) => (g.book ? gFamilies.find((f) => f.product.toLowerCase() === g.book.toLowerCase()) : null);
+  const masterHint = (kind, p) => kind === "grouts"
+    ? (p.book ? (famFor(p) ? `${famFor(p).colors.length} colors · book` : "book link missing") : "standard colors")
+    : kind === "mortars" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
+      : ((p.types || []).length ? p.types.map((t) => typeLabels[t]).join(", ") : "all types") + ((p.install || []).length ? ` · ${p.install.length} install` : "");
+  const SECTIONS = [
+    { id: "general", label: "General", icon: Percent, hint: "waste %" },
+    { id: "book", label: "Price book", icon: BookOpen, hint: stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
+    { id: "grout", label: "Grout & colors", icon: Paintbrush, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length, 0)) },
+    { id: "matunder", label: "Mortar & underlayment", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.mortars.length + (c.underlayments?.length || 0), 0)) },
+    { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
+  ];
+
+  const detailHeader = (co, kind, p, tag) => (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="ft-eyebrow text-[9px] mb-1">{co.name} · {tag}</div>
+        <h2 className="ft-serif text-3xl leading-tight">{p.name}</h2>
+      </div>
+      <div className="flex items-center gap-3 shrink-0 pt-1">
+        <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(p.enabled, () => setProduct(co.id, kind, p.id, { enabled: !p.enabled }), p.enabled ? "Hide from job dropdowns" : "Offer in job dropdowns")} offered on jobs</label>
+        {delButton(co, kind, p)}
+      </div>
+    </div>
+  );
+
+  const renderGroutDetail = (co, g) => {
+    const family = famFor(g);
+    return (
+      <div key={g.id}>
+        {detailHeader(co, "grouts", g, "Grout")}
+        {delConfirm(co, "grouts", g)}
+        <div className="flex flex-wrap items-end gap-2.5 mt-4">
+          <div className="w-36">{numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}</div>
+          <div className="w-24">{txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}</div>
+          <div className="w-28">{numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}</div>
+          <div className="w-36">{txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}</div>
+        </div>
+        <p className="text-[11px] text-slate-400 mt-1.5">Coverage is calibrated here — the book doesn't carry one. Grout scales for tile size, joint and thickness from the 12×12×3/8" / 1/8" baseline.</p>
+        <div className="mt-6 flex items-baseline justify-between gap-3">
+          <div className="font-medium text-sm">Colors &amp; SKUs</div>
+          {family && <span className="text-[11px] text-slate-400">picking a color on a job stamps that color's SKU on the estimate</span>}
+        </div>
+        {g.book ? (family ? (
+          <div className="mt-2 rounded-lg border border-slate-200 p-3 max-h-72 overflow-y-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-0.5">
+              {family.colors.map((c) => (
+                <div key={c.sku} className="flex items-baseline gap-2 text-xs py-0.5 min-w-0">
+                  <span className="truncate">{c.color}</span>
+                  <span className="ft-mono text-[10px] text-slate-400 ml-auto shrink-0">{c.sku}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          {expanded.has(co.id) && (
-          <div className="mt-1.5 space-y-1.5 pl-7">
-            {co.grouts.length === 0 && co.mortars.length === 0 && (co.underlayments?.length || 0) === 0 && <div className="text-xs text-slate-400">No products yet.</div>}
-            {co.grouts.map((g) => (
-              <div key={g.id} className={`rounded-md border px-2.5 py-1.5 ${g.enabled ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                <div className="flex items-center gap-2">
-                  {box(g.enabled, () => setProduct(co.id, "grouts", g.id, { enabled: !g.enabled }))}
-                  <span className={`text-sm font-medium flex-1 ${g.enabled ? "" : "text-slate-400"}`}>{g.name}</span>
-                  <span className="text-xs text-slate-400">Grout</span>
-                  {delButton(co, "grouts", g)}
-                </div>
-                {delConfirm(co, "grouts", g)}
-                {g.enabled && (
-                  <div className="mt-1.5 space-y-2">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}
-                      {txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}
-                      {numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}
-                      {txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}
-                    </div>
-                    <div>
-                      <label className={lbl}>Base unit <span className="text-slate-400 font-normal normal-case tracking-normal">(a two-part grout's base — ordered with the kits and shown in the order summary; "per" = kits one base covers)</span></label>
-                      {g.base ? (
-                        <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_auto]">
-                          {txtField("Name", g.base.name, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, name: v } }))}
-                          {txtField("SKU", g.base.sku, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, sku: v } }))}
-                          {numField("Per", g.base.per, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, per: v } }))}
-                          {txtField("Unit", g.base.unit, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, unit: v } }))}
-                          {numField("$/unit", g.base.price, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, price: v } }))}
-                          <button onClick={() => setProduct(co.id, "grouts", g.id, { base: null })} title="Remove base unit" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
-                        </div>
-                      ) : (
-                        <div>
-                          {stock.length > 0 && <StockSearch stock={stock} inp={inp} onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, per: 1 } })} />}
-                          <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {co.mortars.map((m) => (
-              <div key={m.id} className={`rounded-md border px-2.5 py-1.5 ${m.enabled ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                <div className="flex items-center gap-2">
-                  {box(m.enabled, () => setProduct(co.id, "mortars", m.id, { enabled: !m.enabled }))}
-                  <span className={`text-sm font-medium flex-1 ${m.enabled ? "" : "text-slate-400"}`}>{m.name}</span>
-                  <span className="text-xs text-slate-400">Mortar</span>
-                  {delButton(co, "mortars", m)}
-                </div>
-                {delConfirm(co, "mortars", m)}
-                {m.enabled && (
-                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mt-1.5">
-                    {numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}
-                    {numField('8"–15"', m.tier2, (v) => setProduct(co.id, "mortars", m.id, { tier2: v }))}
-                    {numField('> 15"', m.tier3, (v) => setProduct(co.id, "mortars", m.id, { tier3: v }))}
-                    {txtField("Unit", m.unit, (v) => setProduct(co.id, "mortars", m.id, { unit: v }))}
-                    {numField("$/unit", m.price, (v) => setProduct(co.id, "mortars", m.id, { price: v }))}
-                    {txtField("SKU", m.sku || "", (v) => setProduct(co.id, "mortars", m.id, { sku: v }))}
-                  </div>
-                )}
-              </div>
-            ))}
-            {(co.underlayments || []).map((u) => (
-              <div key={u.id} className={`rounded-md border px-2.5 py-1.5 ${u.enabled ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                <div className="flex items-center gap-2">
-                  {box(u.enabled, () => setProduct(co.id, "underlayments", u.id, { enabled: !u.enabled }))}
-                  <span className={`text-sm font-medium flex-1 ${u.enabled ? "" : "text-slate-400"}`}>{u.name}</span>
-                  <span className="text-xs text-slate-400">Underlayment</span>
-                  {delButton(co, "underlayments", u)}
-                </div>
-                {delConfirm(co, "underlayments", u)}
-                {u.enabled && (
-                  <div className="mt-1.5 space-y-2">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {numField("Cov. sq ft/unit", u.coverage, (v) => setProduct(co.id, "underlayments", u.id, { coverage: v }))}
-                      {txtField("Unit", u.unit, (v) => setProduct(co.id, "underlayments", u.id, { unit: v }))}
-                      {numField("$/unit", u.price, (v) => setProduct(co.id, "underlayments", u.id, { price: v }))}
-                      {txtField("SKU", u.sku || "", (v) => setProduct(co.id, "underlayments", u.id, { sku: v }))}
-                    </div>
-                    {typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }))}
-                    <div>
-                      <label className={lbl}>Install materials <span className="text-slate-400 font-normal normal-case tracking-normal">(added when a job checks "Install materials"; mortar rows pull unit &amp; price from that mortar and combine with the job's mortar totals)</span></label>
-                      <div className="space-y-1.5">
-                        {(u.install || []).map((m) => (
-                          <div key={m.id} className={`grid gap-1.5 items-end ${m.kind === "mortar" ? "grid-cols-[auto_1.6fr_1fr_auto]" : "grid-cols-[auto_1.4fr_.9fr_.7fr_.7fr_auto]"}`}>
-                            <div><label className={lbl}>Type</label>
-                              <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px]">{[["mortar", "Mortar"], ["custom", "Other"]].map(([k, l]) => <button key={k} onClick={() => setInstallKind(co.id, u, m.id, k)} className={`px-1.5 py-1.5 ${m.kind === k ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{l}</button>)}</div>
-                            </div>
-                            {m.kind === "mortar" ? (
-                              <div><label className={lbl}>Mortar</label>
-                                <select value={m.product} onChange={(e) => setInstallItem(co.id, u, m.id, { product: e.target.value })} className={inp}>
-                                  {!m.product && <option value="">Select…</option>}
-                                  {(m.product && !mortarNames.includes(m.product) ? [m.product, ...mortarNames] : mortarNames).map((n) => <option key={n} value={n}>{n}</option>)}
-                                </select>
-                              </div>
-                            ) : (
-                              txtField("Name", m.name, (v) => setInstallItem(co.id, u, m.id, { name: v }))
-                            )}
-                            {numField("Cov. sq ft/unit", m.coverage, (v) => setInstallItem(co.id, u, m.id, { coverage: v }))}
-                            {m.kind !== "mortar" && txtField("Unit", m.unit, (v) => setInstallItem(co.id, u, m.id, { unit: v }))}
-                            {m.kind !== "mortar" && numField("$/unit", m.price, (v) => setInstallItem(co.id, u, m.id, { price: v }))}
-                            <button onClick={() => delInstallItem(co.id, u, m.id)} title="Remove install material" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
-                          </div>
-                        ))}
-                        <div className="flex gap-3">
-                          <button onClick={() => addInstallItem(co.id, u, "mortar")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Mortar</button>
-                          <button onClick={() => addInstallItem(co.id, u, "custom")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Other (screws, tape…)</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {adding && adding.companyId === co.id ? (
-              <div className="rounded-md border border-indigo-200 bg-white px-2.5 py-2">
-                <div className="text-xs font-medium mb-1.5">New {kindLabel(adding.kind)} product</div>
-                {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
-                <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp + " mb-1.5"} />
-                {adding.kind === "grouts" ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
-                      {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
-                      {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
-                      {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
-                    </div>
-                    {draft.base && (
-                      <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
-                        <span className="flex-1">Also orders <b>{draft.base.name}</b>{draft.base.sku ? <span className="ft-mono text-slate-400"> · {draft.base.sku}</span> : ""} — 1 per kit (editable after adding)</span>
-                        <button onClick={() => setDraft({ ...draft, base: null })} title="Don't attach a base unit" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
-                      </div>
-                    )}
-                  </div>
-                ) : adding.kind === "mortars" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                    {numField('Tile < 8"', draft.tier1, (v) => setDraft({ ...draft, tier1: v }))}
-                    {numField('8"–15"', draft.tier2, (v) => setDraft({ ...draft, tier2: v }))}
-                    {numField('> 15"', draft.tier3, (v) => setDraft({ ...draft, tier3: v }))}
-                    {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
-                    {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
-                    {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
-                      {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
-                      {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
-                      {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
-                    </div>
-                    {typeChips(draft.types, (v) => setDraft({ ...draft, types: v }))}
-                  </div>
-                )}
-                {error && <div className="text-xs text-red-500 mt-1.5">{error}</div>}
-                <div className="flex gap-2 mt-2">
-                  <button onClick={submitAdd} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700">Add</button>
-                  <button onClick={cancelAdd} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50">Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-3 pt-0.5">
-                <button onClick={() => startAdd(co.id, "grouts")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Grout</button>
-                <button onClick={() => startAdd(co.id, "mortars")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Mortar</button>
-                <button onClick={() => startAdd(co.id, "underlayments")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Underlayment</button>
-              </div>
-            )}
-          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 rounded-md border border-amber-200 px-3 py-2"><Link2Off size={12} className="shrink-0" /> Linked to "{g.book}", which isn't in the imported book — re-import the price book or re-link below.</div>
+        )) : (
+          <p className="mt-2 text-xs text-slate-400">No color link — jobs offer the standard color list and grout lines print without a per-color SKU.</p>
+        )}
+        <div className="mt-2 flex items-center gap-2 max-w-xl">
+          {gFamilies.length > 0 ? <FamilySearch families={gFamilies} inp={inp} onPick={(f) => setProduct(co.id, "grouts", g.id, { book: f.product })} />
+            : <p className="text-[11px] text-slate-400 flex-1">Import the price book to link a color family.</p>}
+          {g.book && <button onClick={() => setProduct(co.id, "grouts", g.id, { book: "" })} className="text-xs text-slate-400 hover:text-red-500 shrink-0">Unlink colors</button>}
+        </div>
+        <div className="mt-6 max-w-2xl">
+          <label className={lbl}>Base unit <span className="text-slate-400 font-normal normal-case tracking-normal">(a two-part grout's base — ordered with the kits and shown in the order summary; "per" = kits one base covers)</span></label>
+          {g.base ? (
+            <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_auto]">
+              {txtField("Name", g.base.name, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, name: v } }))}
+              {txtField("SKU", g.base.sku, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, sku: v } }))}
+              {numField("Per", g.base.per, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, per: v } }))}
+              {txtField("Unit", g.base.unit, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, unit: v } }))}
+              {numField("$/unit", g.base.price, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, price: v } }))}
+              <button onClick={() => setProduct(co.id, "grouts", g.id, { base: null })} title="Remove base unit" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
+            </div>
+          ) : (
+            <div>
+              {stock.length > 0 && <StockSearch stock={stock} inp={inp} placeholder="Search the book for the base unit…" onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, per: 1 } })} />}
+              <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
+            </div>
           )}
         </div>
-      ))}
-      <div className="flex gap-2 items-center pt-1">
-        <input placeholder="New company name" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitCompany(); }} className={inp + " flex-1"} />
-        <button onClick={submitCompany} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 flex items-center gap-1 shrink-0"><Plus size={14} /> Company</button>
+      </div>
+    );
+  };
+
+  const renderMortarDetail = (co, m) => (
+    <div key={m.id}>
+      {detailHeader(co, "mortars", m, "Mortar")}
+      {delConfirm(co, "mortars", m)}
+      <div className="flex flex-wrap items-end gap-2.5 mt-4">
+        <div className="w-28">{numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}</div>
+        <div className="w-28">{numField('8"–15"', m.tier2, (v) => setProduct(co.id, "mortars", m.id, { tier2: v }))}</div>
+        <div className="w-28">{numField('> 15"', m.tier3, (v) => setProduct(co.id, "mortars", m.id, { tier3: v }))}</div>
+        <div className="w-24">{txtField("Unit", m.unit, (v) => setProduct(co.id, "mortars", m.id, { unit: v }))}</div>
+        <div className="w-28">{numField("$/unit", m.price, (v) => setProduct(co.id, "mortars", m.id, { price: v }))}</div>
+        <div className="w-36">{txtField("SKU", m.sku || "", (v) => setProduct(co.id, "mortars", m.id, { sku: v }))}</div>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1.5">Coverage sq ft per unit, tiered by the tile's longest side.</p>
+    </div>
+  );
+
+  const renderUnderlayDetail = (co, u) => (
+    <div key={u.id}>
+      {detailHeader(co, "underlayments", u, "Underlayment")}
+      {delConfirm(co, "underlayments", u)}
+      <div className="flex flex-wrap items-end gap-2.5 mt-4">
+        <div className="w-36">{numField("Cov. sq ft/unit", u.coverage, (v) => setProduct(co.id, "underlayments", u.id, { coverage: v }))}</div>
+        <div className="w-24">{txtField("Unit", u.unit, (v) => setProduct(co.id, "underlayments", u.id, { unit: v }))}</div>
+        <div className="w-28">{numField("$/unit", u.price, (v) => setProduct(co.id, "underlayments", u.id, { price: v }))}</div>
+        <div className="w-36">{txtField("SKU", u.sku || "", (v) => setProduct(co.id, "underlayments", u.id, { sku: v }))}</div>
+      </div>
+      <div className="mt-4">{typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }))}</div>
+      <div className="mt-6 max-w-3xl">
+        <label className={lbl}>Install materials <span className="text-slate-400 font-normal normal-case tracking-normal">(added when a job checks "Install materials"; mortar rows pull unit &amp; price from that mortar and combine with the job's mortar totals)</span></label>
+        <div className="space-y-1.5">
+          {(u.install || []).map((m) => (
+            <div key={m.id} className={`grid gap-1.5 items-end ${m.kind === "mortar" ? "grid-cols-[auto_1.6fr_1fr_auto]" : "grid-cols-[auto_1.3fr_.8fr_.6fr_.6fr_.9fr_auto]"}`}>
+              <div><label className={lbl}>Type</label>
+                <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px]">{[["mortar", "Mortar"], ["custom", "Other"]].map(([k, l]) => <button key={k} onClick={() => setInstallKind(co.id, u, m.id, k)} className={`px-1.5 py-1.5 ${m.kind === k ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{l}</button>)}</div>
+              </div>
+              {m.kind === "mortar" ? (
+                <div><label className={lbl}>Mortar</label>
+                  <select value={m.product} onChange={(e) => setInstallItem(co.id, u, m.id, { product: e.target.value })} className={inp}>
+                    {!m.product && <option value="">Select…</option>}
+                    {(m.product && !mortarNames.includes(m.product) ? [m.product, ...mortarNames] : mortarNames).map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              ) : (
+                txtField("Name", m.name, (v) => setInstallItem(co.id, u, m.id, { name: v }))
+              )}
+              {numField("Cov. sq ft/unit", m.coverage, (v) => setInstallItem(co.id, u, m.id, { coverage: v }))}
+              {m.kind !== "mortar" && txtField("Unit", m.unit, (v) => setInstallItem(co.id, u, m.id, { unit: v }))}
+              {m.kind !== "mortar" && numField("$/unit", m.price, (v) => setInstallItem(co.id, u, m.id, { price: v }))}
+              {m.kind !== "mortar" && txtField("SKU", m.sku || "", (v) => setInstallItem(co.id, u, m.id, { sku: v }))}
+              <button onClick={() => delInstallItem(co.id, u, m.id)} title="Remove install material" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
+            </div>
+          ))}
+          <div className="flex gap-3">
+            <button onClick={() => addInstallItem(co.id, u, "mortar")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Mortar</button>
+            <button onClick={() => addInstallItem(co.id, u, "custom")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Other (screws, tape…)</button>
+          </div>
+          {stock.length > 0 && <StockSearch stock={stock} inp={inp} placeholder="Add from the price book — screws, tape, sealer… (keeps the SKU for the order summary)" onPick={(it) => setProduct(co.id, "underlayments", u.id, { install: [...(u.install || []), { id: uid(), kind: "custom", name: it.description || it.product, coverage: it.coverage != null ? String(it.coverage) : "", unit: it.unit || "units", price: it.price != null ? String(it.price) : "", sku: it.sku }] })} />}
+        </div>
+      </div>
+    </div>
+  );
+  const renderAddForm = () => addCo && (
+    <div className="max-w-xl">
+      <div className="ft-eyebrow text-[9px] mb-1">{addCo.name}</div>
+      <h2 className="ft-serif text-3xl leading-tight">New {kindLabel(adding.kind)}</h2>
+      <div className="mt-4 space-y-2">
+        {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
+        <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp} />
+        {adding.kind === "grouts" ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
+              {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+              {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+              {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
+            </div>
+            {draft.book && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
+                <Link2 size={12} className="shrink-0" /><span className="flex-1">Colors &amp; per-color SKUs from <b>{draft.book}</b></span>
+                <button onClick={() => setDraft({ ...draft, book: "" })} title="Don't link colors" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
+              </div>
+            )}
+            {draft.base && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
+                <span className="flex-1">Also orders <b>{draft.base.name}</b>{draft.base.sku ? <span className="ft-mono text-slate-400"> · {draft.base.sku}</span> : ""} — 1 per kit (editable after adding)</span>
+                <button onClick={() => setDraft({ ...draft, base: null })} title="Don't attach a base unit" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
+              </div>
+            )}
+          </>
+        ) : adding.kind === "mortars" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+            {numField('Tile < 8"', draft.tier1, (v) => setDraft({ ...draft, tier1: v }))}
+            {numField('8"–15"', draft.tier2, (v) => setDraft({ ...draft, tier2: v }))}
+            {numField('> 15"', draft.tier3, (v) => setDraft({ ...draft, tier3: v }))}
+            {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+            {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+            {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
+              {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+              {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+              {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
+            </div>
+            {typeChips(draft.types, (v) => setDraft({ ...draft, types: v }))}
+          </>
+        )}
+        {error && <div className="text-xs text-red-500">{error}</div>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={submitAdd} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700">Add</button>
+          <button onClick={cancelAdd} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="print:hidden fixed inset-0 z-50 p-2 md:p-5" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <aside className="w-56 shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col">
+          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+            <h3 className="ft-serif text-2xl">Settings</h3>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          </div>
+          <nav className="px-2 space-y-0.5">
+            {SECTIONS.map(({ id, label, icon: Icon, hint }) => (
+              <button key={id} onClick={() => { setSection(id); setSel(null); setAdding(null); setConfirmDel(null); }} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${section === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                <Icon size={15} className={section === id ? "" : "text-slate-400"} />
+                <span className="flex-1">{label}</span>
+                {hint && <span className={`text-[10px] ${section === id ? "text-white/70" : "text-slate-400"}`}>{hint}</span>}
+              </button>
+            ))}
+          </nav>
+          <div className="mt-auto p-4 text-[11px] text-slate-400 border-t border-slate-100 space-y-0.5">
+            {settings.ops?.lastImport && <div>Book imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}</div>}
+            {settings.ops?.lastBackup && <div>Last backup {new Date(settings.ops.lastBackup.at).toLocaleDateString()}</div>}
+          </div>
+        </aside>
+
+        {(section === "grout" || section === "matunder") ? (
+          <>
+            <div className="w-72 shrink-0 border-r border-slate-200 overflow-y-auto py-2">
+              <p className="px-3 pb-1.5 text-[11px] text-slate-400">Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
+              {catalog.companies.map((co) => (
+                <div key={co.id} className="mb-1">
+                  <div className="px-3 py-1 flex items-center gap-2">
+                    {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
+                    <span className={`ft-eyebrow text-[9px] flex-1 truncate ${co.enabled ? "" : "opacity-50"}`}>{co.name}</span>
+                    {countAll(co) === 0 && <button onClick={() => onChange(removeCompany(catalog, co.id))} title="Delete this empty company" className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>}
+                  </div>
+                  {kindsFor.flatMap((kind) => (co[kind] || []).map((p) => { const active = sel && sel.companyId === co.id && sel.kind === kind && sel.productId === p.id; return (
+                    <button key={p.id} onClick={() => pickProduct(co.id, kind, p.id)} className={`w-full text-left pl-9 pr-2.5 py-1.5 flex items-center gap-2 border-l-2 ${active ? "border-indigo-600 bg-indigo-50/40" : "border-transparent hover:bg-slate-50"}`}>
+                      <span className="min-w-0 flex-1">
+                        <span className={`block text-sm truncate ${p.enabled ? "font-medium" : "text-slate-400"}`}>{p.name}</span>
+                        <span className="block text-[10px] text-slate-400 truncate">{section === "matunder" ? `${kindTag[kind]} · ${masterHint(kind, p)}` : masterHint(kind, p)}</span>
+                      </span>
+                      <ChevronRight size={13} className="text-slate-300 shrink-0" />
+                    </button>
+                  ); }))}
+                  <div className="pl-9 pr-3 py-0.5 flex gap-3">
+                    {kindsFor.map((kind) => <button key={kind} onClick={() => startAdd(co.id, kind)} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-0.5"><Plus size={11} /> {kindTag[kind]}</button>)}
+                  </div>
+                </div>
+              ))}
+              <div className="px-3 pt-2 mt-1 border-t border-slate-100 flex gap-2 items-center">
+                <input placeholder="New company" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitCompany(); }} className={inp + " flex-1"} />
+                <button onClick={submitCompany} className="text-xs rounded-md border border-slate-200 px-2 py-2 hover:bg-slate-50 flex items-center gap-1 shrink-0"><Plus size={12} /> Add</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 md:p-6">
+              {adding ? renderAddForm()
+                : selProd && sel.kind === "grouts" ? renderGroutDetail(selCo, selProd)
+                  : selProd && sel.kind === "mortars" ? renderMortarDetail(selCo, selProd)
+                    : selProd ? renderUnderlayDetail(selCo, selProd)
+                      : <div className="h-full flex items-center justify-center text-sm text-slate-400">Select a product on the left — or add one under its company.</div>}
+            </div>
+          </>
+        ) : section === "general" ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <h2 className="ft-serif text-3xl">General</h2>
+            <p className="text-sm text-slate-500 mt-1 max-w-xl">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
+            <div className="mt-5 flex gap-6">
+              <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
+              <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
+            </div>
+          </div>
+        ) : section === "book" ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <h2 className="ft-serif text-3xl">Price book</h2>
+            <p className="text-xs text-slate-400 mt-2 max-w-xl">
+              {stock.length > 0
+                ? `${stock.filter((s) => s.active).length} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
+                : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
+              Importing the price book .xlsx shows a preview of what changed before anything is saved. Entering a SKU on a product row copies that item's values onto the row; later price changes never rewrite saved selections.
+            </p>
+            {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}</p>}
+            {gFamilies.length > 0 && <p className="text-xs text-slate-400 mt-1 max-w-xl">Grout &amp; caulk: {gFamilies.length} color families · {gFamilies.reduce((n, f) => n + f.colors.length, 0)} color SKUs. Link a family on each grout under "Grout &amp; colors" so jobs offer its colors and stamp the color's SKU.</p>}
+            <button onClick={() => pbRef.current?.click()} disabled={importing} className="mt-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import price book (.xlsx)"}</button>
+            <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-6">
+            <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
+            <p className="text-xs text-slate-400 mt-2 max-w-xl">Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten.</p>
+            {settings.ops?.lastBackup && <p className="text-xs text-slate-400 mt-1">Last backup downloaded {new Date(settings.ops.lastBackup.at).toLocaleDateString()}{settings.ops.lastBackup.by ? ` by ${settings.ops.lastBackup.by}` : ""}</p>}
+            <div className="flex gap-2 mt-4">
+              <button onClick={exportBackup} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Download size={14} /> Download backup</button>
+              <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Restore backup</button>
+              <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

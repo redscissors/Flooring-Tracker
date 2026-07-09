@@ -196,6 +196,37 @@ export function stockBaseCompanion(item, stock) {
   return { sku: base.sku, name: base.description || base.product, unit: base.unit || "units", price: base.price ?? 0, per: 1 };
 }
 
+// --- Grout color families (ADR 0007) ----------------------------------------------
+
+// The Grout & Caulk sheet parses to one item per family × color, each with its
+// own SKU (`parseGroutMatrix`). A catalog grout links to a family by the items'
+// `product` name; the job's color dropdown lists that family's colors and the
+// pick snapshots the color's SKU onto the selection. Live items only — a color
+// retired by a re-import stops being offered for NEW picks, while rows that
+// already hold its SKU keep their snapshot (same rule as searchStock).
+const isGroutColorItem = (it) => it.sheet === "Grout & Caulk" && !!it.product && !!it.color;
+
+export function groutFamilies(stock) {
+  const fams = new Map();
+  for (const it of stock) {
+    if (!it.active || it.discontinued || !isGroutColorItem(it)) continue;
+    const f = fams.get(it.product) || { product: it.product, brand: it.brand || "", price: null, colors: [] };
+    f.colors.push({ color: it.color, sku: it.sku });
+    if (f.price == null && it.price != null) f.price = it.price;
+    fams.set(it.product, f);
+  }
+  return [...fams.values()].sort((a, b) => a.product.localeCompare(b.product));
+}
+
+// The stock item behind one color of a family (for the SKU snapshot at pick
+// time). Case-insensitive on both keys — colors are title-cased at parse but
+// hand-linked family names may differ in case.
+export function groutColorItem(stock, family, color) {
+  const f = str(family).toLowerCase(), c = str(color).toLowerCase();
+  if (!f || !c) return null;
+  return stock.find((it) => isGroutColorItem(it) && it.product.toLowerCase() === f && it.color.toLowerCase() === c) || null;
+}
+
 // --- import diff -----------------------------------------------------------------
 
 const FIELDS = ["description", "brand", "product", "color", "unit", "size", "thickness", "type", "price", "priceSqft", "sfPerUnit", "coverage", "discontinued"];
