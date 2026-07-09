@@ -247,6 +247,7 @@ function parseGroutMatrix(rows, items) {
   let title = "";
   let cols = null; // [{ i, name }]
   let prices = null; // by column index
+  let seen = null; // sku → item within the current matrix
   let baseCols = null; // Laticrete "Bulk & Base Units": { size, sku, price } column indices
   for (const row of rows) {
     const c0 = str(row[0]).toUpperCase();
@@ -254,6 +255,7 @@ function parseGroutMatrix(rows, items) {
       cols = [];
       row.forEach((c, i) => { const v = collapse(str(c)); if (i > 0 && v) cols.push({ i, name: v }); });
       prices = null;
+      seen = new Map();
       baseCols = null;
       continue;
     }
@@ -311,25 +313,35 @@ function parseGroutMatrix(rows, items) {
     const isLat = /laticrete/i.test(title);
     for (const { i, name } of cols) {
       if (!isSku(row[i])) continue;
+      let it;
       if (isLat) {
         const colorFull = titleCase(str(row[0]));
         const variant = titleCase(name);
-        items.push(norm({
+        it = norm({
           sku: str(row[i]), sheet: "Grout & Caulk", section: title,
           brand: "Laticrete", description: `${colorFull} ${variant}`,
           product: `Laticrete ${variant}`, color: colorFull,
           unit: "EA", price: prices ? prices[i] : null, type: null,
-        }));
+        });
       } else {
         const productName = `${title.replace(/grout & caulk/i, "").trim() || title} ${titleCase(name)}`.trim();
-        items.push(norm({
+        it = norm({
           sku: str(row[i]), sheet: "Grout & Caulk", section: title,
           brand: title, description: `${productName} — ${titleCase(color)}`,
           product: productName, color: titleCase(color),
           unit: "EA", price: prices ? prices[i] : null,
           type: null,
-        }));
+        });
       }
+      // One SKU spanning several color rows (Custom Epoxy Part B) is not a
+      // color-specific item — drop the first row's color from it.
+      const prev = seen.get(it.sku);
+      if (prev) {
+        if (prev.color && prev.color !== it.color) { prev.description = prev.product; prev.color = ""; }
+        continue;
+      }
+      seen.set(it.sku, it);
+      items.push(it);
     }
   }
 }
