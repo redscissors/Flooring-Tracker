@@ -84,11 +84,13 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
            cartonSf, cartonUnit, cartonManual, note,
-           grout:{checked,product,color,sku,joint,manual,caulk}, mortar:{checked,product,manual},
+           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku}, mortar:{checked,product,manual},
            // grout.sku = the picked color's own price-book SKU, snapshotted at
            // color-pick time when the grout is linked to a book family
            // (ADR 0007); display-only, outranks the catalog product SKU on
-           // summary/print lines.
+           // summary/print lines. grout.caulkSku = the same section's
+           // color-matched caulk SKU (the matrix's caulk column in that
+           // color), snapshotted at the same moment; shown on caulk lines.
            underlay:{checked,product,manual,install} }
            // underlay.install = also order the catalog-defined install
            // materials (backer mortar, screws) for the chosen underlayment
@@ -151,13 +153,20 @@ color). A linked grout's job color dropdown lists the family's live colors
 (`groutFamilies`/`groutColorItem` in stock.js, read at edit time only), and
 picking a color snapshots that color's own SKU onto the selection
 (`grout.sku`) — it outranks the catalog SKU on the summary/print lines and
-re-imports never change it. Unlinked grouts keep the code-defined standard
-color list. Custom underlayment install items also carry an optional `sku`.
+re-imports never change it. The same pick also snapshots the color-matched
+caulk's SKU (`grout.caulkSku`, via `groutCaulkItem` — the matrix section's
+caulk column in that color), shown on caulk lines in the summary, order
+sheet, and print breakdown; caulk itself never lives in the catalog.
+Unlinked grouts keep the code-defined standard color list. Custom
+underlayment install items also carry an optional `sku`.
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
 App.jsx): left-nav sections (General · Price book · Grout & colors · Mortar &
 underlayment · Backup & restore) with master→detail catalog editing; every
 SKU-bearing field is price-book-search-first with manual entry as the
-fallback.
+fallback. The catalog master list is section-scoped: a company shows under a
+section only when it has products of that section's kinds, the rest sit in a
+collapsed "Companies with no …" group, and each company row's ⋯ menu holds
+the add-product actions (and delete, when empty).
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add
