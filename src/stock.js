@@ -227,6 +227,18 @@ export function groutColorItem(stock, family, color) {
   return stock.find((it) => isGroutColorItem(it) && it.product.toLowerCase() === f && it.color.toLowerCase() === c) || null;
 }
 
+// The color-matched caulk for a family color: the same matrix section's caulk
+// column in that color (Latasil Caulk, TEC Caulk…). Snapshot source for
+// grout.caulkSku at color-pick time; null when the section carries no caulk
+// column or doesn't offer it in that color. Live items only, like the color
+// dropdown itself.
+export function groutCaulkItem(stock, family, color) {
+  const g = groutColorItem(stock, family, color);
+  if (!g || !g.section) return null;
+  if (/caulk/i.test(g.product)) return g;
+  return stock.find((it) => it.active && !it.discontinued && isGroutColorItem(it) && /caulk/i.test(it.product) && it.section === g.section && it.color.toLowerCase() === g.color.toLowerCase()) || null;
+}
+
 // --- import diff -----------------------------------------------------------------
 
 const FIELDS = ["description", "brand", "product", "color", "unit", "size", "thickness", "type", "price", "priceSqft", "sfPerUnit", "coverage", "discontinued"];

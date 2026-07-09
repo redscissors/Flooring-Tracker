@@ -403,6 +403,23 @@ export function removeProduct(catalog, companyId, kind, productId) {
   return { ...catalog, companies, removedSeeds };
 }
 
+// Renaming has the same consequence as deleting for saved jobs: they keep the
+// old name string, which no longer resolves, so their quantities stop
+// calculating (the UI warns). A renamed starter underlayment tombstones its
+// seed name so the backfill doesn't re-add the original alongside it.
+export function renameProduct(catalog, companyId, kind, productId, name) {
+  const next = String(name || "").trim();
+  if (!next) return catalog;
+  let oldName = null;
+  const companies = (catalog?.companies || []).map((co) => {
+    if (co.id !== companyId) return co;
+    return { ...co, [kind]: (co[kind] || []).map((p) => { if (p.id !== productId) return p; oldName = normName(p.name); return { ...p, name: next }; }) };
+  });
+  const seedGone = kind === "underlayments" && oldName && oldName !== normName(next) && SEED_UNDERLAYMENTS.some((u) => normName(u.name) === oldName);
+  const removedSeeds = seedGone ? [...new Set([...(catalog?.removedSeeds || []), oldName])] : (catalog?.removedSeeds || []);
+  return { ...catalog, companies, removedSeeds };
+}
+
 // UI only offers this for empty companies — delete the products first.
 export function removeCompany(catalog, companyId) {
   return { ...catalog, companies: (catalog?.companies || []).filter((co) => co.id !== companyId) };

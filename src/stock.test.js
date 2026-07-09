@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
 
@@ -294,4 +294,25 @@ test("groutColorItem resolves a family color to its stock item, case-insensitive
   assert.equal(groutColorItem(stock, "Laticrete Permacolor Color Kit", "Nope"), null);
   assert.equal(groutColorItem(stock, "", "Almond"), null);
   assert.equal(groutColorItem(stock, "Laticrete Permacolor Color Kit", ""), null);
+});
+
+test("groutCaulkItem finds the same section's caulk column in the picked color", () => {
+  const tecItem = (sku, product, color, over = {}) =>
+    normStockItem({ sku, active: over.active, data: { sheet: "Grout & Caulk", section: "TEC GROUT & CAULK", brand: "TEC", product, color, description: `${color} ${product}`, unit: "EA", price: 9.99, ...over } });
+  const stock = [
+    colorItem("1519025", "Laticrete Permacolor Color Kit", "Almond", 5.39),
+    colorItem("1519067", "Laticrete Latasil Caulk", "Almond", 12.5),
+    colorItem("1519068", "Laticrete Latasil Caulk", "Raven", 12.5),
+    tecItem("2001", "Tec Power Grout", "Almond"),
+    tecItem("2002", "TEC Caulk", "Almond"),
+  ];
+  // Same section + same color, not the other brand's caulk.
+  assert.equal(groutCaulkItem(stock, "Laticrete Permacolor Color Kit", "Almond").sku, "1519067");
+  assert.equal(groutCaulkItem(stock, "Tec Power Grout", "Almond").sku, "2002");
+  // Color the caulk column doesn't carry, or a retired caulk SKU → null.
+  assert.equal(groutCaulkItem(stock, "Tec Power Grout", "Raven"), null);
+  const retired = [colorItem("1", "Laticrete Permacolor Color Kit", "Almond", 5.39), colorItem("2", "Laticrete Latasil Caulk", "Almond", 12.5, { active: false })];
+  assert.equal(groutCaulkItem(retired, "Laticrete Permacolor Color Kit", "Almond"), null);
+  // A family that IS the caulk column matches itself.
+  assert.equal(groutCaulkItem(stock, "Laticrete Latasil Caulk", "Raven").sku, "1519068");
 });
