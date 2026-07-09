@@ -156,8 +156,13 @@ test("grout matrix: product per column, SKU per color cell, first PRICE row wins
   assert.equal(epoxy.product, "Custom Epoxy Grout Part A");
   assert.equal(epoxy.color, "Antique White");
   assert.equal(epoxy.price, 33.29);
-  // Part B shared across colors dedupes to one row without warnings.
+  // Part B's SKU is shared by every color row, so it imports as one
+  // color-less item, not as the first color's ("Antique White") Part B.
   assert.equal(items.filter((i) => i.sku === "28865").length, 1);
+  const partB = bySku(items, "28865");
+  assert.equal(partB.description, "Custom Epoxy Grout Part B");
+  assert.equal(partB.color, "");
+  assert.equal(partB.price, 97.64);
 });
 
 test("grout matrix: Laticrete reads color-first with its number, base units imported", () => {
