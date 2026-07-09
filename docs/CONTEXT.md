@@ -84,7 +84,18 @@ An optional price-book SKU stored **on a catalog product** (grout/mortar/
 underlayment). It is a product attribute, not the key a Selection stores — jobs
 still link **by name** (ADR 0002). Read only when editing the catalog (pre-fill,
 refresh, defining a base companion), never at calculation time (ADR 0003), and
-shown next to each material in the order totals.
+shown next to each material in the order totals. A grout linked to a **book
+family** (ADR 0007) additionally snapshots the picked color's own SKU onto the
+Selection (`grout.sku`, display-only); that per-color SKU outranks the catalog
+product's SKU on the printed lines.
+
+**Book family** (see ADR 0007):
+The price-book grout family a catalog grout offers its colors from — stored as
+the stock items' `product` name from the Grout & Caulk sheet (one stock item
+per family × color, one SKU each). Linked on the catalog grout's `book` field;
+empty means the grout uses the standard code-defined color list and no
+per-color SKUs.
+_Avoid_: "brand" (a family is one product line, not the manufacturer).
 
 **Enabled** (show/hide):
 The on/off state on a company or product controlling whether it appears in

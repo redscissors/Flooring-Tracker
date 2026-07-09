@@ -10,3 +10,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0004](0004-all-customers-team-shared.md) | All customers are team-shared; visibility and archive removed | Accepted | 2026-07-05 |
 | [0005](0005-builder-customer-project-hierarchy.md) | Builder ▸ Customer ▸ Project hierarchy; today's "customer" becomes a Project | Accepted | 2026-07-07 |
 | [0006](0006-catalog-sku-link-and-grout-base-companion.md) | Catalog products carry a price-book SKU; grout products carry a "base unit" companion | Accepted | 2026-07-08 |
+| [0007](0007-grout-colors-from-book-family.md) | Grout colors and per-color SKUs come from a linked price-book family; color pick snapshots the SKU onto the Selection | Accepted | 2026-07-08 |

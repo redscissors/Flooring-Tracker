@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem } from "./stock.js";
 
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
 
@@ -263,4 +263,35 @@ test("syncCatalogPrices refreshes a SKU-linked product from that exact item", ()
   assert.equal(next.companies[0].grouts[0].price, 5.39);
   assert.equal(changes.length, 1);
   assert.equal(changes[0].sku, "1519025");
+});
+
+// --- ADR 0007: grout color families ----------------------------------------------
+
+const colorItem = (sku, product, color, price, over = {}) =>
+  normStockItem({ sku, active: over.active, data: { sheet: "Grout & Caulk", section: "LATICRETE GROUT & CAULK", brand: "Laticrete", product, color, description: `${color} ${product}`, unit: "EA", price, ...over } });
+
+test("groutFamilies groups live Grout & Caulk items by product, one SKU per color", () => {
+  const stock = [
+    colorItem("1519025", "Laticrete Permacolor Color Kit", "Almond", 5.39),
+    colorItem("1519032", "Laticrete Permacolor Color Kit", "Raven", 5.39),
+    colorItem("2001", "Tec Power Grout", "Charcoal", 21.99),
+    colorItem("1519040", "Laticrete Permacolor Color Kit", "Retired Beige", 5.39, { active: false }),
+    colorItem("1519041", "Laticrete Permacolor Color Kit", "Gone Grey", 5.39, { discontinued: true }),
+    item({ sku: "777", description: "Some tile, not a grout color item" }),
+  ];
+  const fams = groutFamilies(stock);
+  assert.deepEqual(fams.map((f) => f.product), ["Laticrete Permacolor Color Kit", "Tec Power Grout"]);
+  const pc = fams[0];
+  assert.deepEqual(pc.colors.map((c) => c.color), ["Almond", "Raven"]); // live colors only
+  assert.equal(pc.colors[0].sku, "1519025");
+  assert.equal(pc.price, 5.39);
+  assert.equal(pc.brand, "Laticrete");
+});
+
+test("groutColorItem resolves a family color to its stock item, case-insensitively", () => {
+  const stock = [colorItem("1519025", "Laticrete Permacolor Color Kit", "Almond", 5.39)];
+  assert.equal(groutColorItem(stock, "laticrete permacolor color kit", "ALMOND").sku, "1519025");
+  assert.equal(groutColorItem(stock, "Laticrete Permacolor Color Kit", "Nope"), null);
+  assert.equal(groutColorItem(stock, "", "Almond"), null);
+  assert.equal(groutColorItem(stock, "Laticrete Permacolor Color Kit", ""), null);
 });

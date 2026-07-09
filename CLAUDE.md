@@ -84,7 +84,11 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
            cartonSf, cartonUnit, cartonManual, note,
-           grout:{checked,product,color,joint,manual}, mortar:{checked,product,manual},
+           grout:{checked,product,color,sku,joint,manual,caulk}, mortar:{checked,product,manual},
+           // grout.sku = the picked color's own price-book SKU, snapshotted at
+           // color-pick time when the grout is linked to a book family
+           // (ADR 0007); display-only, outranks the catalog product SKU on
+           // summary/print lines.
            underlay:{checked,product,manual,install} }
            // underlay.install = also order the catalog-defined install
            // materials (backer mortar, screws) for the chosen underlayment
@@ -139,6 +143,21 @@ the two-part grout's base unit — ordered from the **consolidated** kit counts
 shown with the grout family in the order summary, estimate breakdown, and
 order sheet. The Settings add-product pre-fill keeps the picked item's SKU and
 auto-attaches a Laticrete pigment's default base.
+
+**Grout colors from the book & the Settings workspace** (issue 007, ADR 0007).
+A catalog grout can carry a `book` field naming a price-book grout *family*
+(the Grout & Caulk sheet's per-color matrix, one stock item per family ×
+color). A linked grout's job color dropdown lists the family's live colors
+(`groutFamilies`/`groutColorItem` in stock.js, read at edit time only), and
+picking a color snapshots that color's own SKU onto the selection
+(`grout.sku`) — it outranks the catalog SKU on the summary/print lines and
+re-imports never change it. Unlinked grouts keep the code-defined standard
+color list. Custom underlayment install items also carry an optional `sku`.
+Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
+App.jsx): left-nav sections (General · Price book · Grout & colors · Mortar &
+underlayment · Backup & restore) with master→detail catalog editing; every
+SKU-bearing field is price-book-search-first with manual entry as the
+fallback.
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add
