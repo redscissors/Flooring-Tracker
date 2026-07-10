@@ -10,41 +10,43 @@ body,
 }
 
 body {
-  font-family: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Karla", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Theme (Editorial): serif display, warm paper palette, monospace eyebrows,
-   terracotta accent. Global so the login screen and app share one palette;
-   works by overriding Tailwind slate/indigo classes. Primary fills map to ink;
-   the terracotta brand is reserved for eyebrows, markers, links, and focus. */
+/* Theme (Kiln): serif display, warm terracotta-on-sand palette, monospace
+   eyebrows. Global so the login screen and app share one palette; works by
+   overriding Tailwind slate/indigo classes. Primary fills are terracotta;
+   fired clay is reserved for eyebrows and small accent text. */
 :root{
-  --ft-cream:#f5f1ea;            /* paper — app background */
-  --ft-card:#fffdf9;             /* cards & inputs */
-  --ft-prod:#fbf8f2;
-  --ft-field:#fffdf9;
+  --ft-cream:#F1E9DB;            /* app background */
+  --ft-card:#FFFBF5;             /* paper — cards & inputs */
+  --ft-prod:#FBF5EA;
+  --ft-field:#FFFBF5;
   --ft-fieldbar:color-mix(in oklab, var(--ft-text) 5%, var(--ft-card));
-  --ft-border:#ddd4c6;           /* line */
+  --ft-border:#DCCFBA;           /* line */
   --ft-border-soft:color-mix(in oklab, var(--ft-text) 7%, transparent);
-  --ft-border-strong:#cbbfad;
-  --ft-text:#1c1815;             /* ink */
-  --ft-muted:#8a7f72;
-  --ft-accent:#1c1815;           /* primary fills use ink */
-  --ft-accent-press:#34302b;
-  --ft-accent-deep:#1c1815;
-  --ft-brand:#b8623a;            /* terracotta — eyebrows, SKUs, markers, focus */
+  --ft-border-strong:#C9B79D;
+  --ft-text:#291D16;             /* ink */
+  --ft-muted:#8A7A69;
+  --ft-accent:#C25A3A;           /* primary fills are terracotta in Kiln */
+  --ft-accent-press:#A84B2F;
+  --ft-accent-deep:#291D16;
+  --ft-brand:#C25A3A;            /* terracotta — markers, links, focus */
+  --ft-brand-deep:#8A3B24;       /* fired clay — eyebrows, small accent text */
+  --ft-sand:#F0E4D4;             /* bands & quiet fills */
   --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
   --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
   --ft-tint-border:color-mix(in oklab, var(--ft-brand) 35%, var(--ft-border));
-  --ft-deep:#1c1815;
-  --ft-serif:"Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --ft-deep:#291D16;
+  --ft-serif:"Lora", ui-serif, Georgia, "Times New Roman", serif;
   --ft-mono:"Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Editorial helpers — applied explicitly in the JSX alongside Tailwind. */
-.ft-serif{font-family:var(--ft-serif);font-weight:400;letter-spacing:-.01em;}
+/* Kiln helpers — .ft-serif is Lora 500; .ft-eyebrow-accent is fired clay. */
+.ft-serif{font-family:var(--ft-serif);font-weight:500;letter-spacing:-.01em;}
 .ft-mono{font-family:var(--ft-mono);}
 .ft-eyebrow{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
-.ft-eyebrow-accent{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand);}
+.ft-eyebrow-accent{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand-deep);}
 
 .bg-slate-50{background-color:var(--ft-cream);}
 .bg-white{background-color:var(--ft-card);}

@@ -6,6 +6,8 @@ import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutE
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
+import KilnMark from "./KilnMark.jsx";
+import keimLogo from "./assets/keim-logo-ink.png";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -1193,7 +1195,7 @@ export default function App({ user, onSignOut }) {
     } catch (e) { ping("Backup failed — check connection"); return; }
     const attachments = {};
     for (const c of projects) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } }
-    dl(new Blob([JSON.stringify({ version: 2, builders, people, projects, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    dl(new Blob([JSON.stringify({ version: 2, builders, people, projects, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `kiln_backup_${new Date().toISOString().slice(0, 10)}.json`);
     setSettings({ ops: { ...(settings.ops || {}), lastBackup: { at: Date.now(), by: profile.name || user.email || "" } } });
   };
   const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
@@ -1249,6 +1251,13 @@ export default function App({ user, onSignOut }) {
   // preview can never drift from what actually prints. Callers guard sel && sel._full.
   const renderEstimatePaper = () => (
           <div>
+            <div className="flex justify-between items-center border-b-2 border-black pb-3 mb-4">
+              <img src={keimLogo} alt="Keim" style={{ height: 38 }} />
+              <div className="text-right">
+                <div className="ft-eyebrow-accent text-[9px]">Selection Sheet</div>
+                <div className="ft-mono text-[9.5px] text-slate-500">{new Date().toLocaleDateString()}</div>
+              </div>
+            </div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4 gap-4">
               <div>
                 <div className="ft-serif text-3xl">{sel.name}</div>
@@ -1360,6 +1369,13 @@ export default function App({ user, onSignOut }) {
               </div>
               <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
             </div>
+            <div className="break-inside-avoid flex justify-between items-center border-t border-slate-300 mt-5 pt-2.5">
+              <div className="flex items-center gap-2">
+                <KilnMark size={18} />
+                <span className="ft-serif" style={{ fontSize: 12 }}>Kiln</span>
+              </div>
+              <div className="text-[9.5px] text-slate-400">Prepared with Kiln</div>
+            </div>
           </div>
   );
   const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
@@ -1420,14 +1436,14 @@ export default function App({ user, onSignOut }) {
   };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: '"Hanken Grotesk", ui-sans-serif, system-ui, sans-serif' }}>
+    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: '"Karla", ui-sans-serif, system-ui, sans-serif' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center ft-serif text-white" style={{ fontSize: 15 }}>F</div>
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "FloorTrack"}</span>
+            <KilnMark size={28} />
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "Kiln"}</span>
           </div>
         )}
 
@@ -1436,8 +1452,8 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="w-[34px] h-[34px] rounded-lg bg-indigo-600 flex items-center justify-center ft-serif text-white shrink-0" style={{ fontSize: 20 }}>F</div>
-            <div className="flex-1 min-w-0"><div className="ft-serif text-xl leading-none">FloorTrack</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
+            <KilnMark size={34} />
+            <div className="flex-1 min-w-0"><div className="ft-serif text-xl leading-none">Kiln</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -1537,7 +1553,7 @@ export default function App({ user, onSignOut }) {
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center mb-4 ft-serif" style={{ background: "color-mix(in oklab, var(--ft-brand) 14%, transparent)", color: "var(--ft-brand)", fontSize: 30 }}>F</div>
+                <KilnMark size={60} className="mb-4" />
                 <h2 className="ft-serif text-2xl">Select or create a customer</h2>
                 <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building projects.</p>
               </div>

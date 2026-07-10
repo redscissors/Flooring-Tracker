@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Layers } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
+import KilnMark from "./KilnMark.jsx";
 
 // Shown when a user arrives via an invite or password-reset link. They are
 // already authenticated by the link; this lets them set a real password so they
@@ -34,7 +34,7 @@ export default function SetPassword({ email, onDone, onCancel }) {
     <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center"><Layers size={20} className="text-white" /></div>
+          <KilnMark size={36} />
           <div>
             <div className="font-semibold tracking-tight">Set your password</div>
             <div className="text-xs text-slate-400 -mt-0.5">{email ? email : "Create a password to finish setting up"}</div>
@@ -51,7 +51,7 @@ export default function SetPassword({ email, onDone, onCancel }) {
             <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inp} autoComplete="new-password" />
           </div>
 
-          {err && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{err}</div>}
+          {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D4", border: "1px solid var(--ft-brand-deep)", color: "#4A3D31" }}>{err}</div>}
 
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
             {busy ? "Saving…" : "Set password & continue"}
