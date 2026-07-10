@@ -18,7 +18,6 @@ const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
 // Editorial accents: each flooring type colours its selection card's left border
 // and active chip; each area's index marker cycles through the area palette.
 const TYPE_ACCENT = { tile: "oklch(0.55 0.08 232)", hardwood: "oklch(0.58 0.10 60)", vinyl: "oklch(0.55 0.07 158)", laminate: "oklch(0.57 0.10 32)", carpet: "oklch(0.53 0.08 320)", misc: "oklch(0.55 0.02 270)" };
-const AREA_ACCENTS = ["oklch(0.60 0.11 45)", "oklch(0.58 0.07 232)", "oklch(0.56 0.10 350)", "oklch(0.57 0.08 145)", "oklch(0.63 0.10 75)", "oklch(0.57 0.07 200)"];
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 // Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
@@ -97,7 +96,7 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
 // each of the rest via onPickMany.
 const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
 
-function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
+function SkuPicker({ value, stock, onChange, onPick, onPickMany, wrapClass, wrapStyle, inputClass }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // SKUs, in click order
@@ -129,10 +128,10 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
     if (e.key === "Escape") close();
   };
   return (
-    <div ref={wrapRef} className="relative shrink-0 h-9 border-r border-slate-200" style={{ ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
+    <div ref={wrapRef} className={wrapClass ?? "relative shrink-0 h-9 border-r border-slate-200"} style={wrapStyle ?? { ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
-        onKeyDown={onKey}
-        className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+        onKeyDown={onKey} data-c="sku"
+        className={inputClass ?? "w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
@@ -386,7 +385,7 @@ function MetaChip({ icon: Icon, label, value, active, onClick }) {
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
-function TypeSelect({ type, onChange, triggerRef }) {
+function TypeSelect({ type, onChange, triggerRef, compact }) {
   const [open, setOpen] = useState(false);
   const accent = TYPE_ACCENT[type];
   // Keyboard: a printable letter jumps to the type(s) whose label starts with
@@ -402,6 +401,13 @@ function TypeSelect({ type, onChange, triggerRef }) {
   };
   return (
     <div className="relative shrink-0">
+      {compact ? (
+        <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={`Product type — ${TLBL[type]}`}
+          className="inline-flex items-center gap-0.5 rounded px-0.5 py-1 shrink-0">
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: accent }} />
+          <ChevronDown size={9} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      ) : (
       <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title="Product type"
         className="inline-flex items-center gap-1.5 rounded-full pl-2 pr-1.5 py-1 text-xs font-semibold"
         style={{ color: accent, background: `color-mix(in oklab, ${accent} 12%, transparent)`, border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)` }}>
@@ -409,6 +415,7 @@ function TypeSelect({ type, onChange, triggerRef }) {
         {TLBL[type]}
         <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
+      )}
       {open && (<>
         <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
         <div className="absolute z-30 mt-1 left-0 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
@@ -428,6 +435,81 @@ function TypeSelect({ type, onChange, triggerRef }) {
       </>)}
     </div>
   );
+}
+
+// ---- Kiln #14a grid input model ----------------------------------------
+// The area editing surface is a spreadsheet grid (same 9 columns as the
+// printed sheet, plus a slim utility column) over the exact same product
+// state — every write still goes through updProduct/updArea.
+const GRID_COLS = "0.85fr 1.7fr 1.05fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
+const gridCell = { borderRight: "1px solid #EDE4D4", minWidth: 0, display: "flex", alignItems: "center" };
+
+// Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
+// commit (blur) back into the row's L / W / thickness fields.
+function GridSizeInput({ p, onCommit }) {
+  const shown = p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "";
+  const commit = (raw) => {
+    const t = String(raw).trim();
+    if (!t) { onCommit({ L: "", W: "" }); return; }
+    const m = t.split(/\s*[x×]\s*/);
+    const patch = { L: m[0] ? m[0].replace(/[^\d.]/g, "") : "", W: m[1] ? m[1].replace(/[^\d.]/g, "") : "" };
+    if (m[2] !== undefined) {
+      const th = m[2].trim();
+      const known = THICK.find((k) => k.label.replace(/"/g, "") === th.replace(/"/g, ""));
+      const frac = th.match(/^(\d+)\s*\/\s*(\d+)/);
+      patch.thickness = known ? known.v : frac ? String(Number(frac[1]) / Number(frac[2])) : th.replace(/[^\d.]/g, "") || p.thickness;
+    }
+    onCommit(patch);
+  };
+  return (
+    <input key={shown} defaultValue={shown} data-c="size"
+      onBlur={(e) => { if (e.target.value !== shown) commit(e.target.value); }}
+      onKeyDown={(e) => { if (e.key === "Enter" && e.target.value !== shown) commit(e.target.value); }}
+      className="ft-cell" style={{ padding: "6px 4px" }} placeholder="L×W" title='Tile size — type "12×24" or "12×24×3/8"' />
+  );
+}
+
+// Product cell: typed text is the row's brand/color; matches from the stock
+// price book drop down beneath (same search the SKU cell uses) and picking
+// one fills the row exactly like a SKU pick.
+function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product…" }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = open && stock.length ? searchStock(stock, value).slice(0, SKU_SHOW) : [];
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  return (
+    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
+      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
+        data-c="product" className="ft-cell font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
+      {open && pos && matches.length > 0 && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
+          <div className="max-h-60 overflow-y-auto">
+            {matches.map((it) => (
+              <button key={it.sku} onClick={() => { onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <StockHit it={it} />
+              </button>
+            ))}
+          </div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Enter in any grid cell moves to the same column one product row down
+// (spreadsheet-style); on the last row it grows the area by one product.
+function gridEnterNav(e, addRow) {
+  if (e.key !== "Enter" || e.defaultPrevented || e.target.tagName === "SELECT") return;
+  const col = e.target.getAttribute?.("data-c");
+  const card = e.target.closest?.("[data-prod-card]");
+  if (!col || !card) return;
+  const cards = [...e.currentTarget.querySelectorAll("[data-prod-card]")];
+  const i = cards.indexOf(card);
+  const next = cards[i + 1]?.querySelector(`[data-c="${col}"]`);
+  if (next) { e.preventDefault(); next.focus(); next.select?.(); }
+  else if (i === cards.length - 1) { e.preventDefault(); addRow(); }
 }
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
@@ -495,7 +577,6 @@ export default function App({ user, onSignOut }) {
   // expands via Enter, land on its first checkbox.
   const [focusProd, setFocusProd] = useState(null);
   const [focusQty, setFocusQty] = useState(null);
-  const [focusMatFirst, setFocusMatFirst] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
@@ -521,7 +602,6 @@ export default function App({ user, onSignOut }) {
   const areaRefs = useRef({});
   const typeRefs = useRef({});
   const qtyRefs = useRef({});
-  const matFirstRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
   const saveOkTimer = useRef(null);
@@ -771,7 +851,6 @@ export default function App({ user, onSignOut }) {
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
-  useEffect(() => { if (focusMatFirst && matFirstRefs.current[focusMatFirst]) { matFirstRefs.current[focusMatFirst].focus(); setFocusMatFirst(null); } }, [focusMatFirst, matOpen]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
@@ -1646,25 +1725,42 @@ export default function App({ user, onSignOut }) {
 
               <div className="space-y-4">
                 {sel.categories.map((a, ai) => {
-                  const areaColor = AREA_ACCENTS[ai % AREA_ACCENTS.length];
+                  const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
+                  const areaTotal = printAreaFloor(a, settings);
                   return (
-                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border p-4 md:p-5 transition-colors ${drag?.to?.aid === a.id ? "border-indigo-400 bg-indigo-50/40" : drag ? "border-dashed border-slate-300 bg-white" : "border-slate-200 bg-white"}`}>
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: areaColor }} />
-                      <span className="ft-mono text-sm shrink-0" style={{ color: areaColor }}>{String(ai + 1).padStart(2, "0")}</span>
-                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none flex-1 min-w-0" style={{ fontSize: 23, lineHeight: 1 }} />
-                      <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
-                      <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
+                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border overflow-hidden bg-white transition-colors ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D4", padding: "8px 14px" }}>
+                      <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
+                        <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}</span>
+                        <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length, 4) + 1}ch` }} />
+                        <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 flex-1 min-w-0" />
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""].filter(Boolean).join(" · ")}</span>
+                        <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                      </div>
                     </div>
                     {confirmArea === a.id && (
-                      <div className="ft-noprint flex items-center gap-2 mt-2 text-xs">
+                      <div className="ft-noprint flex items-center gap-2 px-3 py-2 text-xs border-b border-slate-100">
                         <span className="text-red-600 flex-1">Delete "{a.name}" and its {a.products.length} selection{a.products.length === 1 ? "" : "s"}? Everything in this area comes off the estimate.</span>
                         <button onClick={() => { delArea(a.id); setConfirmArea(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                         <button onClick={() => setConfirmArea(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                       </div>
                     )}
 
-                    <div data-prod-list="1" className="relative mt-3 space-y-3">
+                    <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
+                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "#F4EEE3", borderBottom: "1px solid #DCCFBA", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
+                        <div style={{ padding: "5px 10px", borderRight: "1px solid #EDE4D4" }}>Size / Type ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Product ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Color ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>SKU</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Cov.</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>SF</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Price</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Order</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Total</div>
+                        <div />
+                      </div>
                       {a.products.map((p, pi) => {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
@@ -1675,7 +1771,6 @@ export default function App({ user, onSignOut }) {
                         // Sold by the carton: whole cartons drive the line total.
                         const C = getCarton(p, settings), cEx = cartonExact(p, settings);
                         const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : C ? C.order * C.sf * num(p.priceSqft) : sf * num(p.priceSqft);
-                        const thickKnown = THICK.some((t) => t.v === String(p.thickness));
                         // Dropdowns are driven by the catalog (resolve-by-name). A selection
                         // whose stored product is no longer offered is injected back as an
                         // option so it still shows — same pattern as tile thickness above.
@@ -1704,164 +1799,108 @@ export default function App({ user, onSignOut }) {
                         const underlayOpts = p.underlay.product && !underlayNames.includes(p.underlay.product) ? [p.underlay.product, ...underlayNames] : underlayNames;
                         const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
                         const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayNames[0] || "") } });
-                        // Collapsed materials drawer: one fine-print line per checked
-                        // material; unchecked ones are hidden entirely.
+                        // Collapsed rows reuse the print sheet's inline material line
+                        // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
+                        // wants the collapsed line identical to the printed one.
                         const matExpanded = !!matOpen[p.id];
-                        const jointLbl = JOINTS.find((x) => x.v === num(p.grout.joint))?.label;
                         const caulkN = num(p.grout.caulk);
-                        const matRows = [];
-                        if (p.type === "tile" && p.grout.checked) matRows.push({ label: "Grout", text: [p.grout.product, p.grout.color, jointLbl, caulkN > 0 ? `+${caulkN} caulk` : ""].filter(Boolean).join(" · "), qty: G && `${G.order} ${G.unit}` });
-                        if (p.type === "tile" && p.mortar.checked) matRows.push({ label: "Mortar", text: p.mortar.product, qty: M && `${M.order} ${M.unit}` });
-                        if (p.underlay.checked) matRows.push({ label: underlayLabel(p.type), text: `${p.underlay.product || "—"}${p.underlay.install && INS ? ` · +install (${INS.map((m) => `${m.order} ${m.unit}`).join(", ")})` : ""}`, qty: U && `${U.order} ${U.unit}` });
-                        const underlayCard = (
-                          <div className={`rounded-md border px-2.5 py-1.5 ${p.underlay.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                              <button ref={(el) => { if (el && p.type !== "tile") matFirstRefs.current[p.id] = el; }} onClick={toggleUnderlay} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.underlay.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.checked && <Check size={12} />}</button>
-                              <span className="text-sm font-medium">{underlayLabel(p.type)}</span>
-                              {p.underlay.checked && underlayOpts.length > 0 && (
-                                <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0">
-                                  <FitSelect value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
-                                </div>
-                              )}
-                              {p.underlay.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>}
-                              {p.underlay.checked && underlayOpts.length === 0 && <div className="order-last basis-full text-xs text-amber-500">No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</div>}
-                              {p.underlay.checked && underlayOpts.length > 0 && !U && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft to calculate, or type a total above.</div>}
-                            </div>
-                            {p.underlay.checked && installDefs.length > 0 && (
-                              <div className="mt-1.5 border-t border-slate-100 pt-1.5">
-                                <div className="flex items-center gap-2">
-                                  <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.install && <Check size={12} />}</button>
-                                  {p.underlay.install ? (
-                                    <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-sm min-w-0">
-                                      {insExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
-                                      Install materials
-                                      <span className="text-xs text-slate-400 whitespace-nowrap">{insIncluded < installDefs.length ? `${insIncluded} of ${installDefs.length}` : `${installDefs.length} item${installDefs.length === 1 ? "" : "s"}`}</span>
-                                    </button>
-                                  ) : (
-                                    <span className="text-sm">Install materials <span className="text-xs text-slate-400">({installDefs.length})</span></span>
-                                  )}
-                                  {p.underlay.install && !insExpanded && (INS ? (
-                                    <span className="ml-auto text-xs text-indigo-700 font-medium truncate">{INS.slice(0, 3).map((m) => `${m.order} ${m.unit}`).join(" · ")}{INS.length > 3 ? ` +${INS.length - 3}` : ""}</span>
-                                  ) : insIncluded === 0 ? (
-                                    <span className="ml-auto text-xs text-slate-400">none included</span>
-                                  ) : (
-                                    <span className="ml-auto text-xs text-amber-500 truncate">{p.qtyType === "sqft" && num(p.qty) > 0 ? "No coverage set" : "Enter Sq Ft"}</span>
-                                  ))}
-                                </div>
-                                {p.underlay.install && insExpanded && (
-                                  <div className="mt-1 ml-7 space-y-1">
-                                    {installDefs.map((d) => {
-                                      const skipped = !!p.underlay.installSkip?.[d.id];
-                                      const item = insById.get(d.id);
-                                      const cur = p.underlay.installMortars?.[d.id] || d.product;
-                                      const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
-                                      return (
-                                        <div key={d.id} className="flex items-center gap-2">
-                                          <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "bg-indigo-600 text-white"}`}>{!skipped && <Check size={10} />}</button>
-                                          {d.kind === "mortar" && !skipped ? (
-                                            <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
-                                              {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
-                                            </FitSelect>
-                                          ) : (
-                                            <span className={`text-xs truncate ${skipped ? "text-slate-400 line-through" : "text-slate-600"}`}>{d.kind === "mortar" ? (cur || "mortar") : d.name}</span>
-                                          )}
-                                          <span className="ml-auto text-xs whitespace-nowrap">{skipped ? <span className="text-slate-300">skipped</span> : item ? <><span className="text-slate-400">{item.exact.toFixed(2)} → </span><span className="text-indigo-700 font-semibold">{item.order} {item.unit}</span></> : <span className="text-slate-300">—</span>}</span>
-                                        </div>
-                                      );
-                                    })}
-                                    {!INS && insIncluded > 0 && <div className="text-xs text-amber-500">{p.qtyType === "sqft" && num(p.qty) > 0 ? "Set install-material coverage in Settings to calculate." : "Enter Sq Ft to calculate install materials."}</div>}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                        const selAccent = TYPE_ACCENT[p.type] || "var(--ft-text)";
+                        const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
+                        const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
+                        const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked);
+                        const openMats = () => setMatOpen((o) => ({ ...o, [p.id]: true }));
+                        const addables = p.type === "misc" ? [] : [
+                          ...(p.type === "tile" && !p.grout.checked ? [["Grout", () => { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); openMats(); }]] : []),
+                          ...(p.type === "tile" && !p.mortar.checked ? [["Mortar", () => { updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } }); openMats(); }]] : []),
+                          ...(!p.underlay.checked ? [[KSHORT[underlayLabel(p.type)], () => { toggleUnderlay(); openMats(); }]] : []),
+                        ];
+                        const gPrice = G ? G.price : num(settings.grouts[p.grout.product]?.price);
+                        const mPrice = M ? M.price : num(settings.mortars[p.mortar.product]?.price);
+                        const uPrice = U ? U.price : num(settings.underlayments[p.underlay.product]?.price);
+                        const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
+                        const mUnit = M ? M.unit : settings.mortars[p.mortar.product]?.unit || "";
                         // Stock link: the row keeps its snapshotted values; the
                         // chip below only points out drift from the current book.
                         const stockItem = findStock(stock, p.sku);
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
-                        const skuBox = stock.length > 0 ? (
-                          <SkuPicker value={p.sku || ""} stock={stock}
-                            onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                            onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
-                            onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
-                        ) : null;
                         return (
-                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
-                            <div className="ft-noprint flex flex-wrap items-center gap-2 mb-2.5">
-                              <TypeSelect type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
-                              {p.type === "misc" && miscQty(p) !== 1 && num(p.priceSqft) > 0 && (
-                                <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
-                                  <span>{miscQty(p)} × {money(num(p.priceSqft))}</span>
-                                  <span className="text-slate-300">·</span>
-                                  <span className="text-sm font-semibold text-slate-700">{money(line)}</span>
-                                </span>
-                              )}
-                              {p.type !== "misc" && p.qtyType === "sqft" && sf > 0 && (
-                                <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
-                                  <span>{sf.toLocaleString()} sf</span>
-                                  {C && (<>
-                                    <span className="text-slate-300">·</span>
-                                    <span className="flex items-center gap-1 text-indigo-700">
-                                      {cEx != null && <span className="text-slate-400 whitespace-nowrap">{cEx.toFixed(2)} →</span>}
-                                      <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} title="Cartons to order — type to override the calculated amount" className="!w-11 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" />
-                                      <span className="font-semibold">{C.unit}</span>
-                                      <span className="text-slate-400 whitespace-nowrap">({sf1(C.order * C.sf)} sf)</span>
-                                    </span>
-                                  </>)}
-                                  {num(p.priceSqft) > 0 && (<>
-                                    <span className="text-slate-300">·</span>
-                                    <span className="text-sm font-semibold text-slate-700">{money(line)}</span>
-                                  </>)}
-                                </span>
-                              )}
-                              {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="shrink-0 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>}
+                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ borderTop: pi > 0 ? "1px solid #EDE4D4" : "none" }}>
+                            {/* main product row */}
+                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: matExpanded && hasMats ? "#FFF9F2" : "transparent" }}>
+                              <div style={{ ...gridCell, paddingLeft: 4, gap: 2 }}>
+                                {hasMats ? (
+                                  <button tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: !matExpanded }))} title={matExpanded ? "Collapse materials" : "Expand materials"} className="ft-noprint shrink-0 text-slate-400 p-0.5">
+                                    {matExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                  </button>
+                                ) : <span className="w-4 shrink-0" />}
+                                <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                                {p.type === "tile" ? (
+                                  <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
+                                ) : p.type === "misc" ? (
+                                  <span className="px-1" style={{ color: "#B3A38D" }}>Misc</span>
+                                ) : (
+                                  <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                )}
+                              </div>
+                              <div style={gridCell}>
+                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product…"} />
+                              </div>
+                              {/* single brandColor field holds brand+color — no separate color on flooring rows yet */}
+                              <div style={{ ...gridCell, padding: "6px 8px" }}>{PRINT_DASH}</div>
+                              <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
+                                {stock.length > 0 ? (
+                                  <SkuPicker value={p.sku || ""} stock={stock}
+                                    onChange={(v) => updProduct(a.id, p.id, { sku: v })}
+                                    onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
+                                    onPickMany={(items) => addStockProducts(a.id, p.id, items)}
+                                    wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
+                                ) : (
+                                  <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
+                                )}
+                              </div>
+                              <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
+                                {p.type !== "misc" && p.qtyType === "sqft" ? (
+                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                ) : <span className="px-2" style={{ color: "#B3A38D" }}>—</span>}
+                              </div>
+                              <div style={gridCell}>
+                                {p.type !== "misc" && p.qtyType === "sqft" ? (
+                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
+                                ) : <span className="px-2 ml-auto" style={{ color: "#B3A38D" }}>—</span>}
+                              </div>
+                              <div style={gridCell}>
+                                <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                              </div>
+                              <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
+                                {p.type !== "misc" && C ? (<>
+                                  <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />
+                                  <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>{C.unit}{!p.cartonManual && <span style={{ fontSize: 8, color: "#B3A38D" }}> auto</span>}</span>
+                                </>) : p.type === "misc" || p.qtyType === "count" ? (<>
+                                  <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} placeholder={p.type === "misc" ? "1" : "0"} title="Quantity" />
+                                  {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>EA</span> : (
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "sqft" })} title="Counted each — click to switch to square feet" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>EA</button>
+                                  )}
+                                </>) : (<>
+                                  <span className="text-slate-500">{num(p.qty) > 0 ? sf1(num(p.qty)) : ""}</span>
+                                  <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
+                                </>)}
+                              </div>
+                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700 }}>{line > 0 ? money(line) : PRINT_DASH}</div>
+                              <div className="ft-noprint flex items-center justify-center gap-0.5">
+                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
+                              </div>
                             </div>
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
-                              <div className="ft-noprint flex items-center gap-2 mb-2 text-xs">
+                              <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "#FDFAF4" }}>
                                 <span className="text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>
                                 <button onClick={() => { delProduct(a.id, p.id); setConfirmProd(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                               </div>
                             )}
-
-                            <div className="flex flex-wrap items-stretch w-full rounded-md border border-slate-200 ft-fieldbar text-sm overflow-hidden">
-                              {p.type === "tile" ? (<>
-                                {skuBox}
-                                <div className="flex items-center shrink-0 h-9 pl-1">
-                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} style={fitW(p.L, 1, 0.8)} className="px-0.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
-                                  <span className="text-slate-300 shrink-0">×</span>
-                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} style={fitW(p.W, 1, 0.8)} className="px-0.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="W" title="Width (in)" />
-                                </div>
-                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 h-9 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
-                              </>) : p.type === "misc" ? (<>
-                                {skuBox}
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Description" />
-                                <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} style={fitW(p.qtyType === "count" ? p.qty : "", 2, 0.8)} className="shrink-0 h-9 border-l border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="1" title="Quantity" />
-                              </>) : (<>
-                                {skuBox}
-                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} style={fitW(p.sizeText, 5, 1.4)} className="shrink-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
-                              </>)}
-                              {p.type !== "misc" && <div className="basis-full md:hidden" />}
-                              <div style={fitW(p.priceSqft, 4, 1.6)} className={`relative shrink-0 h-9 border-slate-200 ${p.type === "misc" ? "border-l" : "border-t md:border-t-0 md:border-l"}`}><span className="absolute left-1.5 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-4 pr-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "misc" ? "0.00" : "/sqft"} title={p.type === "misc" ? "Price each" : "Price per sq ft"} /></div>
-                              {p.type !== "misc" && (<>
-                                <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className={`flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center focus:outline-none focus:bg-white ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : "bg-transparent"}`} placeholder="0" title={qtyMissing ? `Enter ${p.qtyType === "sqft" ? "square footage" : "a quantity"}` : "Quantity"} />
-                                <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button tabIndex={-1} key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
-                                {p.qtyType === "sqft" && (
-                                  <div className="relative shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200">
-                                    <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} style={fitW(p.cartonSf, 2, 2.2)} className="h-full pl-1.5 pr-7 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                    <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">sf/{(p.cartonUnit || "CT").toLowerCase()}</span>
-                                  </div>
-                                )}
-                              </>)}
-                            </div>
                             {(drift || stockRetired || baseAlt) && (
-                              <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
+                              <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
@@ -1872,80 +1911,166 @@ export default function App({ user, onSignOut }) {
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
                             )}
-
-                            {p.type !== "misc" && (
-                              <div className="mt-2 rounded-md border border-slate-100 px-2.5 py-1.5">
-                                {!matExpanded ? (
-                                  <button onClick={() => { setMatOpen((o) => ({ ...o, [p.id]: true })); setFocusMatFirst(p.id); }} className="w-full flex items-start gap-1.5 text-left" title="Materials — click or press Enter to edit">
-                                    <ChevronRight size={13} className="text-slate-400 shrink-0 mt-[1px]" />
-                                    {matRows.length === 0 ? (
-                                      <span className="text-[11px] leading-4 text-slate-400">Associated materials</span>
-                                    ) : (
-                                      <span className="flex-1 min-w-0 space-y-px">
-                                        {matRows.map((r) => (
-                                          <span key={r.label} className="flex items-baseline gap-2 text-[11px] leading-4 min-w-0">
-                                            <span className="w-16 shrink-0 text-slate-500 font-medium">{r.label}</span>
-                                            <span className="text-slate-400 truncate min-w-0">{r.text}</span>
-                                            <span className="ml-auto shrink-0 text-indigo-700 font-semibold">{r.qty || "—"}</span>
-                                          </span>
-                                        ))}
-                                      </span>
-                                    )}
-                                  </button>
-                                ) : (<>
-                                  <button tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: false }))} className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1.5" title="Collapse">
-                                    <ChevronDown size={13} className="shrink-0" /> close
-                                  </button>
-                                  <div className="space-y-1.5">
-                                {p.type === "tile" && (<>
-                                {/* Grout */}
-                                <div className={`rounded-md border px-2.5 py-1.5 ${p.grout.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                    <button ref={(el) => { if (el) matFirstRefs.current[p.id] = el; }} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: !p.grout.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.grout.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.grout.checked && <Check size={12} />}</button>
-                                    <span className="text-sm font-medium">Grout</span>
-                                    {p.grout.checked && (
-                                      <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
-                                        <FitSelect value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                        <FitSelect value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
-                                        {p.grout.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku}</span>}
-                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
-                                        <span className="flex items-center gap-1 text-xs text-slate-500 shrink-0" title="Matching caulk for this grout color — tubes to order; leave blank for none">Caulk<input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
-                                      </div>
-                                    )}
-                                    {p.grout.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{G ? G.unit : settings.grouts[p.grout.product]?.unit}</span></span>}
-                                    {p.grout.checked && !G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
-                                  </div>
+                            {/* material child rows (expanded) */}
+                            {matExpanded && p.type === "tile" && p.grout.checked && (
+                              <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
+                                <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> Grout</div>
+                                <div style={gridCell}><select value={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 8px" }}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+                                <div style={{ ...gridCell, gap: 4, paddingLeft: 8 }}>
+                                  <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
+                                  <select value={p.grout.color} onChange={(e) => pickGroutColor(e.target.value)} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 2px" }} title="Grout color"><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</select>
+                                  <select tabIndex={-1} value={String(num(p.grout.joint))} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, joint: e.target.value } })} className="ft-cell shrink-0" style={{ fontSize: 9.5, width: 46, flex: "none", padding: "5px 2px" }} title="Joint width">{JOINTS.map((j) => <option key={j.v} value={String(j.v)}>{j.label}</option>)}</select>
                                 </div>
-                                {/* Mortar */}
-                                <div className={`rounded-md border px-2.5 py-1.5 ${p.mortar.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                    <button onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: !p.mortar.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.mortar.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.mortar.checked && <Check size={12} />}</button>
-                                    <span className="text-sm font-medium">Mortar</span>
-                                    {p.mortar.checked && (
-                                      <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0">
-                                        <FitSelect value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                      </div>
-                                    )}
-                                    {p.mortar.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{M ? M.unit : settings.mortars[p.mortar.product]?.unit}</span></span>}
-                                  </div>
+                                <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }} title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div className="ft-mono" style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontSize: 9.5 }}>{gPrice > 0 ? gPrice.toFixed(2) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
+                                  <input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "5px 2px" }} placeholder="—" title={`Total — type to override${gEx != null ? ` (exact ${gEx.toFixed(2)})` : ". Enter Sq Ft + tile L/W/thickness to calculate."}`} />
+                                  <span className="shrink-0 pr-1.5" style={{ fontSize: 9 }}>{gUnit}{G && !p.grout.manual && <span style={{ fontSize: 8, color: "#B3A38D" }}> auto</span>}</span>
                                 </div>
-                                </>)}
-                                {underlayCard}
-                                  </div>
-                                </>)}
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontWeight: 700 }}>{G && G.price > 0 ? money(G.order * G.price) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div className="ft-noprint flex items-center justify-center"><button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="p-0.5 text-slate-300 hover:text-red-500"><X size={11} /></button></div>
                               </div>
                             )}
-
-                            <div className="mt-2 flex items-end gap-2">
-                              <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
-                              <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="ft-noprint shrink-0 -m-1 p-1 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={15} /></button>
-                            </div>
+                            {matExpanded && p.type === "tile" && p.grout.checked && (
+                              <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
+                                <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> Caulk</div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#6B594A" }}>Matching caulk</div>
+                                <div style={{ ...gridCell, gap: 5, paddingLeft: 8 }}>
+                                  <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
+                                  <span style={{ color: p.grout.color ? "inherit" : "#B3A38D" }}>{p.grout.color ? `${p.grout.color} match` : "—"}</span>
+                                </div>
+                                <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }}>{p.grout.caulkSku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div className="ft-mono" style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontSize: 9.5 }}>{num(p.grout.caulkPrice) > 0 ? num(p.grout.caulkPrice).toFixed(2) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
+                                  <input tabIndex={-1} type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "5px 2px" }} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" />
+                                  <span className="shrink-0 pr-1.5" style={{ fontSize: 9 }}>tubes</span>
+                                </div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontWeight: 700 }}>{caulkN > 0 && num(p.grout.caulkPrice) > 0 ? money(caulkN * num(p.grout.caulkPrice)) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div />
+                              </div>
+                            )}
+                            {matExpanded && p.type === "tile" && p.mortar.checked && (
+                              <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
+                                <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> Mortar</div>
+                                <div style={gridCell}><select value={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 8px" }}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }}>{settings.mortars[p.mortar.product]?.sku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div className="ft-mono" style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontSize: 9.5 }}>{mPrice > 0 ? mPrice.toFixed(2) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
+                                  <input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "5px 2px" }} placeholder="—" title={`Total — type to override${mEx != null ? ` (exact ${mEx.toFixed(2)})` : ""}`} />
+                                  <span className="shrink-0 pr-1.5" style={{ fontSize: 9 }}>{mUnit}{M && !p.mortar.manual && <span style={{ fontSize: 8, color: "#B3A38D" }}> auto</span>}</span>
+                                </div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontWeight: 700 }}>{M && M.price > 0 ? money(M.order * M.price) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div className="ft-noprint flex items-center justify-center"><button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="p-0.5 text-slate-300 hover:text-red-500"><X size={11} /></button></div>
+                              </div>
+                            )}
+                            {matExpanded && p.type !== "misc" && p.underlay.checked && (<>
+                              <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
+                                <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> {KSHORT[underlayLabel(p.type)]}</div>
+                                <div style={gridCell}>
+                                  {underlayOpts.length > 0 ? (
+                                    <select value={p.underlay.product} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 8px" }}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+                                  ) : (
+                                    <span className="px-2 text-amber-500" style={{ fontSize: 10 }}>No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</span>
+                                  )}
+                                </div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }}>{settings.underlayments[p.underlay.product]?.sku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", color: "#B3A38D" }}>—</div>
+                                <div className="ft-mono" style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontSize: 9.5 }}>{uPrice > 0 ? uPrice.toFixed(2) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
+                                  <input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "5px 2px" }} placeholder="—" title={`Total — type to override${uEx != null ? ` (exact ${uEx.toFixed(2)})` : ". Enter Sq Ft to calculate, or type a total."}`} />
+                                  <span className="shrink-0 pr-1.5" style={{ fontSize: 9 }}>{underlayUnit}{U && !p.underlay.manual && <span style={{ fontSize: 8, color: "#B3A38D" }}> auto</span>}</span>
+                                </div>
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", fontWeight: 700 }}>{U && U.price > 0 ? money(U.order * U.price) : <span style={{ color: "#B3A38D" }}>—</span>}</div>
+                                <div className="ft-noprint flex items-center justify-center"><button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="p-0.5 text-slate-300 hover:text-red-500"><X size={11} /></button></div>
+                              </div>
+                              {installDefs.length > 0 && (
+                                <div style={{ padding: "3px 12px 5px 34px", background: "#FBF5EA", borderTop: "1px solid #EDE4D4" }}>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.install && <Check size={10} />}</button>
+                                    {p.underlay.install ? (
+                                      <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
+                                        {insExpanded ? <ChevronDown size={12} className="text-slate-400 shrink-0" /> : <ChevronRight size={12} className="text-slate-400 shrink-0" />}
+                                        Install materials
+                                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{insIncluded < installDefs.length ? `${insIncluded} of ${installDefs.length}` : `${installDefs.length} item${installDefs.length === 1 ? "" : "s"}`}</span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs">Install materials <span className="text-[10px] text-slate-400">({installDefs.length})</span></span>
+                                    )}
+                                    {p.underlay.install && !insExpanded && (INS ? (
+                                      <span className="ml-auto text-[10px] text-indigo-700 font-medium truncate">{INS.slice(0, 3).map((m) => `${m.order} ${m.unit}`).join(" · ")}{INS.length > 3 ? ` +${INS.length - 3}` : ""}</span>
+                                    ) : insIncluded === 0 ? (
+                                      <span className="ml-auto text-[10px] text-slate-400">none included</span>
+                                    ) : (
+                                      <span className="ml-auto text-[10px] text-amber-500 truncate">{p.qtyType === "sqft" && num(p.qty) > 0 ? "No coverage set" : "Enter Sq Ft"}</span>
+                                    ))}
+                                  </div>
+                                  {p.underlay.install && insExpanded && (
+                                    <div className="mt-1 ml-6 space-y-1">
+                                      {installDefs.map((d) => {
+                                        const skipped = !!p.underlay.installSkip?.[d.id];
+                                        const item = insById.get(d.id);
+                                        const cur = p.underlay.installMortars?.[d.id] || d.product;
+                                        const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
+                                        return (
+                                          <div key={d.id} className="flex items-center gap-2">
+                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "bg-indigo-600 text-white"}`}>{!skipped && <Check size={10} />}</button>
+                                            {d.kind === "mortar" && !skipped ? (
+                                              <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
+                                                {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
+                                              </FitSelect>
+                                            ) : (
+                                              <span className={`text-xs truncate ${skipped ? "text-slate-400 line-through" : "text-slate-600"}`}>{d.kind === "mortar" ? (cur || "mortar") : d.name}</span>
+                                            )}
+                                            <span className="ml-auto text-xs whitespace-nowrap">{skipped ? <span className="text-slate-300">skipped</span> : item ? <><span className="text-slate-400">{item.exact.toFixed(2)} → </span><span className="text-indigo-700 font-semibold">{item.order} {item.unit}</span></> : <span className="text-slate-300">—</span>}</span>
+                                          </div>
+                                        );
+                                      })}
+                                      {!INS && insIncluded > 0 && <div className="text-xs text-amber-500">{p.qtyType === "sqft" && num(p.qty) > 0 ? "Set install-material coverage in Settings to calculate." : "Enter Sq Ft to calculate install materials."}</div>}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>)}
+                            {addables.length > 0 && (matExpanded || !hasMats) && (
+                              <div className="ft-noprint flex items-center gap-3" style={{ padding: "3px 8px 4px 20px", fontSize: 10, borderTop: "1px solid #EDE4D4", background: matExpanded && hasMats ? "#FBF5EA" : "transparent" }}>
+                                <span style={{ color: "#E4D6C2" }}>└</span>
+                                {addables.map(([label, add]) => (
+                                  <button key={label} tabIndex={-1} onClick={add} className="flex items-center gap-0.5 hover:text-slate-600" style={{ color: "#B3A38D" }}><Plus size={10} /> {label}</button>
+                                ))}
+                              </div>
+                            )}
+                            {!matExpanded && pInline.length > 0 && (
+                              <button onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="w-full flex items-center flex-wrap text-left" style={{ gap: 12, padding: "3px 12px 5px 26px", fontSize: 9.5, color: "#6B594A", background: "#FDFAF4" }} title="Materials — click to edit">
+                                <span style={{ color: "#C3B49E" }}>└</span>
+                                {pInline.map((m, i) => (
+                                  <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
+                                    <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
+                                  </span>
+                                ))}
+                                <span className="flex-1" />
+                                {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "#8A7A69" }}>+ {money(matsCost)}</span>}
+                              </button>
+                            )}
+                            {(matExpanded || p.note) && (
+                              <div className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid #EDE4D4" : "none" }}>
+                                <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                       {drag?.to?.aid === a.id && <div className="absolute left-1 right-1 h-1.5 rounded-full bg-indigo-600 pointer-events-none" style={{ top: drag.to.y, marginTop: 0 }} />}
                     </div>
-                    <button onClick={() => addProduct(a.id)} className="ft-noprint mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md border border-dashed border-slate-300 py-2 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={14} /> Add product</button>
+                    <button onClick={() => addProduct(a.id)} className="ft-noprint w-full flex items-center gap-1.5 text-left hover:text-slate-500" style={{ padding: "6px 10px", fontSize: 10.5, color: "#C3B49E", borderTop: "1px solid #EDE4D4" }}><Plus size={11} /> New row — start typing anywhere</button>
                   </div>
                   );
                 })}
@@ -1956,47 +2081,52 @@ export default function App({ user, onSignOut }) {
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
-                <div className="mt-5 bg-white border border-slate-200 rounded-lg" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
-                  <div className="ft-eyebrow-accent text-[10px] mb-1.5">Materials Estimate</div>
-                  <h3 className="ft-serif mb-5" style={{ fontSize: "clamp(22px,2.6vw,30px)", lineHeight: 1 }}>Order summary</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
+                <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D4", padding: "10px 16px" }}>
+                    <div className="flex items-baseline gap-2.5 min-w-0">
+                      <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Materials Estimate</span>
+                      <span className="ft-serif" style={{ fontSize: 20 }}>Order summary</span>
+                    </div>
+                    {groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)} materials</span>}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-6" style={{ padding: 16 }}>
                     <div>
-                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Grout</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Grout</div>
                       {gList.length + bList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...bList.map((b) => ({ product: b.name, sku: b.sku, color: "—", order: b.order, unit: b.unit, cost: b.cost, price: b.price, pending: false })), ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
-                        <div key={"g" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {g.sku}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block text-[11px] text-slate-400">{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
+                        <div key={"g" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                          <span className="font-medium min-w-0">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{g.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
-                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Mortar</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Mortar</div>
                       {mList.length === 0 ? <div className="text-sm text-slate-400">—</div> : mList.map((m, i) => (
-                        <div key={"m" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{m.product}{m.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {m.sku}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block text-[11px] text-slate-400">{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
+                        <div key={"m" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                          <span className="font-medium min-w-0">{m.product}{m.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{m.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
-                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Underlayment</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Underlayment</div>
                       {uList.length === 0 ? <div className="text-sm text-slate-400">—</div> : uList.map((u, i) => (
-                        <div key={"u" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{u.product}{u.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {u.sku}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block text-[11px] text-slate-400">{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
+                        <div key={"u" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                          <span className="font-medium min-w-0">{u.product}{u.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{u.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Flooring</span><span className="ft-mono text-[13px]">{money(flooringPrice)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Grout</span><span className="ft-mono text-[13px]">{money(groutCost + baseCost + caulkCost)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Mortar</span><span className="ft-mono text-[13px]">{money(mortarCost)}</span></div>
-                        {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Underlayment</span><span className="ft-mono text-[13px]">{money(underlayCost)}</span></div>}
-                        {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Miscellaneous</span><span className="ft-mono text-[13px]">{money(miscCost)}</span></div>}
-                        <div className="flex items-center justify-between items-baseline mt-1.5 pt-3" style={{ borderTop: "2px solid var(--ft-text)" }}><span className="text-sm font-semibold">Total</span><span className="ft-serif" style={{ fontSize: 30, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
+                        {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
+                        {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
+                        <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid #291D16" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-3">Figures include {wasteNote(settings)}. Verify before ordering.</div>
+                      <div style={{ fontSize: 10.5, color: "#B3A38D", marginTop: 10 }}>Figures include {wasteNote(settings)}. Verify before ordering.</div>
                     </div>
                   </div>
                 </div>
