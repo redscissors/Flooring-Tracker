@@ -6,7 +6,7 @@ import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutE
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
-import KilnMark from "./KilnMark.jsx";
+import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
@@ -1545,10 +1545,9 @@ export default function App({ user, onSignOut }) {
             </div>
             <div className="break-inside-avoid flex justify-between items-center mt-5" style={{ borderTop: "1px solid #EDE2D2", paddingTop: 10 }}>
               <div className="flex items-center gap-2">
-                <KilnMark size={18} />
-                <span className="ft-serif" style={{ fontSize: 12 }}>Kiln</span>
+                <span className="ft-wordmark" style={{ fontSize: 13 }}>ned</span>
               </div>
-              <div className="text-[9.5px] text-slate-400">Prepared with Kiln</div>
+              <div className="text-[9.5px] text-slate-400">Prepared with ned</div>
             </div>
           </div>
   );
@@ -1616,14 +1615,14 @@ export default function App({ user, onSignOut }) {
   };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: '"Karla", ui-sans-serif, system-ui, sans-serif' }}>
+    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <KilnMark size={28} />
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "Kiln"}</span>
+            <NedMark size={28} />
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "ned"}</span>
           </div>
         )}
 
@@ -1632,8 +1631,7 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <KilnMark size={34} />
-            <div className="flex-1 min-w-0"><div className="ft-serif text-xl leading-none">Kiln</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
+            <div className="flex-1 min-w-0"><div className="ft-wordmark" style={{ fontSize: 22 }}>ned</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -1733,7 +1731,7 @@ export default function App({ user, onSignOut }) {
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <KilnMark size={60} className="mb-4" />
+                <NedMark size={60} className="mb-4" />
                 <h2 className="ft-serif text-2xl">Select or create a customer</h2>
                 <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building projects.</p>
               </div>
