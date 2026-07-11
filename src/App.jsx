@@ -404,7 +404,7 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
       {compact ? (
         <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={`Product type — ${TLBL[type]} (click to change)`}
           className="shrink-0 flex items-center justify-center font-bold text-white leading-none"
-          style={{ width: 18, background: accent, fontSize: 10 }}>
+          style={{ width: 18, background: accent, fontSize: 10, margin: "6px 0" }}>
           {TLBL[type][0]}
         </button>
       ) : (
@@ -594,6 +594,16 @@ export default function App({ user, onSignOut }) {
   // Which products' materials drawers are expanded — view state only, never
   // persisted. Collapsed shows fine-print summaries of the checked materials.
   const [matOpen, setMatOpen] = useState({});
+  // Clicking anywhere outside a drawer (or its pill/chevron/note, marked
+  // data-mats-keep) folds every open drawer back to its summary pill.
+  useEffect(() => {
+    const close = (e) => {
+      if (e.target.closest?.("[data-mats-keep]")) return;
+      setMatOpen((o) => (Object.values(o).some(Boolean) ? {} : o));
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const mainRef = useRef(null);
@@ -1807,9 +1817,9 @@ export default function App({ user, onSignOut }) {
                         const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked);
                         const openMats = () => setMatOpen((o) => ({ ...o, [p.id]: true }));
                         const addables = p.type === "misc" ? [] : [
-                          ...(p.type === "tile" && !p.grout.checked ? [["Grout", () => { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); openMats(); }]] : []),
-                          ...(p.type === "tile" && !p.mortar.checked ? [["Mortar", () => { updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } }); openMats(); }]] : []),
-                          ...(!p.underlay.checked ? [[KSHORT[underlayLabel(p.type)], () => { toggleUnderlay(); openMats(); }]] : []),
+                          ...(p.type === "tile" && !p.grout.checked ? ["Grout"] : []),
+                          ...(p.type === "tile" && !p.mortar.checked ? ["Mortar"] : []),
+                          ...(!p.underlay.checked ? [KSHORT[underlayLabel(p.type)]] : []),
                         ];
                         const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
                         const mUnit = M ? M.unit : settings.mortars[p.mortar.product]?.unit || "";
@@ -1833,8 +1843,8 @@ export default function App({ user, onSignOut }) {
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: rowTint }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
-                                {hasMats ? (
-                                  <button tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: !matExpanded }))} title={matExpanded ? "Collapse materials" : "Expand materials"} className="ft-noprint shrink-0 text-slate-400 p-0.5">
+                                {(hasMats || matExpanded) ? (
+                                  <button data-mats-keep tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: !matExpanded }))} title={matExpanded ? "Collapse materials" : "Expand materials"} className="ft-noprint shrink-0 text-slate-400 p-0.5">
                                     {matExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                                   </button>
                                 ) : <span className="w-4 shrink-0" />}
@@ -1888,7 +1898,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
-                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
+                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
@@ -1912,9 +1922,10 @@ export default function App({ user, onSignOut }) {
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
                             )}
-                            {/* material child boxes (expanded) — ported from main's card layout */}
-                            {matExpanded && hasMats && (
-                              <div className="space-y-1" style={{ margin: "4px 12px 8px 26px", padding: 7, background: "#FBF5EA", border: "1px solid #E7DAC6", borderRadius: 7 }}>
+                            {/* material child boxes (expanded) — every applicable material shows,
+                                checked (full controls) or unchecked (slim dashed card, click ✓ to add) */}
+                            {matExpanded && p.type !== "misc" && (
+                              <div data-mats-keep className="space-y-1" style={{ margin: "4px 12px 8px 26px", padding: 7, background: "#FBF5EA", border: "1px solid #E7DAC6", borderRadius: 7 }}>
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -1940,6 +1951,13 @@ export default function App({ user, onSignOut }) {
                                     </div>
                                   </div>
                                 )}
+                                {p.type === "tile" && !p.grout.checked && (
+                                  <div className="rounded-md border border-dashed border-slate-200 px-2.5 py-1 flex items-center gap-2">
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <span className="text-sm text-slate-500">Grout</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.grout.product || groutNames[0] || ""}</span>
+                                  </div>
+                                )}
                                 {p.type === "tile" && p.mortar.checked && (
                                   <div className="rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -1951,6 +1969,13 @@ export default function App({ user, onSignOut }) {
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{mUnit}</span></span>
                                     </div>
+                                  </div>
+                                )}
+                                {p.type === "tile" && !p.mortar.checked && (
+                                  <div className="rounded-md border border-dashed border-slate-200 px-2.5 py-1 flex items-center gap-2">
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <span className="text-sm text-slate-500">Mortar</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.mortar.product || mortarNames[0] || ""}</span>
                                   </div>
                                 )}
                                 {p.type !== "misc" && p.underlay.checked && (
@@ -2017,18 +2042,17 @@ export default function App({ user, onSignOut }) {
                                     )}
                                   </div>
                                 )}
-                              </div>
-                            )}
-                            {addables.length > 0 && (matExpanded || !hasMats) && (
-                              <div className="ft-noprint flex items-center gap-3" style={{ padding: "3px 8px 4px 20px", fontSize: 10, borderTop: "1px solid #EDE4D4", background: matExpanded && hasMats ? "#FBF5EA" : "transparent" }}>
-                                <span style={{ color: "#E4D6C2" }}>└</span>
-                                {addables.map(([label, add]) => (
-                                  <button key={label} tabIndex={-1} onClick={add} className="flex items-center gap-0.5 hover:text-slate-600" style={{ color: "#B3A38D" }}><Plus size={10} /> {label}</button>
-                                ))}
+                                {p.type !== "misc" && !p.underlay.checked && (
+                                  <div className="rounded-md border border-dashed border-slate-200 px-2.5 py-1 flex items-center gap-2">
+                                    <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
-                              <button onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 12px 8px 26px", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: "#FBF5EA", border: "1px solid #E7DAC6", borderRadius: 7 }} title="Materials — click to edit">
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 12px 8px 26px", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: "#FBF5EA", border: "1px solid #E7DAC6", borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
@@ -2038,8 +2062,13 @@ export default function App({ user, onSignOut }) {
                                 {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "#8A7A69" }}>+ {money(matsCost)}</span>}
                               </button>
                             )}
+                            {!matExpanded && !hasMats && addables.length > 0 && (
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 12px 8px 26px", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
+                                ＋ {addables.join(" · ")}…
+                              </button>
+                            )}
                             {(matExpanded || p.note) && (
-                              <div className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid #EDE4D4" : "none" }}>
+                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid #EDE4D4" : "none" }}>
                                 <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
                               </div>
                             )}
