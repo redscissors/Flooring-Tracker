@@ -117,12 +117,44 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
 .rounded-sm,.rounded,.rounded-md{border-radius:var(--ft-r);}
 .rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl{border-radius:var(--ft-r-lg);}
 
-/* NED data series lighten two steps on dark surfaces (kit spec) */
+/* Dark mode (NED kit palette, turn 7). Driven by the .ned-dark / .ned-light
+   classes App.jsx sets on <html> from the saved theme preference; "System"
+   removes both and lets the prefers-color-scheme block below decide. Only the
+   --ft-* tokens flip — the estimate paper opts back into light via .ft-light.
+   Accent FILL stays oak-600 so the app's white-on-accent buttons keep their
+   contrast; oak-400 is used for links/eyebrows (--ft-brand*) where text sits
+   directly on the dark background. */
+.ned-dark{
+  --ft-cream:#221C15; --ft-card:#2E2418; --ft-prod:#362A1D; --ft-field:#2E2418;
+  --ft-border:#453729; --ft-border-strong:#574734;
+  --ft-text:#F0E4D2; --ft-muted:#B3A48D;
+  --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#F0E4D2;
+  --ft-brand:#C8A06A; --ft-brand-deep:#C8A06A;
+  --ft-sand:#453729; --ft-deep:#52412E; --ft-logo:#E8D5B5;
+  --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
+  --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
+}
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not(.ned-light):not(.ned-dark){
+    --ft-cream:#221C15; --ft-card:#2E2418; --ft-prod:#362A1D; --ft-field:#2E2418;
+    --ft-border:#453729; --ft-border-strong:#574734;
+    --ft-text:#F0E4D2; --ft-muted:#B3A48D;
+    --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#F0E4D2;
+    --ft-brand:#C8A06A; --ft-brand-deep:#C8A06A;
+    --ft-sand:#453729; --ft-deep:#52412E; --ft-logo:#E8D5B5;
     --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
     --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
   }
+}
+/* The estimate paper is a printed white sheet — re-assert the light tokens on
+   its subtree so it stays light in every app theme (on screen and in print). */
+.ft-light{
+  --ft-cream:#FAF8F4; --ft-card:#FFFFFF; --ft-prod:#F7F1E5; --ft-field:#FFFFFF;
+  --ft-border:#E5DDD0; --ft-border-strong:#D6C6AC;
+  --ft-text:#221C15; --ft-muted:#6B6257;
+  --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#2E2418;
+  --ft-brand:#8A5A2B; --ft-brand-deep:#6F4722;
+  --ft-sand:#F0E4D2; --ft-deep:#2E2418; --ft-logo:#221C15;
 }
 
 @media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }

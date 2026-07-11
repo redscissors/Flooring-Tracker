@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
@@ -664,6 +664,18 @@ export default function App({ user, onSignOut }) {
   // Neither is persisted — a blank row simply re-opens as search on reload.
   const [manualRows, setManualRows] = useState({});
   const [omniQ, setOmniQ] = useState({});
+  // Appearance: "system" | "light" | "dark", per-device (localStorage, not
+  // Supabase). index.html applies the saved class pre-paint; this keeps <html>
+  // in sync when the user changes it. "system" clears both classes and lets the
+  // prefers-color-scheme block in index.css decide.
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
+  useEffect(() => {
+    try { localStorage.setItem("ft-theme", theme); } catch {}
+    const el = document.documentElement;
+    el.classList.remove("ned-dark", "ned-light");
+    if (theme === "dark") el.classList.add("ned-dark");
+    else if (theme === "light") el.classList.add("ned-light");
+  }, [theme]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
@@ -2265,7 +2277,7 @@ export default function App({ user, onSignOut }) {
               </div>
               {viewTab === "preview" && (
                 <div className="rounded-lg py-6 px-3 md:px-6" style={{ background: "color-mix(in oklab, var(--ft-text) 6%, var(--ft-cream))" }}>
-                  <div className="bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
+                  <div className="ft-light bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
                     {renderEstimatePaper()}
                   </div>
                   <div className="text-center mt-4">
@@ -2279,7 +2291,7 @@ export default function App({ user, onSignOut }) {
       </div>
 
       {/* PRINT VIEW — the print buttons pick the layout: estimate (default, also Ctrl+P) or order sheet */}
-      <div className="hidden print:block text-black p-2">
+      <div className="ft-light hidden print:block text-black p-2">
         {sel && sel._full && (printMode === "order" ? (
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-3">
@@ -2333,7 +2345,7 @@ export default function App({ user, onSignOut }) {
           settings={settings} setSettings={setSettings} stock={stock} gFamilies={gFamilies}
           importing={importing} importPriceBook={importPriceBook} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
-          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
+          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} />
       )}
 
       {showTodos && (
@@ -2624,7 +2636,7 @@ function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, i
 // The PC-first Settings workspace (issue 007): near-fullscreen, left-nav
 // sections, master→detail catalog editing. Pure UI — every write still flows
 // through setSettings and the import/backup handlers passed in from App.
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -3048,6 +3060,15 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             <div className="mt-5 flex gap-6">
               <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
               <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <label className={lbl}>Appearance</label>
+              <p className="text-[11px] text-slate-400 mt-1 mb-2.5 max-w-md">Applies on this device only. The printed estimate stays on white paper.</p>
+              <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
+                {[{ v: "system", label: "System", icon: Laptop }, { v: "light", label: "Light", icon: Sun }, { v: "dark", label: "Dark", icon: Moon }].map(({ v, label, icon: Icon }) => (
+                  <button key={v} onClick={() => setTheme(v)} className={`flex items-center gap-1.5 px-3.5 py-2 font-medium ${theme === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}><Icon size={14} /> {label}</button>
+                ))}
+              </div>
             </div>
           </div>
         ) : section === "book" ? (
