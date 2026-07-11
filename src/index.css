@@ -13,36 +13,37 @@ body {
   font-family: "Karla", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Theme (Kiln): serif display, warm terracotta-on-sand palette, monospace
-   eyebrows. Global so the login screen and app share one palette; works by
-   overriding Tailwind slate/indigo classes. Primary fills are terracotta;
-   fired clay is reserved for eyebrows and small accent text. */
+/* Theme (NED): serif display, warm oak-on-sand palette from the NED reskin kit
+   (wordmark 6a, palette turn 7), monospace eyebrows. Global so the login screen
+   and app share one palette; works by overriding Tailwind slate/indigo classes.
+   Primary fills are Oak 600; deep oak is reserved for eyebrows and small accent
+   text. */
 :root{
-  --ft-cream:#F1E9DB;            /* app background */
-  --ft-card:#FFFBF5;             /* paper — cards & inputs */
-  --ft-prod:#FBF5EA;
-  --ft-field:#FFFBF5;
+  --ft-cream:#FAF8F4;            /* app background — NED paper-50 */
+  --ft-card:#FFFFFF;             /* surface — cards & inputs */
+  --ft-prod:#F7F1E5;
+  --ft-field:#FFFFFF;
   --ft-fieldbar:color-mix(in oklab, var(--ft-text) 5%, var(--ft-card));
-  --ft-border:#DCCFBA;           /* line */
+  --ft-border:#E5DDD0;           /* line — NED border */
   --ft-border-soft:color-mix(in oklab, var(--ft-text) 7%, transparent);
-  --ft-border-strong:#C9B79D;
-  --ft-text:#291D16;             /* ink */
-  --ft-muted:#8A7A69;
-  --ft-accent:#C25A3A;           /* primary fills are terracotta in Kiln */
-  --ft-accent-press:#A84B2F;
-  --ft-accent-deep:#291D16;
-  --ft-brand:#C25A3A;            /* terracotta — markers, links, focus */
-  --ft-brand-deep:#8A3B24;       /* fired clay — eyebrows, small accent text */
-  --ft-sand:#F0E4D4;             /* bands & quiet fills */
+  --ft-border-strong:#D6C6AC;
+  --ft-text:#221C15;             /* ink — NED ink */
+  --ft-muted:#6B6257;            /* NED text-muted */
+  --ft-accent:#8A5A2B;           /* primary fills are Oak 600 in NED */
+  --ft-accent-press:#6F4722;
+  --ft-accent-deep:#2E2418;      /* walnut-900 */
+  --ft-brand:#8A5A2B;            /* oak — markers, links, focus */
+  --ft-brand-deep:#6F4722;       /* deep oak — eyebrows, small accent text */
+  --ft-sand:#F0E4D2;             /* bands & quiet fills — NED surface-alt */
   --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
   --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
   --ft-tint-border:color-mix(in oklab, var(--ft-brand) 35%, var(--ft-border));
-  --ft-deep:#291D16;
+  --ft-deep:#2E2418;             /* walnut-900 — deep fills */
   --ft-serif:"Lora", ui-serif, Georgia, "Times New Roman", serif;
   --ft-mono:"Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Kiln helpers — .ft-serif is Lora 500; .ft-eyebrow-accent is fired clay. */
+/* NED helpers — .ft-serif is Lora 500; .ft-eyebrow-accent is deep oak. */
 .ft-serif{font-family:var(--ft-serif);font-weight:500;letter-spacing:-.01em;}
 .ft-mono{font-family:var(--ft-mono);}
 .ft-eyebrow{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}

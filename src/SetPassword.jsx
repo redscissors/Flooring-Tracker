@@ -51,7 +51,7 @@ export default function SetPassword({ email, onDone, onCancel }) {
             <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inp} autoComplete="new-password" />
           </div>
 
-          {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D4", border: "1px solid var(--ft-brand-deep)", color: "#4A3D31" }}>{err}</div>}
+          {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D2", border: "1px solid var(--ft-brand-deep)", color: "#4A3D31" }}>{err}</div>}
 
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
             {busy ? "Saving…" : "Set password & continue"}
