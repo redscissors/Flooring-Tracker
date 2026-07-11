@@ -1501,15 +1501,32 @@ export default function App({ user, onSignOut }) {
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
                 <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, background: "#F0E4D2", borderRadius: 4, padding: "14px 16px" }}>
-                  {pMats.map((m, i) => (
-                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>{m.kind}</div>
-                      <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.order > 0 && <> · {m.order} {u1(m.order, m.unit)}</>} <span className="ft-mono" style={{ fontWeight: 400, fontSize: 10 }}>{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : ""}</span></div>
-                      <div style={{ fontSize: 10, color: "var(--ft-muted)" }}>{[m.spec, m.sku, m.exact > 0 ? `(${m.exact.toFixed(2)})` : ""].filter(Boolean).join(" · ")}</div>
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, justifyContent: "flex-end" }}>
+                <div style={{ background: "#F0E4D2", borderRadius: 4, padding: "14px 16px" }}>
+                  <div style={{ columns: 2, columnGap: 28 }}>
+                    {(() => {
+                      // pMats is pre-sorted by PRINT_KINDS, so same-kind items are
+                      // already adjacent — one heading per category, its items listed
+                      // beneath it (no repeated category labels).
+                      const groups = [];
+                      pMats.forEach((m) => {
+                        const g = groups[groups.length - 1];
+                        if (g && g.kind === m.kind) g.items.push(m);
+                        else groups.push({ kind: m.kind, items: [m] });
+                      });
+                      return groups.map((g, gi) => (
+                        <div key={gi} className="break-inside-avoid" style={{ marginBottom: 12 }}>
+                          <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>{g.kind}</div>
+                          {g.items.map((m, i) => (
+                            <div key={i} style={{ marginBottom: 4 }}>
+                              <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.order > 0 && <> · {m.order} {u1(m.order, m.unit)}</>} <span className="ft-mono" style={{ fontWeight: 400, fontSize: 10 }}>{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : ""}</span></div>
+                              <div style={{ fontSize: 10, color: "var(--ft-muted)" }}>{[m.spec, m.sku, m.exact > 0 ? `(${m.exact.toFixed(2)})` : ""].filter(Boolean).join(" · ")}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-border)", marginTop: 2, paddingTop: 8 }}>
                     <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Materials subtotal</div>
                     <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}</div>
                   </div>
