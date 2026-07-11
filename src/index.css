@@ -10,14 +10,13 @@ body,
 }
 
 body {
-  font-family: "Karla", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--ft-ui);
 }
 
-/* Theme (NED): serif display, warm oak-on-sand palette from the NED reskin kit
-   (wordmark 6a, palette turn 7), monospace eyebrows. Global so the login screen
-   and app share one palette; works by overriding Tailwind slate/indigo classes.
-   Primary fills are Oak 600; deep oak is reserved for eyebrows and small accent
-   text. */
+/* Theme (NED): Sora display + Manrope UI, warm oak-on-sand palette from the NED
+   reskin kit (wordmark 6a, palette turn 7). Global so the login screen and app
+   share one palette; works by overriding Tailwind slate/indigo classes. Primary
+   fills are Oak 600; deep oak is reserved for eyebrows and small accent text. */
 :root{
   --ft-cream:#FAF8F4;            /* app background — NED paper-50 */
   --ft-card:#FFFFFF;             /* surface — cards & inputs */
@@ -39,15 +38,25 @@ body {
   --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
   --ft-tint-border:color-mix(in oklab, var(--ft-brand) 35%, var(--ft-border));
   --ft-deep:#2E2418;             /* walnut-900 — deep fills */
-  --ft-serif:"Lora", ui-serif, Georgia, "Times New Roman", serif;
-  --ft-mono:"Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ft-ui:"Manrope", ui-sans-serif, system-ui, sans-serif;    /* NED body / UI / labels */
+  --ft-display:"Sora", ui-sans-serif, system-ui, sans-serif;  /* NED headings & numerals */
+  --ft-serif:var(--ft-display);   /* legacy alias — display type is now Sora */
+  --ft-mono:var(--ft-display);    /* legacy alias — numerals use Sora */
+  --ft-logo:var(--ft-text);       /* wordmark color — ink on light */
+
+  /* Data / spreadsheet series — NED (light); flips per mode below */
+  --ned-data-1:#B3541E; --ned-data-2:#2F6D4F; --ned-data-3:#2E5E8C;
+  --ned-data-4:#8C4A62; --ned-data-5:#A8842C; --ned-data-6:#52706B;
 }
 
-/* NED helpers — .ft-serif is Lora 500; .ft-eyebrow-accent is deep oak. */
+/* NED helpers — .ft-serif is Sora 500; .ft-eyebrow-accent is deep oak. */
 .ft-serif{font-family:var(--ft-serif);font-weight:500;letter-spacing:-.01em;}
 .ft-mono{font-family:var(--ft-mono);}
-.ft-eyebrow{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
-.ft-eyebrow-accent{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand-deep);}
+.ft-eyebrow{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
+.ft-eyebrow-accent{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand-deep);}
+/* NED wordmark ("ned", lowercase Manrope bold) + uppercase tagline lockup. */
+.ft-wordmark{font-family:var(--ft-ui);font-weight:700;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);line-height:1;}
+.ft-tagline{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.22em;color:var(--ft-accent);line-height:1;}
 /* Merged materials box: line separators carry the row's type accent
    (--mat-acc is set inline where the box renders). */
 .ft-mats>*+*{border-top:1px solid color-mix(in oklab, var(--mat-acc) 25%, transparent);}
@@ -107,5 +116,13 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
 :root{--ft-r:5px;--ft-r-lg:5px;}
 .rounded-sm,.rounded,.rounded-md{border-radius:var(--ft-r);}
 .rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl{border-radius:var(--ft-r-lg);}
+
+/* NED data series lighten two steps on dark surfaces (kit spec) */
+@media (prefers-color-scheme: dark){
+  :root{
+    --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
+    --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
+  }
+}
 
 @media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }

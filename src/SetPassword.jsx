@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase.js";
-import KilnMark from "./KilnMark.jsx";
 
 // Shown when a user arrives via an invite or password-reset link. They are
 // already authenticated by the link; this lets them set a real password so they
@@ -31,14 +30,12 @@ export default function SetPassword({ email, onDone, onCancel }) {
   const inp = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
 
   return (
-    <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+    <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "var(--ft-ui)" }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <KilnMark size={36} />
-          <div>
-            <div className="font-semibold tracking-tight">Set your password</div>
-            <div className="text-xs text-slate-400 -mt-0.5">{email ? email : "Create a password to finish setting up"}</div>
-          </div>
+        <div className="mb-5">
+          <div className="ft-wordmark" style={{ fontSize: 30 }}>ned</div>
+          <div className="font-semibold tracking-tight mt-2.5">Set your password</div>
+          <div className="text-xs text-slate-400 -mt-0.5">{email ? email : "Create a password to finish setting up"}</div>
         </div>
 
         <form onSubmit={submit} className="space-y-3">

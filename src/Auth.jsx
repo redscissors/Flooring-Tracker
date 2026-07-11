@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase.js";
-import KilnMark from "./KilnMark.jsx";
 
 export default function Auth() {
   const [mode, setMode] = useState("signin"); // "signin" | "reset"
@@ -40,14 +39,12 @@ export default function Auth() {
   const inp = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6" style={{ fontFamily: '"Karla", ui-sans-serif, system-ui, sans-serif' }}>
+    <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
-        <div className="flex items-center gap-2.5 mb-5">
-          <KilnMark size={38} />
-          <div>
-            <div className="ft-serif text-xl leading-none">Kiln</div>
-            <div className="ft-eyebrow-accent text-[9px] mt-1.5">{mode === "reset" ? "Set a new password" : "Sign in to continue"}</div>
-          </div>
+        <div className="mb-5">
+          <div className="ft-wordmark" style={{ fontSize: 34 }}>ned</div>
+          <div className="ft-tagline text-[9px] mt-1.5">Neat. Easy. Done.</div>
+          <div className="ft-eyebrow-accent text-[9px] mt-2.5">{mode === "reset" ? "Set a new password" : "Sign in to continue"}</div>
         </div>
 
         {mode === "signin" ? (
@@ -90,7 +87,7 @@ export default function Auth() {
           Accounts are created by your administrator. Contact them if you need access.
         </p>
       </div>
-      <div className="ft-eyebrow text-[9px] mt-4">Kiln · Selection Manager</div>
+      <div className="ft-eyebrow text-[9px] mt-4">ned · Selection Manager</div>
     </div>
   );
 }
