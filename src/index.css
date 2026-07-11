@@ -97,6 +97,10 @@ input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text
 .ft-cell:focus{box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card);}
 select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-cell::placeholder{color:#B3A38D;}
+/* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
+   carton Order cell draws its own slim stepper instead. */
+.ft-cell::-webkit-outer-spin-button,.ft-cell::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+input.ft-cell[type="number"]{-moz-appearance:textfield;}
 
 /* Corner radius — editorial panels & controls at 5px; pills stay full. */
 :root{--ft-r:5px;--ft-r-lg:5px;}

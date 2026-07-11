@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
@@ -540,6 +540,7 @@ export default function App({ user, onSignOut }) {
   const [openCust, setOpenCust] = useState({});
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
+  const [custModal, setCustModal] = useState(null); // customer id whose details box is open
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
@@ -969,7 +970,7 @@ export default function App({ user, onSignOut }) {
   const addPerson = (name = "") => {
     const c = { ...newPerson(name), updatedAt: Date.now() };
     setData((prev) => ({ ...prev, people: [c, ...prev.people] }));
-    setSelCustId(c.id); setSelId(null); setSidebarOpen(false);
+    setSidebarOpen(false);
     (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: null, data: personData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); } })();
     return c;
   };
@@ -991,7 +992,6 @@ export default function App({ user, onSignOut }) {
     setConfirm(null);
     try { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
   };
-  const pickPerson = (id) => { setSelCustId(id); setSelId(null); setSidebarOpen(false); };
 
   // --- Builders: a canonical name list customers link to by id. ---
   // Create a new builder and assign it to a customer in one flow. The builder
@@ -1065,7 +1065,7 @@ export default function App({ user, onSignOut }) {
   const beginDrag = (node, main, startX, startY, aid, p, pi) => {
     const d = { startX, startY, lastX: startX, lastY: startY, startScroll: main.scrollTop, to: null, raf: 0 };
     node.dataset.dragging = "1";
-    Object.assign(node.style, { position: "relative", zIndex: 50, pointerEvents: "none", transition: "scale .18s ease, rotate .18s ease, box-shadow .18s ease", scale: "1.03", rotate: "0.6deg", boxShadow: "0 14px 34px rgba(40,30,20,.22)", willChange: "translate" });
+    Object.assign(node.style, { position: "relative", zIndex: 50, pointerEvents: "none", transition: "scale .18s ease, rotate .18s ease, box-shadow .18s ease", scale: "1.03", rotate: "0.6deg", boxShadow: "0 0 0 1px rgba(40,30,20,.10), 0 6px 14px rgba(40,30,20,.16), 0 18px 44px rgba(40,30,20,.28)", borderRadius: "8px", overflow: "hidden", willChange: "translate" });
     document.body.style.userSelect = "none";
     document.body.style.cursor = "grabbing";
 
@@ -1112,7 +1112,7 @@ export default function App({ user, onSignOut }) {
       document.body.style.cursor = "";
       const rect = node.getBoundingClientRect();
       delete node.dataset.dragging;
-      Object.assign(node.style, { position: "", zIndex: "", pointerEvents: "", transition: "", scale: "", rotate: "", boxShadow: "", willChange: "", translate: "" });
+      Object.assign(node.style, { position: "", zIndex: "", pointerEvents: "", transition: "", scale: "", rotate: "", boxShadow: "", borderRadius: "", overflow: "", willChange: "", translate: "" });
       dropAnim.current = { id: p.id, rect };
       if (commit && d.to) moveProduct(aid, p.id, d.to.aid, d.to.index);
       setDrag(null);
@@ -1495,20 +1495,26 @@ export default function App({ user, onSignOut }) {
     const projs = projectsOf(c.id);
     const shown = q ? projs.filter(matchProj) : projs;
     const isOpen = !!openCust[c.id] || (q && projs.some(matchProj));
-    const on = selCustId === c.id && !selId;
+    // Highlight the person row when their open project is hidden behind a
+    // collapsed group (or the legacy customer pane is showing).
+    const on = (selCustId === c.id && !selId) || (!isOpen && projs.some((p) => p.id === selId));
     const bn = builderNameOf(c.builderId);
+    const clickName = () => {
+      if (projs.length === 1) pickProject(projs[0].id);
+      else setOpenCust((s) => ({ ...s, [c.id]: !isOpen }));
+    };
     return (
       <div key={c.id} className="mb-0.5">
         <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
-          <button onClick={() => setOpenCust((s) => ({ ...s, [c.id]: !isOpen }))} title={isOpen ? "Collapse" : "Expand"} className="p-1.5 text-slate-400 hover:text-slate-600 shrink-0">
-            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
-          <button onClick={() => pickPerson(c.id)} className="flex items-center gap-2 min-w-0 flex-1 py-1.5 pr-2 text-left">
-            <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
+          <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1.5 pl-1.5 pr-1 text-left">
+            <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
               <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
             </div>
+          </button>
+          <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1.5 rounded border border-slate-200 p-1 text-slate-400 hover:text-slate-600 hover:bg-white">
+            <MoreHorizontal size={13} />
           </button>
         </div>
         {isOpen && (
@@ -1666,7 +1672,7 @@ export default function App({ user, onSignOut }) {
                           <>
                             {bn && <span>{bn} ·</span>}
                             {cust ? (
-                              <button onClick={() => pickPerson(cust.id)} className="hover:underline">{cust.name || "Customer"}</button>
+                              <button onClick={() => setCustModal(cust.id)} className="hover:underline">{cust.name || "Customer"}</button>
                             ) : sel.customerId ? (
                               <span>Customer</span>
                             ) : (
@@ -1738,8 +1744,10 @@ export default function App({ user, onSignOut }) {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(a, settings);
                   return (
-                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border overflow-hidden bg-white transition-colors ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D4", padding: "8px 14px" }}>
+                  // overflow-hidden lifts while a card is dragged so the floating
+                  // card isn't clipped at its home area's edge.
+                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "#E8D8C1", padding: "8px 14px" }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}</span>
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length, 4) + 1}ch` }} />
@@ -1836,19 +1844,19 @@ export default function App({ user, onSignOut }) {
                         // note, actions column) sits on cream so the colored line
                         // pops against it (prototype wash J, 2026-07-10).
                         const accent = TYPE_ACCENT[p.type];
-                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-card))`;
-                        const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-card))`;
+                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-prod))`;
+                        const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-prod))`;
                         return (
-                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ borderTop: pi > 0 ? "1px solid #EDE4D4" : "none", background: "var(--ft-prod)" }}>
+                          // flow-root keeps the collapsed pill's bottom margin inside the
+                          // card — collapsed through, it painted a white strip between rows
+                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ display: "flow-root", borderTop: pi > 0 ? "1px solid #EDE4D4" : "none", background: "var(--ft-prod)" }}>
                             {/* main product row */}
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: rowTint }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
-                                {(hasMats || matExpanded) ? (
-                                  <button data-mats-keep tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: !matExpanded }))} title={matExpanded ? "Collapse materials" : "Expand materials"} className="ft-noprint shrink-0 text-slate-400 p-0.5">
-                                    {matExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                                  </button>
-                                ) : <span className="w-4 shrink-0" />}
+                                {/* no expand carrot — the materials pill opens the drawer,
+                                    clicking anywhere outside folds it */}
+                                <span className="w-1 shrink-0" />
                                 {p.type === "tile" ? (
                                   <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
                                 ) : p.type === "misc" ? (
@@ -1887,7 +1895,11 @@ export default function App({ user, onSignOut }) {
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
                                   <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />
-                                  <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>{C.unit}{!p.cartonManual && <span style={{ fontSize: 8, color: "#B3A38D" }}> auto</span>}</span>
+                                  <span className="shrink-0" style={{ fontSize: 9.5 }}>{C.unit}</span>
+                                  <span className="ft-noprint flex flex-col shrink-0 pr-1">
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(C.order + 1) })} title="One more carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronUp size={9} /></button>
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(Math.max(0, C.order - 1)) })} title="One less carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronDown size={9} /></button>
+                                  </span>
                                 </>) : p.type === "misc" || p.qtyType === "count" ? (<>
                                   <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} placeholder={p.type === "misc" ? "1" : "0"} title="Quantity" />
                                   {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>EA</span> : (
@@ -1905,7 +1917,7 @@ export default function App({ user, onSignOut }) {
                               </div>
                             </div>
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
-                              <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "#FDFAF4" }}>
+                              <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "var(--ft-prod)" }}>
                                 <span className="text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>
                                 <button onClick={() => { delProduct(a.id, p.id); setConfirmProd(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
@@ -1930,9 +1942,9 @@ export default function App({ user, onSignOut }) {
                               // flush with the Total column; checked lines fill with the
                               // type accent, unchecked stay paper, outline + separators
                               // carry the same hue (.ft-mats rule in index.css).
-                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-card)", border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
+                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
-                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-card))` }}>
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                       <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Grout</span>
@@ -1964,7 +1976,7 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                                 {p.type === "tile" && p.mortar.checked && (
-                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-card))` }}>
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                       <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Mortar</span>
@@ -1984,7 +1996,7 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                                 {p.type !== "misc" && p.underlay.checked && (
-                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-card))` }}>
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                       <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
@@ -2057,7 +2069,7 @@ export default function App({ user, onSignOut }) {
                               </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 25%, transparent)`, borderRadius: 7 }} title="Materials — click to edit">
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 25%, transparent)`, borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
@@ -2068,7 +2080,7 @@ export default function App({ user, onSignOut }) {
                               </button>
                             )}
                             {!matExpanded && !hasMats && addables.length > 0 && (
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                             )}
@@ -2235,6 +2247,48 @@ export default function App({ user, onSignOut }) {
         </Modal>
       )}
 
+      {custModal && (() => {
+        const c = data.people.find((x) => x.id === custModal);
+        if (!c) return null;
+        const projs = projectsOf(c.id);
+        return (
+          <Modal onClose={() => setCustModal(null)} title={c.name || "Customer"}>
+            <div className="space-y-3">
+              <div><label className={lbl}>Name</label><input value={c.name} onChange={(e) => updatePerson(c.id, { name: e.target.value })} placeholder="Customer name" className={inp} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={lbl}>Phone</label><input value={c.phone} onChange={(e) => updatePerson(c.id, { phone: e.target.value })} className={inp} /></div>
+                <div><label className={lbl}>Email</label><input value={c.email} onChange={(e) => updatePerson(c.id, { email: e.target.value })} className={inp} /></div>
+              </div>
+              <div><label className={lbl}>Mailing address</label><input value={c.address} onChange={(e) => updatePerson(c.id, { address: e.target.value })} className={inp} /></div>
+              <div><label className={lbl}>Builder</label><BuilderCombo value={c.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(c.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(c.id, name)} /></div>
+              <div><label className={lbl}>Customer notes</label><textarea value={c.notes} onChange={(e) => updatePerson(c.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <label className={lbl + " mb-0"}>Projects ({projs.length})</label>
+                <button onClick={() => { setCustModal(null); addProject(c.id); }} className="flex items-center gap-1 text-[12px] font-semibold text-slate-500 hover:text-indigo-700"><Plus size={13} /> New project</button>
+              </div>
+              {projs.length === 0 ? <div className="text-sm text-slate-400 rounded-md border border-dashed border-slate-200 px-3 py-2.5">No projects yet.</div> : (
+                <div className="rounded-md border border-slate-200 divide-y divide-slate-100">
+                  {projs.map((p) => (
+                    <button key={p.id} onClick={() => { setCustModal(null); pickProject(p.id); }} className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50">
+                      <FileText size={13} className="text-slate-300 shrink-0" />
+                      <span className="text-sm truncate flex-1">{p.name || "Untitled project"}</span>
+                      {p.updatedAt && <span className="ft-mono text-[11px] text-slate-400 shrink-0">{fmtAgo(p.updatedAt)}</span>}
+                      <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <button onClick={() => { setCustModal(null); setConfirm({ kind: "person", id: c.id }); }} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-red-500"><Trash2 size={14} /> Delete customer</button>
+              <button onClick={() => setCustModal(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Done</button>
+            </div>
+          </Modal>
+        );
+      })()}
+
       {importPreview && (() => {
         const { parsed, diff, warnings, sync } = importPreview;
         const total = diff.added.length + diff.changed.length + diff.missing.length;
@@ -2310,8 +2364,8 @@ export default function App({ user, onSignOut }) {
 
       {newCust !== null && (() => {
         const m = matchName(data.people, newCust);
-        const create = () => { const c = addPerson(newCust.trim()); setNewCust(null); return c; };
-        const useExisting = (id) => { setNewCust(null); pickPerson(id); };
+        const create = () => { const c = addPerson(newCust.trim()); setNewCust(null); setCustModal(c.id); return c; };
+        const useExisting = (id) => { setNewCust(null); setOpenCust((s) => ({ ...s, [id]: true })); setCustModal(id); };
         const n = m ? projectsOf(m.item.id).length : 0;
         return (
           <Modal onClose={() => setNewCust(null)} title="New customer">
