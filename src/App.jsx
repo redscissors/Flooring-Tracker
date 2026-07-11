@@ -304,7 +304,12 @@ const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileRe
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
 const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
-const newArea = () => ({ id: uid(), name: "New Area", note: "", products: [newProduct()] });
+const newArea = () => ({ id: uid(), name: "", note: "", products: [newProduct()] });
+const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
+// A row with no identity yet — the empty state renders as a price-book search
+// instead of the full grid (pick a match to fill it, or a type/double-click to
+// enter it by hand).
+const rowBlank = (p) => !p.sku && !p.brandColor && !p.L && !p.W && !p.sizeText && !(num(p.priceSqft) > 0) && !(num(p.qty) > 0);
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
 // column). See ADR 0005.
@@ -318,7 +323,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
 const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
-const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
+const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
@@ -472,7 +477,7 @@ function GridSizeInput({ p, onCommit }) {
 // Product cell: typed text is the row's brand/color; matches from the stock
 // price book drop down beneath (same search the SKU cell uses) and picking
 // one fills the row exactly like a SKU pick.
-function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product…" }) {
+function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product…", inputRef }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
@@ -480,7 +485,7 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
   const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
-      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+      <input ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
         data-c="product" className="ft-cell font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
       {open && pos && matches.length > 0 && createPortal(
@@ -492,6 +497,81 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
                 <StockHit it={it} />
               </button>
             ))}
+          </div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Empty-row search: one wide field spanning the row that queries the stock
+// price book by SKU or product words. Picking a match fills the whole row
+// (like the SKU/product cells do); shift-click adds several as their own rows;
+// Enter with no match — or a double-click — hands the row to manual entry.
+function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, inputRef }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [picked, setPicked] = useState([]); // SKUs, in click order
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = open && stock.length ? searchStock(stock, query) : [];
+  const results = matches.slice(0, SKU_SHOW);
+  const close = () => { setOpen(false); setPicked([]); };
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
+  const pick = (it) => { onPick(it); close(); };
+  const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
+  const commit = () => {
+    const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
+    if (items.length === 1) onPick(items[0]);
+    else if (items.length) onPickMany(items);
+    close();
+  };
+  const onKey = (e) => {
+    if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
+    else if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (picked.length) commit();
+      else if (results[hi]) pick(results[hi]);
+      else if (results.length) pick(results[0]);
+      else if (query.trim()) onManual();
+    } else if (e.key === "Escape") close();
+  };
+  const noHits = query.trim() && stock.length > 0 && results.length === 0;
+  return (
+    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={onManual}>
+      <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
+        onKeyDown={onKey} data-c="product" className="ft-cell font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
+        title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
+      {open && pos && (results.length > 0 || picked.length > 0 || noHits) && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
+          {results.length > 0 && (
+            <div className="max-h-72 overflow-y-auto">
+              {results.map((it, i) => {
+                const sel = picked.includes(it.sku);
+                return (
+                  <div key={it.sku} onClick={(e) => (e.shiftKey || picked.length ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                    className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
+                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
+                    <div className="flex-1 min-w-0"><StockHit it={it} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+            {noHits ? (
+              <><span className="truncate">No price-book match.</span>
+                <button onMouseDown={(e) => { e.preventDefault(); onManual(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Enter "{query.trim()}" by hand</button></>
+            ) : (<>
+              <span className="truncate">{matchSummary(results.length, matches.length)}</span>
+              {picked.length > 0 ? (
+                <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+              ) : (
+                <span className="ml-auto shrink-0">Shift-click to pick several</span>
+              )}
+            </>)}
           </div>
         </div>, document.body)}
     </div>
@@ -578,6 +658,12 @@ export default function App({ user, onSignOut }) {
   // expands via Enter, land on its first checkbox.
   const [focusProd, setFocusProd] = useState(null);
   const [focusQty, setFocusQty] = useState(null);
+  const [focusProdBox, setFocusProdBox] = useState(null); // after a row goes manual, land in its product box
+  // Empty rows render as a price-book search; these hold the transient search
+  // text and which rows the user has committed to manual entry this session.
+  // Neither is persisted — a blank row simply re-opens as search on reload.
+  const [manualRows, setManualRows] = useState({});
+  const [omniQ, setOmniQ] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
@@ -613,6 +699,7 @@ export default function App({ user, onSignOut }) {
   const areaRefs = useRef({});
   const typeRefs = useRef({});
   const qtyRefs = useRef({});
+  const prodRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
   const saveOkTimer = useRef(null);
@@ -862,6 +949,7 @@ export default function App({ user, onSignOut }) {
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
+  useEffect(() => { if (focusProdBox && prodRefs.current[focusProdBox]) { const el = prodRefs.current[focusProdBox]; el.focus(); el.select?.(); setFocusProdBox(null); } }, [focusProdBox, data]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
@@ -1258,7 +1346,7 @@ export default function App({ user, onSignOut }) {
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
     const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "SF/Carton", "Cartons Exact", "Cartons Order", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Caulk Tubes", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
-    sel.categories.forEach((a) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, a.name, TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
+    sel.categories.forEach((a, ai) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, areaLabel(a, ai), TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
@@ -1377,7 +1465,7 @@ export default function App({ user, onSignOut }) {
             {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
                 <div className="flex justify-between items-center" style={{ background: "#F0E4D4", borderRadius: 4, padding: "8px 12px" }}>
-                  <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")} · {a.name}</div>
+                  <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
@@ -1661,7 +1749,7 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(12px,1.8vw,18px)" }}>
+              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "#E8D8C1", borderColor: "#DCCFBA" }}>
                 <div className="flex items-end justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="ft-eyebrow-accent text-[10px] mb-1.5 flex items-center gap-1.5 flex-wrap">
@@ -1693,7 +1781,7 @@ export default function App({ user, onSignOut }) {
                     <div className="ft-mono text-[10.5px] text-slate-500 mt-1">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <div className="ft-noprint mt-3 pt-3 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "#DCCFBA" }}>
                   <MetaChip icon={MapPin} label="Address" value={sel.address} active={projChip === "address"} onClick={() => setProjChip(projChip === "address" ? null : "address")} />
                   <MetaChip icon={Phone} label="Phone" value={sel.phone} active={projChip === "phone"} onClick={() => setProjChip(projChip === "phone" ? null : "phone")} />
                   <MetaChip icon={StickyNote} label="Notes" value={sel.notes ? "Notes" : ""} active={projChip === "notes"} onClick={() => setProjChip(projChip === "notes" ? null : "notes")} />
@@ -1732,10 +1820,7 @@ export default function App({ user, onSignOut }) {
                 )}
               </div>
 
-              <div className="flex items-center justify-between mb-3 gap-2">
-                <h2 className="ft-serif" style={{ fontSize: "clamp(24px,3vw,34px)", lineHeight: 1 }}>Areas &amp; Selections</h2>
-                <button ref={addAreaRef} onClick={addArea} className="ft-noprint flex items-center gap-1.5 text-sm font-semibold rounded-full border border-dashed border-slate-300 px-3.5 py-1.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
-              </div>
+              <button ref={addAreaRef} onClick={addArea} className="ft-noprint mb-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
 
               {sel.categories.length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
@@ -1749,8 +1834,7 @@ export default function App({ user, onSignOut }) {
                   <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
                     <div className="flex justify-between items-center gap-3" style={{ background: "#E8D8C1", padding: "8px 14px" }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
-                        <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}</span>
-                        <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length, 4) + 1}ch` }} />
+                        <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 flex-1 min-w-0" />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
@@ -1760,7 +1844,7 @@ export default function App({ user, onSignOut }) {
                     </div>
                     {confirmArea === a.id && (
                       <div className="ft-noprint flex items-center gap-2 px-3 py-2 text-xs border-b border-slate-100">
-                        <span className="text-red-600 flex-1">Delete "{a.name}" and its {a.products.length} selection{a.products.length === 1 ? "" : "s"}? Everything in this area comes off the estimate.</span>
+                        <span className="text-red-600 flex-1">Delete "{areaLabel(a, ai)}" and its {a.products.length} selection{a.products.length === 1 ? "" : "s"}? Everything in this area comes off the estimate.</span>
                         <button onClick={() => { delArea(a.id); setConfirmArea(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                         <button onClick={() => setConfirmArea(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                       </div>
@@ -1846,12 +1930,36 @@ export default function App({ user, onSignOut }) {
                         const accent = TYPE_ACCENT[p.type];
                         const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-prod))`;
                         const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-prod))`;
+                        const searchMode = rowBlank(p) && !manualRows[p.id];
+                        const omniText = omniQ[p.id] || "";
+                        const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
+                        const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
                         return (
                           // flow-root keeps the collapsed pill's bottom margin inside the
                           // card — collapsed through, it painted a white strip between rows
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ display: "flow-root", borderTop: pi > 0 ? "1px solid #EDE4D4" : "none", background: "var(--ft-prod)" }}>
+                            {searchMode ? (
+                            /* empty row: type chip + one wide price-book search that fills the row on pick */
+                            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: rowTint }}>
+                              <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
+                                <TypeSelect compact type={p.type} onChange={(t) => goManual({ type: t })} />
+                                <span className="w-1 shrink-0" />
+                              </div>
+                              <div style={gridCell}>
+                                <GridOmniSearch stock={stock} query={omniText}
+                                  onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
+                                  onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
+                                  onManual={() => goManual()}
+                                  inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                              </div>
+                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
+                              </div>
+                            </div>
+                            ) : (<>
                             {/* main product row */}
-                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: rowTint }}>
+                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                                 {/* no expand carrot — the materials pill opens the drawer,
@@ -1866,7 +1974,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </div>
                               <div style={gridCell}>
-                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} />
+                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {stock.length > 0 ? (
@@ -2089,6 +2197,7 @@ export default function App({ user, onSignOut }) {
                                 <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
                               </div>
                             )}
+                            </>)}
                           </div>
                         );
                       })}
@@ -2190,12 +2299,12 @@ export default function App({ user, onSignOut }) {
                 </tr>
               </thead>
               <tbody>
-                {sel.categories.flatMap((a) => a.products.map((p) => { const c = printProduct(p, settings); return (
+                {sel.categories.flatMap((a, ai) => a.products.map((p) => { const c = printProduct(p, settings); return (
                   <tr key={p.id} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
                     <td className="py-1.5 pr-2 ft-mono text-[11px]">{p.sku}</td>
-                    <td className="py-1.5 pr-2 text-slate-500">{a.name}</td>
+                    <td className="py-1.5 pr-2 text-slate-500">{areaLabel(a, ai)}</td>
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
                   </tr>
                 ); }))}
