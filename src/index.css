@@ -47,6 +47,30 @@ body {
   /* Data / spreadsheet series — NED (light); flips per mode below */
   --ned-data-1:#B3541E; --ned-data-2:#2F6D4F; --ned-data-3:#2E5E8C;
   --ned-data-4:#8C4A62; --ned-data-5:#A8842C; --ned-data-6:#52706B;
+
+  /* Product-type accents — sourced from the data series so they auto-flip with
+     the mode. Change a mapping here and it propagates to every chip, row wash,
+     material box, and border in the app (Option A, hue-matched). */
+  --ft-type-tile:var(--ned-data-3);      /* slate blue */
+  --ft-type-hardwood:var(--ned-data-1);  /* terracotta */
+  --ft-type-vinyl:var(--ned-data-2);     /* forest */
+  --ft-type-laminate:var(--ned-data-5);  /* ochre */
+  --ft-type-carpet:var(--ned-data-4);    /* plum */
+  --ft-type-misc:var(--ned-data-6);      /* teal */
+  --ft-type-ink:#FFFFFF;                 /* letter/icon on a filled type chip */
+
+  /* Editor chrome bands & lines (flip in dark below) */
+  --ft-band:#E8D5B5;                     /* area header band */
+  --ft-row-line:#EDE4D4;                 /* divider between product rows */
+
+  /* Estimate paper — always light (the sheet prints white in every theme), so
+     these are defined once and never overridden. */
+  --ft-paper-ink:#291D16;
+  --ft-paper-muted:#9A948A;
+  --ft-paper-faint:#B3A38D;
+  --ft-paper-rule:#C9B79D;
+  --ft-paper-band:#F0E4D2;
+  --ft-paper-footer:#EDE2D2;
 }
 
 /* NED helpers — .ft-serif is Sora 500; .ft-eyebrow-accent is deep oak. */
@@ -58,8 +82,9 @@ body {
 .ft-wordmark{font-family:var(--ft-ui);font-weight:700;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);line-height:1;}
 .ft-tagline{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.22em;color:var(--ft-accent);line-height:1;}
 /* Merged materials box: line separators carry the row's type accent
-   (--mat-acc is set inline where the box renders). */
-.ft-mats>*+*{border-top:1px solid color-mix(in oklab, var(--mat-acc) 25%, transparent);}
+   (--mat-acc is set inline where the box renders). Mixed over --ft-border, not
+   transparent, so the line still reads on the dark surface. */
+.ft-mats>*+*{border-top:1px solid color-mix(in oklab, var(--mat-acc) 45%, var(--ft-border));}
 
 .bg-slate-50{background-color:var(--ft-cream);}
 .bg-white{background-color:var(--ft-card);}
@@ -133,6 +158,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ft-sand:#453729; --ft-deep:#52412E; --ft-logo:#E8D5B5;
   --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
   --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
+  --ft-band:#3E3120; --ft-row-line:#45392A; --ft-type-ink:#221C15;
 }
 @media (prefers-color-scheme: dark){
   :root:not(.ned-light):not(.ned-dark){
@@ -144,6 +170,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
     --ft-sand:#453729; --ft-deep:#52412E; --ft-logo:#E8D5B5;
     --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
     --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
+    --ft-band:#3E3120; --ft-row-line:#45392A; --ft-type-ink:#221C15;
   }
 }
 /* The estimate paper is a printed white sheet — re-assert the light tokens on

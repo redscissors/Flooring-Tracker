@@ -17,7 +17,10 @@ const UNDERLAY_LABEL = { tile: "Tile Backer" };
 const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
 // Editorial accents: each flooring type colours its selection card's left border
 // and active chip; each area's index marker cycles through the area palette.
-const TYPE_ACCENT = { tile: "oklch(0.55 0.08 232)", hardwood: "oklch(0.58 0.10 60)", vinyl: "oklch(0.55 0.07 158)", laminate: "oklch(0.57 0.10 32)", carpet: "oklch(0.53 0.08 320)", misc: "oklch(0.55 0.02 270)" };
+// Product-type accents resolve to CSS tokens (src/index.css) sourced from the
+// NED data series, so every chip/row-wash/border flips with light/dark and a
+// recolor is a one-line change in the stylesheet.
+const TYPE_ACCENT = { tile: "var(--ft-type-tile)", hardwood: "var(--ft-type-hardwood)", vinyl: "var(--ft-type-vinyl)", laminate: "var(--ft-type-laminate)", carpet: "var(--ft-type-carpet)", misc: "var(--ft-type-misc)" };
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 // Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
@@ -408,8 +411,8 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
     <div className={`relative shrink-0 ${compact ? "self-stretch flex" : ""}`}>
       {compact ? (
         <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={`Product type — ${TLBL[type]} (click to change)`}
-          className="shrink-0 flex items-center justify-center font-bold text-white leading-none"
-          style={{ width: 18, background: accent, fontSize: 10, margin: "6px 0" }}>
+          className="shrink-0 flex items-center justify-center font-bold leading-none"
+          style={{ width: 18, background: accent, color: "var(--ft-type-ink)", fontSize: 10, margin: "6px 0" }}>
           {TLBL[type][0]}
         </button>
       ) : (
@@ -447,7 +450,7 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
 // printed sheet, plus a slim utility column) over the exact same product
 // state — every write still goes through updProduct/updArea.
 const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
-const gridCell = { borderRight: "1px solid #EDE4D4", minWidth: 0, display: "flex", alignItems: "center" };
+const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, display: "flex", alignItems: "center" };
 
 // Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
 // commit (blur) back into the row's L / W / thickness fields.
@@ -1759,7 +1762,7 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "#E8D5B5", borderColor: "#E5DDD0" }}>
+              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
                 <div className="flex items-end justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="ft-eyebrow-accent text-[10px] mb-1.5 flex items-center gap-1.5 flex-wrap">
@@ -1791,7 +1794,7 @@ export default function App({ user, onSignOut }) {
                     <div className="ft-mono text-[10.5px] text-slate-500 mt-1">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "#E5DDD0" }}>
+                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "var(--ft-border)" }}>
                   <MetaChip icon={MapPin} label="Address" value={sel.address} active={projChip === "address"} onClick={() => setProjChip(projChip === "address" ? null : "address")} />
                   <MetaChip icon={Phone} label="Phone" value={sel.phone} active={projChip === "phone"} onClick={() => setProjChip(projChip === "phone" ? null : "phone")} />
                   <MetaChip icon={StickyNote} label="Notes" value={sel.notes ? "Notes" : ""} active={projChip === "notes"} onClick={() => setProjChip(projChip === "notes" ? null : "notes")} />
@@ -1842,7 +1845,7 @@ export default function App({ user, onSignOut }) {
                   // overflow-hidden lifts while a card is dragged so the floating
                   // card isn't clipped at its home area's edge.
                   <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "#E8D5B5", padding: "8px 14px" }}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "8px 14px" }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 flex-1 min-w-0" />
@@ -1861,15 +1864,15 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "#F4EEE3", borderBottom: "1px solid #E5DDD0", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
-                        <div style={{ padding: "5px 10px", borderRight: "1px solid #EDE4D4" }}>Size / Type ▾</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Product / Color ▾</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>SKU</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Cov.</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>SF</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Price</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Order</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Total</div>
+                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-prod)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
+                        <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>SKU</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Cov.</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)", textAlign: "right" }}>SF</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)", textAlign: "right" }}>Price</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)", textAlign: "right" }}>Order</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)", textAlign: "right" }}>Total</div>
                         <div />
                       </div>
                       {a.products.map((p, pi) => {
@@ -1947,7 +1950,7 @@ export default function App({ user, onSignOut }) {
                         return (
                           // flow-root keeps the collapsed pill's bottom margin inside the
                           // card — collapsed through, it painted a white strip between rows
-                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ display: "flow-root", borderTop: pi > 0 ? "1px solid #EDE4D4" : "none", background: "var(--ft-prod)" }}>
+                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ display: "flow-root", borderTop: pi > 0 ? "1px solid var(--ft-row-line)" : "none", background: "var(--ft-prod)" }}>
                             {searchMode ? (
                             /* empty row: type chip + one wide price-book search that fills the row on pick */
                             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: rowTint }}>
@@ -2060,11 +2063,11 @@ export default function App({ user, onSignOut }) {
                               // flush with the Total column; checked lines fill with the
                               // type accent, unchecked stay paper, outline + separators
                               // carry the same hue (.ft-mats rule in index.css).
-                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
+                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -2073,7 +2076,7 @@ export default function App({ user, onSignOut }) {
                                           <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
                                         </span>
                                         {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
-                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent } : undefined}>{j.label}</button>)}</div>
+                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{j.label}</button>)}</div>
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
                                       {!G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
@@ -2096,7 +2099,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type === "tile" && p.mortar.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Mortar</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -2116,7 +2119,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type !== "misc" && p.underlay.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         {underlayOpts.length > 0 ? (
@@ -2129,9 +2132,9 @@ export default function App({ user, onSignOut }) {
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
                                     </div>
                                     {installDefs.length > 0 && (
-                                      <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px solid color-mix(in oklab, ${accent} 25%, transparent)` }}>
+                                      <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px solid color-mix(in oklab, ${accent} 40%, var(--ft-border))` }}>
                                   <div className="flex items-center gap-2">
-                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "text-white" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent } : undefined}>{p.underlay.install && <Check size={10} />}</button>
+                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{p.underlay.install && <Check size={10} />}</button>
                                     {p.underlay.install ? (
                                       <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
                                         {insExpanded ? <ChevronDown size={12} className="text-slate-400 shrink-0" /> : <ChevronRight size={12} className="text-slate-400 shrink-0" />}
@@ -2158,7 +2161,7 @@ export default function App({ user, onSignOut }) {
                                         const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
                                         return (
                                           <div key={d.id} className="flex items-center gap-2">
-                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "text-white"}`} style={skipped ? undefined : { background: accent }}>{!skipped && <Check size={10} />}</button>
+                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : ""}`} style={skipped ? undefined : { background: accent, color: "var(--ft-type-ink)" }}>{!skipped && <Check size={10} />}</button>
                                             {d.kind === "mortar" && !skipped ? (
                                               <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
                                                 {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -2187,23 +2190,23 @@ export default function App({ user, onSignOut }) {
                               </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 25%, transparent)`, borderRadius: 7 }} title="Materials — click to edit">
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
                                   </span>
                                 ))}
                                 <span className="flex-1" />
-                                {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "#8A7A69" }}>+ {money(matsCost)}</span>}
+                                {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "var(--ft-muted)" }}>+ {money(matsCost)}</span>}
                               </button>
                             )}
                             {!matExpanded && !hasMats && addables.length > 0 && (
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)", borderRadius: 7 }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                             )}
                             {(matExpanded || p.note) && (
-                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid #EDE4D4" : "none" }}>
+                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid var(--ft-row-line)" : "none" }}>
                                 <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
                               </div>
                             )}
@@ -2213,7 +2216,7 @@ export default function App({ user, onSignOut }) {
                       })}
                       {drag?.to?.aid === a.id && <div className="absolute left-1 right-1 h-1.5 rounded-full bg-indigo-600 pointer-events-none" style={{ top: drag.to.y, marginTop: 0 }} />}
                     </div>
-                    <button onClick={() => addProduct(a.id)} className="ft-noprint w-full flex items-center gap-1.5 text-left hover:text-slate-500" style={{ padding: "6px 10px", fontSize: 10.5, color: "#C3B49E", borderTop: "1px solid #EDE4D4" }}><Plus size={11} /> New row — start typing anywhere</button>
+                    <button onClick={() => addProduct(a.id)} className="ft-noprint w-full flex items-center gap-1.5 text-left hover:text-slate-500" style={{ padding: "6px 10px", fontSize: 10.5, color: "var(--ft-muted)", borderTop: "1px solid var(--ft-row-line)" }}><Plus size={11} /> New row — start typing anywhere</button>
                   </div>
                   );
                 })}
