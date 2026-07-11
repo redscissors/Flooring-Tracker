@@ -272,7 +272,7 @@ const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "U
 // Kiln #8b estimate sheet: the 9-column product grid and the muted em dash
 // empty cells render (the Color column is a dash for now — the data model
 // keeps brand+color in one brandColor field).
-const PRINT_COLS = "0.6fr 1.7fr 1.05fr 1fr 0.55fr 0.5fr 0.55fr 0.8fr 0.8fr";
+const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
 const PRINT_DASH = <span style={{ color: "#B3A38D" }}>—</span>;
 const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
@@ -1433,34 +1433,33 @@ export default function App({ user, onSignOut }) {
   // preview can never drift from what actually prints. Callers guard sel && sel._full.
   const renderEstimatePaper = () => (
           <div>
-            <div className="flex justify-between items-center border-b-2 border-black pb-3 mb-4">
-              <img src={keimLogo} alt="Keim" style={{ height: 38 }} />
-              <div className="text-right">
-                <div className="ft-eyebrow-accent text-[9px]">Selection Sheet</div>
-                <div className="ft-mono text-[9.5px] text-slate-500">{new Date().toLocaleDateString()}</div>
+            <div className="flex justify-between items-center mb-5" style={{ borderBottom: "2px solid var(--ft-text)", paddingBottom: 16 }}>
+              <img src={keimLogo} alt="Keim" style={{ height: 40, width: "auto", display: "block" }} />
+              <div className="flex flex-col items-end" style={{ gap: 4 }}>
+                <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".24em", color: "var(--ft-brand-deep)" }}>Selection Sheet</div>
+                <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</div>
               </div>
             </div>
-            <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4 gap-4">
-              <div>
-                <div className="ft-serif text-3xl">{sel.name}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{[sel.address, `Selections · ${new Date().toLocaleDateString()}`].filter(Boolean).join("  ·  ")}</div>
-              </div>
-              <div className="flex items-stretch gap-6">
-                {(profile.name || profile.phone || profile.email) && (() => { const pname = profile.name || profile.email; return (
-                  <div className="flex flex-col justify-between text-right">
-                    <div className="ft-eyebrow text-[9px] text-slate-500">Your salesperson</div>
-                    <div className="ft-serif text-2xl leading-none">{pname}</div>
-                    <div className="text-[9.5px] text-slate-500 leading-none">{[profile.phone, profile.email].filter((x) => x && x !== pname).join("  ·  ")}</div>
-                  </div>
-                ); })()}
-                {grandTotal > 0 && (
-                  <div className="text-right">
-                    <div className="ft-eyebrow text-[9px]">Estimated total</div>
-                    <div className="ft-serif text-3xl">{money(grandTotal)}</div>
-                  </div>
-                )}
-              </div>
-            </div>
+            {(() => {
+              const cust = data.people.find((c) => c.id === sel.customerId);
+              const pname = profile.name || profile.email;
+              const areaCount = sel.categories.length;
+              const wt = num(settings.waste?.tile), wf = num(settings.waste?.floor);
+              const col = (label, name, detail) => (
+                <div className="flex flex-col" style={{ gap: 2 }}>
+                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "#9A948A" }}>{label}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{name || PRINT_DASH}</div>
+                  {detail && <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>{detail}</div>}
+                </div>
+              );
+              return (
+                <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                  {col("Customer", cust?.name || sel.name, cust?.address || sel.address)}
+                  {col("Your salesperson", pname, [profile.phone, profile.email].filter((x) => x && x !== pname).join("  ·  "))}
+                  {col("Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wt === wf ? `waste factor ${wt}%` : `waste tile ${wt}% · other ${wf}%`].filter(Boolean).join("  ·  "))}
+                </div>
+              );
+            })()}
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
             {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
@@ -1469,16 +1468,15 @@ export default function App({ user, onSignOut }) {
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
-                <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid #291D16", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
-                  <div>Size</div><div>Product</div><div>Color</div><div>SKU</div><div>SF/CT</div>
+                <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
+                  <div>Size</div><div>Product / Color</div><div>SKU</div><div>SF/CT</div>
                   <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
                 </div>
-                {a.products.map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const matsCost = inline.reduce((t, m) => t + m.cost, 0); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
+                {a.products.map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
                   <Fragment key={p.id}>
-                    <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "4px 12px 5px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid #EDE2D2" : "none" }}>
-                      <div>{p.type === "tile" ? <>{p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH}{thickLabel && <div style={{ fontSize: 9, color: "#8A7A69" }}>× {thickLabel}</div>}</> : (p.sizeText || PRINT_DASH)}</div>
-                      <div style={{ fontWeight: 700 }}>{p.brandColor || TLBL[p.type]}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10, color: "#8A7A69" }}> · {TLBL[p.type]}</span>}</div>
-                      <div>{PRINT_DASH}</div>
+                    <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "2px 12px 6px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid var(--ft-border)" : "none" }}>
+                      <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
+                      <div style={{ fontWeight: 700 }}>{p.brandColor || TLBL[p.type]}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10, color: "var(--ft-muted)" }}> · {TLBL[p.type]}</span>}</div>
                       <div className="ft-mono" style={{ fontSize: 9 }}>{p.sku || PRINT_DASH}</div>
                       <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? sf1(c.C.sf) : PRINT_DASH}</div>
                       <div className="text-right">{p.qtyType === "sqft" && num(p.qty) > 0 ? sf1(num(p.qty)) : PRINT_DASH}</div>
@@ -1487,17 +1485,15 @@ export default function App({ user, onSignOut }) {
                       <div className="text-right" style={{ fontWeight: 700 }}>{c.line > 0 ? money(c.line) : PRINT_DASH}</div>
                     </div>
                     {inline.length > 0 && (
-                      <div style={{ margin: "0 12px 4px", padding: "3px 10px 3px 12px", background: "#FDFAF4", fontSize: 9.5, color: "#6B594A", display: "flex", gap: 16, flexWrap: "wrap", alignItems: "baseline" }}>
-                        <span style={{ color: "#B3A38D" }}>└</span>
+                      <div style={{ padding: "0 12px 4px 24px", fontSize: 9.5, color: "var(--ft-muted)", display: "flex", gap: 16, flexWrap: "wrap" }}>
                         {inline.map((m, i) => (
                           <span key={i}>
-                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.kind === "Grout" && <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 999, background: "#C9B79D", verticalAlign: "baseline", marginRight: 3 }} />}{m.spec}</>}{m.detail && <span style={{ color: "#B3A38D" }}> · {m.detail}</span>}</>}
+                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.spec}</>}{m.detail && <span style={{ color: "#B3A38D" }}> · {m.detail}</span>}</>}
                           </span>
                         ))}
-                        {matsCost > 0 && <span className="ft-mono" style={{ marginLeft: "auto", fontSize: 9, color: "var(--ft-muted)" }}>+ {money(matsCost)}</span>}
                       </div>
                     )}
-                    {p.note && <div className="italic text-slate-500" style={{ padding: "0 12px 6px 24px", fontSize: 10.5 }}>{p.note}</div>}
+                    {p.note && <div className="italic" style={{ padding: "0 12px 6px 24px", fontSize: 10.5, color: "var(--ft-muted)" }}>{p.note}</div>}
                   </Fragment>
                 ); })}
               </div>
@@ -1508,9 +1504,9 @@ export default function App({ user, onSignOut }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, background: "#F0E4D2", borderRadius: 4, padding: "14px 16px" }}>
                   {pMats.map((m, i) => (
                     <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 2 }}>{m.kind}</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>{m.kind}</div>
                       <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.order > 0 && <> · {m.order} {u1(m.order, m.unit)}</>} <span className="ft-mono" style={{ fontWeight: 400, fontSize: 10 }}>{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : ""}</span></div>
-                      <div style={{ fontSize: 10, color: "#6B594A" }}>{[m.spec, m.sku, m.exact > 0 ? `(${m.exact.toFixed(2)})` : ""].filter(Boolean).join(" · ")}</div>
+                      <div style={{ fontSize: 10, color: "var(--ft-muted)" }}>{[m.spec, m.sku, m.exact > 0 ? `(${m.exact.toFixed(2)})` : ""].filter(Boolean).join(" · ")}</div>
                     </div>
                   ))}
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, justifyContent: "flex-end" }}>
@@ -1521,8 +1517,8 @@ export default function App({ user, onSignOut }) {
               </div>
             )}
             <div className="break-inside-avoid">
-              <div className="flex justify-between items-center gap-4" style={{ borderTop: "2px solid #291D16", paddingTop: 12 }}>
-                <div style={{ fontSize: 11, color: "#6B594A" }}>
+              <div className="flex justify-between items-center gap-4" style={{ borderTop: "2px solid var(--ft-text)", paddingTop: 12 }}>
+                <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>
                   {[
                     flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
                     groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}` : "",
@@ -1535,11 +1531,11 @@ export default function App({ user, onSignOut }) {
             </div>
             <div className="break-inside-avoid flex mt-6" style={{ gap: 40 }}>
               <div className="flex-1 flex flex-col" style={{ gap: 4 }}>
-                <div style={{ borderBottom: "1px solid #291D16", height: 28 }} />
+                <div style={{ borderBottom: "1px solid var(--ft-text)", height: 28 }} />
                 <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "#9A948A" }}>Customer approval</div>
               </div>
               <div className="flex flex-col" style={{ width: 160, gap: 4 }}>
-                <div style={{ borderBottom: "1px solid #291D16", height: 28 }} />
+                <div style={{ borderBottom: "1px solid var(--ft-text)", height: 28 }} />
                 <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "#9A948A" }}>Date</div>
               </div>
             </div>
