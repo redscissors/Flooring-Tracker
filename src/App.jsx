@@ -1464,7 +1464,7 @@ export default function App({ user, onSignOut }) {
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
             {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
-                <div className="flex justify-between items-center" style={{ background: "#F0E4D4", borderRadius: 4, padding: "8px 12px" }}>
+                <div className="flex justify-between items-center" style={{ background: "#F0E4D2", borderRadius: 4, padding: "8px 12px" }}>
                   <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
@@ -1505,7 +1505,7 @@ export default function App({ user, onSignOut }) {
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
                 <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, background: "#F0E4D4", borderRadius: 4, padding: "14px 16px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, background: "#F0E4D2", borderRadius: 4, padding: "14px 16px" }}>
                   {pMats.map((m, i) => (
                     <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 2 }}>{m.kind}</div>
@@ -1749,7 +1749,7 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "#E8D8C1", borderColor: "#DCCFBA" }}>
+              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "#E8D5B5", borderColor: "#E5DDD0" }}>
                 <div className="flex items-end justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="ft-eyebrow-accent text-[10px] mb-1.5 flex items-center gap-1.5 flex-wrap">
@@ -1781,7 +1781,7 @@ export default function App({ user, onSignOut }) {
                     <div className="ft-mono text-[10.5px] text-slate-500 mt-1">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "#DCCFBA" }}>
+                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "#E5DDD0" }}>
                   <MetaChip icon={MapPin} label="Address" value={sel.address} active={projChip === "address"} onClick={() => setProjChip(projChip === "address" ? null : "address")} />
                   <MetaChip icon={Phone} label="Phone" value={sel.phone} active={projChip === "phone"} onClick={() => setProjChip(projChip === "phone" ? null : "phone")} />
                   <MetaChip icon={StickyNote} label="Notes" value={sel.notes ? "Notes" : ""} active={projChip === "notes"} onClick={() => setProjChip(projChip === "notes" ? null : "notes")} />
@@ -1832,7 +1832,7 @@ export default function App({ user, onSignOut }) {
                   // overflow-hidden lifts while a card is dragged so the floating
                   // card isn't clipped at its home area's edge.
                   <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "#E8D8C1", padding: "8px 14px" }}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "#E8D5B5", padding: "8px 14px" }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 flex-1 min-w-0" />
@@ -1851,7 +1851,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "#F4EEE3", borderBottom: "1px solid #DCCFBA", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "#F4EEE3", borderBottom: "1px solid #E5DDD0", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid #EDE4D4" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Product / Color ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>SKU</div>
@@ -2215,7 +2215,7 @@ export default function App({ user, onSignOut }) {
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
                 <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
-                  <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D4", padding: "10px 16px" }}>
+                  <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D2", padding: "10px 16px" }}>
                     <div className="flex items-baseline gap-2.5 min-w-0">
                       <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Materials Estimate</span>
                       <span className="ft-serif" style={{ fontSize: 20 }}>Order summary</span>
