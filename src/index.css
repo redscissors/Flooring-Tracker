@@ -47,6 +47,9 @@ body {
 .ft-mono{font-family:var(--ft-mono);}
 .ft-eyebrow{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
 .ft-eyebrow-accent{font-family:var(--ft-mono);text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand-deep);}
+/* Merged materials box: line separators carry the row's type accent
+   (--mat-acc is set inline where the box renders). */
+.ft-mats>*+*{border-top:1px solid color-mix(in oklab, var(--mat-acc) 25%, transparent);}
 
 .bg-slate-50{background-color:var(--ft-cream);}
 .bg-white{background-color:var(--ft-card);}

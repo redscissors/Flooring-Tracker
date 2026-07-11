@@ -1830,15 +1830,16 @@ export default function App({ user, onSignOut }) {
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
                         // The type's accent (same one on the dark type box) washes
-                        // across the row to the Total cell — a light 7% tint, deeper
-                        // on the Total to anchor the money, and deeper still when the
-                        // materials are expanded (replaces the old warm cue). The
-                        // actions column is masked back to card so it never tints.
+                        // across the row to the Total cell — a 13% tint, deeper on
+                        // the Total to anchor the money, and deeper still when the
+                        // materials are expanded. The card's lower chrome (pill,
+                        // note, actions column) sits on cream so the colored line
+                        // pops against it (prototype wash J, 2026-07-10).
                         const accent = TYPE_ACCENT[p.type];
-                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 13 : 7}%, var(--ft-card))`;
-                        const totalTint = `color-mix(in oklab, ${accent} 17%, var(--ft-card))`;
+                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-card))`;
+                        const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-card))`;
                         return (
-                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ borderTop: pi > 0 ? "1px solid #EDE4D4" : "none" }}>
+                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ borderTop: pi > 0 ? "1px solid #EDE4D4" : "none", background: "var(--ft-prod)" }}>
                             {/* main product row */}
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: rowTint }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
@@ -1898,7 +1899,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
-                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
+                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
@@ -1925,11 +1926,15 @@ export default function App({ user, onSignOut }) {
                             {/* material child boxes (expanded) — every applicable material shows,
                                 checked (full controls) or unchecked (slim dashed card, click ✓ to add) */}
                             {matExpanded && p.type !== "misc" && (
-                              <div data-mats-keep className="space-y-1" style={{ margin: "4px 12px 8px 26px", padding: 7, background: "#FBF5EA", border: "1px solid #E7DAC6", borderRadius: 7 }}>
+                              // Merged accent box (prototype mats 8): one fused box ending
+                              // flush with the Total column; checked lines fill with the
+                              // type accent, unchecked stay paper, outline + separators
+                              // carry the same hue (.ft-mats rule in index.css).
+                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-card)", border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
-                                  <div className="rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-card))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0 bg-indigo-600 text-white"><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -1938,9 +1943,9 @@ export default function App({ user, onSignOut }) {
                                           <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
                                         </span>
                                         {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
-                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
+                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent } : undefined}>{j.label}</button>)}</div>
                                       </div>
-                                      <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
+                                      <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
                                       {!G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
                                     </div>
                                     <div className="mt-1.5 pl-7 flex items-center gap-2 text-xs text-slate-500">
@@ -1952,36 +1957,36 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                                 {p.type === "tile" && !p.grout.checked && (
-                                  <div className="rounded-md border border-dashed border-slate-200 px-2.5 py-1 flex items-center gap-2">
+                                  <div className="px-2.5 py-1 flex items-center gap-2">
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Grout</span>
                                     <span className="text-xs text-slate-400 truncate">{p.grout.product || groutNames[0] || ""}</span>
                                   </div>
                                 )}
                                 {p.type === "tile" && p.mortar.checked && (
-                                  <div className="rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-card))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0 bg-indigo-600 text-white"><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Mortar</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
                                         {settings.mortars[p.mortar.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.mortars[p.mortar.product]?.sku}</span>}
                                       </div>
-                                      <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{mUnit}</span></span>
+                                      <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{mUnit}</span></span>
                                     </div>
                                   </div>
                                 )}
                                 {p.type === "tile" && !p.mortar.checked && (
-                                  <div className="rounded-md border border-dashed border-slate-200 px-2.5 py-1 flex items-center gap-2">
+                                  <div className="px-2.5 py-1 flex items-center gap-2">
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Mortar</span>
                                     <span className="text-xs text-slate-400 truncate">{p.mortar.product || mortarNames[0] || ""}</span>
                                   </div>
                                 )}
                                 {p.type !== "misc" && p.underlay.checked && (
-                                  <div className="rounded-md border border-indigo-200 bg-indigo-50/40 px-2.5 py-1.5">
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-card))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0 bg-indigo-600 text-white"><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         {underlayOpts.length > 0 ? (
@@ -1991,12 +1996,12 @@ export default function App({ user, onSignOut }) {
                                         )}
                                         {settings.underlayments[p.underlay.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.underlayments[p.underlay.product]?.sku}</span>}
                                       </div>
-                                      <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
+                                      <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
                                     </div>
                                     {installDefs.length > 0 && (
-                                      <div className="mt-1.5 pt-1.5 border-t border-indigo-200">
+                                      <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px solid color-mix(in oklab, ${accent} 25%, transparent)` }}>
                                   <div className="flex items-center gap-2">
-                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.install && <Check size={10} />}</button>
+                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "text-white" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent } : undefined}>{p.underlay.install && <Check size={10} />}</button>
                                     {p.underlay.install ? (
                                       <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
                                         {insExpanded ? <ChevronDown size={12} className="text-slate-400 shrink-0" /> : <ChevronRight size={12} className="text-slate-400 shrink-0" />}
@@ -2007,7 +2012,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="text-xs">Install materials <span className="text-[10px] text-slate-400">({installDefs.length})</span></span>
                                     )}
                                     {p.underlay.install && !insExpanded && (INS ? (
-                                      <span className="ml-auto text-[10px] text-indigo-700 font-medium truncate">{INS.slice(0, 3).map((m) => `${m.order} ${m.unit}`).join(" · ")}{INS.length > 3 ? ` +${INS.length - 3}` : ""}</span>
+                                      <span className="ml-auto text-[10px] font-medium truncate" style={{ color: accent }}>{INS.slice(0, 3).map((m) => `${m.order} ${m.unit}`).join(" · ")}{INS.length > 3 ? ` +${INS.length - 3}` : ""}</span>
                                     ) : insIncluded === 0 ? (
                                       <span className="ml-auto text-[10px] text-slate-400">none included</span>
                                     ) : (
@@ -2023,7 +2028,7 @@ export default function App({ user, onSignOut }) {
                                         const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
                                         return (
                                           <div key={d.id} className="flex items-center gap-2">
-                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "bg-indigo-600 text-white"}`}>{!skipped && <Check size={10} />}</button>
+                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "text-white"}`} style={skipped ? undefined : { background: accent }}>{!skipped && <Check size={10} />}</button>
                                             {d.kind === "mortar" && !skipped ? (
                                               <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
                                                 {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -2031,7 +2036,7 @@ export default function App({ user, onSignOut }) {
                                             ) : (
                                               <span className={`text-xs truncate ${skipped ? "text-slate-400 line-through" : "text-slate-600"}`}>{d.kind === "mortar" ? (cur || "mortar") : d.name}</span>
                                             )}
-                                            <span className="ml-auto text-xs whitespace-nowrap">{skipped ? <span className="text-slate-300">skipped</span> : item ? <><span className="text-slate-400">{item.exact.toFixed(2)} → </span><span className="text-indigo-700 font-semibold">{item.order} {item.unit}</span></> : <span className="text-slate-300">—</span>}</span>
+                                            <span className="ml-auto text-xs whitespace-nowrap">{skipped ? <span className="text-slate-300">skipped</span> : item ? <><span className="text-slate-400">{item.exact.toFixed(2)} → </span><span className="font-semibold" style={{ color: accent }}>{item.order} {item.unit}</span></> : <span className="text-slate-300">—</span>}</span>
                                           </div>
                                         );
                                       })}
@@ -2043,7 +2048,7 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                                 {p.type !== "misc" && !p.underlay.checked && (
-                                  <div className="rounded-md border border-dashed border-slate-200 px-2.5 py-1 flex items-center gap-2">
+                                  <div className="px-2.5 py-1 flex items-center gap-2">
                                     <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
                                     <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
@@ -2052,10 +2057,10 @@ export default function App({ user, onSignOut }) {
                               </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 12px 8px 26px", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: "#FBF5EA", border: "1px solid #E7DAC6", borderRadius: 7 }} title="Materials — click to edit">
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 25%, transparent)`, borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
-                                    <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
+                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
                                   </span>
                                 ))}
                                 <span className="flex-1" />
@@ -2063,7 +2068,7 @@ export default function App({ user, onSignOut }) {
                               </button>
                             )}
                             {!matExpanded && !hasMats && addables.length > 0 && (
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 12px 8px 26px", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                             )}
