@@ -441,7 +441,7 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
 // The area editing surface is a spreadsheet grid (same 9 columns as the
 // printed sheet, plus a slim utility column) over the exact same product
 // state — every write still goes through updProduct/updArea.
-const GRID_COLS = "0.85fr 1.7fr 1.05fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
+const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
 const gridCell = { borderRight: "1px solid #EDE4D4", minWidth: 0, display: "flex", alignItems: "center" };
 
 // Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
@@ -1751,8 +1751,7 @@ export default function App({ user, onSignOut }) {
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "#F4EEE3", borderBottom: "1px solid #DCCFBA", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid #EDE4D4" }}>Size / Type ▾</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Product ▾</div>
-                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Color ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Product / Color ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>SKU</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Cov.</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>SF</div>
@@ -1844,10 +1843,8 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </div>
                               <div style={gridCell}>
-                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product…"} />
+                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} />
                               </div>
-                              {/* single brandColor field holds brand+color — no separate color on flooring rows yet */}
-                              <div style={{ ...gridCell, padding: "6px 8px" }}>{PRINT_DASH}</div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {stock.length > 0 ? (
                                   <SkuPicker value={p.sku || ""} stock={stock}
@@ -1915,10 +1912,10 @@ export default function App({ user, onSignOut }) {
                             {matExpanded && p.type === "tile" && p.grout.checked && (
                               <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
                                 <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> Grout</div>
-                                <div style={gridCell}><select value={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 8px" }}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
-                                <div style={{ ...gridCell, gap: 4, paddingLeft: 8 }}>
+                                <div style={{ ...gridCell, gap: 4 }}>
+                                  <select value={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 8px", flex: "1 1 0", minWidth: 0 }}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</select>
                                   <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
-                                  <select value={p.grout.color} onChange={(e) => pickGroutColor(e.target.value)} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 2px" }} title="Grout color"><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</select>
+                                  <select value={p.grout.color} onChange={(e) => pickGroutColor(e.target.value)} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 2px", flex: "1 1 0", minWidth: 0 }} title="Grout color"><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</select>
                                   <select tabIndex={-1} value={String(num(p.grout.joint))} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, joint: e.target.value } })} className="ft-cell shrink-0" style={{ fontSize: 9.5, width: 46, flex: "none", padding: "5px 2px" }} title="Joint width">{JOINTS.map((j) => <option key={j.v} value={String(j.v)}>{j.label}</option>)}</select>
                                 </div>
                                 <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }} title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
@@ -1936,8 +1933,8 @@ export default function App({ user, onSignOut }) {
                             {matExpanded && p.type === "tile" && p.grout.checked && (
                               <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
                                 <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> Caulk</div>
-                                <div style={{ ...gridCell, padding: "5px 8px", color: "#6B594A" }}>Matching caulk</div>
-                                <div style={{ ...gridCell, gap: 5, paddingLeft: 8 }}>
+                                <div style={{ ...gridCell, gap: 5, padding: "5px 8px", color: "#6B594A" }}>
+                                  <span>Matching caulk</span>
                                   <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
                                   <span style={{ color: p.grout.color ? "inherit" : "#B3A38D" }}>{p.grout.color ? `${p.grout.color} match` : "—"}</span>
                                 </div>
@@ -1957,7 +1954,6 @@ export default function App({ user, onSignOut }) {
                               <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, borderTop: "1px solid #EDE4D4", fontSize: 10.5, background: "#FBF5EA" }}>
                                 <div style={{ ...gridCell, padding: "5px 8px 5px 20px", gap: 4, color: "var(--ft-brand-deep)", fontWeight: 700 }}><span style={{ color: "#C3B49E", fontWeight: 400 }}>└</span> Mortar</div>
                                 <div style={gridCell}><select value={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })} className="ft-cell" style={{ fontSize: 10.5, padding: "5px 8px" }}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
-                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
                                 <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }}>{settings.mortars[p.mortar.product]?.sku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
                                 <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
                                 <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", color: "#B3A38D" }}>—</div>
@@ -1980,7 +1976,6 @@ export default function App({ user, onSignOut }) {
                                     <span className="px-2 text-amber-500" style={{ fontSize: 10 }}>No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</span>
                                   )}
                                 </div>
-                                <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
                                 <div className="ft-mono" style={{ ...gridCell, padding: "5px 8px", fontSize: 9 }}>{settings.underlayments[p.underlay.product]?.sku || <span style={{ color: "#B3A38D" }}>—</span>}</div>
                                 <div style={{ ...gridCell, padding: "5px 8px", color: "#B3A38D" }}>—</div>
                                 <div style={{ ...gridCell, justifyContent: "flex-end", padding: "5px 8px", color: "#B3A38D" }}>—</div>
