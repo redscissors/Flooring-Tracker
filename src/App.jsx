@@ -1819,10 +1819,18 @@ export default function App({ user, onSignOut }) {
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
+                        // The type's accent (same one on the dark type box) washes
+                        // across the row to the Total cell — a light 7% tint, deeper
+                        // on the Total to anchor the money, and deeper still when the
+                        // materials are expanded (replaces the old warm cue). The
+                        // actions column is masked back to card so it never tints.
+                        const accent = TYPE_ACCENT[p.type];
+                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 13 : 7}%, var(--ft-card))`;
+                        const totalTint = `color-mix(in oklab, ${accent} 17%, var(--ft-card))`;
                         return (
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ borderTop: pi > 0 ? "1px solid #EDE4D4" : "none" }}>
                             {/* main product row */}
-                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: matExpanded && hasMats ? "#FFF9F2" : "transparent" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, background: rowTint }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                                 {hasMats ? (
@@ -1879,8 +1887,8 @@ export default function App({ user, onSignOut }) {
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                 </>)}
                               </div>
-                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700 }}>{line > 0 ? money(line) : PRINT_DASH}</div>
-                              <div className="ft-noprint flex items-center justify-center gap-0.5">
+                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
+                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
