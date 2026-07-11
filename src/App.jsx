@@ -1,11 +1,13 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
 import { normName, matchName } from "./names.js";
+import KilnMark from "./KilnMark.jsx";
+import keimLogo from "./assets/keim-logo-ink.png";
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -16,7 +18,6 @@ const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
 // Editorial accents: each flooring type colours its selection card's left border
 // and active chip; each area's index marker cycles through the area palette.
 const TYPE_ACCENT = { tile: "oklch(0.55 0.08 232)", hardwood: "oklch(0.58 0.10 60)", vinyl: "oklch(0.55 0.07 158)", laminate: "oklch(0.57 0.10 32)", carpet: "oklch(0.53 0.08 320)", misc: "oklch(0.55 0.02 270)" };
-const AREA_ACCENTS = ["oklch(0.60 0.11 45)", "oklch(0.58 0.07 232)", "oklch(0.56 0.10 350)", "oklch(0.57 0.08 145)", "oklch(0.63 0.10 75)", "oklch(0.57 0.07 200)"];
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 // Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
@@ -95,7 +96,7 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
 // each of the rest via onPickMany.
 const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
 
-function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
+function SkuPicker({ value, stock, onChange, onPick, onPickMany, wrapClass, wrapStyle, inputClass }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // SKUs, in click order
@@ -127,10 +128,10 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany }) {
     if (e.key === "Escape") close();
   };
   return (
-    <div ref={wrapRef} className="relative shrink-0 h-9 border-r border-slate-200" style={{ ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
+    <div ref={wrapRef} className={wrapClass ?? "relative shrink-0 h-9 border-r border-slate-200"} style={wrapStyle ?? { ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
-        onKeyDown={onKey}
-        className="w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+        onKeyDown={onKey} data-c="sku"
+        className={inputClass ?? "w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
@@ -268,6 +269,11 @@ function printProduct(p, s) {
 // in the bottom "Setting materials & sundries" breakdown.
 const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
 const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
+// Kiln #8b estimate sheet: the 9-column product grid and the muted em dash
+// empty cells render (the Color column is a dash for now — the data model
+// keeps brand+color in one brandColor field).
+const PRINT_COLS = "0.6fr 1.7fr 1.05fr 1fr 0.55fr 0.5fr 0.55fr 0.8fr 0.8fr";
+const PRINT_DASH = <span style={{ color: "#B3A38D" }}>—</span>;
 const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU
@@ -298,7 +304,12 @@ const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileRe
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
 const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
-const newArea = () => ({ id: uid(), name: "New Area", note: "", products: [newProduct()] });
+const newArea = () => ({ id: uid(), name: "", note: "", products: [newProduct()] });
+const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
+// A row with no identity yet — the empty state renders as a price-book search
+// instead of the full grid (pick a match to fill it, or a type/double-click to
+// enter it by hand).
+const rowBlank = (p) => !p.sku && !p.brandColor && !p.L && !p.W && !p.sizeText && !(num(p.priceSqft) > 0) && !(num(p.qty) > 0);
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
 // column). See ADR 0005.
@@ -312,7 +323,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
 const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
-const normA = (a) => ({ id: a.id || uid(), name: a.name || "Area", note: a.note || "", products: (a.products || [{}]).map(normP) });
+const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
@@ -379,7 +390,7 @@ function MetaChip({ icon: Icon, label, value, active, onClick }) {
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
-function TypeSelect({ type, onChange, triggerRef }) {
+function TypeSelect({ type, onChange, triggerRef, compact }) {
   const [open, setOpen] = useState(false);
   const accent = TYPE_ACCENT[type];
   // Keyboard: a printable letter jumps to the type(s) whose label starts with
@@ -394,7 +405,14 @@ function TypeSelect({ type, onChange, triggerRef }) {
     onChange(hits[(hits.indexOf(type) + 1) % hits.length]);
   };
   return (
-    <div className="relative shrink-0">
+    <div className={`relative shrink-0 ${compact ? "self-stretch flex" : ""}`}>
+      {compact ? (
+        <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={`Product type — ${TLBL[type]} (click to change)`}
+          className="shrink-0 flex items-center justify-center font-bold text-white leading-none"
+          style={{ width: 18, background: accent, fontSize: 10, margin: "6px 0" }}>
+          {TLBL[type][0]}
+        </button>
+      ) : (
       <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title="Product type"
         className="inline-flex items-center gap-1.5 rounded-full pl-2 pr-1.5 py-1 text-xs font-semibold"
         style={{ color: accent, background: `color-mix(in oklab, ${accent} 12%, transparent)`, border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)` }}>
@@ -402,6 +420,7 @@ function TypeSelect({ type, onChange, triggerRef }) {
         {TLBL[type]}
         <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
+      )}
       {open && (<>
         <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
         <div className="absolute z-30 mt-1 left-0 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
@@ -421,6 +440,156 @@ function TypeSelect({ type, onChange, triggerRef }) {
       </>)}
     </div>
   );
+}
+
+// ---- Kiln #14a grid input model ----------------------------------------
+// The area editing surface is a spreadsheet grid (same 9 columns as the
+// printed sheet, plus a slim utility column) over the exact same product
+// state — every write still goes through updProduct/updArea.
+const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
+const gridCell = { borderRight: "1px solid #EDE4D4", minWidth: 0, display: "flex", alignItems: "center" };
+
+// Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
+// commit (blur) back into the row's L / W / thickness fields.
+function GridSizeInput({ p, onCommit }) {
+  const shown = p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "";
+  const commit = (raw) => {
+    const t = String(raw).trim();
+    if (!t) { onCommit({ L: "", W: "" }); return; }
+    const m = t.split(/\s*[x×]\s*/);
+    const patch = { L: m[0] ? m[0].replace(/[^\d.]/g, "") : "", W: m[1] ? m[1].replace(/[^\d.]/g, "") : "" };
+    if (m[2] !== undefined) {
+      const th = m[2].trim();
+      const known = THICK.find((k) => k.label.replace(/"/g, "") === th.replace(/"/g, ""));
+      const frac = th.match(/^(\d+)\s*\/\s*(\d+)/);
+      patch.thickness = known ? known.v : frac ? String(Number(frac[1]) / Number(frac[2])) : th.replace(/[^\d.]/g, "") || p.thickness;
+    }
+    onCommit(patch);
+  };
+  return (
+    <input key={shown} defaultValue={shown} data-c="size"
+      onBlur={(e) => { if (e.target.value !== shown) commit(e.target.value); }}
+      onKeyDown={(e) => { if (e.key === "Enter" && e.target.value !== shown) commit(e.target.value); }}
+      className="ft-cell" style={{ padding: "6px 4px" }} placeholder="L×W" title='Tile size — type "12×24" or "12×24×3/8"' />
+  );
+}
+
+// Product cell: typed text is the row's brand/color; matches from the stock
+// price book drop down beneath (same search the SKU cell uses) and picking
+// one fills the row exactly like a SKU pick.
+function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product…", inputRef }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = open && stock.length ? searchStock(stock, value).slice(0, SKU_SHOW) : [];
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  return (
+    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
+      <input ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
+        data-c="product" className="ft-cell font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
+      {open && pos && matches.length > 0 && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
+          <div className="max-h-60 overflow-y-auto">
+            {matches.map((it) => (
+              <button key={it.sku} onClick={() => { onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <StockHit it={it} />
+              </button>
+            ))}
+          </div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Empty-row search: one wide field spanning the row that queries the stock
+// price book by SKU or product words. Picking a match fills the whole row
+// (like the SKU/product cells do); shift-click adds several as their own rows;
+// Enter with no match — or a double-click — hands the row to manual entry.
+function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, inputRef }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const [picked, setPicked] = useState([]); // SKUs, in click order
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = open && stock.length ? searchStock(stock, query) : [];
+  const results = matches.slice(0, SKU_SHOW);
+  const close = () => { setOpen(false); setPicked([]); };
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
+  const pick = (it) => { onPick(it); close(); };
+  const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
+  const commit = () => {
+    const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
+    if (items.length === 1) onPick(items[0]);
+    else if (items.length) onPickMany(items);
+    close();
+  };
+  const onKey = (e) => {
+    if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
+    else if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (picked.length) commit();
+      else if (results[hi]) pick(results[hi]);
+      else if (results.length) pick(results[0]);
+      else if (query.trim()) onManual();
+    } else if (e.key === "Escape") close();
+  };
+  const noHits = query.trim() && stock.length > 0 && results.length === 0;
+  return (
+    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={onManual}>
+      <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
+        onKeyDown={onKey} data-c="product" className="ft-cell font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
+        title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
+      {open && pos && (results.length > 0 || picked.length > 0 || noHits) && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
+          {results.length > 0 && (
+            <div className="max-h-72 overflow-y-auto">
+              {results.map((it, i) => {
+                const sel = picked.includes(it.sku);
+                return (
+                  <div key={it.sku} onClick={(e) => (e.shiftKey || picked.length ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                    className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
+                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
+                    <div className="flex-1 min-w-0"><StockHit it={it} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+            {noHits ? (
+              <><span className="truncate">No price-book match.</span>
+                <button onMouseDown={(e) => { e.preventDefault(); onManual(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Enter "{query.trim()}" by hand</button></>
+            ) : (<>
+              <span className="truncate">{matchSummary(results.length, matches.length)}</span>
+              {picked.length > 0 ? (
+                <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+              ) : (
+                <span className="ml-auto shrink-0">Shift-click to pick several</span>
+              )}
+            </>)}
+          </div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Enter in any grid cell moves to the same column one product row down
+// (spreadsheet-style); on the last row it grows the area by one product.
+function gridEnterNav(e, addRow) {
+  if (e.key !== "Enter" || e.defaultPrevented || e.target.tagName === "SELECT") return;
+  const col = e.target.getAttribute?.("data-c");
+  const card = e.target.closest?.("[data-prod-card]");
+  if (!col || !card) return;
+  const cards = [...e.currentTarget.querySelectorAll("[data-prod-card]")];
+  const i = cards.indexOf(card);
+  const next = cards[i + 1]?.querySelector(`[data-c="${col}"]`);
+  if (next) { e.preventDefault(); next.focus(); next.select?.(); }
+  else if (i === cards.length - 1) { e.preventDefault(); addRow(); }
 }
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
@@ -451,6 +620,7 @@ export default function App({ user, onSignOut }) {
   const [openCust, setOpenCust] = useState({});
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
+  const [custModal, setCustModal] = useState(null); // customer id whose details box is open
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
@@ -488,7 +658,12 @@ export default function App({ user, onSignOut }) {
   // expands via Enter, land on its first checkbox.
   const [focusProd, setFocusProd] = useState(null);
   const [focusQty, setFocusQty] = useState(null);
-  const [focusMatFirst, setFocusMatFirst] = useState(null);
+  const [focusProdBox, setFocusProdBox] = useState(null); // after a row goes manual, land in its product box
+  // Empty rows render as a price-book search; these hold the transient search
+  // text and which rows the user has committed to manual entry this session.
+  // Neither is persisted — a blank row simply re-opens as search on reload.
+  const [manualRows, setManualRows] = useState({});
+  const [omniQ, setOmniQ] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
@@ -506,6 +681,16 @@ export default function App({ user, onSignOut }) {
   // Which products' materials drawers are expanded — view state only, never
   // persisted. Collapsed shows fine-print summaries of the checked materials.
   const [matOpen, setMatOpen] = useState({});
+  // Clicking anywhere outside a drawer (or its pill/chevron/note, marked
+  // data-mats-keep) folds every open drawer back to its summary pill.
+  useEffect(() => {
+    const close = (e) => {
+      if (e.target.closest?.("[data-mats-keep]")) return;
+      setMatOpen((o) => (Object.values(o).some(Boolean) ? {} : o));
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const mainRef = useRef(null);
@@ -514,7 +699,7 @@ export default function App({ user, onSignOut }) {
   const areaRefs = useRef({});
   const typeRefs = useRef({});
   const qtyRefs = useRef({});
-  const matFirstRefs = useRef({});
+  const prodRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
   const saveOkTimer = useRef(null);
@@ -764,7 +949,7 @@ export default function App({ user, onSignOut }) {
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
-  useEffect(() => { if (focusMatFirst && matFirstRefs.current[focusMatFirst]) { matFirstRefs.current[focusMatFirst].focus(); setFocusMatFirst(null); } }, [focusMatFirst, matOpen]);
+  useEffect(() => { if (focusProdBox && prodRefs.current[focusProdBox]) { const el = prodRefs.current[focusProdBox]; el.focus(); el.select?.(); setFocusProdBox(null); } }, [focusProdBox, data]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
@@ -873,7 +1058,7 @@ export default function App({ user, onSignOut }) {
   const addPerson = (name = "") => {
     const c = { ...newPerson(name), updatedAt: Date.now() };
     setData((prev) => ({ ...prev, people: [c, ...prev.people] }));
-    setSelCustId(c.id); setSelId(null); setSidebarOpen(false);
+    setSidebarOpen(false);
     (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: null, data: personData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); } })();
     return c;
   };
@@ -895,7 +1080,6 @@ export default function App({ user, onSignOut }) {
     setConfirm(null);
     try { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
   };
-  const pickPerson = (id) => { setSelCustId(id); setSelId(null); setSidebarOpen(false); };
 
   // --- Builders: a canonical name list customers link to by id. ---
   // Create a new builder and assign it to a customer in one flow. The builder
@@ -969,7 +1153,7 @@ export default function App({ user, onSignOut }) {
   const beginDrag = (node, main, startX, startY, aid, p, pi) => {
     const d = { startX, startY, lastX: startX, lastY: startY, startScroll: main.scrollTop, to: null, raf: 0 };
     node.dataset.dragging = "1";
-    Object.assign(node.style, { position: "relative", zIndex: 50, pointerEvents: "none", transition: "scale .18s ease, rotate .18s ease, box-shadow .18s ease", scale: "1.03", rotate: "0.6deg", boxShadow: "0 14px 34px rgba(40,30,20,.22)", willChange: "translate" });
+    Object.assign(node.style, { position: "relative", zIndex: 50, pointerEvents: "none", transition: "scale .18s ease, rotate .18s ease, box-shadow .18s ease", scale: "1.03", rotate: "0.6deg", boxShadow: "0 0 0 1px rgba(40,30,20,.10), 0 6px 14px rgba(40,30,20,.16), 0 18px 44px rgba(40,30,20,.28)", borderRadius: "8px", overflow: "hidden", willChange: "translate" });
     document.body.style.userSelect = "none";
     document.body.style.cursor = "grabbing";
 
@@ -1016,7 +1200,7 @@ export default function App({ user, onSignOut }) {
       document.body.style.cursor = "";
       const rect = node.getBoundingClientRect();
       delete node.dataset.dragging;
-      Object.assign(node.style, { position: "", zIndex: "", pointerEvents: "", transition: "", scale: "", rotate: "", boxShadow: "", willChange: "", translate: "" });
+      Object.assign(node.style, { position: "", zIndex: "", pointerEvents: "", transition: "", scale: "", rotate: "", boxShadow: "", borderRadius: "", overflow: "", willChange: "", translate: "" });
       dropAnim.current = { id: p.id, rect };
       if (commit && d.to) moveProduct(aid, p.id, d.to.aid, d.to.index);
       setDrag(null);
@@ -1162,7 +1346,7 @@ export default function App({ user, onSignOut }) {
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
     const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "SF/Carton", "Cartons Exact", "Cartons Order", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Caulk Tubes", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
-    sel.categories.forEach((a) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, a.name, TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
+    sel.categories.forEach((a, ai) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, areaLabel(a, ai), TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
@@ -1193,7 +1377,7 @@ export default function App({ user, onSignOut }) {
     } catch (e) { ping("Backup failed — check connection"); return; }
     const attachments = {};
     for (const c of projects) for (const m of (c.attachments || [])) { try { const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(attPath(c.id, m.id)); if (blob) attachments[m.id] = await blobToDataURL(blob); } catch (x) { } }
-    dl(new Blob([JSON.stringify({ version: 2, builders, people, projects, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `floortrack_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    dl(new Blob([JSON.stringify({ version: 2, builders, people, projects, settings: data.settings, attachments }, null, 2)], { type: "application/json" }), `kiln_backup_${new Date().toISOString().slice(0, 10)}.json`);
     setSettings({ ops: { ...(settings.ops || {}), lastBackup: { at: Date.now(), by: profile.name || user.email || "" } } });
   };
   const importBackup = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = async () => { try {
@@ -1249,6 +1433,13 @@ export default function App({ user, onSignOut }) {
   // preview can never drift from what actually prints. Callers guard sel && sel._full.
   const renderEstimatePaper = () => (
           <div>
+            <div className="flex justify-between items-center border-b-2 border-black pb-3 mb-4">
+              <img src={keimLogo} alt="Keim" style={{ height: 38 }} />
+              <div className="text-right">
+                <div className="ft-eyebrow-accent text-[9px]">Selection Sheet</div>
+                <div className="ft-mono text-[9.5px] text-slate-500">{new Date().toLocaleDateString()}</div>
+              </div>
+            </div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-4 gap-4">
               <div>
                 <div className="ft-serif text-3xl">{sel.name}</div>
@@ -1271,94 +1462,93 @@ export default function App({ user, onSignOut }) {
               </div>
             </div>
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
-            {sel.categories.map((a, ai) => (
+            {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
-                <div className="flex justify-between items-baseline border-b-2 border-black pb-1 mb-1.5">
-                  <div className="flex items-baseline gap-2.5">
-                    <span className="ft-mono text-[11px] text-slate-400">{String(ai + 1).padStart(2, "0")}</span>
-                    <span className="ft-serif text-[21px]">{a.name}</span>
-                  </div>
-                  {printAreaFloor(a, settings) > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(printAreaFloor(a, settings))}</span>}
+                <div className="flex justify-between items-center" style={{ background: "#F0E4D4", borderRadius: 4, padding: "8px 12px" }}>
+                  <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
+                  <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
-                {a.note && <div className="text-xs italic text-slate-500 mb-1">{a.note}</div>}
-                <div className="pl-3" style={{ borderLeft: "2px solid var(--ft-border-strong)" }}>
-                  <table className="w-full border-collapse text-[12px]">
-                    <thead>
-                      <tr className="ft-eyebrow text-[8px] text-slate-500">
-                        <th className="text-left font-semibold py-0.5 pr-2">Selection</th>
-                        <th className="text-left font-semibold py-0.5 pr-2">Size</th>
-                        <th className="text-left font-semibold py-0.5 pr-2">SKU</th>
-                        <th className="text-right font-semibold py-0.5 pr-2">Order</th>
-                        <th className="text-right font-semibold py-0.5 pr-2">Price</th>
-                        <th className="text-right font-semibold py-0.5">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {a.products.map((p) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); return (
-                        <Fragment key={p.id}>
-                          <tr className="border-t border-slate-200 align-baseline">
-                            <td className="py-1.5 pr-2"><b className="text-[12.5px]">{p.brandColor || TLBL[p.type]}</b>{p.brandColor && <span className="text-slate-500 text-[10.5px]"> · {TLBL[p.type]}</span>}</td>
-                            <td className="py-1.5 pr-2 whitespace-nowrap text-[11px]">{c.size}</td>
-                            <td className="py-1.5 pr-2 ft-mono text-[10.5px]">{p.sku}</td>
-                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <span className="text-slate-400 text-[10px]"> = {sf1(c.orderedSf)} sf</span>}</td>
-                            <td className="py-1.5 pr-2 text-right whitespace-nowrap text-[11px]">{c.priceText}</td>
-                            <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.line > 0 ? money(c.line) : ""}</td>
-                          </tr>
-                          {inline.length > 0 && (
-                            <tr><td colSpan={6} className="pb-1 pl-4">
-                              {/* Narrower than the table so the order/price/total rails stay scannable. */}
-                              <div style={{ columns: 2, columnGap: 14, maxWidth: 470 }} className="text-[9.5px] leading-snug">
-                                {inline.map((m, i) => (
-                                  <div key={i} className="flex gap-1 break-inside-avoid">
-                                    <span className="ft-eyebrow text-[6.5px] shrink-0 text-right" style={{ width: 34, paddingTop: 2, letterSpacing: ".05em" }}>{KSHORT[m.kind]}</span>
-                                    <span className="ft-mono text-[8.5px] text-slate-500 shrink-0 text-right" style={{ width: 11, paddingTop: 0.5 }}>{m.order > 0 ? m.order : ""}</span>
-                                    <span className="text-slate-700">{m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && ` — ${m.spec}`}{m.detail && <span className="text-slate-400"> · {m.detail}</span>}</>}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </td></tr>
-                          )}
-                          {p.note && <tr><td colSpan={6} className="pl-4 pb-1.5 italic text-slate-500 text-[10.5px]">{p.note}</td></tr>}
-                        </Fragment>
-                      ); })}
-                    </tbody>
-                  </table>
+                {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
+                <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid #291D16", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
+                  <div>Size</div><div>Product</div><div>Color</div><div>SKU</div><div>SF/CT</div>
+                  <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
                 </div>
+                {a.products.map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const matsCost = inline.reduce((t, m) => t + m.cost, 0); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
+                  <Fragment key={p.id}>
+                    <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "4px 12px 5px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid #EDE2D2" : "none" }}>
+                      <div>{p.type === "tile" ? <>{p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH}{thickLabel && <div style={{ fontSize: 9, color: "#8A7A69" }}>× {thickLabel}</div>}</> : (p.sizeText || PRINT_DASH)}</div>
+                      <div style={{ fontWeight: 700 }}>{p.brandColor || TLBL[p.type]}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10, color: "#8A7A69" }}> · {TLBL[p.type]}</span>}</div>
+                      <div>{PRINT_DASH}</div>
+                      <div className="ft-mono" style={{ fontSize: 9 }}>{p.sku || PRINT_DASH}</div>
+                      <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? sf1(c.C.sf) : PRINT_DASH}</div>
+                      <div className="text-right">{p.qtyType === "sqft" && num(p.qty) > 0 ? sf1(num(p.qty)) : PRINT_DASH}</div>
+                      <div className="text-right">{num(p.priceSqft) > 0 ? money(num(p.priceSqft)) : PRINT_DASH}</div>
+                      <div className="text-right whitespace-nowrap">{p.type === "misc" ? `${c.qtyText} EA` : c.C && c.C.order > 0 ? `${c.C.order} ${c.C.unit}` : c.qtyText || PRINT_DASH}</div>
+                      <div className="text-right" style={{ fontWeight: 700 }}>{c.line > 0 ? money(c.line) : PRINT_DASH}</div>
+                    </div>
+                    {inline.length > 0 && (
+                      <div style={{ margin: "0 12px 4px", padding: "3px 10px 3px 12px", background: "#FDFAF4", fontSize: 9.5, color: "#6B594A", display: "flex", gap: 16, flexWrap: "wrap", alignItems: "baseline" }}>
+                        <span style={{ color: "#B3A38D" }}>└</span>
+                        {inline.map((m, i) => (
+                          <span key={i}>
+                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.kind === "Grout" && <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 999, background: "#C9B79D", verticalAlign: "baseline", marginRight: 3 }} />}{m.spec}</>}{m.detail && <span style={{ color: "#B3A38D" }}> · {m.detail}</span>}</>}
+                          </span>
+                        ))}
+                        {matsCost > 0 && <span className="ft-mono" style={{ marginLeft: "auto", fontSize: 9, color: "var(--ft-muted)" }}>+ {money(matsCost)}</span>}
+                      </div>
+                    )}
+                    {p.note && <div className="italic text-slate-500" style={{ padding: "0 12px 6px 24px", fontSize: 10.5 }}>{p.note}</div>}
+                  </Fragment>
+                ); })}
               </div>
-            ))}
+            ); })}
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
-                <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-baseline">
-                  <span className="font-bold text-[13px]">Setting materials &amp; sundries</span>
-                  {groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 && <span className="ft-mono text-[11px] text-slate-500">{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}</span>}
-                </div>
-                <div style={{ columns: 2, columnGap: 24 }}>
-                  {PRINT_KINDS.map((k) => ({ k, items: pMats.filter((m) => m.kind === k) })).filter((g) => g.items.length > 0).map(({ k, items }) => (
-                    <div key={k} className="break-inside-avoid mb-2.5">
-                      <div className="ft-eyebrow text-[8px] border-b border-slate-300 pb-0.5 mb-1">{k}</div>
-                      {items.map((m, i) => (
-                        <div key={i} className="text-[11px] flex justify-between gap-2 py-0.5">
-                          <span><b>{m.name}</b>{m.spec && <span className="text-slate-500"> — {m.spec}</span>}{m.sku && <span className="ft-mono text-slate-400 text-[9.5px]"> · {m.sku}</span>}{m.order > 0 && <><br /><span className="text-slate-400 text-[10px]">{m.order} {u1(m.order, m.unit)} ({m.exact.toFixed(2)})</span></>}</span>
-                          <span className="ft-mono text-[10.5px] whitespace-nowrap">{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : "—"}</span>
-                        </div>
-                      ))}
+                <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, background: "#F0E4D4", borderRadius: 4, padding: "14px 16px" }}>
+                  {pMats.map((m, i) => (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 2 }}>{m.kind}</div>
+                      <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.order > 0 && <> · {m.order} {u1(m.order, m.unit)}</>} <span className="ft-mono" style={{ fontWeight: 400, fontSize: 10 }}>{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : ""}</span></div>
+                      <div style={{ fontSize: 10, color: "#6B594A" }}>{[m.spec, m.sku, m.exact > 0 ? `(${m.exact.toFixed(2)})` : ""].filter(Boolean).join(" · ")}</div>
                     </div>
                   ))}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, justifyContent: "flex-end" }}>
+                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Materials subtotal</div>
+                    <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}</div>
+                  </div>
                 </div>
               </div>
             )}
             <div className="break-inside-avoid">
-              <div className="border-t-2 border-black pt-1.5 flex justify-between items-baseline">
-                <div className="text-[11px] text-slate-500">
+              <div className="flex justify-between items-center gap-4" style={{ borderTop: "2px solid #291D16", paddingTop: 12 }}>
+                <div style={{ fontSize: 11, color: "#6B594A" }}>
                   {[
                     flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
                     groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}` : "",
-                    totalSqft > 0 ? `${totalSqft.toLocaleString()} sq ft measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
+                    totalSqft > 0 ? `${totalSqft.toLocaleString()} SF measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
                   ].filter(Boolean).join(" · ")}
                 </div>
-                {grandTotal > 0 && <div className="flex items-baseline gap-3"><span className="font-bold text-[13px]">Estimated total</span><span className="ft-serif text-2xl">{money(grandTotal)}</span></div>}
+                {grandTotal > 0 && <div className="flex items-baseline gap-2 shrink-0"><span className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span><span className="ft-serif" style={{ fontSize: 22 }}>{money(grandTotal)}</span></div>}
               </div>
-              <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
+              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
+            </div>
+            <div className="break-inside-avoid flex mt-6" style={{ gap: 40 }}>
+              <div className="flex-1 flex flex-col" style={{ gap: 4 }}>
+                <div style={{ borderBottom: "1px solid #291D16", height: 28 }} />
+                <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "#9A948A" }}>Customer approval</div>
+              </div>
+              <div className="flex flex-col" style={{ width: 160, gap: 4 }}>
+                <div style={{ borderBottom: "1px solid #291D16", height: 28 }} />
+                <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "#9A948A" }}>Date</div>
+              </div>
+            </div>
+            <div className="break-inside-avoid flex justify-between items-center mt-5" style={{ borderTop: "1px solid #EDE2D2", paddingTop: 10 }}>
+              <div className="flex items-center gap-2">
+                <KilnMark size={18} />
+                <span className="ft-serif" style={{ fontSize: 12 }}>Kiln</span>
+              </div>
+              <div className="text-[9.5px] text-slate-400">Prepared with Kiln</div>
             </div>
           </div>
   );
@@ -1393,20 +1583,26 @@ export default function App({ user, onSignOut }) {
     const projs = projectsOf(c.id);
     const shown = q ? projs.filter(matchProj) : projs;
     const isOpen = !!openCust[c.id] || (q && projs.some(matchProj));
-    const on = selCustId === c.id && !selId;
+    // Highlight the person row when their open project is hidden behind a
+    // collapsed group (or the legacy customer pane is showing).
+    const on = (selCustId === c.id && !selId) || (!isOpen && projs.some((p) => p.id === selId));
     const bn = builderNameOf(c.builderId);
+    const clickName = () => {
+      if (projs.length === 1) pickProject(projs[0].id);
+      else setOpenCust((s) => ({ ...s, [c.id]: !isOpen }));
+    };
     return (
       <div key={c.id} className="mb-0.5">
         <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
-          <button onClick={() => setOpenCust((s) => ({ ...s, [c.id]: !isOpen }))} title={isOpen ? "Collapse" : "Expand"} className="p-1.5 text-slate-400 hover:text-slate-600 shrink-0">
-            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
-          <button onClick={() => pickPerson(c.id)} className="flex items-center gap-2 min-w-0 flex-1 py-1.5 pr-2 text-left">
-            <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${on ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{(c.name || "?").slice(0, 1).toUpperCase()}</div>
+          <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1.5 pl-1.5 pr-1 text-left">
+            <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
               <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
             </div>
+          </button>
+          <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1.5 rounded border border-slate-200 p-1 text-slate-400 hover:text-slate-600 hover:bg-white">
+            <MoreHorizontal size={13} />
           </button>
         </div>
         {isOpen && (
@@ -1420,14 +1616,14 @@ export default function App({ user, onSignOut }) {
   };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: '"Hanken Grotesk", ui-sans-serif, system-ui, sans-serif' }}>
+    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: '"Karla", ui-sans-serif, system-ui, sans-serif' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center ft-serif text-white" style={{ fontSize: 15 }}>F</div>
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "FloorTrack"}</span>
+            <KilnMark size={28} />
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "Kiln"}</span>
           </div>
         )}
 
@@ -1436,8 +1632,8 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="w-[34px] h-[34px] rounded-lg bg-indigo-600 flex items-center justify-center ft-serif text-white shrink-0" style={{ fontSize: 20 }}>F</div>
-            <div className="flex-1 min-w-0"><div className="ft-serif text-xl leading-none">FloorTrack</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
+            <KilnMark size={34} />
+            <div className="flex-1 min-w-0"><div className="ft-serif text-xl leading-none">Kiln</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -1537,7 +1733,7 @@ export default function App({ user, onSignOut }) {
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <div className="w-[60px] h-[60px] rounded-2xl flex items-center justify-center mb-4 ft-serif" style={{ background: "color-mix(in oklab, var(--ft-brand) 14%, transparent)", color: "var(--ft-brand)", fontSize: 30 }}>F</div>
+                <KilnMark size={60} className="mb-4" />
                 <h2 className="ft-serif text-2xl">Select or create a customer</h2>
                 <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building projects.</p>
               </div>
@@ -1553,7 +1749,7 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              <div className="bg-white rounded-lg border border-slate-200 mb-4" style={{ padding: "clamp(12px,1.8vw,18px)" }}>
+              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "#E8D8C1", borderColor: "#DCCFBA" }}>
                 <div className="flex items-end justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="ft-eyebrow-accent text-[10px] mb-1.5 flex items-center gap-1.5 flex-wrap">
@@ -1564,7 +1760,7 @@ export default function App({ user, onSignOut }) {
                           <>
                             {bn && <span>{bn} ·</span>}
                             {cust ? (
-                              <button onClick={() => pickPerson(cust.id)} className="hover:underline">{cust.name || "Customer"}</button>
+                              <button onClick={() => setCustModal(cust.id)} className="hover:underline">{cust.name || "Customer"}</button>
                             ) : sel.customerId ? (
                               <span>Customer</span>
                             ) : (
@@ -1585,7 +1781,7 @@ export default function App({ user, onSignOut }) {
                     <div className="ft-mono text-[10.5px] text-slate-500 mt-1">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <div className="ft-noprint mt-3 pt-3 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "#DCCFBA" }}>
                   <MetaChip icon={MapPin} label="Address" value={sel.address} active={projChip === "address"} onClick={() => setProjChip(projChip === "address" ? null : "address")} />
                   <MetaChip icon={Phone} label="Phone" value={sel.phone} active={projChip === "phone"} onClick={() => setProjChip(projChip === "phone" ? null : "phone")} />
                   <MetaChip icon={StickyNote} label="Notes" value={sel.notes ? "Notes" : ""} active={projChip === "notes"} onClick={() => setProjChip(projChip === "notes" ? null : "notes")} />
@@ -1624,34 +1820,48 @@ export default function App({ user, onSignOut }) {
                 )}
               </div>
 
-              <div className="flex items-center justify-between mb-3 gap-2">
-                <h2 className="ft-serif" style={{ fontSize: "clamp(24px,3vw,34px)", lineHeight: 1 }}>Areas &amp; Selections</h2>
-                <button ref={addAreaRef} onClick={addArea} className="ft-noprint flex items-center gap-1.5 text-sm font-semibold rounded-full border border-dashed border-slate-300 px-3.5 py-1.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
-              </div>
+              <button ref={addAreaRef} onClick={addArea} className="ft-noprint mb-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
 
               {sel.categories.length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
               <div className="space-y-4">
                 {sel.categories.map((a, ai) => {
-                  const areaColor = AREA_ACCENTS[ai % AREA_ACCENTS.length];
+                  const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
+                  const areaTotal = printAreaFloor(a, settings);
                   return (
-                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border p-4 md:p-5 transition-colors ${drag?.to?.aid === a.id ? "border-indigo-400 bg-indigo-50/40" : drag ? "border-dashed border-slate-300 bg-white" : "border-slate-200 bg-white"}`}>
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: areaColor }} />
-                      <span className="ft-mono text-sm shrink-0" style={{ color: areaColor }}>{String(ai + 1).padStart(2, "0")}</span>
-                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none flex-1 min-w-0" style={{ fontSize: 23, lineHeight: 1 }} />
-                      <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 w-28 md:w-40 text-right" />
-                      <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-300 hover:text-red-500"><Trash2 size={15} /></button>
+                  // overflow-hidden lifts while a card is dragged so the floating
+                  // card isn't clipped at its home area's edge.
+                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "#E8D8C1", padding: "8px 14px" }}>
+                      <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
+                        <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
+                        <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 flex-1 min-w-0" />
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""].filter(Boolean).join(" · ")}</span>
+                        <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                      </div>
                     </div>
                     {confirmArea === a.id && (
-                      <div className="ft-noprint flex items-center gap-2 mt-2 text-xs">
-                        <span className="text-red-600 flex-1">Delete "{a.name}" and its {a.products.length} selection{a.products.length === 1 ? "" : "s"}? Everything in this area comes off the estimate.</span>
+                      <div className="ft-noprint flex items-center gap-2 px-3 py-2 text-xs border-b border-slate-100">
+                        <span className="text-red-600 flex-1">Delete "{areaLabel(a, ai)}" and its {a.products.length} selection{a.products.length === 1 ? "" : "s"}? Everything in this area comes off the estimate.</span>
                         <button onClick={() => { delArea(a.id); setConfirmArea(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                         <button onClick={() => setConfirmArea(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                       </div>
                     )}
 
-                    <div data-prod-list="1" className="relative mt-3 space-y-3">
+                    <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
+                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "#F4EEE3", borderBottom: "1px solid #DCCFBA", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
+                        <div style={{ padding: "5px 10px", borderRight: "1px solid #EDE4D4" }}>Size / Type ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Product / Color ▾</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>SKU</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4" }}>Cov.</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>SF</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Price</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Order</div>
+                        <div style={{ padding: "5px 8px", borderRight: "1px solid #EDE4D4", textAlign: "right" }}>Total</div>
+                        <div />
+                      </div>
                       {a.products.map((p, pi) => {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
@@ -1662,7 +1872,6 @@ export default function App({ user, onSignOut }) {
                         // Sold by the carton: whole cartons drive the line total.
                         const C = getCarton(p, settings), cEx = cartonExact(p, settings);
                         const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : C ? C.order * C.sf * num(p.priceSqft) : sf * num(p.priceSqft);
-                        const thickKnown = THICK.some((t) => t.v === String(p.thickness));
                         // Dropdowns are driven by the catalog (resolve-by-name). A selection
                         // whose stored product is no longer offered is injected back as an
                         // option so it still shows — same pattern as tile thickness above.
@@ -1691,164 +1900,139 @@ export default function App({ user, onSignOut }) {
                         const underlayOpts = p.underlay.product && !underlayNames.includes(p.underlay.product) ? [p.underlay.product, ...underlayNames] : underlayNames;
                         const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
                         const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayNames[0] || "") } });
-                        // Collapsed materials drawer: one fine-print line per checked
-                        // material; unchecked ones are hidden entirely.
+                        // Collapsed rows reuse the print sheet's inline material line
+                        // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
+                        // wants the collapsed line identical to the printed one.
                         const matExpanded = !!matOpen[p.id];
-                        const jointLbl = JOINTS.find((x) => x.v === num(p.grout.joint))?.label;
-                        const caulkN = num(p.grout.caulk);
-                        const matRows = [];
-                        if (p.type === "tile" && p.grout.checked) matRows.push({ label: "Grout", text: [p.grout.product, p.grout.color, jointLbl, caulkN > 0 ? `+${caulkN} caulk` : ""].filter(Boolean).join(" · "), qty: G && `${G.order} ${G.unit}` });
-                        if (p.type === "tile" && p.mortar.checked) matRows.push({ label: "Mortar", text: p.mortar.product, qty: M && `${M.order} ${M.unit}` });
-                        if (p.underlay.checked) matRows.push({ label: underlayLabel(p.type), text: `${p.underlay.product || "—"}${p.underlay.install && INS ? ` · +install (${INS.map((m) => `${m.order} ${m.unit}`).join(", ")})` : ""}`, qty: U && `${U.order} ${U.unit}` });
-                        const underlayCard = (
-                          <div className={`rounded-md border px-2.5 py-1.5 ${p.underlay.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                              <button ref={(el) => { if (el && p.type !== "tile") matFirstRefs.current[p.id] = el; }} onClick={toggleUnderlay} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.underlay.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.checked && <Check size={12} />}</button>
-                              <span className="text-sm font-medium">{underlayLabel(p.type)}</span>
-                              {p.underlay.checked && underlayOpts.length > 0 && (
-                                <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0">
-                                  <FitSelect value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
-                                </div>
-                              )}
-                              {p.underlay.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>}
-                              {p.underlay.checked && underlayOpts.length === 0 && <div className="order-last basis-full text-xs text-amber-500">No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</div>}
-                              {p.underlay.checked && underlayOpts.length > 0 && !U && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft to calculate, or type a total above.</div>}
-                            </div>
-                            {p.underlay.checked && installDefs.length > 0 && (
-                              <div className="mt-1.5 border-t border-slate-100 pt-1.5">
-                                <div className="flex items-center gap-2">
-                                  <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.underlay.install && <Check size={12} />}</button>
-                                  {p.underlay.install ? (
-                                    <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-sm min-w-0">
-                                      {insExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
-                                      Install materials
-                                      <span className="text-xs text-slate-400 whitespace-nowrap">{insIncluded < installDefs.length ? `${insIncluded} of ${installDefs.length}` : `${installDefs.length} item${installDefs.length === 1 ? "" : "s"}`}</span>
-                                    </button>
-                                  ) : (
-                                    <span className="text-sm">Install materials <span className="text-xs text-slate-400">({installDefs.length})</span></span>
-                                  )}
-                                  {p.underlay.install && !insExpanded && (INS ? (
-                                    <span className="ml-auto text-xs text-indigo-700 font-medium truncate">{INS.slice(0, 3).map((m) => `${m.order} ${m.unit}`).join(" · ")}{INS.length > 3 ? ` +${INS.length - 3}` : ""}</span>
-                                  ) : insIncluded === 0 ? (
-                                    <span className="ml-auto text-xs text-slate-400">none included</span>
-                                  ) : (
-                                    <span className="ml-auto text-xs text-amber-500 truncate">{p.qtyType === "sqft" && num(p.qty) > 0 ? "No coverage set" : "Enter Sq Ft"}</span>
-                                  ))}
-                                </div>
-                                {p.underlay.install && insExpanded && (
-                                  <div className="mt-1 ml-7 space-y-1">
-                                    {installDefs.map((d) => {
-                                      const skipped = !!p.underlay.installSkip?.[d.id];
-                                      const item = insById.get(d.id);
-                                      const cur = p.underlay.installMortars?.[d.id] || d.product;
-                                      const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
-                                      return (
-                                        <div key={d.id} className="flex items-center gap-2">
-                                          <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "bg-indigo-600 text-white"}`}>{!skipped && <Check size={10} />}</button>
-                                          {d.kind === "mortar" && !skipped ? (
-                                            <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
-                                              {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
-                                            </FitSelect>
-                                          ) : (
-                                            <span className={`text-xs truncate ${skipped ? "text-slate-400 line-through" : "text-slate-600"}`}>{d.kind === "mortar" ? (cur || "mortar") : d.name}</span>
-                                          )}
-                                          <span className="ml-auto text-xs whitespace-nowrap">{skipped ? <span className="text-slate-300">skipped</span> : item ? <><span className="text-slate-400">{item.exact.toFixed(2)} → </span><span className="text-indigo-700 font-semibold">{item.order} {item.unit}</span></> : <span className="text-slate-300">—</span>}</span>
-                                        </div>
-                                      );
-                                    })}
-                                    {!INS && insIncluded > 0 && <div className="text-xs text-amber-500">{p.qtyType === "sqft" && num(p.qty) > 0 ? "Set install-material coverage in Settings to calculate." : "Enter Sq Ft to calculate install materials."}</div>}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                        const selAccent = TYPE_ACCENT[p.type] || "var(--ft-text)";
+                        const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
+                        const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
+                        const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked);
+                        const openMats = () => setMatOpen((o) => ({ ...o, [p.id]: true }));
+                        const addables = p.type === "misc" ? [] : [
+                          ...(p.type === "tile" && !p.grout.checked ? ["Grout"] : []),
+                          ...(p.type === "tile" && !p.mortar.checked ? ["Mortar"] : []),
+                          ...(!p.underlay.checked ? [KSHORT[underlayLabel(p.type)]] : []),
+                        ];
+                        const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
+                        const mUnit = M ? M.unit : settings.mortars[p.mortar.product]?.unit || "";
                         // Stock link: the row keeps its snapshotted values; the
                         // chip below only points out drift from the current book.
                         const stockItem = findStock(stock, p.sku);
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
-                        const skuBox = stock.length > 0 ? (
-                          <SkuPicker value={p.sku || ""} stock={stock}
-                            onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                            onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
-                            onPickMany={(items) => addStockProducts(a.id, p.id, items)} />
-                        ) : null;
+                        // The type's accent (same one on the dark type box) washes
+                        // across the row to the Total cell — a 13% tint, deeper on
+                        // the Total to anchor the money, and deeper still when the
+                        // materials are expanded. The card's lower chrome (pill,
+                        // note, actions column) sits on cream so the colored line
+                        // pops against it (prototype wash J, 2026-07-10).
+                        const accent = TYPE_ACCENT[p.type];
+                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-prod))`;
+                        const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-prod))`;
+                        const searchMode = rowBlank(p) && !manualRows[p.id];
+                        const omniText = omniQ[p.id] || "";
+                        const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
+                        const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
                         return (
-                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} className="rounded-lg border border-slate-200 bg-white p-3 md:p-3.5" style={{ borderLeft: `3px solid ${selAccent}` }}>
-                            <div className="ft-noprint flex flex-wrap items-center gap-2 mb-2.5">
-                              <TypeSelect type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
-                              {p.type === "misc" && miscQty(p) !== 1 && num(p.priceSqft) > 0 && (
-                                <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
-                                  <span>{miscQty(p)} × {money(num(p.priceSqft))}</span>
-                                  <span className="text-slate-300">·</span>
-                                  <span className="text-sm font-semibold text-slate-700">{money(line)}</span>
-                                </span>
-                              )}
-                              {p.type !== "misc" && p.qtyType === "sqft" && sf > 0 && (
-                                <span className="ml-auto shrink-0 flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
-                                  <span>{sf.toLocaleString()} sf</span>
-                                  {C && (<>
-                                    <span className="text-slate-300">·</span>
-                                    <span className="flex items-center gap-1 text-indigo-700">
-                                      {cEx != null && <span className="text-slate-400 whitespace-nowrap">{cEx.toFixed(2)} →</span>}
-                                      <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} title="Cartons to order — type to override the calculated amount" className="!w-11 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" />
-                                      <span className="font-semibold">{C.unit}</span>
-                                      <span className="text-slate-400 whitespace-nowrap">({sf1(C.order * C.sf)} sf)</span>
-                                    </span>
-                                  </>)}
-                                  {num(p.priceSqft) > 0 && (<>
-                                    <span className="text-slate-300">·</span>
-                                    <span className="text-sm font-semibold text-slate-700">{money(line)}</span>
-                                  </>)}
-                                </span>
-                              )}
-                              {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="shrink-0 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>}
+                          // flow-root keeps the collapsed pill's bottom margin inside the
+                          // card — collapsed through, it painted a white strip between rows
+                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ display: "flow-root", borderTop: pi > 0 ? "1px solid #EDE4D4" : "none", background: "var(--ft-prod)" }}>
+                            {searchMode ? (
+                            /* empty row: type chip + one wide price-book search that fills the row on pick */
+                            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: rowTint }}>
+                              <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
+                                <TypeSelect compact type={p.type} onChange={(t) => goManual({ type: t })} />
+                                <span className="w-1 shrink-0" />
+                              </div>
+                              <div style={gridCell}>
+                                <GridOmniSearch stock={stock} query={omniText}
+                                  onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
+                                  onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
+                                  onManual={() => goManual()}
+                                  inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                              </div>
+                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
+                              </div>
+                            </div>
+                            ) : (<>
+                            {/* main product row */}
+                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint }}>
+                              <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
+                                <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                                {/* no expand carrot — the materials pill opens the drawer,
+                                    clicking anywhere outside folds it */}
+                                <span className="w-1 shrink-0" />
+                                {p.type === "tile" ? (
+                                  <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
+                                ) : p.type === "misc" ? (
+                                  <span className="px-1" style={{ color: "#B3A38D" }}>Misc</span>
+                                ) : (
+                                  <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                )}
+                              </div>
+                              <div style={gridCell}>
+                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
+                              </div>
+                              <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
+                                {stock.length > 0 ? (
+                                  <SkuPicker value={p.sku || ""} stock={stock}
+                                    onChange={(v) => updProduct(a.id, p.id, { sku: v })}
+                                    onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
+                                    onPickMany={(items) => addStockProducts(a.id, p.id, items)}
+                                    wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
+                                ) : (
+                                  <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
+                                )}
+                              </div>
+                              <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
+                                {p.type !== "misc" && p.qtyType === "sqft" ? (
+                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                ) : <span className="px-2" style={{ color: "#B3A38D" }}>—</span>}
+                              </div>
+                              <div style={gridCell}>
+                                {p.type !== "misc" && p.qtyType === "sqft" ? (
+                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
+                                ) : <span className="px-2 ml-auto" style={{ color: "#B3A38D" }}>—</span>}
+                              </div>
+                              <div style={gridCell}>
+                                <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                              </div>
+                              <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
+                                {p.type !== "misc" && C ? (<>
+                                  <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />
+                                  <span className="shrink-0" style={{ fontSize: 9.5 }}>{C.unit}</span>
+                                  <span className="ft-noprint flex flex-col shrink-0 pr-1">
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(C.order + 1) })} title="One more carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronUp size={9} /></button>
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(Math.max(0, C.order - 1)) })} title="One less carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronDown size={9} /></button>
+                                  </span>
+                                </>) : p.type === "misc" || p.qtyType === "count" ? (<>
+                                  <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} placeholder={p.type === "misc" ? "1" : "0"} title="Quantity" />
+                                  {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>EA</span> : (
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "sqft" })} title="Counted each — click to switch to square feet" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>EA</button>
+                                  )}
+                                </>) : (<>
+                                  <span className="text-slate-500">{num(p.qty) > 0 ? sf1(num(p.qty)) : ""}</span>
+                                  <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
+                                </>)}
+                              </div>
+                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
+                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
+                              </div>
                             </div>
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
-                              <div className="ft-noprint flex items-center gap-2 mb-2 text-xs">
+                              <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "var(--ft-prod)" }}>
                                 <span className="text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>
                                 <button onClick={() => { delProduct(a.id, p.id); setConfirmProd(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                               </div>
                             )}
-
-                            <div className="flex flex-wrap items-stretch w-full rounded-md border border-slate-200 ft-fieldbar text-sm overflow-hidden">
-                              {p.type === "tile" ? (<>
-                                {skuBox}
-                                <div className="flex items-center shrink-0 h-9 pl-1">
-                                  <input type="number" value={p.L} onChange={(e) => updProduct(a.id, p.id, { L: e.target.value })} style={fitW(p.L, 1, 0.8)} className="px-0.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="L" title="Length (in)" />
-                                  <span className="text-slate-300 shrink-0">×</span>
-                                  <input type="number" value={p.W} onChange={(e) => updProduct(a.id, p.id, { W: e.target.value })} style={fitW(p.W, 1, 0.8)} className="px-0.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="W" title="Width (in)" />
-                                </div>
-                                <select value={p.thickness} onChange={(e) => updProduct(a.id, p.id, { thickness: e.target.value })} className="shrink-0 h-9 border-l border-slate-200 px-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" title="Thickness">{!thickKnown && <option value={p.thickness}>{p.thickness}"</option>}{THICK.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
-                              </>) : p.type === "misc" ? (<>
-                                {skuBox}
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Description" />
-                                <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} style={fitW(p.qtyType === "count" ? p.qty : "", 2, 0.8)} className="shrink-0 h-9 border-l border-slate-200 px-1 py-1.5 text-center bg-transparent focus:outline-none focus:bg-white" placeholder="1" title="Quantity" />
-                              </>) : (<>
-                                {skuBox}
-                                <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} style={fitW(p.sizeText, 5, 1.4)} className="shrink-0 h-9 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
-                                <input value={p.brandColor} onChange={(e) => updProduct(a.id, p.id, { brandColor: e.target.value })} className="flex-1 min-w-0 h-9 border-l border-slate-200 px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="Brand / color" />
-                              </>)}
-                              {p.type !== "misc" && <div className="basis-full md:hidden" />}
-                              <div style={fitW(p.priceSqft, 4, 1.6)} className={`relative shrink-0 h-9 border-slate-200 ${p.type === "misc" ? "border-l" : "border-t md:border-t-0 md:border-l"}`}><span className="absolute left-1.5 top-1.5 text-slate-400">$</span><input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} className="w-full pl-4 pr-1.5 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder={p.type === "misc" ? "0.00" : "/sqft"} title={p.type === "misc" ? "Price each" : "Price per sq ft"} /></div>
-                              {p.type !== "misc" && (<>
-                                <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} style={fitW(p.qty, 2, 0.8)} className={`flex-1 md:flex-none min-w-0 h-9 border-l border-t md:border-t-0 border-slate-200 px-1 py-1.5 text-center focus:outline-none focus:bg-white ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : "bg-transparent"}`} placeholder="0" title={qtyMissing ? `Enter ${p.qtyType === "sqft" ? "square footage" : "a quantity"}` : "Quantity"} />
-                                <div className="flex shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200 text-xs">{["sqft", "count"].map((t) => <button tabIndex={-1} key={t} onClick={() => updProduct(a.id, p.id, { qtyType: t })} className={`px-2.5 ${p.qtyType === t ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t === "sqft" ? "SF" : "EA"}</button>)}</div>
-                                {p.qtyType === "sqft" && (
-                                  <div className="relative shrink-0 h-9 border-l border-t md:border-t-0 border-slate-200">
-                                    <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} style={fitW(p.cartonSf, 2, 2.2)} className="h-full pl-1.5 pr-7 py-1.5 bg-transparent focus:outline-none focus:bg-white" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                    <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">sf/{(p.cartonUnit || "CT").toLowerCase()}</span>
-                                  </div>
-                                )}
-                              </>)}
-                            </div>
                             {(drift || stockRetired || baseAlt) && (
-                              <div className="ft-noprint mt-1.5 flex items-center gap-2 text-xs flex-wrap">
+                              <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
@@ -1859,80 +2043,167 @@ export default function App({ user, onSignOut }) {
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
                             )}
-
-                            {p.type !== "misc" && (
-                              <div className="mt-2 rounded-md border border-slate-100 px-2.5 py-1.5">
-                                {!matExpanded ? (
-                                  <button onClick={() => { setMatOpen((o) => ({ ...o, [p.id]: true })); setFocusMatFirst(p.id); }} className="w-full flex items-start gap-1.5 text-left" title="Materials — click or press Enter to edit">
-                                    <ChevronRight size={13} className="text-slate-400 shrink-0 mt-[1px]" />
-                                    {matRows.length === 0 ? (
-                                      <span className="text-[11px] leading-4 text-slate-400">Associated materials</span>
-                                    ) : (
-                                      <span className="flex-1 min-w-0 space-y-px">
-                                        {matRows.map((r) => (
-                                          <span key={r.label} className="flex items-baseline gap-2 text-[11px] leading-4 min-w-0">
-                                            <span className="w-16 shrink-0 text-slate-500 font-medium">{r.label}</span>
-                                            <span className="text-slate-400 truncate min-w-0">{r.text}</span>
-                                            <span className="ml-auto shrink-0 text-indigo-700 font-semibold">{r.qty || "—"}</span>
-                                          </span>
-                                        ))}
-                                      </span>
-                                    )}
-                                  </button>
-                                ) : (<>
-                                  <button tabIndex={-1} onClick={() => setMatOpen((o) => ({ ...o, [p.id]: false }))} className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1.5" title="Collapse">
-                                    <ChevronDown size={13} className="shrink-0" /> close
-                                  </button>
-                                  <div className="space-y-1.5">
-                                {p.type === "tile" && (<>
-                                {/* Grout */}
-                                <div className={`rounded-md border px-2.5 py-1.5 ${p.grout.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                    <button ref={(el) => { if (el) matFirstRefs.current[p.id] = el; }} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: !p.grout.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.grout.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.grout.checked && <Check size={12} />}</button>
-                                    <span className="text-sm font-medium">Grout</span>
-                                    {p.grout.checked && (
+                            {/* material child boxes (expanded) — every applicable material shows,
+                                checked (full controls) or unchecked (slim dashed card, click ✓ to add) */}
+                            {matExpanded && p.type !== "misc" && (
+                              // Merged accent box (prototype mats 8): one fused box ending
+                              // flush with the Total column; checked lines fill with the
+                              // type accent, unchecked stay paper, outline + separators
+                              // carry the same hue (.ft-mats rule in index.css).
+                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
+                                {p.type === "tile" && p.grout.checked && (
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
+                                      <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
-                                        <FitSelect value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                        <FitSelect value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
-                                        {p.grout.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku}</span>}
-                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1 py-1.5 ${num(p.grout.joint) === j.v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{j.label}</button>)}</div>
-                                        <span className="flex items-center gap-1 text-xs text-slate-500 shrink-0" title="Matching caulk for this grout color — tubes to order; leave blank for none">Caulk<input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
+                                        <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
+                                        <span className="inline-flex items-center gap-1 min-w-0">
+                                          <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
+                                          <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
+                                        </span>
+                                        {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
+                                        <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent } : undefined}>{j.label}</button>)}</div>
+                                      </div>
+                                      <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
+                                      {!G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
+                                    </div>
+                                    <div className="mt-1.5 pl-7 flex items-center gap-2 text-xs text-slate-500">
+                                      <span className="text-slate-400">Matching caulk</span>
+                                      {p.grout.color && <span className="inline-flex items-center gap-1"><span className="shrink-0" style={{ width: 9, height: 9, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D" }} />{p.grout.color} match</span>}
+                                      {p.grout.caulkSku && <span className="ft-mono text-[10px] text-slate-400">{p.grout.caulkSku}</span>}
+                                      <span className="ml-auto flex items-center gap-1"><input tabIndex={-1} type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
+                                    </div>
+                                  </div>
+                                )}
+                                {p.type === "tile" && !p.grout.checked && (
+                                  <div className="px-2.5 py-1 flex items-center gap-2">
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <span className="text-sm text-slate-500">Grout</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.grout.product || groutNames[0] || ""}</span>
+                                  </div>
+                                )}
+                                {p.type === "tile" && p.mortar.checked && (
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
+                                      <span className="text-sm font-medium">Mortar</span>
+                                      <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
+                                        <FitSelect sm value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
+                                        {settings.mortars[p.mortar.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.mortars[p.mortar.product]?.sku}</span>}
+                                      </div>
+                                      <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{mUnit}</span></span>
+                                    </div>
+                                  </div>
+                                )}
+                                {p.type === "tile" && !p.mortar.checked && (
+                                  <div className="px-2.5 py-1 flex items-center gap-2">
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <span className="text-sm text-slate-500">Mortar</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.mortar.product || mortarNames[0] || ""}</span>
+                                  </div>
+                                )}
+                                {p.type !== "misc" && p.underlay.checked && (
+                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-white" style={{ background: accent }}><Check size={12} /></button>
+                                      <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
+                                      <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
+                                        {underlayOpts.length > 0 ? (
+                                          <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
+                                        ) : (
+                                          <span className="text-amber-500 text-xs">No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</span>
+                                        )}
+                                        {settings.underlayments[p.underlay.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.underlayments[p.underlay.product]?.sku}</span>}
+                                      </div>
+                                      <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
+                                    </div>
+                                    {installDefs.length > 0 && (
+                                      <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px solid color-mix(in oklab, ${accent} 25%, transparent)` }}>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "text-white" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent } : undefined}>{p.underlay.install && <Check size={10} />}</button>
+                                    {p.underlay.install ? (
+                                      <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
+                                        {insExpanded ? <ChevronDown size={12} className="text-slate-400 shrink-0" /> : <ChevronRight size={12} className="text-slate-400 shrink-0" />}
+                                        Install materials
+                                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{insIncluded < installDefs.length ? `${insIncluded} of ${installDefs.length}` : `${installDefs.length} item${installDefs.length === 1 ? "" : "s"}`}</span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs">Install materials <span className="text-[10px] text-slate-400">({installDefs.length})</span></span>
+                                    )}
+                                    {p.underlay.install && !insExpanded && (INS ? (
+                                      <span className="ml-auto text-[10px] font-medium truncate" style={{ color: accent }}>{INS.slice(0, 3).map((m) => `${m.order} ${m.unit}`).join(" · ")}{INS.length > 3 ? ` +${INS.length - 3}` : ""}</span>
+                                    ) : insIncluded === 0 ? (
+                                      <span className="ml-auto text-[10px] text-slate-400">none included</span>
+                                    ) : (
+                                      <span className="ml-auto text-[10px] text-amber-500 truncate">{p.qtyType === "sqft" && num(p.qty) > 0 ? "No coverage set" : "Enter Sq Ft"}</span>
+                                    ))}
+                                  </div>
+                                  {p.underlay.install && insExpanded && (
+                                    <div className="mt-1 ml-6 space-y-1">
+                                      {installDefs.map((d) => {
+                                        const skipped = !!p.underlay.installSkip?.[d.id];
+                                        const item = insById.get(d.id);
+                                        const cur = p.underlay.installMortars?.[d.id] || d.product;
+                                        const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
+                                        return (
+                                          <div key={d.id} className="flex items-center gap-2">
+                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : "text-white"}`} style={skipped ? undefined : { background: accent }}>{!skipped && <Check size={10} />}</button>
+                                            {d.kind === "mortar" && !skipped ? (
+                                              <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
+                                                {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
+                                              </FitSelect>
+                                            ) : (
+                                              <span className={`text-xs truncate ${skipped ? "text-slate-400 line-through" : "text-slate-600"}`}>{d.kind === "mortar" ? (cur || "mortar") : d.name}</span>
+                                            )}
+                                            <span className="ml-auto text-xs whitespace-nowrap">{skipped ? <span className="text-slate-300">skipped</span> : item ? <><span className="text-slate-400">{item.exact.toFixed(2)} → </span><span className="font-semibold" style={{ color: accent }}>{item.order} {item.unit}</span></> : <span className="text-slate-300">—</span>}</span>
+                                          </div>
+                                        );
+                                      })}
+                                      {!INS && insIncluded > 0 && <div className="text-xs text-amber-500">{p.qtyType === "sqft" && num(p.qty) > 0 ? "Set install-material coverage in Settings to calculate." : "Enter Sq Ft to calculate install materials."}</div>}
+                                    </div>
+                                  )}
                                       </div>
                                     )}
-                                    {p.grout.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{G ? G.unit : settings.grouts[p.grout.product]?.unit}</span></span>}
-                                    {p.grout.checked && !G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
                                   </div>
-                                </div>
-                                {/* Mortar */}
-                                <div className={`rounded-md border px-2.5 py-1.5 ${p.mortar.checked ? "border-indigo-200 bg-indigo-50/40" : "border-slate-100 bg-white"}`}>
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                    <button onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: !p.mortar.checked } })} className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${p.mortar.checked ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{p.mortar.checked && <Check size={12} />}</button>
-                                    <span className="text-sm font-medium">Mortar</span>
-                                    {p.mortar.checked && (
-                                      <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0">
-                                        <FitSelect value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                      </div>
-                                    )}
-                                    {p.mortar.checked && <span className="ml-auto flex items-center gap-1 text-sm text-indigo-700 shrink-0">{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{M ? M.unit : settings.mortars[p.mortar.product]?.unit}</span></span>}
+                                )}
+                                {p.type !== "misc" && !p.underlay.checked && (
+                                  <div className="px-2.5 py-1 flex items-center gap-2">
+                                    <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
                                   </div>
-                                </div>
-                                </>)}
-                                {underlayCard}
-                                  </div>
-                                </>)}
+                                )}
                               </div>
                             )}
-
-                            <div className="mt-2 flex items-end gap-2">
-                              <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-sm text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
-                              <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="ft-noprint shrink-0 -m-1 p-1 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={15} /></button>
-                            </div>
+                            {!matExpanded && pInline.length > 0 && (
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "#6B594A", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 25%, transparent)`, borderRadius: 7 }} title="Materials — click to edit">
+                                {pInline.map((m, i) => (
+                                  <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
+                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
+                                  </span>
+                                ))}
+                                <span className="flex-1" />
+                                {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "#8A7A69" }}>+ {money(matsCost)}</span>}
+                              </button>
+                            )}
+                            {!matExpanded && !hasMats && addables.length > 0 && (
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", fontSize: 9.5, color: "#B3A38D", border: "1px dashed #E7DAC6", borderRadius: 7 }} title="Materials — click to choose">
+                                ＋ {addables.join(" · ")}…
+                              </button>
+                            )}
+                            {(matExpanded || p.note) && (
+                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid #EDE4D4" : "none" }}>
+                                <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
+                              </div>
+                            )}
+                            </>)}
                           </div>
                         );
                       })}
                       {drag?.to?.aid === a.id && <div className="absolute left-1 right-1 h-1.5 rounded-full bg-indigo-600 pointer-events-none" style={{ top: drag.to.y, marginTop: 0 }} />}
                     </div>
-                    <button onClick={() => addProduct(a.id)} className="ft-noprint mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md border border-dashed border-slate-300 py-2 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={14} /> Add product</button>
+                    <button onClick={() => addProduct(a.id)} className="ft-noprint w-full flex items-center gap-1.5 text-left hover:text-slate-500" style={{ padding: "6px 10px", fontSize: 10.5, color: "#C3B49E", borderTop: "1px solid #EDE4D4" }}><Plus size={11} /> New row — start typing anywhere</button>
                   </div>
                   );
                 })}
@@ -1943,47 +2214,52 @@ export default function App({ user, onSignOut }) {
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
-                <div className="mt-5 bg-white border border-slate-200 rounded-lg" style={{ padding: "clamp(18px,2.4vw,28px)" }}>
-                  <div className="ft-eyebrow-accent text-[10px] mb-1.5">Materials Estimate</div>
-                  <h3 className="ft-serif mb-5" style={{ fontSize: "clamp(22px,2.6vw,30px)", lineHeight: 1 }}>Order summary</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
+                <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D4", padding: "10px 16px" }}>
+                    <div className="flex items-baseline gap-2.5 min-w-0">
+                      <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Materials Estimate</span>
+                      <span className="ft-serif" style={{ fontSize: 20 }}>Order summary</span>
+                    </div>
+                    {groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)} materials</span>}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-6" style={{ padding: 16 }}>
                     <div>
-                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Grout</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Grout</div>
                       {gList.length + bList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...bList.map((b) => ({ product: b.name, sku: b.sku, color: "—", order: b.order, unit: b.unit, cost: b.cost, price: b.price, pending: false })), ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
-                        <div key={"g" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {g.sku}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block text-[11px] text-slate-400">{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
+                        <div key={"g" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                          <span className="font-medium min-w-0">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{g.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
-                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Mortar</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Mortar</div>
                       {mList.length === 0 ? <div className="text-sm text-slate-400">—</div> : mList.map((m, i) => (
-                        <div key={"m" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{m.product}{m.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {m.sku}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block text-[11px] text-slate-400">{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
+                        <div key={"m" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                          <span className="font-medium min-w-0">{m.product}{m.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{m.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
-                      <div className="ft-eyebrow text-[10px] tracking-[.1em] mb-2.5">Underlayment</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Underlayment</div>
                       {uList.length === 0 ? <div className="text-sm text-slate-400">—</div> : uList.map((u, i) => (
-                        <div key={"u" + i} className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-                          <span className="text-[13px] font-medium">{u.product}{u.sku && <span className="ft-mono text-[10px] text-slate-400 block font-normal">SKU {u.sku}</span>}</span>
-                          <span className="ft-mono text-[12px] text-slate-500 whitespace-nowrap text-right">{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block text-[11px] text-slate-400">{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block text-[11px] text-slate-400">{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
+                        <div key={"u" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                          <span className="font-medium min-w-0">{u.product}{u.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{u.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Flooring</span><span className="ft-mono text-[13px]">{money(flooringPrice)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Grout</span><span className="ft-mono text-[13px]">{money(groutCost + baseCost + caulkCost)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Mortar</span><span className="ft-mono text-[13px]">{money(mortarCost)}</span></div>
-                        {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Underlayment</span><span className="ft-mono text-[13px]">{money(underlayCost)}</span></div>}
-                        {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-[13px] text-slate-500">Miscellaneous</span><span className="ft-mono text-[13px]">{money(miscCost)}</span></div>}
-                        <div className="flex items-center justify-between items-baseline mt-1.5 pt-3" style={{ borderTop: "2px solid var(--ft-text)" }}><span className="text-sm font-semibold">Total</span><span className="ft-serif" style={{ fontSize: 30, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
+                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
+                        {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
+                        {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
+                        <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid #291D16" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-3">Figures include {wasteNote(settings)}. Verify before ordering.</div>
+                      <div style={{ fontSize: 10.5, color: "#B3A38D", marginTop: 10 }}>Figures include {wasteNote(settings)}. Verify before ordering.</div>
                     </div>
                   </div>
                 </div>
@@ -2023,12 +2299,12 @@ export default function App({ user, onSignOut }) {
                 </tr>
               </thead>
               <tbody>
-                {sel.categories.flatMap((a) => a.products.map((p) => { const c = printProduct(p, settings); return (
+                {sel.categories.flatMap((a, ai) => a.products.map((p) => { const c = printProduct(p, settings); return (
                   <tr key={p.id} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
                     <td className="py-1.5 pr-2 ft-mono text-[11px]">{p.sku}</td>
-                    <td className="py-1.5 pr-2 text-slate-500">{a.name}</td>
+                    <td className="py-1.5 pr-2 text-slate-500">{areaLabel(a, ai)}</td>
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
                   </tr>
                 ); }))}
@@ -2079,6 +2355,48 @@ export default function App({ user, onSignOut }) {
           <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}. Leave a field blank to keep it off the estimate.</p>
         </Modal>
       )}
+
+      {custModal && (() => {
+        const c = data.people.find((x) => x.id === custModal);
+        if (!c) return null;
+        const projs = projectsOf(c.id);
+        return (
+          <Modal onClose={() => setCustModal(null)} title={c.name || "Customer"}>
+            <div className="space-y-3">
+              <div><label className={lbl}>Name</label><input value={c.name} onChange={(e) => updatePerson(c.id, { name: e.target.value })} placeholder="Customer name" className={inp} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={lbl}>Phone</label><input value={c.phone} onChange={(e) => updatePerson(c.id, { phone: e.target.value })} className={inp} /></div>
+                <div><label className={lbl}>Email</label><input value={c.email} onChange={(e) => updatePerson(c.id, { email: e.target.value })} className={inp} /></div>
+              </div>
+              <div><label className={lbl}>Mailing address</label><input value={c.address} onChange={(e) => updatePerson(c.id, { address: e.target.value })} className={inp} /></div>
+              <div><label className={lbl}>Builder</label><BuilderCombo value={c.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(c.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(c.id, name)} /></div>
+              <div><label className={lbl}>Customer notes</label><textarea value={c.notes} onChange={(e) => updatePerson(c.id, { notes: e.target.value })} rows={2} className={inp} /></div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <label className={lbl + " mb-0"}>Projects ({projs.length})</label>
+                <button onClick={() => { setCustModal(null); addProject(c.id); }} className="flex items-center gap-1 text-[12px] font-semibold text-slate-500 hover:text-indigo-700"><Plus size={13} /> New project</button>
+              </div>
+              {projs.length === 0 ? <div className="text-sm text-slate-400 rounded-md border border-dashed border-slate-200 px-3 py-2.5">No projects yet.</div> : (
+                <div className="rounded-md border border-slate-200 divide-y divide-slate-100">
+                  {projs.map((p) => (
+                    <button key={p.id} onClick={() => { setCustModal(null); pickProject(p.id); }} className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50">
+                      <FileText size={13} className="text-slate-300 shrink-0" />
+                      <span className="text-sm truncate flex-1">{p.name || "Untitled project"}</span>
+                      {p.updatedAt && <span className="ft-mono text-[11px] text-slate-400 shrink-0">{fmtAgo(p.updatedAt)}</span>}
+                      <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <button onClick={() => { setCustModal(null); setConfirm({ kind: "person", id: c.id }); }} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-red-500"><Trash2 size={14} /> Delete customer</button>
+              <button onClick={() => setCustModal(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Done</button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {importPreview && (() => {
         const { parsed, diff, warnings, sync } = importPreview;
@@ -2155,8 +2473,8 @@ export default function App({ user, onSignOut }) {
 
       {newCust !== null && (() => {
         const m = matchName(data.people, newCust);
-        const create = () => { const c = addPerson(newCust.trim()); setNewCust(null); return c; };
-        const useExisting = (id) => { setNewCust(null); pickPerson(id); };
+        const create = () => { const c = addPerson(newCust.trim()); setNewCust(null); setCustModal(c.id); return c; };
+        const useExisting = (id) => { setNewCust(null); setOpenCust((s) => ({ ...s, [id]: true })); setCustModal(id); };
         const n = m ? projectsOf(m.item.id).length : 0;
         return (
           <Modal onClose={() => setNewCust(null)} title="New customer">
