@@ -468,7 +468,7 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
     <div className={`relative shrink-0 ${compact ? "self-stretch flex" : ""}`}>
       {compact ? (
         <button ref={setBtn} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={blank ? "Pick a material type" : `Product type — ${TLBL[type]} (click to change)`}
-          className="shrink-0 flex items-center justify-center font-bold leading-none"
+          className="ft-mat-toggle shrink-0 flex items-center justify-center font-bold leading-none"
           style={blank
             ? { width: 18, background: "var(--ft-field, #fff)", color: "var(--ft-muted)", fontSize: 10, margin: "6px 0", border: "1px dashed var(--ft-border)" }
             : { width: 18, background: accent, color: "var(--ft-type-ink)", fontSize: 10, margin: "6px 0" }}>
@@ -485,12 +485,12 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
       )}
       {open && pos && createPortal(
         <div ref={panelRef} style={{ position: "fixed", top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176 }}
-          className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
+          className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 overflow-hidden">
           {TYPES.map((t) => {
             const on = !blank && t === type;
             return (
               <button key={t} onClick={() => { onChange(t); setOpen(false); }}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-slate-50 ${on ? "font-semibold" : "text-slate-700"}`}
+                className={`ft-grow-row w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-slate-50 ${on ? "font-semibold" : "text-slate-700"}`}
                 style={on ? { color: TYPE_ACCENT[t] } : undefined}>
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TYPE_ACCENT[t], opacity: on ? 1 : 0.65 }} />
                 {TLBL[t]}
@@ -548,7 +548,7 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
       <input ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
-        data-c="product" className="ft-cell ft-field font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
+        data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
@@ -690,6 +690,44 @@ const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, s
 const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
 const AUTO_KEEP = 5;
 
+// Animated light/dark switch (RiccardoRapelli sun/moon toggle, Uiverse.io) —
+// a quick binary shortcut for the three-way theme control in Settings. Checked
+// = dark; toggling writes an explicit "light"/"dark" (leaving "System").
+function ThemeSwitch({ theme, setTheme }) {
+  const sysDark = typeof window !== "undefined" && window.matchMedia
+    ? window.matchMedia("(prefers-color-scheme: dark)").matches : false;
+  const dark = theme === "dark" || (theme === "system" && sysDark);
+  const circle = <circle cx="50" cy="50" r="50" />;
+  const starPath = "M 10 0 C 10 5 5 10 0 10 C 5 10 10 15 10 20 C 10 15 15 10 20 10 C 15 10 10 5 10 0 Z";
+  return (
+    <label className="ft-theme-switch" title={dark ? "Dark mode — switch to light" : "Light mode — switch to dark"}>
+      <input id="ft-theme-cb" type="checkbox" checked={dark} onChange={() => setTheme(dark ? "light" : "dark")} />
+      <div className="slider round">
+        <div className="sun-moon">
+          <svg id="moon-dot-1" className="moon-dot" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="moon-dot-2" className="moon-dot" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="moon-dot-3" className="moon-dot" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="light-ray-1" className="light-ray" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="light-ray-2" className="light-ray" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="light-ray-3" className="light-ray" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-1" className="cloud-dark" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-2" className="cloud-dark" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-3" className="cloud-dark" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-4" className="cloud-light" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-5" className="cloud-light" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-6" className="cloud-light" viewBox="0 0 100 100">{circle}</svg>
+        </div>
+        <div className="stars">
+          <svg id="star-1" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+          <svg id="star-2" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+          <svg id="star-3" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+          <svg id="star-4" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+        </div>
+      </div>
+    </label>
+  );
+}
+
 export default function App({ user, onSignOut }) {
   const [data, setData] = useState(() => ({ projects: [], people: [], builders: [], settings: normalizeSettings() }));
   const [loading, setLoading] = useState(true);
@@ -749,12 +787,20 @@ export default function App({ user, onSignOut }) {
   // in sync when the user changes it. "system" clears both classes and lets the
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
+  const themedOnce = useRef(false);
   useEffect(() => {
     try { localStorage.setItem("ft-theme", theme); } catch {}
     const el = document.documentElement;
     el.classList.remove("ned-dark", "ned-light");
     if (theme === "dark") el.classList.add("ned-dark");
     else if (theme === "light") el.classList.add("ned-light");
+    // Crossfade the whole palette on a user toggle (but not the first paint):
+    // .ft-theming briefly enables a color transition on everything, removed
+    // once the fade is done so it never slows ordinary interaction.
+    if (!themedOnce.current) { themedOnce.current = true; return; }
+    el.classList.add("ft-theming");
+    const t = setTimeout(() => el.classList.remove("ft-theming"), 600);
+    return () => clearTimeout(t);
   }, [theme]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
@@ -1764,7 +1810,7 @@ export default function App({ user, onSignOut }) {
                   <button key={v} onClick={() => setSortBy(v)} className={`px-2 flex items-center font-medium ${sortBy === v ? "ft-seg-on" : "ft-seg-off"}`}>{label}</button>
                 ))}
               </div>
-              <button onClick={() => setNewCust("")} className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
+              <button onClick={() => setNewCust("")} className="ft-spark-btn flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} className="-ml-1" /> New Customer</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -1778,6 +1824,9 @@ export default function App({ user, onSignOut }) {
             </>)}
           </div>
           <div className="p-2.5 border-t border-slate-100">
+            <div className="flex mb-2">
+              <ThemeSwitch theme={theme} setTheme={setTheme} />
+            </div>
             <div className="flex gap-2">
               <button onClick={() => { setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
               <button onClick={openTodos} title="Team issues & to-do list" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
@@ -1849,7 +1898,7 @@ export default function App({ user, onSignOut }) {
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
                 <div className="ft-wordmark-stacked" style={{ fontSize: "clamp(64px,11vw,128px)" }}><span className="the">the</span>ned</div>
                 <div className="ft-eyebrow mt-4" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
-                <button onClick={() => setNewCust("")} className="mt-8 inline-flex items-center gap-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 text-base transition"><Plus size={18} /> New customer</button>
+                <button onClick={() => setNewCust("")} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Plus size={18} className="-ml-1" /> New customer</button>
               </div>
             )
           ) : !sel._full ? (
@@ -2221,7 +2270,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -2245,7 +2294,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type === "tile" && !p.grout.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Grout</span>
                                     <span className="text-xs text-slate-400 truncate">{p.grout.product || groutNames[0] || ""}</span>
                                   </div>
@@ -2253,7 +2302,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type === "tile" && p.mortar.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Mortar</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -2265,7 +2314,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type === "tile" && !p.mortar.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Mortar</span>
                                     <span className="text-xs text-slate-400 truncate">{p.mortar.product || mortarNames[0] || ""}</span>
                                   </div>
@@ -2273,7 +2322,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type !== "misc" && p.underlay.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         {underlayOpts.length > 0 ? (
@@ -2336,7 +2385,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type !== "misc" && !p.underlay.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
                                     <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
                                   </div>
