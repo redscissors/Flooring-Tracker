@@ -1,11 +1,12 @@
 # Design: the price book library
 
-Groundwork for growing FloorTrack's single stock price book into a managed
-library of 10-30 books — stock and special-order — without breaking any of the
-promises the current system makes. Written 2026-07-12; the owner answered Q1
-and Q4 the same day (marked **RESOLVED** inline, design updated accordingly).
-Sections marked **PROPOSED** need owner sign-off; remaining **OPEN QUESTION**
-sections need owner answers before implementation starts.
+The design of record for growing FloorTrack's single stock price book into a
+managed library of 10-30 books — stock and special-order — without breaking
+any of the promises the current system makes. Written and owner-reviewed
+2026-07-12; the settled decisions are recorded in **ADR 0009**
+(`../adr/0009-price-book-library.md`), which wins if the two ever disagree.
+All questions Q1-Q5 are resolved inline below. Working ticket and real-sheet
+analyses: `.scratch/008_multi-pricebook-system/`.
 
 ---
 
@@ -48,7 +49,7 @@ line in `SHEET_TYPE`, otherwise its items land as accessory/misc lines).
 
 **RESOLVED (Q4, 2026-07-12):** there is one stock workbook today, but more
 pages will be added and more stock workbooks are real — two arrived the same
-day (Schluter + Wedi shop sheets, `sheets/schluter-wedi-stock-2026-07-12.md`).
+day (Schluter + Wedi shop sheets, `../../.scratch/008_multi-pricebook-system/sheets/schluter-wedi-stock-2026-07-12.md`).
 They use the main workbook's own table idiom and shop SKUs; the current parser
 already consumes them fully except for one missing header alias
 (`"Retail Price"` → price), so there is a **bridge available before the
@@ -114,7 +115,7 @@ and their items store `price`/`priceSqft` like `stock_items` rows rather than
 `cost`.
 
 Sizing check — revised against the first real vendor sheet (the VTC EFT list,
-see `sheets/vtc-eft-2025-07-28.md`): **6,792 items in one book**, ~10× the
+see `../../.scratch/008_multi-pricebook-system/sheets/vtc-eft-2025-07-28.md`): **6,792 items in one book**, ~10× the
 stock book, so 30 books ≈ 200k rows. Still trivial for Postgres, but eager
 client-side loading of all books is off the table, not a hedge: registry-book
 items load **lazily** (a book's items when opened in Settings) and the
@@ -133,7 +134,11 @@ picks do today, plus three new fields:
 sku        (exists today)               — the vendor SKU
 bookId     (new)                        — which book it came from; "" = stock
 cost       (new, internal)              — vendor cost/sqft (or /unit) at pick time
-markupPct  (new, internal)             — the markup that produced priceSqft
+markupPct  (new, internal)              — the markup that produced priceSqft
+tierPrice  (new)                        — book-defined contractor price, when
+                                          the item has one (Q5); snapshotted
+                                          at pick regardless of the project's
+                                          contractor toggle
 ```
 
 `priceSqft` (and `cartonSf` etc.) keep their existing meaning — the *selling*
@@ -244,17 +249,38 @@ It is presentation only, session-local (component state, not saved settings),
 and never affects what is stored or printed — a curtain, not a lock. Selling
 prices stay visible; those are what the customer is being shown anyway.
 
-**OPEN QUESTION Q5 — price tiers (retail vs contractor).** The Wedi stock
-sheets maintain two selling tiers: retail and contractor at 0.82 × retail,
-with per-item exceptions (`sheets/schluter-wedi-stock-2026-07-12.md`).
-FloorTrack has one price per item and no job-level pricing concept. Proposed
-split: *capture* tier prices at import when a tier sheet/column exists
-(`data.tierPrices: { contractor: n }` — cheap, the data is there, normalizers
-extended as usual), but *using* them — a job or Builder (ADR 0005) selecting
-contractor pricing, flat multiplier vs per-item tiers — is a separate decision
-with its own ADR, not part of the price book work. Owner: how do contractor
-quotes actually get priced today, and should FloorTrack know about tiers at
-all?
+**RESOLVED (Q5, 2026-07-12):** contractor pricing gets a **per-project
+switch**, discount confirmed at **flat 8% off retail** as the fallback,
+applied to **every line** (flooring, trim, misc, and setting materials —
+grout, mortar, underlayment, caulk, base units). Mechanism:
+
+- **Project** gains `contractorPricing: boolean` (default false, `normC`),
+  toggled from the project header; the estimate and both print layouts carry
+  a visible "Contractor pricing" label whenever it is on.
+- **Tier prices are snapshotted at pick time regardless of the toggle**:
+  when a picked book item carries a book-defined contractor price
+  (`data.tierPrices.contractor` — e.g. Wedi's 0.82 × retail with per-item
+  exceptions), it lands on the selection as `tierPrice`. Snapshotting always
+  (not only when the toggle is on) means flipping the switch later needs no
+  re-picking.
+- **Effective sell at calc time**:
+  `contractorPricing ? (tierPrice ?? round2(price × (1 − pct/100))) : price`
+  — a book's real tier always outranks the flat fallback. Carton lines
+  discount the $/sqft before the order × sf × psf billing formula, so all
+  four carton call sites stay in agreement (invariant 7).
+- **The fallback rate lives in Settings** (`contractorPct`, default 8,
+  normalized in `mergeSettings`) and is read live at calc time — the same
+  live-by-design behavior as the waste rates, and the same accepted
+  consequence: changing the shop rate re-flows open contractor jobs. The
+  per-line `tierPrice` stays a snapshot; only the shop-level rate is live.
+- **Doctrine note:** this does not breach snapshot-don't-live-link. That rule
+  guards estimates against *external* changes (re-imports, markup edits)
+  silently rewriting them. The contractor switch is the salesperson
+  deliberately repricing *their own project* — the same class of act as
+  editing a price by hand — and it is instant, whole-estimate, reversible,
+  and labeled on the print.
+- Print/CSV show the discounted prices (with the label); the retail delta is
+  not itemized. Costs and margins remain internal-only as ever.
 
 ---
 
@@ -454,7 +480,8 @@ working. No SQL runs until the owner runs `supabase/pricebooks.sql` by hand.
 | Phase | Delivers | Depends on |
 |---|---|---|
 | Bridge (anytime) | `retailprice`/`mfgsku` header aliases in `src/pricebook.js` (+ tests); team pastes the Schluter/Wedi *Retail* pages into the main workbook — both sheets then import through the existing flow | nothing — independent of the registry |
-| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Q5 is the only question still open (tier capture ships regardless; tier *use* is a separate future ADR) |
+| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | none — all questions Q1-Q5 resolved |
+| Contractor switch (independent) | Project `contractorPricing` toggle + `contractorPct` setting (default 8) + every-line effective sell at calc time (line calc, totals, CSV, both prints — all four carton sites stay in agreement) + "Contractor pricing" label on estimate/print + `normC`/`mergeSettings` defaults. `tierPrice` override activates automatically once Phase 2 snapshots exist | nothing — flat-fallback version works against today's app; UI/print slices need preview proof |
 | 1 | Book registry (kind-aware) + generic mapped import + browse/search per book (costs visible, flat default markup only) + hide-costs toggle | Phase 0, first test vendor sheet |
 | 2 | Markup editor (default + per-group), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults, **freight-flag highlighting only** (chips in search/row/book table — no freight charges until real numbers exist) | Phase 1 |
 | 3 | Cross-space SKU search on selection rows with stock priority + collision rule | Phase 2 |
