@@ -1,11 +1,14 @@
 # Design: the price book library
 
-Groundwork for growing FloorTrack's single stock price book into a managed
-library of 10-30 books — stock and special-order — without breaking any of the
-promises the current system makes. Written 2026-07-12; the owner answered Q1
-and Q4 the same day (marked **RESOLVED** inline, design updated accordingly).
-Sections marked **PROPOSED** need owner sign-off; remaining **OPEN QUESTION**
-sections need owner answers before implementation starts.
+The design of record for growing FloorTrack's single stock price book into a
+managed library of 10-30 books — stock and special-order — without breaking
+any of the promises the current system makes. Written and owner-reviewed
+2026-07-12; the settled decisions are recorded in **ADR 0009**
+(`../adr/0009-price-book-library.md`), which wins if the two ever disagree.
+Q1-Q4 are resolved inline below; **Q5 (contractor price tiers) is the one
+question still open** — tier prices are captured at import regardless, tier
+*use* awaits its own decision. Working ticket and real-sheet analyses:
+`.scratch/008_multi-pricebook-system/`.
 
 ---
 
@@ -48,7 +51,7 @@ line in `SHEET_TYPE`, otherwise its items land as accessory/misc lines).
 
 **RESOLVED (Q4, 2026-07-12):** there is one stock workbook today, but more
 pages will be added and more stock workbooks are real — two arrived the same
-day (Schluter + Wedi shop sheets, `sheets/schluter-wedi-stock-2026-07-12.md`).
+day (Schluter + Wedi shop sheets, `../../.scratch/008_multi-pricebook-system/sheets/schluter-wedi-stock-2026-07-12.md`).
 They use the main workbook's own table idiom and shop SKUs; the current parser
 already consumes them fully except for one missing header alias
 (`"Retail Price"` → price), so there is a **bridge available before the
@@ -114,7 +117,7 @@ and their items store `price`/`priceSqft` like `stock_items` rows rather than
 `cost`.
 
 Sizing check — revised against the first real vendor sheet (the VTC EFT list,
-see `sheets/vtc-eft-2025-07-28.md`): **6,792 items in one book**, ~10× the
+see `../../.scratch/008_multi-pricebook-system/sheets/vtc-eft-2025-07-28.md`): **6,792 items in one book**, ~10× the
 stock book, so 30 books ≈ 200k rows. Still trivial for Postgres, but eager
 client-side loading of all books is off the table, not a hedge: registry-book
 items load **lazily** (a book's items when opened in Settings) and the
@@ -246,7 +249,7 @@ prices stay visible; those are what the customer is being shown anyway.
 
 **OPEN QUESTION Q5 — price tiers (retail vs contractor).** The Wedi stock
 sheets maintain two selling tiers: retail and contractor at 0.82 × retail,
-with per-item exceptions (`sheets/schluter-wedi-stock-2026-07-12.md`).
+with per-item exceptions (`../../.scratch/008_multi-pricebook-system/sheets/schluter-wedi-stock-2026-07-12.md`).
 FloorTrack has one price per item and no job-level pricing concept. Proposed
 split: *capture* tier prices at import when a tier sheet/column exists
 (`data.tierPrices: { contractor: n }` — cheap, the data is there, normalizers

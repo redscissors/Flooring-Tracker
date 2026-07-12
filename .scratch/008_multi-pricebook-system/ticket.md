@@ -35,9 +35,10 @@ Wanted on top of that:
 
 ## Where the full design lives
 
-`design.md` in this directory — data model, markup engine, import pipeline,
-UI shape, phasing, and the remaining open questions. Real sheets are analyzed
-under `sheets/` (raw files stay out of the repo — they carry the shop's
+`docs/pricebook/design.md` (moved there at Phase 0; decisions recorded in
+ADR 0009) — data model, markup engine, import pipeline, UI shape, phasing,
+and Q5, the one question still open. Real sheets are analyzed under `sheets/`
+in this directory (raw files stay out of the repo — they carry the shop's
 costs/pricing):
 
 - `sheets/vtc-eft-2025-07-28.md` — Virginia Tile EFT special-order list,
@@ -48,8 +49,12 @@ costs/pricing):
 
 ## Status
 
-Design groundwork only — no code, no SQL run, no ADR accepted yet. The owner
-reviews the proposal, answers the open questions, and the accepted decisions
-get recorded via `/decide` (this will supersede parts of nothing — it extends
-ADR 0003 rather than replacing it). Implementation is phased; Phase 1 can
-start as soon as the first test vendor sheet exists.
+- **Bridge: shipped** (PR #57, merged 2026-07-12) — `retailprice` header
+  alias; the Schluter/Wedi Retail pages can be pasted into the main stock
+  workbook and imported today. Do not paste the Wedi Contractor pages.
+- **Phase 0: done** — ADR 0009 accepted, `supabase/pricebooks.sql` shipped
+  (owner runs it in the dashboard before Phase 1 lands), design moved to
+  `docs/pricebook/design.md`.
+- **Next: Phase 1** (book registry + mapped import + browse/search +
+  hide-costs toggle), gated on the owner running `pricebooks.sql`. Q5
+  (contractor tier *use*) stays open and does not block anything.

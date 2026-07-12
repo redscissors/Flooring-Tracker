@@ -12,3 +12,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0006](0006-catalog-sku-link-and-grout-base-companion.md) | Catalog products carry a price-book SKU; grout products carry a "base unit" companion | Accepted | 2026-07-08 |
 | [0007](0007-grout-colors-from-book-family.md) | Grout colors and per-color SKUs come from a linked price-book family; color pick snapshots the SKU onto the Selection | Accepted | 2026-07-08 |
 | [0008](0008-salesperson-snapshot-on-project.md) | The salesperson is snapshotted onto the Project at creation | Accepted | 2026-07-12 |
+| [0009](0009-price-book-library.md) | Price book library: kind-aware book registry, cost + markup for special order, versions with keepers | Accepted | 2026-07-12 |

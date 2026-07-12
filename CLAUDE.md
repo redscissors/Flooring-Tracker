@@ -50,6 +50,9 @@ supabase/
   storage.sql       # run once: attachments bucket + storage policies
   stock.sql         # run once: stock_items table + RLS (stock price book)
   todos.sql         # run once: todos table + RLS (team issue / to-do list)
+  pricebooks.sql    # run once before the price book library ships: book
+                    # registry + items + versions (ADR 0009, not built yet —
+                    # see docs/pricebook/design.md)
   migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```
