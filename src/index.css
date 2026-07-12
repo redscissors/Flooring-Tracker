@@ -71,6 +71,21 @@ body {
   --ft-paper-rule:#C9B79D;
   --ft-paper-band:#F0E4D2;
   --ft-paper-footer:#EDE2D2;
+
+  /* Subtle row/button hover wash (see .hover:bg-slate-50). A brand tint reads
+     well on the light rail; dark mode flips below to the same fill the active
+     sort tab uses, so the hover stays in the surface family. */
+  --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
+
+  /* Sidebar sort toggle — the active tab is a distinct chip: a warm sand fill
+     (the NED dark-wordmark tone) with ink text in light; a subtle card lift
+     with logo-tone text in dark. */
+  --ft-seg-on-bg:#E8D5B5;
+  --ft-seg-on-text:var(--ft-text);
+
+  /* Elevation tint for lifted rows/cards — a warm near-black on the light rail,
+     a real black on the dark rail (where the warm tint would vanish). */
+  --ft-shadow:rgba(40,30,20,.06);
 }
 
 /* NED helpers — .ft-serif is Sora 500; .ft-eyebrow-accent is deep oak. */
@@ -116,7 +131,13 @@ body {
 .border-indigo-300{border-color:var(--ft-tint-border);}
 .ring-indigo-200{--tw-ring-color:var(--ft-brand-soft);}
 .ring-indigo-500{--tw-ring-color:var(--ft-brand);}
-.hover\:bg-slate-50:hover{background-color:color-mix(in oklab, var(--ft-brand) 7%, transparent);}
+.hover\:bg-slate-50:hover{background-color:var(--ft-hover);}
+.ft-seg-on{background-color:var(--ft-seg-on-bg);color:var(--ft-seg-on-text);}
+.ft-seg-off{color:var(--ft-muted);}
+.ft-seg-off:hover{background-color:var(--ft-sand);}
+/* Sidebar list labels (customer & project names) read in the wordmark tone
+   (ink in light, warm cream in dark) so the list matches the "ned" logo. */
+.ft-item-name{color:var(--ft-logo);}
 .hover\:bg-indigo-700:hover{background-color:var(--ft-accent-press);}
 .hover\:text-indigo-700:hover{color:var(--ft-brand);}
 .hover\:border-slate-200:hover{border-color:var(--ft-border);}
@@ -159,6 +180,9 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
   --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
   --ft-band:#3E3120; --ft-row-line:#45392A; --ft-type-ink:#221C15;
+  --ft-hover:var(--ft-fieldbar);
+  --ft-seg-on-bg:var(--ft-fieldbar); --ft-seg-on-text:var(--ft-logo);
+  --ft-shadow:rgba(0,0,0,.4);
 }
 @media (prefers-color-scheme: dark){
   :root:not(.ned-light):not(.ned-dark){
@@ -171,6 +195,9 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
     --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
     --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
     --ft-band:#3E3120; --ft-row-line:#45392A; --ft-type-ink:#221C15;
+    --ft-hover:var(--ft-fieldbar);
+    --ft-seg-on-bg:var(--ft-fieldbar); --ft-seg-on-text:var(--ft-logo);
+    --ft-shadow:rgba(0,0,0,.4);
   }
 }
 /* The estimate paper is a printed white sheet — re-assert the light tokens on
@@ -182,6 +209,9 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#2E2418;
   --ft-brand:#8A5A2B; --ft-brand-deep:#6F4722;
   --ft-sand:#F0E4D2; --ft-deep:#2E2418; --ft-logo:#221C15;
+  --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
+  --ft-seg-on-bg:#E8D5B5; --ft-seg-on-text:var(--ft-text);
+  --ft-shadow:rgba(40,30,20,.06);
 }
 
 @media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }

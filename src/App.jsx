@@ -1600,9 +1600,9 @@ export default function App({ user, onSignOut }) {
   const renderProjRow = (p) => {
     const on = selId === p.id;
     return (
-      <button key={p.id} onClick={() => pickProject(p.id)} className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 border ${on ? "bg-white border-slate-200 shadow-[0_1px_3px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
+      <button key={p.id} onClick={() => pickProject(p.id)} className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 border ${on ? "bg-white border-slate-200 shadow-[0_1px_3px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
         <FileText size={13} className="text-slate-300 shrink-0" />
-        <span className="text-[12.5px] truncate flex-1">{p.name || "Untitled project"}</span>
+        <span className="ft-item-name text-[12.5px] truncate flex-1">{p.name || "Untitled project"}</span>
       </button>
     );
   };
@@ -1620,11 +1620,11 @@ export default function App({ user, onSignOut }) {
     };
     return (
       <div key={c.id} className="mb-0.5">
-        <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_rgba(40,30,20,.06)]" : "border-transparent hover:bg-slate-50"}`}>
+        <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
           <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1.5 pl-1.5 pr-1 text-left">
-            <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            {projs.length !== 1 && <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />}
             <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
+              <div className="ft-item-name text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
               <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
             </div>
           </button>
@@ -1663,13 +1663,15 @@ export default function App({ user, onSignOut }) {
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
-            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search builders, customers, jobs…" className={inp + " pl-8"} /></div>
-            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
-              {[["Newest", "newest"], ["A–Z", "name"]].map(([label, v]) => (
-                <button key={v} onClick={() => setSortBy(v)} className={`flex-1 px-2.5 py-1.5 font-semibold ${sortBy === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
-              ))}
+            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
+            <div className="flex gap-2">
+              <div className="flex items-stretch rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">
+                {[["Newest", "newest"], ["A–Z", "name"]].map(([label, v]) => (
+                  <button key={v} onClick={() => setSortBy(v)} className={`px-2 flex items-center font-medium ${sortBy === v ? "ft-seg-on" : "ft-seg-off"}`}>{label}</button>
+                ))}
+              </div>
+              <button onClick={() => setNewCust("")} className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
             </div>
-            <button onClick={() => setNewCust("")} className="w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2 transition"><Plus size={16} /> New Customer</button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {data.people.length === 0 && unassigned.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
