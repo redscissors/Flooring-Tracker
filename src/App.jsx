@@ -22,14 +22,17 @@ const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
 // each flips with light/dark and a recolor is a one-line stylesheet change.
 const TYPE_ACCENT = { tile: "var(--ft-type-tile)", hardwood: "var(--ft-type-hardwood)", vinyl: "var(--ft-type-vinyl)", laminate: "var(--ft-type-laminate)", carpet: "var(--ft-type-carpet)", misc: "var(--ft-type-misc)" };
 
-// Selection grid: rows and the materials box carry a quiet paper wash (ink
-// mixed over --ft-prod, flips with the theme), not the flooring-type color —
-// the type accent is reserved for the small type button, joint toggles and the
-// material check chips. Product boxes stack flush inside their area card with a
-// thin --ft-grid-line divider; the area card's own border is that same line, so
-// a product's left/right edge lines up with the card outline as one clean line.
-const ROW_WASH = "color-mix(in oklab, var(--ft-text) 5%, var(--ft-prod))";
-const TOTAL_WASH = "color-mix(in oklab, var(--ft-text) 11%, var(--ft-prod))";
+// Selection grid tone recipe (prototype 2026-07-12): rows and the materials
+// box sit on the page tone (--ft-area-row) so the card interior reads as the
+// surrounding surface; the band, column header and the Price/Total cells share
+// one head tone (--ft-area-head — page ink in dark, where the rows lift 5%
+// instead). Not the flooring-type color — the type accent is reserved for the
+// small type button, joint toggles and the material check chips. Product boxes
+// stack flush inside their area card with a thin --ft-grid-line divider; the
+// area card's own border is that same line, so a product's left/right edge
+// lines up with the card outline as one clean line.
+const ROW_WASH = "var(--ft-area-row)";
+const TOTAL_WASH = "var(--ft-area-head)";
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 // Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
@@ -2015,7 +2018,7 @@ export default function App({ user, onSignOut }) {
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
                   <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "8px 14px" }}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-area-head)", padding: "8px 14px" }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300 flex-1 min-w-0" />
@@ -2036,7 +2039,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-prod)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>SKU</div>
@@ -2108,11 +2111,12 @@ export default function App({ user, onSignOut }) {
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
                         // The type accent stays on the small type button and the material
-                        // chips; the row itself carries a quiet paper wash (constant — it
-                        // does not deepen when the materials box expands), and the Total
-                        // cell one shade deeper to anchor the money. The wash continues
-                        // below the row and wraps the materials box, which reads as the
-                        // exact same color as the row, open or closed.
+                        // chips; the row itself carries the page tone (constant — it does
+                        // not deepen when the materials box expands), and the Price and
+                        // Total cells carry the head tone to anchor the money columns.
+                        // The row tone continues below the row and wraps the materials
+                        // box, which reads as the exact same color as the row, open or
+                        // closed.
                         const accent = TYPE_ACCENT[p.type];
                         const rowTint = ROW_WASH;
                         const totalTint = TOTAL_WASH;
@@ -2144,12 +2148,12 @@ export default function App({ user, onSignOut }) {
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{
                             display: "flow-root",
                             position: "relative",
-                            background: "var(--ft-prod)",
+                            background: "var(--ft-area-row)",
                             borderBottom: "1px solid var(--ft-grid-line)",
                           }}>
                             {searchMode ? (
                             /* empty row: type chip + one wide price-book search that fills the row on pick */
-                            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: rowTint }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: "var(--ft-card)" }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact blank type={p.type} onChange={(t) => goManual({ type: t })} />
                                 <span className="w-1 shrink-0" />
@@ -2161,7 +2165,7 @@ export default function App({ user, onSignOut }) {
                                   onManual={() => goManual()} onAbandon={clearOmni}
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
-                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && !isAdder && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
@@ -2206,7 +2210,7 @@ export default function App({ user, onSignOut }) {
                                   <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
                                 ) : <span className="px-2 ml-auto" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
-                              <div style={gridCell}>
+                              <div style={{ ...gridCell, background: totalTint }}>
                                 <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
@@ -2228,13 +2232,13 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
-                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
                             </div>
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
-                              <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "var(--ft-prod)" }}>
+                              <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "var(--ft-area-row)" }}>
                                 <span className="text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>
                                 <button onClick={() => { delProduct(a.id, p.id); setConfirmProd(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
