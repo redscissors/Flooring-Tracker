@@ -1764,9 +1764,9 @@ export default function App({ user, onSignOut }) {
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <NedMark size={60} className="mb-4" />
-                <h2 className="ft-serif text-2xl">Select or create a customer</h2>
-                <p className="text-sm text-slate-400 mt-1.5 max-w-xs">Pick a customer from the list, or add a new one to start building projects.</p>
+                <div className="ft-wordmark-stacked" style={{ fontSize: "clamp(64px,11vw,128px)" }}><span className="the">the</span>ned</div>
+                <div className="ft-eyebrow mt-4" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
+                <button onClick={() => setNewCust("")} className="mt-8 inline-flex items-center gap-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 text-base transition"><Plus size={18} /> New customer</button>
               </div>
             )
           ) : !sel._full ? (
