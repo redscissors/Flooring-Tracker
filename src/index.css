@@ -185,11 +185,13 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
    namespace so its generic class names don't leak into the app. */
 .ft-theme-switch{position:relative;display:inline-block;width:60px;height:34px;}
 .ft-theme-switch #ft-theme-cb{opacity:0;width:0;height:0;}
-.ft-theme-switch .slider{position:absolute;cursor:pointer;inset:0;background-color:#2196f3;transition:.4s;z-index:0;overflow:hidden;}
-.ft-theme-switch .sun-moon{position:absolute;height:26px;width:26px;left:4px;bottom:4px;background-color:yellow;transition:.4s;}
+.ft-theme-switch .slider{position:absolute;cursor:pointer;inset:0;background-color:#2196f3;transition:.6s ease-in-out;z-index:0;overflow:hidden;}
+/* Slide (and recolor) the sun/moon smoothly both ways — no rotation, so
+   night->day slides back instead of snapping. */
+.ft-theme-switch .sun-moon{position:absolute;height:26px;width:26px;left:4px;bottom:4px;background-color:yellow;transition:.6s ease-in-out;}
 .ft-theme-switch #ft-theme-cb:checked + .slider{background-color:#1c1a17;}
 .ft-theme-switch #ft-theme-cb:focus + .slider{box-shadow:0 0 1px #2196f3;}
-.ft-theme-switch #ft-theme-cb:checked + .slider .sun-moon{transform:translateX(26px);background-color:#fff;animation:ft-rotate-center .6s ease-in-out both;}
+.ft-theme-switch #ft-theme-cb:checked + .slider .sun-moon{transform:translateX(26px);background-color:#fff;}
 .ft-theme-switch .moon-dot{opacity:0;transition:.4s;fill:gray;}
 .ft-theme-switch #ft-theme-cb:checked + .slider .sun-moon .moon-dot{opacity:1;}
 .ft-theme-switch .slider.round{border-radius:34px;}
@@ -217,7 +219,6 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-theme-switch #star-3{width:12px;top:20px;left:10px;animation-delay:.6s;}
 .ft-theme-switch #star-4{width:18px;top:0;left:18px;animation-delay:1.3s;}
 @keyframes ft-star-twinkle{0%{transform:scale(1)}40%{transform:scale(1.2)}80%{transform:scale(.8)}100%{transform:scale(1)}}
-@keyframes ft-rotate-center{0%{transform:translateX(0) rotate(0)}100%{transform:translateX(26px) rotate(360deg)}}
 .ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
    carton Order cell draws its own slim stepper instead. */
