@@ -241,3 +241,31 @@ test("duplicate SKUs collapse to one item, preferring the priced one, warning on
   // unpriced duplicate defers to the priced occurrence, no warning
   assert.equal(bySku(items, "1514674").price, 28.17);
 });
+
+test('shop stock sheets: "Retail Price" header maps to price (Schluter/Wedi layouts)', () => {
+  // Schluter: data from column 0; sub-group label rows carry into descriptions;
+  // the unmapped "Mfg SKU" column's text still lands in the description.
+  const { items } = parse(sheet("Schluter", [
+    ["Keim Lumber 4465 State Route 557"],
+    ["SCHLUTER SHOWER SYSTEM- RETAIL PRICING***", null, null, null, null, "*prices subject to change"],
+    ["SKU", "Description", "Mfg SKU", "U/M", "Retail Price", "Notes"],
+    ["Kerdi- Shower-T & TS"],
+    [1509821, '38"x60" Kerdi Shower Tray Center', "KST965/1525", "EA", 121.902, null],
+    [1509814, '48"x60" Kerdi Shower Tray Center', "KST1220/1525", "EA", 181.54, null],
+  ]), sheet("Wedi", [
+    // Wedi: same header one column right, formula-noise prices.
+    [null, "WEDI SHOWER SYSTEM- RETAIL PRICING***"],
+    [null, "SKU", "Description", "Mfg SKU", "U/M", "Retail Price", "Notes"],
+    [null, "Shower Pans square Drain", null, null, null, null, "Do not use mastic on Wedi"],
+    [null, 1504153, "3'x3' Wedi Fundo Shower Pan", "US9100001", "EA", 378.1802178, null],
+  ]));
+  assert.equal(items.length, 3);
+  const tray = bySku(items, "1509821");
+  assert.equal(tray.price, 121.9); // round2
+  assert.equal(tray.unit, "EA");
+  assert.equal(tray.type, null); // accessory — fills as a misc line
+  assert.match(tray.description, /KST965\/1525/);
+  const pan = bySku(items, "1504153");
+  assert.equal(pan.price, 378.18);
+  assert.match(pan.description, /US9100001/);
+});
