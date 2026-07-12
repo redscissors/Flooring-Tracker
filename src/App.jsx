@@ -2207,7 +2207,7 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={gridCell}>
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (
-                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
+                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
                                 ) : <span className="px-2 ml-auto" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
