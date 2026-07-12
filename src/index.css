@@ -222,13 +222,18 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 
 /* Palette crossfade: App.jsx adds .ft-theming to <html> for ~0.6s on a theme
    toggle, so every surface fades between the light and dark --ft-* colors
-   instead of switching in one frame. :where() keeps specificity at 0 so it only
-   fills in a transition where an element has none — the sun/moon slide and the
-   hover scales keep their own. */
-:where(.ft-theming), :where(.ft-theming) *, :where(.ft-theming) *::before, :where(.ft-theming) *::after{
-  transition-property:background-color,color,border-color,fill,stroke,box-shadow;
-  transition-duration:.5s;
-  transition-timing-function:ease;
+   instead of switching in one frame. !important so elements carrying their own
+   transition (transform-only hover grows, Tailwind's 150ms `transition`) fade
+   in step with everything else instead of snapping; the switch subtree is
+   exempt so the sun/moon keeps its transform slide mid-toggle. Transforms
+   elsewhere pause transitioning for the window — harmless at 0.6s. */
+.ft-theming,
+.ft-theming :not(.ft-theme-switch, .ft-theme-switch *),
+.ft-theming :not(.ft-theme-switch, .ft-theme-switch *)::before,
+.ft-theming :not(.ft-theme-switch, .ft-theme-switch *)::after{
+  transition-property:background-color,color,border-color,fill,stroke,box-shadow!important;
+  transition-duration:.5s!important;
+  transition-timing-function:ease!important;
 }
 .ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
