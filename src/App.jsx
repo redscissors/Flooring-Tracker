@@ -2221,7 +2221,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -2245,7 +2245,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type === "tile" && !p.grout.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Grout</span>
                                     <span className="text-xs text-slate-400 truncate">{p.grout.product || groutNames[0] || ""}</span>
                                   </div>
@@ -2253,7 +2253,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type === "tile" && p.mortar.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Mortar</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.mortar.product} display={p.mortar.product} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, product: e.target.value } })}>{mortarOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
@@ -2265,7 +2265,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type === "tile" && !p.mortar.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Mortar</span>
                                     <span className="text-xs text-slate-400 truncate">{p.mortar.product || mortarNames[0] || ""}</span>
                                   </div>
@@ -2273,7 +2273,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type !== "misc" && p.underlay.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                      <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         {underlayOpts.length > 0 ? (
@@ -2336,7 +2336,7 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type !== "misc" && !p.underlay.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
                                     <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
                                   </div>
