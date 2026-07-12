@@ -55,6 +55,10 @@ costs/pricing):
 - **Phase 0: done** — ADR 0009 accepted, `supabase/pricebooks.sql` shipped
   (owner runs it in the dashboard before Phase 1 lands), design moved to
   `docs/pricebook/design.md`.
+- **Q5 resolved** (2026-07-12): per-project contractor pricing switch, flat
+  8% off retail on every line when no book tier exists, book `tierPrice`
+  outranks the fallback. Rate lives in Settings (`contractorPct`).
 - **Next: Phase 1** (book registry + mapped import + browse/search +
-  hide-costs toggle), gated on the owner running `pricebooks.sql`. Q5
-  (contractor tier *use*) stays open and does not block anything.
+  hide-costs toggle), gated on the owner running `pricebooks.sql`. The
+  contractor switch is its own independent slice and can ship before
+  Phase 1 (flat-fallback version needs no registry).

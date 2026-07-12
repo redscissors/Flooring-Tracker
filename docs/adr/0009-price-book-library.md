@@ -60,10 +60,20 @@ choice below (`.scratch/008_multi-pricebook-system/sheets/`).
    stands. One session-local toggle masks every cost/margin figure on screen
    ("•••") for over-the-shoulder moments; presentation only, never stored,
    never printed (print never shows cost regardless).
-8. **Tier prices are captured, not yet used.** Sheets with a contractor tier
-   (Wedi: 0.82 × retail with per-item exceptions) import the tier into
-   `data.tierPrices`; whether a job/Builder can *select* a tier is explicitly
-   deferred to its own future ADR (open question Q5 in the design).
+8. **Contractor pricing is a per-project switch.** A Project gains
+   `contractorPricing` (toggle in the project header; "Contractor pricing"
+   label on the estimate and both prints). Sheets with a contractor tier
+   (Wedi: 0.82 × retail with per-item exceptions) import it into
+   `data.tierPrices`, and picking such an item snapshots `tierPrice` onto the
+   selection **regardless of the toggle** so flipping it later needs no
+   re-picking. Effective sell at calc time, applied to **every line**
+   (flooring, trim, misc, and setting materials):
+   `contractorPricing ? (tierPrice ?? round2(price × (1 − pct/100))) : price`,
+   with the fallback rate a Settings field (`contractorPct`, default **8**)
+   read live like the waste rates. This is not a breach of
+   snapshot-don't-live-link: that doctrine guards against *external* changes
+   rewriting quotes, while this switch is the salesperson deliberately
+   repricing their own project — instant, reversible, and labeled.
 
 ## Why
 
@@ -86,9 +96,12 @@ choice below (`.scratch/008_multi-pricebook-system/sheets/`).
 
 ## Consequences
 
-- `Selection` gains `bookId`, `cost`, `markupPct`, `freightFlag` — all with
-  legacy-safe defaults in `normP` in the same commit that introduces them
-  (architecture invariant 2).
+- `Selection` gains `bookId`, `cost`, `markupPct`, `freightFlag`, `tierPrice`;
+  `Project` gains `contractorPricing`; Settings gains `contractorPct`
+  (default 8) — all with legacy-safe defaults in `normP`/`normC`/
+  `mergeSettings` in the same commits that introduce them (architecture
+  invariant 2). Changing `contractorPct` re-flows open contractor jobs — the
+  same live-by-design behavior as the waste rates, accepted with eyes open.
 - New pure module `src/orderbook.js` (markup resolution, sell calc, drift,
   collision, mapping application) + extensions to `src/pricebook.js`; all
   estimate-number logic stays in the tested pure trio.
