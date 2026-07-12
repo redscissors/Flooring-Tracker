@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
@@ -636,7 +636,6 @@ export default function App({ user, onSignOut }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
   // Per-user profile (name/phone/email), printed on the estimate header.
   const [profile, setProfile] = useState(normProfile());
   // The rest of this user's app_data blob, kept so profile saves don't clobber
@@ -1686,22 +1685,14 @@ export default function App({ user, onSignOut }) {
               {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>
-          <div className="p-2.5 border-t border-slate-100 space-y-2">
+          <div className="p-2.5 border-t border-slate-100">
             <div className="flex gap-2">
               <button onClick={() => { setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
               <button onClick={openTodos} title="Team issues & to-do list" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
                 <ListTodo size={15} /> Issues
                 {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
               </button>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <button onClick={() => { setShowProfile(true); setSidebarOpen(false); }} title="User settings — your name, phone & email" className="flex items-center gap-2 flex-1 min-w-0 rounded-md hover:bg-slate-50 -mx-1 px-1 py-1 text-left">
-                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-semibold shrink-0">{(profile.name || user.email || "?").slice(0, 1).toUpperCase()}</div>
-                <span className="truncate flex-1" title={user.email}>{profile.name || user.email}</span>
-                <Pencil size={12} className="shrink-0 text-slate-300" />
-              </button>
-              <span className="w-px h-4 bg-slate-200 shrink-0" />
-              <button onClick={handleSignOut} title="Sign out" className="rounded-md border border-slate-200 hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={14} /></button>
+              <button onClick={handleSignOut} title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 text-slate-500"><LogOut size={15} /></button>
             </div>
           </div>
         </aside>
@@ -2410,24 +2401,13 @@ export default function App({ user, onSignOut }) {
           settings={settings} setSettings={setSettings} stock={stock} gFamilies={gFamilies}
           importing={importing} importPriceBook={importPriceBook} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
-          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} />
+          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
+          profile={profile} saveProfile={saveProfile} user={user} />
       )}
 
       {showTodos && (
         <Modal onClose={() => setShowTodos(false)} title="Issues & To-Do">
           <TeamTodos todos={todos} onAdd={addTodo} onToggle={toggleTodo} onDelete={delTodo} onReorder={reorderTodos} onClearDone={clearDoneTodos} inp={inp} />
-        </Modal>
-      )}
-
-      {showProfile && (
-        <Modal onClose={() => setShowProfile(false)} title="User Settings">
-          <p className="text-sm text-slate-500 mb-4">Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
-          <div className="space-y-3">
-            <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
-            <div><label className={lbl}>Phone</label><input value={profile.phone} onChange={(e) => saveProfile({ phone: e.target.value })} placeholder="Phone number" className={inp} /></div>
-            <div><label className={lbl}>Email</label><input value={profile.email} onChange={(e) => saveProfile({ email: e.target.value })} placeholder={user.email || "Email"} className={inp} /></div>
-          </div>
-          <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}. Leave a field blank to keep it off the estimate.</p>
         </Modal>
       )}
 
@@ -2701,7 +2681,7 @@ function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, i
 // The PC-first Settings workspace (issue 007): near-fullscreen, left-nav
 // sections, master→detail catalog editing. Pure UI — every write still flows
 // through setSettings and the import/backup handlers passed in from App.
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -2807,6 +2787,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     : kind === "mortars" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
       : ((p.types || []).length ? p.types.map((t) => typeLabels[t]).join(", ") : "all types") + ((p.install || []).length ? ` · ${p.install.length} install` : "");
   const SECTIONS = [
+    { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
     { id: "book", label: "Price book", icon: BookOpen, hint: stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
     { id: "grout", label: "Grout & colors", icon: Paintbrush, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length, 0)) },
@@ -3118,6 +3099,17 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                       : <div className="h-full flex items-center justify-center text-sm text-slate-400">Select a product on the left — or add one under its company.</div>}
             </div>
           </>
+        ) : section === "profile" ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <h2 className="ft-serif text-3xl">Your details</h2>
+            <p className="text-sm text-slate-500 mt-1 max-w-xl">Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
+            <div className="mt-5 space-y-3 max-w-md">
+              <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
+              <div><label className={lbl}>Phone</label><input value={profile.phone} onChange={(e) => saveProfile({ phone: e.target.value })} placeholder="Phone number" className={inp} /></div>
+              <div><label className={lbl}>Email</label><input value={profile.email} onChange={(e) => saveProfile({ email: e.target.value })} placeholder={user.email || "Email"} className={inp} /></div>
+            </div>
+            <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}. Leave a field blank to keep it off the estimate.</p>
+          </div>
         ) : section === "general" ? (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">General</h2>
