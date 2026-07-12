@@ -787,12 +787,20 @@ export default function App({ user, onSignOut }) {
   // in sync when the user changes it. "system" clears both classes and lets the
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
+  const themedOnce = useRef(false);
   useEffect(() => {
     try { localStorage.setItem("ft-theme", theme); } catch {}
     const el = document.documentElement;
     el.classList.remove("ned-dark", "ned-light");
     if (theme === "dark") el.classList.add("ned-dark");
     else if (theme === "light") el.classList.add("ned-light");
+    // Crossfade the whole palette on a user toggle (but not the first paint):
+    // .ft-theming briefly enables a color transition on everything, removed
+    // once the fade is done so it never slows ordinary interaction.
+    if (!themedOnce.current) { themedOnce.current = true; return; }
+    el.classList.add("ft-theming");
+    const t = setTimeout(() => el.classList.remove("ft-theming"), 600);
+    return () => clearTimeout(t);
   }, [theme]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);

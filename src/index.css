@@ -219,6 +219,17 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-theme-switch #star-3{width:12px;top:20px;left:10px;animation-delay:.6s;}
 .ft-theme-switch #star-4{width:18px;top:0;left:18px;animation-delay:1.3s;}
 @keyframes ft-star-twinkle{0%{transform:scale(1)}40%{transform:scale(1.2)}80%{transform:scale(.8)}100%{transform:scale(1)}}
+
+/* Palette crossfade: App.jsx adds .ft-theming to <html> for ~0.6s on a theme
+   toggle, so every surface fades between the light and dark --ft-* colors
+   instead of switching in one frame. :where() keeps specificity at 0 so it only
+   fills in a transition where an element has none — the sun/moon slide and the
+   hover scales keep their own. */
+:where(.ft-theming), :where(.ft-theming) *, :where(.ft-theming) *::before, :where(.ft-theming) *::after{
+  transition-property:background-color,color,border-color,fill,stroke,box-shadow;
+  transition-duration:.5s;
+  transition-timing-function:ease;
+}
 .ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
    carton Order cell draws its own slim stepper instead. */
