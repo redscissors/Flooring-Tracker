@@ -1970,7 +1970,7 @@ export default function App({ user, onSignOut }) {
                             <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
                           </div>
                         </div>
-                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="ft-field w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66 }} />
+                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
                         <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
                           {namingVersion ? (
                             <div className="flex items-center gap-1.5">
