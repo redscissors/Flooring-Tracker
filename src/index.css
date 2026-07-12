@@ -71,6 +71,11 @@ body {
   /* Editor chrome bands & lines (flip in dark below) */
   --ft-band:#E7E3D6;                     /* area header band */
   --ft-row-line:#ECE8DC;                 /* divider between product rows */
+  /* Area-card tone recipe (prototype 2026-07-12): the band, column-header line
+     and the Price/Total wash share one tone; product rows sit on the page
+     tone. In dark the pair inverts — head = page ink, rows a 5%-white lift. */
+  --ft-area-head:#E7E3D6;                /* band + column header + money-column wash */
+  --ft-area-row:#F6F3EC;                 /* product rows + materials box (page tone) */
 
   /* Estimate paper — always light (the sheet prints white in every theme), so
      these are defined once and never overridden. */
@@ -290,6 +295,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ned-data-1:#6B8A44; --ned-data-2:#7FA055; --ned-data-3:#93B56A;
   --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2;
   --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
+  --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
   --ft-hover:var(--ft-fieldbar);
   --ft-shadow:rgba(0,0,0,.4);
 }
@@ -305,6 +311,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
     --ned-data-1:#6B8A44; --ned-data-2:#7FA055; --ned-data-3:#93B56A;
     --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2;
     --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
+    --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
     --ft-hover:var(--ft-fieldbar);
     --ft-shadow:rgba(0,0,0,.4);
   }
@@ -322,6 +329,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ned-data-1:#2A3A1B; --ned-data-2:#40542A; --ned-data-3:#57703A;
   --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84;
   --ft-band:#E7E3D6; --ft-row-line:#ECE8DC; --ft-type-ink:#FFFFFF;
+  --ft-area-head:#E7E3D6; --ft-area-row:#F6F3EC;
   --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
   --ft-shadow:rgba(28,26,23,.06);
 }
