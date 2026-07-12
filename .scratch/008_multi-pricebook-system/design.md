@@ -1,0 +1,357 @@
+# Design: the price book library
+
+Groundwork for growing FloorTrack's single stock price book into a managed
+library of 10-30 books — stock and special-order — without breaking any of the
+promises the current system makes. Written 2026-07-12; nothing here is decided
+yet. Sections marked **PROPOSED** need owner sign-off; **OPEN QUESTION**
+sections need owner answers before implementation starts.
+
+---
+
+## 1. What must not change (the inherited contract)
+
+Every part of this design is shaped by four standing rules that already govern
+the stock book (ADR 0002/0003, architecture contract):
+
+1. **Snapshot, don't live-link.** Picking an item copies its values onto the
+   selection; nothing reads a price table at calculation time. A re-import —
+   or, new here, a **markup change** — must never rewrite a saved estimate.
+   Freshness is surfaced as a drift chip; applying it is a human act.
+2. **Hide, never delete.** Items that drop out of a book go `active = false`.
+   Books themselves, once imported, can be retired but not erased while any
+   selection references them.
+3. **Sanctioned write paths only.** Book/item writes happen through one import
+   flow and (new) one item-edit flow — no ad-hoc writes.
+4. **The team is the trust boundary** (ADR 0004). Any signed-in user can see
+   and edit any book, including vendor costs and markups. Costs and margins
+   are *internal*: they must never appear on the customer-facing print.
+
+---
+
+## 2. Data model — PROPOSED
+
+### 2.1 Keep `stock_items` exactly as it is
+
+The shop's stock workbook stays in `stock_items`, untouched. It is genuinely
+special: it feeds the catalog price sync, the grout color families (ADR 0007),
+and the Laticrete base-unit pairing (ADR 0006) — none of which apply to vendor
+sheets. Leaving it alone means zero migration, ADR 0003 stays true as written,
+and "stock outranks special order" is structural rather than a ranking rule.
+
+The "stock space" in the UI is this book. Its ~9 internal sheets already carry
+`sheet`/`section` on every item, so the browse UI can present them as separate
+sheets without any schema change. (If a *second* stock workbook ever appears,
+it can import into the same table — the importer already merges sheets — or
+this decision gets revisited. See open question Q4.)
+
+### 2.2 New tables for special-order books
+
+```sql
+order_books (
+  id          text primary key,          -- client uid(), like customers
+  name        text,                      -- "Shaw 2026 Q3", "Daltile SO list"
+  active      boolean default true,      -- retired books hide from search/UI
+  data        jsonb,                     -- { vendor, note, mapping, markups,
+                                         --   skuPattern, lastImport{at,by,count} }
+  created_at / updated_at timestamptz
+)
+
+order_items (
+  book_id     text references order_books,
+  sku         text,
+  active      boolean default true,
+  data        jsonb,                     -- same item shape as stock + { cost }
+  updated_at  timestamptz,
+  primary key (book_id, sku)             -- vendor SKU spaces overlap; the pair
+                                         -- is the identity, never sku alone
+)
+
+pricebook_versions (
+  id          text primary key,
+  book_id     text,                      -- an order_books id, or 'stock' for
+                                         -- the stock book (reserved id)
+  label       text,                      -- "Import 2026-07-12" or hand-named
+  imported_at timestamptz,
+  imported_by text,
+  item_count  int,
+  snapshot    jsonb                      -- the parsed items exactly as applied
+)
+```
+
+RLS mirrors `stock_items`: select/insert/update for any authenticated user, **no
+delete policy** on `order_items` (invariant: items are never deleted).
+`pricebook_versions` gets insert/select/delete (the app prunes old versions,
+same trust model as the existing `versions` table). All three ship as one
+`supabase/pricebooks.sql` the owner runs by hand — an agent never executes it.
+
+Why one shared `order_items` table instead of a table per book: 30 books would
+mean 30 owner-run SQL files and unqueryable sprawl; `(book_id, sku)` rows keep
+imports incremental and cheap exactly like `stock_items` rows do today.
+
+Sizing check: 30 books × ~700 items ≈ 20k rows. That is nothing for Postgres,
+but it is too much to eagerly load into the browser at sign-in the way `stock`
+is loaded today. Order books load their items **lazily** — when a book is
+opened in Settings, and (for search) via a server-side query. See §6.
+
+### 2.3 What lands on a Selection
+
+A selection that picks a special-order item snapshots, exactly like stock
+picks do today, plus three new fields:
+
+```
+sku        (exists today)               — the vendor SKU
+bookId     (new)                        — which book it came from; "" = stock
+cost       (new, internal)              — vendor cost/sqft (or /unit) at pick time
+markupPct  (new, internal)             — the markup that produced priceSqft
+```
+
+`priceSqft` (and `cartonSf` etc.) keep their existing meaning — the *selling*
+price — so every downstream consumer (line math, totals, CSV, print) works
+unchanged with zero conditionals. `cost`/`markupPct` are along for the ride so
+the estimate can later show internal margin (§8) and so drift can be computed
+against both the vendor's new cost and the book's current markup.
+
+Per invariant 2 of the architecture contract, all three fields get legacy-safe
+defaults in `normP` (`bookId: ""`, `cost: ""`, `markupPct: ""`) in the same
+commit that introduces them.
+
+---
+
+## 3. Costs and markups — PROPOSED
+
+The heart of the special-order feature. Rules:
+
+1. **Items store cost, never sell price.** The vendor sheet's number is the
+   cost; it is imported verbatim and is the thing the vendor re-issues.
+2. **Markups live on the book**, in `order_books.data.markups`:
+
+   ```
+   markups: {
+     default: 45,                        // percent over cost
+     bySection: { "LVP": 40, "Trim & Moldings": 60 }
+   }
+   ```
+
+   The per-group keys are the book's own **section names** (the importer
+   already extracts sections from every layout it understands — same field the
+   stock book uses). The markup editor in the book's detail view lists the
+   sections actually present in the imported items, each with an optional
+   override, plus the book default. No free-form matcher language: the groups
+   you can price are the groups the sheet actually has. A section that appears
+   in a future re-import and has no override quietly uses the default — and the
+   import preview says so ("2 new sections, using default markup").
+3. **Sell price is computed at display/pick time**, not import time:
+   `sell = round2(cost × (1 + pct/100))`. Baking sell prices into items at
+   import would make a markup change either silently wrong or require
+   re-import; computing at pick time means a markup edit affects **future
+   picks only** — saved estimates keep their snapshot, exactly like a price
+   book re-import today. This is the snapshot doctrine applied to markups, and
+   it is the single most important decision in this design.
+4. **Drift generalizes.** The existing chip says "price book now $X". For a
+   special-order row it compares the row's `priceSqft` against
+   `today's cost × today's markup` and shows both movements ("cost now $2.10,
+   markup now 40% → $2.94"). One click applies, as today.
+5. Markup changes are settings-grade edits: rare, whole-record (`order_books`
+   row) upserts, last-write-wins — consistent with ADR 0002's accepted
+   concurrency posture.
+
+**OPEN QUESTION Q1 — markup basis.** Is markup always a percent over cost, or
+do some vendors need "cost + fixed $/sqft" or a rounding rule (e.g. round up
+to .x9)? The `markups` jsonb has room for either; the editor should not grow
+knobs nobody needs. Owner: how do you price special order today, exactly?
+
+**OPEN QUESTION Q2 — who sees cost.** Per ADR 0004 the whole team sees
+everything, so costs and margins are visible to every signed-in user in the
+book UI and (if §8 ships) on the internal estimate view. Print never shows
+them. Confirm that's acceptable — changing it would be the first crack in the
+team-trust model and needs its own ADR.
+
+---
+
+## 4. Import pipeline — PROPOSED
+
+The stock workbook keeps its hand-built adapters (`src/pricebook.js`) — they
+encode years of that document's quirks and should not be generalized away.
+
+Special-order sheets get a **generic mapped import** instead of per-vendor
+code:
+
+1. Upload the .xlsx/.csv into the book (SheetJS, lazy-loaded, browser-side —
+   same as today).
+2. The generic table detector (the `parseTables` machinery already handles
+   header rows, sections, carried colors) proposes a column mapping:
+   which column is SKU, description, cost, unit, size, coverage…
+3. The user confirms/fixes the mapping in a preview grid showing the first
+   rows parsed both ways. **The mapping is saved on the book**
+   (`data.mapping`), so every re-import of that vendor's sheet is one click.
+4. Diff preview → apply, byte-for-byte the same flow as the stock import:
+   added / changed / retired counts, chunked upserts, `active=false` for
+   missing SKUs, never a delete. The apply also writes a `pricebook_versions`
+   row (§5).
+
+Per-vendor **SKU patterns**: the stock book's `/^\d{4,8}$/` rule is what makes
+a rearranged sheet degrade to visible missing-counts instead of garbage rows.
+Vendor SKUs won't all be 4-8 digits, so each book carries its own pattern
+(`data.skuPattern`, default "1-20 alphanumeric chars, at least one digit"),
+inferred at first mapping and editable. The degradation rule itself —
+*a row is only consumed if its SKU cell matches the pattern* — is kept, it's
+the parser's honesty guarantee.
+
+Why mapped-import beats per-vendor adapters at this scale: 10-30 vendors means
+10-30 adapters to write, test, and re-fix every time a vendor reformats. A
+saved mapping is data, editable by the team in the UI, no deploy. The stock
+book keeps adapters because its layouts (grout matrices, Aduramax trim rows)
+are beyond what a column mapping can express — if a vendor sheet turns out to
+be that gnarly, that one vendor gets an adapter, as the exception.
+
+---
+
+## 5. Versions and rollback — PROPOSED
+
+`pricebook_versions` keeps the **last 3 imports per book** (stock included,
+under the reserved book id `'stock'`). On apply: insert a version row holding
+the parsed items exactly as applied, then prune to the newest 3 — the same
+keep-newest-N pattern as auto-versions (`AUTO_KEEP`).
+
+**Rollback is a re-import, not a restore.** "Fall back" loads the old
+version's snapshot and pushes it through the normal diff preview → apply flow:
+the user *sees* what rolling back will change before anything is written, the
+rollback itself becomes the newest version (so it can be rolled back), and
+there is exactly one write path into item tables. No blind flip.
+
+Sizing: ~700 items ≈ 200-300 KB of jsonb per version; 31 books × 3 versions is
+well under 30 MB total. Fine. Snapshots store **cost**, not sell — a rollback
+never resurrects an old markup (markups aren't versioned; they're settings).
+
+**OPEN QUESTION Q3 — is 3 the right number?** The pattern makes the count a
+constant; 3 was the ask. Suggest keeping 3 but allowing a hand-named "keeper"
+version that never gets pruned (mirrors named vs auto versions on projects).
+Costs almost nothing to add later; not in Phase 1.
+
+---
+
+## 6. Search and stock priority — PROPOSED
+
+The SKU box on a selection row today searches the in-memory stock list. With
+order books it becomes a two-tier search:
+
+1. **Stock first, always.** Stock matches render first, exactly as today.
+2. **Special-order matches follow**, each badged with its book name
+   ("Shaw 2026 — special order"), showing the *sell* price (cost × markup,
+   computed live for display; snapshot happens only at pick).
+3. **Exact-SKU collision resolves to stock.** If the same SKU string exists in
+   both spaces, the search shows the stock item and a small "also on
+   Shaw 2026" note — it never silently offers the special-order twin. There is
+   no reliable cross-vendor "same product" detection beyond SKU equality
+   (descriptions differ per vendor); anything fuzzier would guess, and a wrong
+   guess prices a job off the wrong list. Honest and simple beats clever here.
+4. The result cap lesson from issue 005 carries over: always show
+   "Showing 30 of N", never truncate silently.
+
+Mechanics: order-book items are not eagerly loaded at sign-in (§2.2). Search
+over them uses a Supabase query (`ilike` over a generated search text column,
+or loads active books' items once on first search and caches — Phase 3 decides
+based on measured size; at 10 books eager-after-first-use is likely fine).
+
+---
+
+## 7. Settings UI — PROPOSED
+
+The Settings workspace's "Price book" section grows into the library:
+
+```
+Price book
+├── Stock                    ← the stock book, per-sheet browse
+│   ├── [Import updated workbook]   (existing flow, unchanged)
+│   ├── sheet list → searchable item table
+│   └── Versions (last 3, rollback via preview)
+└── Special order
+    ├── [+ New book]
+    └── per book:
+        ├── header: name, vendor, active toggle
+        ├── Items: searchable table (search box = searchStock), inline edit
+        ├── Markups: default % + per-section overrides
+        ├── Import: upload → mapping → diff preview → apply
+        └── Versions (last 3, rollback via preview)
+```
+
+Master→detail like the catalog sections that already exist in
+`SettingsWorkspace`; reuse its list/detail idioms and the existing import
+preview components rather than inventing new ones.
+
+**Item fine-tuning.** Any item field (cost, description, size, coverage,
+discontinued) is editable inline; the edit is a single-row upsert (a new
+sanctioned write path, `updateOrderItem`) and stamps `data.editedBy/editedAt`.
+The next import's diff preview **calls out hand-edited items explicitly**
+("3 items you edited by hand will be overwritten") so a re-import never
+silently eats a correction. Same affordance for stock items — today the only
+way to fix a stock typo is to fix the workbook and re-import, which is
+correct-by-doctrine but slow; inline edit with the same import-overwrite
+warning keeps the workbook the source of truth while allowing spot fixes.
+
+Every UI slice above merges only with preview proof (screenshots), per the
+non-negotiables. The mapping/preview grid is a strong candidate for the house
+throwaway-prototype method before building it for real.
+
+---
+
+## 8. Improvement opportunities the owner didn't ask for (opinions)
+
+1. **Margin visibility (recommended, cheap).** Because special-order lines
+   snapshot `cost` and `markupPct`, the estimate can show an *internal-only*
+   margin line ("materials margin ≈ $X / Y%") on screen — never on print.
+   No competitor tool at this scale shows live job margin; the data is free
+   once §2.3 lands. Needs stock items to optionally carry cost too (the stock
+   workbook has no cost column today — margin would cover special-order lines
+   only until it does).
+2. **"Also stocked" nudges at pick time.** §6's collision rule is per-SKU;
+   a softer, still-honest nudge: when a special-order pick's description
+   words all match some stock item, show "similar stock item exists — $X"
+   without auto-switching. Worth prototyping only after real vendor data
+   proves the false-positive rate is tolerable.
+3. **Book-level staleness chip.** Each book shows "last imported N days ago by
+   whom" (already stored); a book past a configurable age gets an amber chip in
+   the library list. Vendors re-issue quarterly; a 200-day-old cost list
+   quietly mispricing jobs is the most likely real-world failure of this whole
+   system.
+4. **Deferred, deliberately:** per-user cost visibility (breaks ADR 0004 —
+   needs its own ADR), automatic vendor-sheet fetching (no server today),
+   fuzzy cross-book product matching (guessing wrong prices jobs wrong), and
+   markup versioning (markups are settings; the drift chip already surfaces
+   the consequence).
+
+**OPEN QUESTION Q4 — how many *stock* books, really?** The design keeps the
+stock space single-book. If "some are gonna be stock items" meant several
+*separate stock workbooks* (not more sheets in the existing one), say so now —
+that changes §2.1 (stock would need book ids too) and is much cheaper to decide
+before Phase 1 than after.
+
+---
+
+## 9. Phasing
+
+Each phase is independently shippable, PR-gated, and leaves the app fully
+working. No SQL runs until the owner runs `supabase/pricebooks.sql` by hand.
+
+| Phase | Delivers | Depends on |
+|---|---|---|
+| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Owner answers Q1-Q4 |
+| 1 | Book registry + generic mapped import + browse/search per book (costs visible, flat default markup only) | Phase 0, first test vendor sheet |
+| 2 | Markup editor (default + per-section), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults | Phase 1 |
+| 3 | Cross-space SKU search on selection rows with stock priority + collision rule | Phase 2 |
+| 4 | `pricebook_versions` writes on apply (stock book included) + rollback-via-preview + inline item edit with overwrite warnings | Phase 1 (can parallel 2-3) |
+| 5 | Opinions from §8 that survive owner review (margin line, staleness chips) | 2-4 |
+
+Phase 1 is deliberately useless-for-quoting on its own (no markup → no sell
+price on rows) so the first vendor test sheets can be imported, browsed, and
+mapping-tuned against real data *before* any of them can touch an estimate.
+
+## Test surface
+
+All new logic lands in pure modules per the architecture contract:
+`src/orderbook.js` (markup resolution, sell-price calc, drift, collision
+rules, mapping application) and extensions to `src/pricebook.js` (generic
+mapped parse) — every one reachable by `node --test` with plain arrays, no
+Supabase, no SheetJS. Golden cases: markup override vs default, markup change
+not moving a saved estimate (snapshot), rollback diff correctness, SKU
+collision → stock, hand-edit overwritten only with warning.
