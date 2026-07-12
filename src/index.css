@@ -27,6 +27,11 @@ body {
   --ft-border:rgba(28,26,23,.10);           /* line — kit border */
   --ft-border-soft:color-mix(in oklab, var(--ft-text) 7%, transparent);
   --ft-border-strong:rgba(28,26,23,.25);
+  /* Selection-grid line: area-card outline + product-row dividers. A touch
+     darker than --ft-border-strong so the boxed grid reads clearly. Defined
+     explicitly per mode (like --ft-border-strong) so each mode gets its own
+     alpha — ink .34 in light, paper .30 in dark. */
+  --ft-grid-line:rgba(28,26,23,.34);
   --ft-text:#1C1A17;             /* ink */
   --ft-muted:#57534C;
   --ft-faint:#8A8378;            /* placeholders, dashes, sub-lines */
@@ -169,8 +174,8 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-cell::-webkit-outer-spin-button,.ft-cell::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 input.ft-cell[type="number"]{-moz-appearance:textfield;}
 
-/* Corner radius — kit shape scale: 8px chips/inputs, 14px cards; pills stay full. */
-:root{--ft-r:8px;--ft-r-lg:14px;}
+/* Corner radius — kit shape scale: 4px chips/inputs, 6px cards; pills stay full. */
+:root{--ft-r:4px;--ft-r-lg:6px;}
 .rounded-sm,.rounded,.rounded-md{border-radius:var(--ft-r);}
 .rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl{border-radius:var(--ft-r-lg);}
 
@@ -183,6 +188,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
 .ned-dark{
   --ft-cream:#1C1A17; --ft-card:#26231F; --ft-prod:#2B2721; --ft-field:#26231F;
   --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+  --ft-grid-line:rgba(246,243,236,.30);
   --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C;
   --ft-accent:#F6F3EC; --ft-accent-press:#E4E0D5; --ft-accent-ink:#1C1A17; --ft-accent-deep:#F6F3EC;
   --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
@@ -197,6 +203,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   :root:not(.ned-light):not(.ned-dark){
     --ft-cream:#1C1A17; --ft-card:#26231F; --ft-prod:#2B2721; --ft-field:#26231F;
     --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+    --ft-grid-line:rgba(246,243,236,.30);
     --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C;
     --ft-accent:#F6F3EC; --ft-accent-press:#E4E0D5; --ft-accent-ink:#1C1A17; --ft-accent-deep:#F6F3EC;
     --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
@@ -213,6 +220,7 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
 .ft-light{
   --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-prod:#F1EDE2; --ft-field:#FFFFFF;
   --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-grid-line:rgba(28,26,23,.34);
   --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
   --ft-accent:#1C1A17; --ft-accent-press:#3A3630; --ft-accent-ink:#F6F3EC; --ft-accent-deep:#141210;
   --ft-brand:#57703A; --ft-brand-deep:#40542A;
@@ -225,3 +233,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
 }
 
 @media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }
+
+/* Area cards take the grid line as their resting outline (a touch darker than
+   the default hairline) so the card border reads as one continuous line with
+   the product-row dividers stacked inside it. The .border-slate-200 qualifier
+   is only the resting state, so the drag-hover (indigo) and drop-target
+   (dashed) borders keep their own colors. */
+[data-area-drop].border-slate-200{border-color:var(--ft-grid-line);}

@@ -15,12 +15,21 @@ const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "La
 // language, the soft/plank goods want "underlayment".
 const UNDERLAY_LABEL = { tile: "Tile Backer" };
 const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
-// Editorial accents: each flooring type colours its selection card's left border
-// and active chip; each area's index marker cycles through the area palette.
-// Product-type accents resolve to CSS tokens (src/index.css) sourced from the
-// NED data series, so every chip/row-wash/border flips with light/dark and a
-// recolor is a one-line change in the stylesheet.
+// Product-type accents: the small type button, active joint toggle and the
+// material check chips carry the flooring type's color (the selection rows
+// themselves are paper-washed, not type-colored — see ROW_WASH below). They
+// resolve to CSS tokens (src/index.css) sourced from the NED data series, so
+// each flips with light/dark and a recolor is a one-line stylesheet change.
 const TYPE_ACCENT = { tile: "var(--ft-type-tile)", hardwood: "var(--ft-type-hardwood)", vinyl: "var(--ft-type-vinyl)", laminate: "var(--ft-type-laminate)", carpet: "var(--ft-type-carpet)", misc: "var(--ft-type-misc)" };
+
+// Selection grid: rows and the materials box carry a quiet paper wash (ink
+// mixed over --ft-prod, flips with the theme), not the flooring-type color —
+// the type accent is reserved for the small type button, joint toggles and the
+// material check chips. Product boxes stack flush inside their area card with a
+// thin --ft-grid-line divider; the area card's own border is that same line, so
+// a product's left/right edge lines up with the card outline as one clean line.
+const ROW_WASH = "color-mix(in oklab, var(--ft-text) 5%, var(--ft-prod))";
+const TOTAL_WASH = "color-mix(in oklab, var(--ft-text) 11%, var(--ft-prod))";
 const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
 const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
 // Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
@@ -1852,7 +1861,10 @@ export default function App({ user, onSignOut }) {
 
               {sel.categories.length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
-              <div className="space-y-4">
+              {/* Areas butt up against each other (no gap) — each area still
+                  rounds its own corners, so touching areas keep the soft "pill"
+                  notch at their seam that the flush product boxes don't. */}
+              <div>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(a, settings);
@@ -1949,17 +1961,19 @@ export default function App({ user, onSignOut }) {
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
-                        // The type's accent (same one on the dark type box) washes
-                        // across the row to the Total cell — a 13% tint, deeper on
-                        // the Total to anchor the money, and deeper still when the
-                        // materials are expanded. The wash continues below the row
-                        // and wraps around the materials pill/drawer (rounded at the
-                        // bottom, stopping short of the actions column); the note row
-                        // and actions column stay cream (prototype wash J, 2026-07-10,
-                        // amended: wash wraps the chip).
+                        // The type accent stays on the small type button and the material
+                        // chips; the row itself carries a quiet paper wash (constant — it
+                        // does not deepen when the materials box expands), and the Total
+                        // cell one shade deeper to anchor the money. The wash continues
+                        // below the row and wraps the materials box, which reads as the
+                        // exact same color as the row, open or closed.
                         const accent = TYPE_ACCENT[p.type];
-                        const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-prod))`;
-                        const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-prod))`;
+                        const rowTint = ROW_WASH;
+                        const totalTint = TOTAL_WASH;
+                        const matBoxBg = rowTint;
+                        // The materials box and its collapsed summary chip both carry the
+                        // light hairline border.
+                        const chipBorder = "1px solid var(--ft-border)";
                         // The note lives inside the tinted wrap, hugging the chip's
                         // bottom edge; rows with no wrap fall back to a cream note row.
                         const noteInput = (
@@ -1973,7 +1987,11 @@ export default function App({ user, onSignOut }) {
                         return (
                           // flow-root keeps the collapsed pill's bottom margin inside the
                           // card — collapsed through, it painted a white strip between rows
-                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{ display: "flow-root", borderTop: pi > 0 ? "1px solid var(--ft-row-line)" : "none", background: "var(--ft-prod)" }}>
+                          <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{
+                            display: "flow-root",
+                            background: "var(--ft-prod)",
+                            borderBottom: "1px solid var(--ft-grid-line)",
+                          }}>
                             {searchMode ? (
                             /* empty row: type chip + one wide price-book search that fills the row on pick */
                             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: rowTint }}>
@@ -2082,16 +2100,15 @@ export default function App({ user, onSignOut }) {
                             {/* material child boxes (expanded) — every applicable material shows,
                                 checked (full controls) or unchecked (slim dashed card, click ✓ to add) */}
                             {matExpanded && p.type !== "misc" && (
-                              // Merged accent box (prototype mats 8): checked lines fill
-                              // with the type accent, unchecked stay paper, outline +
-                              // separators carry the same hue (.ft-mats rule in
-                              // index.css). The row's wash continues down and wraps
-                              // around the box, ending where the tint ends in the row
-                              // above (the actions column stays cream).
-                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
-                              <div data-mats-keep className="ft-mats" style={{ background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
+                              // Materials box: the same paper wash as the row (it does not
+                              // darken on expand), a light hairline outline, and thin
+                              // accent-tinted separators between sections (the .ft-mats
+                              // rule in index.css, via --mat-acc). The row's wash wraps the
+                              // box; the actions column stays cream.
+                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
+                              <div data-mats-keep className="ft-mats" style={{ background: matBoxBg, border: chipBorder, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
-                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
+                                  <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                       <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: false } })} title="Remove grout" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Grout</span>
@@ -2123,7 +2140,7 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                                 {p.type === "tile" && p.mortar.checked && (
-                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
+                                  <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                       <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: false } })} title="Remove mortar" className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">Mortar</span>
@@ -2143,7 +2160,7 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                                 {p.type !== "misc" && p.underlay.checked && (
-                                  <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
+                                  <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                       <button tabIndex={-1} onClick={toggleUnderlay} title={`Remove ${underlayLabel(p.type).toLowerCase()}`} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
@@ -2158,7 +2175,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
                                     </div>
                                     {installDefs.length > 0 && (
-                                      <div className="mt-1.5 pt-1.5" style={{ borderTop: `1px solid color-mix(in oklab, ${accent} 40%, var(--ft-border))` }}>
+                                      <div className="mt-1.5 pt-1.5" style={{ borderTop: "1px solid var(--ft-border)" }}>
                                   <div className="flex items-center gap-2">
                                     <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{p.underlay.install && <Check size={10} />}</button>
                                     {p.underlay.install ? (
@@ -2218,8 +2235,8 @@ export default function App({ user, onSignOut }) {
                               </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
-                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
+                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -2232,8 +2249,8 @@ export default function App({ user, onSignOut }) {
                               </div>
                             )}
                             {!matExpanded && !hasMats && addables.length > 0 && (
-                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)", borderRadius: 7 }} title="Materials — click to choose">
+                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                               {p.note ? noteInput : null}
