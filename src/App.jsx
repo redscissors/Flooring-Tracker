@@ -1810,7 +1810,7 @@ export default function App({ user, onSignOut }) {
                   <button key={v} onClick={() => setSortBy(v)} className={`px-2 flex items-center font-medium ${sortBy === v ? "ft-seg-on" : "ft-seg-off"}`}>{label}</button>
                 ))}
               </div>
-              <button onClick={() => setNewCust("")} className="ft-spark-btn flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} /> New Customer</button>
+              <button onClick={() => setNewCust("")} className="ft-spark-btn flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} className="-ml-1" /> New Customer</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -1898,7 +1898,7 @@ export default function App({ user, onSignOut }) {
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
                 <div className="ft-wordmark-stacked" style={{ fontSize: "clamp(64px,11vw,128px)" }}><span className="the">the</span>ned</div>
                 <div className="ft-eyebrow mt-4" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
-                <button onClick={() => setNewCust("")} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Plus size={18} /> New customer</button>
+                <button onClick={() => setNewCust("")} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Plus size={18} className="-ml-1" /> New customer</button>
               </div>
             )
           ) : !sel._full ? (

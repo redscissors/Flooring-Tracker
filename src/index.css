@@ -183,65 +183,68 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 /* Light/dark sun-moon switch in the sidebar footer — RiccardoRapelli toggle
    (Uiverse.io), scoped under .ft-theme-switch and given a private id/keyframe
    namespace so its generic class names don't leak into the app. */
-.ft-theme-switch{position:relative;display:inline-block;width:60px;height:34px;}
+.ft-theme-switch{position:relative;display:inline-block;width:50px;height:28px;}
 .ft-theme-switch #ft-theme-cb{opacity:0;width:0;height:0;}
 .ft-theme-switch .slider{position:absolute;cursor:pointer;inset:0;background-color:#2196f3;transition:.6s ease-in-out;z-index:0;overflow:hidden;}
 /* Slide (and recolor) the sun/moon smoothly both ways — no rotation, so
-   night->day slides back instead of snapping. */
-.ft-theme-switch .sun-moon{position:absolute;height:26px;width:26px;left:4px;bottom:4px;background-color:yellow;transition:.6s ease-in-out;}
+   night->day slides back instead of snapping. Geometry is the source's 60×34
+   scaled to 50×28 so the pill sits level with the Settings row below it. */
+.ft-theme-switch .sun-moon{position:absolute;height:21px;width:21px;left:3.5px;bottom:3.5px;background-color:yellow;transition:.6s ease-in-out;}
 .ft-theme-switch #ft-theme-cb:checked + .slider{background-color:#1c1a17;}
 .ft-theme-switch #ft-theme-cb:focus + .slider{box-shadow:0 0 1px #2196f3;}
-.ft-theme-switch #ft-theme-cb:checked + .slider .sun-moon{transform:translateX(26px);background-color:#fff;}
+.ft-theme-switch #ft-theme-cb:checked + .slider .sun-moon{transform:translateX(22px);background-color:#fff;}
 .ft-theme-switch .moon-dot{opacity:0;transition:.4s;fill:gray;}
 .ft-theme-switch #ft-theme-cb:checked + .slider .sun-moon .moon-dot{opacity:1;}
-.ft-theme-switch .slider.round{border-radius:34px;}
+.ft-theme-switch .slider.round{border-radius:28px;}
 .ft-theme-switch .slider.round .sun-moon{border-radius:50%;}
-.ft-theme-switch #moon-dot-1{left:10px;top:3px;position:absolute;width:6px;height:6px;z-index:4;}
-.ft-theme-switch #moon-dot-2{left:2px;top:10px;position:absolute;width:10px;height:10px;z-index:4;}
-.ft-theme-switch #moon-dot-3{left:16px;top:18px;position:absolute;width:3px;height:3px;z-index:4;}
-.ft-theme-switch #light-ray-1{left:-8px;top:-8px;position:absolute;width:43px;height:43px;z-index:-1;fill:#fff;opacity:.1;}
-.ft-theme-switch #light-ray-2{left:-50%;top:-50%;position:absolute;width:55px;height:55px;z-index:-1;fill:#fff;opacity:.1;}
-.ft-theme-switch #light-ray-3{left:-18px;top:-18px;position:absolute;width:60px;height:60px;z-index:-1;fill:#fff;opacity:.1;}
+.ft-theme-switch #moon-dot-1{left:8px;top:2.5px;position:absolute;width:5px;height:5px;z-index:4;}
+.ft-theme-switch #moon-dot-2{left:1.5px;top:8px;position:absolute;width:8px;height:8px;z-index:4;}
+.ft-theme-switch #moon-dot-3{left:13px;top:14.5px;position:absolute;width:2.5px;height:2.5px;z-index:4;}
+.ft-theme-switch #light-ray-1{left:-7px;top:-7px;position:absolute;width:35px;height:35px;z-index:-1;fill:#fff;opacity:.1;}
+.ft-theme-switch #light-ray-2{left:-50%;top:-50%;position:absolute;width:45px;height:45px;z-index:-1;fill:#fff;opacity:.1;}
+.ft-theme-switch #light-ray-3{left:-14px;top:-14px;position:absolute;width:49px;height:49px;z-index:-1;fill:#fff;opacity:.1;}
 .ft-theme-switch .cloud-light{position:absolute;fill:#eee;animation-name:ft-cloud-move;animation-duration:6s;animation-iteration-count:infinite;}
 .ft-theme-switch .cloud-dark{position:absolute;fill:#ccc;animation-name:ft-cloud-move;animation-duration:6s;animation-iteration-count:infinite;animation-delay:1s;}
-.ft-theme-switch #cloud-1{left:30px;top:15px;width:40px;}
-.ft-theme-switch #cloud-2{left:44px;top:10px;width:20px;}
-.ft-theme-switch #cloud-3{left:18px;top:24px;width:30px;}
-.ft-theme-switch #cloud-4{left:36px;top:18px;width:40px;}
-.ft-theme-switch #cloud-5{left:48px;top:14px;width:20px;}
-.ft-theme-switch #cloud-6{left:22px;top:26px;width:30px;}
+.ft-theme-switch #cloud-1{left:25px;top:12px;width:33px;}
+.ft-theme-switch #cloud-2{left:36px;top:8px;width:17px;}
+.ft-theme-switch #cloud-3{left:15px;top:20px;width:25px;}
+.ft-theme-switch #cloud-4{left:30px;top:15px;width:33px;}
+.ft-theme-switch #cloud-5{left:40px;top:11px;width:17px;}
+.ft-theme-switch #cloud-6{left:18px;top:21px;width:25px;}
 @keyframes ft-cloud-move{0%{transform:translateX(0)}40%{transform:translateX(4px)}80%{transform:translateX(-4px)}100%{transform:translateX(0)}}
-.ft-theme-switch .stars{transform:translateY(-32px);opacity:0;transition:.4s;}
+.ft-theme-switch .stars{transform:translateY(-27px);opacity:0;transition:.4s;}
 .ft-theme-switch .star{fill:#fff;position:absolute;transition:.4s;animation-name:ft-star-twinkle;animation-duration:2s;animation-iteration-count:infinite;}
 .ft-theme-switch #ft-theme-cb:checked + .slider .stars{transform:translateY(0);opacity:1;}
-.ft-theme-switch #star-1{width:20px;top:2px;left:3px;animation-delay:.3s;}
-.ft-theme-switch #star-2{width:6px;top:16px;left:3px;}
-.ft-theme-switch #star-3{width:12px;top:20px;left:10px;animation-delay:.6s;}
-.ft-theme-switch #star-4{width:18px;top:0;left:18px;animation-delay:1.3s;}
+.ft-theme-switch #star-1{width:16px;top:1.5px;left:2.5px;animation-delay:.3s;}
+.ft-theme-switch #star-2{width:5px;top:13px;left:2.5px;}
+.ft-theme-switch #star-3{width:10px;top:16.5px;left:8px;animation-delay:.6s;}
+.ft-theme-switch #star-4{width:15px;top:0;left:15px;animation-delay:1.3s;}
 @keyframes ft-star-twinkle{0%{transform:scale(1)}40%{transform:scale(1.2)}80%{transform:scale(.8)}100%{transform:scale(1)}}
 
-/* New-customer button — JkHuger's Uiverse sparkle button reskinned to moss
-   (hue 88 ≈ #57703A) and stripped of the sparkle/particle layer. --active
-   drives the hover state: the fill warms with two radial glows, a soft outer
-   glow + inner bevel appear, a halo ring fades in, and the button grows 5%.
-   z-index:0 keeps the ::before halo inside the button's stacking context. */
+/* New-customer button — JkHuger's Uiverse sparkle button reskinned to the kit
+   (sparkle/particle layer dropped, pill -> 4px kit corners). Rests as a flat
+   action fill (--ft-accent: ink in light, paper in dark); --active on hover
+   crossfades the fill to moss (hue 88) and brings up the radial glows, outer
+   glow + inner bevel, halo ring, and a 5% grow. Glow/bevel alphas ride
+   --active so nothing moss shows at rest. z-index:0 keeps the ::before halo
+   inside the button's stacking context. */
 .ft-spark-btn{
   --active:0;
-  position:relative;z-index:0;border:0;cursor:pointer;border-radius:100px;
-  color:#F6F3EC;
+  position:relative;z-index:0;border:0;cursor:pointer;border-radius:var(--ft-r);
+  color:var(--ft-accent-ink);
   background:
     radial-gradient(40% 50% at center 100%, hsl(88 calc(var(--active)*50%) 60% / var(--active)), transparent),
     radial-gradient(80% 100% at center 120%, hsl(88 calc(var(--active)*45%) 48% / var(--active)), transparent),
-    hsl(88 32% calc(33% + var(--active)*5%));
+    color-mix(in oklab, hsl(88 32% 36%) calc(var(--active)*100%), var(--ft-accent));
   box-shadow:
-    0 0 calc(var(--active)*1.4em) calc(var(--active)*.35em) hsl(88 40% 45% / .55),
-    0 .05em 0 0 hsl(88 calc(var(--active)*40%) calc(42% + var(--active)*16%)) inset,
-    0 -.06em 0 0 hsl(88 40% calc(var(--active)*24%)) inset;
-  transition:box-shadow .3s,scale .3s,background .3s;
+    0 0 calc(var(--active)*1.4em) calc(var(--active)*.35em) hsl(88 40% 45% / calc(var(--active)*.55)),
+    0 .05em 0 0 hsl(88 40% 58% / var(--active)) inset,
+    0 -.06em 0 0 hsl(88 40% 24% / var(--active)) inset;
+  transition:box-shadow .3s,scale .3s,background .3s,color .3s;
   scale:calc(1 + var(--active)*.05);
 }
-.ft-spark-btn::before{content:"";position:absolute;inset:-.18em;z-index:-1;border:.2em solid hsl(88 45% 42% / .45);border-radius:100px;opacity:var(--active,0);transition:opacity .3s;}
-.ft-spark-btn:is(:hover,:focus-visible){--active:1;}
+.ft-spark-btn::before{content:"";position:absolute;inset:-.18em;z-index:-1;border:.2em solid hsl(88 45% 42% / .45);border-radius:calc(var(--ft-r) + .18em);opacity:var(--active,0);transition:opacity .3s;}
+.ft-spark-btn:is(:hover,:focus-visible){--active:1;color:#F6F3EC;}
 .ft-spark-btn:active{scale:1;}
 
 /* Palette crossfade: App.jsx adds .ft-theming to <html> for ~0.6s on a theme
