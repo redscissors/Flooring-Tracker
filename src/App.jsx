@@ -276,7 +276,7 @@ const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "U
 // empty cells render (the Color column is a dash for now — the data model
 // keeps brand+color in one brandColor field).
 const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
-const PRINT_DASH = <span style={{ color: "#B3A38D" }}>—</span>;
+const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU
@@ -1462,7 +1462,7 @@ export default function App({ user, onSignOut }) {
               const wt = num(settings.waste?.tile), wf = num(settings.waste?.floor);
               const col = (label, name, detail) => (
                 <div className="flex flex-col" style={{ gap: 2 }}>
-                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "#9A948A" }}>{label}</div>
+                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
                   <div style={{ fontSize: 12.5, fontWeight: 700 }}>{name || PRINT_DASH}</div>
                   {detail && <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>{detail}</div>}
                 </div>
@@ -1478,12 +1478,12 @@ export default function App({ user, onSignOut }) {
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
             {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
-                <div className="flex justify-between items-center" style={{ background: "#F0E4D2", borderRadius: 4, padding: "8px 12px" }}>
+                <div className="flex justify-between items-center" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
                   <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
-                <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#9A948A" }}>
+                <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
                   <div>Size</div><div>Product / Color</div><div>SKU</div><div>SF/CT</div>
                   <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
                 </div>
@@ -1503,7 +1503,7 @@ export default function App({ user, onSignOut }) {
                       <div style={{ padding: "0 12px 4px 24px", fontSize: 9.5, color: "var(--ft-muted)", display: "flex", gap: 16, flexWrap: "wrap" }}>
                         {inline.map((m, i) => (
                           <span key={i}>
-                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.spec}</>}{m.detail && <span style={{ color: "#B3A38D" }}> · {m.detail}</span>}</>}
+                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.spec}</>}{m.detail && <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span>}</>}
                           </span>
                         ))}
                       </div>
@@ -1516,7 +1516,7 @@ export default function App({ user, onSignOut }) {
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
                 <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
-                <div style={{ background: "#F0E4D2", borderRadius: 4, padding: "14px 16px" }}>
+                <div style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "14px 16px" }}>
                   <div style={{ columns: 2, columnGap: 28 }}>
                     {(() => {
                       // pMats is pre-sorted by PRINT_KINDS, so same-kind items are
@@ -1564,18 +1564,18 @@ export default function App({ user, onSignOut }) {
             <div className="break-inside-avoid flex mt-6" style={{ gap: 40 }}>
               <div className="flex-1 flex flex-col" style={{ gap: 4 }}>
                 <div style={{ borderBottom: "1px solid var(--ft-text)", height: 28 }} />
-                <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "#9A948A" }}>Customer approval</div>
+                <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "var(--ft-faint)" }}>Customer approval</div>
               </div>
               <div className="flex flex-col" style={{ width: 160, gap: 4 }}>
                 <div style={{ borderBottom: "1px solid var(--ft-text)", height: 28 }} />
-                <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "#9A948A" }}>Date</div>
+                <div className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".18em", color: "var(--ft-faint)" }}>Date</div>
               </div>
             </div>
-            <div className="break-inside-avoid flex justify-between items-center mt-5" style={{ borderTop: "1px solid #EDE2D2", paddingTop: 10 }}>
+            <div className="break-inside-avoid flex justify-between items-center mt-5" style={{ borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 10 }}>
               <div className="flex items-center gap-2">
-                <span className="ft-wordmark" style={{ fontSize: 13 }}>ned</span>
+                <span className="ft-wordmark-inline" style={{ fontSize: 15 }}><span className="the">the</span>ned</span>
               </div>
-              <div className="text-[9.5px] text-slate-400">Prepared with ned</div>
+              <div className="text-[9.5px] text-slate-400">Prepared with the ned</div>
             </div>
           </div>
   );
@@ -1650,7 +1650,7 @@ export default function App({ user, onSignOut }) {
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
             <NedMark size={28} />
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "ned"}</span>
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "the ned"}</span>
           </div>
         )}
 
@@ -1659,7 +1659,7 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="flex-1 min-w-0"><div className="ft-wordmark" style={{ fontSize: 22 }}>ned</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
+            <div className="flex-1 min-w-0"><div className="ft-wordmark-stacked" style={{ fontSize: 24 }}><span className="the">the</span>ned</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -1996,7 +1996,7 @@ export default function App({ user, onSignOut }) {
                                 {p.type === "tile" ? (
                                   <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
                                 ) : p.type === "misc" ? (
-                                  <span className="px-1" style={{ color: "#B3A38D" }}>Misc</span>
+                                  <span className="px-1" style={{ color: "var(--ft-faint)" }}>Misc</span>
                                 ) : (
                                   <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 )}
@@ -2018,12 +2018,12 @@ export default function App({ user, onSignOut }) {
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (
                                   <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                ) : <span className="px-2" style={{ color: "#B3A38D" }}>—</span>}
+                                ) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (
                                   <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
-                                ) : <span className="px-2 ml-auto" style={{ color: "#B3A38D" }}>—</span>}
+                                ) : <span className="px-2 ml-auto" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
                                 <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
@@ -2208,7 +2208,7 @@ export default function App({ user, onSignOut }) {
                               <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
-                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "#B3A38D" }}> · {m.detail}</span> : ""}
+                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
                                   </span>
                                 ))}
                                 <span className="flex-1" />
@@ -2243,7 +2243,7 @@ export default function App({ user, onSignOut }) {
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
                 <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
-                  <div className="flex justify-between items-center gap-3" style={{ background: "#F0E4D2", padding: "10px 16px" }}>
+                  <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "10px 16px" }}>
                     <div className="flex items-baseline gap-2.5 min-w-0">
                       <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Materials Estimate</span>
                       <span className="ft-serif" style={{ fontSize: 20 }}>Order summary</span>
@@ -2252,29 +2252,29 @@ export default function App({ user, onSignOut }) {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-6" style={{ padding: 16 }}>
                     <div>
-                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Grout</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>Grout</div>
                       {gList.length + bList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...bList.map((b) => ({ product: b.name, sku: b.sku, color: "—", order: b.order, unit: b.unit, cost: b.cost, price: b.price, pending: false })), ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
                         <div key={"g" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
-                          <span className="font-medium min-w-0">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{g.sku}</span>}</span>
-                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
+                          <span className="font-medium min-w-0">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{g.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
-                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Mortar</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>Mortar</div>
                       {mList.length === 0 ? <div className="text-sm text-slate-400">—</div> : mList.map((m, i) => (
                         <div key={"m" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
-                          <span className="font-medium min-w-0">{m.product}{m.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{m.sku}</span>}</span>
-                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
+                          <span className="font-medium min-w-0">{m.product}{m.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{m.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{m.pending ? "—" : <>{m.order} {m.unit}</>}{m.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(m.cost)}</span> : m.pending && m.price > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(m.price)}/{u1(1, m.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
                     <div>
-                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid #C9B79D", paddingBottom: 4, marginBottom: 8 }}>Underlayment</div>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>Underlayment</div>
                       {uList.length === 0 ? <div className="text-sm text-slate-400">—</div> : uList.map((u, i) => (
                         <div key={"u" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
-                          <span className="font-medium min-w-0">{u.product}{u.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "#B3A38D" }}>{u.sku}</span>}</span>
-                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block" style={{ fontSize: 10, color: "#B3A38D" }}>{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
+                          <span className="font-medium min-w-0">{u.product}{u.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{u.sku}</span>}</span>
+                          <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{u.pending ? "—" : <>{u.order} {u.unit}</>}{u.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(u.cost)}</span> : u.pending && u.price > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(u.price)}/{u1(1, u.unit)}</span> : null}</span>
                         </div>
                       ))}
                     </div>
@@ -2285,9 +2285,9 @@ export default function App({ user, onSignOut }) {
                         <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
                         {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
                         {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
-                        <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid #291D16" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                        <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                       </div>
-                      <div style={{ fontSize: 10.5, color: "#B3A38D", marginTop: 10 }}>Figures include {wasteNote(settings)}. Verify before ordering.</div>
+                      <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>Figures include {wasteNote(settings)}. Verify before ordering.</div>
                     </div>
                   </div>
                 </div>

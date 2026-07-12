@@ -33,7 +33,7 @@ export default function SetPassword({ email, onDone, onCancel }) {
     <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "var(--ft-ui)" }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
         <div className="mb-5">
-          <div className="ft-wordmark" style={{ fontSize: 30 }}>ned</div>
+          <div className="ft-wordmark-stacked" style={{ fontSize: 32 }}><span className="the">the</span>ned</div>
           <div className="font-semibold tracking-tight mt-2.5">Set your password</div>
           <div className="text-xs text-slate-400 -mt-0.5">{email ? email : "Create a password to finish setting up"}</div>
         </div>
@@ -48,7 +48,7 @@ export default function SetPassword({ email, onDone, onCancel }) {
             <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inp} autoComplete="new-password" />
           </div>
 
-          {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D2", border: "1px solid var(--ft-brand-deep)", color: "#4A3D31" }}>{err}</div>}
+          {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "var(--ft-sand)", border: "1px solid var(--ft-brand-deep)", color: "var(--ft-text)" }}>{err}</div>}
 
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
             {busy ? "Saving…" : "Set password & continue"}

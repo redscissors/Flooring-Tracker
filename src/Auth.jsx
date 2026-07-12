@@ -42,8 +42,8 @@ export default function Auth() {
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
         <div className="mb-5">
-          <div className="ft-wordmark" style={{ fontSize: 34 }}>ned</div>
-          <div className="ft-tagline text-[9px] mt-1.5">Neat. Easy. Done.</div>
+          <div className="ft-wordmark-stacked" style={{ fontSize: 38 }}><span className="the">the</span>ned</div>
+          <div className="ft-tagline text-[9px] mt-2">Neat. Easy. Done.</div>
           <div className="ft-eyebrow-accent text-[9px] mt-2.5">{mode === "reset" ? "Set a new password" : "Sign in to continue"}</div>
         </div>
 
@@ -57,7 +57,7 @@ export default function Auth() {
               <label className="text-xs font-medium text-slate-500 mb-1 block">Password</label>
               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inp} autoComplete="current-password" />
             </div>
-            {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D2", border: "1px solid var(--ft-brand-deep)", color: "#4A3D31" }}>{err}</div>}
+            {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "var(--ft-sand)", border: "1px solid var(--ft-brand-deep)", color: "var(--ft-text)" }}>{err}</div>}
             <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
               {busy ? "Signing in…" : "Sign in"}
             </button>
@@ -72,8 +72,8 @@ export default function Auth() {
               <label className="text-xs font-medium text-slate-500 mb-1 block">Email</label>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inp} autoComplete="email" />
             </div>
-            {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D2", border: "1px solid var(--ft-brand-deep)", color: "#4A3D31" }}>{err}</div>}
-            {msg && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "#F0E4D2", border: "1px solid var(--ft-border)", color: "#4A3D31" }}>{msg}</div>}
+            {err && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "var(--ft-sand)", border: "1px solid var(--ft-brand-deep)", color: "var(--ft-text)" }}>{err}</div>}
+            {msg && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "var(--ft-sand)", border: "1px solid var(--ft-border)", color: "var(--ft-text)" }}>{msg}</div>}
             <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-medium py-2.5 transition">
               {busy ? "Sending…" : "Send password link"}
             </button>
@@ -87,7 +87,7 @@ export default function Auth() {
           Accounts are created by your administrator. Contact them if you need access.
         </p>
       </div>
-      <div className="ft-eyebrow text-[9px] mt-4">ned · Selection Manager</div>
+      <div className="ft-eyebrow text-[9px] mt-4">the ned · Selection Manager</div>
     </div>
   );
 }

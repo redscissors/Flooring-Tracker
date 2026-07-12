@@ -13,89 +13,97 @@ body {
   font-family: var(--ft-ui);
 }
 
-/* Theme (NED): Sora display + Manrope UI, warm oak-on-sand palette from the NED
-   reskin kit (wordmark 6a, palette turn 7). Global so the login screen and app
-   share one palette; works by overriding Tailwind slate/indigo classes. Primary
-   fills are Oak 600; deep oak is reserved for eyebrows and small accent text. */
+/* Theme ("the ned" — Moss kit): ink & paper carry the entire UI in one family
+   (Manrope); Moss 600 is the single accent (the "the", links, focus, active
+   states) and the six-tone moss ramp is reserved for data series. Global so
+   the login screen and app share one palette; works by overriding Tailwind
+   slate/indigo classes. Primary fills are INK (paper in dark). */
 :root{
-  --ft-cream:#FAF8F4;            /* app background — NED paper-50 */
+  --ft-cream:#F6F3EC;            /* app background — paper */
   --ft-card:#FFFFFF;             /* surface — cards & inputs */
-  --ft-prod:#F7F1E5;
+  --ft-prod:#F1EDE2;
   --ft-field:#FFFFFF;
   --ft-fieldbar:color-mix(in oklab, var(--ft-text) 5%, var(--ft-card));
-  --ft-border:#E5DDD0;           /* line — NED border */
+  --ft-border:rgba(28,26,23,.10);           /* line — kit border */
   --ft-border-soft:color-mix(in oklab, var(--ft-text) 7%, transparent);
-  --ft-border-strong:#D6C6AC;
-  --ft-text:#221C15;             /* ink — NED ink */
-  --ft-muted:#6B6257;            /* NED text-muted */
-  --ft-accent:#8A5A2B;           /* primary fills are Oak 600 in NED */
-  --ft-accent-press:#6F4722;
-  --ft-accent-deep:#2E2418;      /* walnut-900 */
-  --ft-brand:#8A5A2B;            /* oak — markers, links, focus */
-  --ft-brand-deep:#6F4722;       /* deep oak — eyebrows, small accent text */
-  --ft-sand:#F0E4D2;             /* bands & quiet fills — NED surface-alt */
+  --ft-border-strong:rgba(28,26,23,.25);
+  --ft-text:#1C1A17;             /* ink */
+  --ft-muted:#57534C;
+  --ft-faint:#8A8378;            /* placeholders, dashes, sub-lines */
+  --ft-accent:#1C1A17;           /* primary action fills are INK in this kit */
+  --ft-accent-press:#3A3630;
+  --ft-accent-ink:#F6F3EC;       /* text on an action fill (paper on ink) */
+  --ft-accent-deep:#141210;      /* ink-900 */
+  --ft-brand:#57703A;            /* moss 600 — the accent: markers, links, focus */
+  --ft-brand-deep:#40542A;       /* moss 700 — eyebrows, small accent text */
+  --ft-sand:#EDE9DD;             /* bands & quiet fills */
   --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
   --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
   --ft-tint-border:color-mix(in oklab, var(--ft-brand) 35%, var(--ft-border));
-  --ft-deep:#2E2418;             /* walnut-900 — deep fills */
-  --ft-ui:"Manrope", ui-sans-serif, system-ui, sans-serif;    /* NED body / UI / labels */
-  --ft-display:"Sora", ui-sans-serif, system-ui, sans-serif;  /* NED headings & numerals */
-  --ft-serif:var(--ft-display);   /* legacy alias — display type is now Sora */
-  --ft-mono:var(--ft-display);    /* legacy alias — numerals use Sora */
-  --ft-logo:var(--ft-text);       /* wordmark color — ink on light */
+  --ft-deep:#1C1A17;             /* ink — deep fills */
+  --ft-ui:"Manrope", ui-sans-serif, system-ui, sans-serif;  /* the one family */
+  --ft-display:var(--ft-ui);      /* legacy alias — display type is Manrope too */
+  --ft-serif:var(--ft-display);   /* legacy alias */
+  --ft-mono:var(--ft-display);    /* legacy alias — numerals use Manrope */
+  --ft-logo:var(--ft-text);       /* wordmark "ned" — ink on light */
 
-  /* Data / spreadsheet series — NED (light); flips per mode below */
-  --ned-data-1:#B3541E; --ned-data-2:#2F6D4F; --ned-data-3:#2E5E8C;
-  --ned-data-4:#8C4A62; --ned-data-5:#A8842C; --ned-data-6:#52706B;
+  /* Data / spreadsheet series — the moss ramp, deep → pale (light); flips per
+     mode below. Charts & series lines only, never UI chrome. */
+  --ned-data-1:#2A3A1B; --ned-data-2:#40542A; --ned-data-3:#57703A;
+  --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84;
 
   /* Product-type accents — sourced from the data series so they auto-flip with
-     the mode. Change a mapping here and it propagates to every chip, row wash,
-     material box, and border in the app (Option A, hue-matched). */
-  --ft-type-tile:var(--ned-data-3);      /* slate blue */
-  --ft-type-hardwood:var(--ned-data-1);  /* terracotta */
-  --ft-type-vinyl:var(--ned-data-2);     /* forest */
-  --ft-type-laminate:var(--ned-data-5);  /* ochre */
-  --ft-type-carpet:var(--ned-data-4);    /* plum */
-  --ft-type-misc:var(--ned-data-6);      /* teal */
+     the mode. Single-hue ramp: types are told apart by depth, not hue, so the
+     most-used types get the deepest (most legible) tones. */
+  --ft-type-tile:var(--ned-data-1);      /* moss 900 */
+  --ft-type-hardwood:var(--ned-data-2);  /* moss 700 */
+  --ft-type-vinyl:var(--ned-data-3);     /* moss 600 */
+  --ft-type-carpet:var(--ned-data-4);    /* moss 500 */
+  --ft-type-laminate:var(--ned-data-5);  /* moss 400 */
+  --ft-type-misc:var(--ned-data-6);      /* moss 300 */
   --ft-type-ink:#FFFFFF;                 /* letter/icon on a filled type chip */
 
   /* Editor chrome bands & lines (flip in dark below) */
-  --ft-band:#E8D5B5;                     /* area header band */
-  --ft-row-line:#EDE4D4;                 /* divider between product rows */
+  --ft-band:#E7E3D6;                     /* area header band */
+  --ft-row-line:#ECE8DC;                 /* divider between product rows */
 
   /* Estimate paper — always light (the sheet prints white in every theme), so
      these are defined once and never overridden. */
-  --ft-paper-ink:#291D16;
-  --ft-paper-muted:#9A948A;
-  --ft-paper-faint:#B3A38D;
-  --ft-paper-rule:#C9B79D;
-  --ft-paper-band:#F0E4D2;
-  --ft-paper-footer:#EDE2D2;
+  --ft-paper-ink:#1C1A17;
+  --ft-paper-muted:#57534C;
+  --ft-paper-faint:#8A8378;
+  --ft-paper-rule:#CBC6B9;
+  --ft-paper-band:#EDE9DE;
+  --ft-paper-footer:#E4E0D3;
 
-  /* Subtle row/button hover wash (see .hover:bg-slate-50). A brand tint reads
+  /* Subtle row/button hover wash (see .hover:bg-slate-50). A moss tint reads
      well on the light rail; dark mode flips below to the same fill the active
      sort tab uses, so the hover stays in the surface family. */
   --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
 
-  /* Sidebar sort toggle — the active tab is a distinct chip: a warm sand fill
-     (the NED dark-wordmark tone) with ink text in light; a subtle card lift
-     with logo-tone text in dark. */
-  --ft-seg-on-bg:#E8D5B5;
+  /* Sidebar sort toggle — the active tab is a quiet moss wash (the kit allows
+     moss for active nav states). Resolves per mode since --ft-brand flips. */
+  --ft-seg-on-bg:color-mix(in oklab, var(--ft-brand) 16%, transparent);
   --ft-seg-on-text:var(--ft-text);
 
-  /* Elevation tint for lifted rows/cards — a warm near-black on the light rail,
-     a real black on the dark rail (where the warm tint would vanish). */
-  --ft-shadow:rgba(40,30,20,.06);
+  /* Elevation tint for lifted rows/cards. */
+  --ft-shadow:rgba(28,26,23,.06);
 }
 
-/* NED helpers — .ft-serif is Sora 500; .ft-eyebrow-accent is deep oak. */
-.ft-serif{font-family:var(--ft-serif);font-weight:500;letter-spacing:-.01em;}
+/* Kit helpers — one family, weight does the work. */
+.ft-serif{font-family:var(--ft-serif);font-weight:600;letter-spacing:-.01em;}
 .ft-mono{font-family:var(--ft-mono);}
 .ft-eyebrow{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
 .ft-eyebrow-accent{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand-deep);}
-/* NED wordmark ("ned", lowercase Manrope bold) + uppercase tagline lockup. */
-.ft-wordmark{font-family:var(--ft-ui);font-weight:700;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);line-height:1;}
-.ft-tagline{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.22em;color:var(--ft-accent);line-height:1;}
+/* "the ned" wordmark lockups (pure type). Stacked is primary: "the" in moss
+   sits snug above the "n" (negative margin absorbs the font leading). Inline
+   is for horizontal spaces (print footer). Size via font-size on the root. */
+.ft-wordmark-stacked{display:inline-flex;flex-direction:column;align-items:flex-start;font-family:var(--ft-ui);font-weight:700;font-size:1em;line-height:1;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);}
+.ft-wordmark-stacked .the{font-size:.265em;font-weight:600;letter-spacing:.02em;color:var(--ft-brand);margin:0 0 -.78em .22em;}
+.ft-wordmark-inline{display:inline-flex;align-items:baseline;gap:.06em;font-family:var(--ft-ui);font-weight:700;font-size:1em;line-height:1;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);}
+.ft-wordmark-inline .the{font-size:.38em;font-weight:600;letter-spacing:-.01em;color:var(--ft-brand);}
+/* Tagline lockup: ink/paper, never accent (kit rule). */
+.ft-tagline{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.3em;color:var(--ft-logo);line-height:1;}
 /* Merged materials box: line separators carry the row's type accent
    (--mat-acc is set inline where the box renders). Mixed over --ft-border, not
    transparent, so the line still reads on the dark surface. */
@@ -109,7 +117,10 @@ body {
 .ft-fieldbar input[type="number"]{-moz-appearance:textfield;appearance:textfield;}
 .ft-fieldbar input[type="number"]::-webkit-outer-spin-button,
 .ft-fieldbar input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-.bg-indigo-600{background-color:var(--ft-accent);}
+/* Action fills own their text color so the kit's dark flip (paper button, ink
+   text) survives the hardcoded `text-white` on these buttons. */
+.bg-indigo-600{background-color:var(--ft-accent);color:var(--ft-accent-ink);}
+.bg-indigo-600 .text-white\/70{color:color-mix(in oklab, var(--ft-accent-ink) 70%, transparent);}
 .bg-indigo-50{background-color:var(--ft-tint);}
 .bg-indigo-50\/40{background-color:var(--ft-tint);}
 .bg-indigo-100{background-color:var(--ft-tint);}
@@ -136,7 +147,7 @@ body {
 .ft-seg-off{color:var(--ft-muted);}
 .ft-seg-off:hover{background-color:var(--ft-sand);}
 /* Sidebar list labels (customer & project names) read in the wordmark tone
-   (ink in light, warm cream in dark) so the list matches the "ned" logo. */
+   (ink in light, paper in dark) so the list matches the "ned" logo. */
 .ft-item-name{color:var(--ft-logo);}
 .hover\:bg-indigo-700:hover{background-color:var(--ft-accent-press);}
 .hover\:text-indigo-700:hover{color:var(--ft-brand);}
@@ -152,66 +163,65 @@ input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text
 .ft-cell{width:100%;min-width:0;background:transparent;border:none;padding:6px 8px;font:inherit;color:inherit;outline:none;border-radius:0;}
 .ft-cell:focus{box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card);}
 select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
-.ft-cell::placeholder{color:#B3A38D;}
+.ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
    carton Order cell draws its own slim stepper instead. */
 .ft-cell::-webkit-outer-spin-button,.ft-cell::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 input.ft-cell[type="number"]{-moz-appearance:textfield;}
 
-/* Corner radius — editorial panels & controls at 5px; pills stay full. */
-:root{--ft-r:5px;--ft-r-lg:5px;}
+/* Corner radius — kit shape scale: 8px chips/inputs, 14px cards; pills stay full. */
+:root{--ft-r:8px;--ft-r-lg:14px;}
 .rounded-sm,.rounded,.rounded-md{border-radius:var(--ft-r);}
 .rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl{border-radius:var(--ft-r-lg);}
 
-/* Dark mode (NED kit palette, turn 7). Driven by the .ned-dark / .ned-light
-   classes App.jsx sets on <html> from the saved theme preference; "System"
-   removes both and lets the prefers-color-scheme block below decide. Only the
-   --ft-* tokens flip — the estimate paper opts back into light via .ft-light.
-   Accent FILL stays oak-600 so the app's white-on-accent buttons keep their
-   contrast; oak-400 is used for links/eyebrows (--ft-brand*) where text sits
-   directly on the dark background. */
+/* Dark mode (Moss kit). Driven by the .ned-dark / .ned-light classes App.jsx
+   sets on <html> from the saved theme preference; "System" removes both and
+   lets the prefers-color-scheme block below decide. Only the --ft-* tokens
+   flip — the estimate paper opts back into light via .ft-light. Action fills
+   flip to paper-on-ink (the .bg-indigo-600 rule carries the text color), and
+   moss brightens so it reads on ink. */
 .ned-dark{
-  --ft-cream:#221C15; --ft-card:#2E2418; --ft-prod:#362A1D; --ft-field:#2E2418;
-  --ft-border:#453729; --ft-border-strong:#574734;
-  --ft-text:#F0E4D2; --ft-muted:#B3A48D;
-  --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#F0E4D2;
-  --ft-brand:#C8A06A; --ft-brand-deep:#C8A06A;
-  --ft-sand:#453729; --ft-deep:#52412E; --ft-logo:#E8D5B5;
-  --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
-  --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
-  --ft-band:#3E3120; --ft-row-line:#45392A; --ft-type-ink:#221C15;
+  --ft-cream:#1C1A17; --ft-card:#26231F; --ft-prod:#2B2721; --ft-field:#26231F;
+  --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+  --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C;
+  --ft-accent:#F6F3EC; --ft-accent-press:#E4E0D5; --ft-accent-ink:#1C1A17; --ft-accent-deep:#F6F3EC;
+  --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
+  --ft-sand:#33302A; --ft-deep:#4A453D; --ft-logo:#F6F3EC;
+  --ned-data-1:#6B8A44; --ned-data-2:#7FA055; --ned-data-3:#93B56A;
+  --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2;
+  --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
   --ft-hover:var(--ft-fieldbar);
-  --ft-seg-on-bg:var(--ft-fieldbar); --ft-seg-on-text:var(--ft-logo);
   --ft-shadow:rgba(0,0,0,.4);
 }
 @media (prefers-color-scheme: dark){
   :root:not(.ned-light):not(.ned-dark){
-    --ft-cream:#221C15; --ft-card:#2E2418; --ft-prod:#362A1D; --ft-field:#2E2418;
-    --ft-border:#453729; --ft-border-strong:#574734;
-    --ft-text:#F0E4D2; --ft-muted:#B3A48D;
-    --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#F0E4D2;
-    --ft-brand:#C8A06A; --ft-brand-deep:#C8A06A;
-    --ft-sand:#453729; --ft-deep:#52412E; --ft-logo:#E8D5B5;
-    --ned-data-1:#D97B44; --ned-data-2:#5FA37F; --ned-data-3:#6E9CC9;
-    --ned-data-4:#B87791; --ned-data-5:#CBA84E; --ned-data-6:#7E9C97;
-    --ft-band:#3E3120; --ft-row-line:#45392A; --ft-type-ink:#221C15;
+    --ft-cream:#1C1A17; --ft-card:#26231F; --ft-prod:#2B2721; --ft-field:#26231F;
+    --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+    --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C;
+    --ft-accent:#F6F3EC; --ft-accent-press:#E4E0D5; --ft-accent-ink:#1C1A17; --ft-accent-deep:#F6F3EC;
+    --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
+    --ft-sand:#33302A; --ft-deep:#4A453D; --ft-logo:#F6F3EC;
+    --ned-data-1:#6B8A44; --ned-data-2:#7FA055; --ned-data-3:#93B56A;
+    --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2;
+    --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
     --ft-hover:var(--ft-fieldbar);
-    --ft-seg-on-bg:var(--ft-fieldbar); --ft-seg-on-text:var(--ft-logo);
     --ft-shadow:rgba(0,0,0,.4);
   }
 }
 /* The estimate paper is a printed white sheet — re-assert the light tokens on
    its subtree so it stays light in every app theme (on screen and in print). */
 .ft-light{
-  --ft-cream:#FAF8F4; --ft-card:#FFFFFF; --ft-prod:#F7F1E5; --ft-field:#FFFFFF;
-  --ft-border:#E5DDD0; --ft-border-strong:#D6C6AC;
-  --ft-text:#221C15; --ft-muted:#6B6257;
-  --ft-accent:#8A5A2B; --ft-accent-press:#6F4722; --ft-accent-deep:#2E2418;
-  --ft-brand:#8A5A2B; --ft-brand-deep:#6F4722;
-  --ft-sand:#F0E4D2; --ft-deep:#2E2418; --ft-logo:#221C15;
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-prod:#F1EDE2; --ft-field:#FFFFFF;
+  --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+  --ft-accent:#1C1A17; --ft-accent-press:#3A3630; --ft-accent-ink:#F6F3EC; --ft-accent-deep:#141210;
+  --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-sand:#EDE9DD; --ft-deep:#1C1A17; --ft-logo:#1C1A17;
+  --ned-data-1:#2A3A1B; --ned-data-2:#40542A; --ned-data-3:#57703A;
+  --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84;
+  --ft-band:#E7E3D6; --ft-row-line:#ECE8DC; --ft-type-ink:#FFFFFF;
   --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
-  --ft-seg-on-bg:#E8D5B5; --ft-seg-on-text:var(--ft-text);
-  --ft-shadow:rgba(40,30,20,.06);
+  --ft-shadow:rgba(28,26,23,.06);
 }
 
 @media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }
