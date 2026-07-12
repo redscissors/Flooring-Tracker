@@ -36,10 +36,15 @@ Wanted on top of that:
 ## Where the full design lives
 
 `design.md` in this directory — data model, markup engine, import pipeline,
-UI shape, phasing, and the remaining open questions. Real vendor sheets are
-analyzed under `sheets/` (first: the Virginia Tile EFT list, 6,792 items —
-`sheets/vtc-eft-2025-07-28.md`; the raw .xls stays out of the repo since it
-carries the shop's dealer costs).
+UI shape, phasing, and the remaining open questions. Real sheets are analyzed
+under `sheets/` (raw files stay out of the repo — they carry the shop's
+costs/pricing):
+
+- `sheets/vtc-eft-2025-07-28.md` — Virginia Tile EFT special-order list,
+  6,792 items, dealer cost + per-item freight flags.
+- `sheets/schluter-wedi-stock-2026-07-12.md` — two shop *stock* sheets; the
+  current parser already consumes both except one header alias, and the Wedi
+  file surfaces the retail-vs-contractor tier question (Q5).
 
 ## Status
 

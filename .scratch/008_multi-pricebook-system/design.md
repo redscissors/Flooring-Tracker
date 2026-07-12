@@ -47,7 +47,13 @@ header; a new sheet that is a flooring-type sheet additionally needs its one
 line in `SHEET_TYPE`, otherwise its items land as accessory/misc lines).
 
 **RESOLVED (Q4, 2026-07-12):** there is one stock workbook today, but more
-pages will be added and *more stock workbooks are possible later*. So the new
+pages will be added and more stock workbooks are real — two arrived the same
+day (Schluter + Wedi shop sheets, `sheets/schluter-wedi-stock-2026-07-12.md`).
+They use the main workbook's own table idiom and shop SKUs; the current parser
+already consumes them fully except for one missing header alias
+(`"Retail Price"` → price), so there is a **bridge available before the
+registry exists**: add the alias and paste their Retail pages into the main
+workbook. Long-term they become `kind='stock'` registry books. So the new
 book registry carries a `kind` (`stock` | `order`) from day one instead of
 being special-order-only: a future second stock workbook becomes a
 `price_books` row with `kind = 'stock'`, its items in `price_book_items`, and
@@ -224,6 +230,18 @@ everything, so costs and margins are visible to every signed-in user in the
 book UI and (if §8 ships) on the internal estimate view. Print never shows
 them. Confirm that's acceptable — changing it would be the first crack in the
 team-trust model and needs its own ADR.
+
+**OPEN QUESTION Q5 — price tiers (retail vs contractor).** The Wedi stock
+sheets maintain two selling tiers: retail and contractor at 0.82 × retail,
+with per-item exceptions (`sheets/schluter-wedi-stock-2026-07-12.md`).
+FloorTrack has one price per item and no job-level pricing concept. Proposed
+split: *capture* tier prices at import when a tier sheet/column exists
+(`data.tierPrices: { contractor: n }` — cheap, the data is there, normalizers
+extended as usual), but *using* them — a job or Builder (ADR 0005) selecting
+contractor pricing, flat multiplier vs per-item tiers — is a separate decision
+with its own ADR, not part of the price book work. Owner: how do contractor
+quotes actually get priced today, and should FloorTrack know about tiers at
+all?
 
 ---
 
@@ -415,7 +433,8 @@ working. No SQL runs until the owner runs `supabase/pricebooks.sql` by hand.
 
 | Phase | Delivers | Depends on |
 |---|---|---|
-| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Owner answers Q2-Q3 (Q1/Q4 resolved) |
+| Bridge (anytime) | `retailprice`/`mfgsku` header aliases in `src/pricebook.js` (+ tests); team pastes the Schluter/Wedi *Retail* pages into the main workbook — both sheets then import through the existing flow | nothing — independent of the registry |
+| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Owner answers Q2/Q3/Q5 (Q1/Q4 resolved) |
 | 1 | Book registry (kind-aware) + generic mapped import + browse/search per book (costs visible, flat default markup only) | Phase 0, first test vendor sheet |
 | 2 | Markup editor (default + per-section) + freight modes (perSqft fold-in, perJob auto-added misc line), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults | Phase 1 |
 | 3 | Cross-space SKU search on selection rows with stock priority + collision rule | Phase 2 |
