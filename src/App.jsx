@@ -702,19 +702,13 @@ export default function App({ user, onSignOut }) {
   // when the drop target changes, to redraw the insertion bar / area highlight.
   const [drag, setDrag] = useState(null);
   const [insOpen, setInsOpen] = useState({});
-  // Which products' materials drawers are expanded — view state only, never
-  // persisted. Collapsed shows fine-print summaries of the checked materials.
+  // Which product's materials drawer is open — view state only, never
+  // persisted, and only one at a time: it opens as a modal that floats over the
+  // rows below rather than pushing them down. A full-screen backdrop under the
+  // drawer blocks every other field and folds the drawer when clicked (anywhere
+  // outside the drawer or its note). Collapsed rows show fine-print summaries of
+  // the checked materials. See the matExpanded overlay in the grid below.
   const [matOpen, setMatOpen] = useState({});
-  // Clicking anywhere outside a drawer (or its pill/chevron/note, marked
-  // data-mats-keep) folds every open drawer back to its summary pill.
-  useEffect(() => {
-    const close = (e) => {
-      if (e.target.closest?.("[data-mats-keep]")) return;
-      setMatOpen((o) => (Object.values(o).some(Boolean) ? {} : o));
-    };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, []);
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const mainRef = useRef(null);
@@ -1868,10 +1862,13 @@ export default function App({ user, onSignOut }) {
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(a, settings);
+                  const areaMatOpen = a.products.some((pp) => matOpen[pp.id]);
                   return (
-                  // overflow-hidden lifts while a card is dragged so the floating
-                  // card isn't clipped at its home area's edge.
-                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
+                  // overflow-hidden lifts while a card is dragged (so the floating
+                  // card isn't clipped at its home area's edge) and while one of its
+                  // products' materials drawers is open (so the drawer can float past
+                  // the card's bottom edge without being clipped).
+                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
                     <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "8px 14px" }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
@@ -1947,7 +1944,8 @@ export default function App({ user, onSignOut }) {
                         const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
                         const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
                         const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked);
-                        const openMats = () => setMatOpen((o) => ({ ...o, [p.id]: true }));
+                        const openMats = () => setMatOpen({ [p.id]: true });
+                        const closeMats = () => setMatOpen({});
                         const addables = p.type === "misc" ? [] : [
                           ...(p.type === "tile" && !p.grout.checked ? ["Grout"] : []),
                           ...(p.type === "tile" && !p.mortar.checked ? ["Mortar"] : []),
@@ -1974,12 +1972,16 @@ export default function App({ user, onSignOut }) {
                         // The materials box and its collapsed summary chip both carry the
                         // light hairline border.
                         const chipBorder = "1px solid var(--ft-border)";
+                        // When the drawer is open the owning row + drawer form one sharp,
+                        // undimmed unit framed by a double border (row draws the top & sides,
+                        // the drawer the sides & bottom, so they read as a single box).
+                        const matBorder = "3px double color-mix(in oklab, var(--ft-text) 45%, var(--ft-prod))";
+                        const rowOpen = matExpanded && p.type !== "misc";
                         // The note lives inside the tinted wrap, hugging the chip's
                         // bottom edge; rows with no wrap fall back to a cream note row.
                         const noteInput = (
                           <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
                         );
-                        const matWrapped = (matExpanded && p.type !== "misc") || (!matExpanded && pInline.length > 0) || (!matExpanded && !hasMats && addables.length > 0);
                         const searchMode = rowBlank(p) && !manualRows[p.id];
                         const omniText = omniQ[p.id] || "";
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
@@ -1989,6 +1991,7 @@ export default function App({ user, onSignOut }) {
                           // card — collapsed through, it painted a white strip between rows
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{
                             display: "flow-root",
+                            position: "relative",
                             background: "var(--ft-prod)",
                             borderBottom: "1px solid var(--ft-grid-line)",
                           }}>
@@ -2006,14 +2009,14 @@ export default function App({ user, onSignOut }) {
                                   onManual={() => goManual()}
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
-                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
                             </div>
                             ) : (<>
                             {/* main product row */}
-                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint }}>
+                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                                 {/* no expand carrot — the materials pill opens the drawer,
@@ -2073,7 +2076,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
-                              <div data-mats-keep className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
+                              <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
@@ -2097,16 +2100,21 @@ export default function App({ user, onSignOut }) {
                                 {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
                               </div>
                             )}
-                            {/* material child boxes (expanded) — every applicable material shows,
-                                checked (full controls) or unchecked (slim dashed card, click ✓ to add) */}
+                            {/* Materials footer. The collapsed pill/summary/note (below)
+                                stays in normal flow so opening the drawer never reflows the
+                                page; the open drawer is a modal that overlays that footprint
+                                (absolute, top:0) and floats down over the rows below. A
+                                dimmed, lightly blurred backdrop covers everything else —
+                                signalling the drawer must be clicked out of — and folds it
+                                when clicked. Each material shows checked (full controls) or
+                                unchecked (slim card, click ✓ to add). */}
+                            {(pInline.length > 0 || (!hasMats && addables.length > 0) || p.note || (matExpanded && p.type !== "misc")) && (
+                            <div style={{ position: "relative" }}>
                             {matExpanded && p.type !== "misc" && (
-                              // Materials box: the same paper wash as the row (it does not
-                              // darken on expand), a light hairline outline, and thin
-                              // accent-tinted separators between sections (the .ft-mats
-                              // rule in index.css, via --mat-acc). The row's wash wraps the
-                              // box; the actions column stays cream.
-                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <div data-mats-keep className="ft-mats" style={{ background: matBoxBg, border: chipBorder, overflow: "hidden", "--mat-acc": accent }}>
+                              <>
+                              <div className="ft-noprint" style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(20,15,10,.14)", backdropFilter: "blur(0.6px)", WebkitBackdropFilter: "blur(0.6px)" }} onClick={closeMats} />
+                              <div style={{ position: "absolute", left: 0, top: 0, zIndex: 45, width: "100%", background: rowTint, padding: "4px 8px 7px 26px", borderLeft: matBorder, borderRight: matBorder, borderBottom: matBorder, boxShadow: "0 10px 24px rgba(20,15,10,.16)" }}>
+                              <div className="ft-mats" style={{ background: matBoxBg, border: chipBorder, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -2233,10 +2241,11 @@ export default function App({ user, onSignOut }) {
                               </div>
                               {noteInput}
                               </div>
+                              </>
                             )}
-                            {!matExpanded && pInline.length > 0 && (
-                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
+                            {pInline.length > 0 && (
+                              <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
+                              <button onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -2248,18 +2257,20 @@ export default function App({ user, onSignOut }) {
                               {p.note ? noteInput : null}
                               </div>
                             )}
-                            {!matExpanded && !hasMats && addables.length > 0 && (
-                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
+                            {pInline.length === 0 && !hasMats && addables.length > 0 && (
+                              <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
+                              <button onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                               {p.note ? noteInput : null}
                               </div>
                             )}
-                            {!matWrapped && (matExpanded || p.note) && (
-                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
+                            {pInline.length === 0 && (hasMats || addables.length === 0) && p.note && (
+                              <div className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
                                 {noteInput}
                               </div>
+                            )}
+                            </div>
                             )}
                             </>)}
                           </div>
