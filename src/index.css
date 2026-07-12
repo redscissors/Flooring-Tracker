@@ -175,6 +175,10 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
    they read as clickable. */
 .ft-mat-toggle{transition:transform .12s ease;}
 .ft-mat-toggle:hover{transform:scale(1.15);}
+/* Full-width type-menu rows grow gently from their left edge (a 1.15 pop would
+   jump a 176px row) — the menu clips the overflow. */
+.ft-grow-row{transition:transform .12s ease;transform-origin:left center;}
+.ft-grow-row:hover{transform:scale(1.06);}
 .ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
    carton Order cell draws its own slim stepper instead. */

@@ -468,7 +468,7 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
     <div className={`relative shrink-0 ${compact ? "self-stretch flex" : ""}`}>
       {compact ? (
         <button ref={setBtn} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={blank ? "Pick a material type" : `Product type — ${TLBL[type]} (click to change)`}
-          className="shrink-0 flex items-center justify-center font-bold leading-none"
+          className="ft-mat-toggle shrink-0 flex items-center justify-center font-bold leading-none"
           style={blank
             ? { width: 18, background: "var(--ft-field, #fff)", color: "var(--ft-muted)", fontSize: 10, margin: "6px 0", border: "1px dashed var(--ft-border)" }
             : { width: 18, background: accent, color: "var(--ft-type-ink)", fontSize: 10, margin: "6px 0" }}>
@@ -485,12 +485,12 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
       )}
       {open && pos && createPortal(
         <div ref={panelRef} style={{ position: "fixed", top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176 }}
-          className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
+          className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 overflow-hidden">
           {TYPES.map((t) => {
             const on = !blank && t === type;
             return (
               <button key={t} onClick={() => { onChange(t); setOpen(false); }}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-slate-50 ${on ? "font-semibold" : "text-slate-700"}`}
+                className={`ft-grow-row w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-slate-50 ${on ? "font-semibold" : "text-slate-700"}`}
                 style={on ? { color: TYPE_ACCENT[t] } : undefined}>
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TYPE_ACCENT[t], opacity: on ? 1 : 0.65 }} />
                 {TLBL[t]}
