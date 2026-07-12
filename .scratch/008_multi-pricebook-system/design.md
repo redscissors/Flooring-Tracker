@@ -106,10 +106,16 @@ Stock-kind books in the registry differ from order books only in what the
 and their items store `price`/`priceSqft` like `stock_items` rows rather than
 `cost`.
 
-Sizing check: 30 books × ~700 items ≈ 20k rows. That is nothing for Postgres,
-but it is too much to eagerly load into the browser at sign-in the way `stock`
-is loaded today. Order books load their items **lazily** — when a book is
-opened in Settings, and (for search) via a server-side query. See §6.
+Sizing check — revised against the first real vendor sheet (the VTC EFT list,
+see `sheets/vtc-eft-2025-07-28.md`): **6,792 items in one book**, ~10× the
+stock book, so 30 books ≈ 200k rows. Still trivial for Postgres, but eager
+client-side loading of all books is off the table, not a hedge: registry-book
+items load **lazily** (a book's items when opened in Settings) and the
+selection-row search over them is a **server-side query** from Phase 1 (§6).
+Item shape gains fields this sheet proved necessary: `mfg` (the markup group
+key), `leadTime` (READY SHIP / IMPORT / MADE TO ORDER — a salesperson must see
+this at pick time), `msrp` (the vendor's consumer-level price, reference
+only), and `freightFlag` (per-item freight marker).
 
 ### 2.3 What lands on a Selection
 
@@ -149,19 +155,23 @@ model below stands as designed; freight gets its own rule (point 6).
 
    ```
    markups: {
+     groupBy: "mfg",                     // which item field keys the overrides —
+                                         // chosen at mapping time (mfg, section,
+                                         // productLine…)
      default: 45,                        // percent over cost
-     bySection: { "LVP": 40, "Trim & Moldings": 60 }
+     byGroup: { "CER": 60, "FLO": 40 }
    }
    ```
 
-   The per-group keys are the book's own **section names** (the importer
-   already extracts sections from every layout it understands — same field the
-   stock book uses). The markup editor in the book's detail view lists the
-   sections actually present in the imported items, each with an optional
-   override, plus the book default. No free-form matcher language: the groups
-   you can price are the groups the sheet actually has. A section that appears
-   in a future re-import and has no override quietly uses the default — and the
-   import preview says so ("2 new sections, using default markup").
+   The group axis is **a column designated during import mapping**, not
+   hardwired to the parser's section field — the VTC sheet proved why: it has
+   no sections, and its natural axes are manufacturer (14 values, editable by
+   hand) vs product line (150 values, not). The markup editor lists the values
+   actually present in the imported items, each with an optional override,
+   plus the book default. No free-form matcher language: the groups you can
+   price are the groups the sheet actually has. A value that appears in a
+   future re-import with no override quietly uses the default — and the import
+   preview says so ("2 new manufacturers, using default markup").
 3. **Sell price is computed at display/pick time**, not import time:
    `sell = round2(cost × (1 + pct/100))`. Baking sell prices into items at
    import would make a markup change either silently wrong or require
@@ -198,7 +208,16 @@ model below stands as designed; freight gets its own rule (point 6).
    A book can use both (rare, but a vendor with a fuel surcharge per order
    *and* freight-in cost exists); `amount` becomes `{ perSqft, perJob }` if
    that materializes — start with one mode per book until a real sheet
-   demands otherwise.
+   demands otherwise. Freight, like markup, can be overridden per group
+   (`byGroup`) since "per manufacturer" charges live inside one distributor
+   book (VTC carries 14 manufacturers).
+
+   **Per-item freight flags (from the VTC sheet):** some vendors mark
+   individual items as carrying additional freight (VTC's `*` flag — 312
+   oversized-slab items). Flagged items store `freightFlag: true`; picking one
+   shows a "freight applies" chip and offers the per-job freight line even
+   when the book's default mode is `none`. The flag never silently changes a
+   price — it surfaces, the human decides.
 
 **OPEN QUESTION Q2 — who sees cost.** Per ADR 0004 the whole team sees
 everything, so costs and margins are visible to every signed-in user in the
@@ -220,9 +239,17 @@ code:
    same as today).
 2. The generic table detector (the `parseTables` machinery already handles
    header rows, sections, carried colors) proposes a column mapping:
-   which column is SKU, description, cost, unit, size, coverage…
+   which column is SKU, description, cost, unit, size, coverage… It must scan
+   for the header row rather than assume the top (VTC's header sits at row 14
+   under a title/legend block), and it must let the user label **headerless
+   columns** — VTC's description and status-flag columns have no header text,
+   so a header-name-only mapper would lose both.
 3. The user confirms/fixes the mapping in a preview grid showing the first
-   rows parsed both ways. **The mapping is saved on the book**
+   rows parsed both ways. The mapping includes: which sheet holds the data
+   (vendors ship helper/index/legend sheets alongside — VTC has four, one
+   real), the **markup group column** (§3), and a **flag legend** for status
+   columns (VTC: `xx` → discontinued, `*` → freight flag, `•` → made-to-order,
+   `◪` → transitioning). **The mapping is saved on the book**
    (`data.mapping`), so every re-import of that vendor's sheet is one click.
 4. Diff preview → apply, byte-for-byte the same flow as the stock import:
    added / changed / retired counts, chunked upserts, `active=false` for
@@ -231,9 +258,10 @@ code:
 
 Per-vendor **SKU patterns**: the stock book's `/^\d{4,8}$/` rule is what makes
 a rearranged sheet degrade to visible missing-counts instead of garbage rows.
-Vendor SKUs won't all be 4-8 digits, so each book carries its own pattern
-(`data.skuPattern`, default "1-20 alphanumeric chars, at least one digit"),
-inferred at first mapping and editable. The degradation rule itself —
+Vendor SKUs won't all be 4-8 digits (VTC item codes are 9-16 alphanumeric
+chars, zero of which the stock regex would accept), so each book carries its
+own pattern (`data.skuPattern`, default "1-20 alphanumeric chars, at least one
+digit"), inferred at first mapping and editable. The degradation rule itself —
 *a row is only consumed if its SKU cell matches the pattern* — is kept, it's
 the parser's honesty guarantee.
 
@@ -290,10 +318,15 @@ order books it becomes a two-tier search:
 4. The result cap lesson from issue 005 carries over: always show
    "Showing 30 of N", never truncate silently.
 
-Mechanics: registry-book items are not eagerly loaded at sign-in (§2.2). Search
-over them uses a Supabase query (`ilike` over a generated search text column,
-or loads active books' items once on first search and caches — Phase 3 decides
-based on measured size; at 10 books eager-after-first-use is likely fine).
+Mechanics: registry-book items are not eagerly loaded at sign-in (§2.2), and
+the VTC sheet settled the earlier hedge — at ~6.8k items per book,
+load-everything-on-first-search dies around book three. Search over registry
+books is a **Supabase server-side query** (`ilike` over a generated
+search-text column on `price_book_items`, indexed with `pg_trgm`), debounced
+from the SKU box; stock results stay instant from the in-memory list, order
+results stream in behind them. Search results show the item's lead time
+("IMPORT" vs "READY SHIP") next to the sell price — a salesperson quoting a
+made-to-order slab needs to know before picking, not after.
 
 ---
 

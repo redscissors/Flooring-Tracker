@@ -36,8 +36,10 @@ Wanted on top of that:
 ## Where the full design lives
 
 `design.md` in this directory — data model, markup engine, import pipeline,
-UI shape, phasing, and the open questions that need owner answers before the
-first special-order test sheets arrive.
+UI shape, phasing, and the remaining open questions. Real vendor sheets are
+analyzed under `sheets/` (first: the Virginia Tile EFT list, 6,792 items —
+`sheets/vtc-eft-2025-07-28.md`; the raw .xls stays out of the repo since it
+carries the shop's dealer costs).
 
 ## Status
 
