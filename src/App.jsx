@@ -690,6 +690,44 @@ const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, s
 const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
 const AUTO_KEEP = 5;
 
+// Animated light/dark switch (RiccardoRapelli sun/moon toggle, Uiverse.io) —
+// a quick binary shortcut for the three-way theme control in Settings. Checked
+// = dark; toggling writes an explicit "light"/"dark" (leaving "System").
+function ThemeSwitch({ theme, setTheme }) {
+  const sysDark = typeof window !== "undefined" && window.matchMedia
+    ? window.matchMedia("(prefers-color-scheme: dark)").matches : false;
+  const dark = theme === "dark" || (theme === "system" && sysDark);
+  const circle = <circle cx="50" cy="50" r="50" />;
+  const starPath = "M 10 0 C 10 5 5 10 0 10 C 5 10 10 15 10 20 C 10 15 15 10 20 10 C 15 10 10 5 10 0 Z";
+  return (
+    <label className="ft-theme-switch" title={dark ? "Dark mode — switch to light" : "Light mode — switch to dark"}>
+      <input id="ft-theme-cb" type="checkbox" checked={dark} onChange={() => setTheme(dark ? "light" : "dark")} />
+      <div className="slider round">
+        <div className="sun-moon">
+          <svg id="moon-dot-1" className="moon-dot" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="moon-dot-2" className="moon-dot" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="moon-dot-3" className="moon-dot" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="light-ray-1" className="light-ray" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="light-ray-2" className="light-ray" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="light-ray-3" className="light-ray" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-1" className="cloud-dark" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-2" className="cloud-dark" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-3" className="cloud-dark" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-4" className="cloud-light" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-5" className="cloud-light" viewBox="0 0 100 100">{circle}</svg>
+          <svg id="cloud-6" className="cloud-light" viewBox="0 0 100 100">{circle}</svg>
+        </div>
+        <div className="stars">
+          <svg id="star-1" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+          <svg id="star-2" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+          <svg id="star-3" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+          <svg id="star-4" className="star" viewBox="0 0 20 20"><path d={starPath} /></svg>
+        </div>
+      </div>
+    </label>
+  );
+}
+
 export default function App({ user, onSignOut }) {
   const [data, setData] = useState(() => ({ projects: [], people: [], builders: [], settings: normalizeSettings() }));
   const [loading, setLoading] = useState(true);
@@ -1778,6 +1816,9 @@ export default function App({ user, onSignOut }) {
             </>)}
           </div>
           <div className="p-2.5 border-t border-slate-100">
+            <div className="flex mb-2">
+              <ThemeSwitch theme={theme} setTheme={setTheme} />
+            </div>
             <div className="flex gap-2">
               <button onClick={() => { setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
               <button onClick={openTodos} title="Team issues & to-do list" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
