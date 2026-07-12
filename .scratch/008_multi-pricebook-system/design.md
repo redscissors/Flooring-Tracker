@@ -2,8 +2,9 @@
 
 Groundwork for growing FloorTrack's single stock price book into a managed
 library of 10-30 books — stock and special-order — without breaking any of the
-promises the current system makes. Written 2026-07-12; nothing here is decided
-yet. Sections marked **PROPOSED** need owner sign-off; **OPEN QUESTION**
+promises the current system makes. Written 2026-07-12; the owner answered Q1
+and Q4 the same day (marked **RESOLVED** inline, design updated accordingly).
+Sections marked **PROPOSED** need owner sign-off; remaining **OPEN QUESTION**
 sections need owner answers before implementation starts.
 
 ---
@@ -40,24 +41,36 @@ and "stock outranks special order" is structural rather than a ranking rule.
 
 The "stock space" in the UI is this book. Its ~9 internal sheets already carry
 `sheet`/`section` on every item, so the browse UI can present them as separate
-sheets without any schema change. (If a *second* stock workbook ever appears,
-it can import into the same table — the importer already merges sheets — or
-this decision gets revisited. See open question Q4.)
+sheets without any schema change — **new pages added to the workbook flow in
+automatically** (the generic table parser handles any sheet with a "SKU"
+header; a new sheet that is a flooring-type sheet additionally needs its one
+line in `SHEET_TYPE`, otherwise its items land as accessory/misc lines).
 
-### 2.2 New tables for special-order books
+**RESOLVED (Q4, 2026-07-12):** there is one stock workbook today, but more
+pages will be added and *more stock workbooks are possible later*. So the new
+book registry carries a `kind` (`stock` | `order`) from day one instead of
+being special-order-only: a future second stock workbook becomes a
+`price_books` row with `kind = 'stock'`, its items in `price_book_items`, and
+it participates in stock-first search ranking by kind (§6). The existing
+`stock_items` table still stays untouched as the *first* stock book (reserved
+id `'stock'`) — no migration, ADR 0003 intact.
+
+### 2.2 New tables: the book registry
 
 ```sql
-order_books (
+price_books (
   id          text primary key,          -- client uid(), like customers
+  kind        text not null,             -- 'stock' | 'order'
   name        text,                      -- "Shaw 2026 Q3", "Daltile SO list"
   active      boolean default true,      -- retired books hide from search/UI
   data        jsonb,                     -- { vendor, note, mapping, markups,
-                                         --   skuPattern, lastImport{at,by,count} }
+                                         --   freight, skuPattern,
+                                         --   lastImport{at,by,count} }
   created_at / updated_at timestamptz
 )
 
-order_items (
-  book_id     text references order_books,
+price_book_items (
+  book_id     text references price_books,
   sku         text,
   active      boolean default true,
   data        jsonb,                     -- same item shape as stock + { cost }
@@ -68,7 +81,7 @@ order_items (
 
 pricebook_versions (
   id          text primary key,
-  book_id     text,                      -- an order_books id, or 'stock' for
+  book_id     text,                      -- a price_books id, or 'stock' for
                                          -- the stock book (reserved id)
   label       text,                      -- "Import 2026-07-12" or hand-named
   imported_at timestamptz,
@@ -79,14 +92,19 @@ pricebook_versions (
 ```
 
 RLS mirrors `stock_items`: select/insert/update for any authenticated user, **no
-delete policy** on `order_items` (invariant: items are never deleted).
+delete policy** on `price_book_items` (invariant: items are never deleted).
 `pricebook_versions` gets insert/select/delete (the app prunes old versions,
 same trust model as the existing `versions` table). All three ship as one
 `supabase/pricebooks.sql` the owner runs by hand — an agent never executes it.
 
-Why one shared `order_items` table instead of a table per book: 30 books would
-mean 30 owner-run SQL files and unqueryable sprawl; `(book_id, sku)` rows keep
-imports incremental and cheap exactly like `stock_items` rows do today.
+Why one shared `price_book_items` table instead of a table per book: 30 books
+would mean 30 owner-run SQL files and unqueryable sprawl; `(book_id, sku)` rows
+keep imports incremental and cheap exactly like `stock_items` rows do today.
+
+Stock-kind books in the registry differ from order books only in what the
+`data` jsonb uses: no `markups`/`freight` (their prices are already retail),
+and their items store `price`/`priceSqft` like `stock_items` rows rather than
+`cost`.
 
 Sizing check: 30 books × ~700 items ≈ 20k rows. That is nothing for Postgres,
 but it is too much to eagerly load into the browser at sign-in the way `stock`
@@ -121,9 +139,13 @@ commit that introduces them.
 
 The heart of the special-order feature. Rules:
 
+**RESOLVED (Q1, 2026-07-12):** pricing is **percent over cost**, plus
+sometimes **extra shipping charges that are per manufacturer**. The percent
+model below stands as designed; freight gets its own rule (point 6).
+
 1. **Items store cost, never sell price.** The vendor sheet's number is the
    cost; it is imported verbatim and is the thing the vendor re-issues.
-2. **Markups live on the book**, in `order_books.data.markups`:
+2. **Markups live on the book**, in `price_books.data.markups`:
 
    ```
    markups: {
@@ -151,14 +173,32 @@ The heart of the special-order feature. Rules:
    special-order row it compares the row's `priceSqft` against
    `today's cost × today's markup` and shows both movements ("cost now $2.10,
    markup now 40% → $2.94"). One click applies, as today.
-5. Markup changes are settings-grade edits: rare, whole-record (`order_books`
+5. Markup changes are settings-grade edits: rare, whole-record (`price_books`
    row) upserts, last-write-wins — consistent with ADR 0002's accepted
    concurrency posture.
+6. **Freight (per-manufacturer shipping), two modes**, configured per book in
+   `price_books.data.freight: { mode: 'none' | 'perSqft' | 'perJob', amount }`:
 
-**OPEN QUESTION Q1 — markup basis.** Is markup always a percent over cost, or
-do some vendors need "cost + fixed $/sqft" or a rounding rule (e.g. round up
-to .x9)? The `markups` jsonb has room for either; the editor should not grow
-knobs nobody needs. Owner: how do you price special order today, exactly?
+   - **`perSqft`** — a $/sqft (or $/unit) adder treated as part of cost:
+     `sell = (cost + freight) × (1 + pct/100)`. Freight is a real cost, so the
+     markup applies on top of it — margin stays margin. Folded in at pick
+     time, snapshotted with everything else; a freight change later shows as
+     drift like any price movement. *(If some vendors' freight should NOT be
+     marked up, that's a one-boolean addition — confirm before Phase 2.)*
+   - **`perJob`** — a flat charge per manufacturer per job. Doctrine-clean
+     mechanism, reusing the existing companion-auto-add pattern (the Laticrete
+     pigment → base-unit precedent): **picking the first item from that book
+     on a job auto-adds a "Freight — {book name}" misc line** with the
+     snapshotted amount. It is a visible, editable, deletable line like any
+     other; a second pick from the same book does not add another (guard on an
+     existing freight line carrying that `bookId`). No hidden totals logic, no
+     live read at totals time, and the salesperson can waive it by deleting
+     the line.
+
+   A book can use both (rare, but a vendor with a fuel surcharge per order
+   *and* freight-in cost exists); `amount` becomes `{ perSqft, perJob }` if
+   that materializes — start with one mode per book until a real sheet
+   demands otherwise.
 
 **OPEN QUESTION Q2 — who sees cost.** Per ADR 0004 the whole team sees
 everything, so costs and margins are visible to every signed-in user in the
@@ -235,7 +275,9 @@ Costs almost nothing to add later; not in Phase 1.
 The SKU box on a selection row today searches the in-memory stock list. With
 order books it becomes a two-tier search:
 
-1. **Stock first, always.** Stock matches render first, exactly as today.
+1. **Stock first, always — by kind, not by table.** Matches from every
+   stock-kind book (the `stock_items` book plus any future `kind='stock'`
+   registry books) render first, exactly as today.
 2. **Special-order matches follow**, each badged with its book name
    ("Shaw 2026 — special order"), showing the *sell* price (cost × markup,
    computed live for display; snapshot happens only at pick).
@@ -248,7 +290,7 @@ order books it becomes a two-tier search:
 4. The result cap lesson from issue 005 carries over: always show
    "Showing 30 of N", never truncate silently.
 
-Mechanics: order-book items are not eagerly loaded at sign-in (§2.2). Search
+Mechanics: registry-book items are not eagerly loaded at sign-in (§2.2). Search
 over them uses a Supabase query (`ilike` over a generated search text column,
 or loads active books' items once on first search and caches — Phase 3 decides
 based on measured size; at 10 books eager-after-first-use is likely fine).
@@ -261,16 +303,20 @@ The Settings workspace's "Price book" section grows into the library:
 
 ```
 Price book
-├── Stock                    ← the stock book, per-sheet browse
-│   ├── [Import updated workbook]   (existing flow, unchanged)
-│   ├── sheet list → searchable item table
-│   └── Versions (last 3, rollback via preview)
+├── Stock
+│   ├── Shop workbook        ← the stock_items book, per-sheet browse
+│   │   ├── [Import updated workbook]   (existing flow, unchanged)
+│   │   ├── sheet list → searchable item table
+│   │   └── Versions (last 3, rollback via preview)
+│   └── [+ New stock book]   ← future kind='stock' registry books (Q4);
+│                              mapped import, no markups — otherwise
+│                              identical to an order book's detail view
 └── Special order
     ├── [+ New book]
     └── per book:
         ├── header: name, vendor, active toggle
         ├── Items: searchable table (search box = searchStock), inline edit
-        ├── Markups: default % + per-section overrides
+        ├── Markups: default % + per-section overrides · Freight mode
         ├── Import: upload → mapping → diff preview → apply
         └── Versions (last 3, rollback via preview)
 ```
@@ -281,7 +327,7 @@ preview components rather than inventing new ones.
 
 **Item fine-tuning.** Any item field (cost, description, size, coverage,
 discontinued) is editable inline; the edit is a single-row upsert (a new
-sanctioned write path, `updateOrderItem`) and stamps `data.editedBy/editedAt`.
+sanctioned write path, `updateBookItem`) and stamps `data.editedBy/editedAt`.
 The next import's diff preview **calls out hand-edited items explicitly**
 ("3 items you edited by hand will be overwritten") so a re-import never
 silently eats a correction. Same affordance for stock items — today the only
@@ -320,11 +366,12 @@ throwaway-prototype method before building it for real.
    markup versioning (markups are settings; the drift chip already surfaces
    the consequence).
 
-**OPEN QUESTION Q4 — how many *stock* books, really?** The design keeps the
-stock space single-book. If "some are gonna be stock items" meant several
-*separate stock workbooks* (not more sheets in the existing one), say so now —
-that changes §2.1 (stock would need book ids too) and is much cheaper to decide
-before Phase 1 than after.
+**RESOLVED (Q4, 2026-07-12):** one stock workbook today; more pages likely,
+more stock workbooks possible. Handled in §2.1/§2.2: the registry carries
+`kind` from day one, `stock_items` stays the untouched first stock book, and
+future stock workbooks join as `kind='stock'` registry books with no schema
+change. New pages in the existing workbook already flow through the generic
+table parser (a new flooring-type sheet needs one `SHEET_TYPE` line).
 
 ---
 
@@ -335,9 +382,9 @@ working. No SQL runs until the owner runs `supabase/pricebooks.sql` by hand.
 
 | Phase | Delivers | Depends on |
 |---|---|---|
-| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Owner answers Q1-Q4 |
-| 1 | Book registry + generic mapped import + browse/search per book (costs visible, flat default markup only) | Phase 0, first test vendor sheet |
-| 2 | Markup editor (default + per-section), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults | Phase 1 |
+| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Owner answers Q2-Q3 (Q1/Q4 resolved) |
+| 1 | Book registry (kind-aware) + generic mapped import + browse/search per book (costs visible, flat default markup only) | Phase 0, first test vendor sheet |
+| 2 | Markup editor (default + per-section) + freight modes (perSqft fold-in, perJob auto-added misc line), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults | Phase 1 |
 | 3 | Cross-space SKU search on selection rows with stock priority + collision rule | Phase 2 |
 | 4 | `pricebook_versions` writes on apply (stock book included) + rollback-via-preview + inline item edit with overwrite warnings | Phase 1 (can parallel 2-3) |
 | 5 | Opinions from §8 that survive owner review (margin line, staleness chips) | 2-4 |
@@ -352,6 +399,7 @@ All new logic lands in pure modules per the architecture contract:
 `src/orderbook.js` (markup resolution, sell-price calc, drift, collision
 rules, mapping application) and extensions to `src/pricebook.js` (generic
 mapped parse) — every one reachable by `node --test` with plain arrays, no
-Supabase, no SheetJS. Golden cases: markup override vs default, markup change
+Supabase, no SheetJS. Golden cases: markup override vs default, freight
+fold-in ((cost + freight) × markup) and the perJob single-add guard, markup change
 not moving a saved estimate (snapshot), rollback diff correctness, SKU
 collision → stock, hand-edit overwritten only with warning.
