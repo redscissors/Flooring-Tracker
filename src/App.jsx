@@ -548,7 +548,7 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
       <input ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
-        data-c="product" className="ft-cell ft-field font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
+        data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">

@@ -169,7 +169,7 @@ input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text
 /* Search-first cells (SKU box, product search) read as fields like the sidebar
    search bar; declared before :focus so the focus fill still wins. */
 .ft-cell.ft-field{background:var(--ft-field);}
-.ft-cell:focus{box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card);}
+.ft-cell:focus{box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card);border-radius:var(--ft-r);}
 select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
