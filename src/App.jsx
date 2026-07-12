@@ -1952,9 +1952,11 @@ export default function App({ user, onSignOut }) {
                         // The type's accent (same one on the dark type box) washes
                         // across the row to the Total cell — a 13% tint, deeper on
                         // the Total to anchor the money, and deeper still when the
-                        // materials are expanded. The card's lower chrome (pill,
-                        // note, actions column) sits on cream so the colored line
-                        // pops against it (prototype wash J, 2026-07-10).
+                        // materials are expanded. The wash continues below the row
+                        // and wraps around the materials pill/drawer (rounded at the
+                        // bottom, stopping short of the actions column); the note row
+                        // and actions column stay cream (prototype wash J, 2026-07-10,
+                        // amended: wash wraps the chip).
                         const accent = TYPE_ACCENT[p.type];
                         const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-prod))`;
                         const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-prod))`;
@@ -2074,11 +2076,14 @@ export default function App({ user, onSignOut }) {
                             {/* material child boxes (expanded) — every applicable material shows,
                                 checked (full controls) or unchecked (slim dashed card, click ✓ to add) */}
                             {matExpanded && p.type !== "misc" && (
-                              // Merged accent box (prototype mats 8): one fused box ending
-                              // flush with the Total column; checked lines fill with the
-                              // type accent, unchecked stay paper, outline + separators
-                              // carry the same hue (.ft-mats rule in index.css).
-                              <div data-mats-keep className="ft-mats" style={{ margin: "4px 44px 8px 26px", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
+                              // Merged accent box (prototype mats 8): checked lines fill
+                              // with the type accent, unchecked stay paper, outline +
+                              // separators carry the same hue (.ft-mats rule in
+                              // index.css). The row's wash continues down and wraps
+                              // around the box, ending where the tint ends in the row
+                              // above (the actions column stays cream).
+                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
+                              <div data-mats-keep className="ft-mats" style={{ background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: `color-mix(in oklab, ${accent} 12%, var(--ft-prod))` }}>
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -2203,9 +2208,11 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                               </div>
+                              </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
+                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -2214,11 +2221,14 @@ export default function App({ user, onSignOut }) {
                                 <span className="flex-1" />
                                 {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "var(--ft-muted)" }}>+ {money(matsCost)}</span>}
                               </button>
+                              </div>
                             )}
                             {!matExpanded && !hasMats && addables.length > 0 && (
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ margin: "4px 44px 8px 26px", width: "calc(100% - 70px)", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)", borderRadius: 7 }} title="Materials — click to choose">
+                              <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", background: "var(--ft-prod)", border: "1px dashed var(--ft-border)", borderRadius: 7 }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
+                              </div>
                             )}
                             {(matExpanded || p.note) && (
                               <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid var(--ft-row-line)" : "none" }}>
