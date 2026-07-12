@@ -1960,6 +1960,12 @@ export default function App({ user, onSignOut }) {
                         const accent = TYPE_ACCENT[p.type];
                         const rowTint = `color-mix(in oklab, ${accent} ${matExpanded && hasMats ? 19 : 13}%, var(--ft-prod))`;
                         const totalTint = `color-mix(in oklab, ${accent} 26%, var(--ft-prod))`;
+                        // The note lives inside the tinted wrap, hugging the chip's
+                        // bottom edge; rows with no wrap fall back to a cream note row.
+                        const noteInput = (
+                          <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
+                        );
+                        const matWrapped = (matExpanded && p.type !== "misc") || (!matExpanded && pInline.length > 0) || (!matExpanded && !hasMats && addables.length > 0);
                         const searchMode = rowBlank(p) && !manualRows[p.id];
                         const omniText = omniQ[p.id] || "";
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
@@ -2208,11 +2214,12 @@ export default function App({ user, onSignOut }) {
                                   </div>
                                 )}
                               </div>
+                              {noteInput}
                               </div>
                             )}
                             {!matExpanded && pInline.length > 0 && (
                               <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
-                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: "var(--ft-prod)", border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
+                              <button data-mats-keep onClick={() => setMatOpen((o) => ({ ...o, [p.id]: true }))} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: `1px solid color-mix(in oklab, ${accent} 45%, var(--ft-border))`, borderRadius: 7 }} title="Materials — click to edit">
                                 {pInline.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -2221,18 +2228,20 @@ export default function App({ user, onSignOut }) {
                                 <span className="flex-1" />
                                 {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "var(--ft-muted)" }}>+ {money(matsCost)}</span>}
                               </button>
+                              {p.note ? noteInput : null}
                               </div>
                             )}
                             {!matExpanded && !hasMats && addables.length > 0 && (
                               <div data-mats-keep style={{ background: rowTint, width: "calc(100% - 44px)", borderRadius: "0 0 7px 7px", padding: "4px 8px 7px 26px", marginBottom: 8 }}>
-                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", background: "var(--ft-prod)", border: "1px dashed var(--ft-border)", borderRadius: 7 }} title="Materials — click to choose">
+                              <button data-mats-keep onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)", borderRadius: 7 }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
+                              {p.note ? noteInput : null}
                               </div>
                             )}
-                            {(matExpanded || p.note) && (
-                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px", borderTop: matExpanded ? "1px solid var(--ft-row-line)" : "none" }}>
-                                <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="flex-1 min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" />
+                            {!matWrapped && (matExpanded || p.note) && (
+                              <div data-mats-keep className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
+                                {noteInput}
                               </div>
                             )}
                             </>)}
