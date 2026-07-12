@@ -61,8 +61,9 @@ shared; the per-user `app_data.data` jsonb blob now holds only that user's
 `profile` (settings moved to the shared record, ADR 0002).
 
 ```
-app_data.data : { profile: { name, phone, email } }   // per user; prints as
-                                                      // "Your salesperson" on the estimate
+app_data.data : { profile: { name, phone, email } }   // per user; stamped onto each
+                                                      // NEW project as its salesperson
+                                                      // snapshot (ADR 0008)
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at }
@@ -78,7 +79,11 @@ todo row      : { id (text pk), position (float — open-item order, smaller = h
                   // team issue / to-do list (issue 006), shared like customers
 
 Customer { id, name, address, phone, email, notes, createdAt,
-           categories: Area[], attachments: Att[] }
+           categories: Area[], attachments: Att[],
+           salesperson: { name, phone, email } | null }
+           // salesperson = snapshot of the CREATOR's profile (ADR 0008); the
+           // estimate prints it (falling back to the signed-in profile when
+           // null, i.e. pre-0008 records); editable via the header popover.
 Area     { id, name, note, products: Product[] }
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,

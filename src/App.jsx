@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
@@ -143,7 +143,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, wrapClass, wrap
     <div ref={wrapRef} className={wrapClass ?? "relative shrink-0 h-9 border-r border-slate-200"} style={wrapStyle ?? { ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey} data-c="sku"
-        className={inputClass ?? "w-full h-full px-2 py-1.5 bg-transparent focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+        className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
@@ -330,7 +330,11 @@ const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, product
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
 // column). See ADR 0005.
-const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [] });
+// salesperson is SNAPSHOTTED from the creator's profile at addProject time and
+// never read live again — projects are team-shared, so without the snapshot a
+// teammate opening the job would print THEIR name on the estimate. Editable
+// only through the header's salesperson popover.
+const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [], salesperson: null });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -341,7 +345,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // so grout alone showed "—". Default them like a fresh row.
 const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [] });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
 // real column. personData is what gets written back to the jsonb.
@@ -401,6 +405,38 @@ function MetaChip({ icon: Icon, label, value, active, onClick }) {
       <Icon size={13} className="opacity-70" />
       {value ? <span className="max-w-[12rem] truncate font-medium text-slate-700">{value}</span> : <span>{label}</span>}
     </button>
+  );
+}
+
+// The header's locked-in salesperson: shows the project's snapshotted
+// salesperson (or the signed-in profile on pre-snapshot jobs) and opens an
+// anchored editor to change it. Fields edit live like the rest of the app;
+// "Use my details" restamps the whole snapshot from the current profile.
+function SalespersonPop({ value, fallback, onChange, alignRight }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  const sp = { name: "", phone: "", email: "", ...(value || fallback || {}) };
+  const fld = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+  const W = 240;
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Salesperson — locked in when the project was created. Click to change." className="ft-serif min-w-0 max-w-full truncate hover:text-indigo-700" style={{ fontSize: 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)" }}>
+        {sp.name || sp.email || "Set salesperson"}
+      </button>
+      {open && pos && createPortal(
+        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
+          <div className="ft-eyebrow text-[9px]">Salesperson</div>
+          <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
+          <input value={sp.phone} onChange={(e) => onChange({ ...sp, phone: e.target.value })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
+          <input value={sp.email} onChange={(e) => onChange({ ...sp, email: e.target.value })} placeholder="Email" className={fld} style={{ width: W - 24 }} />
+          <div className="flex items-center justify-between pt-1">
+            <button onClick={() => onChange({ name: fallback?.name || "", phone: fallback?.phone || "", email: fallback?.email || "" })} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"><User size={13} /> Use my details</button>
+            <button onClick={() => setOpen(false)} className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-2.5 py-1.5">Done</button>
+          </div>
+        </div>, document.body)}
+    </>
   );
 }
 
@@ -512,7 +548,7 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
       <input ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
-        data-c="product" className="ft-cell font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
+        data-c="product" className="ft-cell ft-field font-bold" placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
@@ -585,7 +621,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
-        onKeyDown={onKey} data-c="product" className="ft-cell font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
+        onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {open && pos && (results.length > 0 || picked.length > 0 || noHits) && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
@@ -726,7 +762,6 @@ export default function App({ user, onSignOut }) {
   const [versionName, setVersionName] = useState("");
   const [saveOk, setSaveOk] = useState(false);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
-  const [projChip, setProjChip] = useState(null); // which meta chip is expanded (project header)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   useEffect(() => { setViewTab("edit"); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
@@ -1104,7 +1139,7 @@ export default function App({ user, onSignOut }) {
   };
 
   const addProject = (customerId = null, name = "New Project") => {
-    const c = { ...newProject(customerId, name), updatedAt: Date.now(), _full: true };
+    const c = { ...newProject(customerId, name), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false); setFocusName(true);
@@ -1514,7 +1549,10 @@ export default function App({ user, onSignOut }) {
             </div>
             {(() => {
               const cust = data.people.find((c) => c.id === sel.customerId);
-              const pname = profile.name || profile.email;
+              // Pre-snapshot projects have no salesperson — fall back to the
+              // signed-in profile, which is exactly what they printed before.
+              const sp = sel.salesperson || profile;
+              const pname = sp.name || sp.email;
               const areaCount = sel.categories.length;
               const wt = num(settings.waste?.tile), wf = num(settings.waste?.floor);
               const col = (label, name, detail) => (
@@ -1527,7 +1565,7 @@ export default function App({ user, onSignOut }) {
               return (
                 <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                   {col("Customer", cust?.name || sel.name, cust?.address || sel.address)}
-                  {col("Your salesperson", pname, [profile.phone, profile.email].filter((x) => x && x !== pname).join("  ·  "))}
+                  {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  "))}
                   {col("Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wt === wf ? `waste factor ${wt}%` : `waste tile ${wt}% · other ${wf}%`].filter(Boolean).join("  ·  "))}
                 </div>
               );
@@ -1636,7 +1674,6 @@ export default function App({ user, onSignOut }) {
             </div>
           </div>
   );
-  const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.filter((p) => !rowBlank(p)).length, 0);
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
   // Search spans builder + customer contact + project names (ADR 0005).
@@ -1826,78 +1863,92 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
+              {/* Header card, print-sheet style: customer | project | salesperson
+                  up top, then builder + attachments | notes | actions, then a
+                  full-width Add-area row. The middle (project) column is the
+                  widest, like the estimate paper's header. */}
               <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
-                <div className="flex items-end justify-between gap-3 flex-wrap">
-                  <div className="min-w-0 flex-1">
-                    <div className="ft-eyebrow-accent text-[10px] mb-1.5 flex items-center gap-1.5 flex-wrap">
-                      {(() => {
-                        const cust = data.people.find((c) => c.id === sel.customerId);
-                        const bn = cust ? builderNameOf(cust.builderId) : "";
-                        return (
-                          <>
-                            {bn && <span>{bn} ·</span>}
-                            {cust ? (
-                              <button onClick={() => setCustModal(cust.id)} className="hover:underline">{cust.name || "Customer"}</button>
-                            ) : sel.customerId ? (
-                              <span>Customer</span>
-                            ) : (
-                              <span className="text-amber-600">Unassigned job</span>
-                            )}
-                            <span>· Tile &amp; Flooring</span>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 flex-1 transition" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(24px,3.6vw,34px)", lineHeight: 1 }} />
-                      {saveOk && <span className="text-xs font-medium whitespace-nowrap" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="ft-serif" style={{ fontSize: "clamp(24px,3.2vw,32px)", lineHeight: 1 }}>{money(grandTotal)}</div>
-                    <div className="ft-mono text-[10.5px] text-slate-500 mt-1">{totalSqft.toLocaleString()} sq ft · {selCount} selection{selCount === 1 ? "" : "s"}</div>
-                  </div>
-                </div>
-                <div className="ft-noprint mt-3 pt-3 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: "var(--ft-border)" }}>
-                  <MetaChip icon={MapPin} label="Address" value={sel.address} active={projChip === "address"} onClick={() => setProjChip(projChip === "address" ? null : "address")} />
-                  <MetaChip icon={Phone} label="Phone" value={sel.phone} active={projChip === "phone"} onClick={() => setProjChip(projChip === "phone" ? null : "phone")} />
-                  <MetaChip icon={StickyNote} label="Notes" value={sel.notes ? "Notes" : ""} active={projChip === "notes"} onClick={() => setProjChip(projChip === "notes" ? null : "notes")} />
-                  <MetaChip icon={Paperclip} label="Files" value={(sel.attachments || []).length ? `${(sel.attachments || []).length} files` : ""} active={projChip === "files"} onClick={() => setProjChip(projChip === "files" ? null : "files")} />
-                  <span className="flex-1" />
-                  {namingVersion ? (
-                    <div className="flex items-center gap-1">
-                      <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} className="text-sm rounded-md border border-slate-200 px-2 py-1.5 w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      <button onClick={confirmVersion} className="flex items-center gap-1 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5"><Check size={15} /></button>
-                      <button onClick={() => setNamingVersion(false)} className="rounded-full border border-slate-200 hover:bg-slate-50 px-2 py-1.5 text-slate-400"><X size={15} /></button>
-                    </div>
-                  ) : (
-                    <button onClick={startVersionName} className="flex items-center gap-1.5 text-sm rounded-full border border-slate-200 hover:bg-slate-50 px-3 py-1.5"><Save size={15} /> Version</button>
-                  )}
-                  <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50 p-2"><History size={15} /></button>
-                  <button onClick={exportCSV} title="Export CSV" className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50 p-2"><FileText size={15} /></button>
-                  <button onClick={() => setPrintMode("order")} title="Order sheet" className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50 p-2"><ClipboardList size={15} /></button>
-                  <button onClick={() => setPrintMode("estimate")} className="flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 font-semibold"><Printer size={15} /> Print</button>
-                  <button onClick={() => setConfirm({ id: sel.id })} title="Delete project" className="flex items-center justify-center rounded-full border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 p-2 text-slate-400"><Trash2 size={15} /></button>
-                </div>
-                {projChip === "notes" && (
-                  <div className="ft-noprint mt-3"><label className={lbl}>Project notes</label><textarea autoFocus value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} rows={2} className={inp} /></div>
-                )}
-                {(projChip === "address" || projChip === "phone") && (
-                  <div className="ft-noprint mt-3"><label className={lbl}>{projChip === "address" ? "Address" : "Phone"}</label><input autoFocus value={projChip === "address" ? sel.address : sel.phone} onChange={(e) => updateProject(sel.id, { [projChip]: e.target.value })} className={inp} /></div>
-                )}
-                {projChip === "files" && (
-                  <div className="ft-noprint mt-3 flex items-center gap-2 flex-wrap">
-                    <span className="ft-eyebrow text-[9px] flex items-center gap-1"><Paperclip size={12} /> Attachments <span className="text-slate-300 normal-case tracking-normal">(not printed)</span></span>
-                    {(sel.attachments || []).map((m) => (
-                      <span key={m.id} className="flex items-center gap-1.5 rounded-md bg-slate-100 pl-2 pr-1 py-1 text-xs"><button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[10rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button><button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={12} /></button></span>
-                    ))}
-                    <button onClick={() => attRef.current?.click()} className="flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"><Plus size={12} /> Add</button>
-                    <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                  </div>
-                )}
+                {(() => {
+                  const cust = data.people.find((c) => c.id === sel.customerId);
+                  const bn = cust ? builderNameOf(cust.builderId) : "";
+                  const sp = sel.salesperson || profile;
+                  const cols = isWide ? { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 } : { display: "grid", gridTemplateColumns: "1fr", gap: 12 };
+                  const midPad = isWide ? { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" } : {};
+                  return (
+                    <>
+                      <div style={cols}>
+                        <div className="min-w-0">
+                          <div className="ft-eyebrow text-[9px] mb-1">Customer</div>
+                          {cust ? (
+                            <>
+                              <button onClick={() => setCustModal(cust.id)} title="Open customer details" className="ft-serif flex items-center gap-1 min-w-0 max-w-full text-indigo-600 hover:text-indigo-700" style={{ fontSize: 19, lineHeight: 1.15 }}>
+                                <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={14} className="shrink-0" />
+                              </button>
+                              <div className="text-xs text-slate-500 mt-1 truncate">{cust.address || " "}</div>
+                            </>
+                          ) : (
+                            <div className="text-amber-600 text-sm font-semibold" style={{ lineHeight: 1.6 }}>Unassigned job</div>
+                          )}
+                        </div>
+                        <div className="min-w-0 relative" style={midPad}>
+                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>}
+                          {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
+                          <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
+                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(22px,3vw,28px)", lineHeight: 1.05 }} />
+                          <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
+                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>}
+                        </div>
+                        <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
+                          <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
+                          <SalespersonPop value={sel.salesperson} fallback={profile} alignRight={isWide} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
+                          <div className="text-xs text-slate-500 mt-1 truncate max-w-full">{sp.phone || " "}</div>
+                        </div>
+                      </div>
+                      <div className="ft-noprint mt-3 pt-3 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
+                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 66 } : {}}>
+                          <div className="ft-eyebrow text-[9px] truncate">{bn || "Files"}</div>
+                          <div className="flex-1 min-h-0 rounded-md border border-dashed border-slate-300 px-1.5 py-1 flex flex-wrap gap-1 items-start content-start overflow-hidden">
+                            {(sel.attachments || []).map((m) => (
+                              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
+                                <button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[7rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
+                                <button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
+                              </span>
+                            ))}
+                            <button onClick={() => attRef.current?.click()} title="Attach a file (not printed)" className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
+                            <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
+                          </div>
+                        </div>
+                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="ft-field w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66 }} />
+                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
+                          {namingVersion ? (
+                            <div className="flex items-center gap-1.5">
+                              <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                              <button onClick={confirmVersion} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
+                              <button onClick={() => setNamingVersion(false)} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 text-slate-400"><X size={15} /></button>
+                            </div>
+                          ) : (
+                            <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 96px" }}>
+                              <button onClick={startVersionName} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><Save size={14} /> Version</button>
+                              <div className="flex gap-1.5">
+                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
+                                <button onClick={exportCSV} title="Export CSV" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><FileText size={14} /></button>
+                                <button onClick={() => setConfirm({ id: sel.id })} title="Delete project" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 text-slate-400"><Trash2 size={14} /></button>
+                              </div>
+                            </div>
+                          )}
+                          <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 96px" }}>
+                            <button onClick={() => setPrintMode("order")} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
+                            <button onClick={() => setPrintMode("estimate")} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Ink row — same action as the dashed Add-area bar that
+                          trails the areas list; both stay on purpose. */}
+                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-3 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
+                    </>
+                  );
+                })()}
               </div>
-
-              <button ref={addAreaRef} onClick={addArea} className="ft-noprint mb-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
 
               {sel.categories.length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
