@@ -48,6 +48,7 @@ const HEADER_FIELDS = {
   brand: "brand",
   type: "subtype",
   retail: "price",
+  retailprice: "price", // the Schluter/Wedi shop stock sheets' price header
   price: "price",
   ctprice: "price",
   sfprice: "priceSqft",
