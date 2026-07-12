@@ -29,8 +29,8 @@ body {
   --ft-border-strong:rgba(28,26,23,.25);
   /* Selection-grid line: area-card outline + product-row dividers. A touch
      darker than --ft-border-strong so the boxed grid reads clearly. Defined
-     explicitly per mode (below) — NOT color-mix, which resolves once and would
-     not flip in dark. */
+     explicitly per mode (like --ft-border-strong) so each mode gets its own
+     alpha — ink .34 in light, paper .30 in dark. */
   --ft-grid-line:rgba(28,26,23,.34);
   --ft-text:#1C1A17;             /* ink */
   --ft-muted:#57534C;
