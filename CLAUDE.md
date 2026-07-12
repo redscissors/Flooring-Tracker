@@ -220,11 +220,12 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   don't write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
-- The theme (monochrome, inspired by matthaeusjandl.com) works by **overriding
-  Tailwind's slate/indigo classes**. These overrides live in `src/index.css` so
-  the login screen (`Auth.jsx`) and the app share one palette. Reuse existing
-  utility classes rather than inventing new colors; adjust the `--ft-*` variables
-  in `index.css` to retheme.
+- The theme ("the ned" Moss kit: ink & paper UI, single moss-green accent,
+  moss data ramp, Manrope only) works by **overriding Tailwind's slate/indigo
+  classes**. These overrides live in `src/index.css` so the login screen
+  (`Auth.jsx`) and the app share one palette. Reuse existing utility classes
+  rather than inventing new colors; adjust the `--ft-*` variables in
+  `index.css` to retheme.
 
 ## Non-negotiables
 
