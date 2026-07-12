@@ -90,6 +90,7 @@ pricebook_versions (
   book_id     text,                      -- a price_books id, or 'stock' for
                                          -- the stock book (reserved id)
   label       text,                      -- "Import 2026-07-12" or hand-named
+  pinned      boolean default false,     -- keeper: excluded from newest-3 pruning
   imported_at timestamptz,
   imported_by text,
   item_count  int,
@@ -195,6 +196,15 @@ model below stands as designed; freight gets its own rule (point 6).
 6. **Freight (per-manufacturer shipping), two modes**, configured per book in
    `price_books.data.freight: { mode: 'none' | 'perSqft' | 'perJob', amount }`:
 
+   **RESOLVED interim (2026-07-12): highlight only, no charges yet.** The
+   real-world charge for freight-flagged items isn't known yet, so for now
+   freight ships as **visibility only**: flagged items get an "extra freight"
+   chip in search results, on the selection row, and in the book's item table
+   — and no freight amount is ever added to any price or total. The two
+   charge modes below stay designed (the `freight` config slot is reserved)
+   but are **not built** until the owner has real numbers; when that day
+   comes it's a Phase-2-sized addition, not a redesign.
+
    - **`perSqft`** — a $/sqft (or $/unit) adder treated as part of cost:
      `sell = (cost + freight) × (1 + pct/100)`. Freight is a real cost, so the
      markup applies on top of it — margin stays margin. Folded in at pick
@@ -225,11 +235,14 @@ model below stands as designed; freight gets its own rule (point 6).
    when the book's default mode is `none`. The flag never silently changes a
    price — it surfaces, the human decides.
 
-**OPEN QUESTION Q2 — who sees cost.** Per ADR 0004 the whole team sees
-everything, so costs and margins are visible to every signed-in user in the
-book UI and (if §8 ships) on the internal estimate view. Print never shows
-them. Confirm that's acceptable — changing it would be the first crack in the
-team-trust model and needs its own ADR.
+**RESOLVED (Q2, 2026-07-12):** team-wide cost visibility is fine — no
+permission change, ADR 0004 stands. Add a **"hide costs" screen-privacy
+toggle** for when a customer is looking at the screen: one eye-icon toggle
+that masks every cost/margin figure (book items' cost columns, markup
+percents, drift-chip cost lines, the §8 margin line if it ships) behind "•••".
+It is presentation only, session-local (component state, not saved settings),
+and never affects what is stored or printed — a curtain, not a lock. Selling
+prices stay visible; those are what the customer is being shown anyway.
 
 **OPEN QUESTION Q5 — price tiers (retail vs contractor).** The Wedi stock
 sheets maintain two selling tiers: retail and contractor at 0.82 × retail,
@@ -295,9 +308,11 @@ be that gnarly, that one vendor gets an adapter, as the exception.
 ## 5. Versions and rollback — PROPOSED
 
 `pricebook_versions` keeps the **last 3 imports per book** (stock included,
-under the reserved book id `'stock'`). On apply: insert a version row holding
-the parsed items exactly as applied, then prune to the newest 3 — the same
-keep-newest-N pattern as auto-versions (`AUTO_KEEP`).
+under the reserved book id `'stock'`) **plus any pinned keepers**. On apply:
+insert a version row holding the parsed items exactly as applied, then prune
+unpinned rows to the newest 3 — the same keep-newest-N pattern as
+auto-versions (`AUTO_KEEP`), with pinned playing the role named versions play
+there.
 
 **Rollback is a re-import, not a restore.** "Fall back" loads the old
 version's snapshot and pushes it through the normal diff preview → apply flow:
@@ -309,10 +324,12 @@ Sizing: ~700 items ≈ 200-300 KB of jsonb per version; 31 books × 3 versions i
 well under 30 MB total. Fine. Snapshots store **cost**, not sell — a rollback
 never resurrects an old markup (markups aren't versioned; they're settings).
 
-**OPEN QUESTION Q3 — is 3 the right number?** The pattern makes the count a
-constant; 3 was the ask. Suggest keeping 3 but allowing a hand-named "keeper"
-version that never gets pruned (mirrors named vs auto versions on projects).
-Costs almost nothing to add later; not in Phase 1.
+**RESOLVED (Q3, 2026-07-12):** 3 rolling versions per book, **plus pin-as-
+keeper**: any version can be pinned (`pinned` boolean on the row), pinned
+versions are excluded from pruning, and the newest-3 rule applies to unpinned
+rows only — the exact named-vs-auto split the project versions table already
+uses. Nothing beyond that for now (no unlimited named versions, no labels UI
+past a pin button). Pinning is in scope for Phase 4, not later.
 
 ---
 
@@ -369,7 +386,10 @@ Price book
         ├── Items: searchable table (search box = searchStock), inline edit
         ├── Markups: default % + per-section overrides · Freight mode
         ├── Import: upload → mapping → diff preview → apply
-        └── Versions (last 3, rollback via preview)
+        └── Versions (last 3 + pinned keepers, rollback via preview)
+
+[👁 Hide costs]  ← one toggle masking every cost/margin figure ("•••") while
+                   a customer can see the screen; session-local, resolved Q2
 ```
 
 Master→detail like the catalog sections that already exist in
@@ -434,11 +454,11 @@ working. No SQL runs until the owner runs `supabase/pricebooks.sql` by hand.
 | Phase | Delivers | Depends on |
 |---|---|---|
 | Bridge (anytime) | `retailprice`/`mfgsku` header aliases in `src/pricebook.js` (+ tests); team pastes the Schluter/Wedi *Retail* pages into the main workbook — both sheets then import through the existing flow | nothing — independent of the registry |
-| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Owner answers Q2/Q3/Q5 (Q1/Q4 resolved) |
-| 1 | Book registry (kind-aware) + generic mapped import + browse/search per book (costs visible, flat default markup only) | Phase 0, first test vendor sheet |
-| 2 | Markup editor (default + per-section) + freight modes (perSqft fold-in, perJob auto-added misc line), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults | Phase 1 |
+| 0 | ADR (via `/decide`) recording §2/§3/§5 decisions + `supabase/pricebooks.sql` + this design folded into `docs/pricebook/` | Q5 is the only question still open (tier capture ships regardless; tier *use* is a separate future ADR) |
+| 1 | Book registry (kind-aware) + generic mapped import + browse/search per book (costs visible, flat default markup only) + hide-costs toggle | Phase 0, first test vendor sheet |
+| 2 | Markup editor (default + per-group), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults, **freight-flag highlighting only** (chips in search/row/book table — no freight charges until real numbers exist) | Phase 1 |
 | 3 | Cross-space SKU search on selection rows with stock priority + collision rule | Phase 2 |
-| 4 | `pricebook_versions` writes on apply (stock book included) + rollback-via-preview + inline item edit with overwrite warnings | Phase 1 (can parallel 2-3) |
+| 4 | `pricebook_versions` writes on apply (stock book included) + pin-as-keeper + rollback-via-preview + inline item edit with overwrite warnings | Phase 1 (can parallel 2-3) |
 | 5 | Opinions from §8 that survive owner review (margin line, staleness chips) | 2-4 |
 
 Phase 1 is deliberately useless-for-quoting on its own (no markup → no sell
