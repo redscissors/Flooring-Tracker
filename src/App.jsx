@@ -322,6 +322,11 @@ const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
 // instead of the full grid (pick a match to fill it, or a type/double-click to
 // enter it by hand).
 const rowBlank = (p) => !p.sku && !p.brandColor && !p.L && !p.W && !p.sizeText && !(num(p.priceSqft) > 0) && !(num(p.qty) > 0);
+// Every area carries one trailing blank "adder" row (the inline New-row
+// affordance). It's ephemeral scaffolding, not a real selection, so change
+// detection for auto-versions compares categories with blank rows stripped —
+// otherwise the adder would look like an edit on every open.
+const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, products: (a.products || []).filter((p) => !rowBlank(p)) })));
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
 // column). See ADR 0005.
@@ -402,9 +407,16 @@ function MetaChip({ icon: Icon, label, value, active, onClick }) {
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
-function TypeSelect({ type, onChange, triggerRef, compact }) {
+function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
   const [open, setOpen] = useState(false);
   const accent = TYPE_ACCENT[type];
+  // The menu renders in a body portal (like the SKU/search pickers) so the area
+  // card's overflow-hidden can't clip it — the adder sits at the card's bottom
+  // edge, where an in-flow dropdown would be cut off.
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, btnRef, panelRef, () => setOpen(false));
+  const setBtn = (el) => { btnRef.current = el; if (typeof triggerRef === "function") triggerRef(el); else if (triggerRef) triggerRef.current = el; };
   // Keyboard: a printable letter jumps to the type(s) whose label starts with
   // it, cycling through them when several share a first letter — so the field
   // behaves like a native <select> even though it's a custom swatch menu.
@@ -419,13 +431,15 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
   return (
     <div className={`relative shrink-0 ${compact ? "self-stretch flex" : ""}`}>
       {compact ? (
-        <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={`Product type — ${TLBL[type]} (click to change)`}
+        <button ref={setBtn} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={blank ? "Pick a material type" : `Product type — ${TLBL[type]} (click to change)`}
           className="shrink-0 flex items-center justify-center font-bold leading-none"
-          style={{ width: 18, background: accent, color: "var(--ft-type-ink)", fontSize: 10, margin: "6px 0" }}>
-          {TLBL[type][0]}
+          style={blank
+            ? { width: 18, background: "var(--ft-field, #fff)", color: "var(--ft-muted)", fontSize: 10, margin: "6px 0", border: "1px dashed var(--ft-border)" }
+            : { width: 18, background: accent, color: "var(--ft-type-ink)", fontSize: 10, margin: "6px 0" }}>
+          {blank ? <Plus size={11} /> : TLBL[type][0]}
         </button>
       ) : (
-      <button ref={triggerRef} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title="Product type"
+      <button ref={setBtn} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title="Product type"
         className="inline-flex items-center gap-1.5 rounded-full pl-2 pr-1.5 py-1 text-xs font-semibold"
         style={{ color: accent, background: `color-mix(in oklab, ${accent} 12%, transparent)`, border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)` }}>
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: accent }} />
@@ -433,11 +447,11 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
         <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       )}
-      {open && (<>
-        <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-        <div className="absolute z-30 mt-1 left-0 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
+      {open && pos && createPortal(
+        <div ref={panelRef} style={{ position: "fixed", top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176 }}
+          className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
           {TYPES.map((t) => {
-            const on = t === type;
+            const on = !blank && t === type;
             return (
               <button key={t} onClick={() => { onChange(t); setOpen(false); }}
                 className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-slate-50 ${on ? "font-semibold" : "text-slate-700"}`}
@@ -448,8 +462,7 @@ function TypeSelect({ type, onChange, triggerRef, compact }) {
               </button>
             );
           })}
-        </div>
-      </>)}
+        </div>, document.body)}
     </div>
   );
 }
@@ -519,23 +532,43 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
 // price book by SKU or product words. Picking a match fills the whole row
 // (like the SKU/product cells do); shift-click adds several as their own rows;
 // Enter with no match — or a double-click — hands the row to manual entry.
-function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, inputRef }) {
+function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, inputRef }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // SKUs, in click order
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
+  // Revert-on-abandon: leftover search text in the permanent adder row is
+  // cleared once focus truly leaves the widget without a commit, so an
+  // untouched adder always shows its placeholder. committedRef suppresses the
+  // clear when a pick/manual just fired (that path unmounts this search row);
+  // pickedRef guards a shift-click that toggled a match but blurred the input.
+  const committedRef = useRef(false);
+  const pickedRef = useRef(picked); pickedRef.current = picked;
+  const blurTimer = useRef(null);
+  useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
   const matches = open && stock.length ? searchStock(stock, query) : [];
   const results = matches.slice(0, SKU_SHOW);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
-  const pick = (it) => { onPick(it); close(); };
+  const pick = (it) => { committedRef.current = true; onPick(it); close(); };
   const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
+  const goManual = () => { committedRef.current = true; onManual(); };
   const commit = () => {
+    committedRef.current = true;
     const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
     if (items.length === 1) onPick(items[0]);
     else if (items.length) onPickMany(items);
     close();
+  };
+  const onBlur = () => {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    blurTimer.current = setTimeout(() => {
+      const ae = document.activeElement;
+      const inside = (wrapRef.current && wrapRef.current.contains(ae)) || (panelRef.current && panelRef.current.contains(ae));
+      if (inside || committedRef.current || pickedRef.current.length > 0) return;
+      onAbandon?.(); close();
+    }, 120);
   };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
@@ -545,13 +578,13 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, i
       if (picked.length) commit();
       else if (results[hi]) pick(results[hi]);
       else if (results.length) pick(results[0]);
-      else if (query.trim()) onManual();
+      else if (query.trim()) goManual();
     } else if (e.key === "Escape") close();
   };
   const noHits = query.trim() && stock.length > 0 && results.length === 0;
   return (
-    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={onManual}>
-      <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
+    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
+      <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
         onKeyDown={onKey} data-c="product" className="ft-cell font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {open && pos && (results.length > 0 || picked.length > 0 || noHits) && createPortal(
@@ -865,7 +898,7 @@ export default function App({ user, onSignOut }) {
           ? { ...c, ...full, customerId: c.customerId, versions, id: c.id, createdAt: c.createdAt, _full: true }
           : c),
       }));
-      baselineRef.current = { id, json: JSON.stringify(full.categories) };
+      baselineRef.current = { id, json: catSig(full.categories) };
     } catch (e) { ping("Could not open customer — check connection"); }
   };
 
@@ -1038,6 +1071,28 @@ export default function App({ user, onSignOut }) {
     return new Date(ts).toLocaleDateString();
   };
 
+  // Keep one trailing "adder" row (a fresh search row) at the end of every area
+  // of the open project — the inline New-row affordance. An adder is a blank row
+  // not yet handed to manual entry (same `searchMode` test the grid uses), so a
+  // row that's blank-but-manual (e.g. a type was picked) still needs a new adder
+  // after it. Local-only: the blank is ephemeral scaffolding — it persists to
+  // the DB on the next real edit and is stripped from the estimate/exports
+  // (rowBlank) and the version baseline (catSig), so it never shows up as data.
+  // The guard reaches a fixed point (a fresh adder satisfies it), so no loop.
+  const isAdderRow = (p) => rowBlank(p) && !manualRows[p.id];
+  useEffect(() => {
+    if (!sel || !sel._full) return;
+    const needs = sel.categories.some((a) => !a.products.length || !isAdderRow(a.products[a.products.length - 1]));
+    if (!needs) return;
+    setData((prev) => ({
+      ...prev,
+      projects: prev.projects.map((c) => c.id !== sel.id ? c : {
+        ...c,
+        categories: c.categories.map((a) => (a.products.length && isAdderRow(a.products[a.products.length - 1])) ? a : { ...a, products: [...a.products, newProduct()] }),
+      }),
+    }));
+  }, [sel?.id, sel?._full, sel?.categories, manualRows]);
+
   // Every project-content mutation goes through here: optimistic state update +
   // an UPDATE of that one row's data blob. customer_id is a column, moved via
   // linkProject — never through here.
@@ -1051,7 +1106,7 @@ export default function App({ user, onSignOut }) {
   const addProject = (customerId = null, name = "New Project") => {
     const c = { ...newProject(customerId, name), updatedAt: Date.now(), _full: true };
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
-    baselineRef.current = { id: c.id, json: JSON.stringify(c.categories) };
+    baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false); setFocusName(true);
     (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
     return c;
@@ -1255,7 +1310,7 @@ export default function App({ user, onSignOut }) {
     try {
       const v = await insertVersion(cust.id, label, false, cust.categories);
       setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === cust.id ? { ...c, versions: [v, ...(c.versions || [])] } : c) }));
-      baselineRef.current = { id: cust.id, json: JSON.stringify(cust.categories) };
+      baselineRef.current = { id: cust.id, json: catSig(cust.categories) };
       flashSaved(); ping("Version saved");
     } catch (e) { ping("Save failed — check connection"); }
   };
@@ -1281,7 +1336,7 @@ export default function App({ user, onSignOut }) {
     const c = dataRef.current.projects.find((x) => x.id === id);
     const base = baselineRef.current;
     if (!c || !c._full || !base || base.id !== id) return;
-    const json = JSON.stringify(c.categories);
+    const json = catSig(c.categories);
     if (json === base.json) return;
     const label = "Auto — " + new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     try {
@@ -1363,7 +1418,7 @@ export default function App({ user, onSignOut }) {
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
     const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "SF/Carton", "Cartons Exact", "Cartons Order", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Caulk Tubes", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
-    sel.categories.forEach((a, ai) => a.products.forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, areaLabel(a, ai), TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
+    sel.categories.forEach((a, ai) => a.products.filter((p) => !rowBlank(p)).forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, areaLabel(a, ai), TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
@@ -1489,7 +1544,7 @@ export default function App({ user, onSignOut }) {
                   <div>Size</div><div>Product / Color</div><div>SKU</div><div>SF/CT</div>
                   <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
                 </div>
-                {a.products.map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
+                {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
                   <Fragment key={p.id}>
                     <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "2px 12px 6px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid var(--ft-border)" : "none" }}>
                       <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
@@ -1581,7 +1636,7 @@ export default function App({ user, onSignOut }) {
             </div>
           </div>
   );
-  const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.length, 0);
+  const selCount = (sel?.categories || []).reduce((n, a) => n + a.products.filter((p) => !rowBlank(p)).length, 0);
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
   // Search spans builder + customer contact + project names (ADR 0005).
@@ -1872,7 +1927,9 @@ export default function App({ user, onSignOut }) {
                     </div>
                     {confirmArea === a.id && (
                       <div className="ft-noprint flex items-center gap-2 px-3 py-2 text-xs border-b border-slate-100">
-                        <span className="text-red-600 flex-1">Delete "{areaLabel(a, ai)}" and its {a.products.length} selection{a.products.length === 1 ? "" : "s"}? Everything in this area comes off the estimate.</span>
+                        {(() => { const realN = a.products.filter((p) => !rowBlank(p)).length; return (
+                        <span className="text-red-600 flex-1">Delete "{areaLabel(a, ai)}"{realN > 0 ? <> and its {realN} selection{realN === 1 ? "" : "s"}</> : ""}? Everything in this area comes off the estimate.</span>
+                        ); })()}
                         <button onClick={() => { delArea(a.id); setConfirmArea(null); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
                         <button onClick={() => setConfirmArea(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                       </div>
@@ -1974,6 +2031,10 @@ export default function App({ user, onSignOut }) {
                           <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
                         );
                         const searchMode = rowBlank(p) && !manualRows[p.id];
+                        // The last row of an area is the permanent inline "adder";
+                        // a blank row above it is a real selection the user cleared.
+                        const isAdder = pi === a.products.length - 1;
+                        const clearOmni = () => setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; });
                         const omniText = omniQ[p.id] || "";
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
                         const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
@@ -1990,19 +2051,19 @@ export default function App({ user, onSignOut }) {
                             /* empty row: type chip + one wide price-book search that fills the row on pick */
                             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 44px", fontSize: 11, fontWeight: 600, background: rowTint }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
-                                <TypeSelect compact type={p.type} onChange={(t) => goManual({ type: t })} />
+                                <TypeSelect compact blank type={p.type} onChange={(t) => goManual({ type: t })} />
                                 <span className="w-1 shrink-0" />
                               </div>
                               <div style={gridCell}>
                                 <GridOmniSearch stock={stock} query={omniText}
                                   onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
                                   onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
-                                  onManual={() => goManual()}
+                                  onManual={() => goManual()} onAbandon={clearOmni}
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-prod)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
-                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
+                                {a.products.length > 1 && !isAdder && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
                             </div>
                             ) : (<>
@@ -2269,7 +2330,6 @@ export default function App({ user, onSignOut }) {
                       })}
                       {drag?.to?.aid === a.id && <div className="absolute left-1 right-1 h-1.5 rounded-full bg-indigo-600 pointer-events-none" style={{ top: drag.to.y, marginTop: 0 }} />}
                     </div>
-                    <button onClick={() => addProduct(a.id)} className="ft-noprint w-full flex items-center gap-1.5 text-left hover:text-slate-500" style={{ padding: "6px 10px", fontSize: 10.5, color: "var(--ft-muted)", borderTop: "1px solid var(--ft-row-line)" }}><Plus size={11} /> New row — start typing anywhere</button>
                   </div>
                   );
                 })}
@@ -2365,7 +2425,7 @@ export default function App({ user, onSignOut }) {
                 </tr>
               </thead>
               <tbody>
-                {sel.categories.flatMap((a, ai) => a.products.map((p) => { const c = printProduct(p, settings); return (
+                {sel.categories.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, settings); return (
                   <tr key={p.id} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
