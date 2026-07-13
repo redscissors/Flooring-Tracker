@@ -88,6 +88,95 @@ test("no recognizable header: nothing parsed, warning emitted", () => {
   assert.equal(parseMapped(rows, mapping).items.length, 0);
 });
 
+// A Glazzio page as it really is: the collection is a heading ABOVE the header,
+// there is NO Collection column, and a grid of SKU labels (the photo captions)
+// sits below the table. Column x-positions mirror the real "Martha's Manor" page.
+const noCollHeader = (y) => [
+  word(76, y, "Item"), word(96, y, "#"),
+  word(141, y, "Color"), word(167, y, "Name"),
+  word(243, y, "Tile"), word(260, y, "Size"),
+  word(314, y, "Pcs"), word(332, y, "Per"), word(349, y, "Box"),
+  word(373, y, "SQF"), word(394, y, "Per"), word(410, y, "Box"),
+  word(437, y, "$"), word(444, y, "Per"), word(461, y, "SQF"),
+  word(500, y, "$"), word(507, y, "Per"), word(524, y, "Box"),
+];
+const noCollRow = (y, sku, name, pcs, sf, psf, pbox) => [
+  word(68, y, sku), word(122, y, name),
+  word(230, y, "Nominal"), word(336, y, pcs), word(391, y, sf),
+  word(445, y, psf), word(505, y, pbox),
+];
+const disclaimer = (y) => [
+  word(57, y, "SQUARE"), word(110, y, "FOOT"), word(150, y, "PRICES"),
+  word(210, y, "REFERENCE"), word(300, y, "ONLY"),
+];
+// One Glazzio table with a heading, a disclaimer, a header, and its rows —
+// spaced the way the real page is (heading −36, disclaimer −18 above the header,
+// rows +15/+27 below) so header-merge and row clustering behave as in the book.
+const heading = (y, words) => words.map((w, i) => word(57 + i * 42, y, w));
+const noCollSection = (y0, titleWords, rows) => [
+  ...heading(y0, titleWords),
+  ...disclaimer(y0 + 18),
+  ...noCollHeader(y0 + 36),
+  ...rows.map((r, i) => noCollRow(y0 + 51 + i * 12, ...r)).flat(),
+];
+
+test("no Collection column: the section heading above the header becomes the collection", () => {
+  const page = noCollSection(98, ["Martha's", "Manor", "Square"], [
+    ["MMR6061", "Cottontail", "50", "5.38", "$5.70", "$30.67"],
+    ["MMR6062", "Slate", "50", "5.38", "$5.70", "$30.67"],
+  ]);
+  const { items } = parse(page);
+  assert.equal(items.length, 2);
+  const it = items.find((i) => i.sku === "MMR6061");
+  assert.equal(it.productLine, "Martha's Manor Square");
+  assert.equal(it.description, "Martha's Manor Square Cottontail"); // line fronts the name
+  assert.equal(it.cost, 30.67);
+});
+
+test("photo-caption SKU grid is dropped and does not collapse the columns", () => {
+  const page = [
+    ...noCollSection(98, ["Abstract", "Collection"], [
+      ["ABS6001", "Talco", "25", "9.90", "$5.05", "$50.00"],
+    ]),
+    // the strip of SKU labels printed under the tile photos: every cell a code,
+    // spread across the page — must not be read as a row nor wreck the grid.
+    word(60, 300, "ABS6001"), word(260, 300, "ABS6002"), word(460, 300, "ABS6003"),
+  ];
+  const { items } = parse(page);
+  assert.equal(items.length, 1, "caption grid dropped, one real row survives");
+  const it = items[0];
+  assert.equal(it.sku, "ABS6001");
+  assert.equal(it.cost, 50);        // columns intact → cost read from its own cell
+  assert.equal(it.productLine, "Abstract Collection");
+});
+
+test("two sections on one page each take their own heading as the collection", () => {
+  const page = [
+    ...noCollSection(98, ["Martha's", "Manor", "Square"], [
+      ["MMR6061", "Cottontail", "50", "5.38", "$5.70", "$30.67"],
+    ]),
+    ...noCollSection(320, ["Martha's", "Manor", "Hex"], [
+      ["MMR6071", "Cottontail", "50", "5.38", "$6.50", "$34.97"],
+    ]),
+  ];
+  const { items } = parse(page);
+  assert.equal(items.find((i) => i.sku === "MMR6061").productLine, "Martha's Manor Square");
+  assert.equal(items.find((i) => i.sku === "MMR6071").productLine, "Martha's Manor Hex");
+});
+
+test("a header whose labels wrap above the Item# line does not leak as the collection", () => {
+  // "Rows per / Sheets per" stack on a line ABOVE the Item# baseline; the real
+  // heading sits above THAT and must win.
+  const page = [
+    word(57, 98, "Mayan"), word(99, 98, "Garden"), word(141, 98, "Collection"),
+    word(314, 128, "Rows"), word(340, 128, "per"), word(373, 128, "Sheets"), word(415, 128, "per"),
+    ...noCollHeader(134),
+    ...noCollRow(149, "MYN1301", "Aztec", "6", "5.19", "$17.50", "$90.83"),
+  ];
+  const { items } = parse(page);
+  assert.equal(items[0].productLine, "Mayan Garden Collection");
+});
+
 test("clusterRows merges a two-baseline row but keeps distinct rows apart", () => {
   const rows = clusterRows([
     word(50, 100, "A"), word(200, 101, "B"), // 1px apart → same row
