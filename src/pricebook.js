@@ -514,10 +514,12 @@ function dedupe(items, warnings) {
 //
 // mapping = {
 //   columns:     { <colIndex>: <field> } — field ∈ sku, cost, description,
-//                unit, size, thickness, mfg, productLine, leadTime, msrp,
-//                coverage, sfPerUnit, color, style, brand, section, note, type,
-//                flag. (Headerless columns are labeled by index, so the VTC
-//                sheet's description and status columns map fine.)
+//                unit, priceUnit, orderUnit, size, thickness, mfg, productLine,
+//                leadTime, msrp, coverage, sfPerUnit, pcPerUnit, color, style,
+//                brand, section, note, type, flag. priceUnit/orderUnit are the
+//                two-unit split (ADR 0009 amendment); both fall back to unit.
+//                (Headerless columns are labeled by index, so the VTC sheet's
+//                description and status columns map fine.)
 //   headerRow:   <int>|undefined — rows at and above it are skipped
 //   skuPattern:  <string>|undefined — default: 1-20 alphanumerics, ≥1 digit
 //   flags:       { <cellValue>: 'discontinued'|'freight'|'madeToOrder'|
@@ -669,11 +671,14 @@ function mappedItem(mapping, raw, sku, sem) {
     color: str(raw.color),
     style: str(raw.style),
     unit: str(raw.unit),
+    priceUnit: str(raw.priceUnit),
+    orderUnit: str(raw.orderUnit),
     size,
     thickness,
     type,
     cost,
     sfPerUnit: numOrNull(raw.sfPerUnit),
+    pcPerUnit: numOrNull(raw.pcPerUnit),
     coverage: numOrNull(raw.coverage),
     leadTime: str(raw.leadTime),
     msrp: numOrNull(raw.msrp),

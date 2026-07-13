@@ -54,6 +54,38 @@ test("costSqft: null for a count/flat item with no coverage", () => {
   assert.equal(costSqft(oi({ unit: "EA", cost: 15, sfPerUnit: null })), null);
 });
 
+// --- two units: priceUnit (cost basis) + orderUnit (No Broken) ----------------
+
+test("costSqft: reads priceUnit (cost basis) when the two units are split", () => {
+  // VTC: Price U/M = SF, No Broken = CT. Cost is per sqft; ordering is by carton.
+  assert.equal(costSqft(oi({ unit: "", priceUnit: "SF", orderUnit: "CT", cost: 3.29, sfPerUnit: 15.5 })), 3.29);
+});
+
+test("orderPatch: a split SF/CT item prices by the foot and orders in whole cartons", () => {
+  const item = oi({ sku: "CER1", type: "tile", priceUnit: "SF", orderUnit: "CT", unit: "", cost: 3.29, sfPerUnit: 15.5, size: "12x24" });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.cartonSf, "15.5");
+  assert.equal(patch.cartonUnit, "CT");            // labeled by the order unit, not the price unit
+  assert.equal(patch.priceSqft, "4.11");           // cost basis is SF → 3.29 × 1.25 = 4.11
+});
+
+test("orderPatch: a No-Broken PC item orders loose — no whole-carton rounding", () => {
+  const item = oi({ sku: "CER2", type: "tile", priceUnit: "SF", orderUnit: "PC", unit: "", cost: 4, sfPerUnit: 16, size: "12x12" });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.cartonSf, undefined);         // loose pieces → bill exact sqft, no carton coverage
+  assert.equal(patch.cartonUnit, undefined);
+  assert.equal(patch.qtyType, "sqft");
+});
+
+test("orderPatch: single-U/M items are unchanged (fallback to unit)", () => {
+  // No priceUnit/orderUnit mapped: both fall back to `unit`, so a plain CT item
+  // behaves exactly as before the split.
+  const item = oi({ sku: "HW9", type: "hardwood", unit: "CT", cost: 200, sfPerUnit: 20 });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.cartonSf, "20");
+  assert.equal(patch.cartonUnit, "CT");
+});
+
 // --- markup resolution -------------------------------------------------------
 
 test("resolveMarkup: a per-group override outranks the book default", () => {
