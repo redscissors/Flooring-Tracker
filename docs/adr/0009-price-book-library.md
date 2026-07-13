@@ -137,3 +137,52 @@ The `delBook` path in `App.jsx` is the sole deleter; imports still only
 upsert / mark inactive. The reserved `'stock'` workbook is not a `price_books`
 row and stays undeletable. Delete is guarded by an in-app confirm that states it
 is permanent and team-wide.
+
+## Amendment (2026-07-13): an item carries two units, not one
+
+Decision item 2 gave each item a single `unit`. The Virginia Tile sheet proved
+one unit conflates two different facts that a vendor states in two separate
+columns:
+
+- **Price U/M** — what the cost is *denominated in* (VTC: `SF` vs `PC`). This is
+  what `costSqft` must read to know whether a $3.29 cost is per square foot or
+  per piece.
+- **No Broken U/M** — the *smallest unit the vendor will sell* (`CT` / `SH` /
+  `PC`). This is what drives ordering granularity: a `PC` item is ordered as
+  loose pieces, a `SH` item by whole sheets, a `CT` item by whole cartons
+  (rounding sqft up to full-carton coverage). The trade rule is "buy by the
+  sheet or the piece whenever the vendor allows it."
+
+A single `unit` cannot carry both, and today's carton logic keys off it — so a
+piece-sellable tile whose cost is quoted per square foot is both priced and
+ordered wrong.
+
+**The item shape gains `priceUnit` and `orderUnit`, additively.** Neither
+replaces `unit`; both **fall back to `unit`** when a book doesn't map them
+separately, through two reader helpers used everywhere the fields are consumed:
+
+```
+priceUnitOf(item) = item.priceUnit || item.unit   // cost basis  → costSqft
+orderUnitOf(item) = item.orderUnit || item.unit   // granularity → carton/qtyType logic
+```
+
+This keeps every single-U/M book unchanged with zero migration: the stock
+workbook (`stock_items`, one U/M per row), its hand-built adapters, and every
+already-saved order item all resolve exactly as they do today. Only a book that
+maps the two columns separately (VTC: `Price U/M` → `priceUnit`, `No Broken U/M`
+→ `orderUnit`) gets the split behavior. Consistent with architecture invariant 2
+(new fields get legacy-safe defaults — here `""` — in `normOrderItem` in the same
+commit) and with the ADR 0003 snapshot doctrine: the pick still snapshots the
+*resolved* carton unit / $-per-sqft onto the selection, so nothing recomputes
+from the book at estimate time.
+
+Consequences: `normOrderItem` gains `priceUnit`/`orderUnit` (default `""`);
+`costSqft` reads `priceUnitOf`; the carton/`qtyType` decision in `stockPatch` /
+`orderPatch` reads `orderUnitOf`; the mapped-import field set and the mapping UI
+gain the two columns (VTC also newly maps `SF/CT` → `sfPerUnit` and `PC/CT`).
+Golden tests: a single-unit item orders and prices identically before/after the
+split (fallback), and a VTC `SF` / `No Broken CT` item orders in whole cartons
+while an `SF` / `No Broken PC` item orders loose pieces. Ships as its own PR in
+the VTC import redesign, after the description parser (PR #70) and alongside the
+coverage-unit suffix (`15.5 SF/CT`) that makes the two units legible on the row,
+summary, and print.
