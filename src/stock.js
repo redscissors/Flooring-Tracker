@@ -70,9 +70,12 @@ export const findStock = (items, sku) => (str(sku) ? items.find((it) => it.sku =
 
 // --- filling a product row ------------------------------------------------------
 
-// "12x24", '2x8"', "4X12", "2 x 6" → [L, W]; anything else → null.
+// "12x24", '2x8"', "4X12", "2 x 6" → [L, W]; also the L×W inside a size that
+// carries a trailing word ('4" x 4" Nominal', '8"x9" Hex') so those fill the
+// tile size cells instead of being shoved into the color name; anything with no
+// L×W ('6"', "Esagonia", "2\" Hex") → null.
 export const parseTileSize = (size) => {
-  const m = str(size).match(/^(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)\s*["']?$/i);
+  const m = str(size).match(/(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)/i);
   return m ? [m[1], m[2]] : null;
 };
 
