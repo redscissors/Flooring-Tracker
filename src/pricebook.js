@@ -540,6 +540,60 @@ const colFor = (columns, field) => {
   return -1;
 };
 
+// --- description → size / thickness / clean name ------------------------------
+//
+// Vendor tile sheets (Virginia Tile) ship no size column; the LxW and an
+// optional thickness live inside the description string
+// ("EARTH ASH GRAY 12X24 10MM"). We pull them out at import time so the pick
+// fills the tile size cells and the line name reads clean. A description with
+// no LxW passes through unchanged — the honest fallback, nothing invented.
+
+// Standard tile/plank thicknesses → the fraction the trade actually calls them,
+// which isn't always the nearest 1/16" (20mm is sold as 3/4" though 13/16" is
+// arithmetically closer). Anything not listed falls back to nearest 1/16".
+const MM_FRACTIONS = { 3: "1/8", 4: "3/16", 5: "3/16", 6: "1/4", 8: "5/16", 9: "3/8", 10: "3/8", 11: "7/16", 12: "1/2", 16: "5/8", 20: "3/4" };
+
+const reduceFrac = (n, d) => { const g = (a, b) => (b ? g(b, a % b) : a); const k = g(n, d) || 1; return `${n / k}/${d / k}`; };
+
+// A millimeter thickness → an inch-fraction string ('10' → '3/8"'). Whole
+// inches collapse ('25.4' → '1"'). Empty for anything non-numeric.
+export function mmToFraction(mm) {
+  const n = typeof mm === "number" ? mm : parseFloat(str(mm));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const key = Math.round(n);
+  if (MM_FRACTIONS[key]) return `${MM_FRACTIONS[key]}"`;
+  const sixteenths = Math.round((n / 25.4) * 16);
+  if (sixteenths <= 0) return "";
+  return sixteenths % 16 === 0 ? `${sixteenths / 16}"` : `${reduceFrac(sixteenths, 16)}"`;
+}
+
+const SIZE_RE = /(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)\s*["']?/i;
+const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
+const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
+
+// SHOUTING vendor text → Title Case; already-cased text is left alone (so an
+// intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
+const smartCase = (s) => { const v = str(s); return v && !/[a-z]/.test(v) ? titleCase(v) : v; };
+
+export function splitSizeFromDescription(desc) {
+  let s = str(desc);
+  if (!s) return { size: "", thickness: "", name: "" };
+  let size = "", thickness = "";
+  // Thickness first, so "10MM" can't be mistaken for part of a size.
+  const mm = s.match(THICK_MM_RE);
+  if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
+  const sz = s.match(SIZE_RE);
+  if (sz) { size = `${sz[1]}x${sz[2]}`; s = s.replace(sz[0], " "); }
+  if (!thickness) {
+    const fr = s.match(THICK_FRAC_RE);
+    if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }
+  }
+  // Drop only leftover standalone "x" tokens (from a stripped size), never an
+  // "x" inside a word like "Max".
+  const name = smartCase(s.split(/\s+/).filter((w) => w && !/^[x×]$/i.test(w)).join(" "));
+  return { size, thickness, name };
+}
+
 export function parseMapped(rows, mapping) {
   const items = [];
   const warnings = [];
@@ -591,7 +645,20 @@ function mappedItem(mapping, raw, sku, sem) {
   if (sem.madeToOrder) noteBits.push("Made to order");
   if (sem.transitioning) noteBits.push("Transitioning");
   const mfg = str(raw.mfg);
-  const descBits = [str(raw.description), str(raw.color), str(raw.style)].filter(Boolean);
+  // Vendor tile sheets embed the size (and thickness) in the description and
+  // carry no size column. When size isn't separately mapped, pull them out so
+  // the pick fills the tile size cells and the name reads clean.
+  let size = str(raw.size), thickness = str(raw.thickness), descText = str(raw.description);
+  if (!size && descText) {
+    const split = splitSizeFromDescription(descText);
+    if (split.size) size = split.size;
+    if (split.thickness && !thickness) thickness = split.thickness;
+    if (split.size || split.thickness) descText = split.name;
+  }
+  // The line name leads with the product line ("Presley Earth Ash Gray"), then
+  // the cleaned description, then any separately-mapped color/style.
+  const name = [smartCase(str(raw.productLine)), descText].filter(Boolean).join(" ");
+  const descBits = [name, smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean);
   return normOrderItem({
     sku,
     mfg,
@@ -602,8 +669,8 @@ function mappedItem(mapping, raw, sku, sem) {
     color: str(raw.color),
     style: str(raw.style),
     unit: str(raw.unit),
-    size: str(raw.size),
-    thickness: str(raw.thickness),
+    size,
+    thickness,
     type,
     cost,
     sfPerUnit: numOrNull(raw.sfPerUnit),
