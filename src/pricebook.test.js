@@ -323,6 +323,42 @@ test("parseMapped: reads mapped columns, applies the flag legend, stores cost no
   assert.match(bySku(items, "FLO0000003").note, /DISCO BY ADX/);
 });
 
+test("parseMapped: real MFG-Data shape — code columns stay out of the label, product line isn't doubled", () => {
+  // The live VTC "MFG Data" sheet (unlike the hand-picked fixture above) has
+  // VTC Color / VTC Pattern as internal CODES (EAAS / 312) and a product line
+  // (EARTH) that is already the first word of the description. The app's
+  // auto-guess maps all of them, which used to yield
+  // "Earth Earth Ash Gray — Eaas — 312". The label must read clean.
+  const rows = [
+    ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "", "Product Line Name", "", "", "Dealer", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", ""],
+    ["", "ADX", "EAAS", "312", "ADXEAAS312", "EARTH ASH GRAY 3X12", "EARTH", "", "", 11.64, "SF", "PC", 50, 12.5, ""],
+  ];
+  const mapping = {
+    headerRow: 0, skuPattern: "^[A-Z0-9]{6,20}$", defaultType: "tile",
+    columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 5: "description", 6: "productLine", 9: "cost", 10: "priceUnit", 11: "orderUnit", 12: "pcPerUnit", 13: "sfPerUnit" },
+  };
+  const t = bySku(parseMapped(rows, mapping).items, "ADXEAAS312");
+  assert.equal(t.description, "Earth Ash Gray"); // not doubled, no appended codes
+  assert.equal(t.color, "EAAS"); // code still stored on its own field
+  assert.equal(t.style, "312");
+  assert.equal(t.priceUnit, "SF"); // both unit columns captured
+  assert.equal(t.orderUnit, "PC");
+  assert.equal(t.size, "3x12");
+});
+
+test("parseMapped: with no description column, color + style are the fallback name", () => {
+  const rows = [
+    ["", "VTC MFG", "Color", "Pattern", "VTC Item Code", "", "Product Line", "", "", "Dealer", "U/M", "", "", "", ""],
+    ["", "CER", "Bianco", "Carrara", "CER0000009", "", "PRESLEY", "", "", 6, "SF", "", "", "", ""],
+  ];
+  const mapping = {
+    headerRow: 0, skuPattern: "^[A-Z0-9]{9,16}$", defaultType: "tile",
+    columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 6: "productLine", 9: "cost", 10: "unit" },
+  };
+  const t = bySku(parseMapped(rows, mapping).items, "CER0000009");
+  assert.equal(t.description, "Presley Bianco Carrara");
+});
+
 test("parseMapped: only SKU-pattern rows are consumed (the honesty guarantee)", () => {
   // A rearranged sheet whose SKU column now holds descriptions yields nothing,
   // not garbage — the same visible-degradation rule as the stock parser.

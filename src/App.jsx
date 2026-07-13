@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
-import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
@@ -3887,7 +3887,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                       <tr key={it.sku} className="border-t border-slate-100">
                         <td className="px-2 py-1 font-mono">{it.sku}</td><td className="px-2 py-1 truncate max-w-xs">{it.description}{it.freightFlag && <span className="ml-1 text-[9px] text-amber-600">◇frt</span>}</td>
                         {book.kind === "order" && <td className="px-2 py-1">{it.mfg}</td>}
-                        <td className="px-2 py-1">{it.unit}</td><td className="px-2 py-1 text-right tabular-nums">{hideCosts ? "•••" : it.cost != null ? money(it.cost) : it.price != null ? money(it.price) : "—"}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{orderUnitOf(it) && orderUnitOf(it) !== priceUnitOf(it) ? `${priceUnitOf(it)} → ${orderUnitOf(it)}` : priceUnitOf(it)}</td><td className="px-2 py-1 text-right tabular-nums">{hideCosts ? "•••" : it.cost != null ? money(it.cost) : it.price != null ? money(it.price) : "—"}</td>
                       </tr>
                     ))}</tbody>
                   </table>

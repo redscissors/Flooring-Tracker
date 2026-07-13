@@ -577,6 +577,14 @@ const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
 const smartCase = (s) => { const v = str(s); return v && !/[a-z]/.test(v) ? titleCase(v) : v; };
 
+// True when `text` begins with `prefix` on a word boundary (case-insensitive).
+// Lets us see that "Earth Ash Gray" already starts with the product line
+// "Earth" (so it isn't doubled), while "Earthen Ridge" does not.
+const startsWithWord = (text, prefix) => {
+  const t = str(text).toLowerCase(), p = str(prefix).toLowerCase();
+  return !!p && (t === p || t.startsWith(p + " "));
+};
+
 export function splitSizeFromDescription(desc) {
   let s = str(desc);
   if (!s) return { size: "", thickness: "", name: "" };
@@ -657,17 +665,23 @@ function mappedItem(mapping, raw, sku, sem) {
     if (split.thickness && !thickness) thickness = split.thickness;
     if (split.size || split.thickness) descText = split.name;
   }
-  // The line name leads with the product line ("Presley Earth Ash Gray"), then
-  // the cleaned description, then any separately-mapped color/style.
-  const name = [smartCase(str(raw.productLine)), descText].filter(Boolean).join(" ");
-  const descBits = [name, smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean);
+  // The label is the product line fronting the cleaned description
+  // ("Presley Earth Ash Gray") — the settled VTC spec (ADR 0009, §3). Color and
+  // Pattern stay their own fields and never join the label: on the real sheet
+  // they are internal codes (EAAS / 312), not words, so gluing them on reads as
+  // noise. When a book carries no description column, color+style is the
+  // fallback name. The product line is dropped when it already leads the
+  // description, so VTC's "EARTH" line doesn't read "Earth Earth Ash Gray".
+  const pl = smartCase(str(raw.productLine));
+  const label = descText || [smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean).join(" ");
+  const name = pl && !startsWithWord(label, pl) ? [pl, label].filter(Boolean).join(" ") : label;
   return normOrderItem({
     sku,
     mfg,
     productLine: str(raw.productLine),
     section: str(raw.section) || mfg,
     brand: str(raw.brand) || mfg,
-    description: descBits.join(" — "),
+    description: name,
     color: str(raw.color),
     style: str(raw.style),
     unit: str(raw.unit),
