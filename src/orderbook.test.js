@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
-  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups,
+  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems,
 } from "./orderbook.js";
 
 // A normalized order item, overridable per field.
@@ -162,6 +162,27 @@ test("mergeSearch: an exact-SKU order twin is dropped and the stock match tagged
   assert.deepEqual(s[0].alsoOn, ["vtc"]);    // "also on vtc" note, not a 2nd row
   assert.equal(o.length, 1);                 // only the non-colliding order item
   assert.equal(o[0].sku, "ZZ9");
+});
+
+// --- import diff -------------------------------------------------------------
+
+test("diffBookItems: added / changed (by cost) / missing, mirroring diffStock", () => {
+  const existing = [
+    normBookItem({ sku: "A1", active: true, data: { cost: 5, description: "Keep" } }, "b"),
+    normBookItem({ sku: "B2", active: true, data: { cost: 3, description: "Move" } }, "b"),
+    normBookItem({ sku: "C3", active: true, data: { cost: 9, description: "Gone" } }, "b"),
+  ];
+  const parsed = [
+    normOrderItem({ sku: "A1", cost: 5, description: "Keep" }),   // unchanged
+    normOrderItem({ sku: "B2", cost: 4, description: "Move" }),   // cost changed
+    normOrderItem({ sku: "D4", cost: 1, description: "New" }),    // added
+  ];
+  const diff = diffBookItems(existing, parsed);
+  assert.deepEqual(diff.added.map((i) => i.sku), ["D4"]);
+  assert.deepEqual(diff.changed.map((c) => c.item.sku), ["B2"]);
+  assert.deepEqual(diff.changed[0].fields, ["cost"]);
+  assert.deepEqual(diff.missing.map((i) => i.sku), ["C3"]); // absent → marked inactive
+  assert.deepEqual(diff.unchanged.map((i) => i.sku), ["A1"]);
 });
 
 // --- markup editor groups ----------------------------------------------------

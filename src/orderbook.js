@@ -186,6 +186,31 @@ export function mergeSearch(stockMatches, orderMatches) {
   return { stock: stockMatches || [], order };
 }
 
+// --- import diff -------------------------------------------------------------
+
+// The item fields whose change makes a re-import a "changed" row. Order books
+// track cost (not sell) plus the vendor attributes a re-issue can move.
+const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "size", "thickness", "type", "cost", "sfPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+
+// Compare freshly parsed items against the book's current rows — same contract
+// as diffStock: added / changed / missing (marked inactive on apply, never
+// deleted, so selections referencing a dropped SKU keep resolving).
+export function diffBookItems(existing, parsed) {
+  const bySku = new Map((existing || []).map((it) => [it.sku, it]));
+  const seen = new Set();
+  const added = [], changed = [], unchanged = [];
+  for (const it of parsed || []) {
+    seen.add(it.sku);
+    const prev = bySku.get(it.sku);
+    if (!prev) { added.push(it); continue; }
+    const fields = BOOK_FIELDS.filter((f) => (prev[f] ?? null) !== (it[f] ?? null));
+    if (fields.length || !prev.active) changed.push({ item: it, prev, fields });
+    else unchanged.push(it);
+  }
+  const missing = (existing || []).filter((it) => it.active && !seen.has(it.sku));
+  return { added, changed, missing, unchanged };
+}
+
 // --- markup group summary ----------------------------------------------------
 
 // The distinct values of the markup group column present in a book's items,
