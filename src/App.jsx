@@ -761,6 +761,9 @@ const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
 const AUTO_KEEP = 5;
 // Price-book import versions kept per book (pinned rows are never pruned).
 const BOOK_VERSION_KEEP = 3;
+// Reserved pricebook_versions.book_id for the shop workbook (its items live in
+// stock_items, not price_book_items — ADR 0009 §5).
+const STOCK_BOOK_ID = "stock";
 
 // Animated light/dark switch (RiccardoRapelli sun/moon toggle, Uiverse.io) —
 // a quick binary shortcut for the three-way theme control in Settings. Checked
@@ -1119,25 +1122,50 @@ export default function App({ user, onSignOut }) {
   // dropped out of the book (never deleted — old selections keep resolving).
   // Catalog products whose price the book pins get updated through the normal
   // settings write path.
-  const applyImport = async () => {
-    const { diff, sync } = importPreview;
-    setImportPreview(null);
+  // Chunked upsert of a stock diff: new + changed active, dropped rows marked
+  // active=false (never deleted). Shared by the workbook import and rollback.
+  const upsertStock = async (diff) => {
     const upserts = [
       ...diff.added.map((it) => ({ sku: it.sku, active: true, data: stockData(it) })),
       ...diff.changed.map(({ item }) => ({ sku: item.sku, active: true, data: stockData(item) })),
       ...diff.missing.map((it) => ({ sku: it.sku, active: false, data: stockData(it) })),
     ];
+    for (let i = 0; i < upserts.length; i += 200) {
+      const { error } = await supabase.from("stock_items").upsert(upserts.slice(i, i + 200), { onConflict: "sku" });
+      if (error) throw error;
+    }
+  };
+
+  const applyImport = async () => {
+    const { diff, sync } = importPreview;
+    setImportPreview(null);
     try {
-      for (let i = 0; i < upserts.length; i += 200) {
-        const { error } = await supabase.from("stock_items").upsert(upserts.slice(i, i + 200), { onConflict: "sku" });
-        if (error) throw error;
-      }
-      const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: diff.added.length + diff.changed.length + diff.unchanged.length } };
+      await upsertStock(diff);
+      const applied = appliedFromDiff(diff);
+      await snapshotBookVersion(STOCK_BOOK_ID, applied, stockData);
+      const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: applied.length } };
       setSettings(sync.changes.length ? { catalog: sync.catalog, ops } : { ops });
       setStock(await loadStock());
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
     } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
+  };
+
+  // Roll the shop workbook back to a version snapshot: replay it through the
+  // normal diffStock -> upsert flow (never a blind overwrite), snapshot a fresh
+  // version so the rollback is the newest, and bump ops.lastImport so the
+  // history list refreshes. No catalog price-sync — a rollback restores the
+  // book's own rows, not catalog prices.
+  const rollbackStock = async (diff) => {
+    try {
+      await upsertStock(diff);
+      const applied = appliedFromDiff(diff);
+      await snapshotBookVersion(STOCK_BOOK_ID, applied, stockData);
+      const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: applied.length } };
+      setSettings({ ops });
+      setStock(await loadStock());
+      flashSaved();
+    } catch (x) { ping("Rollback failed"); }
   };
 
   // --- price book library (ADR 0009) -----------------------------------------
@@ -1204,14 +1232,24 @@ export default function App({ user, onSignOut }) {
       if (error) throw error;
     }
     await updateBook(bookId, { dataPatch: { lastImport: { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length } } });
-    // Version-on-import: snapshot the book exactly as it now stands (active set =
-    // added + changed + unchanged; retired SKUs are excluded). Costs, never sell
-    // — markups are settings, not versioned. Best-effort: the import already
-    // applied, so a version-write failure must not surface as an import failure.
+    await snapshotBookVersion(bookId, appliedFromDiff(diff), bookItemData);
+  };
+
+  // The active set an apply leaves the book in: added + changed + unchanged
+  // (retired SKUs are excluded — they were just marked inactive). Both diff
+  // shapes (diffBookItems / diffStock) match, so this serves stock and registry.
+  const appliedFromDiff = (diff) => [...diff.added, ...diff.changed.map((c) => c.item), ...(diff.unchanged || [])];
+
+  // Snapshot a book's applied active set as a pricebook_versions row (values as
+  // applied — cost/price, never derived sell), then prune unpinned to newest 3.
+  // Shared by the registry-book import and the stock-workbook import/rollback.
+  // Best-effort: the items are already applied, so a version-write failure must
+  // not surface as an import failure. `toData` strips the row's column-backed
+  // fields (bookItemData for registry items, stockData for stock items).
+  const snapshotBookVersion = async (bookId, appliedItems, toData) => {
     try {
-      const applied = [...diff.added, ...diff.changed.map((c) => c.item), ...(diff.unchanged || [])];
-      const snapshot = applied.map((it) => ({ sku: it.sku, data: bookItemData(it) }));
-      const { error: ve } = await supabase.from("pricebook_versions").insert({ id: uid(), book_id: bookId, label: "", pinned: false, imported_by: profile.name || user.email || "", item_count: applied.length, snapshot });
+      const snapshot = appliedItems.map((it) => ({ sku: it.sku, data: toData(it) }));
+      const { error: ve } = await supabase.from("pricebook_versions").insert({ id: uid(), book_id: bookId, label: "", pinned: false, imported_by: profile.name || user.email || "", item_count: appliedItems.length, snapshot });
       if (ve) throw ve;
       const versions = await loadBookVersions(bookId);
       const drop = versions.filter((v) => !v.pinned).slice(BOOK_VERSION_KEEP).map((v) => v.id);
@@ -2875,7 +2913,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} />
       )}
 
       {showTodos && (
@@ -3207,7 +3245,7 @@ const guessHeaderRow = (rows) => {
   return best;
 };
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3278,6 +3316,10 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, ap
             {gFamilies.length > 0 && <p className="text-xs text-slate-400 mt-1 max-w-xl">Grout &amp; caulk: {gFamilies.length} color families · {gFamilies.reduce((n, f) => n + f.colors.length, 0)} color SKUs.</p>}
             <button onClick={() => pbRef.current?.click()} disabled={importing} className="mt-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import shop workbook (.xlsx)"}</button>
             <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
+            <ImportHistory bookId={STOCK_BOOK_ID} refreshKey={settings.ops?.lastImport?.at || 0} currentItems={stock}
+              loadVersions={loadBookVersions} loadSnapshot={loadBookVersionSnapshot} pinVersion={pinBookVersion}
+              snapshotToItems={(snap) => snap.map((r) => normStockItem({ sku: r.sku, active: true, data: r.data || {} }))}
+              computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
           </div>
         ) : selBook ? (
           <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
@@ -3309,18 +3351,88 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, ap
   );
 }
 
+// Import history + rollback for any versioned price book — a registry book
+// (BookDetail) or the shop workbook (the stock panel). Owns its version list;
+// the parent bumps refreshKey after an import so it re-fetches. Rollback diffs a
+// version's snapshot against the current items and hands the diff to onRollback,
+// which replays it through that book's normal apply path (never a blind
+// overwrite) — the apply writes a fresh version, so the rollback is the newest.
+function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSnapshot, pinVersion, snapshotToItems, computeDiff, onRollback, noun = "this book" }) {
+  const [versions, setVersions] = useState(null);
+  const [rollback, setRollback] = useState(null); // { version, diff } — confirm modal
+  const reload = () => loadVersions(bookId).then(setVersions).catch(() => setVersions([]));
+  useEffect(() => { let ok = true; loadVersions(bookId).then((v) => ok && setVersions(v)).catch(() => ok && setVersions([])); return () => { ok = false; }; }, [bookId, refreshKey]);
+
+  const togglePin = async (v) => {
+    setVersions((vs) => (vs || []).map((x) => x.id === v.id ? { ...x, pinned: !x.pinned } : x));
+    try { await pinVersion(v.id, !v.pinned); } catch (x) { reload(); }
+  };
+  const openRollback = async (v) => {
+    try {
+      const snap = await loadSnapshot(v.id);
+      setRollback({ version: v, diff: computeDiff(currentItems || [], snapshotToItems(snap || [])) });
+    } catch (x) { /* transient — user can retry */ }
+  };
+  const confirmRollback = async () => {
+    if (!rollback) return;
+    await onRollback(rollback.diff);
+    setRollback(null);
+  };
+
+  if (versions == null || versions.length === 0) return null;
+  return (
+    <>
+      <div className="mt-6">
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-400"><History size={13} /> Import history</div>
+        <div className="mt-2 border border-slate-100 rounded-lg divide-y divide-slate-100">
+          {versions.map((v, i) => (
+            <div key={v.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+              <button onClick={() => togglePin(v)} title={v.pinned ? "Pinned — kept through pruning" : "Pin to keep"} className={v.pinned ? "text-indigo-600" : "text-slate-300 hover:text-slate-500"}><Pin size={14} className={v.pinned ? "fill-current" : ""} /></button>
+              <div className="min-w-0">
+                <div className="truncate">
+                  {v.label || (i === 0 ? "Latest import" : "Import")}
+                  {i === 0 && <span className="ml-1.5 text-[9px] uppercase rounded bg-emerald-100 text-emerald-700 px-1 py-0.5">current</span>}
+                </div>
+                <div className="text-[11px] text-slate-400">{v.importedAt ? new Date(v.importedAt).toLocaleString() : "—"}{v.importedBy ? ` · ${v.importedBy}` : ""} · {v.itemCount} item{v.itemCount === 1 ? "" : "s"}</div>
+              </div>
+              {i !== 0 && <button onClick={() => openRollback(v)} className="ml-auto flex items-center gap-1 text-xs rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1 text-slate-600"><RotateCcw size={12} /> Roll back</button>}
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-slate-400 mt-1">The newest {BOOK_VERSION_KEEP} unpinned imports are kept; pin one to keep it indefinitely.</p>
+      </div>
+
+      {rollback && (
+        <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={() => setRollback(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+            <h3 className="ft-serif text-xl mb-1">Roll back {noun}?</h3>
+            <p className="text-sm text-slate-500">Restores {noun} to the <b>{rollback.version.importedAt ? new Date(rollback.version.importedAt).toLocaleString() : ""}</b> import ({rollback.version.itemCount} item{rollback.version.itemCount === 1 ? "" : "s"}). This is applied as a new import — it becomes the newest version, and nothing older is lost.</p>
+            <div className="flex items-center gap-3 flex-wrap mt-3 text-xs">
+              <span className="text-emerald-600">{rollback.diff.added.length} restored</span>
+              <span className="text-amber-600">{rollback.diff.changed.length} changed back</span>
+              <span className="text-slate-400">{rollback.diff.missing.length} retiring · {rollback.diff.unchanged.length} unchanged</span>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setRollback(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={confirmRollback} disabled={rollback.diff.added.length + rollback.diff.changed.length + rollback.diff.missing.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Roll back</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
-  const [versions, setVersions] = useState(null); // null = loading
-  const [rollback, setRollback] = useState(null); // { version, diff } — confirm modal
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
+  const [vSeq, setVSeq] = useState(0); // bump to refresh the import-history list
 
   const reload = () => { setItems(null); loadBookItems(book.id).then(setItems).catch(() => setItems([])); };
-  const reloadVersions = () => { loadBookVersions(book.id).then(setVersions).catch(() => setVersions([])); };
-  useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); loadBookVersions(book.id).then((v) => ok && setVersions(v)).catch(() => ok && setVersions([])); return () => { ok = false; }; }, [book.id]);
+  useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); return () => { ok = false; }; }, [book.id]);
 
   const markups = book.data?.markups || null;
   const li = book.data?.lastImport;
@@ -3332,31 +3444,15 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
     .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query))
     .slice(0, 300);
 
-  const onApply = async (diff) => {
-    try { await applyBookImport(book.id, diff); setWizard(false); reload(); reloadVersions(); }
+  // Apply an import/rollback diff and refresh the table + history. applyBookImport
+  // itself writes the version, so a rollback lands as the newest one.
+  const applyDiff = async (diff) => {
+    try { await applyBookImport(book.id, diff); reload(); setVSeq((s) => s + 1); }
     catch (x) { /* surfaced by applyBookImport */ }
   };
-
-  const togglePin = async (v) => {
-    setVersions((vs) => (vs || []).map((x) => x.id === v.id ? { ...x, pinned: !x.pinned } : x));
-    try { await pinBookVersion(v.id, !v.pinned); } catch (x) { reloadVersions(); }
-  };
-
-  // Rollback replays a version's snapshot through the normal import diff/apply
-  // flow (never a blind row overwrite): load the snapshot, diff it against the
-  // book as it stands now, and preview before applying. The apply itself writes
-  // a fresh version, so the rollback becomes the newest one.
-  const openRollback = async (v) => {
-    try {
-      const snap = await loadBookVersionSnapshot(v.id);
-      const parsed = (snap || []).map((r) => normBookItem({ sku: r.sku, active: true, data: r.data || {} }, book.id));
-      setRollback({ version: v, diff: diffBookItems(items || [], parsed) });
-    } catch (x) { /* transient — user can retry */ }
-  };
-  const confirmRollback = async () => {
-    if (!rollback) return;
-    await onApply(rollback.diff);
-    setRollback(null);
+  const onApply = async (diff) => {
+    try { await applyBookImport(book.id, diff); setWizard(false); reload(); setVSeq((s) => s + 1); }
+    catch (x) { /* surfaced by applyBookImport */ }
   };
 
   // Persist a hand-edit and merge the stamped result back into the open list
@@ -3442,45 +3538,10 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
         <p className="text-sm text-slate-400 mt-6">This book is empty. Click <span className="text-slate-600">Import…</span> to map a vendor sheet's columns and load its items.</p>
       )}
 
-      {versions != null && versions.length > 0 && (
-        <div className="mt-6">
-          <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-400"><History size={13} /> Import history</div>
-          <div className="mt-2 border border-slate-100 rounded-lg divide-y divide-slate-100">
-            {versions.map((v, i) => (
-              <div key={v.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <button onClick={() => togglePin(v)} title={v.pinned ? "Pinned — kept through pruning" : "Pin to keep"} className={v.pinned ? "text-indigo-600" : "text-slate-300 hover:text-slate-500"}><Pin size={14} className={v.pinned ? "fill-current" : ""} /></button>
-                <div className="min-w-0">
-                  <div className="truncate">
-                    {v.label || (i === 0 ? "Latest import" : "Import")}
-                    {i === 0 && <span className="ml-1.5 text-[9px] uppercase rounded bg-emerald-100 text-emerald-700 px-1 py-0.5">current</span>}
-                  </div>
-                  <div className="text-[11px] text-slate-400">{v.importedAt ? new Date(v.importedAt).toLocaleString() : "—"}{v.importedBy ? ` · ${v.importedBy}` : ""} · {v.itemCount} item{v.itemCount === 1 ? "" : "s"}</div>
-                </div>
-                {i !== 0 && <button onClick={() => openRollback(v)} className="ml-auto flex items-center gap-1 text-xs rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1 text-slate-600"><RotateCcw size={12} /> Roll back</button>}
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">The newest {BOOK_VERSION_KEEP} unpinned imports are kept; pin one to keep it indefinitely.</p>
-        </div>
-      )}
-
-      {rollback && (
-        <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={() => setRollback(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-md p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
-            <h3 className="ft-serif text-xl mb-1">Roll back this book?</h3>
-            <p className="text-sm text-slate-500">Restores the book to the <b>{rollback.version.importedAt ? new Date(rollback.version.importedAt).toLocaleString() : ""}</b> import ({rollback.version.itemCount} item{rollback.version.itemCount === 1 ? "" : "s"}). This is applied as a new import — it becomes the newest version, and nothing older is lost.</p>
-            <div className="flex items-center gap-3 flex-wrap mt-3 text-xs">
-              <span className="text-emerald-600">{rollback.diff.added.length} restored</span>
-              <span className="text-amber-600">{rollback.diff.changed.length} changed back</span>
-              <span className="text-slate-400">{rollback.diff.missing.length} retiring · {rollback.diff.unchanged.length} unchanged</span>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setRollback(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-              <button onClick={confirmRollback} disabled={rollback.diff.added.length + rollback.diff.changed.length + rollback.diff.missing.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Roll back</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ImportHistory bookId={book.id} refreshKey={vSeq} currentItems={items}
+        loadVersions={loadBookVersions} loadSnapshot={loadBookVersionSnapshot} pinVersion={pinBookVersion}
+        snapshotToItems={(snap) => snap.map((r) => normBookItem({ sku: r.sku, active: true, data: r.data || {} }, book.id))}
+        computeDiff={diffBookItems} onRollback={applyDiff} noun="this book" />
 
       {editItem && <BookItemEditModal item={editItem} isOrder={isOrder} onClose={() => setEditItem(null)} onSave={saveItemEdit} inp={inp} lbl={lbl} />}
 
@@ -3811,7 +3872,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4259,7 +4320,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
