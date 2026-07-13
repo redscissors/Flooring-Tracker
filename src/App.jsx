@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, mergeSearch } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -835,6 +835,12 @@ export default function App({ user, onSignOut }) {
   // lazily when it's opened (a vendor book is ~10x the stock book). Empty
   // until the team has run supabase/pricebooks.sql.
   const [books, setBooks] = useState([]);
+  // Current book items for the SKUs on the open project's order rows, nested
+  // { [bookId]: { [sku]: normBookItem | null } }. Order items aren't eagerly
+  // loaded, so the row drift chip fetches just the handful of SKUs actually on
+  // the estimate on demand; a SKU that has left the book resolves to null and
+  // stays cached so it isn't refetched.
+  const [orderItems, setOrderItems] = useState({});
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
   const pbRef = useRef(null);
@@ -1435,6 +1441,55 @@ export default function App({ user, onSignOut }) {
       return price(rows);
     };
   }, [orderBooks]);
+  // The distinct (book, SKU) pairs the open project's order rows reference, as
+  // a stable JSON signature so the fetch below fires only when that set changes
+  // (sel is a fresh object on every edit, not a useful dependency by itself).
+  const orderRowKeys = useMemo(() => {
+    const seen = new Set();
+    const pairs = [];
+    for (const a of sel?.categories || []) for (const p of a.products || []) {
+      if (!p.bookId || !p.sku) continue;
+      const k = JSON.stringify([p.bookId, p.sku]);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      pairs.push([p.bookId, p.sku]);
+    }
+    pairs.sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)));
+    return JSON.stringify(pairs);
+  }, [sel]);
+  // Fetch just those SKUs (one query per book, only keys not resolved yet), so
+  // the row drift chip can compare against today's cost x markup without ever
+  // loading a whole vendor book. Missing SKUs resolve to null and stay cached.
+  useEffect(() => {
+    const pairs = JSON.parse(orderRowKeys || "[]");
+    const want = new Map();
+    for (const [bookId, sku] of pairs) {
+      if (orderItems[bookId] && sku in orderItems[bookId]) continue;
+      if (!want.has(bookId)) want.set(bookId, new Set());
+      want.get(bookId).add(sku);
+    }
+    if (!want.size) return;
+    let stale = false;
+    (async () => {
+      const adds = {};
+      for (const [bookId, skus] of want) {
+        try {
+          const { data: rows, error } = await supabase.from("price_book_items").select("sku, active, data, updated_at").eq("book_id", bookId).in("sku", [...skus]);
+          if (error) throw error;
+          const m = { ...(adds[bookId] || {}) };
+          for (const sku of skus) m[sku] = null;
+          for (const r of rows || []) m[r.sku] = normBookItem(r, bookId);
+          adds[bookId] = m;
+        } catch (x) { /* leave unresolved; retried when the key set next changes */ }
+      }
+      if (!stale && Object.keys(adds).length) setOrderItems((prev) => {
+        const next = { ...prev };
+        for (const bid of Object.keys(adds)) next[bid] = { ...(next[bid] || {}), ...adds[bid] };
+        return next;
+      });
+    })();
+    return () => { stale = true; };
+  }, [orderRowKeys]);
   // Pick from the SKU dropdown: the first item fills the anchor row, each
   // further item becomes its own new product row right below it. A Laticrete
   // pigment (Spectralock Part C, Permacolor Color Kit) drags its default base
@@ -2286,9 +2341,16 @@ export default function App({ user, onSignOut }) {
                         ];
                         const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
                         const mUnit = M ? M.unit : settings.mortars[p.mortar.product]?.unit || "";
-                        // Stock link: the row keeps its snapshotted values; the
-                        // chip below only points out drift from the current book.
-                        const stockItem = findStock(stock, p.sku);
+                        // Price-book link: the row keeps its snapshotted values; the
+                        // chip below only points out drift from the current book. An
+                        // order row (bookId set) drifts on cost x markup, its book item
+                        // fetched on demand (orderItems), so it takes the order path and
+                        // skips the stock lookup entirely.
+                        const orderRow = !!p.bookId;
+                        const oBook = orderRow ? books.find((b) => b.id === p.bookId) : null;
+                        const oItem = orderRow && p.sku ? orderItems[p.bookId]?.[p.sku] : null;
+                        const oDrift = oItem && oBook ? orderDrift(oItem, oBook, p) : null;
+                        const stockItem = orderRow ? null : findStock(stock, p.sku);
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
                         const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
@@ -2428,12 +2490,24 @@ export default function App({ user, onSignOut }) {
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                               </div>
                             )}
-                            {(drift || stockRetired || baseAlt) && (
+                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt) && (
                               <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                                 </>)}
+                                {oDrift && (<>
+                                  <span className="text-amber-600">Price book now {money(oDrift.to)} — this row has {money(oDrift.from)}</span>
+                                  {(oDrift.cost || oDrift.markup) && (
+                                    <span className="text-slate-400">
+                                      {oDrift.cost && `cost ${money(oDrift.cost.from)} → ${money(oDrift.cost.to)}`}
+                                      {oDrift.cost && oDrift.markup && ", "}
+                                      {oDrift.markup && `markup ${oDrift.markup.from}% → ${oDrift.markup.to}%`}
+                                    </span>
+                                  )}
+                                  <button tabIndex={-1} onClick={() => { const priced = pricedItem(oItem, oBook?.data?.markups); updProduct(a.id, p.id, { priceSqft: String(oDrift.to), cost: oItem.cost != null ? String(oItem.cost) : "", markupPct: priced.markupPct != null ? String(priced.markupPct) : "" }); }} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
+                                </>)}
+                                {p.freightFlag && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
                                 {baseAlt && (
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, stockPatch(baseAlt, p))} className="rounded-full border border-slate-300 text-slate-600 px-2 py-0.5 hover:bg-slate-50 font-medium">Use {baseAlt.style || baseAlt.description}</button>
                                 )}
