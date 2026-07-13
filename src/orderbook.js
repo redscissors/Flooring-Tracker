@@ -250,3 +250,25 @@ export function markupGroups(items, markups) {
     .map(([key, count]) => ({ key, count, pct: (m.byGroup && m.byGroup[key] != null ? numOr(m.byGroup[key], numOr(m.default, 0)) : numOr(m.default, 0)), overridden: !!(m.byGroup && m.byGroup[key] != null) }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
+
+// --- book staleness (§8.3) ---------------------------------------------------
+
+// Vendors re-issue cost lists roughly quarterly; a months-old book quietly
+// misprices jobs, the most likely real-world failure of the whole system. The
+// default flags a book whose last import predates this many days; the owner can
+// override it (settings.ops.staleDays).
+export const DEFAULT_STALE_DAYS = 120;
+
+// Age of a book's last import and whether it is past the staleness threshold.
+// `lastImportAt` is an epoch-ms stamp (book.data.lastImport.at or, for the stock
+// workbook, settings.ops.lastImport.at); a never-imported book (null/0) has no
+// age and is NOT flagged stale — "stale" means old data, not absent data. An
+// out-of-range threshold falls back to the default so a bad setting can't flag
+// (or un-flag) every book.
+export function bookStaleness(lastImportAt, thresholdDays = DEFAULT_STALE_DAYS, now = Date.now()) {
+  const at = numOr(lastImportAt);
+  const days = at != null && at > 0 ? Math.floor((now - at) / 86400000) : null;
+  const t = numOr(thresholdDays);
+  const threshold = t != null && t > 0 ? t : DEFAULT_STALE_DAYS;
+  return { days, threshold, stale: days != null && days >= threshold };
+}

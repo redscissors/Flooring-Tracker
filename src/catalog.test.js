@@ -584,6 +584,23 @@ test("settings without ops stay without ops", () => {
   assert.equal("ops" in serializeSettings(s), false);
 });
 
+test("normOps preserves a valid staleDays override and drops an invalid one", () => {
+  const keep = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { staleDays: 90 } }));
+  assert.equal(keep.ops.staleDays, 90);
+  // rounds to whole days
+  const round = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { staleDays: 90.6 } }));
+  assert.equal(round.ops.staleDays, 91);
+  // zero / negative / non-numeric are dropped, leaving no ops at all here
+  for (const bad of [0, -30, "soon"]) {
+    const out = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { staleDays: bad } }));
+    assert.equal(out.ops, undefined);
+  }
+  // a staleDays override coexists with provenance stamps
+  const both = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { staleDays: 60, lastImport: { at: 1751500000000, by: "Dave" } } }));
+  assert.equal(both.ops.staleDays, 60);
+  assert.equal(both.ops.lastImport.by, "Dave");
+});
+
 test("garbage ops normalize away instead of persisting", () => {
   for (const bad of ["yes", 7, { lastImport: "yesterday" }, { lastImport: { by: "Dave" } }, { lastImport: { at: "not a time" } }]) {
     const s = normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: bad });

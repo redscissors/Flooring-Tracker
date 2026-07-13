@@ -1,12 +1,12 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -3277,7 +3277,19 @@ const FLAG_SEMANTICS = [["", "— ignore —"], ["discontinued", "Discontinued"]
 // guessBookField / guessHeaderRow moved to src/pricebook.js (pure + tested);
 // bookFieldOptions / FLAG_SEMANTICS above stay here as UI dropdown lists.
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
+// Amber chip for a stale book (§8.3): last imported longer ago than the
+// staleness threshold. A months-old vendor cost list quietly misprices jobs, so
+// the age is surfaced wherever the book is named.
+function StaleChip({ days }) {
+  return (
+    <span title={`Last imported ${days} days ago — vendors re-issue cost lists roughly quarterly; re-import to be sure prices are current`}
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+      <AlertTriangle size={11} /> Stale · {days}d
+    </span>
+  );
+}
+
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3288,6 +3300,14 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const orderBooks = books.filter((b) => b.kind === "order");
   const selBook = sel === "stock" ? null : books.find((b) => b.id === sel);
   const stockCount = stock.filter((s) => s.active).length;
+
+  // Staleness (§8.3): flag a book whose last import predates the owner-set
+  // threshold. The shop workbook stamps settings.ops.lastImport; registry books
+  // stamp book.data.lastImport.
+  const staleDays = settings.ops?.staleDays || DEFAULT_STALE_DAYS;
+  const stockStale = bookStaleness(settings.ops?.lastImport?.at, staleDays);
+  const bookStale = (b) => bookStaleness(b.data?.lastImport?.at, staleDays);
+  const setStaleDays = (v) => { const n = Math.round(Number(v)); setSettings({ ops: { ...(settings.ops || {}), staleDays: n > 0 ? n : null } }); };
 
   const create = async () => {
     const name = newName.trim() || (newKind === "stock" ? "New stock book" : "New vendor book");
@@ -3305,12 +3325,14 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           <button onClick={() => setSel("stock")} className={rowCls(sel === "stock")}>
             <BookOpen size={14} className={sel === "stock" ? "" : "text-slate-400"} />
             <span className="flex-1 truncate">Shop workbook</span>
+            {stockStale.stale && <AlertTriangle size={12} className={sel === "stock" ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${stockStale.days} days ago`} />}
             <span className={`text-[10px] ${sel === "stock" ? "text-white/70" : "text-slate-400"}`}>{stockCount || "—"}</span>
           </button>
           {stockBooks.map((b) => (
             <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
               <BookOpen size={14} className={sel === b.id ? "" : "text-slate-400"} />
               <span className="flex-1 truncate">{b.name || "Untitled"}</span>
+              {bookStale(b).stale && <AlertTriangle size={12} className={sel === b.id ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
             </button>
           ))}
         </div>
@@ -3321,6 +3343,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
               <Database size={14} className={sel === b.id ? "" : "text-slate-400"} />
               <span className="flex-1 truncate">{b.name || "Untitled"}</span>
+              {bookStale(b).stale && <AlertTriangle size={12} className={sel === b.id ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
               {!b.active && <span className={`text-[10px] ${sel === b.id ? "text-white/70" : "text-slate-400"}`}>off</span>}
             </button>
           ))}
@@ -3329,11 +3352,18 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
-          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-            {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <label className="flex items-center gap-1.5 text-xs text-slate-500" title="Books not re-imported within this many days get an amber ‘stale’ flag in the list. Vendors re-issue cost lists roughly quarterly.">
+              Flag stale after
+              <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className={inp + " w-16 text-center"} />
+              days
+            </label>
+            <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+              {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
+            </button>
+          </div>
         </div>
 
         {sel === "stock" ? (
@@ -3344,7 +3374,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
                 : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
               The shop workbook keeps its hand-built import; a SKU on a product row copies that item's values onto the row, and later price changes never rewrite saved selections.
             </p>
-            {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}</p>}
+            {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1 flex items-center gap-2 flex-wrap">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}{stockStale.stale && <StaleChip days={stockStale.days} />}</p>}
             {gFamilies.length > 0 && <p className="text-xs text-slate-400 mt-1 max-w-xl">Grout &amp; caulk: {gFamilies.length} color families · {gFamilies.reduce((n, f) => n + f.colors.length, 0)} color SKUs.</p>}
             <button onClick={() => pbRef.current?.click()} disabled={importing} className="mt-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import shop workbook (.xlsx)"}</button>
             <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
@@ -3354,7 +3384,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
           </div>
         ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
@@ -3455,7 +3485,7 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [wizard, setWizard] = useState(false);
@@ -3469,6 +3499,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
 
   const markups = book.data?.markups || null;
   const li = book.data?.lastImport;
+  const st = bookStaleness(li?.at, staleDays);
   const isOrder = book.kind === "order";
   const cost = (n) => (hideCosts ? "•••" : n == null ? "—" : money(n));
   const activeItems = (items || []).filter((it) => it.active);
@@ -3526,6 +3557,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
           {items == null ? "Loading items…" : `${activeItems.length} active item${activeItems.length === 1 ? "" : "s"}`}
           {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
         </span>
+        {st.stale && <StaleChip days={st.days} />}
       </div>
 
       {isOrder && items && items.length > 0 && (
@@ -4391,7 +4423,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>

@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
+  bookStaleness, DEFAULT_STALE_DAYS,
 } from "./orderbook.js";
+
+const DAY = 86400000;
 
 // A normalized order item, overridable per field.
 const oi = (over = {}) => normOrderItem({ sku: "ABC12345", cost: 10, unit: "SF", ...over });
@@ -249,4 +252,38 @@ test("markupGroups lists the group values present, each with its override or the
   assert.equal(groups.length, 2);            // "" skipped; only real groups are priceable
   assert.deepEqual(groups[0], { key: "CER", count: 2, pct: 60, overridden: true });
   assert.deepEqual(groups[1], { key: "FLO", count: 1, pct: 45, overridden: false });
+});
+
+// --- book staleness (§8.3) ---------------------------------------------------
+
+test("bookStaleness: a recent import is not stale and reports its age in days", () => {
+  const now = 1_000 * DAY;
+  const r = bookStaleness(now - 10 * DAY, DEFAULT_STALE_DAYS, now);
+  assert.equal(r.days, 10);
+  assert.equal(r.stale, false);
+  assert.equal(r.threshold, DEFAULT_STALE_DAYS);
+});
+
+test("bookStaleness: an import older than the threshold is stale (boundary is inclusive)", () => {
+  const now = 1_000 * DAY;
+  assert.equal(bookStaleness(now - 119 * DAY, 120, now).stale, false);
+  assert.equal(bookStaleness(now - 120 * DAY, 120, now).stale, true);   // exactly at threshold
+  assert.equal(bookStaleness(now - 200 * DAY, 120, now).stale, true);
+});
+
+test("bookStaleness: a never-imported book has no age and is not flagged stale", () => {
+  const now = 1_000 * DAY;
+  for (const v of [null, undefined, 0, ""]) {
+    const r = bookStaleness(v, 120, now);
+    assert.equal(r.days, null);
+    assert.equal(r.stale, false);
+  }
+});
+
+test("bookStaleness: an out-of-range threshold falls back to the default", () => {
+  const now = 1_000 * DAY;
+  for (const bad of [0, -5, null, undefined, "x"]) {
+    assert.equal(bookStaleness(now - 130 * DAY, bad, now).threshold, DEFAULT_STALE_DAYS);
+    assert.equal(bookStaleness(now - 130 * DAY, bad, now).stale, true);   // 130 ≥ 120 default
+  }
 });
