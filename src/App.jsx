@@ -3456,7 +3456,19 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
     const hr = guessHeaderRow(s.rows);
     setHeaderRow(hr);
     const cols = {};
-    if (hr >= 0) (s.rows[hr] || []).forEach((c, i) => { const f = guessBookField(c); if (f && !Object.values(cols).includes(f)) cols[i] = f; });
+    if (hr >= 0) {
+      const header = s.rows[hr] || [];
+      header.forEach((c, i) => { const f = guessBookField(c); if (f && !Object.values(cols).includes(f)) cols[i] = f; });
+      // The one column header-name matching can't see: a blank-headered column
+      // immediately right of the item code is the description (VTC's
+      // "EARTH ASH GRAY 3X12" sits there unlabeled). Guess it so it isn't left
+      // for the user to hunt down.
+      const skuCol = Object.entries(cols).find(([, f]) => f === "sku")?.[0];
+      if (skuCol != null && !Object.values(cols).includes("description")) {
+        const right = Number(skuCol) + 1;
+        if (cols[right] == null && !String(header[right] ?? "").trim()) cols[right] = "description";
+      }
+    }
     setColumns(cols);
   };
 
@@ -3472,6 +3484,12 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const diff = sheet ? diffBookItems(existingItems, items) : { added: [], changed: [], missing: [], unchanged: [] };
   const flagCol = Object.entries(columns).find(([, f]) => f === "flag")?.[0];
   const flagValues = flagCol != null ? [...new Set(rows.slice((headerRow >= 0 ? headerRow : -1) + 1).map((r) => String(r?.[flagCol] ?? "").trim()).filter((v) => v && v.length <= 4))].slice(0, 12) : [];
+
+  // The sheet's own header labels, shown above each mapping dropdown so a column
+  // is identified without reading sample rows. Blank cells (VTC's status-flag and
+  // description columns) show "— no header —" so their emptiness is explicit.
+  const headerCells = headerRow >= 0 ? (rows[headerRow] || []) : [];
+  const headerLabel = (i) => String(headerCells[i] ?? "").replace(/\s+/g, " ").trim();
 
   const preview = items.slice(0, 8);
 
@@ -3530,6 +3548,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                   <thead>
                     <tr>{Array.from({ length: maxCol }, (_, i) => (
                       <th key={i} className="px-1.5 py-1 border-b border-slate-100 align-top">
+                        <div className={`text-[10px] mb-1 max-w-[120px] truncate ${headerLabel(i) ? "text-slate-500 font-medium" : "text-slate-300 italic"}`} title={headerLabel(i) || "no header"}>{headerLabel(i) || "— no header —"}</div>
                         <select className="ft-field rounded border border-slate-200 px-1 py-0.5 text-[11px] max-w-[120px]" value={columns[i] || ""} onChange={(e) => setCol(i, e.target.value)}>
                           {bookFieldOptions.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                         </select>
