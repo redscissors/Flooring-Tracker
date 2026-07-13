@@ -3881,13 +3881,14 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                     <thead className="bg-slate-50 text-[10px] uppercase text-slate-400"><tr>
                       <th className="text-left px-2 py-1">SKU</th><th className="text-left px-2 py-1">Description</th>
                       {book.kind === "order" && <th className="text-left px-2 py-1">Mfg</th>}
-                      <th className="text-left px-2 py-1">Type</th><th className="text-left px-2 py-1">U/M</th><th className="text-right px-2 py-1">{book.kind === "order" ? "Cost" : "Price"}</th>
+                      <th className="text-left px-2 py-1">Type</th><th className="text-left px-2 py-1">Size</th><th className="text-left px-2 py-1">U/M</th><th className="text-right px-2 py-1">{book.kind === "order" ? "Cost" : "Price"}</th>
                     </tr></thead>
                     <tbody>{preview.map((it) => (
                       <tr key={it.sku} className="border-t border-slate-100">
                         <td className="px-2 py-1 font-mono">{it.sku}</td><td className="px-2 py-1 truncate max-w-xs">{it.description}{it.freightFlag && <span className="ml-1 text-[9px] text-amber-600">◇frt</span>}</td>
                         {book.kind === "order" && <td className="px-2 py-1">{it.mfg}</td>}
                         <td className={`px-2 py-1 whitespace-nowrap ${it.type ? "text-slate-600" : "text-amber-600"}`}>{it.type ? (typeLabels[it.type] || it.type) : "Misc"}</td>
+                        <td className="px-2 py-1 whitespace-nowrap ft-mono">{it.size || "—"}{it.thickness ? <span className="text-slate-400"> · {it.thickness}</span> : ""}</td>
                         <td className="px-2 py-1 whitespace-nowrap">{orderUnitOf(it) && orderUnitOf(it) !== priceUnitOf(it) ? `${priceUnitOf(it)} → ${orderUnitOf(it)}` : priceUnitOf(it)}</td><td className="px-2 py-1 text-right tabular-nums">{hideCosts ? "•••" : it.cost != null ? money(it.cost) : it.price != null ? money(it.price) : "—"}</td>
                       </tr>
                     ))}</tbody>
