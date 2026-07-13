@@ -217,7 +217,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
               const isOrder = !!it.bookId;
               const sel = !isOrder && picked.includes(it.sku);
               return (
-                <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && (e.shiftKey || picked.length) ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
                   className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
                   {isOrder ? <span className="mt-0.5 w-4 h-4 shrink-0" /> : (
                     <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
@@ -699,7 +699,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
                 const isOrder = !!it.bookId;
                 const sel = !isOrder && picked.includes(it.sku);
                 return (
-                  <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && (e.shiftKey || picked.length) ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
                     className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
                     {isOrder ? <span className="mt-0.5 w-4 h-4 shrink-0" /> : (
                       <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
@@ -1531,18 +1531,28 @@ export default function App({ user, onSignOut }) {
     const ids = orderBooks.map((b) => b.id);
     const price = (rows) => (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
     const base = () => supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
+    // Every word must appear (AND), matching searchStock's word-by-word rule —
+    // a single `%phrase%` ILIKE only hits contiguous text, so "white oak" would
+    // miss an item described "Oak — White". Chained PostgREST filters AND
+    // together: one `.ilike(search_text, %word%)` per word on the fast path; one
+    // `.or(field.ilike…)` group per word on the fallback (each word must match
+    // some field).
+    const fields = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color"];
     return async (q) => {
-      const term = q.replace(/[%_,()"\\]/g, " ").trim();
-      const pat = `%${term}%`;
+      const words = q.replace(/[%_,()"\\]/g, " ").trim().split(/\s+/).filter(Boolean);
+      if (!words.length) return [];
       if (searchCol.current) {
-        const { data: rows, error } = await base().ilike("search_text", pat);
+        let query = base();
+        for (const w of words) query = query.ilike("search_text", `%${w}%`);
+        const { data: rows, error } = await query;
         if (!error) return price(rows);
         // 42703 = undefined_column: the search migration hasn't been run yet.
         if (error.code !== "42703" && !/search_text/i.test(error.message || "")) throw error;
         searchCol.current = false;
       }
-      const ors = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color"].map((f) => `${f}.ilike.${pat}`).join(",");
-      const { data: rows, error } = await base().or(ors);
+      let query = base();
+      for (const w of words) query = query.or(fields.map((f) => `${f}.ilike.%${w}%`).join(","));
+      const { data: rows, error } = await query;
       if (error) throw error;
       return price(rows);
     };
