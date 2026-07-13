@@ -1534,16 +1534,17 @@ export default function App({ user, onSignOut }) {
     // Every word must appear (AND), matching searchStock's word-by-word rule —
     // a single `%phrase%` ILIKE only hits contiguous text, so "white oak" would
     // miss an item described "Oak — White". Chained PostgREST filters AND
-    // together: one `.ilike(search_text, %word%)` per word on the fast path; one
-    // `.or(field.ilike…)` group per word on the fallback (each word must match
-    // some field).
-    const fields = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color"];
+    // together: one `.or(field.ilike…)` group per word (each word must match
+    // some field). `size` isn't in the generated search_text column, so the fast
+    // path ORs it in explicitly — that keeps size searchable ("12x24 white")
+    // without a SQL re-run (search_text already covers the rest, index-backed).
+    const fields = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color", "data->>size"];
     return async (q) => {
       const words = q.replace(/[%_,()"\\]/g, " ").trim().split(/\s+/).filter(Boolean);
       if (!words.length) return [];
       if (searchCol.current) {
         let query = base();
-        for (const w of words) query = query.ilike("search_text", `%${w}%`);
+        for (const w of words) query = query.or(`search_text.ilike.%${w}%,data->>size.ilike.%${w}%`);
         const { data: rows, error } = await query;
         if (!error) return price(rows);
         // 42703 = undefined_column: the search migration hasn't been run yet.
