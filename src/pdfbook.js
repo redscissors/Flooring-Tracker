@@ -75,6 +75,22 @@ const num = (c) => {
 // real SKU gate is still parseMapped's pattern downstream.
 const isSkuish = (s) => /^(?=.*\d)[A-Za-z0-9.\-]{3,25}$/.test(str(s)) && !/\dx\d/i.test(str(s));
 
+// A row that is nothing but product codes (two or more cells, every one a SKU)
+// is an image-caption grid — the strip of SKU labels Glazzio prints under each
+// page's tile photos — not a data row. Its codes are spread across the full
+// page width, so letting it through both fills every column gutter (collapsing
+// detectColumns onto too few bands) and emits junk rows; a real product row
+// always carries a non-code cell (a color name, a price). Recognized
+// structurally and dropped before columns are detected.
+const isLegendRow = (rowItems) => {
+  const toks = rowItems.map((it) => str(it.str)).filter(Boolean);
+  return toks.length >= 2 && toks.every(isSkuish);
+};
+
+// Order-note / disclaimer boilerplate printed around the tables. A collection
+// title is the plain heading line above a header that is NOT one of these.
+const TITLE_SKIP = /square foot|full box|place order|quantity only|sold by|reference only|^effective|tariff|digital price|encourage customers|guarantee pricing|actual tile|variation|dry layout|coverage|sheet size|pallet|shipping program/i;
+
 // Cluster text items into visual rows by baseline y. A single product row is
 // often typeset across two baselines a pixel apart (the SKU/name on one, the
 // collection/price on another), so items within `yTol` of a row's running mean
@@ -107,11 +123,16 @@ function groupByGaps(rowItems, gap = 8) {
   return out.map((g) => ({ text: g.text.trim(), x: g.x }));
 }
 
-// Locate a page's header: the first clustered row whose leftmost label is the
-// item-code column and which carries at least two recognizable fields (so a
-// prose line containing "items" cannot pass). Merged with an adjacent wrapped
-// header line (labels like "Pieces per / Box" stack on two baselines).
-function findHeaderItems(rows) {
+// Every header band on a page, top-to-bottom. A header is a clustered row whose
+// leftmost label is the item-code column and which carries at least two
+// recognizable fields (so a prose line containing "items" cannot pass); each is
+// merged with an adjacent wrapped header line (labels like "Pieces per / Box"
+// stack on two baselines). A page routinely stacks several tables — a square
+// and a hex layout of one collection, a tile and its mosaic — each with its own
+// header, so all are returned and the caller resolves columns, rows, and the
+// collection title per section rather than lumping the page under one header.
+function findAllHeaders(rows) {
+  const heads = [];
   for (let i = 0; i < rows.length; i++) {
     const first = groupByGaps(rows[i].items)[0];
     if (!first || headerFieldFor(first.text) !== "sku") continue;
@@ -120,9 +141,36 @@ function findHeaderItems(rows) {
       if (rows[j] && Math.abs(rows[j].y - rows[i].y) <= 12) merged = merged.concat(rows[j].items);
     }
     const anchors = headerAnchors(merged);
-    if (anchors.length >= 2 && anchors[0].field === "sku") return { items: merged, y: rows[i].y };
+    // `top` is the highest baseline of the merged band; a header's column labels
+    // can wrap onto a line ABOVE the "Item #" baseline ("Rows per / Sheet"), and
+    // the title scan must start above that wrapped line, not between it and the
+    // real heading.
+    if (anchors.length >= 2 && anchors[0].field === "sku") heads.push({ items: merged, y: rows[i].y, top: Math.min(...merged.map((it) => it.y)) });
   }
-  return null;
+  return heads;
+}
+
+// The collection/series title for a header's table. Glazzio prints it as a
+// section heading above the header row, never as a column, so it is the nearest
+// plain text line above the header — skipping the order-note boilerplate — and
+// the scan stops at the previous table's header/rows so a repeated sub-layout
+// (a mosaic block under the main tile) inherits the collection above it instead
+// of mislabeling itself. `floorY` is the previous section's header y (or
+// -Infinity for the first), bounding the scan to this section's band.
+function collectionTitleFor(rows, header, floorY) {
+  const above = rows.filter((r) => r.y < (header.top ?? header.y) - 2 && r.y > floorY).sort((a, b) => b.y - a.y);
+  for (const r of above) {
+    if (header.y - r.y > 60) break;
+    const first = groupByGaps(r.items)[0];
+    if (first && headerFieldFor(first.text) === "sku") break;
+    if (isLegendRow(r.items)) break;
+    const left = r.items.reduce((a, b) => (b.x < a.x ? b : a));
+    if (isSkuish(left.str)) break;
+    const text = [...r.items].sort((a, b) => a.x - b.x).map((it) => it.str).join(" ").trim();
+    if (!text || TITLE_SKIP.test(text)) continue;
+    return text;
+  }
+  return "";
 }
 
 // Header items → ordered field anchors [{ field, x }]. Words are grouped into
@@ -257,24 +305,42 @@ export function parsePdfPages(pages, name = "Price list") {
     const items = (pages[p] || []).filter((it) => str(it?.str) !== "");
     if (!items.length) continue;
     const clustered = clusterRows(items);
-    const header = findHeaderItems(clustered);
-    if (!header) continue;
-    // Product rows: below the header, leftmost cell a SKU-shaped code near the
-    // Item# column. Restricting to these keeps the full-width marketing/legend
-    // rows from filling every column gutter (which would collapse the grid).
-    const skuX = Math.min(...header.items.filter((h) => /item|sku/i.test(h.str)).map((h) => h.x), Infinity);
-    const productRows = clustered.filter((row) => {
-      if (row.y <= header.y + 2) return false;
-      const left = row.items.reduce((a, b) => (b.x < a.x ? b : a));
-      return isSkuish(left.str) && (!Number.isFinite(skuX) || left.x <= skuX + 20);
-    });
-    const columns = detectColumns(productRows.flatMap((row) => row.items), header.items);
-    if (!columns.some((c) => c.field === "sku")) continue;
-    tablePages++;
-    for (const row of productRows) {
-      const canon = canonRow(assignRow(row.items, columns));
-      if (canon) rows.push(canon);
+    const headers = findAllHeaders(clustered);
+    if (!headers.length) continue;
+    let pageHadTable = false;
+    let lastTitle = "";
+    for (let hi = 0; hi < headers.length; hi++) {
+      const header = headers[hi];
+      const nextY = hi + 1 < headers.length ? headers[hi + 1].y : Infinity;
+      const floorY = hi > 0 ? headers[hi - 1].y : -Infinity;
+      // The collection heading above this table; a sub-layout with no heading of
+      // its own inherits the one above (carried in lastTitle).
+      const title = collectionTitleFor(clustered, header, floorY) || lastTitle;
+      lastTitle = title;
+      // Product rows: between this header and the next, leftmost cell a
+      // SKU-shaped code near the Item# column, and not an image-caption grid.
+      // Restricting to these keeps the full-width marketing/legend rows from
+      // filling every column gutter (which would collapse the grid).
+      const skuX = Math.min(...header.items.filter((h) => /item|sku/i.test(h.str)).map((h) => h.x), Infinity);
+      const productRows = clustered.filter((row) => {
+        if (row.y <= header.y + 2 || row.y >= nextY) return false;
+        if (isLegendRow(row.items)) return false;
+        const left = row.items.reduce((a, b) => (b.x < a.x ? b : a));
+        return isSkuish(left.str) && (!Number.isFinite(skuX) || left.x <= skuX + 20);
+      });
+      const columns = detectColumns(productRows.flatMap((row) => row.items), header.items);
+      if (!columns.some((c) => c.field === "sku")) continue;
+      pageHadTable = true;
+      for (const row of productRows) {
+        const raw = assignRow(row.items, columns);
+        // The book has no Collection column, so stamp the section heading; a
+        // page that ever does carry one keeps its own value.
+        if (title && !str(raw.collection)) raw.collection = title;
+        const canon = canonRow(raw);
+        if (canon) rows.push(canon);
+      }
     }
+    if (pageHadTable) tablePages++;
   }
   if (!tablePages) warnings.push("No page carried a recognizable “Item #” table header — is this a text PDF?");
   return { name, rows, mapping: { ...CANON_MAPPING }, warnings };
