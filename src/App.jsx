@@ -1,12 +1,12 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -835,6 +835,23 @@ function ThemeSwitch({ theme, setTheme }) {
   );
 }
 
+// Internal materials-margin line for the on-screen Order summary (ADR 0011 /
+// 0009 §8.1). Special-order lines only; sell − cost with the blended margin as a
+// percent of sell. Default masked, click to reveal (customer-safe). `ft-noprint`
+// and its placement outside renderEstimatePaper keep it off both print paths.
+function MarginLine({ margin, show, onToggle }) {
+  if (!margin || !(margin.sell > 0)) return null;
+  return (
+    <div className="ft-noprint flex items-center justify-between gap-2" style={{ marginTop: 6, fontSize: 11 }} title="Internal only — sell minus cost on special-order lines (% of sell). Never printed.">
+      <button onClick={onToggle} className="flex items-center gap-1.5" style={{ color: "var(--ft-faint)" }}>
+        {show ? <EyeOff size={12} /> : <Eye size={12} />}
+        <span className="uppercase" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".14em" }}>Special-order margin</span>
+      </button>
+      <span className="ft-mono" style={{ color: show ? "var(--ft-brand-deep)" : "var(--ft-faint)" }}>{show ? `${money(margin.margin)} · ${margin.pct}%` : "•••"}</span>
+    </div>
+  );
+}
+
 export default function App({ user, onSignOut }) {
   const [data, setData] = useState(() => ({ projects: [], people: [], builders: [], settings: normalizeSettings() }));
   const [loading, setLoading] = useState(true);
@@ -927,7 +944,10 @@ export default function App({ user, onSignOut }) {
   const [saveOk, setSaveOk] = useState(false);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
-  useEffect(() => { setViewTab("edit"); }, [selId]);
+  // Internal materials-margin reveal (ADR 0011): ephemeral, default hidden, never
+  // persisted, never printed. Resets when switching projects (customer-safe).
+  const [showMargin, setShowMargin] = useState(false);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -1968,6 +1988,19 @@ export default function App({ user, onSignOut }) {
   const bList = groutBaseList(gList, settings);
   const baseCost = bList.reduce((t, b) => t + b.cost, 0);
   const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + baseCost + caulkCost + mortarCost + underlayCost + miscCost;
+  // Internal materials margin over special-order rows only (ADR 0011 / 0009 §8.1):
+  // those snapshot a cost. Each row's sell mirrors its flooring/misc line total,
+  // so this margin is a subset of grandTotal. On screen only — never printed.
+  const soLines = [];
+  (sel?.categories || []).forEach((a) => a.products.forEach((p) => {
+    if (!(num(p.cost) > 0)) return;
+    const C = getCarton(p, settings);
+    const sell = p.type === "misc" ? num(p.priceSqft) * miscQty(p)
+      : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft)
+      : 0;
+    if (sell > 0) soLines.push({ sell, markupPct: num(p.markupPct) });
+  }));
+  const margin = specialOrderMargin(soLines);
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
 
   // The estimate "paper", moved verbatim from the hidden print block. It renders in
@@ -2896,6 +2929,7 @@ export default function App({ user, onSignOut }) {
                         {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
                         {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
                         <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                        <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
                       </div>
                       <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>Figures include {wasteNote(settings)}. Verify before ordering.</div>
                     </div>

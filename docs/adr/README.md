@@ -14,3 +14,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0008](0008-salesperson-snapshot-on-project.md) | The salesperson is snapshotted onto the Project at creation | Accepted | 2026-07-12 |
 | [0009](0009-price-book-library.md) | Price book library: kind-aware book registry, cost + markup for special order, versions with keepers | Accepted | 2026-07-12 |
 | [0010](0010-pdf-price-list-import.md) | Import product data from text-based vendor PDFs, header-driven, feeding the existing mapped-import wizard | Accepted | 2026-07-13 |
+| [0011](0011-margin-visibility-ephemeral.md) | On-screen materials margin is ephemeral, default-hidden, never printed | Accepted | 2026-07-13 |

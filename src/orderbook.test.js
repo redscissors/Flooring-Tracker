@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
-  bookStaleness, DEFAULT_STALE_DAYS,
+  bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -286,4 +286,48 @@ test("bookStaleness: an out-of-range threshold falls back to the default", () =>
     assert.equal(bookStaleness(now - 130 * DAY, bad, now).threshold, DEFAULT_STALE_DAYS);
     assert.equal(bookStaleness(now - 130 * DAY, bad, now).stale, true);   // 130 ≥ 120 default
   }
+});
+
+// --- internal materials margin (§8.1) ----------------------------------------
+
+test("specialOrderMargin: sell − cost per line, blended margin as % of sell", () => {
+  // One line: cost 8/sf × 25% markup → sell 10/sf, 100 sf → $1000 sell.
+  const r = specialOrderMargin([{ sell: 1000, markupPct: 25 }]);
+  assert.equal(r.sell, 1000);
+  assert.equal(r.margin, 200);          // 1000 × 25/125
+  assert.equal(r.cost, 800);            // 800 × 1.25 = 1000 ✓
+  assert.equal(r.pct, 20);              // margin / sell (gross margin, not the 25% markup)
+  assert.equal(r.lines, 1);
+});
+
+test("specialOrderMargin: sums multiple lines and blends the percent", () => {
+  const r = specialOrderMargin([
+    { sell: 1000, markupPct: 25 },      // margin 200
+    { sell: 500, markupPct: 40 },       // margin 500 × 40/140 = 142.86
+  ]);
+  assert.equal(r.sell, 1500);
+  assert.equal(r.margin, 342.86);
+  assert.equal(r.cost, 1157.14);
+  assert.equal(r.pct, 22.9);            // 342.86 / 1500
+  assert.equal(r.lines, 2);
+});
+
+test("specialOrderMargin: a 0% markup line adds sell but no margin", () => {
+  const r = specialOrderMargin([{ sell: 300, markupPct: 0 }]);
+  assert.equal(r.sell, 300);
+  assert.equal(r.margin, 0);
+  assert.equal(r.cost, 300);
+  assert.equal(r.pct, 0);
+});
+
+test("specialOrderMargin: ignores zero/blank sell lines and handles empty input", () => {
+  const r = specialOrderMargin([{ sell: 0, markupPct: 40 }, { sell: "", markupPct: 30 }]);
+  assert.deepEqual(r, { sell: 0, cost: 0, margin: 0, pct: 0, lines: 0 });
+  assert.deepEqual(specialOrderMargin([]), { sell: 0, cost: 0, margin: 0, pct: 0, lines: 0 });
+  assert.deepEqual(specialOrderMargin(undefined), { sell: 0, cost: 0, margin: 0, pct: 0, lines: 0 });
+});
+
+test("specialOrderMargin: accepts string sell/markup (row fields are strings)", () => {
+  const r = specialOrderMargin([{ sell: "1000", markupPct: "25" }]);
+  assert.equal(r.margin, 200);
 });

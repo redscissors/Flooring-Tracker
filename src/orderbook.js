@@ -272,3 +272,36 @@ export function bookStaleness(lastImportAt, thresholdDays = DEFAULT_STALE_DAYS, 
   const threshold = t != null && t > 0 ? t : DEFAULT_STALE_DAYS;
   return { days, threshold, stale: days != null && days >= threshold };
 }
+
+// --- internal materials margin (§8.1) ----------------------------------------
+
+// Internal-only materials margin over special-order lines. A special-order
+// product row snapshots cost + markupPct, so its sell was cost×(1 + markupPct/100)
+// and margin = sell − cost = sell × markupPct/(100 + markupPct). That is
+// unit-agnostic, so a line billed by the foot and one billed by the whole carton
+// fold in identically — no need to re-derive cost per unit. Approximate to the
+// cent (the snapshotted priceSqft was already rounded). Stock/catalog rows carry
+// no cost and are excluded by the caller.
+//
+// `lines` = [{ sell, markupPct }] for special-order rows only. Returns the
+// summed sell, implied cost and margin dollars, and the blended margin as a
+// percent OF SELL (gross margin, not markup). ON SCREEN ONLY — the estimate
+// print must never show it (ADR 0009 §8.1 / §2.3).
+export function specialOrderMargin(lines) {
+  let sell = 0, margin = 0, n = 0;
+  for (const l of lines || []) {
+    const s = numOr(l?.sell, 0) || 0;
+    if (s <= 0) continue;
+    const pct = numOr(l?.markupPct, 0) || 0;
+    sell += s;
+    margin += pct > 0 ? (s * pct) / (100 + pct) : 0;
+    n++;
+  }
+  return {
+    sell: round2(sell),
+    cost: round2(sell - margin),
+    margin: round2(margin),
+    pct: sell > 0 ? Math.round((margin / sell) * 1000) / 10 : 0,
+    lines: n,
+  };
+}
