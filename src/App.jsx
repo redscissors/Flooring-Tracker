@@ -1402,22 +1402,37 @@ export default function App({ user, onSignOut }) {
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
   const orderBooks = useMemo(() => books.filter((b) => b.kind === "order" && b.active), [books]);
   const bookName = (id) => books.find((b) => b.id === id)?.name || "special order";
+  // Prefer the trigram-indexed search_text column (supabase/pricebook-search.sql);
+  // flips false for the session the first time that column is absent, so the
+  // search keeps working before the migration is run — just via the slower
+  // per-field ILIKE fallback below.
+  const searchCol = useRef(true);
   // Debounced server-side search across every active order book (§6). Order
   // items aren't eagerly loaded (a vendor book runs to thousands of rows), so
-  // the selection-row pickers query price_book_items on demand by SKU or the
-  // key text fields, price each hit by its book's markup, and stream the
-  // results in behind the instant stock matches. null with no order books —
-  // the pickers then behave exactly as before, stock-only.
+  // the selection-row pickers query price_book_items on demand, price each hit
+  // by its book's markup, and stream the results in behind the instant stock
+  // matches. null with no order books — the pickers behave exactly as before,
+  // stock-only.
   const searchOrder = useMemo(() => {
     if (!orderBooks.length) return null;
     const byId = new Map(orderBooks.map((b) => [b.id, b]));
     const ids = orderBooks.map((b) => b.id);
+    const price = (rows) => (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
+    const base = () => supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
     return async (q) => {
-      const pat = "%" + q.replace(/[%_,()"\\]/g, " ").trim() + "%";
+      const term = q.replace(/[%_,()"\\]/g, " ").trim();
+      const pat = `%${term}%`;
+      if (searchCol.current) {
+        const { data: rows, error } = await base().ilike("search_text", pat);
+        if (!error) return price(rows);
+        // 42703 = undefined_column: the search migration hasn't been run yet.
+        if (error.code !== "42703" && !/search_text/i.test(error.message || "")) throw error;
+        searchCol.current = false;
+      }
       const ors = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color"].map((f) => `${f}.ilike.${pat}`).join(",");
-      const { data: rows, error } = await supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).or(ors).limit(SKU_SHOW * 2);
+      const { data: rows, error } = await base().or(ors);
       if (error) throw error;
-      return (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
+      return price(rows);
     };
   }, [orderBooks]);
   // Pick from the SKU dropdown: the first item fills the anchor row, each
