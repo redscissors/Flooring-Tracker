@@ -93,6 +93,14 @@ const label = (it) => {
   return bits.join(" ");
 };
 
+// A price-book item can distinguish the unit its COST is quoted in (priceUnit)
+// from the smallest unit the vendor will SELL (orderUnit) — the Virginia Tile
+// sheet has both. Single-U/M books (the stock workbook, every already-saved
+// item) map neither, so both fall back to `unit` and behavior is unchanged
+// (ADR 0009 amendment 2026-07-13).
+export const priceUnitOf = (item) => str(item?.priceUnit) || str(item?.unit);
+export const orderUnitOf = (item) => str(item?.orderUnit) || str(item?.unit);
+
 // The per-sq-ft price a stock item carries: the book's SF price when present,
 // else derived from the carton/sheet price and its coverage — mosaic sheets
 // (U/M "SH") often list only a sheet price.
@@ -108,12 +116,17 @@ export const stockPriceSqft = (item) =>
 export function stockPatch(item, product) {
   const patch = { sku: item.sku };
   const psf = item.type ? stockPriceSqft(item) : null;
-  if (item.type && (psf != null || item.unit === "CT" || item.unit === "SH")) {
+  const orderUnit = orderUnitOf(item);
+  // An explicit "No Broken" unit of PC/EA means the vendor sells loose pieces —
+  // order the exact area, never round up to whole cartons. Only a separately
+  // mapped orderUnit triggers this, so single-U/M books never change.
+  const looseOrder = /^(pc|pcs|piece|ea|each)$/i.test(str(item.orderUnit));
+  if (item.type && (psf != null || orderUnit === "CT" || orderUnit === "SH")) {
     patch.type = item.type;
     patch.qtyType = "sqft";
     patch.brandColor = label(item);
     if (psf != null) patch.priceSqft = String(round2(psf));
-    if (item.sfPerUnit > 0) { patch.cartonSf = String(item.sfPerUnit); patch.cartonUnit = item.unit || "CT"; }
+    if (item.sfPerUnit > 0 && !looseOrder) { patch.cartonSf = String(item.sfPerUnit); patch.cartonUnit = orderUnit || "CT"; }
     if (item.type === "tile") {
       const lw = parseTileSize(item.size);
       if (lw) { patch.L = lw[0]; patch.W = lw[1]; }

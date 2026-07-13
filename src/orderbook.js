@@ -13,7 +13,7 @@
 // tierPrices (book-defined contractor pricing). Picking one produces the same
 // patch stockPatch builds, then adds bookId/cost/markupPct and the flags.
 
-import { stockPatch, stockPriceSqft } from "./stock.js";
+import { stockPatch, stockPriceSqft, priceUnitOf } from "./stock.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => {
@@ -45,6 +45,11 @@ export function normOrderItem(f = {}) {
     style: str(f.style),
     subtype: str(f.subtype),
     unit: str(f.unit),
+    // Two units, both falling back to `unit` (ADR 0009 amendment): priceUnit =
+    // the cost basis (VTC "Price U/M"), orderUnit = the smallest sellable unit
+    // (VTC "No Broken U/M") that drives carton/loose ordering.
+    priceUnit: str(f.priceUnit),
+    orderUnit: str(f.orderUnit),
     size: str(f.size),
     thickness: str(f.thickness),
     type: f.type || null,
@@ -53,6 +58,7 @@ export function normOrderItem(f = {}) {
     price: null,
     priceSqft: null,
     sfPerUnit: numOr(f.sfPerUnit),
+    pcPerUnit: numOr(f.pcPerUnit),
     coverage: numOr(f.coverage),
     discontinued: !!f.discontinued,
     note: str(f.note),
@@ -91,7 +97,7 @@ export const bookItemData = ({ sku, bookId, active, updatedAt, ...data }) => dat
 // SF/CT coverage. Count/flat items (EA, PC with no coverage) have none.
 export function costSqft(item) {
   if (!item || item.cost == null) return null;
-  if (/^(sf|sft|sqft)$/i.test(item.unit)) return item.cost;
+  if (/^(sf|sft|sqft)$/i.test(priceUnitOf(item))) return item.cost;
   if (item.sfPerUnit > 0) return round4(item.cost / item.sfPerUnit);
   return null;
 }
@@ -194,7 +200,7 @@ export function mergeSearch(stockMatches, orderMatches) {
 
 // The item fields whose change makes a re-import a "changed" row. Order books
 // track cost (not sell) plus the vendor attributes a re-issue can move.
-const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "size", "thickness", "type", "cost", "sfPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
 
 // Compare freshly parsed items against the book's current rows — same contract
 // as diffStock: added / changed / missing (marked inactive on apply, never

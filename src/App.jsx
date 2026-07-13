@@ -3223,7 +3223,8 @@ function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, i
 const bookFieldOptions = [
   ["", "— ignore —"], ["sku", "SKU"], ["cost", "Cost"], ["description", "Description"],
   ["mfg", "Manufacturer"], ["productLine", "Product line"], ["color", "Color"], ["style", "Style"],
-  ["unit", "Unit (U/M)"], ["size", "Size"], ["thickness", "Thickness"], ["sfPerUnit", "SF per carton"],
+  ["unit", "Unit (U/M)"], ["priceUnit", "Price unit (cost basis)"], ["orderUnit", "Order unit (No Broken)"],
+  ["size", "Size"], ["thickness", "Thickness"], ["sfPerUnit", "SF per carton"], ["pcPerUnit", "Pieces per carton"],
   ["coverage", "Coverage"], ["leadTime", "Lead time"], ["msrp", "MSRP / consumer"], ["brand", "Brand"],
   ["section", "Section"], ["note", "Notes"], ["type", "Flooring type"], ["flag", "Status flag"],
 ];
@@ -3239,8 +3240,12 @@ const guessBookField = (header) => {
   if (/(productline|series|collection)/.test(h)) return "productLine";
   if (/(mfg|manufacturer|vendor|brandcode)/.test(h)) return "mfg";
   if (/(desc|decription|name)/.test(h)) return "description";
+  // Two-unit split: match the specific U/M columns before the generic "unit".
+  if (/(priceum|priceuom|pricebasis)/.test(h)) return "priceUnit";
+  if (/(nobroken|broken|orderunit|smallestunit)/.test(h)) return "orderUnit";
   if (/(um|unit|uom)/.test(h)) return "unit";
   if (/(sfct|sfperct|sfcarton|sqftct)/.test(h)) return "sfPerUnit";
+  if (/(pcct|pcperct|piecesct|pcperunit)/.test(h)) return "pcPerUnit";
   if (/coverage/.test(h)) return "coverage";
   if (/thick/.test(h)) return "thickness";
   if (/size|dimension/.test(h)) return "size";
