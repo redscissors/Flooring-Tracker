@@ -413,6 +413,9 @@ test("splitSizeFromDescription: pulls size + thickness, leaves the rest as a cle
   assert.equal(splitSizeFromDescription("MAX GREY 12X12").name, "Max Grey");
   // Already-mixed-case text is left as-is.
   assert.equal(splitSizeFromDescription("MSI Stone 12x12").name, "MSI Stone");
+  // A size printed in both the color and the description column is stripped
+  // from the name entirely, not left on a second copy beside a filled size cell.
+  assert.deepEqual(splitSizeFromDescription("Ovo 3x12 Glossy 3x12 Ceramic Glossy Tile"), { size: "3x12", thickness: "", name: "Ovo Glossy Ceramic Glossy Tile" });
 });
 
 test("mmToFraction: metric thickness → the fraction the trade calls it", () => {

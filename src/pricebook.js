@@ -593,7 +593,11 @@ export function splitSizeFromDescription(desc) {
   const mm = s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
   const sz = s.match(SIZE_RE);
-  if (sz) { size = `${sz[1]}x${sz[2]}`; s = s.replace(sz[0], " "); }
+  // Take the first L×W as the size, then strip EVERY L×W token from the name —
+  // some sheets print the size in both the color and the description column
+  // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
+  // what put the size back in the product name next to a filled size cell.
+  if (sz) { size = `${sz[1]}x${sz[2]}`; s = s.replace(new RegExp(SIZE_RE.source, "gi"), " "); }
   if (!thickness) {
     const fr = s.match(THICK_FRAC_RE);
     if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }

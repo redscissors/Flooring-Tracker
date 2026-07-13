@@ -11,8 +11,13 @@ test("parseTileSize handles the price book's size spellings", () => {
   assert.deepEqual(parseTileSize('2x8"'), ["2", "8"]);
   assert.deepEqual(parseTileSize("4X12"), ["4", "12"]);
   assert.deepEqual(parseTileSize("2 x 6"), ["2", "6"]);
+  // Glazzio size cells carry a trailing word — the L×W must still fill the size
+  // cells instead of being shoved into the color name.
+  assert.deepEqual(parseTileSize('4" x 4" Nominal'), ["4", "4"]);
+  assert.deepEqual(parseTileSize('8"x9" Hex'), ["8", "9"]);
   assert.equal(parseTileSize("Esagonia"), null);
   assert.equal(parseTileSize('6"'), null);
+  assert.equal(parseTileSize('2" Hex'), null); // single dimension, no L×W
 });
 
 test("parseThickness handles fractions, millimeters and decimals", () => {
