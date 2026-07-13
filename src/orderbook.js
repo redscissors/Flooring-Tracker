@@ -65,6 +65,10 @@ export function normOrderItem(f = {}) {
     freightFlag: !!f.freightFlag,
     // { contractor: number, ... } book-defined selling tiers, or null
     tierPrices: f.tierPrices && typeof f.tierPrices === "object" ? { ...f.tierPrices } : null,
+    // Stamped when a user hand-edits the item in Settings (Phase 4b). A
+    // re-import overwrites the item and drops these — the wizard warns first.
+    editedBy: str(f.editedBy),
+    editedAt: f.editedAt ?? null,
   };
 }
 
@@ -209,6 +213,16 @@ export function diffBookItems(existing, parsed) {
   }
   const missing = (existing || []).filter((it) => it.active && !seen.has(it.sku));
   return { added, changed, missing, unchanged };
+}
+
+// The hand-edited items (editedAt set) a re-import would overwrite: their SKU is
+// in the incoming sheet with a differing field, so they land in the diff's
+// "changed" bucket and their manual fix is lost. Powers the wizard's "N items
+// you edited will be overwritten" warning. Unchanged edited items aren't
+// flagged — an identical re-import is a no-op for the values that matter.
+export function editedInDiff(existing, parsed) {
+  const { changed } = diffBookItems(existing, parsed);
+  return changed.filter(({ prev }) => prev && prev.editedAt).map(({ prev }) => prev);
 }
 
 // --- markup group summary ----------------------------------------------------
