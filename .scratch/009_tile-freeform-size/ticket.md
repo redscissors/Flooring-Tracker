@@ -8,7 +8,7 @@ summary: Tile rows model size only as L×W, so an imported non-rectangular size
   trim) so a 94" trim stick never becomes a coverage item, and with mosaics
   carved out (their sheet size badly undercounts grout).
 status: open
-labels: [ready-for-human]
+labels: [ready-for-agent]
 ---
 
 # Tile rows need a free-text size + background L×W for non-rectangular (hex) sizes
@@ -191,9 +191,19 @@ when present. Verified touch-points (line numbers current as of 2026-07-13):
   editor, `App.jsx` line 586); non-tiles render the `sizeText` input (line
   2549). A tile now needs to surface `sizeText` in this cell too. Keep L/W
   editable/overridable so a user can correct the grout-relevant dimension when
-  the vendor's "nominal" isn't it. (Implementation choice for sign-off: extend
-  `GridSizeInput` to show a `sizeText` label/field above the L/W inputs, vs. a
-  read-only badge — decide at build time and show in the preview.)
+  the vendor's "nominal" isn't it.
+
+  **Presentation — SIGNED OFF: Variant A ("vendor-first").** When a tile carries
+  a `sizeText`, `GridSizeInput` renders that vendor string as the primary text
+  field (the same control non-tiles use), with the derived square dimension
+  shown beneath as a small moss chip — e.g. `▦ computes as 2×2` — that expands
+  on click to the L/W micro-inputs for correction. When a tile has no `sizeText`
+  (an ordinary `12×24`), the cell is the existing L×W editor unchanged. The
+  vendor string is what reads on the row; the derived proxy stays a quiet,
+  correctable footnote, never presented as the truth. Rejected: Variant B
+  (always-visible split cell — costs a row-line on every hex tile) and Variant C
+  (L×W primary with the vendor string demoted to a badge). Preview of all three:
+  `.scratch/009_tile-freeform-size/` handoff / artifact (2026-07-13).
 
 `normP` (line 417) already normalizes `sizeText` for every type, and
 `rowBlank`/`newProduct` already include it — no data-model migration needed;
@@ -244,8 +254,9 @@ thickness `3/8"`, waste 10%, `qty = 100 sqft`:
 
 This changes what renders on the product row and the printed estimate, so it
 needs **preview proof** (screenshot of the row + both print layouts) before
-merge, per the change-control rules. The `GridSizeInput` presentation choice in
-§5 is the specific thing the preview must settle.
+merge, per the change-control rules. The `GridSizeInput` presentation direction
+(§5) is now settled — Variant A — so the PR's preview proof documents the built
+implementation of that direction rather than choosing between options.
 
 ## Evidence / references (verified 2026-07-13)
 
@@ -265,13 +276,17 @@ merge, per the change-control rules. The `GridSizeInput` presentation choice in
 
 ## Refinement notes (2026-07-13)
 
-Triaged from `needs-triage` → `ready-for-human` (labels + status). All code
-references in the original ticket were verified against the current tree and
-found accurate; line numbers and function names above are confirmed. Added: the
+Triaged `needs-triage` → refined spec → `ready-for-agent`. All code references
+in the original ticket were verified against the current tree and found
+accurate; line numbers and function names above are confirmed. Added: the
 `SHAPE_SIZE_RE` parsing pattern, the `deriveSquareDim` guard as a single
 predicate (folding the mosaic carve-out and the linear-unit check into it), the
 CSV-export touch-point (was missing), golden grout/mortar numbers, and explicit
-guard-edge tests. Kept as `ready-for-human` rather than `ready-for-agent`
-because the `GridSizeInput` presentation for a tile's `sizeText` is a UI
-decision that needs sign-off + preview proof before implementation (per the
-change-control non-negotiable).
+guard-edge tests.
+
+The one UI decision that gated this — how the tile size cell surfaces a
+`sizeText` while L/W stay live for the math — was previewed as three variants
+(A vendor-first, B split cell, C math-first badge) and **signed off as Variant
+A** on 2026-07-13. §5 now specifies A concretely, so an implementing agent has
+no open design question; it still owes the standard preview proof (row + both
+print layouts) at PR time per the change-control non-negotiable.
