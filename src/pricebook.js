@@ -680,7 +680,11 @@ function mappedItem(mapping, raw, sku, sem) {
     mfg,
     productLine: str(raw.productLine),
     section: str(raw.section) || mfg,
-    brand: str(raw.brand) || mfg,
+    // brand fronts the on-row label (stock.js `label`); the mfg is a bare code
+    // (ADX) that must never show on the product line (ADR 0009, §2 — "MFG kept
+    // but hidden"), so it does NOT back-fill brand. It still rides `section`
+    // for the search subtitle and stays the default markup group.
+    brand: str(raw.brand),
     description: name,
     color: str(raw.color),
     style: str(raw.style),

@@ -344,6 +344,11 @@ test("parseMapped: real MFG-Data shape — code columns stay out of the label, p
   assert.equal(t.priceUnit, "SF"); // both unit columns captured
   assert.equal(t.orderUnit, "PC");
   assert.equal(t.size, "3x12");
+  // The mfg is a bare code — it stays off the on-row label (which is `brand` +
+  // description in stock.js), so a picked row reads "Earth Ash Gray", not
+  // "ADX Earth Ash Gray". mfg still rides for grouping/section.
+  assert.equal(t.brand, "");
+  assert.equal(t.mfg, "ADX");
 });
 
 test("parseMapped: with no description column, color + style are the fallback name", () => {
