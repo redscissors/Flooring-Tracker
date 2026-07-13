@@ -112,6 +112,33 @@ export const stockPriceSqft = (item) =>
     : item.price != null && item.sfPerUnit > 0 ? Math.round((item.price / item.sfPerUnit) * 10000) / 10000
       : null;
 
+// A non-rectangular tile size (a hex "2\" Hex") has no L×W cell to land in, but
+// grout/mortar still need a proxy. deriveSquareDim returns the single dimension
+// to square off (background L = W = N) ONLY when the item is unambiguously a
+// small area tile — else null, so the size reads as free text with no coverage.
+// This is the firewall keeping a 94" trim stick from becoming a fake coverage
+// item, and the mosaic carve-out keeps a "Penny Round Mosaic" sheet from
+// deriving 12×12 (a mosaic has far more joint per sqft than its sheet size).
+const SHAPE_WORD_RE = /\b(hex|hexagon|penny|round|octagon)\b/i;
+const TRIMISH_RE = /reducer|t-mold|bullnose|stairnos|threshold|transition|\btrim\b/i;
+const MOSAIC_RE = /mosaic/i;
+const LINEAR_UNIT_RE = /^(lf|lft|lnft|ln|pc|pcs|piece|ea|each)$/i;
+
+export function deriveSquareDim(item) {
+  if (!item || item.type !== "tile") return null;
+  const size = str(item.size);
+  if (!SHAPE_WORD_RE.test(size)) return null;
+  const text = `${size} ${str(item.description)} ${str(item.product)}`;
+  if (MOSAIC_RE.test(text)) return null;
+  if (TRIMISH_RE.test(text)) return null;
+  if (LINEAR_UNIT_RE.test(orderUnitOf(item)) || LINEAR_UNIT_RE.test(priceUnitOf(item))) return null;
+  const m = size.match(/(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!(n > 0) || n > 24) return null;
+  return n;
+}
+
 // The snapshot patch a picked stock item applies to a product row. Flooring
 // items fill their real type; everything else lands as a Miscellaneous line
 // (description + flat price), which is how the app already models one-off
@@ -133,7 +160,11 @@ export function stockPatch(item, product) {
     if (item.type === "tile") {
       const lw = parseTileSize(item.size);
       if (lw) { patch.L = lw[0]; patch.W = lw[1]; }
-      else if (item.size) patch.brandColor = `${item.size} ${patch.brandColor}`;
+      else if (item.size) {
+        patch.sizeText = item.size;                 // display the vendor string, e.g. "2\" Hex"
+        const n = deriveSquareDim(item);            // null unless the coverage guard passes
+        if (n != null) { patch.L = String(n); patch.W = String(n); }
+      }
       const th = parseThickness(item.thickness);
       if (th) patch.thickness = th;
     } else {

@@ -7,7 +7,7 @@ summary: Tile rows model size only as L×W, so an imported non-rectangular size
   mortar still compute — gated hard (shape word + small dimension + tile, not
   trim) so a 94" trim stick never becomes a coverage item, and with mosaics
   carved out (their sheet size badly undercounts grout).
-status: open
+status: done
 labels: [ready-for-agent]
 ---
 

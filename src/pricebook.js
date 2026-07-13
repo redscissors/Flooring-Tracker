@@ -570,6 +570,13 @@ export function mmToFraction(mm) {
 }
 
 const SIZE_RE = /(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)\s*["']?/i;
+// A genuine single-dimension shape size ('2" Hex') has no L×W cell — matched
+// only when SIZE_RE did not, so the vendor spelling lands in the size string
+// (the tile row shows it and derives a square L×W for grout/mortar) instead of
+// being shoved into the color name. A bare '6"' with no shape word is left in
+// the name on purpose — no shape word, no coverage.
+const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
+const SHAPE_SIZE_RE = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*["']?\\s*(${SHAPE_WORDS})\\b`, "i");
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
 const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
 
@@ -598,6 +605,10 @@ export function splitSizeFromDescription(desc) {
   // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
   // what put the size back in the product name next to a filled size cell.
   if (sz) { size = `${sz[1]}x${sz[2]}`; s = s.replace(new RegExp(SIZE_RE.source, "gi"), " "); }
+  else {
+    const shp = s.match(SHAPE_SIZE_RE);
+    if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
+  }
   if (!thickness) {
     const fr = s.match(THICK_FRAC_RE);
     if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }
