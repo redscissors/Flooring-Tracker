@@ -5,6 +5,7 @@ import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
+import { parsePdfPages } from "./pdfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
@@ -3690,6 +3691,27 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
     const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
     setReading(true); setErr("");
     try {
+      // Text-PDF vendor price lists: extract each page's text items with pdf.js
+      // (lazy-loaded like xlsx) and let pdfbook align every page's own header
+      // onto one canonical sheet, then apply its suggested mapping. Everything
+      // downstream — sheet picker, mapping controls, diff preview — is unchanged.
+      if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+        const doc = await pdfjs.getDocument({ data: await f.arrayBuffer() }).promise;
+        const pages = [];
+        for (let p = 1; p <= doc.numPages; p++) {
+          const page = await doc.getPage(p);
+          const vh = page.getViewport({ scale: 1 }).height; // pdf y is bottom-up; flip to top-down
+          const content = await page.getTextContent();
+          pages.push(content.items.filter((i) => i.str && i.str.trim()).map((i) => ({ str: i.str, x: i.transform[4], y: vh - i.transform[5], w: i.width })));
+        }
+        const { name, rows, mapping } = parsePdfPages(pages, f.name.replace(/\.pdf$/i, ""));
+        setSheets([{ name, rows }]);
+        applyDetected({ sheet: name, ...mapping });
+        setReading(false);
+        return;
+      }
       const XLSX = await import("xlsx");
       const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
       const parsed = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
@@ -3703,7 +3725,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
         if (detected) applyDetected(detected);
         else applySheet(bestDataSheet(parsed));
       }
-    } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls?"); }
+    } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls, or a text-based .pdf?"); }
     setReading(false);
   };
 
@@ -3760,8 +3782,8 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
         {!sheets ? (
           <div className="py-8 text-center">
             <label className="inline-flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-4 py-2 text-slate-600 cursor-pointer">
-              <Upload size={15} /> {reading ? "Reading…" : "Choose vendor sheet (.xlsx / .xls)"}
-              <input type="file" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} className="hidden" />
+              <Upload size={15} /> {reading ? "Reading…" : "Choose vendor sheet (.xlsx / .xls / .pdf)"}
+              <input type="file" accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} className="hidden" />
             </label>
             {err && <p className="text-xs text-red-500 mt-3">{err}</p>}
             <p className="text-[11px] text-slate-400 mt-3 max-w-md mx-auto">Nothing is saved until you apply. The file is parsed here in your browser.</p>

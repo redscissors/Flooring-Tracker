@@ -42,7 +42,10 @@ src/
   Auth.jsx          # sign-in screen (sign-up disabled by design)
   App.jsx           # the FloorTrack application (props: { user, onSignOut })
   catalog.js        # settings normalization + material math + shared catalog
-  pricebook.js      # stock price book .xlsx -> flat stock items (ADR 0003)
+  pricebook.js      # stock price book .xlsx -> flat stock items (ADR 0003);
+                    # + generic mapped import for order/registry books (ADR 0009)
+  pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
+                    # header-driven per page, feeds the mapped import (ADR 0010)
   stock.js          # stock search / SKU fill / drift / import diff / catalog sync
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
