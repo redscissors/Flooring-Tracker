@@ -62,6 +62,11 @@ const FitSelect = ({ display, className = "", sm, children, ...rest }) => {
 
 const SKU_SHOW = 30;
 
+// A stable id for a search hit across stock and every order book — the same
+// string used as the React key and to dedupe the multi-select. Stock items have
+// no bookId; two order books can legitimately reuse a SKU, so the book scopes it.
+const hitKey = (it) => (it.bookId || "stock") + "|" + it.sku;
+
 const StockHit = ({ it }) => (
   <>
     <div className="flex items-baseline gap-2">
@@ -177,20 +182,20 @@ const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").le
 function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
-  const [picked, setPicked] = useState([]); // SKUs, in click order (stock only)
+  const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
   const { results, total } = useMergedResults(open, stock, value, searchOrder);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { onPick(it); close(); };
-  const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
-  // Resolve against the full stock list, not the current matches — the user
-  // may change search words between picks and the selection must survive that.
+  // Keep the whole hit, not just its SKU — order items aren't in the in-memory
+  // stock list to re-resolve from, and holding the snapshot lets the selection
+  // survive the user changing search words between picks.
+  const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const commit = () => {
-    const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
-    if (items.length === 1) onPick(items[0]);
-    else if (items.length) onPickMany(items);
+    if (picked.length === 1) onPick(picked[0]);
+    else if (picked.length) onPickMany(picked);
     close();
   };
   const onKey = (e) => {
@@ -214,15 +219,12 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-72 overflow-y-auto">
             {results.map((it, i) => {
-              const isOrder = !!it.bookId;
-              const sel = !isOrder && picked.includes(it.sku);
+              const sel = picked.some((x) => hitKey(x) === hitKey(it));
               return (
-                <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                <div key={hitKey(it)} onClick={(e) => (e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
                   className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                  {isOrder ? <span className="mt-0.5 w-4 h-4 shrink-0" /> : (
-                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
-                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
-                  )}
+                  <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                    className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
                   <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                 </div>
               );
@@ -639,7 +641,7 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
 function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, searchOrder, bookName, inputRef }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
-  const [picked, setPicked] = useState([]); // SKUs, in click order
+  const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
   // Revert-on-abandon: leftover search text in the permanent adder row is
@@ -655,13 +657,14 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { committedRef.current = true; onPick(it); close(); };
-  const toggle = (it) => setPicked((prev) => prev.includes(it.sku) ? prev.filter((s) => s !== it.sku) : [...prev, it.sku]);
+  // Keep the whole hit (see SkuPicker): order items have no in-memory list to
+  // re-resolve from, and the snapshot survives changing the search words.
+  const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const goManual = () => { committedRef.current = true; onManual(); };
   const commit = () => {
     committedRef.current = true;
-    const items = picked.map((sku) => findStock(stock, sku)).filter(Boolean);
-    if (items.length === 1) onPick(items[0]);
-    else if (items.length) onPickMany(items);
+    if (picked.length === 1) onPick(picked[0]);
+    else if (picked.length) onPickMany(picked);
     close();
   };
   const onBlur = () => {
@@ -696,15 +699,12 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
           {results.length > 0 && (
             <div className="max-h-72 overflow-y-auto">
               {results.map((it, i) => {
-                const isOrder = !!it.bookId;
-                const sel = !isOrder && picked.includes(it.sku);
+                const sel = picked.some((x) => hitKey(x) === hitKey(it));
                 return (
-                  <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  <div key={hitKey(it)} onClick={(e) => (e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
                     className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                    {isOrder ? <span className="mt-0.5 w-4 h-4 shrink-0" /> : (
-                      <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
-                        className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
-                    )}
+                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
                     <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                   </div>
                 );
