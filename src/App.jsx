@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, mergeSearch } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -75,6 +75,37 @@ const StockHit = ({ it }) => (
   </>
 );
 
+// A special-order search hit (ADR 0009 §6): StockHit's shape plus the book
+// badge, the lead time a salesperson needs before quoting, and a freight flag
+// (highlight only — no charge math, §3.6). The price shown is the live sell
+// (cost × book markup); the snapshot happens only on pick.
+const OrderHit = ({ it, bookName }) => (
+  <>
+    <div className="flex items-baseline gap-2">
+      <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <span className="text-xs font-medium truncate flex-1">{it.description || it.product}</span>
+      <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
+    </div>
+    <div className="flex items-baseline gap-1.5 text-[11px]">
+      <span className="shrink-0 rounded px-1 bg-indigo-50 text-indigo-600 font-medium">{bookName(it.bookId)} · special order</span>
+      {it.leadTime && <span className="text-slate-400 truncate">{it.leadTime}</span>}
+      {it.freightFlag && <span className="shrink-0 rounded px-1 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
+    </div>
+  </>
+);
+
+// One search-result body: an order item badges as special-order; a stock item
+// renders as today, plus an "also on {book}" note when the same SKU also lives
+// in an order book (the collision resolved to stock — mergeSearch §6).
+const Hit = ({ it, bookName = () => "special order" }) => (
+  it.bookId ? <OrderHit it={it} bookName={bookName} /> : (
+    <>
+      <StockHit it={it} />
+      {it.alsoOn?.length > 0 && <div className="text-[11px] text-slate-400">also on {it.alsoOn.map(bookName).join(", ")}</div>}
+    </>
+  )
+);
+
 const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${total} matches — keep typing to narrow` : `${total} match${total === 1 ? "" : "es"}`;
 
 // Dropdown panels render in a portal on <body>: the product-row field bar and
@@ -104,6 +135,37 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
   return pos;
 };
 
+// Order-book search for the selection-row pickers (ADR 0009 §6). Stock stays
+// instant from the in-memory list; special-order matches stream in behind them
+// from a debounced server query (searchOrder — null when no order books exist,
+// which keeps the whole feature inert until one is imported).
+function useOrderResults(query, searchOrder) {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    const q = (query || "").trim();
+    if (!q || !searchOrder) { setItems([]); return; }
+    let stale = false;
+    const t = setTimeout(async () => {
+      try { const r = await searchOrder(q); if (!stale) setItems(r); }
+      catch { if (!stale) setItems([]); }
+    }, 250);
+    return () => { stale = true; clearTimeout(t); };
+  }, [query, searchOrder]);
+  return items;
+}
+
+// Instant stock matches + streamed order matches, merged stock-first with the
+// exact-SKU collision resolved to stock (mergeSearch), then capped for display.
+// Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
+// the shared in-memory stock objects.
+function useMergedResults(active, stock, query, searchOrder) {
+  const orderRaw = useOrderResults(active ? query : "", searchOrder);
+  const stockMatches = active ? searchStock(stock, query) : [];
+  const { stock: sMatches, order: oMatches } = mergeSearch(stockMatches.map((it) => ({ ...it })), orderRaw);
+  const combined = [...sMatches, ...oMatches];
+  return { results: combined.slice(0, SKU_SHOW), total: combined.length };
+}
+
 // SKU typeahead for a product row. Typing stores the text on the row (a SKU is
 // just a field); picking a suggestion snapshots the stock item's values onto
 // the row via onPick. Search matches SKU prefixes or words in the item text.
@@ -112,14 +174,13 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
 // each of the rest via onPickMany.
 const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
 
-function SkuPicker({ value, stock, onChange, onPick, onPickMany, wrapClass, wrapStyle, inputClass }) {
+function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
-  const [picked, setPicked] = useState([]); // SKUs, in click order
+  const [picked, setPicked] = useState([]); // SKUs, in click order (stock only)
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
-  const matches = open ? searchStock(stock, value) : [];
-  const results = matches.slice(0, SKU_SHOW);
+  const { results, total } = useMergedResults(open, stock, value, searchOrder);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { onPick(it); close(); };
@@ -153,19 +214,22 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, wrapClass, wrap
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-72 overflow-y-auto">
             {results.map((it, i) => {
-              const sel = picked.includes(it.sku);
+              const isOrder = !!it.bookId;
+              const sel = !isOrder && picked.includes(it.sku);
               return (
-                <div key={it.sku} onClick={(e) => (e.shiftKey || picked.length ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && (e.shiftKey || picked.length) ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
                   className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                  <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
-                    className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
-                  <div className="flex-1 min-w-0"><StockHit it={it} /></div>
+                  {isOrder ? <span className="mt-0.5 w-4 h-4 shrink-0" /> : (
+                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
+                  )}
+                  <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                 </div>
               );
             })}
           </div>
           <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
-            <span className="truncate">{matchSummary(results.length, matches.length)}</span>
+            <span className="truncate">{matchSummary(results.length, total)}</span>
             {picked.length > 0 ? (
               <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
             ) : (
@@ -542,11 +606,11 @@ function GridSizeInput({ p, onCommit }) {
 // Product cell: typed text is the row's brand/color; matches from the stock
 // price book drop down beneath (same search the SKU cell uses) and picking
 // one fills the row exactly like a SKU pick.
-function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product…", inputRef }) {
+function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
-  const matches = open && stock.length ? searchStock(stock, value).slice(0, SKU_SHOW) : [];
+  const { results: matches } = useMergedResults(open, stock, value, searchOrder);
   const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
@@ -558,8 +622,8 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-60 overflow-y-auto">
             {matches.map((it) => (
-              <button key={it.sku} onClick={() => { onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                <StockHit it={it} />
+              <button key={(it.bookId || "stock") + "|" + it.sku} onClick={() => { onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <Hit it={it} bookName={bookName} />
               </button>
             ))}
           </div>
@@ -572,7 +636,7 @@ function GridProductBox({ value, stock, onChange, onPick, placeholder = "Product
 // price book by SKU or product words. Picking a match fills the whole row
 // (like the SKU/product cells do); shift-click adds several as their own rows;
 // Enter with no match — or a double-click — hands the row to manual entry.
-function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, inputRef }) {
+function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, searchOrder, bookName, inputRef }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // SKUs, in click order
@@ -587,8 +651,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const blurTimer = useRef(null);
   useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
-  const matches = open && stock.length ? searchStock(stock, query) : [];
-  const results = matches.slice(0, SKU_SHOW);
+  const { results, total } = useMergedResults(open, stock, query, searchOrder);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { committedRef.current = true; onPick(it); close(); };
@@ -621,7 +684,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
       else if (query.trim()) goManual();
     } else if (e.key === "Escape") close();
   };
-  const noHits = query.trim() && stock.length > 0 && results.length === 0;
+  const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0;
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
@@ -633,13 +696,16 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
           {results.length > 0 && (
             <div className="max-h-72 overflow-y-auto">
               {results.map((it, i) => {
-                const sel = picked.includes(it.sku);
+                const isOrder = !!it.bookId;
+                const sel = !isOrder && picked.includes(it.sku);
                 return (
-                  <div key={it.sku} onClick={(e) => (e.shiftKey || picked.length ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  <div key={(it.bookId || "stock") + "|" + it.sku} onClick={(e) => (!isOrder && (e.shiftKey || picked.length) ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
                     className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
-                      className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
-                    <div className="flex-1 min-w-0"><StockHit it={it} /></div>
+                    {isOrder ? <span className="mt-0.5 w-4 h-4 shrink-0" /> : (
+                      <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                        className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
+                    )}
+                    <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                   </div>
                 );
               })}
@@ -650,7 +716,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
               <><span className="truncate">No price-book match.</span>
                 <button onMouseDown={(e) => { e.preventDefault(); onManual(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Enter "{query.trim()}" by hand</button></>
             ) : (<>
-              <span className="truncate">{matchSummary(results.length, matches.length)}</span>
+              <span className="truncate">{matchSummary(results.length, total)}</span>
               {picked.length > 0 ? (
                 <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
               ) : (
@@ -1334,17 +1400,58 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
+  const orderBooks = useMemo(() => books.filter((b) => b.kind === "order" && b.active), [books]);
+  const bookName = (id) => books.find((b) => b.id === id)?.name || "special order";
+  // Prefer the trigram-indexed search_text column (supabase/pricebook-search.sql);
+  // flips false for the session the first time that column is absent, so the
+  // search keeps working before the migration is run — just via the slower
+  // per-field ILIKE fallback below.
+  const searchCol = useRef(true);
+  // Debounced server-side search across every active order book (§6). Order
+  // items aren't eagerly loaded (a vendor book runs to thousands of rows), so
+  // the selection-row pickers query price_book_items on demand, price each hit
+  // by its book's markup, and stream the results in behind the instant stock
+  // matches. null with no order books — the pickers behave exactly as before,
+  // stock-only.
+  const searchOrder = useMemo(() => {
+    if (!orderBooks.length) return null;
+    const byId = new Map(orderBooks.map((b) => [b.id, b]));
+    const ids = orderBooks.map((b) => b.id);
+    const price = (rows) => (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
+    const base = () => supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
+    return async (q) => {
+      const term = q.replace(/[%_,()"\\]/g, " ").trim();
+      const pat = `%${term}%`;
+      if (searchCol.current) {
+        const { data: rows, error } = await base().ilike("search_text", pat);
+        if (!error) return price(rows);
+        // 42703 = undefined_column: the search migration hasn't been run yet.
+        if (error.code !== "42703" && !/search_text/i.test(error.message || "")) throw error;
+        searchCol.current = false;
+      }
+      const ors = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color"].map((f) => `${f}.ilike.${pat}`).join(",");
+      const { data: rows, error } = await base().or(ors);
+      if (error) throw error;
+      return price(rows);
+    };
+  }, [orderBooks]);
   // Pick from the SKU dropdown: the first item fills the anchor row, each
   // further item becomes its own new product row right below it. A Laticrete
   // pigment (Spectralock Part C, Permacolor Color Kit) drags its default base
   // unit along as an extra row, since neither is usable without the other.
+  // The snapshot patch for a picked item: a special-order item (bookId set)
+  // goes through orderPatch — which prices it by its book's markup and carries
+  // the order provenance (cost/markupPct/freight/tier) — while a stock item
+  // keeps the stock path. One sanctioned pick path for both spaces (ADR 0009).
+  const patchFor = (it, p) => it.bookId ? orderPatch(it, books.find((b) => b.id === it.bookId), p) : stockPatch(it, p);
   const addStockProducts = (aid, pid, items) => {
     if (!items.length) return;
-    const expanded = items.flatMap((it) => { const base = stockCompanionBase(it, stock); return base ? [it, base] : [it]; });
+    // Only stock items carry a companion base unit (Laticrete pigment → base).
+    const expanded = items.flatMap((it) => { const base = it.bookId ? null : stockCompanionBase(it, stock); return base ? [it, base] : [it]; });
     const a = sel.categories.find((x) => x.id === aid);
     const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...stockPatch(expanded[0], p) },
-      ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...stockPatch(it, np) }; }),
+      { ...p, ...patchFor(expanded[0], p) },
+      ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...patchFor(it, np) }; }),
     ]);
     updArea(aid, { products });
   };
@@ -2238,6 +2345,7 @@ export default function App({ user, onSignOut }) {
                                   onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
                                   onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
                                   onManual={() => goManual()} onAbandon={clearOmni}
+                                  searchOrder={searchOrder} bookName={bookName}
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
@@ -2262,14 +2370,15 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </div>
                               <div style={gridCell}>
-                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
+                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
-                                {stock.length > 0 ? (
+                                {stock.length > 0 || searchOrder ? (
                                   <SkuPicker value={p.sku || ""} stock={stock}
                                     onChange={(v) => updProduct(a.id, p.id, { sku: v })}
                                     onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                                     onPickMany={(items) => addStockProducts(a.id, p.id, items)}
+                                    searchOrder={searchOrder} bookName={bookName}
                                     wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
                                 ) : (
                                   <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
