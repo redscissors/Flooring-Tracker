@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -347,7 +347,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null });
 
@@ -3118,8 +3118,8 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, hideCost
         </span>
       </div>
 
-      {isOrder && !markups && items && items.length > 0 && (
-        <p className="text-[11px] text-amber-600 mt-2">No markup set yet — selling prices below use 0% over cost. The markup editor lands in Phase 2.</p>
+      {isOrder && items && items.length > 0 && (
+        <MarkupEditor book={book} items={items} onSave={(m) => updateBook(book.id, { dataPatch: { markups: m } })} inp={inp} lbl={lbl} />
       )}
 
       {items && items.length > 0 && (
@@ -3170,6 +3170,60 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, hideCost
       )}
 
       {wizard && <BookImportWizard book={book} existingItems={items || []} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+    </div>
+  );
+}
+
+// The markup editor (Phase 2): a book default plus per-group overrides keyed on
+// the column chosen at import (mfg, product line…). Selling price = cost ×
+// (1 + markup), computed at browse/pick time — editing a markup moves future
+// picks only, never a saved estimate. Only the groups the sheet actually has
+// are priceable (markupGroups), so there's no free-form matcher to get wrong.
+const GROUP_LABEL = { mfg: "manufacturer", productLine: "product line", section: "section", brand: "brand" };
+function MarkupEditor({ book, items, onSave, inp, lbl }) {
+  const markups = book.data?.markups || {};
+  const groupBy = markups.groupBy || book.data?.mapping?.groupBy || "";
+  const [def, setDef] = useState(markups.default != null ? String(markups.default) : "");
+  const [byGroup, setByGroup] = useState(markups.byGroup || {});
+
+  const commit = (nextDef, nextBy) => onSave({ ...(groupBy ? { groupBy } : {}), default: num(nextDef), byGroup: nextBy });
+  const setGroup = (key, val) => {
+    const next = { ...byGroup };
+    if (val === "" || val == null) delete next[key]; else next[key] = num(val);
+    setByGroup(next); commit(def, next);
+  };
+  const groups = groupBy ? markupGroups(items, { groupBy, default: num(def), byGroup }) : [];
+
+  return (
+    <div className="mt-4 border border-slate-100 rounded-lg p-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Percent size={14} className="text-slate-400" />
+        <span className="text-sm font-medium">Markup</span>
+        <span className="text-[11px] text-slate-400">selling price = cost × (1 + markup)</span>
+      </div>
+      <div className="flex items-end gap-3 mt-2">
+        <div>
+          <label className={lbl}>Default %</label>
+          <input type="number" className={`${inp} w-24`} value={def} onChange={(e) => setDef(e.target.value)} onBlur={() => commit(def, byGroup)} placeholder="0" />
+        </div>
+        <span className="text-[11px] text-slate-400 pb-2">$10 cost → {money(10 * (1 + num(def) / 100))} sell</span>
+      </div>
+      {groupBy ? (groups.length > 0 && (
+        <div className="mt-3">
+          <label className={lbl}>Per-{GROUP_LABEL[groupBy] || groupBy} overrides <span className="normal-case tracking-normal text-slate-400">(blank = default)</span></label>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 max-w-xl">
+            {groups.map((g) => (
+              <div key={g.key} className="flex items-center gap-2">
+                <span className="text-xs flex-1 truncate">{g.key} <span className="text-slate-300">({g.count})</span></span>
+                <input type="number" className="ft-field w-16 rounded border border-slate-200 px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" value={g.overridden ? String(byGroup[g.key]) : ""} placeholder={String(num(def))} onChange={(e) => setGroup(g.key, e.target.value)} />
+                <span className="text-[10px] text-slate-400">%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )) : (
+        <p className="text-[11px] text-amber-600 mt-2">No markup group column was set at import — only the default applies. Re-import and choose a "Markup group" to price by manufacturer.</p>
+      )}
     </div>
   );
 }
