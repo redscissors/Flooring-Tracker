@@ -4,7 +4,8 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
-import { parsePriceBook } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -763,6 +764,11 @@ export default function App({ user, onSignOut }) {
   // sidebar badge and refreshed every time the list is opened.
   const [todos, setTodos] = useState([]);
   const [showTodos, setShowTodos] = useState(false);
+  // Price book library (ADR 0009): registry books beyond the stock workbook.
+  // Metadata is loaded up front for the Settings list; a book's items load
+  // lazily when it's opened (a vendor book is ~10x the stock book). Empty
+  // until the team has run supabase/pricebooks.sql.
+  const [books, setBooks] = useState([]);
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
   const pbRef = useRef(null);
@@ -915,6 +921,9 @@ export default function App({ user, onSignOut }) {
         // Best-effort: installs that haven't run supabase/todos.sql yet just
         // don't get the team to-do list.
         try { setTodos(await loadTodos()); } catch (x) { }
+        // Best-effort: installs that haven't run supabase/pricebooks.sql yet
+        // just don't get the price book library (registry affordances hide).
+        try { setBooks(await loadBooks()); } catch (x) { }
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
     })();
@@ -1055,6 +1064,72 @@ export default function App({ user, onSignOut }) {
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
     } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
+  };
+
+  // --- price book library (ADR 0009) -----------------------------------------
+  //
+  // Registry books (stock- and order-kind) live in price_books; their items in
+  // price_book_items, one row per (book_id, sku). Same trust + no-delete rules
+  // as stock_items. Writes go only through these paths.
+
+  const normBook = (row) => ({
+    id: row.id, kind: row.kind || "order", name: row.name || "",
+    active: row.active !== false, data: row.data || {},
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
+  });
+
+  const loadBooks = async () => {
+    const { data: rows, error } = await supabase.from("price_books").select("id, kind, name, active, data, updated_at");
+    if (error) throw error;
+    return (rows || []).map(normBook);
+  };
+
+  // A book's items, loaded on demand (Settings browse). Not held in app state —
+  // the caller keeps them while the book is open.
+  const loadBookItems = async (bookId) => {
+    const { data: rows, error } = await supabase.from("price_book_items").select("sku, active, data, updated_at").eq("book_id", bookId);
+    if (error) throw error;
+    return (rows || []).map((r) => normBookItem(r, bookId));
+  };
+
+  const addBook = async ({ kind, name }) => {
+    const id = uid();
+    const row = { id, kind, name: name || "", active: true, data: {} };
+    setBooks((bs) => [...bs, normBook(row)]);
+    try { const { error } = await supabase.from("price_books").insert(row); if (error) throw error; flashSaved(); }
+    catch (x) { ping("Couldn't create book — has supabase/pricebooks.sql been run?"); }
+    return id;
+  };
+
+  // Column fields (name/active) and/or a merge into the data jsonb. Whole-record
+  // upsert of that one row, last-write-wins like settings.
+  const updateBook = async (id, { name, active, dataPatch } = {}) => {
+    const book = books.find((b) => b.id === id);
+    if (!book) return;
+    const nextData = dataPatch ? { ...book.data, ...dataPatch } : book.data;
+    setBooks((bs) => bs.map((b) => b.id === id ? { ...b, ...(name != null ? { name } : {}), ...(active != null ? { active } : {}), data: nextData } : b));
+    const cols = {};
+    if (name != null) cols.name = name;
+    if (active != null) cols.active = active;
+    if (dataPatch) cols.data = nextData;
+    try { const { error } = await supabase.from("price_books").update(cols).eq("id", id); if (error) throw error; flashSaved(); }
+    catch (x) { ping("Save failed"); }
+  };
+
+  // Apply a mapped-import diff: upsert added/changed items, mark missing SKUs
+  // inactive (never delete), stamp the book's lastImport. Same chunked-upsert
+  // shape as the stock import.
+  const applyBookImport = async (bookId, diff) => {
+    const upserts = [
+      ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, data: bookItemData(it) })),
+      ...diff.changed.map(({ item }) => ({ book_id: bookId, sku: item.sku, active: true, data: bookItemData(item) })),
+      ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, data: bookItemData(it) })),
+    ];
+    for (let i = 0; i < upserts.length; i += 200) {
+      const { error } = await supabase.from("price_book_items").upsert(upserts.slice(i, i + 200), { onConflict: "book_id,sku" });
+      if (error) throw error;
+    }
+    await updateBook(bookId, { dataPatch: { lastImport: { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length } } });
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -2566,7 +2641,8 @@ export default function App({ user, onSignOut }) {
           importing={importing} importPriceBook={importPriceBook} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
-          profile={profile} saveProfile={saveProfile} user={user} />
+          profile={profile} saveProfile={saveProfile} user={user}
+          books={books} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} />
       )}
 
       {showTodos && (
@@ -2845,7 +2921,454 @@ function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, i
 // The PC-first Settings workspace (issue 007): near-fullscreen, left-nav
 // sections, master→detail catalog editing. Pure UI — every write still flows
 // through setSettings and the import/backup handlers passed in from App.
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user }) {
+// --- Price book library (ADR 0009, Phase 1) ---------------------------------
+//
+// The Settings "Price book" section grown into a library: the stock workbook
+// plus registry books (stock- and order-kind). Order books import via a saved
+// column mapping and store a vendor COST; a flat default markup turns that into
+// a browse-time selling price (the markup editor and pick snapshot are Phase 2).
+// A session-local "hide costs" toggle masks every cost/margin figure for
+// over-the-shoulder moments — presentation only, never stored, never printed.
+
+const bookFieldOptions = [
+  ["", "— ignore —"], ["sku", "SKU"], ["cost", "Cost"], ["description", "Description"],
+  ["mfg", "Manufacturer"], ["productLine", "Product line"], ["color", "Color"], ["style", "Style"],
+  ["unit", "Unit (U/M)"], ["size", "Size"], ["thickness", "Thickness"], ["sfPerUnit", "SF per carton"],
+  ["coverage", "Coverage"], ["leadTime", "Lead time"], ["msrp", "MSRP / consumer"], ["brand", "Brand"],
+  ["section", "Section"], ["note", "Notes"], ["type", "Flooring type"], ["flag", "Status flag"],
+];
+const FLAG_SEMANTICS = [["", "— ignore —"], ["discontinued", "Discontinued"], ["freight", "Extra freight"], ["madeToOrder", "Made to order"], ["transitioning", "Transitioning"]];
+
+const guessBookField = (header) => {
+  const h = String(header || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!h) return "";
+  if (/(itemcode|productcode|^sku$|vtcitem)/.test(h)) return "sku";
+  if (/(dealer|^cost|netcost|yourcost)/.test(h)) return "cost";
+  if (/(consumer|msrp|list|suggested)/.test(h)) return "msrp";
+  if (/(leadtime|lead|availab)/.test(h)) return "leadTime";
+  if (/(productline|series|collection)/.test(h)) return "productLine";
+  if (/(mfg|manufacturer|vendor|brandcode)/.test(h)) return "mfg";
+  if (/(desc|decription|name)/.test(h)) return "description";
+  if (/(um|unit|uom)/.test(h)) return "unit";
+  if (/(sfct|sfperct|sfcarton|sqftct)/.test(h)) return "sfPerUnit";
+  if (/coverage/.test(h)) return "coverage";
+  if (/thick/.test(h)) return "thickness";
+  if (/size|dimension/.test(h)) return "size";
+  if (/color|colour/.test(h)) return "color";
+  if (/pattern|style/.test(h)) return "style";
+  if (/note|comment/.test(h)) return "note";
+  if (/brand/.test(h)) return "brand";
+  return "";
+};
+
+// A row looks like the header when several of its cells guess to known fields
+// and one of them is the SKU column — VTC's header sits 14 rows down.
+const guessHeaderRow = (rows) => {
+  let best = -1, bestScore = 1;
+  for (let r = 0; r < Math.min(rows.length, 40); r++) {
+    const row = rows[r] || [];
+    let hasSku = false, score = 0;
+    for (const c of row) { const f = guessBookField(c); if (f) score++; if (f === "sku") hasSku = true; }
+    if (hasSku && score >= 3 && score > bestScore) { best = r; bestScore = score; }
+  }
+  return best;
+};
+
+function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, applyBookImport, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
+  const [sel, setSel] = useState("stock"); // "stock" | bookId
+  const [adding, setAdding] = useState(false);
+  const [newKind, setNewKind] = useState("order");
+  const [newName, setNewName] = useState("");
+  const [hideCosts, setHideCosts] = useState(false);
+
+  const stockBooks = books.filter((b) => b.kind === "stock");
+  const orderBooks = books.filter((b) => b.kind === "order");
+  const selBook = sel === "stock" ? null : books.find((b) => b.id === sel);
+  const stockCount = stock.filter((s) => s.active).length;
+
+  const create = async () => {
+    const name = newName.trim() || (newKind === "stock" ? "New stock book" : "New vendor book");
+    const id = await addBook({ kind: newKind, name });
+    setAdding(false); setNewName(""); setSel(id);
+  };
+
+  const rowCls = (on) => `w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-left ${on ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`;
+
+  return (
+    <div className="flex-1 flex overflow-hidden">
+      <div className="w-56 shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-3">
+        <div>
+          <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Stock</div>
+          <button onClick={() => setSel("stock")} className={rowCls(sel === "stock")}>
+            <BookOpen size={14} className={sel === "stock" ? "" : "text-slate-400"} />
+            <span className="flex-1 truncate">Shop workbook</span>
+            <span className={`text-[10px] ${sel === "stock" ? "text-white/70" : "text-slate-400"}`}>{stockCount || "—"}</span>
+          </button>
+          {stockBooks.map((b) => (
+            <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
+              <BookOpen size={14} className={sel === b.id ? "" : "text-slate-400"} />
+              <span className="flex-1 truncate">{b.name || "Untitled"}</span>
+            </button>
+          ))}
+        </div>
+        <div>
+          <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Special order</div>
+          {orderBooks.length === 0 && <div className="text-[11px] text-slate-400 px-1 py-1">None yet</div>}
+          {orderBooks.map((b) => (
+            <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
+              <Database size={14} className={sel === b.id ? "" : "text-slate-400"} />
+              <span className="flex-1 truncate">{b.name || "Untitled"}</span>
+              {!b.active && <span className={`text-[10px] ${sel === b.id ? "text-white/70" : "text-slate-400"}`}>off</span>}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setAdding(true)} className="w-full flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-2.5 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New book</button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex items-start justify-between">
+          <h2 className="ft-serif text-3xl">Price book</h2>
+          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+            {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
+          </button>
+        </div>
+
+        {sel === "stock" ? (
+          <div className="mt-3">
+            <p className="text-xs text-slate-400 max-w-xl">
+              {stockCount > 0
+                ? `${stockCount} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
+                : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
+              The shop workbook keeps its hand-built import; a SKU on a product row copies that item's values onto the row, and later price changes never rewrite saved selections.
+            </p>
+            {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}</p>}
+            {gFamilies.length > 0 && <p className="text-xs text-slate-400 mt-1 max-w-xl">Grout &amp; caulk: {gFamilies.length} color families · {gFamilies.reduce((n, f) => n + f.colors.length, 0)} color SKUs.</p>}
+            <button onClick={() => pbRef.current?.click()} disabled={importing} className="mt-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import shop workbook (.xlsx)"}</button>
+            <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
+          </div>
+        ) : selBook ? (
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+        ) : (
+          <p className="text-xs text-slate-400 mt-3">Select a book.</p>
+        )}
+      </div>
+
+      {adding && (
+        <Modal title="New price book" onClose={() => setAdding(false)}>
+          <label className={lbl}>Type</label>
+          <div className="flex gap-2 mb-3">
+            {[["order", "Special order", "Vendor cost list — a markup makes the selling price"], ["stock", "Stock", "Shop-priced sheet, like the main workbook"]].map(([k, t, d]) => (
+              <button key={k} onClick={() => setNewKind(k)} className={`flex-1 text-left rounded-lg border px-3 py-2 ${newKind === k ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                <div className="text-sm font-medium">{t}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{d}</div>
+              </button>
+            ))}
+          </div>
+          <label className={lbl}>Name</label>
+          <input className={inp} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={newKind === "stock" ? "e.g. Schluter 2026" : "e.g. Virginia Tile SO"} autoFocus onKeyDown={(e) => e.key === "Enter" && create()} />
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={() => setAdding(false)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+            <button onClick={create} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Create book</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function BookDetail({ book, updateBook, loadBookItems, applyBookImport, hideCosts, inp, lbl, types, typeLabels }) {
+  const [items, setItems] = useState(null); // null = loading
+  const [q, setQ] = useState("");
+  const [wizard, setWizard] = useState(false);
+  const [name, setName] = useState(book.name);
+
+  const reload = () => { setItems(null); loadBookItems(book.id).then(setItems).catch(() => setItems([])); };
+  useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); return () => { ok = false; }; }, [book.id]);
+
+  const markups = book.data?.markups || null;
+  const li = book.data?.lastImport;
+  const isOrder = book.kind === "order";
+  const cost = (n) => (hideCosts ? "•••" : n == null ? "—" : money(n));
+  const activeItems = (items || []).filter((it) => it.active);
+  const query = q.trim().toLowerCase();
+  const shown = (items || [])
+    .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query))
+    .slice(0, 300);
+
+  const onApply = async (diff) => {
+    try { await applyBookImport(book.id, diff); setWizard(false); reload(); }
+    catch (x) { /* surfaced by applyBookImport */ }
+  };
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <input className="ft-field rounded-md border border-slate-200 px-2 py-1 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() !== book.name && updateBook(book.id, { name: name.trim() })} />
+        <span className="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 bg-slate-100 text-slate-500">{isOrder ? "Special order" : "Stock"}</span>
+        <label className="flex items-center gap-1 text-xs text-slate-500 ml-auto">
+          <input type="checkbox" checked={book.active} onChange={(e) => updateBook(book.id, { active: e.target.checked })} /> Active
+        </label>
+      </div>
+
+      <div className="flex items-center gap-2 mt-3">
+        <button onClick={() => setWizard(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>
+        <span className="text-xs text-slate-400">
+          {items == null ? "Loading items…" : `${activeItems.length} active item${activeItems.length === 1 ? "" : "s"}`}
+          {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
+        </span>
+      </div>
+
+      {isOrder && !markups && items && items.length > 0 && (
+        <p className="text-[11px] text-amber-600 mt-2">No markup set yet — selling prices below use 0% over cost. The markup editor lands in Phase 2.</p>
+      )}
+
+      {items && items.length > 0 && (
+        <>
+          <input className={`${inp} mt-4 max-w-sm`} placeholder="Search this book…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="text-left px-2 py-1.5">SKU</th>
+                  <th className="text-left px-2 py-1.5">Description</th>
+                  {isOrder && <th className="text-left px-2 py-1.5">Mfg</th>}
+                  <th className="text-left px-2 py-1.5">U/M</th>
+                  <th className="text-left px-2 py-1.5">Lead</th>
+                  {isOrder && <th className="text-right px-2 py-1.5">Cost</th>}
+                  <th className="text-right px-2 py-1.5">{isOrder ? "Sell" : "Price"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((it) => {
+                  const priced = isOrder ? pricedItem(it, markups) : it;
+                  const sell = priced.priceSqft != null ? priced.priceSqft : priced.price;
+                  return (
+                    <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued ? "text-slate-300" : ""}`}>
+                      <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
+                      <td className="px-2 py-1.5">
+                        {it.description || "—"}
+                        {it.freightFlag && <span className="ml-1.5 text-[9px] uppercase rounded bg-amber-100 text-amber-700 px-1 py-0.5">freight</span>}
+                        {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
+                      </td>
+                      {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
+                      <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
+                      <td className="px-2 py-1.5 text-xs">{it.leadTime || "—"}</td>
+                      {isOrder && <td className="px-2 py-1.5 text-right text-xs tabular-nums">{cost(it.cost)}</td>}
+                      <td className="px-2 py-1.5 text-right tabular-nums">{sell != null ? money(sell) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {(items.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {items.length}.</p>}
+        </>
+      )}
+
+      {items && items.length === 0 && (
+        <p className="text-sm text-slate-400 mt-6">This book is empty. Click <span className="text-slate-600">Import…</span> to map a vendor sheet's columns and load its items.</p>
+      )}
+
+      {wizard && <BookImportWizard book={book} existingItems={items || []} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+    </div>
+  );
+}
+
+// Upload a vendor .xlsx, pick the data sheet, map its columns (headerless ones
+// too), set the SKU pattern and a status-flag legend, watch the parse preview
+// live, then apply the diff. The mapping is saved on the book so re-imports are
+// one click. The parse is entirely client-side; nothing writes until Apply.
+function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts }) {
+  const saved = book.data?.mapping || null;
+  const [sheets, setSheets] = useState(null); // [{ name, rows }]
+  const [sheetName, setSheetName] = useState(saved?.sheet || "");
+  const [headerRow, setHeaderRow] = useState(saved?.headerRow ?? -1);
+  const [columns, setColumns] = useState(saved?.columns || {});
+  const [skuPattern, setSkuPattern] = useState(saved?.skuPattern || mappedSkuRe().source);
+  const [flags, setFlags] = useState(saved?.flags || {});
+  const [groupBy, setGroupBy] = useState(saved?.groupBy || (book.kind === "order" ? "mfg" : ""));
+  const [defaultType, setDefaultType] = useState(saved?.defaultType || "");
+  const [reading, setReading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const sheet = sheets?.find((s) => s.name === sheetName) || null;
+  const rows = sheet?.rows || [];
+  const maxCol = Math.min(30, rows.reduce((m, r) => Math.max(m, r?.length || 0), 0));
+
+  const onFile = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    setReading(true); setErr("");
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+      const parsed = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
+      setSheets(parsed);
+      const pick = saved?.sheet && parsed.find((s) => s.name === saved.sheet) ? saved.sheet
+        : parsed.slice().sort((a, b) => (b.rows?.length || 0) - (a.rows?.length || 0))[0]?.name || "";
+      applySheet(parsed.find((s) => s.name === pick));
+    } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls?"); }
+    setReading(false);
+  };
+
+  // Choosing a sheet (auto or manual): if we have no saved mapping, guess the
+  // header row and the columns from it.
+  const applySheet = (s) => {
+    if (!s) return;
+    setSheetName(s.name);
+    if (saved?.sheet === s.name && saved.columns) { setHeaderRow(saved.headerRow ?? -1); setColumns(saved.columns); return; }
+    const hr = guessHeaderRow(s.rows);
+    setHeaderRow(hr);
+    const cols = {};
+    if (hr >= 0) (s.rows[hr] || []).forEach((c, i) => { const f = guessBookField(c); if (f && !Object.values(cols).includes(f)) cols[i] = f; });
+    setColumns(cols);
+  };
+
+  const setCol = (i, field) => setColumns((c) => {
+    const next = { ...c };
+    if (field) { for (const k of Object.keys(next)) if (next[k] === field && field !== "flag") delete next[k]; next[i] = field; }
+    else delete next[i];
+    return next;
+  });
+
+  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined };
+  const { items, warnings } = sheet ? parseMapped(rows, mapping) : { items: [], warnings: [] };
+  const diff = sheet ? diffBookItems(existingItems, items) : { added: [], changed: [], missing: [], unchanged: [] };
+  const flagCol = Object.entries(columns).find(([, f]) => f === "flag")?.[0];
+  const flagValues = flagCol != null ? [...new Set(rows.slice((headerRow >= 0 ? headerRow : -1) + 1).map((r) => String(r?.[flagCol] ?? "").trim()).filter((v) => v && v.length <= 4))].slice(0, 12) : [];
+
+  const preview = items.slice(0, 8);
+
+  return (
+    <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><h3 className="ft-serif text-2xl">Import — {book.name || "book"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+
+        {!sheets ? (
+          <div className="py-8 text-center">
+            <label className="inline-flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-4 py-2 text-slate-600 cursor-pointer">
+              <Upload size={15} /> {reading ? "Reading…" : "Choose vendor sheet (.xlsx / .xls)"}
+              <input type="file" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} className="hidden" />
+            </label>
+            {err && <p className="text-xs text-red-500 mt-3">{err}</p>}
+            <p className="text-[11px] text-slate-400 mt-3 max-w-md mx-auto">Nothing is saved until you apply. The file is parsed here in your browser.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className={lbl}>Data sheet</label>
+                <select className={`${inp} w-auto`} value={sheetName} onChange={(e) => applySheet(sheets.find((s) => s.name === e.target.value))}>
+                  {sheets.map((s) => <option key={s.name} value={s.name}>{s.name} ({s.rows?.length || 0})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Header row</label>
+                <input type="number" className={`${inp} w-20`} value={headerRow < 0 ? "" : headerRow + 1} placeholder="none" onChange={(e) => setHeaderRow(e.target.value === "" ? -1 : Math.max(0, Number(e.target.value) - 1))} />
+              </div>
+              <div>
+                <label className={lbl}>SKU pattern</label>
+                <input className={`${inp} w-56 font-mono text-xs`} value={skuPattern} onChange={(e) => setSkuPattern(e.target.value)} />
+              </div>
+              {book.kind === "order" && (
+                <div>
+                  <label className={lbl}>Markup group</label>
+                  <select className={`${inp} w-auto`} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+                    {[["", "— none —"], ["mfg", "Manufacturer"], ["productLine", "Product line"], ["section", "Section"], ["brand", "Brand"]].map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className={lbl}>Default type</label>
+                <select className={`${inp} w-auto`} value={defaultType} onChange={(e) => setDefaultType(e.target.value)}>
+                  <option value="">Misc / accessory</option>
+                  {types.filter((t) => t !== "misc").map((t) => <option key={t} value={t}>{typeLabels[t] || t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className={lbl}>Map columns — a row is imported only when its SKU cell matches the pattern</label>
+              <div className="overflow-x-auto border border-slate-100 rounded-lg">
+                <table className="text-xs">
+                  <thead>
+                    <tr>{Array.from({ length: maxCol }, (_, i) => (
+                      <th key={i} className="px-1.5 py-1 border-b border-slate-100 align-top">
+                        <select className="ft-field rounded border border-slate-200 px-1 py-0.5 text-[11px] max-w-[120px]" value={columns[i] || ""} onChange={(e) => setCol(i, e.target.value)}>
+                          {bookFieldOptions.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                        </select>
+                      </th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice((headerRow >= 0 ? headerRow : -1) + 1, (headerRow >= 0 ? headerRow : -1) + 6).map((r, ri) => (
+                      <tr key={ri}>{Array.from({ length: maxCol }, (_, i) => (
+                        <td key={i} className={`px-1.5 py-1 border-b border-slate-50 whitespace-nowrap max-w-[120px] truncate ${columns[i] === "sku" ? "bg-indigo-50" : ""}`}>{String(r?.[i] ?? "")}</td>
+                      ))}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {flagValues.length > 0 && (
+              <div>
+                <label className={lbl}>Status flag legend</label>
+                <div className="flex flex-wrap gap-2">
+                  {flagValues.map((v) => (
+                    <div key={v} className="flex items-center gap-1 border border-slate-200 rounded px-2 py-1">
+                      <span className="font-mono text-xs">{v}</span>
+                      <select className="ft-field text-[11px] border-0 focus:ring-0" value={flags[v] || ""} onChange={(e) => setFlags((f) => { const n = { ...f }; if (e.target.value) n[v] = e.target.value; else delete n[v]; return n; })}>
+                        {FLAG_SEMANTICS.map(([val, t]) => <option key={val} value={val}>{t}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-medium">{items.length} item{items.length === 1 ? "" : "s"} parsed</span>
+                <span className="text-xs text-emerald-600">{diff.added.length} new</span>
+                <span className="text-xs text-amber-600">{diff.changed.length} changed</span>
+                <span className="text-xs text-slate-400">{diff.missing.length} retiring · {diff.unchanged.length} unchanged</span>
+              </div>
+              {warnings.length > 0 && <ul className="mt-1 text-[11px] text-amber-600 list-disc pl-4">{warnings.slice(0, 4).map((w, i) => <li key={i}>{w}</li>)}</ul>}
+              {preview.length > 0 && (
+                <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase text-slate-400"><tr>
+                      <th className="text-left px-2 py-1">SKU</th><th className="text-left px-2 py-1">Description</th>
+                      {book.kind === "order" && <th className="text-left px-2 py-1">Mfg</th>}
+                      <th className="text-left px-2 py-1">U/M</th><th className="text-right px-2 py-1">{book.kind === "order" ? "Cost" : "Price"}</th>
+                    </tr></thead>
+                    <tbody>{preview.map((it) => (
+                      <tr key={it.sku} className="border-t border-slate-100">
+                        <td className="px-2 py-1 font-mono">{it.sku}</td><td className="px-2 py-1 truncate max-w-xs">{it.description}{it.freightFlag && <span className="ml-1 text-[9px] text-amber-600">◇frt</span>}</td>
+                        {book.kind === "order" && <td className="px-2 py-1">{it.mfg}</td>}
+                        <td className="px-2 py-1">{it.unit}</td><td className="px-2 py-1 text-right tabular-nums">{hideCosts ? "•••" : it.cost != null ? money(it.cost) : it.price != null ? money(it.price) : "—"}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center pt-1">
+              <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+                <button onClick={() => { saveMapping(mapping); onApply(diff); }} disabled={diff.added.length + diff.changed.length + diff.missing.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply — {diff.added.length} new · {diff.changed.length} changed · {diff.missing.length} retiring</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, loadBookItems, applyBookImport }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -2953,7 +3476,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const SECTIONS = [
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
-    { id: "book", label: "Price book", icon: BookOpen, hint: stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
+    { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${1 + books.length} books` : stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
     { id: "grout", label: "Grout & colors", icon: Paintbrush, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length, 0)) },
     { id: "matunder", label: "Mortar & underlayment", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.mortars.length + (c.underlayments?.length || 0), 0)) },
     { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
@@ -3293,19 +3816,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl">Price book</h2>
-            <p className="text-xs text-slate-400 mt-2 max-w-xl">
-              {stock.length > 0
-                ? `${stock.filter((s) => s.active).length} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
-                : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
-              Importing the price book .xlsx shows a preview of what changed before anything is saved. Entering a SKU on a product row copies that item's values onto the row; later price changes never rewrite saved selections.
-            </p>
-            {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}</p>}
-            {gFamilies.length > 0 && <p className="text-xs text-slate-400 mt-1 max-w-xl">Grout &amp; caulk: {gFamilies.length} color families · {gFamilies.reduce((n, f) => n + f.colors.length, 0)} color SKUs. Link a family on each grout under "Grout &amp; colors" so jobs offer its colors and stamp the color's SKU.</p>}
-            <button onClick={() => pbRef.current?.click()} disabled={importing} className="mt-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import price book (.xlsx)"}</button>
-            <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
-          </div>
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
