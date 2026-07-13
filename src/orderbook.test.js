@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
-  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems,
+  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
 } from "./orderbook.js";
 
 // A normalized order item, overridable per field.
@@ -183,6 +183,30 @@ test("diffBookItems: added / changed (by cost) / missing, mirroring diffStock", 
   assert.deepEqual(diff.changed[0].fields, ["cost"]);
   assert.deepEqual(diff.missing.map((i) => i.sku), ["C3"]); // absent → marked inactive
   assert.deepEqual(diff.unchanged.map((i) => i.sku), ["A1"]);
+});
+
+test("normOrderItem carries editedBy/editedAt with legacy-safe defaults", () => {
+  const fresh = normOrderItem({ sku: "X1" });
+  assert.equal(fresh.editedBy, "");
+  assert.equal(fresh.editedAt, null);
+  const edited = normOrderItem({ sku: "X1", editedBy: "Marcus", editedAt: 1720000000000 });
+  assert.equal(edited.editedBy, "Marcus");
+  assert.equal(edited.editedAt, 1720000000000);
+});
+
+test("editedInDiff flags only hand-edited items a re-import would overwrite", () => {
+  const existing = [
+    normBookItem({ sku: "A1", active: true, data: { cost: 5, description: "Hand fix", editedBy: "Marcus", editedAt: 111 } }, "b"), // edited + will change
+    normBookItem({ sku: "B2", active: true, data: { cost: 3, editedBy: "Dana", editedAt: 222 } }, "b"),                            // edited but unchanged by import
+    normBookItem({ sku: "C3", active: true, data: { cost: 9 } }, "b"),                                                            // changed but never edited
+  ];
+  const parsed = [
+    normOrderItem({ sku: "A1", cost: 6, description: "Hand fix" }), // cost differs → overwrites the edit
+    normOrderItem({ sku: "B2", cost: 3 }),                          // identical → no overwrite that matters
+    normOrderItem({ sku: "C3", cost: 8 }),                          // changed, but not hand-edited
+  ];
+  const flagged = editedInDiff(existing, parsed);
+  assert.deepEqual(flagged.map((i) => i.sku), ["A1"]);
 });
 
 // --- markup editor groups ----------------------------------------------------

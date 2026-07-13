@@ -5,7 +5,7 @@ import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -1239,6 +1239,18 @@ export default function App({ user, onSignOut }) {
   const pinBookVersion = async (versionId, pinned) => {
     const { error } = await supabase.from("pricebook_versions").update({ pinned }).eq("id", versionId);
     if (error) throw error;
+  };
+
+  // Single-row hand-edit of a book item (Settings inline edit). Writes the one
+  // (book_id, sku) row's data jsonb, stamping editedBy/editedAt so the next
+  // import's diff can warn the manual fix will be overwritten. Sanctioned path
+  // — the item UPDATE RLS exists for exactly this; imports still only upsert.
+  const updateBookItem = async (bookId, item) => {
+    const data = { ...bookItemData(item), editedBy: profile.name || user.email || "", editedAt: Date.now() };
+    const { error } = await supabase.from("price_book_items").update({ data }).eq("book_id", bookId).eq("sku", item.sku);
+    if (error) { ping("Save failed"); throw error; }
+    flashSaved();
+    return data;
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -2863,7 +2875,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} />
       )}
 
       {showTodos && (
@@ -3195,7 +3207,7 @@ const guessHeaderRow = (rows) => {
   return best;
 };
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3268,7 +3280,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, ap
             <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
           </div>
         ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
@@ -3297,13 +3309,14 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, ap
   );
 }
 
-function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, hideCosts, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
   const [versions, setVersions] = useState(null); // null = loading
   const [rollback, setRollback] = useState(null); // { version, diff } — confirm modal
+  const [editItem, setEditItem] = useState(null); // the item being hand-edited
 
   const reload = () => { setItems(null); loadBookItems(book.id).then(setItems).catch(() => setItems([])); };
   const reloadVersions = () => { loadBookVersions(book.id).then(setVersions).catch(() => setVersions([])); };
@@ -3346,6 +3359,17 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
     setRollback(null);
   };
 
+  // Persist a hand-edit and merge the stamped result back into the open list
+  // (re-normalized so it renders like a freshly loaded row).
+  const saveItemEdit = async (edited) => {
+    try {
+      const data = await updateBookItem(book.id, edited);
+      const merged = normBookItem({ sku: edited.sku, active: edited.active, data }, book.id);
+      setItems((its) => (its || []).map((x) => x.sku === edited.sku ? merged : x));
+      setEditItem(null);
+    } catch (x) { /* surfaced by updateBookItem */ }
+  };
+
   return (
     <div className="mt-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -3382,6 +3406,7 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
                   <th className="text-left px-2 py-1.5">Lead</th>
                   {isOrder && <th className="text-right px-2 py-1.5">Cost</th>}
                   <th className="text-right px-2 py-1.5">{isOrder ? "Sell" : "Price"}</th>
+                  <th className="px-2 py-1.5 w-8"></th>
                 </tr>
               </thead>
               <tbody>
@@ -3395,12 +3420,14 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
                         {it.description || "—"}
                         {it.freightFlag && <span className="ml-1.5 text-[9px] uppercase rounded bg-amber-100 text-amber-700 px-1 py-0.5">freight</span>}
                         {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
+                        {it.editedAt && <span title={`Hand-edited${it.editedBy ? ` by ${it.editedBy}` : ""} ${new Date(it.editedAt).toLocaleDateString()} — a re-import overwrites this`} className="ml-1.5 text-[9px] uppercase rounded bg-indigo-100 text-indigo-700 px-1 py-0.5">edited</span>}
                       </td>
                       {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
                       <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
                       <td className="px-2 py-1.5 text-xs">{it.leadTime || "—"}</td>
                       {isOrder && <td className="px-2 py-1.5 text-right text-xs tabular-nums">{cost(it.cost)}</td>}
                       <td className="px-2 py-1.5 text-right tabular-nums">{sell != null ? money(sell) : "—"}</td>
+                      <td className="px-2 py-1.5 text-right"><button onClick={() => setEditItem(it)} title="Edit this item" className="text-slate-300 hover:text-slate-600"><Pencil size={13} /></button></td>
                     </tr>
                   );
                 })}
@@ -3455,7 +3482,58 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
         </div>
       )}
 
+      {editItem && <BookItemEditModal item={editItem} isOrder={isOrder} onClose={() => setEditItem(null)} onSave={saveItemEdit} inp={inp} lbl={lbl} />}
+
       {wizard && <BookImportWizard book={book} existingItems={items || []} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+    </div>
+  );
+}
+
+// A single hand-edit of a book item (Phase 4b). Edits the fields a shop most
+// often needs to correct between vendor imports — the diff/warning contract
+// (editedInDiff) then flags the row so the next import doesn't silently clobber
+// the fix. Sell is not editable on order books: it derives from cost × markup.
+function BookItemEditModal({ item, isOrder, onClose, onSave, inp, lbl }) {
+  const [d, setD] = useState({
+    description: item.description || "",
+    mfg: item.mfg || "",
+    unit: item.unit || "",
+    leadTime: item.leadTime || "",
+    cost: item.cost != null ? String(item.cost) : "",
+    price: item.price != null ? String(item.price) : "",
+    discontinued: !!item.discontinued,
+  });
+  const set = (k, v) => setD((x) => ({ ...x, [k]: v }));
+  const numField = (v) => { const n = parseFloat(String(v).replace(/[$,]/g, "")); return Number.isFinite(n) ? n : null; };
+  const save = () => {
+    const patch = { ...item, description: d.description.trim(), mfg: d.mfg.trim(), unit: d.unit.trim(), leadTime: d.leadTime.trim(), discontinued: d.discontinued };
+    if (isOrder) patch.cost = d.cost.trim() === "" ? null : numField(d.cost);
+    else patch.price = d.price.trim() === "" ? null : numField(d.price);
+    onSave(patch);
+  };
+  return (
+    <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1"><h3 className="ft-serif text-xl">Edit item</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+        <p className="font-mono text-xs text-slate-400 mb-3">{item.sku}</p>
+        <div className="space-y-3">
+          <div><label className={lbl}>Description</label><input className={inp} value={d.description} onChange={(e) => set("description", e.target.value)} /></div>
+          <div className="flex gap-3">
+            {isOrder && <div className="flex-1"><label className={lbl}>Manufacturer</label><input className={inp} value={d.mfg} onChange={(e) => set("mfg", e.target.value)} /></div>}
+            <div className="w-24"><label className={lbl}>U/M</label><input className={inp} value={d.unit} onChange={(e) => set("unit", e.target.value)} /></div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1"><label className={lbl}>{isOrder ? "Cost" : "Price"}</label><input className={inp} inputMode="decimal" value={isOrder ? d.cost : d.price} onChange={(e) => set(isOrder ? "cost" : "price", e.target.value)} /></div>
+            <div className="flex-1"><label className={lbl}>Lead time</label><input className={inp} value={d.leadTime} onChange={(e) => set("leadTime", e.target.value)} /></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={d.discontinued} onChange={(e) => set("discontinued", e.target.checked)} /> Discontinued</label>
+        </div>
+        {isOrder && <p className="text-[11px] text-slate-400 mt-3">Selling price stays cost × markup — edit the markup on the book to move sell.</p>}
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+          <button onClick={save} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Save edit</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3585,6 +3663,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined };
   const { items, warnings } = sheet ? parseMapped(rows, mapping) : { items: [], warnings: [] };
   const diff = sheet ? diffBookItems(existingItems, items) : { added: [], changed: [], missing: [], unchanged: [] };
+  const editedOverwritten = sheet ? editedInDiff(existingItems, items) : [];
   const flagCol = Object.entries(columns).find(([, f]) => f === "flag")?.[0];
   const flagValues = flagCol != null ? [...new Set(rows.slice((headerRow >= 0 ? headerRow : -1) + 1).map((r) => String(r?.[flagCol] ?? "").trim()).filter((v) => v && v.length <= 4))].slice(0, 12) : [];
 
@@ -3692,6 +3771,11 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                 <span className="text-xs text-amber-600">{diff.changed.length} changed</span>
                 <span className="text-xs text-slate-400">{diff.missing.length} retiring · {diff.unchanged.length} unchanged</span>
               </div>
+              {editedOverwritten.length > 0 && (
+                <p className="mt-1.5 text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 inline-block" title={editedOverwritten.map((i) => i.sku).join(", ")}>
+                  <Pencil size={11} className="inline -mt-0.5 mr-1" />{editedOverwritten.length} item{editedOverwritten.length === 1 ? " you" : "s you"} hand-edited will be overwritten by this import.
+                </p>
+              )}
               {warnings.length > 0 && <ul className="mt-1 text-[11px] text-amber-600 list-disc pl-4">{warnings.slice(0, 4).map((w, i) => <li key={i}>{w}</li>)}</ul>}
               {preview.length > 0 && (
                 <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
@@ -3727,7 +3811,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4175,7 +4259,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
