@@ -4,7 +4,7 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
-import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
 import NedMark from "./NedMark.jsx";
@@ -3242,44 +3242,8 @@ const bookFieldOptions = [
 ];
 const FLAG_SEMANTICS = [["", "— ignore —"], ["discontinued", "Discontinued"], ["freight", "Extra freight"], ["madeToOrder", "Made to order"], ["transitioning", "Transitioning"]];
 
-const guessBookField = (header) => {
-  const h = String(header || "").toLowerCase().replace(/[^a-z]/g, "");
-  if (!h) return "";
-  if (/(itemcode|productcode|^sku$|vtcitem)/.test(h)) return "sku";
-  if (/(dealer|^cost|netcost|yourcost)/.test(h)) return "cost";
-  if (/(consumer|msrp|list|suggested)/.test(h)) return "msrp";
-  if (/(leadtime|lead|availab)/.test(h)) return "leadTime";
-  if (/(productline|series|collection)/.test(h)) return "productLine";
-  if (/(mfg|manufacturer|vendor|brandcode)/.test(h)) return "mfg";
-  if (/(desc|decription|name)/.test(h)) return "description";
-  // Two-unit split: match the specific U/M columns before the generic "unit".
-  if (/(priceum|priceuom|pricebasis)/.test(h)) return "priceUnit";
-  if (/(nobroken|broken|orderunit|smallestunit)/.test(h)) return "orderUnit";
-  if (/(um|unit|uom)/.test(h)) return "unit";
-  if (/(sfct|sfperct|sfcarton|sqftct)/.test(h)) return "sfPerUnit";
-  if (/(pcct|pcperct|piecesct|pcperunit)/.test(h)) return "pcPerUnit";
-  if (/coverage/.test(h)) return "coverage";
-  if (/thick/.test(h)) return "thickness";
-  if (/size|dimension/.test(h)) return "size";
-  if (/color|colour/.test(h)) return "color";
-  if (/pattern|style/.test(h)) return "style";
-  if (/note|comment/.test(h)) return "note";
-  if (/brand/.test(h)) return "brand";
-  return "";
-};
-
-// A row looks like the header when several of its cells guess to known fields
-// and one of them is the SKU column — VTC's header sits 14 rows down.
-const guessHeaderRow = (rows) => {
-  let best = -1, bestScore = 1;
-  for (let r = 0; r < Math.min(rows.length, 40); r++) {
-    const row = rows[r] || [];
-    let hasSku = false, score = 0;
-    for (const c of row) { const f = guessBookField(c); if (f) score++; if (f === "sku") hasSku = true; }
-    if (hasSku && score >= 3 && score > bestScore) { best = r; bestScore = score; }
-  }
-  return best;
-};
+// guessBookField / guessHeaderRow moved to src/pricebook.js (pure + tested);
+// bookFieldOptions / FLAG_SEMANTICS above stay here as UI dropdown lists.
 
 function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
@@ -3730,11 +3694,29 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
       const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
       const parsed = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
       setSheets(parsed);
-      const pick = saved?.sheet && parsed.find((s) => s.name === saved.sheet) ? saved.sheet
-        : parsed.slice().sort((a, b) => (b.rows?.length || 0) - (a.rows?.length || 0))[0]?.name || "";
-      applySheet(parsed.find((s) => s.name === pick));
+      // A saved mapping wins; else recognize the VTC "EFT" template (fills the
+      // whole mapping in one step); else pick the best data sheet by header
+      // quality and guess its columns.
+      if (saved?.sheet && parsed.find((s) => s.name === saved.sheet)) { applySheet(parsed.find((s) => s.name === saved.sheet)); }
+      else {
+        const detected = detectVtcEft(parsed);
+        if (detected) applyDetected(detected);
+        else applySheet(bestDataSheet(parsed));
+      }
     } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls?"); }
     setReading(false);
+  };
+
+  // A recognized vendor template (detectVtcEft) fills every mapping control at
+  // once, so a known sheet is one upload with nothing to hand-map.
+  const applyDetected = (m) => {
+    setSheetName(m.sheet);
+    setHeaderRow(m.headerRow ?? -1);
+    setColumns(m.columns || {});
+    if (m.skuPattern) setSkuPattern(m.skuPattern);
+    if (m.flags) setFlags(m.flags);
+    if (m.groupBy) setGroupBy(m.groupBy);
+    if (m.defaultType) setDefaultType(m.defaultType);
   };
 
   // Choosing a sheet (auto or manual): if we have no saved mapping, guess the
@@ -3745,21 +3727,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
     if (saved?.sheet === s.name && saved.columns) { setHeaderRow(saved.headerRow ?? -1); setColumns(saved.columns); return; }
     const hr = guessHeaderRow(s.rows);
     setHeaderRow(hr);
-    const cols = {};
-    if (hr >= 0) {
-      const header = s.rows[hr] || [];
-      header.forEach((c, i) => { const f = guessBookField(c); if (f && !Object.values(cols).includes(f)) cols[i] = f; });
-      // The one column header-name matching can't see: a blank-headered column
-      // immediately right of the item code is the description (VTC's
-      // "EARTH ASH GRAY 3X12" sits there unlabeled). Guess it so it isn't left
-      // for the user to hunt down.
-      const skuCol = Object.entries(cols).find(([, f]) => f === "sku")?.[0];
-      if (skuCol != null && !Object.values(cols).includes("description")) {
-        const right = Number(skuCol) + 1;
-        if (cols[right] == null && !String(header[right] ?? "").trim()) cols[right] = "description";
-      }
-    }
-    setColumns(cols);
+    setColumns(hr >= 0 ? columnsFromHeader(s.rows[hr] || []) : {});
   };
 
   const setCol = (i, field) => setColumns((c) => {

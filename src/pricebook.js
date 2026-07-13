@@ -721,3 +721,128 @@ function dedupeMapped(items, warnings) {
   }
   return [...bySku.values()];
 }
+
+// --- mapped-import guessers + vendor template recognizers ---------------------
+//
+// The wizard proposes a mapping by reading a sheet's own header labels. That
+// guess logic lives here (not in App.jsx) so it is covered by node --test; the
+// UI keeps only the dropdown option lists.
+
+// A header-cell label → the order-item field it most likely names, or "" when
+// nothing fits. Consumer/MSRP is tested BEFORE dealer/cost: the VTC template's
+// consumer column reads "CONSUMER LEVEL PRICE (Dealer to Consumer)", so the
+// word "Dealer" inside it must not claim the cost slot from the real
+// "DEALER PRICE" column (which would drop the true cost and leave MSRP unmapped).
+export const guessBookField = (header) => {
+  const h = String(header || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!h) return "";
+  if (/(itemcode|productcode|^sku$|vtcitem)/.test(h)) return "sku";
+  if (/(consumer|msrp|list|suggested)/.test(h)) return "msrp";
+  if (/(dealer|^cost|netcost|yourcost)/.test(h)) return "cost";
+  if (/(leadtime|lead|availab)/.test(h)) return "leadTime";
+  if (/(productline|series|collection)/.test(h)) return "productLine";
+  if (/(mfg|manufacturer|vendor|brandcode)/.test(h)) return "mfg";
+  if (/(desc|decription|name)/.test(h)) return "description";
+  // Two-unit split: match the specific U/M columns before the generic "unit".
+  if (/(priceum|priceuom|pricebasis)/.test(h)) return "priceUnit";
+  if (/(nobroken|broken|orderunit|smallestunit)/.test(h)) return "orderUnit";
+  if (/(um|unit|uom)/.test(h)) return "unit";
+  if (/(sfct|sfperct|sfcarton|sqftct)/.test(h)) return "sfPerUnit";
+  if (/(pcct|pcperct|piecesct|pcperunit)/.test(h)) return "pcPerUnit";
+  if (/coverage/.test(h)) return "coverage";
+  if (/thick/.test(h)) return "thickness";
+  if (/size|dimension/.test(h)) return "size";
+  if (/color|colour/.test(h)) return "color";
+  if (/pattern|style/.test(h)) return "style";
+  if (/note|comment/.test(h)) return "note";
+  if (/brand/.test(h)) return "brand";
+  return "";
+};
+
+// The best header-row candidate in a sheet: the row that maps the most known
+// fields and includes a SKU column (VTC's header sits 14-15 rows down under a
+// title/legend block). { row: -1, score: 0 } when none qualifies.
+function scanHeader(rows) {
+  let row = -1, best = 1;
+  for (let r = 0; r < Math.min(rows?.length || 0, 40); r++) {
+    const cells = rows[r] || [];
+    let hasSku = false, score = 0;
+    for (const c of cells) { const f = guessBookField(c); if (f) score++; if (f === "sku") hasSku = true; }
+    if (hasSku && score >= 3 && score > best) { row = r; best = score; }
+  }
+  return { row, score: row >= 0 ? best : 0 };
+}
+
+export const guessHeaderRow = (rows) => scanHeader(rows).row;
+
+// Pick the data sheet out of a workbook by header quality, NOT row count. The
+// VTC-family workbooks ship a "Helper Sheet"/"Index" that is LARGER than the
+// real "MFG Data"/"VTC Data", so a largest-sheet pick lands on junk with no
+// header (0 items). The sheet whose best header row scores highest wins; row
+// count only breaks ties. sheets = [{ name, rows }].
+export function bestDataSheet(sheets) {
+  let best = null, bestScore = -1, bestLen = -1;
+  for (const s of sheets || []) {
+    const score = scanHeader(s.rows).score;
+    const len = s.rows?.length || 0;
+    if (score > bestScore || (score === bestScore && len > bestLen)) { best = s; bestScore = score; bestLen = len; }
+  }
+  return best;
+}
+
+// Build the column map for a header row: each labeled column guessed to a
+// field, plus the two headerless columns the VTC template relies on — the
+// status-flag column just left of "VTC MFG" is added by the caller; the
+// description column some sheets put immediately right of the item code is
+// added here (older VTC exports leave "VTC Description" blank).
+export function columnsFromHeader(header) {
+  const columns = {};
+  (header || []).forEach((c, i) => { const f = guessBookField(c); if (f && !Object.values(columns).includes(f)) columns[i] = f; });
+  const skuCol = Object.entries(columns).find(([, f]) => f === "sku")?.[0];
+  if (skuCol != null && !Object.values(columns).includes("description")) {
+    const right = Number(skuCol) + 1;
+    if (columns[right] == null && !String((header || [])[right] ?? "").trim()) columns[right] = "description";
+  }
+  return columns;
+}
+
+// The Virginia Tile "EFT" distributor template: one fixed 15-column MFG-Data
+// sheet reused for every manufacturer VTC carries (VTC, Anatolia, WOW,
+// Milestone, Home Collection, Decortile…). When its signature header is present,
+// the whole mapping is known — data sheet, header row, columns, the digit-free
+// item-code pattern, the status-flag legend, MFG markup grouping, tile default —
+// so the wizard applies it in one step. This sidesteps the two ways per-column
+// guessing loses on these files: the oversized helper sheet (defeats the sheet
+// pick) and the consumer/dealer column-name clash (defeats the cost guess).
+// Returns a mapping object, or null when no sheet carries the signature.
+export function detectVtcEft(sheets) {
+  for (const s of sheets || []) {
+    const rows = s.rows || [];
+    for (let r = 0; r < Math.min(rows.length, 40); r++) {
+      const cells = (rows[r] || []).map((c) => String(c ?? "").toLowerCase());
+      const has = (re) => cells.some((c) => re.test(c));
+      // "dealer price" (not just "dealer") so the consumer column, which reads
+      // "…(Dealer to Consumer)", can't trip the signature on its own.
+      if (!(has(/item code/) && has(/vtc mfg/) && has(/dealer price/))) continue;
+      const header = rows[r] || [];
+      const columns = columnsFromHeader(header);
+      const mfgCol = Object.entries(columns).find(([, f]) => f === "mfg")?.[0];
+      if (mfgCol != null) {
+        const flagCol = Number(mfgCol) - 1; // headerless status flag, left of MFG
+        if (flagCol >= 0 && columns[flagCol] == null && !String(header[flagCol] ?? "").trim()) columns[flagCol] = "flag";
+      }
+      return {
+        sheet: s.name,
+        headerRow: r,
+        columns,
+        // VTC item codes are 6-20 chars and often carry no digit
+        // (WOWALPLRNDEDGE) — the digit-requiring default would drop them.
+        skuPattern: "^[A-Z0-9]{6,20}$",
+        flags: { xx: "discontinued", "*": "freight", "†": "freight", "•": "madeToOrder", "◪": "transitioning" },
+        groupBy: "mfg",
+        defaultType: "tile",
+      };
+    }
+  }
+  return null;
+}

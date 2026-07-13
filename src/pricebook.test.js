@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const parse = (...sheets) => parsePriceBook(sheets);
@@ -431,4 +431,89 @@ test("mappedSkuRe: the default pattern requires at least one digit", () => {
   assert.equal(re.test("ABC123"), true);
   assert.equal(re.test("ABCDEF"), false); // no digit → not a SKU
   assert.equal(re.test(""), false);
+});
+
+// --- mapped-import guessers + VTC EFT template recognizer ----------------------
+
+test("guessBookField: consumer price wins over the dealer-cost matcher", () => {
+  // Both VTC columns carry "Dealer"; the consumer column must map to msrp and
+  // the dealer column to cost — never the other way round (which drops cost).
+  assert.equal(guessBookField("CONSUMER LEVEL PRICE (Dealer to Consumer)"), "msrp");
+  assert.equal(guessBookField("DEALER PRICE (VTC to Dealer)"), "cost");
+  assert.equal(guessBookField("VTC Item Code"), "sku");
+  assert.equal(guessBookField("Price U/M"), "priceUnit");
+  assert.equal(guessBookField("No Broken U/M"), "orderUnit");
+});
+
+test("bestDataSheet: picks the sheet with the best header, not the biggest", () => {
+  const helper = { name: "Helper Sheet", rows: Array.from({ length: 50 }, () => ["x", "y"]) };
+  const data = { name: "MFG Data", rows: [
+    ["title"], ["legend"],
+    ["", "VTC MFG", "VTC Item Code", "DEALER PRICE", "Price U/M", "SF/CT"],
+    ["", "ANA", "ANAALCA1224", 2.59, "SF", 15.5],
+  ] };
+  assert.equal(bestDataSheet([helper, data]).name, "MFG Data");
+  assert.equal(bestDataSheet([data, helper]).name, "MFG Data");
+});
+
+test("columnsFromHeader: labels the blank description column right of the SKU", () => {
+  const cols = columnsFromHeader(["", "VTC MFG", "VTC Item Code", "", "DEALER PRICE"]);
+  assert.equal(cols[2], "sku");
+  assert.equal(cols[3], "description"); // blank header, immediately right of SKU
+  assert.equal(cols[4], "cost");
+});
+
+// One VTC "EFT" workbook: an oversized junk Helper Sheet plus the real data
+// sheet whose header sits below a title block. Column 0 is a headerless status
+// flag; columns 8/9 are the consumer/dealer prices; some item codes carry no
+// digit. The recognizer must handle all of it in one step.
+const EFT_WORKBOOK = [
+  { name: "Helper Sheet", rows: Array.from({ length: 30 }, (_, i) => [`H${i}`, "junk"]) },
+  { name: "MFG Data", rows: [
+    ["Account Name: KEIM LUMBER"], ["p VIRGINIATILE"], ["blank"],
+    ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "VTC Description", "Product Line Name", "VTC ESTIMATED LEAD TIME", "CONSUMER LEVEL PRICE (Dealer to Consumer)", "DEALER PRICE (VTC to Dealer)", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", "Additional Comments"],
+    ["v", "ANA", "ALCA", "1224", "ANAALCA1224", "ALTEZZA CARRARA 12X24", "ALTEZZA", "READY SHIP", 2.59, 2.29, "SF", "CT", 8, 15.5, ""],
+    ["*", "ANA", "SLAB", "4848", "ANASLAB4848", "BIG SLAB 48X48", "SLAB", "IMPORT", 40, 32, "SF", "PC", "", 16, ""],
+    ["xx", "WOW", "ALPL", "RNDEDGE", "WOWALPLRNDEDGE", "ALCHEMIST POOL ROUNDED EDGE", "ALCHEMIST", "READY SHIP", 9.5, 7.25, "PC", "PC", "", "", "old code"],
+  ] },
+  { name: "Comments & Key", rows: [["KEY"], ["v New Product"]] },
+];
+
+test("detectVtcEft: finds the data sheet, maps every column, sets pattern + flags", () => {
+  const m = detectVtcEft(EFT_WORKBOOK);
+  assert.ok(m, "signature recognized");
+  assert.equal(m.sheet, "MFG Data");
+  assert.equal(m.headerRow, 3);
+  assert.equal(m.columns[0], "flag");        // headerless, left of VTC MFG
+  assert.equal(m.columns[1], "mfg");
+  assert.equal(m.columns[4], "sku");
+  assert.equal(m.columns[5], "description");
+  assert.equal(m.columns[8], "msrp");         // consumer → msrp (not cost)
+  assert.equal(m.columns[9], "cost");         // dealer → cost
+  assert.equal(m.columns[10], "priceUnit");
+  assert.equal(m.columns[11], "orderUnit");
+  assert.equal(m.groupBy, "mfg");
+  assert.equal(m.defaultType, "tile");
+  assert.equal(m.flags["*"], "freight");
+  assert.equal(m.flags["†"], "freight");
+  assert.equal(m.flags["xx"], "discontinued");
+});
+
+test("detectVtcEft: the mapping parses all rows incl. digit-free item codes", () => {
+  const m = detectVtcEft(EFT_WORKBOOK);
+  const data = EFT_WORKBOOK.find((s) => s.name === m.sheet);
+  const { items } = parseMapped(data.rows, m);
+  assert.equal(items.length, 3); // WOWALPLRNDEDGE (no digit) is NOT dropped
+  const carrara = items.find((i) => i.sku === "ANAALCA1224");
+  assert.equal(carrara.cost, 2.29);   // dealer, not the 2.59 consumer price
+  assert.equal(carrara.msrp, 2.59);
+  assert.equal(carrara.mfg, "ANA");
+  assert.equal(carrara.type, "tile");
+  assert.equal(items.find((i) => i.sku === "ANASLAB4848").freightFlag, true);
+  assert.equal(items.find((i) => i.sku === "WOWALPLRNDEDGE").discontinued, true);
+});
+
+test("detectVtcEft: returns null when the signature is absent", () => {
+  assert.equal(detectVtcEft([{ name: "Sheet1", rows: [["Name", "Price"], ["Oak", 5]] }]), null);
+  assert.equal(guessHeaderRow([["nope"], ["still nope"]]), -1);
 });
