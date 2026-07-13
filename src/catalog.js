@@ -471,8 +471,12 @@ const normStamp = (v) => {
 };
 export const normOps = (raw) => {
   const lastImport = normStamp(raw?.lastImport), lastBackup = normStamp(raw?.lastBackup);
-  if (!lastImport && !lastBackup) return undefined;
-  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}) };
+  // Owner override for the price-book staleness chip (orderbook DEFAULT_STALE_DAYS
+  // when unset/invalid); a positive whole-day count or nothing.
+  const sd = Math.round(num(raw?.staleDays));
+  const staleDays = sd > 0 ? sd : null;
+  if (!lastImport && !lastBackup && staleDays == null) return undefined;
+  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}) };
 };
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars

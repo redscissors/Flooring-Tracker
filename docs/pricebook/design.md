@@ -452,11 +452,14 @@ throwaway-prototype method before building it for real.
    words all match some stock item, show "similar stock item exists — $X"
    without auto-switching. Worth prototyping only after real vendor data
    proves the false-positive rate is tolerable.
-3. **Book-level staleness chip.** Each book shows "last imported N days ago by
-   whom" (already stored); a book past a configurable age gets an amber chip in
-   the library list. Vendors re-issue quarterly; a 200-day-old cost list
-   quietly mispricing jobs is the most likely real-world failure of this whole
-   system.
+3. **Book-level staleness chip.** *(Built — Phase 5b, 2026-07-13.)* Each book
+   shows "last imported N days ago by whom" (already stored); a book past a
+   configurable age (`settings.ops.staleDays`, default `DEFAULT_STALE_DAYS` =
+   120 in `orderbook.js`) gets an amber chip in the library list and its detail
+   header. A never-imported book has no age and is not flagged. Vendors re-issue
+   quarterly; a 200-day-old cost list quietly mispricing jobs is the most likely
+   real-world failure of this whole system. Pure predicate `bookStaleness`
+   (orderbook.js) is unit-tested.
 4. **Deferred, deliberately:** per-user cost visibility (breaks ADR 0004 —
    needs its own ADR), automatic vendor-sheet fetching (no server today),
    fuzzy cross-book product matching (guessing wrong prices jobs wrong), and
@@ -486,7 +489,7 @@ working. No SQL runs until the owner runs `supabase/pricebooks.sql` by hand.
 | 2 | Markup editor (default + per-group), sell-price display, pick snapshot with `bookId/cost/markupPct`, drift chip generalization, `normP` defaults, **freight-flag highlighting only** (chips in search/row/book table — no freight charges until real numbers exist) | Phase 1 |
 | 3 | Cross-space SKU search on selection rows with stock priority + collision rule | Phase 2 |
 | 4 | `pricebook_versions` writes on apply (stock book included) + pin-as-keeper + rollback-via-preview + inline item edit with overwrite warnings | Phase 1 (can parallel 2-3) |
-| 5 | Opinions from §8 that survive owner review (margin line, staleness chips) | 2-4 |
+| 5 | Opinions from §8 that survive owner review — **5b staleness chips built (2026-07-13)**; 5a margin line pending | 2-4 |
 
 Phase 1 is deliberately useless-for-quoting on its own (no markup → no sell
 price on rows) so the first vendor test sheets can be imported, browsed, and
