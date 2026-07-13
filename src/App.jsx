@@ -343,7 +343,8 @@ function printProduct(p, s) {
   IN.forEach((m) => mats.push(m.kind === "mortar"
     ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }
     : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", sku: m.sku || "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
-  const size = p.type === "tile" ? `${p.L}" × ${p.W}"${p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : (p.sizeText || "");
+  const thickSuffix = p.type === "tile" && p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : "";
+  const size = p.type === "tile" ? (p.sizeText ? `${p.sizeText}${thickSuffix}` : `${p.L}" × ${p.W}"${thickSuffix}`) : (p.sizeText || "");
   const qtyText = p.type === "misc" ? String(miscQty(p)) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
   const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) + (miscQty(p) !== 1 ? "/ea" : "") : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
   return { size, C, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
@@ -582,8 +583,13 @@ const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
 const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, display: "flex", alignItems: "center" };
 
 // Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
-// commit (blur) back into the row's L / W / thickness fields.
+// commit (blur) back into the row's L / W / thickness fields. When the row
+// carries a free-text `sizeText` (a non-rectangular vendor size like "2\" Hex",
+// ticket 009 Variant A), that vendor string is the primary field and the
+// derived square L×W it computes grout/mortar from is a quiet, correctable
+// footnote beneath — never presented as the size itself.
 function GridSizeInput({ p, onCommit }) {
+  const [editDims, setEditDims] = useState(false);
   const shown = p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "";
   const commit = (raw) => {
     const t = String(raw).trim();
@@ -598,6 +604,31 @@ function GridSizeInput({ p, onCommit }) {
     }
     onCommit(patch);
   };
+  if (p.sizeText) {
+    const micro = { width: 26, fontSize: 9, padding: "1px 2px" };
+    return (
+      <div className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
+        <input value={p.sizeText} onChange={(e) => onCommit({ sizeText: e.target.value })} data-c="size"
+          className="ft-cell" style={{ padding: "3px 4px 1px" }} placeholder="Size"
+          title="Vendor size — grout & mortar compute from the L×W below" />
+        {editDims ? (
+          <div className="flex items-center" style={{ gap: 2, padding: "0 4px 2px" }}>
+            <input value={p.L} onChange={(e) => onCommit({ L: e.target.value.replace(/[^\d.]/g, "") })} className="ft-cell" style={micro} title="Length (in) grout/mortar compute from" />
+            <span style={{ fontSize: 9, color: "var(--ft-faint)" }}>×</span>
+            <input value={p.W} onChange={(e) => onCommit({ W: e.target.value.replace(/[^\d.]/g, "") })} className="ft-cell" style={micro} title="Width (in) grout/mortar compute from" />
+          </div>
+        ) : p.L && p.W ? (
+          <button type="button" onClick={() => setEditDims(true)} className="text-left"
+            style={{ fontSize: 8.5, color: "var(--ft-brand)", padding: "0 4px 2px", lineHeight: 1.1, background: "none", border: 0, cursor: "pointer" }}
+            title="Correct the L×W grout & mortar compute from">▦ computes as {p.L}×{p.W}</button>
+        ) : (
+          <button type="button" onClick={() => setEditDims(true)} className="text-left"
+            style={{ fontSize: 8.5, color: "var(--ft-faint)", padding: "0 4px 2px", lineHeight: 1.1, background: "none", border: 0, cursor: "pointer" }}
+            title="No coverage yet — add an L×W for grout & mortar">＋ add size for grout</button>
+        )}
+      </div>
+    );
+  }
   return (
     <input key={shown} defaultValue={shown} data-c="size"
       onBlur={(e) => { if (e.target.value !== shown) commit(e.target.value); }}
@@ -1857,7 +1888,7 @@ export default function App({ user, onSignOut }) {
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportCSV = () => {
     const head = ["Customer", "Area", "Type", "SKU", "Size", "Brand/Color", "$/SqFt", "QtyType", "Qty", "SF/Carton", "Cartons Exact", "Cartons Order", "Line Total", "Note", "Grout", "Grout Color", "Joint", "Grout Exact", "Grout Order", "Caulk Tubes", "Mortar", "Mortar Exact", "Mortar Order", "Underlayment", "Underlayment Exact", "Underlayment Order", "Install Materials"]; const rows = [];
-    sel.categories.forEach((a, ai) => a.products.filter((p) => !rowBlank(p)).forEach((p) => { const size = p.type === "tile" ? `${p.L}x${p.W}x${p.thickness}` : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, areaLabel(a, ai), TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
+    sel.categories.forEach((a, ai) => a.products.filter((p) => !rowBlank(p)).forEach((p) => { const size = p.type === "tile" ? (p.sizeText || `${p.L}x${p.W}x${p.thickness}`) : p.sizeText; const j = JOINTS.find((x) => x.v === num(p.grout.joint))?.label || ""; const C = getCarton(p, settings); const line = p.type === "misc" ? num(p.priceSqft) * miscQty(p) : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft) : ""; const G = getGrout(p, settings), M = getMortar(p, settings), U = getUnderlay(p, settings), IN = getUnderlayInstall(p, settings); rows.push([sel.name, areaLabel(a, ai), TLBL[p.type], p.sku || "", size, p.brandColor, p.priceSqft, p.qtyType, p.qty, C ? C.sf : "", C ? C.exact.toFixed(2) : "", C ? C.order : "", line, p.note, G ? G.product : "", G ? G.color : "", G ? j : "", G ? G.exact.toFixed(2) : "", G ? G.order : "", p.type === "tile" && p.grout.checked && num(p.grout.caulk) > 0 ? num(p.grout.caulk) : "", M ? M.product : "", M ? M.exact.toFixed(2) : "", M ? M.order : "", U ? U.product : "", U ? U.exact.toFixed(2) : "", U ? U.order : "", IN ? IN.map((m) => `${m.name}: ${m.order} ${m.unit}`).join("; ") : ""]); }));
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     dl(new Blob([csv], { type: "text/csv" }), `${sel.name.replace(/\s+/g, "_")}_selections.csv`);
   };
@@ -1989,7 +2020,7 @@ export default function App({ user, onSignOut }) {
                 {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
                   <Fragment key={p.id}>
                     <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "2px 12px 6px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid var(--ft-border)" : "none" }}>
-                      <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
+                      <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.sizeText || (p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH)}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
                       <div style={{ fontWeight: 700 }}>{p.brandColor || TLBL[p.type]}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10, color: "var(--ft-muted)" }}> · {TLBL[p.type]}</span>}</div>
                       <div className="ft-mono" style={{ fontSize: 9 }}>{p.sku || PRINT_DASH}</div>
                       <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? <>{sf1(c.C.sf)}<span style={{ fontSize: 7.5, color: "var(--ft-muted)" }}> SF/{c.C.unit.toUpperCase()}</span></> : PRINT_DASH}</div>

@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ticket 009 — hex tile size, preview proof</title>
+<style>
+  :root{
+    --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-field:#FFFFFF;
+    --ft-border:rgba(28,26,23,.10); --ft-text:#1C1A17; --ft-muted:#57534C;
+    --ft-faint:#8A8378; --ft-brand:#57703A; --ft-band:#E7E3D6;
+    --ft-row-line:#ECE8DC;
+  }
+  *{box-sizing:border-box;font-family:Manrope,system-ui,sans-serif}
+  body{margin:0;background:var(--ft-cream);color:var(--ft-text);padding:28px 34px}
+  h1{font-size:19px;margin:0 0 4px}
+  .sub{color:var(--ft-muted);font-size:12.5px;margin:0 0 22px}
+  h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ft-muted);margin:26px 0 10px}
+  .card{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:12px;overflow:hidden}
+  .ft-cell{border:1px solid var(--ft-border);border-radius:6px;background:var(--ft-field);font:inherit;color:inherit}
+  input.ft-cell{outline:none}
+  .cap{font-size:11px;color:var(--ft-muted);margin:6px 2px 0}
+  /* product-row grid mimicking GRID_COLS "0.85fr 2.75fr 1fr 0.55fr ..." */
+  .row{display:grid;grid-template-columns:150px 320px 120px;font-size:11px;font-weight:600;border-bottom:1px solid var(--ft-row-line)}
+  .cell{border-right:1px solid var(--ft-row-line);min-width:0;display:flex;align-items:center;padding:0}
+  .sizecol{padding-left:0;gap:2px}
+  .prodcol{padding:0 8px}
+  .skucol{padding:0 8px;font-family:ui-monospace,monospace;font-size:9.5px;color:var(--ft-muted)}
+  .sizewrap{display:flex;flex-direction:column;min-width:0;flex:1;align-self:stretch;justify-content:center;gap:1px;padding:2px 0}
+  .chip{font-size:8.5px;color:var(--ft-brand);padding:0 4px 2px;line-height:1.1;background:none;border:0;cursor:pointer;text-align:left}
+  .prompt{font-size:8.5px;color:var(--ft-faint);padding:0 4px 2px;line-height:1.1;background:none;border:0;cursor:pointer;text-align:left}
+  .micro{width:26px;font-size:9px;padding:1px 2px}
+  .rowhdr{display:grid;grid-template-columns:150px 320px 120px;font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-faint);border-bottom:1px solid var(--ft-border)}
+  .rowhdr>div{padding:8px}
+  /* print layout */
+  .paper{background:#fff;border:1px solid var(--ft-border);border-radius:6px;padding:18px 20px;max-width:760px}
+  .pgrid{display:grid;grid-template-columns:1.15fr 2.4fr 1fr .7fr .6fr .7fr .6fr .8fr;gap:7px}
+  .phead{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ft-faint);border-bottom:1px solid var(--ft-text);padding:8px 0 6px}
+  .prow{font-size:11px;align-items:baseline;padding:4px 0;border-top:1px solid var(--ft-border)}
+  .prow>div:first-child{white-space:nowrap}
+  .pmuted{font-size:9.5px;color:var(--ft-muted)}
+  .pdim{font-weight:400;font-size:10px;color:var(--ft-muted)}
+  .mono{font-family:ui-monospace,monospace}
+  .tr{text-align:right}
+</style>
+
+<h1>Ticket 009 — free-text tile size (hex) with background L×W</h1>
+<p class="sub">Preview proof: the product-row size cell (Variant A, vendor-first) and both estimate layouts rendering a real hex tile. Colonial Collection <code>CLNL270</code>, imported size <code>2" Hex</code> → shows the vendor string, computes grout/mortar off a 2×2 square (6 bags at the golden inputs).</p>
+
+<h2>1 · Product row — size cell, Variant A (three states)</h2>
+<div class="card">
+  <div class="rowhdr"><div>Size</div><div>Product / Color</div><div>SKU</div></div>
+
+  <div class="row">
+    <div class="cell sizecol">
+      <div class="sizewrap">
+        <input class="ft-cell" style="padding:3px 4px 1px" value='2" Hex'>
+        <button class="chip">▦ computes as 2×2</button>
+      </div>
+    </div>
+    <div class="cell prodcol">Colonial Collection Presidential Grey</div>
+    <div class="cell skucol">CLNL270</div>
+  </div>
+
+  <div class="row">
+    <div class="cell sizecol">
+      <div class="sizewrap">
+        <input class="ft-cell" style="padding:3px 4px 1px" value='2" Hex'>
+        <div style="display:flex;align-items:center;gap:2px;padding:0 4px 2px">
+          <input class="ft-cell micro" value="2">
+          <span style="font-size:9px;color:var(--ft-faint)">×</span>
+          <input class="ft-cell micro" value="2">
+        </div>
+      </div>
+    </div>
+    <div class="cell prodcol">Colonial Collection Presidential Grey</div>
+    <div class="cell skucol">CLNL270</div>
+  </div>
+
+  <div class="row">
+    <div class="cell sizecol">
+      <div class="sizewrap">
+        <input class="ft-cell" style="padding:3px 4px 1px" value="Hex Mosaic">
+        <button class="prompt">＋ add size for grout</button>
+      </div>
+    </div>
+    <div class="cell prodcol">Harmonic Hex Mosaic White</div>
+    <div class="cell skucol">HARM100</div>
+  </div>
+
+  <div class="row" style="border-bottom:none">
+    <div class="cell sizecol">
+      <div class="sizewrap" style="padding:0">
+        <input class="ft-cell" style="padding:6px 4px" value="12×24×3/8&quot;">
+      </div>
+    </div>
+    <div class="cell prodcol">Earth Ash Gray</div>
+    <div class="cell skucol">EAAS312</div>
+  </div>
+</div>
+<p class="cap">Row 1 — collapsed: vendor size is the field, the derived square is a quiet moss footnote. Row 2 — footnote expanded to the L×W micro-inputs for correction. Row 3 — a mosaic (no per-chip dim, no fake coverage): free text + an "add size" prompt. Row 4 — an ordinary rectangular tile, the L×W editor unchanged.</p>
+
+<h2>2 · On-screen estimate — product line (print layout)</h2>
+<div class="paper">
+  <div class="pgrid phead">
+    <div>Size</div><div>Product / Color</div><div>SKU</div><div>Cov.</div>
+    <div class="tr">SF</div><div class="tr">Price</div><div class="tr">Order</div><div class="tr">Total</div>
+  </div>
+  <div class="pgrid prow">
+    <div>2" Hex<span class="pmuted"> · 3/8"</span></div>
+    <div style="font-weight:700">Colonial Collection Presidential Grey<span class="pdim"> · Tile</span></div>
+    <div class="mono" style="font-size:9px">CLNL270</div>
+    <div class="mono" style="font-size:9.5px">—</div>
+    <div class="tr">100.0</div><div class="tr">$5.00</div><div class="tr">—</div><div class="tr">$550.00</div>
+  </div>
+  <div class="pgrid prow">
+    <div>12×24<span class="pmuted"> · 3/8"</span></div>
+    <div style="font-weight:700">Earth Ash Gray<span class="pdim"> · Tile</span></div>
+    <div class="mono" style="font-size:9px">EAAS312</div>
+    <div class="mono" style="font-size:9.5px">—</div>
+    <div class="tr">100.0</div><div class="tr">$6.20</div><div class="tr">—</div><div class="tr">$682.00</div>
+  </div>
+</div>
+<p class="cap">The hex line prints <strong>2" Hex</strong> in the size cell (was the SKU/color name before this change), keeping the thickness suffix; the rectangular line is unchanged.</p>
+
+<h2>3 · Setting materials — grout order off the 2×2 proxy</h2>
+<div class="paper" style="max-width:520px">
+  <div class="pgrid phead" style="grid-template-columns:2fr 1.2fr .8fr .8fr">
+    <div>Material</div><div>Color</div><div class="tr">Exact</div><div class="tr">Order</div>
+  </div>
+  <div class="pgrid prow" style="grid-template-columns:2fr 1.2fr .8fr .8fr">
+    <div style="font-weight:700">PermaColor Select</div><div>Presidential Grey</div>
+    <div class="tr">6.00</div><div class="tr">6 bags</div>
+  </div>
+  <div class="pgrid prow" style="grid-template-columns:2fr 1.2fr .8fr .8fr">
+    <div style="font-weight:700">ProLite mortar</div><div class="pmuted">—</div>
+    <div class="tr">1.22</div><div class="tr">2 bags</div>
+  </div>
+</div>
+<p class="cap">Golden numbers (100 sqft, 1/8" joint, 3/8" thick, 10% waste): grout exact 6.00 → 6 bags; mortar longest = 2" &lt; 8" → tier1, 1.22 → 2 bags. The 6× grout vs a 12×12 tile is the extra joint a 2" tile carries — computed, not fudged.</p>

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, deriveSquareDim } from "./stock.js";
+import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
 
@@ -65,6 +66,50 @@ test("a mosaic sold by the sheet (only a sheet price) still fills as tile, deriv
   assert.equal(patch.priceSqft, "14"); // 27.99 / 2 sf per sheet
   assert.equal(patch.cartonSf, "2");
   assert.equal(patch.cartonUnit, "SH");
+});
+
+test("a hex tile snapshots the vendor size and derives a square L×W for grout/mortar (ticket 009)", () => {
+  const it = normStockItem({ sku: "CLNL270", data: { type: "tile", unit: "CT", size: '2" Hex', description: "Colonial Collection Presidential Grey", price: 10, priceSqft: 5 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.sizeText, '2" Hex');   // vendor string reads on the row
+  assert.equal(patch.L, "2");               // background square proxy for the math
+  assert.equal(patch.W, "2");
+  assert.doesNotMatch(patch.brandColor, /Hex/); // size not shoved into the color name
+
+  // Golden numbers (ticket 009): 2×2 proxy, PermaColor Select cov 110, 1/8"
+  // joint, 3/8" thick, 10% waste, 100 sqft → grout exact 6.00 → 6 bags;
+  // mortar longest = 2 < 8 → tier1.
+  const s = mergeSettings({});
+  const p = { type: "tile", qtyType: "sqft", qty: "100", L: patch.L, W: patch.W, thickness: "0.375", grout: { product: "PermaColor Select", joint: 0.125 }, mortar: { product: "ProLite" } };
+  assert.ok(Math.abs(groutExact(p, s) - 6) < 1e-6);
+  assert.equal(ceilQty(groutExact(p, s)), 6);
+  assert.ok(Math.abs(mortarExact(p, s) - 110 / 90) < 1e-6); // tier1 = 90
+});
+
+test("deriveSquareDim: the 94\" trim-stick firewall and mosaic/oversize carve-outs (ticket 009)", () => {
+  const tile = (over) => normStockItem({ sku: "x", data: { type: "tile", ...over } });
+  // Genuine per-chip hex → derives its single dimension.
+  assert.equal(deriveSquareDim(tile({ size: '2" Hex' })), 2);
+  assert.equal(deriveSquareDim(tile({ size: '1" Penny Round' })), 1);
+  // Trim: shape word but sold by the linear foot and reads "Reducer" → no coverage.
+  assert.equal(deriveSquareDim(tile({ size: '94" Hex', unit: "LF", description: "Reducer Oak" })), null);
+  // Oversize cap: a shape word over 24" is not a small area tile.
+  assert.equal(deriveSquareDim(tile({ size: '30" Hex' })), null);
+  // Mosaic carve-out: shape word + a per-chip number, but "mosaic" in the text
+  // → no fake coverage from the sheet size.
+  assert.equal(deriveSquareDim(tile({ size: '1" Hex', description: "Hex Mosaic Sheet" })), null);
+  // No shape word in the size → no coverage (a bare 6" stays free text).
+  assert.equal(deriveSquareDim(tile({ size: '6"' })), null);
+  // Not a tile → never derives.
+  assert.equal(deriveSquareDim(normStockItem({ sku: "y", data: { type: "hardwood", size: '2" Hex' } })), null);
+});
+
+test("a 94\" hex reducer fills free-text sizeText with no derived L/W (ticket 009 guard)", () => {
+  const it = normStockItem({ sku: "R94", data: { type: "tile", unit: "LF", size: '94" Hex', description: "Reducer Oak", price: 20, priceSqft: 3 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.sizeText, '94" Hex'); // shows the vendor string
+  assert.equal(patch.L, undefined);        // but no coverage — the guard rejected it
+  assert.equal(patch.W, undefined);
 });
 
 test("an accessory (no per-sqft price) fills as a Miscellaneous line with its flat price", () => {

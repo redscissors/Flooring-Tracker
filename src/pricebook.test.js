@@ -418,6 +418,20 @@ test("splitSizeFromDescription: pulls size + thickness, leaves the rest as a cle
   assert.deepEqual(splitSizeFromDescription("Ovo 3x12 Glossy 3x12 Ceramic Glossy Tile"), { size: "3x12", thickness: "", name: "Ovo Glossy Ceramic Glossy Tile" });
 });
 
+test("splitSizeFromDescription: a single-dimension hex size becomes the size string, not the name (ticket 009)", () => {
+  const r = splitSizeFromDescription('Colonial Collection 2" Hex Presidential Grey');
+  assert.equal(r.size, '2" Hex');
+  assert.equal(r.name, "Colonial Collection Presidential Grey"); // size not doubled into the name
+  // A shape word with no quote still normalizes to inch notation.
+  assert.equal(splitSizeFromDescription("Penny Round White").size, ""); // no leading number → no shape size
+  assert.equal(splitSizeFromDescription("1 Penny Round White").size, '1" Penny');
+  // A bare dimension with no shape word is intentionally NOT a shape size — it
+  // stays in the name, no coverage.
+  assert.deepEqual(splitSizeFromDescription('SLATE 6" LEDGER'), { size: "", thickness: "", name: 'Slate 6" Ledger' });
+  // An L×W still wins — the shape branch only fires when SIZE_RE missed.
+  assert.equal(splitSizeFromDescription('8"x9" Hex Grey').size, "8x9");
+});
+
 test("mmToFraction: metric thickness → the fraction the trade calls it", () => {
   assert.equal(mmToFraction(6), '1/4"');
   assert.equal(mmToFraction(8), '5/16"');
