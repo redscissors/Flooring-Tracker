@@ -1971,7 +1971,7 @@ export default function App({ user, onSignOut }) {
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
                 <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
-                  <div>Size</div><div>Product / Color</div><div>SKU</div><div>SF/CT</div>
+                  <div>Size</div><div>Product / Color</div><div>SKU</div><div>Cov.</div>
                   <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
                 </div>
                 {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
@@ -1980,7 +1980,7 @@ export default function App({ user, onSignOut }) {
                       <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
                       <div style={{ fontWeight: 700 }}>{p.brandColor || TLBL[p.type]}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10, color: "var(--ft-muted)" }}> · {TLBL[p.type]}</span>}</div>
                       <div className="ft-mono" style={{ fontSize: 9 }}>{p.sku || PRINT_DASH}</div>
-                      <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? sf1(c.C.sf) : PRINT_DASH}</div>
+                      <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? <>{sf1(c.C.sf)}<span style={{ fontSize: 7.5, color: "var(--ft-muted)" }}> SF/{c.C.unit.toUpperCase()}</span></> : PRINT_DASH}</div>
                       <div className="text-right">{p.qtyType === "sqft" && num(p.qty) > 0 ? sf1(num(p.qty)) : PRINT_DASH}</div>
                       <div className="text-right">{num(p.priceSqft) > 0 ? money(num(p.priceSqft)) : PRINT_DASH}</div>
                       <div className="text-right whitespace-nowrap">{p.type === "misc" ? `${c.qtyText} EA` : c.C && c.C.order > 0 ? `${c.C.order} ${c.C.unit}` : c.qtyText || PRINT_DASH}</div>
@@ -2553,9 +2553,10 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
-                                {p.type !== "misc" && p.qtyType === "sqft" ? (
-                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                ) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
+                                {p.type !== "misc" && p.qtyType === "sqft" ? (<>
+                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" style={{ flex: 1, minWidth: 0 }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-1" style={{ fontSize: 8, color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
+                                </>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (
