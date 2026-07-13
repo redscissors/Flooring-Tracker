@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePriceBook } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const parse = (...sheets) => parsePriceBook(sheets);
@@ -268,4 +268,84 @@ test('shop stock sheets: "Retail Price" header maps to price (Schluter/Wedi layo
   const pan = bySku(items, "1504153");
   assert.equal(pan.price, 378.18);
   assert.match(pan.description, /US9100001/);
+});
+
+// --- generic mapped import (order books, ADR 0009) ----------------------------
+
+// A Virginia-Tile-EFT-shaped sheet: title/legend prose, header at row 2, then
+// item rows. Columns 0 (status flag) and 5 (description) are headerless.
+const VTC_ROWS = [
+  ["Virginia Tile EFT price list"],
+  ["Key: xx=discontinued  *=freight  •=made to order"],
+  ["", "VTC MFG", "Color", "Pattern", "VTC Item Code", "", "Product Line", "Lead Time", "Consumer", "Dealer", "U/M", "No Broken", "PC/CT", "SF/CT", "Comments"],
+  ["", "CER", "Gray", "3x12", "CER0000001", "EARTH ASH GRAY 3X12", "PRESLEY", "READY SHIP", 5.0, 3.5, "SF", "SF", "", 12.5, ""],
+  ["*", "CER", "", "48x48", "CER0000002", "BIG SLAB 48X48", "NANTUCKET", "IMPORT", 40, 30, "SF", "PC", "", 16, ""],
+  ["xx", "FLO", "", "", "FLO0000003", "OLD LINE 6X6", "", "READY SHIP", 3, 2, "PC", "PC", "", "", "DISCO BY ADX 6-2025"],
+  ["Note: totals below", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+];
+
+const VTC_MAPPING = {
+  headerRow: 2,
+  skuPattern: "^[A-Z0-9]{9,16}$",
+  columns: { 0: "flag", 1: "mfg", 6: "productLine", 4: "sku", 5: "description", 7: "leadTime", 8: "msrp", 9: "cost", 10: "unit", 13: "sfPerUnit", 14: "note" },
+  groupBy: "mfg",
+  flags: { xx: "discontinued", "*": "freight", "•": "madeToOrder", "◪": "transitioning" },
+  defaultType: "tile",
+};
+
+test("parseMapped: reads mapped columns, applies the flag legend, stores cost not sell", () => {
+  const { items, warnings } = parseMapped(VTC_ROWS, VTC_MAPPING);
+  assert.equal(items.length, 3); // the title-prose row below is not a SKU → skipped
+  assert.equal(warnings.length, 0);
+
+  const t = bySku(items, "CER0000001");
+  assert.equal(t.cost, 3.5);
+  assert.equal(t.price, null); // order items never store a selling price
+  assert.equal(t.priceSqft, null);
+  assert.equal(t.unit, "SF");
+  assert.equal(t.sfPerUnit, 12.5);
+  assert.equal(t.mfg, "CER");
+  assert.equal(t.section, "CER"); // group axis falls back into section/brand
+  assert.equal(t.leadTime, "READY SHIP");
+  assert.equal(t.msrp, 5);
+  assert.equal(t.type, "tile"); // from defaultType
+  assert.match(t.description, /EARTH ASH GRAY/);
+
+  assert.equal(bySku(items, "CER0000002").freightFlag, true);
+  assert.equal(bySku(items, "FLO0000003").discontinued, true);
+  assert.match(bySku(items, "FLO0000003").note, /DISCO BY ADX/);
+});
+
+test("parseMapped: only SKU-pattern rows are consumed (the honesty guarantee)", () => {
+  // A rearranged sheet whose SKU column now holds descriptions yields nothing,
+  // not garbage — the same visible-degradation rule as the stock parser.
+  const wrong = { ...VTC_MAPPING, columns: { ...VTC_MAPPING.columns, 4: "description", 5: "sku" } };
+  const { items, warnings } = parseMapped(VTC_ROWS, wrong);
+  assert.equal(items.length, 0);
+  assert.match(warnings[0], /No rows matched the SKU pattern/);
+});
+
+test("parseMapped: warns when no cost column is mapped", () => {
+  const noCost = { ...VTC_MAPPING, columns: { 0: "flag", 4: "sku", 5: "description", 10: "unit" } };
+  const { items, warnings } = parseMapped(VTC_ROWS, noCost);
+  assert.ok(items.length > 0);
+  assert.ok(warnings.some((w) => /No cost column/.test(w)));
+});
+
+test("parseMapped: a repeated SKU with different costs is deduped with a warning", () => {
+  const rows = [
+    VTC_ROWS[2],
+    ["", "CER", "", "", "DUP0000001", "First", "", "READY SHIP", 5, 3, "SF", "", "", 10, ""],
+    ["", "CER", "", "", "DUP0000001", "Second", "", "READY SHIP", 5, 4, "SF", "", "", 10, ""],
+  ];
+  const { items, warnings } = parseMapped(rows, { ...VTC_MAPPING, headerRow: 0 });
+  assert.equal(items.length, 1);
+  assert.ok(warnings.some((w) => /appears twice with different costs/.test(w)));
+});
+
+test("mappedSkuRe: the default pattern requires at least one digit", () => {
+  const re = mappedSkuRe();
+  assert.equal(re.test("ABC123"), true);
+  assert.equal(re.test("ABCDEF"), false); // no digit → not a SKU
+  assert.equal(re.test(""), false);
 });

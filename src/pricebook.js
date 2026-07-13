@@ -21,6 +21,8 @@
 // re-arranged sheet degrades to "items went missing" (visible in the import
 // diff preview) rather than garbage rows.
 
+import { normOrderItem } from "./orderbook.js";
+
 const SKU_RE = /^\d{4,8}$/;
 const str = (c) => (c == null ? "" : String(c).trim());
 const isSku = (c) => SKU_RE.test(str(c));
@@ -494,6 +496,136 @@ function dedupe(items, warnings) {
     const keep = prev.price == null && it.price != null ? it : prev;
     if (prev.price != null && it.price != null && prev.price !== it.price) {
       warnings.push(`SKU ${it.sku} is listed twice with different prices ($${prev.price} on ${prev.sheet}, $${it.price} on ${it.sheet}) — keeping $${keep.price}.`);
+    }
+    bySku.set(it.sku, keep);
+  }
+  return [...bySku.values()];
+}
+
+// --- generic mapped import (order books, ADR 0009) ----------------------------
+//
+// Order books (and future kind='stock' registry books) don't get a hand-built
+// per-sheet adapter; the team maps columns once and the mapping is saved on the
+// book. This parse takes ONE sheet's rows plus that mapping and produces
+// normalized order items (via orderbook's normOrderItem, so the shape can never
+// drift from the DB-row loader). The honesty guarantee is unchanged: a row is
+// only consumed if its SKU cell matches the book's SKU pattern, so a rearranged
+// sheet degrades to visible missing counts in the diff preview, not garbage.
+//
+// mapping = {
+//   columns:     { <colIndex>: <field> } — field ∈ sku, cost, description,
+//                unit, size, thickness, mfg, productLine, leadTime, msrp,
+//                coverage, sfPerUnit, color, style, brand, section, note, type,
+//                flag. (Headerless columns are labeled by index, so the VTC
+//                sheet's description and status columns map fine.)
+//   headerRow:   <int>|undefined — rows at and above it are skipped
+//   skuPattern:  <string>|undefined — default: 1-20 alphanumerics, ≥1 digit
+//   flags:       { <cellValue>: 'discontinued'|'freight'|'madeToOrder'|
+//                'transitioning' } — the sheet's status-flag legend
+//   defaultType: <'tile'|'hardwood'|'vinyl'|...>|undefined — the flooring type
+//                items fill on a product row when no per-item type column exists
+// }
+
+// The stock book's /^\d{4,8}$/ would consume zero VTC rows (9-16 alnum codes),
+// so each book carries its own pattern; this is the default when none is set.
+const DEFAULT_SKU_PATTERN = "^(?=.*\\d)[A-Za-z0-9]{1,20}$";
+
+export function mappedSkuRe(pattern) {
+  try { return new RegExp(pattern || DEFAULT_SKU_PATTERN, "i"); }
+  catch { return new RegExp(DEFAULT_SKU_PATTERN, "i"); }
+}
+
+const colFor = (columns, field) => {
+  for (const [i, f] of Object.entries(columns || {})) if (f === field) return Number(i);
+  return -1;
+};
+
+export function parseMapped(rows, mapping) {
+  const items = [];
+  const warnings = [];
+  const m = mapping || {};
+  const columns = m.columns || {};
+  const skuCol = colFor(columns, "sku");
+  if (skuCol < 0) { warnings.push("No SKU column is mapped."); return { items, warnings }; }
+  if (colFor(columns, "cost") < 0) warnings.push("No cost column is mapped — items will import without a cost.");
+  const flagCol = colFor(columns, "flag");
+  const skuRe = mappedSkuRe(m.skuPattern);
+  const flags = m.flags || {};
+  const start = Number.isInteger(m.headerRow) ? m.headerRow + 1 : 0;
+
+  let consumed = 0;
+  for (let r = start; r < (rows?.length || 0); r++) {
+    const row = rows[r] || [];
+    const sku = str(row[skuCol]);
+    if (!skuRe.test(sku)) continue; // honesty guarantee — see module header
+    consumed++;
+    const raw = {};
+    for (const [ci, field] of Object.entries(columns)) {
+      if (field === "sku" || field === "flag") continue;
+      const v = row[Number(ci)];
+      if (v == null || str(v) === "") continue;
+      if (raw[field] == null) raw[field] = v;
+    }
+    const sem = flagSemantics(flagCol >= 0 ? str(row[flagCol]) : "", flags);
+    items.push(mappedItem(m, raw, sku, sem));
+  }
+  if (!consumed) warnings.push(`No rows matched the SKU pattern /${skuRe.source}/ — check the SKU column and pattern.`);
+  return { items: dedupeMapped(items, warnings), warnings };
+}
+
+// A flag cell can carry several markers ("xx *"); each maps through the legend.
+function flagSemantics(cell, flags) {
+  const out = {};
+  const parts = str(cell).split(/\s+/).filter(Boolean);
+  for (const key of Object.keys(flags || {})) {
+    if (cell === key || parts.includes(key)) out[flags[key]] = true;
+  }
+  return out;
+}
+
+function mappedItem(mapping, raw, sku, sem) {
+  const type = str(raw.type) || mapping.defaultType || null;
+  const cost = numOrNull(raw.cost);
+  const noteBits = [str(raw.note)];
+  if (raw.cost != null && cost == null) noteBits.push(str(raw.cost)); // "N/A" / "See vendor"
+  if (sem.madeToOrder) noteBits.push("Made to order");
+  if (sem.transitioning) noteBits.push("Transitioning");
+  const mfg = str(raw.mfg);
+  const descBits = [str(raw.description), str(raw.color), str(raw.style)].filter(Boolean);
+  return normOrderItem({
+    sku,
+    mfg,
+    productLine: str(raw.productLine),
+    section: str(raw.section) || mfg,
+    brand: str(raw.brand) || mfg,
+    description: descBits.join(" — "),
+    color: str(raw.color),
+    style: str(raw.style),
+    unit: str(raw.unit),
+    size: str(raw.size),
+    thickness: str(raw.thickness),
+    type,
+    cost,
+    sfPerUnit: numOrNull(raw.sfPerUnit),
+    coverage: numOrNull(raw.coverage),
+    leadTime: str(raw.leadTime),
+    msrp: numOrNull(raw.msrp),
+    freightFlag: !!sem.freight,
+    discontinued: !!sem.discontinued,
+    note: noteBits.filter(Boolean).join(" · "),
+  });
+}
+
+// Within one mapped sheet a SKU should be unique; if it repeats, keep the
+// priced occurrence and warn (mirrors the stock dedupe rule).
+function dedupeMapped(items, warnings) {
+  const bySku = new Map();
+  for (const it of items) {
+    const prev = bySku.get(it.sku);
+    if (!prev) { bySku.set(it.sku, it); continue; }
+    const keep = prev.cost == null && it.cost != null ? it : prev;
+    if (prev.cost != null && it.cost != null && prev.cost !== it.cost) {
+      warnings.push(`SKU ${it.sku} appears twice with different costs ($${prev.cost}, $${it.cost}) — keeping $${keep.cost}.`);
     }
     bySku.set(it.sku, keep);
   }
