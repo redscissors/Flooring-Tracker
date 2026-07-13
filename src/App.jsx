@@ -1218,6 +1218,25 @@ export default function App({ user, onSignOut }) {
     catch (x) { ping("Save failed"); }
   };
 
+  // Permanently remove a registry book: its items, its import history, then the
+  // book row (in that order — price_book_items has a FK to price_books). Unlike
+  // every other price-book write this is a hard delete (ADR 0009 delete amendment). Saved
+  // selections that referenced the book keep their snapshotted values — only the
+  // live drift/freight chips for that book stop resolving. Needs the DELETE
+  // policies from supabase/pricebook-delete.sql.
+  const delBook = async (id) => {
+    setBooks((bs) => bs.filter((b) => b.id !== id));
+    try {
+      let { error } = await supabase.from("price_book_items").delete().eq("book_id", id);
+      if (error) throw error;
+      ({ error } = await supabase.from("pricebook_versions").delete().eq("book_id", id));
+      if (error) throw error;
+      ({ error } = await supabase.from("price_books").delete().eq("id", id));
+      if (error) throw error;
+      flashSaved();
+    } catch (x) { ping("Delete failed — has supabase/pricebook-delete.sql been run?"); }
+  };
+
   // Apply a mapped-import diff: upsert added/changed items, mark missing SKUs
   // inactive (never delete), stamp the book's lastImport. Same chunked-upsert
   // shape as the stock import.
@@ -2912,7 +2931,7 @@ export default function App({ user, onSignOut }) {
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
-          books={books} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
+          books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} />
       )}
 
@@ -3245,7 +3264,7 @@ const guessHeaderRow = (rows) => {
   return best;
 };
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3322,7 +3341,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, loadBookItems, ap
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
           </div>
         ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
@@ -3423,13 +3442,14 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
   const [vSeq, setVSeq] = useState(0); // bump to refresh the import-history list
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const reload = () => { setItems(null); loadBookItems(book.id).then(setItems).catch(() => setItems([])); };
   useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); return () => { ok = false; }; }, [book.id]);
@@ -3474,7 +3494,18 @@ function BookDetail({ book, updateBook, loadBookItems, applyBookImport, loadBook
         <label className="flex items-center gap-1 text-xs text-slate-500 ml-auto">
           <input type="checkbox" checked={book.active} onChange={(e) => updateBook(book.id, { active: e.target.checked })} /> Active
         </label>
+        <button onClick={() => setConfirmDel(true)} title="Delete this book" className="text-slate-400 hover:text-red-500"><Trash2 size={15} /></button>
       </div>
+
+      {confirmDel && (
+        <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs">
+          <span className="text-red-600 flex-1">
+            Delete "{book.name || "Untitled"}" for everyone{items && items.length ? <> — its {items.length} item{items.length === 1 ? "" : "s"} and import history</> : " and its import history"}? This can't be undone. Estimates that already used it keep the prices they saved.
+          </span>
+          <button onClick={() => { delBook(book.id); onDeleted?.(); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete book</button>
+          <button onClick={() => setConfirmDel(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mt-3">
         <button onClick={() => setWizard(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>
@@ -3872,7 +3903,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4320,7 +4351,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>

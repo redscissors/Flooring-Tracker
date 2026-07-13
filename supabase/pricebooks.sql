@@ -70,8 +70,12 @@ drop policy if exists "price_books update" on public.price_books;
 create policy "price_books update" on public.price_books
   for update using (auth.uid() is not null) with check (auth.uid() is not null);
 
--- No delete policy on price_books: books are retired via active = false while
--- any selection may reference them.
+-- Delete is allowed (ADR 0009 delete amendment): a book can be removed outright, not just
+-- retired via active = false. Selections snapshot item values at pick time, so
+-- a delete never changes a saved estimate — only the live drift chip stops.
+drop policy if exists "price_books delete" on public.price_books;
+create policy "price_books delete" on public.price_books
+  for delete using (auth.uid() is not null);
 
 drop policy if exists "price_book_items select" on public.price_book_items;
 create policy "price_book_items select" on public.price_book_items
@@ -85,8 +89,12 @@ drop policy if exists "price_book_items update" on public.price_book_items;
 create policy "price_book_items update" on public.price_book_items
   for update using (auth.uid() is not null) with check (auth.uid() is not null);
 
--- No delete policy on price_book_items: imports only upsert; missing SKUs go
--- inactive (same rule as stock_items).
+-- Delete is allowed (ADR 0009 delete amendment) so a book's items can be removed when the book
+-- itself is deleted. Imports still only ever upsert / mark inactive — they never
+-- delete; the delBook path is the sole deleter.
+drop policy if exists "price_book_items delete" on public.price_book_items;
+create policy "price_book_items delete" on public.price_book_items
+  for delete using (auth.uid() is not null);
 
 drop policy if exists "pricebook_versions select" on public.pricebook_versions;
 create policy "pricebook_versions select" on public.pricebook_versions

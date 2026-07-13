@@ -113,3 +113,27 @@ choice below (`.scratch/008_multi-pricebook-system/sheets/`).
   snapshot.
 - Implementation is phased (bridge already merged in PR #57; phases 1-5 in
   `docs/pricebook/design.md` §9); every UI slice still requires preview proof.
+
+## Amendment (2026-07): registry books are deletable
+
+Decision item 1 shipped the registry with the "no-delete rule as `stock_items`"
+— a book could only be retired via `active = false`, on the theory that a
+selection might still reference it. That is now reversed for the two registry
+tables: **a book can be hard-deleted** (its `price_book_items`, then its
+`pricebook_versions`, then the `price_books` row).
+
+Why the original caution was unnecessary: a selection row snapshots the picked
+item's values (`priceSqft`/`cost`/`markupPct`/`tierPrice`, per decision item 2 —
+the ADR 0003 doctrine), so nothing recomputes from the book at estimate time.
+The only live read is the advisory drift/freight chip, and it already resolves a
+missing SKU to `null` without error. So deleting a book leaves every saved
+estimate's numbers intact; it only drops the live "price changed" comparison for
+that book and the ability to re-pick from it.
+
+Mechanics: new DELETE policies on `price_books` and `price_book_items`
+(`supabase/pricebook-delete.sql`, folded into `pricebooks.sql` for fresh
+installs), same every-signed-in-user trust model as the rest of the price book.
+The `delBook` path in `App.jsx` is the sole deleter; imports still only
+upsert / mark inactive. The reserved `'stock'` workbook is not a `price_books`
+row and stays undeletable. Delete is guarded by an in-app confirm that states it
+is permanent and team-wide.
