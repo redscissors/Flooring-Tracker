@@ -56,6 +56,10 @@ supabase/
                     # search_text column on price_book_items for indexed
                     # selection-row order search (ADR 0009 §6; code falls back
                     # to per-field ILIKE until it is run)
+  pricebook-delete.sql  # run once after pricebooks.sql on existing installs:
+                    # DELETE policies so registry books can be hard-deleted
+                    # (ADR 0009 delete amendment; folded into pricebooks.sql
+                    # for fresh installs)
   migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```
