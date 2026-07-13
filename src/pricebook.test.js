@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePriceBook, parseMapped, mappedSkuRe } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const parse = (...sheets) => parsePriceBook(sheets);
@@ -309,7 +309,14 @@ test("parseMapped: reads mapped columns, applies the flag legend, stores cost no
   assert.equal(t.leadTime, "READY SHIP");
   assert.equal(t.msrp, 5);
   assert.equal(t.type, "tile"); // from defaultType
-  assert.match(t.description, /EARTH ASH GRAY/);
+  // The size is pulled out of the description; the name leads with the product
+  // line and reads clean (title-cased), no size text left in it.
+  assert.equal(t.size, "3x12");
+  assert.equal(t.description, "Presley Earth Ash Gray");
+  assert.equal(bySku(items, "CER0000002").description, "Nantucket Big Slab");
+  assert.equal(bySku(items, "CER0000002").size, "48x48");
+  assert.equal(bySku(items, "FLO0000003").description, "Old Line"); // no product line → just the cleaned name
+  assert.equal(bySku(items, "FLO0000003").size, "6x6");
 
   assert.equal(bySku(items, "CER0000002").freightFlag, true);
   assert.equal(bySku(items, "FLO0000003").discontinued, true);
@@ -341,6 +348,41 @@ test("parseMapped: a repeated SKU with different costs is deduped with a warning
   const { items, warnings } = parseMapped(rows, { ...VTC_MAPPING, headerRow: 0 });
   assert.equal(items.length, 1);
   assert.ok(warnings.some((w) => /appears twice with different costs/.test(w)));
+});
+
+test("parseMapped: thickness embedded in the description becomes an inch fraction", () => {
+  const rows = [
+    VTC_ROWS[2], // header
+    ["", "CER", "", "", "CER1000000", "EARTH 12X24 10MM", "PRESLEY", "IMPORT", 5.49, 3.29, "SF", "CT", 8, 15.5, ""],
+  ];
+  const { items } = parseMapped(rows, { ...VTC_MAPPING, headerRow: 0 });
+  const t = bySku(items, "CER1000000");
+  assert.equal(t.size, "12x24");
+  assert.equal(t.thickness, '3/8"'); // 10mm → 3/8"
+  assert.equal(t.description, "Presley Earth"); // size + thickness stripped, product line kept
+});
+
+test("splitSizeFromDescription: pulls size + thickness, leaves the rest as a clean name", () => {
+  assert.deepEqual(splitSizeFromDescription("EARTH ASH GRAY 12X24 10MM"), { size: "12x24", thickness: '3/8"', name: "Earth Ash Gray" });
+  assert.deepEqual(splitSizeFromDescription("2 x 8 SUBWAY WHITE"), { size: "2x8", thickness: "", name: "Subway White" });
+  assert.deepEqual(splitSizeFromDescription('OAK PLANK 5X48 3/8"'), { size: "5x48", thickness: '3/8"', name: "Oak Plank" });
+  // No LxW → passes through unchanged (honest fallback, nothing invented).
+  assert.deepEqual(splitSizeFromDescription("BULLNOSE TRIM PIECE"), { size: "", thickness: "", name: "Bullnose Trim Piece" });
+  // An "x" inside a word is never stripped.
+  assert.equal(splitSizeFromDescription("MAX GREY 12X12").name, "Max Grey");
+  // Already-mixed-case text is left as-is.
+  assert.equal(splitSizeFromDescription("MSI Stone 12x12").name, "MSI Stone");
+});
+
+test("mmToFraction: metric thickness → the fraction the trade calls it", () => {
+  assert.equal(mmToFraction(6), '1/4"');
+  assert.equal(mmToFraction(8), '5/16"');
+  assert.equal(mmToFraction(10), '3/8"');
+  assert.equal(mmToFraction(12), '1/2"');
+  assert.equal(mmToFraction(20), '3/4"'); // trade call-out, not the nearest 1/16 (13/16")
+  assert.equal(mmToFraction(25.4), '1"'); // a whole inch collapses
+  assert.equal(mmToFraction(""), "");
+  assert.equal(mmToFraction("nope"), "");
 });
 
 test("mappedSkuRe: the default pattern requires at least one digit", () => {
