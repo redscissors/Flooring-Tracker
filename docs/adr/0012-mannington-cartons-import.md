@@ -82,6 +82,12 @@ trim must **surface when its floor's Color Code is searched, floor first.**
   (edited in the book's Markup panel, shown only when the book has trims)
   outranks the group override and default in `resolveMarkup`. Left blank it falls
   back to the default, so nothing changes for a book that doesn't set it.
+- The book is one vendor with no manufacturer code, so its markup group defaults
+  to `productLine` — the collection (ADURA Apex / Max / Rigid / Flex…). That
+  lets the owner set a **per-collection markup** through the existing `byGroup`
+  overrides. The Markup panel now lets you switch the group axis in place (from
+  the columns the book actually fills), so changing how floors are grouped no
+  longer needs a re-import.
 - The parser is **layout-specific by design.** A future Mannington re-format
   breaks it back to "0 rows recognized" (a visible warning), never to garbage —
   the same honesty guarantee every import path carries.

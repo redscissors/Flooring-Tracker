@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseMapped } from "./pricebook.js";
-import { resolveMarkup } from "./orderbook.js";
+import { resolveMarkup, markupGroups } from "./orderbook.js";
 
 // Build text items the way pdf.js yields them: { str, x, y, w }.
 const word = (x, y, s) => ({ str: s, x, y, w: String(s).length * 6 });
@@ -93,6 +93,25 @@ test("a trim shared by two colors is one product listing both parent codes", () 
   assert.equal(shared.length, 1, "deduped to a single trim product");
   assert.match(shared[0].description, /fits APX020 APX040/); // both parents, searchable
   assert.equal(meta.trims, 5); // 384421,384445,384430,384454 + shared 384469
+});
+
+test("floors group by collection (product line) so each can carry its own markup", () => {
+  const maxPage = page("LVT", "ADURA MAX (MAXHP)", [
+    { pattern: "Foundry", size: "6X48", color: "Steel", code: "MAX010", catalog: "560001",
+      psf: "$3.00", carton: "$60.00", sf: "20.00", trims: [] },
+  ]);
+  const { rows, mapping } = parseManningtonPages([apexPage, maxPage]);
+  assert.equal(mapping.groupBy, "productLine"); // the whole book is one vendor → group by collection
+  const { items } = parseMapped(rows, mapping);
+
+  const groups = markupGroups(items, { groupBy: "productLine", default: 45, byGroup: { "ADURA MAX": 30 } });
+  const keys = groups.map((g) => g.key);
+  assert.ok(keys.includes("ADURA APEX") && keys.includes("ADURA MAX"), "each collection is its own group");
+
+  // Apex at the default, Max overridden to 30% — resolved per floor.
+  const markups = { groupBy: "productLine", default: 45, byGroup: { "ADURA MAX": 30 } };
+  assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "APX020")), 45);
+  assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "MAX010")), 30);
 });
 
 test("price reconciliation guard: mismatched carton drops to per-sq-ft cost", () => {
