@@ -31,6 +31,8 @@ function page(category, sectionLine, dataRows) {
     items.push(word(271, y, r.psf), word(301, y, r.carton), word(336, y, r.sf));
     items.push(word(363, y, "1170.000"), word(403, y, "50"), word(423, y, "38.320"), word(457, y, "Painted"));
     (r.trims || []).forEach((t, k) => items.push(word(496 + k * 37, y, t)));
+    // A color that wraps to a second baseline in the color band (no other cells).
+    if (r.colorWrap) items.push(word(145, y + 9, r.colorWrap));
   });
   return items;
 }
@@ -63,7 +65,24 @@ test("flooring rows: SKU = color code, carton cost + coverage, category → type
   assert.equal(floor.priceUnit, "BX");
   assert.equal(floor.sfPerUnit, 23.4);           // SF/carton coverage snapshot
   assert.match(floor.description, /Spalted Wych Elm Dew/);
-  assert.equal(floor.productLine, "ADURA APEX"); // section heading, code stripped
+  assert.equal(floor.productLine, "Adura Apex"); // collection, title-cased, code stripped
+  assert.equal(floor.brand, "Mannington");       // dealer brand fronts the picked name
+  assert.equal(floor.description, "Adura Apex Spalted Wych Elm Dew");
+});
+
+test("floor name reads 'Mannington {collection} {pattern} {color}', collection cleaned to its tier", () => {
+  // A wrapped color: "African" prints on the data row, "Sunset" on the next
+  // baseline (same color x-band). ADURA Max Plank → "Adura Max".
+  const maxPage = page("LVT", "ADURA Max Plank (MAXH)", [
+    { pattern: "Acacia", size: "6X48", color: "African", code: "MAX010", catalog: "555687",
+      psf: "$3.39", carton: "$92.85", sf: "27.39", trims: [], colorWrap: "Sunset" },
+  ]);
+  const { items } = run(maxPage);
+  const floor = items.find((i) => i.sku === "MAX010");
+  assert.equal(floor.color, "African Sunset");                       // wrapped color folded back
+  assert.equal(floor.productLine, "Adura Max");                      // "Plank" dropped, title-cased
+  assert.equal(floor.brand, "Mannington");
+  assert.equal(floor.description, "Adura Max Acacia African Sunset"); // the name the picker shows
 });
 
 test("trim rows: SKU = catalog #, per-piece cost, no floor type, 'fits' code in description", () => {
@@ -96,7 +115,7 @@ test("a trim shared by two colors is one product listing both parent codes", () 
 });
 
 test("floors group by collection (product line) so each can carry its own markup", () => {
-  const maxPage = page("LVT", "ADURA MAX (MAXHP)", [
+  const maxPage = page("LVT", "ADURA Max Plank (MAXH)", [
     { pattern: "Foundry", size: "6X48", color: "Steel", code: "MAX010", catalog: "560001",
       psf: "$3.00", carton: "$60.00", sf: "20.00", trims: [] },
   ]);
@@ -104,12 +123,12 @@ test("floors group by collection (product line) so each can carry its own markup
   assert.equal(mapping.groupBy, "productLine"); // the whole book is one vendor → group by collection
   const { items } = parseMapped(rows, mapping);
 
-  const groups = markupGroups(items, { groupBy: "productLine", default: 45, byGroup: { "ADURA MAX": 30 } });
+  const groups = markupGroups(items, { groupBy: "productLine", default: 45, byGroup: { "Adura Max": 30 } });
   const keys = groups.map((g) => g.key);
-  assert.ok(keys.includes("ADURA APEX") && keys.includes("ADURA MAX"), "each collection is its own group");
+  assert.ok(keys.includes("Adura Apex") && keys.includes("Adura Max"), "each tier is its own group");
 
   // Apex at the default, Max overridden to 30% — resolved per floor.
-  const markups = { groupBy: "productLine", default: 45, byGroup: { "ADURA MAX": 30 } };
+  const markups = { groupBy: "productLine", default: 45, byGroup: { "Adura Max": 30 } };
   assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "APX020")), 45);
   assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "MAX010")), 30);
 });
