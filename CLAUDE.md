@@ -47,6 +47,7 @@ src/
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
                     # header-driven per page, feeds the mapped import (ADR 0010)
   stock.js          # stock search / SKU fill / drift / import diff / catalog sync
+  synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
@@ -63,6 +64,10 @@ supabase/
                     # DELETE policies so registry books can be hard-deleted
                     # (ADR 0009 delete amendment; folded into pricebooks.sql
                     # for fresh installs)
+  pricebook-fuzzy.sql  # run once after pricebook-search.sql: search_price_book_items
+                    # RPC (pg_trgm word_similarity) for typo-tolerant selection-row
+                    # order search + trade synonyms (ADR 0009 §6; src/synonyms.js;
+                    # code falls back to synonym-aware exact ILIKE until it is run)
   migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```

@@ -8,6 +8,7 @@ import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet
 import { parsePdfPages } from "./pdfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin } from "./orderbook.js";
 import { normName, matchName } from "./names.js";
+import { expand } from "./synonyms.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
@@ -1566,11 +1567,11 @@ export default function App({ user, onSignOut }) {
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
   const orderBooks = useMemo(() => books.filter((b) => b.kind === "order" && b.active), [books]);
   const bookName = (id) => books.find((b) => b.id === id)?.name || "special order";
-  // Prefer the trigram-indexed search_text column (supabase/pricebook-search.sql);
-  // flips false for the session the first time that column is absent, so the
-  // search keeps working before the migration is run — just via the slower
-  // per-field ILIKE fallback below.
-  const searchCol = useRef(true);
+  // Prefer the fuzzy RPC (supabase/pricebook-fuzzy.sql); flips false for the
+  // session the first time the function is absent, so the search keeps working
+  // before the migration is run — just via the exact-substring ILIKE fallback
+  // below (still synonym-aware, just no typo tolerance).
+  const fuzzyRpc = useRef(true);
   // Debounced server-side search across every active order book (§6). Order
   // items aren't eagerly loaded (a vendor book runs to thousands of rows), so
   // the selection-row pickers query price_book_items on demand, price each hit
@@ -1583,28 +1584,25 @@ export default function App({ user, onSignOut }) {
     const ids = orderBooks.map((b) => b.id);
     const price = (rows) => (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
     const base = () => supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
-    // Every word must appear (AND), matching searchStock's word-by-word rule —
-    // a single `%phrase%` ILIKE only hits contiguous text, so "white oak" would
-    // miss an item described "Oak — White". Chained PostgREST filters AND
-    // together: one `.or(field.ilike…)` group per word (each word must match
-    // some field). `size` isn't in the generated search_text column, so the fast
-    // path ORs it in explicitly — that keeps size searchable ("12x24 white")
-    // without a SQL re-run (search_text already covers the rest, index-backed).
+    // Every group must match (AND across the typed words), matching searchStock's
+    // word-by-word rule; within a group any synonym alternate matches (OR).
+    // `size` isn't in the generated search_text column, so the ILIKE fallback ORs
+    // it in explicitly — that keeps size searchable ("12x24 white") without a
+    // SQL re-run (search_text already covers the rest, index-backed).
     const fields = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color", "data->>size"];
     return async (q) => {
       const words = q.replace(/[%_,()"\\]/g, " ").trim().split(/\s+/).filter(Boolean);
       if (!words.length) return [];
-      if (searchCol.current) {
-        let query = base();
-        for (const w of words) query = query.or(`search_text.ilike.%${w}%,data->>size.ilike.%${w}%`);
-        const { data: rows, error } = await query;
+      const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
+      if (fuzzyRpc.current) {
+        const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: 0.3, p_limit: SKU_SHOW * 2 });
         if (!error) return price(rows);
-        // 42703 = undefined_column: the search migration hasn't been run yet.
-        if (error.code !== "42703" && !/search_text/i.test(error.message || "")) throw error;
-        searchCol.current = false;
+        // PGRST202 / 42883 = undefined_function: the fuzzy migration isn't run yet.
+        if (error.code !== "PGRST202" && error.code !== "42883") throw error;
+        fuzzyRpc.current = false;
       }
       let query = base();
-      for (const w of words) query = query.or(fields.map((f) => `${f}.ilike.%${w}%`).join(","));
+      for (const grp of groups) query = query.or(grp.flatMap((alt) => fields.map((f) => `${f}.ilike.%${alt}%`)).join(","));
       const { data: rows, error } = await query;
       if (error) throw error;
       return price(rows);
