@@ -569,14 +569,28 @@ export function mmToFraction(mm) {
   return sixteenths % 16 === 0 ? `${sixteenths / 16}"` : `${reduceFrac(sixteenths, 16)}"`;
 }
 
-const SIZE_RE = /(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)\s*["']?/i;
+// A dimension can be a mixed fraction — vendor sheets print hex chips as
+// "1-1/2X1-1/2" — or a bare fraction. Bare fraction tries first so an
+// unanchored match can't stop at the "3" of "3/4".
+const DIM = "\\d+/\\d+|\\d+(?:\\.\\d+)?(?:-\\d+/\\d+)?";
+const dimVal = (s) => {
+  const f = str(s).match(/^(\d+)\/(\d+)$/);
+  if (f) return +f[1] / +f[2];
+  const m = str(s).match(/^(\d+(?:\.\d+)?)(?:-(\d+)\/(\d+))?$/);
+  return m ? parseFloat(m[1]) + (m[2] ? +m[2] / +m[3] : 0) : NaN;
+};
+const SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?`, "i");
 // A genuine single-dimension shape size ('2" Hex') has no L×W cell — matched
 // only when SIZE_RE did not, so the vendor spelling lands in the size string
 // (the tile row shows it and derives a square L×W for grout/mortar) instead of
 // being shoved into the color name. A bare '6"' with no shape word is left in
 // the name on purpose — no shape word, no coverage.
 const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
-const SHAPE_SIZE_RE = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*["']?\\s*(${SHAPE_WORDS})\\b`, "i");
+const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*(${SHAPE_WORDS})\\b`, "i");
+// "(12X10/SH)"-style packaging tokens (sheet dims + a per-unit) are never the
+// item's size — dropped before matching so the chip size wins and the name
+// keeps no "( /Sh)" litter.
+const PACKAGING_RE = /\(\s*[^)]*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs)\s*\)/gi;
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
 const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
 
@@ -596,6 +610,7 @@ export function splitSizeFromDescription(desc) {
   let s = str(desc);
   if (!s) return { size: "", thickness: "", name: "" };
   let size = "", thickness = "";
+  s = s.replace(PACKAGING_RE, " ");
   // Thickness first, so "10MM" can't be mistaken for part of a size.
   const mm = s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
@@ -604,8 +619,22 @@ export function splitSizeFromDescription(desc) {
   // some sheets print the size in both the color and the description column
   // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
   // what put the size back in the product name next to a filled size cell.
-  if (sz) { size = `${sz[1]}x${sz[2]}`; s = s.replace(new RegExp(SIZE_RE.source, "gi"), " "); }
-  else {
+  if (sz) {
+    const a = dimVal(sz[1]), b = dimVal(sz[2]);
+    const shape = s.match(new RegExp(`\\b(${SHAPE_WORDS})\\b`, "i"));
+    s = s.replace(new RegExp(SIZE_RE.source, "gi"), " ");
+    if (shape && a === b && a <= 6) {
+      // Equal dims plus a shape word is a hex/penny chip ("HEX MOS
+      // 1-1/2X1-1/2") — read as the vendor-spelled shape size, ticket 009's
+      // display model, rather than a 1.5x1.5 rectangle. Capped small: an
+      // equal L×W over 6" next to a shape word is a mosaic SHEET size
+      // ("HEX MOSAIC 13X13 SHT"), which must stay a rectangle.
+      size = `${sz[1]}" ${titleCase(shape[1])}`;
+      s = s.replace(shape[0], " ");
+    } else {
+      size = `${a}x${b}`; // decimal ("8.5x10") so parseTileSize fills the L/W cells
+    }
+  } else {
     const shp = s.match(SHAPE_SIZE_RE);
     if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
   }

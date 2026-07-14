@@ -432,6 +432,27 @@ test("splitSizeFromDescription: a single-dimension hex size becomes the size str
   assert.equal(splitSizeFromDescription('8"x9" Hex Grey').size, "8x9");
 });
 
+test("splitSizeFromDescription: mixed-fraction dims parse whole, not from the middle (ticket 010)", () => {
+  // The MRZ book's hex-mosaic chip size — SIZE_RE used to grab "2X1" out of
+  // "1-1/2X1-1/2" and leave "1-1/ -1/2" litter in the name.
+  assert.deepEqual(splitSizeFromDescription("MOROCCAN CONC OFF WHITE HEX MOS 1-1/2X1-1/2"), { size: '1-1/2" Hex', thickness: "", name: "Moroccan Conc Off White Mos" });
+  // A packaging token ((12X10/SH)) is never the size and leaves no "( /Sh)" litter.
+  assert.deepEqual(splitSizeFromDescription("ARTEZEN ELEGANT WHITE HEX MOS 1-1/2X1-1/2 (12X10/SH)"), { size: '1-1/2" Hex', thickness: "", name: "Artezen Elegant White Mos" });
+  // A single-dim shape size behind a packaging token takes the chip, not the sheet.
+  assert.equal(splitSizeFromDescription('GEOMETAL CHAMPAGNE GOLD 3" HEX MOS (11X12/SH)').size, '3" Hex');
+  // Unequal fraction dims stay a rectangle — decimal so the L/W cells fill —
+  // and the shape word stays in the name.
+  assert.deepEqual(splitSizeFromDescription("ATTITUDE SIMPLY GREY HEX 8-1/2X10"), { size: "8.5x10", thickness: "", name: "Attitude Simply Grey Hex" });
+  // Equal whole-number dims with a shape word read as a shape size too.
+  assert.equal(splitSizeFromDescription("SUBURB GREY 2X2 HEX MATTE").size, '2" Hex');
+  // Equal dims over the chip cap are a mosaic SHEET size, not a chip — a
+  // "13X13 SHT" of hexes must not read as a 13" hex.
+  assert.equal(splitSizeFromDescription("EESOME GOLD HEX MOSAIC 13X13 SHT MIXED").size, "13x13");
+  // Regressions: the plain spellings are untouched.
+  assert.equal(splitSizeFromDescription('MOROCCAN CONC OFF WHITE 8" HEX TILE').size, '8" Hex');
+  assert.equal(splitSizeFromDescription("MOROCCAN CONC OFF WHITE 12X24 RECT *NEW PKG").size, "12x24");
+});
+
 test("mmToFraction: metric thickness → the fraction the trade calls it", () => {
   assert.equal(mmToFraction(6), '1/4"');
   assert.equal(mmToFraction(8), '5/16"');
