@@ -99,6 +99,9 @@ const CANON_MAPPING = {
   headerRow: 0,
   skuPattern: "^(?=.*\\d)[A-Za-z0-9]{3,14}$",
   defaultType: "",
+  // Mannington carries no manufacturer code (the whole book is one vendor), so
+  // the collection — ADURA Apex / Max / Rigid… — is the natural markup group.
+  groupBy: "productLine",
 };
 
 const CATEGORY_TYPE = { LVT: "vinyl", Laminate: "laminate", Hardwood: "hardwood" };

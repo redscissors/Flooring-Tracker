@@ -3754,23 +3754,28 @@ function BookItemEditModal({ item, isOrder, onClose, onSave, inp, lbl }) {
 }
 
 // The markup editor (Phase 2): a book default plus per-group overrides keyed on
-// the column chosen at import (mfg, product line…). Selling price = cost ×
-// (1 + markup), computed at browse/pick time — editing a markup moves future
-// picks only, never a saved estimate. Only the groups the sheet actually has
-// are priceable (markupGroups), so there's no free-form matcher to get wrong.
+// a chosen column (mfg, product line…). Selling price = cost × (1 + markup),
+// computed at browse/pick time — editing a markup moves future picks only, never
+// a saved estimate. The group axis is chosen here (no re-import needed) from the
+// columns the book actually populates, and only the groups the sheet has are
+// priceable (markupGroups), so there's no free-form matcher to get wrong.
 const GROUP_LABEL = { mfg: "manufacturer", productLine: "product line", section: "section", brand: "brand" };
+const GROUP_AXES = [["mfg", "Manufacturer"], ["productLine", "Product line"], ["section", "Section"], ["brand", "Brand"]];
 function MarkupEditor({ book, items, onSave, inp, lbl }) {
   const markups = book.data?.markups || {};
-  const groupBy = markups.groupBy || book.data?.mapping?.groupBy || "";
+  const [groupBy, setGroupBy] = useState(markups.groupBy || book.data?.mapping?.groupBy || "");
   const [def, setDef] = useState(markups.default != null ? String(markups.default) : "");
   const [byGroup, setByGroup] = useState(markups.byGroup || {});
   const [trim, setTrim] = useState(markups.trim != null ? String(markups.trim) : "");
   // Books carrying trim/molding lines (Mannington, ADR 0012) can mark trims up at
   // their own rate; the field is hidden on books that have no trims.
   const hasTrims = (items || []).some((it) => it.trim);
+  // Only offer a group axis the book's items actually fill (Mannington carries a
+  // product line but no mfg), so the dropdown never lists a dead choice.
+  const axes = GROUP_AXES.filter(([f]) => (items || []).some((it) => String(it[f] ?? "").trim()));
 
-  const commit = (nextDef, nextBy, nextTrim = trim) => onSave({
-    ...(groupBy ? { groupBy } : {}),
+  const commit = (nextDef, nextBy, nextTrim = trim, nextGroupBy = groupBy) => onSave({
+    ...(nextGroupBy ? { groupBy: nextGroupBy } : {}),
     default: num(nextDef),
     byGroup: nextBy,
     ...(String(nextTrim).trim() !== "" ? { trim: num(nextTrim) } : {}),
@@ -3780,6 +3785,9 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
     if (val === "" || val == null) delete next[key]; else next[key] = num(val);
     setByGroup(next); commit(def, next);
   };
+  // Switching the axis retires the old overrides — they were keyed on the prior
+  // column's values and mean nothing under the new one.
+  const changeGroupBy = (val) => { setGroupBy(val); setByGroup({}); commit(def, {}, trim, val); };
   const groups = groupBy ? markupGroups(items, { groupBy, default: num(def), byGroup }) : [];
 
   return (
@@ -3803,21 +3811,32 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
           </div>
         )}
       </div>
-      {groupBy ? (groups.length > 0 && (
+      {axes.length > 0 ? (
         <div className="mt-3">
-          <label className={lbl}>Per-{GROUP_LABEL[groupBy] || groupBy} overrides <span className="normal-case tracking-normal text-slate-400">(blank = default)</span></label>
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 max-w-xl">
-            {groups.map((g) => (
-              <div key={g.key} className="flex items-center gap-2">
-                <span className="text-xs flex-1 truncate">{g.key} <span className="text-slate-300">({g.count})</span></span>
-                <input type="number" className="ft-field w-16 rounded border border-slate-200 px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" value={g.overridden ? String(byGroup[g.key]) : ""} placeholder={String(num(def))} onChange={(e) => setGroup(g.key, e.target.value)} />
-                <span className="text-[10px] text-slate-400">%</span>
-              </div>
-            ))}
+          <div>
+            <label className={lbl}>Group markups by</label>
+            <select className={`${inp} w-auto`} value={axes.some(([f]) => f === groupBy) ? groupBy : ""} onChange={(e) => changeGroupBy(e.target.value)}>
+              <option value="">— one markup for all —</option>
+              {axes.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
           </div>
+          {groupBy && groups.length > 0 && (
+            <div className="mt-3">
+              <label className={lbl}>Per-{GROUP_LABEL[groupBy] || groupBy} overrides <span className="normal-case tracking-normal text-slate-400">(blank = default)</span></label>
+              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 max-w-xl">
+                {groups.map((g) => (
+                  <div key={g.key} className="flex items-center gap-2">
+                    <span className="text-xs flex-1 truncate">{g.key} <span className="text-slate-300">({g.count})</span></span>
+                    <input type="number" className="ft-field w-16 rounded border border-slate-200 px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" value={g.overridden ? String(byGroup[g.key]) : ""} placeholder={String(num(def))} onChange={(e) => setGroup(g.key, e.target.value)} />
+                    <span className="text-[10px] text-slate-400">%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )) : (
-        <p className="text-[11px] text-amber-600 mt-2">No markup group column was set at import — only the default applies. Re-import and choose a "Markup group" to price by manufacturer.</p>
+      ) : (
+        <p className="text-[11px] text-slate-400 mt-2">This book has no product-line or manufacturer column to price by — only the default (and trim) markup applies.</p>
       )}
     </div>
   );
