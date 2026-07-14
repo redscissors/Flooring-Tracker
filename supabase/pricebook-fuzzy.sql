@@ -23,7 +23,7 @@
 -- their price_book_items policy already allows.
 
 create or replace function public.search_price_book_items(
-  p_book_ids  uuid[],
+  p_book_ids  text[],
   p_groups    jsonb,
   p_threshold real default 0.3,
   p_limit     int  default 40
@@ -66,7 +66,7 @@ as $$
   limit p_limit;
 $$;
 
-grant execute on function public.search_price_book_items(uuid[], jsonb, real, int)
+grant execute on function public.search_price_book_items(text[], jsonb, real, int)
   to authenticated;
 
 -- Perf note: the existing gin_trgm_ops index on search_text accelerates the
