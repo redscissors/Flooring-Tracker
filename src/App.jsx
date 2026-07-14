@@ -3183,27 +3183,41 @@ function Modal({ title, children, onClose }) {
   );
 }
 
+// Display unit codes for the order-entry panel. The order unit ("ct"/"sh" for
+// carton/sheet-billed rows, "units" for a piece count, "ea" for misc, "sf" for
+// square-foot flooring) becomes a short uppercase code shown on the qty and the
+// per-unit cost/sell — so a line always reads in the unit it's bought and sold.
+const ORDER_UNIT_CODE = { ct: "CT", sh: "SH", sf: "SF", units: "PC", ea: "EA" };
+
 // One product row → the fields the order-entry panel shows. Special-order rows
 // (bookId set) carry a snapshotted cost; the sell is the row's line total, so
 // the implied cost is sell ÷ (1 + markup/100) — unit-agnostic, matching
 // specialOrderMargin. Per-unit values are the extended totals ÷ ordered qty, so
-// carton- and sf-billed rows read consistently. Read-only; no math is mutated.
+// they read in the sell unit (per carton / sheet / piece / sf). The item text
+// splits at the SKU: size + color on top, SKU + coverage beneath — thickness
+// dropped, spaces only. Carton/sheet rows lead with a CT/SH tag (also in the
+// copied text) since the order-entry system can't be switched off "each".
+// Read-only; no math is mutated.
 function orderEntryRow(p, s, area) {
   const c = printProduct(p, s);
   const isMisc = p.type === "misc";
   const qty = isMisc ? miscQty(p) : (c.C ? c.C.order : num(p.qty));
-  const unit = isMisc ? "ea" : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : "units"));
-  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${String(p.cartonUnit || "CT").toUpperCase()}` : "";
+  const rawUnit = isMisc ? "ea" : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : "units"));
+  const unitCode = ORDER_UNIT_CODE[rawUnit] || String(rawUnit || "").toUpperCase();
+  // Only carton/sheet-billed lines flag a non-"each" order unit.
+  const tag = c.C ? unitCode : "";
+  const sizePlain = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
+  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${unitCode}` : "";
   const extSell = c.line;
   const markupPct = num(p.markupPct);
   const extCost = markupPct > 0 ? extSell / (1 + markupPct / 100) : extSell;
-  const copy = [c.size, p.brandColor, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  const copy = [tag, sizePlain, p.brandColor, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   return {
     id: p.id, special: !!p.bookId, area,
-    size: c.size, name: p.brandColor, sku: p.sku, coverage,
-    qty, unit, qtyText: qty > 0 ? `${qty} ${unit}` : "—",
-    perCost: qty > 0 ? extCost / qty : 0, extCost,
-    perSell: qty > 0 ? extSell / qty : 0, extSell,
+    tag, sizePlain, name: p.brandColor, sku: p.sku, coverage,
+    qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
+    perCost: qty > 0 ? extCost / qty : 0,
+    perSell: qty > 0 ? extSell / qty : 0,
     copy,
   };
 }
