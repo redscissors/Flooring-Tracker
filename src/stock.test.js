@@ -95,9 +95,17 @@ test("deriveSquareDim: the 94\" trim-stick firewall and mosaic/oversize carve-ou
   assert.equal(deriveSquareDim(tile({ size: '94" Hex', unit: "LF", description: "Reducer Oak" })), null);
   // Oversize cap: a shape word over 24" is not a small area tile.
   assert.equal(deriveSquareDim(tile({ size: '30" Hex' })), null);
-  // Mosaic carve-out: shape word + a per-chip number, but "mosaic" in the text
-  // → no fake coverage from the sheet size.
-  assert.equal(deriveSquareDim(tile({ size: '1" Hex', description: "Hex Mosaic Sheet" })), null);
+  // Mosaic relaxation (ticket 010 amendment): a shape size is per-chip by
+  // construction, so "mosaic" in the text no longer blocks a chip-scale dim…
+  assert.equal(deriveSquareDim(tile({ size: '1" Hex', description: "Hex Mosaic Sheet" })), 1);
+  assert.equal(deriveSquareDim(tile({ size: '3" Hex', description: 'Art Reflect 3" Hexagon Mosaic Glossy' })), 3);
+  // …but a sheet-scale dim on a mosaic still never fakes coverage.
+  assert.equal(deriveSquareDim(tile({ size: '12" Hex', description: "Hex Mosaic Sheet" })), null);
+  // A piece-sold item WITH sq-ft coverage is a mosaic sheet, not a trim stick —
+  // the vendor sells '1" HEX MOSAIC' as PC with SF/PC printed; a real stick
+  // (no coverage) stays behind the linear-unit firewall.
+  assert.equal(deriveSquareDim(tile({ size: '1" Hex', unit: "PC", sfPerUnit: 24.29, description: "Mosaics Black Hex Mosaic Gloss" })), 1);
+  assert.equal(deriveSquareDim(tile({ size: '2" Hex', unit: "EA" })), null);
   // No shape word in the size → no coverage (a bare 6" stays free text).
   assert.equal(deriveSquareDim(tile({ size: '6"' })), null);
   // Not a tile → never derives.

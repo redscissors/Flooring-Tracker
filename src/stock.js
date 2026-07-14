@@ -129,15 +129,20 @@ export function deriveSquareDim(item) {
   const size = str(item.size);
   if (!SHAPE_WORD_RE.test(size)) return null;
   const text = `${size} ${str(item.description)} ${str(item.product)}`;
-  if (MOSAIC_RE.test(text)) return null;
   if (TRIMISH_RE.test(text)) return null;
-  if (LINEAR_UNIT_RE.test(orderUnitOf(item)) || LINEAR_UNIT_RE.test(priceUnitOf(item))) return null;
+  // A piece-sold item with real sq-ft coverage is a mosaic SHEET, not a trim
+  // stick — the book prints SF/PC for sheets and N/A for sticks — so only a
+  // coverage-less piece unit stays behind the firewall (ticket 010 amendment).
+  if (!(item.sfPerUnit > 0) && (LINEAR_UNIT_RE.test(orderUnitOf(item)) || LINEAR_UNIT_RE.test(priceUnitOf(item)))) return null;
   // The chip dimension can be a mixed fraction ('1-1/2" Hex') or a bare one
   // ('3/4" Penny') — bare tries first so the match can't stop at the "3" of "3/4".
   const m = size.match(/(\d+)\/(\d+)|(\d+(?:\.\d+)?)(?:-(\d+)\/(\d+))?/);
   if (!m) return null;
   const n = m[1] ? +m[1] / +m[2] : parseFloat(m[3]) + (m[4] ? +m[4] / +m[5] : 0);
-  if (!(n > 0) || n > 24) return null;
+  // A shape size is per-chip by construction (sheet sizes print as L×W), so a
+  // "mosaic" item may derive too — but only at chip scale, so a sheet-scale
+  // '12" Hex Mosaic' can never fake coverage (ticket 010 amendment to 009).
+  if (!(n > 0) || n > (MOSAIC_RE.test(text) ? 6 : 24)) return null;
   return n;
 }
 

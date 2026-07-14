@@ -72,14 +72,27 @@ and the Variant-A size cell from ticket 009 already display shape sizes).
 Re-import the affected books (MRZ at least) after deploy — stored items were
 parsed at import time.
 
+## Amendment: mosaic chips compute grout (owner, 2026-07-14)
+
+Ticket 009's mosaic carve-out blocked ALL "mosaic"-texted items from deriving
+a square L×W, even when the shape size is a genuine per-chip dim ("ART
+REFLECT 3\" HEXAGON MOSAIC"). Surfaced to the owner; approved relaxing it.
+The 009 principle stands — "only derive coverage from a per-chip dimension,
+never from a mosaic sheet size" — the implementation now honors it directly:
+
+- A shape size is per-chip by construction (sheet sizes print as L×W), so
+  "mosaic" in the text no longer hard-blocks; instead a mosaic derives only at
+  **chip scale (≤ 6")** — a hypothetical `12" Hex Mosaic` still refuses.
+- A piece-sold item (PC/EA) **with real sq-ft coverage** (`sfPerUnit > 0`) is
+  a mosaic sheet, not a trim stick — the book prints SF/PC for sheets and
+  `N/A` for sticks — so only coverage-less piece units stay behind ticket
+  009's linear-unit firewall.
+
+Corpus check: every chip hex mosaic in both books (1"–6", ~56 product lines)
+now derives; trims and sheet-scale dims still never do.
+
 ## Deliberately out of scope
 
-- `deriveSquareDim`'s mosaic carve-out still blocks items whose text says
-  "mosaic" even when the shape size is a genuine per-chip dim ("ART REFLECT
-  3\" HEXAGON MOSAIC" shows the size but derives no L×W, while Moroccan's
-  "HEX MOS" abbreviation derives). Ticket 009 recorded that conservative rule;
-  relaxing it (a shape size is per-chip by construction) is a separate,
-  surfaced follow-up — not silently overridden here.
 - Mosaic sheet dims without a chip size (`HEX MOSAIC 11X13 (CROSS CUT)`) still
   land as L×W — pre-existing, ticket 009 §"scope of the miss".
 
