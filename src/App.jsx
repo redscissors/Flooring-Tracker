@@ -1,12 +1,13 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin } from "./orderbook.js";
+import { OrderEntryPanel } from "./orderentry.jsx";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import NedMark from "./NedMark.jsx";
@@ -948,7 +949,10 @@ export default function App({ user, onSignOut }) {
   // Internal materials-margin reveal (ADR 0011): ephemeral, default hidden, never
   // persisted, never printed. Resets when switching projects (customer-safe).
   const [showMargin, setShowMargin] = useState(false);
-  useEffect(() => { setViewTab("edit"); setShowMargin(false); }, [selId]);
+  // Copy-for-order-entry panel (special-order + stock, formatted for pasting
+  // into the vendor order program). Ephemeral, read-only, never printed.
+  const [showOrderCopy, setShowOrderCopy] = useState(false);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -2405,6 +2409,7 @@ export default function App({ user, onSignOut }) {
                               </div>
                             </div>
                           )}
+                          <button onClick={() => setShowOrderCopy(true)} className="h-[30px] w-full flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><Copy size={14} /> Copy for order entry</button>
                           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 96px" }}>
                             <button onClick={() => setPrintMode("order")} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
                             <button onClick={() => setPrintMode("estimate")} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
@@ -3017,6 +3022,12 @@ export default function App({ user, onSignOut }) {
         </Modal>
       )}
 
+      {showOrderCopy && sel && sel._full && (() => {
+        const rows = [];
+        (sel.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
+        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={rows.filter((r) => !r.special)} onClose={() => setShowOrderCopy(false)} />;
+      })()}
+
       {custModal && (() => {
         const c = data.people.find((x) => x.id === custModal);
         if (!c) return null;
@@ -3175,6 +3186,31 @@ function Modal({ title, children, onClose }) {
       </div>
     </div>
   );
+}
+
+// One product row → the fields the order-entry panel shows. Special-order rows
+// (bookId set) carry a snapshotted cost; the sell is the row's line total, so
+// the implied cost is sell ÷ (1 + markup/100) — unit-agnostic, matching
+// specialOrderMargin. Per-unit values are the extended totals ÷ ordered qty, so
+// carton- and sf-billed rows read consistently. Read-only; no math is mutated.
+function orderEntryRow(p, s, area) {
+  const c = printProduct(p, s);
+  const isMisc = p.type === "misc";
+  const qty = isMisc ? miscQty(p) : (c.C ? c.C.order : num(p.qty));
+  const unit = isMisc ? "ea" : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : "units"));
+  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${String(p.cartonUnit || "CT").toUpperCase()}` : "";
+  const extSell = c.line;
+  const markupPct = num(p.markupPct);
+  const extCost = markupPct > 0 ? extSell / (1 + markupPct / 100) : extSell;
+  const copy = [c.size, p.brandColor, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  return {
+    id: p.id, special: !!p.bookId, area,
+    size: c.size, name: p.brandColor, sku: p.sku, coverage,
+    qty, unit, qtyText: qty > 0 ? `${qty} ${unit}` : "—",
+    perCost: qty > 0 ? extCost / qty : 0, extCost,
+    perSell: qty > 0 ? extSell / qty : 0, extSell,
+    copy,
+  };
 }
 
 // The shared team issue / to-do list (issue 006). Open items are ordered by
