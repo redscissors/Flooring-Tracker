@@ -105,6 +105,10 @@ body {
 .ft-mono{font-family:var(--ft-mono);}
 .ft-eyebrow{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);}
 .ft-eyebrow-accent{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.16em;color:var(--ft-brand-deep);}
+/* Materials "not calculating" warning — deliberately orange, a step hotter
+   than the amber drift/freight notices (spec 2026-07-14). */
+.ft-warn-orange{color:#C2410C;}
+.ned-dark .ft-warn-orange{color:#FB923C;}
 /* "the ned" wordmark lockups (pure type). Stacked is primary: "the" in moss
    sits snug above the "n" (negative margin absorbs the font leading). Inline
    is for horizontal spaces (print footer). Size via font-size on the root. */

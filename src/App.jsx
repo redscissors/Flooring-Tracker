@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from 
 import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
+import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
@@ -2538,6 +2538,11 @@ export default function App({ user, onSignOut }) {
                         const matExpanded = !!matOpen[p.id];
                         const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
                         const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
+                        const warns = materialWarnings(p, settings);
+                        const WLBL = { grout: "Grout", mortar: "Mortar", underlay: underlayLabel(p.type), install: "Install materials" };
+                        // The strip shows uncomputed grout as a name with no number;
+                        // when it's being warned about, the warning replaces that ghost.
+                        const stripMats = pInline.filter((m) => !(m.kind === "Grout" && m.order <= 0 && warns.includes("grout")));
                         const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked);
                         const openMats = () => setMatOpen({ [p.id]: true });
                         const closeMats = () => setMatOpen({});
@@ -2730,7 +2735,7 @@ export default function App({ user, onSignOut }) {
                                 signalling the drawer must be clicked out of — and folds it
                                 when clicked. Each material shows checked (full controls) or
                                 unchecked (slim card, click ✓ to add). */}
-                            {(pInline.length > 0 || (!hasMats && addables.length > 0) || p.note || (matExpanded && p.type !== "misc")) && (
+                            {(pInline.length > 0 || warns.length > 0 || (!hasMats && addables.length > 0) || p.note || (matExpanded && p.type !== "misc")) && (
                             <div style={{ position: "relative" }}>
                             {matExpanded && p.type !== "misc" && (
                               <>
@@ -2865,12 +2870,17 @@ export default function App({ user, onSignOut }) {
                               </div>
                               </>
                             )}
-                            {pInline.length > 0 && (
+                            {(stripMats.length > 0 || warns.length > 0) && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
                               <button onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
-                                {pInline.map((m, i) => (
+                                {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
+                                  </span>
+                                ))}
+                                {warns.map((w) => (
+                                  <span key={w} className="ft-warn-orange inline-flex items-center font-semibold" style={{ gap: 4 }}>
+                                    <AlertTriangle size={10} /> {WLBL[w]} — not calculating
                                   </span>
                                 ))}
                                 <span className="flex-1" />
@@ -2879,7 +2889,7 @@ export default function App({ user, onSignOut }) {
                               {p.note ? noteInput : null}
                               </div>
                             )}
-                            {pInline.length === 0 && !hasMats && addables.length > 0 && (
+                            {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
                               <button onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
@@ -2887,7 +2897,7 @@ export default function App({ user, onSignOut }) {
                               {p.note ? noteInput : null}
                               </div>
                             )}
-                            {pInline.length === 0 && (hasMats || addables.length === 0) && p.note && (
+                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0) && p.note && (
                               <div className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
                                 {noteInput}
                               </div>
