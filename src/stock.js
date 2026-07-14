@@ -9,6 +9,7 @@
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const round2 = (n) => Math.round(n * 100) / 100;
+const round4 = (n) => Math.round(n * 10000) / 10000;
 
 export const normStockItem = (row) => ({
   sku: str(row.sku),
@@ -163,7 +164,18 @@ export function stockPatch(item, product) {
     patch.qtyType = "sqft";
     patch.brandColor = label(item);
     if (psf != null) patch.priceSqft = String(round2(psf));
-    if (item.sfPerUnit > 0 && !looseOrder) { patch.cartonSf = String(item.sfPerUnit); patch.cartonUnit = orderUnit || "CT"; }
+    if (item.sfPerUnit > 0 && !looseOrder) {
+      // sfPerUnit is SF/CT — coverage per CARTON. When the sell unit is a sheet
+      // (a mosaic's "No Broken U/M" = SH), one sheet covers SF/CT ÷ pieces-per-
+      // carton, not the whole carton; without this the row orders ~PC/CT× too
+      // few sheets and rounds to full-carton chunks (VTC EFT books). Stock-book
+      // items carry no pcPerUnit, so their per-sheet coverage is left as-is.
+      const perSell = /^(sh|sht|sheet)s?$/i.test(orderUnit) && item.pcPerUnit > 0
+        ? round4(item.sfPerUnit / item.pcPerUnit)
+        : item.sfPerUnit;
+      patch.cartonSf = String(perSell);
+      patch.cartonUnit = orderUnit || "CT";
+    }
     if (item.type === "tile") {
       const lw = parseTileSize(item.size);
       if (lw) { patch.L = lw[0]; patch.W = lw[1]; }

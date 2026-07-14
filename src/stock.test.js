@@ -68,6 +68,20 @@ test("a mosaic sold by the sheet (only a sheet price) still fills as tile, deriv
   assert.equal(patch.cartonUnit, "SH");
 });
 
+test("a sheet-sold order-book mosaic snapshots per-sheet coverage, not per-carton (SF/CT ÷ PC/CT)", () => {
+  // VTC EFT: SF/CT (9.72) is coverage per CARTON; No Broken U/M = SH sells a
+  // single sheet, and PC/CT (12) sheets make a carton — so one sheet covers
+  // 9.72 / 12 = 0.81 SF, not 9.72. Real row MRZMC57MOSHEX (Moroccan Concrete).
+  const item = { sku: "MRZMC57MOSHEX", type: "tile", orderUnit: "SH", priceUnit: "SF", sfPerUnit: 9.72, pcPerUnit: 12, priceSqft: 5.55, size: '1-1/2" Hex' };
+  const patch = stockPatch(item, {});
+  assert.equal(patch.cartonUnit, "SH");
+  assert.equal(patch.cartonSf, "0.81"); // 9.72 ÷ 12 sheets, not the full carton
+  assert.equal(patch.priceSqft, "5.55"); // price is per sq ft — unaffected
+  // A carton-sold sibling (8" hex, No Broken = CT) keeps full-carton coverage.
+  const cart = { sku: "MRZMC57HEX8N", type: "tile", orderUnit: "CT", priceUnit: "SF", sfPerUnit: 9.27, pcPerUnit: 25, priceSqft: 3.43 };
+  assert.equal(stockPatch(cart, {}).cartonSf, "9.27");
+});
+
 test("a hex tile snapshots the vendor size and derives a square L×W for grout/mortar (ticket 009)", () => {
   const it = normStockItem({ sku: "CLNL270", data: { type: "tile", unit: "CT", size: '2" Hex', description: "Colonial Collection Presidential Grey", price: 10, priceSqft: 5 } });
   const patch = stockPatch(it, {});
