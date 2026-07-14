@@ -44,9 +44,10 @@ const Amount = ({ per, ext, unit }) => (
 );
 
 export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
-  // Provisional bulk format for stock (final column spec pending): one
-  // tab-separated line per item — SKU · qty · description.
-  const stockBulk = stock.map((r) => [r.sku, r.qtyText, r.name].map((x) => String(x || "").trim()).join("\t")).join("\n");
+  // Bulk copy for stock: one line per item, SKU then a tab then the bare order
+  // quantity — the format the shop's order desk pastes (SKU⇥qty), matching the
+  // Cut & Order tool. No unit, no description; just what the entry program reads.
+  const stockBulk = stock.map((r) => `${r.sku}\t${r.qty}`).join("\n");
 
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
@@ -104,7 +105,7 @@ export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
                     <span className="truncate flex-1">{r.name}</span>
                   </div>
                 ))}
-                <div className="px-3 py-1.5 text-[11px] text-slate-400">Bulk copy format is provisional — final column layout pending.</div>
+                <div className="px-3 py-1.5 text-[11px] text-slate-400">"Copy all" copies each line as SKU + tab + quantity, ready to paste.</div>
               </div>
             )}
           </section>
