@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -764,4 +764,50 @@ test("custom install items carry a sku through normalize and into getUnderlayIns
   const old = getUnderlayInstall(hb(), plain).find((m) => m.kind === "custom");
   assert.equal(old.sku, "");
   assert.equal(old.order, Math.ceil(200 * 1.1 / 75));
+});
+
+// --- materials-not-calculating warnings (spec 2026-07-14) --------------------------
+
+test("materialWarnings: checked materials that can't compute, SF-missing suppression", () => {
+  const s = normalizeSettings(undefined);
+  const mk = (over = {}, grout = {}, mortar = {}, underlay = {}) => ({
+    type: "tile", qtyType: "sqft", qty: "100", L: "12", W: "12", thickness: "0.375",
+    grout: { checked: true, product: "PermaColor Select", joint: 0.125, manual: "", ...grout },
+    mortar: { checked: true, product: "ProLite", manual: "", ...mortar },
+    underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {}, ...underlay },
+    ...over,
+  });
+  // Everything computes → no warnings.
+  assert.deepEqual(materialWarnings(mk(), s), []);
+  // The mosaic case: SF entered but no L/W → grout AND mortar can't compute.
+  assert.deepEqual(materialWarnings(mk({ L: "", W: "" }), s), ["grout", "mortar"]);
+  // A typed manual total silences that material's warning.
+  assert.deepEqual(materialWarnings(mk({ L: "", W: "" }, { manual: "3" }), s), ["mortar"]);
+  // SF missing suppresses everything — the SF cell's amber ring owns that state.
+  assert.deepEqual(materialWarnings(mk({ L: "", W: "", qty: "" }), s), []);
+  // Unchecked materials never warn.
+  assert.deepEqual(materialWarnings(mk({ L: "", W: "" }, { checked: false }, { checked: false }), s), []);
+  // Misc rows never warn.
+  assert.deepEqual(materialWarnings(mk({ type: "misc", L: "", W: "" }), s), []);
+});
+
+test("materialWarnings: underlayment and install-material failures", () => {
+  const s = normalizeSettings(undefined);
+  const mk = (underlay) => ({
+    type: "vinyl", qtyType: "sqft", qty: "100", L: "", W: "", thickness: "",
+    grout: { checked: false, product: "", joint: 0.125, manual: "" },
+    mortar: { checked: false, product: "", manual: "" },
+    underlay: { checked: true, product: "", manual: "", install: false, installMortars: {}, installSkip: {}, ...underlay },
+  });
+  // Unknown product → no coverage to compute from.
+  assert.deepEqual(materialWarnings(mk({ product: "No Such Underlayment" }), s), ["underlay"]);
+  // A known product computes.
+  const known = Object.keys(s.underlayments).find((n) => s.underlayments[n].coverage > 0);
+  assert.deepEqual(materialWarnings(mk({ product: known }), s), []);
+  // Install materials included but none computable (all defs' coverage zeroed).
+  const s2 = normalizeSettings(undefined);
+  const hardie = s2.catalog.companies.find((c) => c.name === "James Hardie").underlayments.find((u) => u.name === "HardieBacker");
+  hardie.install = hardie.install.map((m) => ({ ...m, coverage: 0 }));
+  const s3 = { ...s2, ...resolveCatalog(s2.catalog) };
+  assert.deepEqual(materialWarnings(mk({ product: "HardieBacker", install: true }), s3), ["install"]);
 });

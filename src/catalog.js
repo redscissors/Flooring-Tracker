@@ -203,6 +203,27 @@ export function getUnderlayInstall(p, s) {
   return out.length ? out : null;
 }
 
+// The row-level "not calculating" warnings (spec 2026-07-14). A checked
+// material whose getter yields nothing is silently missing from the estimate;
+// this names them so the UI can warn. Suppressed entirely while the row has
+// no square footage — every fresh row starts that way, and the SF input's own
+// highlight covers it — so a warning always means "SF is entered but this
+// material still can't compute" (dims, thickness, or coverage).
+export function materialWarnings(p, s) {
+  if (p.type === "misc") return [];
+  if (p.qtyType === "sqft" && !num(p.qty)) return [];
+  const out = [];
+  if (p.type === "tile" && p.grout?.checked && !getGrout(p, s)) out.push("grout");
+  if (p.type === "tile" && p.mortar?.checked && !getMortar(p, s)) out.push("mortar");
+  const U = getUnderlay(p, s);
+  if (p.underlay?.checked && (!U || !U.product)) out.push("underlay");
+  if (U && U.product && p.underlay?.install) {
+    const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((d) => !p.underlay.installSkip?.[d.id]);
+    if (defs.length && !getUnderlayInstall(p, s)) out.push("install");
+  }
+  return out;
+}
+
 // --- Catalog (Company → Product) — ADR 0002 ----------------------------------
 // The catalog is the source of truth for which grout/mortar products exist and
 // their numbers. Jobs link to a product by NAME only; the math resolves a name
