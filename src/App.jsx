@@ -73,7 +73,7 @@ const StockHit = ({ it }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
-      <span className="text-xs font-medium truncate flex-1">{it.description || it.product || it.section}</span>
+      <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product || it.section}</span>
     </div>
     <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
       <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
@@ -90,7 +90,7 @@ const OrderHit = ({ it, bookName }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
-      <span className="text-xs font-medium truncate flex-1">{it.description || it.product}</span>
+      <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product}</span>
       <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
     <div className="flex items-baseline gap-1.5 text-[11px]">
