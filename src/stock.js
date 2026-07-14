@@ -132,9 +132,11 @@ export function deriveSquareDim(item) {
   if (MOSAIC_RE.test(text)) return null;
   if (TRIMISH_RE.test(text)) return null;
   if (LINEAR_UNIT_RE.test(orderUnitOf(item)) || LINEAR_UNIT_RE.test(priceUnitOf(item))) return null;
-  const m = size.match(/(\d+(?:\.\d+)?)/);
+  // The chip dimension can be a mixed fraction ('1-1/2" Hex') or a bare one
+  // ('3/4" Penny') — bare tries first so the match can't stop at the "3" of "3/4".
+  const m = size.match(/(\d+)\/(\d+)|(\d+(?:\.\d+)?)(?:-(\d+)\/(\d+))?/);
   if (!m) return null;
-  const n = parseFloat(m[1]);
+  const n = m[1] ? +m[1] / +m[2] : parseFloat(m[3]) + (m[4] ? +m[4] / +m[5] : 0);
   if (!(n > 0) || n > 24) return null;
   return n;
 }

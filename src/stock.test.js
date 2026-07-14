@@ -104,6 +104,20 @@ test("deriveSquareDim: the 94\" trim-stick firewall and mosaic/oversize carve-ou
   assert.equal(deriveSquareDim(normStockItem({ sku: "y", data: { type: "hardwood", size: '2" Hex' } })), null);
 });
 
+test("deriveSquareDim reads a mixed-fraction chip dimension (ticket 010)", () => {
+  const tile = (over) => normStockItem({ sku: "x", data: { type: "tile", ...over } });
+  assert.equal(deriveSquareDim(tile({ size: '1-1/2" Hex' })), 1.5);
+  assert.equal(deriveSquareDim(tile({ size: '3/4" Penny' })), 0.75);
+});
+
+test("a fraction hex chip fills sizeText and the derived square L/W (ticket 010)", () => {
+  const it = normStockItem({ sku: "MRZMC50MOSHEX", data: { type: "tile", unit: "SH", size: '1-1/2" Hex', description: "Moroccan Conc Off White Mos", price: 5.55, priceSqft: 5.55, sfPerUnit: 9.72 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.sizeText, '1-1/2" Hex');
+  assert.equal(patch.L, "1.5");
+  assert.equal(patch.W, "1.5");
+});
+
 test("a 94\" hex reducer fills free-text sizeText with no derived L/W (ticket 009 guard)", () => {
   const it = normStockItem({ sku: "R94", data: { type: "tile", unit: "LF", size: '94" Hex', description: "Reducer Oak", price: 20, priceSqft: 3 } });
   const patch = stockPatch(it, {});
