@@ -7,7 +7,11 @@
 // A per-line copy button grabs the whole item (tag included) and then stays a
 // green check, so you can track which specials you've already keyed. Stock
 // lines follow with per-line checkboxes plus "Copy all" / "Copy selected",
-// each line as SKU⇥quantity (the order desk's Cut & Order format).
+// each line as SKU⇥quantity (the order desk's Cut & Order format). The
+// estimated materials (mortar, grout, grout base, caulk, underlayment) are
+// stock items too, so they ride the same list — labeled with their kind —
+// and one "Copy all" pastes the whole order. A line with no SKU can't be
+// keyed, so it shows red and is left out of the copies.
 //
 // Pure presentation: App.jsx builds the row objects (orderEntryRow) from the
 // snapshotted product rows and passes them in. Nothing here mutates state,
@@ -95,16 +99,49 @@ function SpecialRow({ r, alt }) {
   );
 }
 
-export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
+// Checkbox list with "Copy all" / "Copy selected": one line per item, SKU then
+// a tab then the bare order quantity — the format the shop's order desk pastes
+// (SKU⇥qty), matching Cut & Order. A row with no SKU shows red and stays out
+// of the copies — a pasted blank would key the wrong thing silently.
+function CopySection({ title, rows, emptyText, hint }) {
   const [sel, setSel] = useState(() => new Set());
   const toggle = (id) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-
-  // Stock copies: one line per item, SKU then a tab then the bare order quantity
-  // — the format the shop's order desk pastes (SKU⇥qty), matching Cut & Order.
   const line = (r) => `${r.sku}\t${r.qty}`;
-  const stockBulk = stock.map(line).join("\n");
-  const stockSelected = stock.filter((r) => sel.has(r.id)).map(line).join("\n");
+  const copyable = rows.filter((r) => r.sku);
+  const bulk = copyable.map(line).join("\n");
+  const selected = copyable.filter((r) => sel.has(r.id)).map(line).join("\n");
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500">{title} · {rows.length}</h4>
+        {rows.length > 0 && (
+          <div className="flex items-center gap-2">
+            <CopyBtn text={bulk} label="Copy all" />
+            <CopyBtn text={selected} disabled={sel.size === 0} label={sel.size ? `Copy selected (${sel.size})` : "Copy selected"} />
+          </div>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">{emptyText}</p>
+      ) : (
+        <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+          {rows.map((r) => (
+            <label key={r.id} className={"flex items-center gap-2 px-3 py-2 text-[12.5px] " + (r.sku ? "cursor-pointer hover:bg-slate-50" : "cursor-default")}>
+              <span className={"ft-mono shrink-0 w-24 truncate " + (r.sku ? "text-slate-400" : "font-semibold text-red-600")} title={r.sku}>{r.sku || "no SKU"}</span>
+              <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}>{r.qtyText}</span>
+              <span className={"truncate flex-1" + (r.sku ? "" : " text-red-600")}>{r.name}{r.kind && <span className={"text-[11px] " + (r.sku ? "text-slate-400" : "text-red-400")}> {r.kind}</span>}</span>
+              <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} disabled={!r.sku}
+                className="w-[17px] h-[17px] shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default" style={{ accentColor: "var(--ft-brand)" }} />
+            </label>
+          ))}
+          <div className="px-3 py-1.5 text-[11px] text-slate-400">{hint}{copyable.length < rows.length && <span className="text-red-600"> Red lines have no SKU and are not copied.</span>}</div>
+        </div>
+      )}
+    </section>
+  );
+}
 
+export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
@@ -139,34 +176,9 @@ export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
             )}
           </section>
 
-          {/* Stock — check the lines you want, then Copy all / Copy selected */}
-          <section>
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500">Stock · {stock.length}</h4>
-              {stock.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <CopyBtn text={stockBulk} label="Copy all" />
-                  <CopyBtn text={stockSelected} disabled={sel.size === 0} label={sel.size ? `Copy selected (${sel.size})` : "Copy selected"} />
-                </div>
-              )}
-            </div>
-            {stock.length === 0 ? (
-              <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">No stock items in this project.</p>
-            ) : (
-              <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-                {stock.map((r) => (
-                  <label key={r.id} className="flex items-center gap-2 px-3 py-2 text-[12.5px] cursor-pointer hover:bg-slate-50">
-                    <span className="ft-mono text-slate-400 shrink-0 w-24 truncate" title={r.sku}>{r.sku || "—"}</span>
-                    <span className="ft-mono font-semibold shrink-0 w-14">{r.qtyText}</span>
-                    <span className="truncate flex-1">{r.name}</span>
-                    <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)}
-                      className="w-[17px] h-[17px] shrink-0 cursor-pointer" style={{ accentColor: "var(--ft-brand)" }} />
-                  </label>
-                ))}
-                <div className="px-3 py-1.5 text-[11px] text-slate-400">Each line copies as SKU + tab + quantity, ready to paste.</div>
-              </div>
-            )}
-          </section>
+          {/* Stock — products + estimated materials; check lines, then Copy all / Copy selected */}
+          <CopySection title="Stock" rows={stock} emptyText="No stock items in this project."
+            hint="Each line copies as SKU + tab + quantity, ready to paste." />
         </div>
       </div>
     </div>
