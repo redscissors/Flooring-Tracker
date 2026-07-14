@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
-  bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin,
+  bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -330,4 +330,30 @@ test("specialOrderMargin: ignores zero/blank sell lines and handles empty input"
 test("specialOrderMargin: accepts string sell/markup (row fields are strings)", () => {
   const r = specialOrderMargin([{ sell: "1000", markupPct: "25" }]);
   assert.equal(r.margin, 200);
+});
+
+test("orderFloorFirst: the searched code's floor leads, then its trims", () => {
+  // A color-code search returns the floor (exact SKU) plus trims that carry the
+  // code in their text. The server may rank a trim first; the floor must lead.
+  const res = [
+    { sku: "384421", type: null, description: "… — Quarter Round · fits APX020" },
+    { sku: "APX020", type: "vinyl", description: "Adura Apex Spalted Wych Elm Dew" },
+    { sku: "384469", type: null, description: "… — Reducer · fits APX020" },
+  ];
+  const out = orderFloorFirst(res, "APX020");
+  assert.equal(out[0].sku, "APX020");           // exact-SKU floor first
+  assert.deepEqual(out.slice(1).map((i) => i.sku), ["384421", "384469"]); // trims keep server order
+});
+
+test("orderFloorFirst: floors outrank trims even with no exact SKU hit", () => {
+  const res = [
+    { sku: "384470", type: null, description: "Oak Reducer" },
+    { sku: "APX999", type: "laminate", description: "Oak plank" },
+  ];
+  assert.deepEqual(orderFloorFirst(res, "oak").map((i) => i.sku), ["APX999", "384470"]);
+});
+
+test("orderFloorFirst: stable and safe on empty/undefined", () => {
+  assert.deepEqual(orderFloorFirst([], "x"), []);
+  assert.deepEqual(orderFloorFirst(undefined, "x"), []);
 });

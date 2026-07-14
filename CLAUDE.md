@@ -46,6 +46,10 @@ src/
                     # + generic mapped import for order/registry books (ADR 0009)
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
                     # header-driven per page, feeds the mapped import (ADR 0010)
+  manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,
+                    # fixed x-band grid (leftmost col is Pattern, not the code);
+                    # floors keyed by Color Code, trims imported as their own
+                    # transition products keyed by Catalog # (ADR 0012)
   stock.js          # stock search / SKU fill / drift / import diff / catalog sync
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
