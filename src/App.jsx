@@ -2001,6 +2001,15 @@ export default function App({ user, onSignOut }) {
   // from gList — not per line — and their cost joins the grout family's.
   const bList = groutBaseList(gList, settings);
   const baseCost = bList.reduce((t, b) => t + b.cost, 0);
+  // Every estimated material line with an order quantity, flattened and labeled
+  // — shared by the printed order sheet and the order-entry panel.
+  const matLines = [
+    ...mList.filter((m) => m.order > 0).map((m) => ({ ...m, kind: "Mortar" })),
+    ...gList.filter((g) => g.order > 0).map((g) => ({ ...g, product: `${g.product}${g.color !== "—" ? ` — ${g.color}` : ""}`, kind: "Grout" })),
+    ...bList.filter((b) => b.order > 0).map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
+    ...cList.filter((c) => c.order > 0).map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
+    ...uList.filter((u) => u.order > 0).map((u) => ({ ...u, kind: "Underlayment" })),
+  ];
   const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + baseCost + caulkCost + mortarCost + underlayCost + miscCost;
   // Internal materials margin over special-order rows only (ADR 0011 / 0009 §8.1):
   // those snapshot a cost. Each row's sell mirrors its flooring/misc line total,
@@ -2996,11 +3005,7 @@ export default function App({ user, onSignOut }) {
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
                   </tr>
                 ); }))}
-                {[...mList.filter((m) => m.order > 0).map((m) => ({ ...m, kind: "Mortar" })),
-                  ...gList.filter((g) => g.order > 0).map((g) => ({ ...g, product: `${g.product}${g.color !== "—" ? ` — ${g.color}` : ""}`, kind: "Grout" })),
-                  ...bList.filter((b) => b.order > 0).map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
-                  ...cList.filter((c) => c.order > 0).map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
-                  ...uList.filter((u) => u.order > 0).map((u) => ({ ...u, kind: "Underlayment" }))].map((m, i) => (
+                {matLines.map((m, i) => (
                   <tr key={"mat" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2">{m.product} <span className="text-slate-400 text-[10.5px]">{m.kind}</span></td>
@@ -3038,7 +3043,8 @@ export default function App({ user, onSignOut }) {
       {showOrderCopy && sel && sel._full && (() => {
         const rows = [];
         (sel.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
-        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={rows.filter((r) => !r.special)} onClose={() => setShowOrderCopy(false)} />;
+        const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
+        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={rows.filter((r) => !r.special)} materials={mats} onClose={() => setShowOrderCopy(false)} />;
       })()}
 
       {custModal && (() => {
