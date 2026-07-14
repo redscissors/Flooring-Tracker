@@ -196,6 +196,27 @@ export function mergeSearch(stockMatches, orderMatches) {
   return { stock: stockMatches || [], order };
 }
 
+// --- result ordering: flooring before its trims (ADR 0012) -------------------
+
+// Re-rank order-search results so a floor covering outranks the trims that match
+// it. On a book like Mannington a trim/molding carries its parent floor's code
+// in its description, so searching that code returns the floor AND its reducers,
+// T-molds, stair-noses. The salesperson wants the floor first. A stable sort on
+// three tiers preserves the server's similarity order within each tier:
+//   0  the row whose SKU is exactly the query (the floor being looked up)
+//   1  any floor covering (has a flooring `type`)
+//   2  everything else (trims/accessories — `type` null)
+// Non-code queries ("reducer oak") have no exact-SKU hit and usually match only
+// trims, so tiers 0/1 are empty and the order is unchanged.
+export function orderFloorFirst(results, query) {
+  const q = str(query).toLowerCase();
+  const tier = (it) => (q && str(it?.sku).toLowerCase() === q ? 0 : it?.type ? 1 : 2);
+  return (results || [])
+    .map((it, i) => [it, i])
+    .sort((a, b) => tier(a[0]) - tier(b[0]) || a[1] - b[1])
+    .map(([it]) => it);
+}
+
 // --- import diff -------------------------------------------------------------
 
 // The item fields whose change makes a re-import a "changed" row. Order books

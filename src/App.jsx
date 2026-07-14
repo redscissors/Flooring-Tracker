@@ -6,7 +6,8 @@ import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutE
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin } from "./orderbook.js";
+import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -1600,7 +1601,7 @@ export default function App({ user, onSignOut }) {
       const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
       if (fuzzyRpc.current) {
         const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: 0.3, p_limit: SKU_SHOW * 2 });
-        if (!error) return price(rows);
+        if (!error) return orderFloorFirst(price(rows), q);
         // PGRST202 / 42883 = undefined_function: the fuzzy migration isn't run yet.
         if (error.code !== "PGRST202" && error.code !== "42883") throw error;
         fuzzyRpc.current = false;
@@ -1609,7 +1610,7 @@ export default function App({ user, onSignOut }) {
       for (const grp of groups) query = query.or(grp.flatMap((alt) => fields.map((f) => `${f}.ilike.%${alt}%`)).join(","));
       const { data: rows, error } = await query;
       if (error) throw error;
-      return price(rows);
+      return orderFloorFirst(price(rows), q);
     };
   }, [orderBooks]);
   // The distinct (book, SKU) pairs the open project's order rows reference, as
@@ -3846,7 +3847,12 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
           const content = await page.getTextContent();
           pages.push(content.items.filter((i) => i.str && i.str.trim()).map((i) => ({ str: i.str, x: i.transform[4], y: vh - i.transform[5], w: i.width })));
         }
-        const { name, rows, mapping } = parsePdfPages(pages, f.name.replace(/\.pdf$/i, ""));
+        // Mannington's account price list leads each row with Pattern, not the
+        // item code, so the generic header-driven reader finds no table; its
+        // fixed grid gets a dedicated parser (ADR 0012) that emits the same
+        // canonical shape. Every other text PDF stays on parsePdfPages.
+        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : parsePdfPages;
+        const { name, rows, mapping } = parsePdf(pages, f.name.replace(/\.pdf$/i, ""));
         setSheets([{ name, rows }]);
         applyDetected({ sheet: name, ...mapping });
         setReading(false);
