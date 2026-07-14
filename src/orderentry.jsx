@@ -18,10 +18,10 @@ import { useState } from "react";
 import { Copy, Check, X } from "lucide-react";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-// "Copied / done" affordance — a self-contained green chip. Set inline rather
-// than via Tailwind's emerald utilities, which this theme's build does not
-// render green; a fixed light-green chip reads on both the light and dark panel.
-const DONE_GREEN = { color: "#047857", background: "#ECFDF5", borderColor: "#6EE7B7" };
+// "Copied / done" affordance — a filled moss chip matching the stock rows'
+// checkboxes (accent-color: --ft-brand), white check on moss. Set inline rather
+// than via Tailwind's emerald utilities, which this theme's build does not render.
+const DONE_MOSS = { color: "#fff", background: "var(--ft-brand)", borderColor: "var(--ft-brand)" };
 // Cost/sell read in the sell unit; "SF" shows lowercase to match the estimate's
 // "/sf", the rest stay uppercase codes (CT/SH/PC/EA).
 const perUnit = (code) => "/" + (code === "SF" ? "sf" : code);
@@ -43,7 +43,7 @@ export function CopyBtn({ text, label = "Copy", disabled = false, className = ""
     setDone(true); setTimeout(() => setDone(false), 1400);
   };
   return (
-    <button onClick={copy} disabled={disabled || !text} style={done ? DONE_GREEN : undefined}
+    <button onClick={copy} disabled={disabled || !text} style={done ? DONE_MOSS : undefined}
       className={"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold border transition-colors disabled:opacity-40 disabled:cursor-default " + (done ? "" : "border-slate-200 hover:bg-slate-50 ") + className}>
       {done ? <><Check size={13} /> Copied</> : <><Copy size={13} /> {label}</>}
     </button>
@@ -70,7 +70,7 @@ function SpecialRow({ r, alt }) {
   return (
     <div style={{ ...GRID, padding: "9px 12px", background: alt ? "var(--ft-prod)" : "transparent" }}
       className="border-t border-slate-100 first:border-t-0">
-      <button onClick={copy} title="Copy this line" style={copied ? DONE_GREEN : undefined}
+      <button onClick={copy} title="Copy this line" style={copied ? DONE_MOSS : undefined}
         className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
           (copied ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
         {copied ? <Check size={15} /> : <Copy size={14} />}
