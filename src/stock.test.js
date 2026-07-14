@@ -177,6 +177,25 @@ test("'transition' matches the book's trim profile labels", () => {
   assert.deepEqual(searchStock(items, "napa transition").map((i) => i.sku), ["13137", "13165"]);
 });
 
+test("searchStock tolerates a misspelled word (trigram fuzzy)", () => {
+  const items = [
+    item({ sku: "13137", description: "Napa Tannin — Reducer", brand: "Mannington Aduramax" }),
+    item({ sku: "70011", description: "Carrara Porcelain Field Tile", brand: "Emser" }),
+    item({ sku: "23051", description: "Schluter All Set White" }),
+  ];
+  assert.deepEqual(searchStock(items, "reducar").map((i) => i.sku), ["13137"]); // typo for "reducer"
+  assert.deepEqual(searchStock(items, "porcelian").map((i) => i.sku), ["70011"]); // typo for "porcelain"
+  assert.deepEqual(searchStock(items, "zzzzz"), []); // nonsense matches nothing
+});
+
+test("searchStock ranks exact matches ahead of typo matches", () => {
+  const items = [
+    item({ sku: "A", description: "Reducar Brand Vinyl" }), // literally contains the typo
+    item({ sku: "B", description: "Napa Tannin — Reducer" }), // only a fuzzy match for "reducar"
+  ];
+  assert.deepEqual(searchStock(items, "reducar").map((i) => i.sku), ["A", "B"]);
+});
+
 // --- import diff ------------------------------------------------------------------
 
 test("diffStock: added / changed / missing / unchanged, and re-activation counts as a change", () => {

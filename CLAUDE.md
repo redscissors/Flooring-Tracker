@@ -48,6 +48,8 @@ src/
                     # header-driven per page, feeds the mapped import (ADR 0010)
   stock.js          # stock search / SKU fill / drift / import diff / catalog sync
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
+  fuzzy.js          # trigram similarity (pg_trgm-faithful) for in-memory search
+                    # (ADR 0009 §6, Option A client-side; shared by searchStock)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS

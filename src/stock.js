@@ -6,6 +6,9 @@
 // keep the price they were quoted at. The row remembers its `sku`, which lets
 // the UI flag price drift against the current stock list and offer a refresh.
 
+import { expand } from "./synonyms.js";
+import { similarity, FUZZY_THRESHOLD } from "./fuzzy.js";
+
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -41,29 +44,60 @@ export const stockData = ({ sku, active, updatedAt, ...data }) => data;
 // --- search -------------------------------------------------------------------
 
 const hay = (it) => [it.sku, it.description, it.brand, it.product, it.color, it.section, it.sheet, it.size, it.note].join(" ").toLowerCase();
+const tokens = (h) => h.match(/[a-z0-9]+/g) || [];
 
-// The price book labels transition pieces by profile (Reducer, T-Mold, End
-// Cap, Stairnose…), so the trade word "transition" would find nothing without
-// this synonym.
-const TRANSITION_RE = /transition|reducer|t-mold|end cap|stairnos|threshold/;
-const wordHit = (h, w) => (/^transitions?$/.test(w) ? TRANSITION_RE.test(h) : h.includes(w));
+// How well a typed word (with its synonyms) hits an item. Each alternate is
+// tried as an exact substring first — an exact hit scores 1 and short-circuits,
+// so the common case stays as fast as before and keeps its old behavior. Only
+// when nothing matches exactly do we fall to trigram similarity (the SAME
+// measure the order-book RPC uses), so "reducar" still finds "Reducer".
+// Returns 0 when the word doesn't match at all. Alternates under 3 chars skip
+// the fuzzy pass — too few trigrams to be anything but noise.
+const groupScore = (alts, h, toks) => {
+  for (const alt of alts) if (h.includes(alt)) return 1;
+  let best = 0;
+  for (const alt of alts) {
+    if (alt.length < 3) continue;
+    for (const tk of toks) {
+      const s = similarity(alt, tk);
+      if (s > best) best = s;
+    }
+  }
+  return best >= FUZZY_THRESHOLD ? best : 0;
+};
 
-// SKU prefix or every word somewhere in the item's text. Active items only —
-// a discontinued/removed item shouldn't be offered for new selections (rows
-// that already hold its SKU keep their snapshot regardless). Returns every
-// match; display code slices and says how many more there are.
+// SKU prefix (numeric query) or every typed word matching somewhere in the
+// item's text — exactly or, failing that, fuzzily (Option A) — with each word
+// expanded to its trade synonyms (Option D). Active items only: a discontinued/
+// removed item shouldn't be offered for new selections (rows that already hold
+// its SKU keep their snapshot regardless). Results are ranked so exact matches
+// come before typo matches; among equally-scored exact matches the input order
+// is preserved. Returns every match; display code slices and says how many more.
 export function searchStock(items, query) {
   const q = str(query).toLowerCase();
   if (q.length < 2) return [];
-  const words = q.split(/\s+/).filter(Boolean);
+  const numeric = /^\d+$/.test(q);
+  const groups = numeric ? null : q.split(/\s+/).filter(Boolean).map(expand);
   const out = [];
   for (const it of items) {
     if (!it.active || it.discontinued) continue;
+    if (numeric) {
+      if (it.sku.startsWith(q)) out.push({ it, score: 1 });
+      continue;
+    }
     const h = hay(it);
-    const ok = /^\d+$/.test(q) ? it.sku.startsWith(q) : words.every((w) => wordHit(h, w));
-    if (ok) out.push(it);
+    const toks = tokens(h);
+    let total = 0;
+    let ok = true;
+    for (const alts of groups) {
+      const s = groupScore(alts, h, toks);
+      if (!s) { ok = false; break; }
+      total += s;
+    }
+    if (ok) out.push({ it, score: total });
   }
-  return out;
+  out.sort((a, b) => b.score - a.score);
+  return out.map((r) => r.it);
 }
 
 export const findStock = (items, sku) => (str(sku) ? items.find((it) => it.sku === str(sku)) : null) || null;
