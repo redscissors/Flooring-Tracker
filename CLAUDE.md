@@ -272,7 +272,12 @@ gate — discipline is the only gate.
    (preview screenshot or prototype) before merge.
 
 Rationale, the change-classification table, and the sanctioned write paths live in
-the `floortrack-change-control` skill (`.claude/skills/`).
+`docs/skills-reference/floortrack-change-control/SKILL.md`. The whole
+`docs/skills-reference/` folder is the project's retired skill library
+(floortrack-* knowledge packs, /decide, /design-review, etc.) — no longer
+auto-triggering skills, but read them like any other doc when their topic
+comes up. `.claude/skills/` now holds the general-purpose superpowers
+workflow skills (MIT, from github.com/obra/superpowers).
 
 ## Not yet implemented
 
@@ -289,6 +294,6 @@ Default canonical label strings (`needs-triage`, `needs-info`, `ready-for-agent`
 Domain docs
 The project's north star lives at `docs/project-charter.md` (what it is, pillars, non-goals); the domain glossary lives at `docs/CONTEXT.md`; functional docs live under `docs/<area>/`. See `docs/agents/domain.md`.
 Design decisions
-Decisions that are hard to reverse, surprising, or trade-off-bearing are recorded as ADRs under `docs/adr/` (system-wide) or `docs/<area>/adr/` (area-scoped), indexed in `docs/adr/README.md`. When a decision lands mid-conversation, use `/decide` to record it and check it against the charter, glossary, and existing ADRs; use `/design-review` for a full pre-implementation grilling. Before contradicting a recorded decision or the charter, surface the conflict rather than silently overriding it.
+Decisions that are hard to reverse, surprising, or trade-off-bearing are recorded as ADRs under `docs/adr/` (system-wide) or `docs/<area>/adr/` (area-scoped), indexed in `docs/adr/README.md`. When a decision lands mid-conversation, record it following `docs/skills-reference/decide/SKILL.md` and check it against the charter, glossary, and existing ADRs; for a full pre-implementation grilling follow `docs/skills-reference/design-review/SKILL.md`. Before contradicting a recorded decision or the charter, surface the conflict rather than silently overriding it.
 Code Comments
 Be very conservative with comments. Do not explain code that an experienced developer can understand by reading it. Comments should be rare and reserved for non-obvious business rules, surprising constraints, external system quirks, workarounds, or decisions that would look wrong without context. Prefer deleting comments unless they prevent a likely misunderstanding.
