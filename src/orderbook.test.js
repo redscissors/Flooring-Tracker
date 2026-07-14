@@ -89,6 +89,21 @@ test("orderPatch: single-U/M items are unchanged (fallback to unit)", () => {
   assert.equal(patch.cartonUnit, "CT");
 });
 
+test("orderPatch: snapshots the per-sqft cost (costSqft) so the margin can't drift with the price", () => {
+  // Mannington Adura Max: $92.85/carton over 27.39 SF/CT → $3.39/sf cost.
+  const item = oi({ sku: "MAX010", type: "vinyl", unit: "BX", cost: 92.85, sfPerUnit: 27.39 });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.cost, "92.85");     // raw vendor carton cost, for drift
+  assert.equal(patch.costSqft, "3.39");  // 92.85 / 27.39, per sell unit
+});
+
+test("orderPatch: costSqft reads the split cost basis, and a misc line carries its per-each cost", () => {
+  const split = oi({ sku: "CER1", type: "tile", priceUnit: "SF", orderUnit: "CT", unit: "", cost: 3.29, sfPerUnit: 15.5 });
+  assert.equal(orderPatch(split, book(), {}).costSqft, "3.29");   // cost basis is SF, not carton
+  const misc = oi({ sku: "ACC1", type: null, unit: "EA", cost: 15, sfPerUnit: null });
+  assert.equal(orderPatch(misc, book(), {}).costSqft, "15");      // per-each cost for a flat line
+});
+
 // --- markup resolution -------------------------------------------------------
 
 test("resolveMarkup: a per-group override outranks the book default", () => {
@@ -343,6 +358,15 @@ test("specialOrderMargin: ignores zero/blank sell lines and handles empty input"
 test("specialOrderMargin: accepts string sell/markup (row fields are strings)", () => {
   const r = specialOrderMargin([{ sell: "1000", markupPct: "25" }]);
   assert.equal(r.margin, 200);
+});
+
+test("specialOrderMargin: a line's snapshotted cost anchors the margin, not the markup", () => {
+  // Cost $800; the salesperson discounts the $1000 sell to $900. The cost holds
+  // and the margin absorbs the cut — it does NOT keep 25% and push cost to $720.
+  const r = specialOrderMargin([{ sell: 900, cost: 800, markupPct: 25 }]);
+  assert.equal(r.cost, 800);            // vendor cost is fixed
+  assert.equal(r.margin, 100);          // 900 − 800, the shrunk margin
+  assert.equal(r.pct, 11.1);            // 100 / 900
 });
 
 test("orderFloorFirst: the searched code's floor leads, then its trims", () => {

@@ -129,6 +129,17 @@ export function resolveMarkup(markups, item) {
 // cost × (1 + pct/100), rounded like every other price.
 export const sellPrice = (cost, pct) => (cost == null ? null : round2(cost * (1 + (pct || 0) / 100)));
 
+// The per-sell-unit cost to snapshot onto a picked product row, parallel to the
+// row's priceSqft: the per-sqft cost for a typed (flooring) line, else the
+// per-each cost for a misc/flat line. Anchoring the row to this — instead of
+// re-deriving cost from the sale price via the markup — is what keeps a
+// hand-edited sale price moving the MARGIN, not the cost.
+export const rowCostSqft = (item) => {
+  if (!item || item.cost == null) return null;
+  const csf = item.type ? costSqft(item) : null;
+  return csf != null ? csf : item.cost;
+};
+
 // A stock-shaped item with price/priceSqft filled from cost × markup, so
 // search results and the pick-snapshot can treat it exactly like a stock item.
 // Also carries the resolved markupPct for display and the pick snapshot. A
@@ -157,6 +168,10 @@ export function orderPatch(item, book, product) {
   const patch = stockPatch(priced, product);
   patch.bookId = str(item.bookId || book?.id);
   patch.cost = item.cost != null ? String(item.cost) : "";
+  // Honest vendor cost per sell unit, carried alongside priceSqft so the margin
+  // reads off the real cost even after the sale price is hand-edited (ADR 0011).
+  const csf = rowCostSqft(item);
+  patch.costSqft = csf != null ? String(round2(csf)) : "";
   patch.markupPct = priced.markupPct != null ? String(priced.markupPct) : "";
   patch.freightFlag = !!item.freightFlag;
   const tier = item.tierPrices?.contractor;
@@ -314,18 +329,23 @@ export function bookStaleness(lastImportAt, thresholdDays = DEFAULT_STALE_DAYS, 
 // cent (the snapshotted priceSqft was already rounded). Stock/catalog rows carry
 // no cost and are excluded by the caller.
 //
-// `lines` = [{ sell, markupPct }] for special-order rows only. Returns the
-// summed sell, implied cost and margin dollars, and the blended margin as a
-// percent OF SELL (gross margin, not markup). ON SCREEN ONLY — the estimate
-// print must never show it (ADR 0009 §8.1 / §2.3).
+// `lines` = [{ sell, cost?, markupPct }] for special-order rows only. When a
+// line carries its snapshotted `cost` (the honest vendor cost), the margin is
+// sell − cost — so a hand-edited sale price shrinks the margin and never rewrites
+// the cost. Rows saved before that snapshot existed have no `cost` and fall back
+// to deriving it from the markup (the prior behavior, correct until a price is
+// edited). Returns the summed sell, implied cost and margin dollars, and the
+// blended margin as a percent OF SELL (gross margin, not markup). ON SCREEN
+// ONLY — the estimate print must never show it (ADR 0009 §8.1 / §2.3).
 export function specialOrderMargin(lines) {
   let sell = 0, margin = 0, n = 0;
   for (const l of lines || []) {
     const s = numOr(l?.sell, 0) || 0;
     if (s <= 0) continue;
-    const pct = numOr(l?.markupPct, 0) || 0;
     sell += s;
-    margin += pct > 0 ? (s * pct) / (100 + pct) : 0;
+    const cost = numOr(l?.cost, null);
+    if (cost != null) margin += s - cost;
+    else { const pct = numOr(l?.markupPct, 0) || 0; margin += pct > 0 ? (s * pct) / (100 + pct) : 0; }
     n++;
   }
   return {
