@@ -88,6 +88,16 @@ trim must **surface when its floor's Color Code is searched, floor first.**
   overrides. The Markup panel now lets you switch the group axis in place (from
   the columns the book actually fills), so changing how floors are grouped no
   longer needs a re-import.
+- A floor's picked name reads **"Mannington {collection} {pattern} {color}"**
+  (e.g. "Mannington Adura Max Acacia African Sunset"). Three parser refinements
+  feed it: the dealer **brand** ("Mannington") rides its own column so `label()`
+  fronts every picked line; the **collection** is cleaned to its tier — the
+  trailing format word (Plank / Rectangle / Tile / Hex) dropped and title-cased,
+  so "ADURA Max Plank" → "Adura Max" (which also merges Plank/Rectangle variants
+  into one markup group); and a **color that wraps to a second print line**
+  ("African" / "Sunset") is folded back into the full "African Sunset". A
+  re-import restates existing rows (brand/name/group change) through the normal
+  diff; saved estimates keep their snapshotted names.
 - The parser is **layout-specific by design.** A future Mannington re-format
   breaks it back to "0 rows recognized" (a visible warning), never to garbage —
   the same honesty guarantee every import path carries.

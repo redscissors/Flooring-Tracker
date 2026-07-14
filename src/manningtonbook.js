@@ -14,6 +14,10 @@
 // unchanged. Each page yields two kinds of canonical row:
 //   • flooring — SKU = Color Code (APX020), type vinyl/laminate, cost = the
 //     carton price with its SF/carton coverage so whole-carton ordering works.
+//     The name reads "Mannington {collection} {pattern} {color}" — the dealer
+//     brand fronts it (its own column), the collection is cleaned to the tier
+//     ("Adura Max", not "ADURA Max Plank"), and a color that wraps to a second
+//     print line ("African" / "Sunset") is folded back to "African Sunset".
 //   • trim     — SKU = Catalog # of the molding piece, type blank (a misc /
 //     transition line), cost = the header price for that trim column, and a
 //     `trim` marker (the "Kind" canonical column) so the book can price trims at
@@ -93,9 +97,9 @@ const cellIn = (items, lo, hi) => items.filter((i) => i.x >= lo && i.x < hi).sor
 // The parser has already resolved each row, so the mapping is a straight
 // column→field assignment (like pdfbook's CANON_MAPPING). Color Code and Catalog
 // # are both alphanumeric with a digit, so the SKU pattern accepts either.
-const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind"];
+const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand"];
 const CANON_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand" },
   headerRow: 0,
   skuPattern: "^(?=.*\\d)[A-Za-z0-9]{3,14}$",
   defaultType: "",
@@ -105,6 +109,19 @@ const CANON_MAPPING = {
 };
 
 const CATEGORY_TYPE = { LVT: "vinyl", Laminate: "laminate", Hardwood: "hardwood" };
+
+// The dealer brand fronts every product name once picked (stock.js label()); the
+// sheet itself never prints it, so it rides its own canonical column.
+const BRAND = "Mannington";
+
+// The collection header ("ADURA Max Plank") names both the product and the markup
+// group. Drop the trailing format word (Plank / Rectangle / Tile / Hex) so both
+// read at the tier a salesperson quotes — "Adura Max", not "ADURA Max Plank" —
+// and title-case it while leaving short acronyms (XL) intact.
+const titleWord = (w) => (/^[A-Z0-9]{1,3}$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+const collectionName = (section) =>
+  str(section).replace(/\s+(?:planks?|rectangles?|tiles?|hex)$/i, "").trim()
+    .split(/\s+/).filter(Boolean).map(titleWord).join(" ");
 
 // True when the pages look like a Mannington Cartons Detail list: some early page
 // carries the grid's signature header (a "Pattern" row that also names
@@ -155,14 +172,27 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
 
       const colorCode = cellIn(row.items, 170, 214);
       const catalog = cellIn(row.items, 214, 255);
-      const patternName = cellIn(row.items, 0, 85);
-      const color = cellIn(row.items, 120, 170);
+      let patternName = cellIn(row.items, 0, 85);
+      let color = cellIn(row.items, 120, 170);
       const size = cellIn(row.items, 85, 120);
       const carton = num(cellIn(row.items, 286, 318));
       const sf = num(cellIn(row.items, 318, 350));
       const perSf = num(cellIn(row.items, 255, 286));
       if (!colorCode) continue;
       dataRows++;
+
+      // A tall Pattern/Color name wraps to the next baseline(s): a row with text
+      // only in the Pattern (0–85) or Color (120–170) band and no Color Code /
+      // Catalog cell — e.g. "African Sunset" prints "African" on the data row and
+      // "Sunset" just below. Fold those continuation lines back in so the full
+      // name survives (the next product row has a code/price outside those bands,
+      // so it stops the fold).
+      for (let rj = ri + 1; rj < rows.length; rj++) {
+        const cont = rows[rj].items;
+        if (!cont.length || !cont.every((i) => (i.x >= 0 && i.x < 85) || (i.x >= 120 && i.x < 170))) break;
+        const pe = cellIn(cont, 0, 85); if (pe) patternName += (patternName ? " " : "") + pe;
+        const ce = cellIn(cont, 120, 170); if (ce) color += (color ? " " : "") + ce;
+      }
 
       // Self-consistency: carton ÷ SF/carton must reconcile with the printed
       // $/SF. If it doesn't, the columns were misread — trust the per-sq-ft price
@@ -175,8 +205,9 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
       else if (carton != null) { cost = carton; unit = "BX"; }
 
       flooring.push({
-        colorCode, name: [patternName, color].filter(Boolean).join(" "), productLine: section,
-        color, size, sfPerUnit: unit === "BX" ? sf : null, cost, unit, type: rowType,
+        colorCode, brand: BRAND, name: [patternName, color].filter(Boolean).join(" "),
+        productLine: collectionName(section), color, size,
+        sfPerUnit: unit === "BX" ? sf : null, cost, unit, type: rowType,
       });
 
       // Trim/molding pieces on this row, each keyed to its column's type + price.
@@ -197,7 +228,7 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
   const rows = [CANON.slice()];
   for (const f of flooring) {
     rows.push([f.colorCode, f.name, f.productLine, f.color, f.size,
-      f.sfPerUnit != null ? String(f.sfPerUnit) : "", f.cost != null ? String(f.cost) : "", f.unit, f.type, ""]);
+      f.sfPerUnit != null ? String(f.sfPerUnit) : "", f.cost != null ? String(f.cost) : "", f.unit, f.type, "", f.brand]);
   }
   // Trim rows: SKU = catalog #, priced per piece (EA), no flooring type (a misc /
   // transition line). The parent color code(s) ride in the description ("… —
@@ -209,7 +240,7 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, codes.length && `· fits ${codes.join(" ")}`]
       .filter(Boolean).join(" ");
-    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim"]);
+    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND]);
   }
 
   if (!dataRows) warnings.push("No Mannington product rows were recognized — is this the Cartons Detail price list?");
