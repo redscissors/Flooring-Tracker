@@ -709,6 +709,10 @@ function mappedItem(mapping, raw, sku, sem) {
     size,
     thickness,
     type,
+    // A mapped "trim" column (Mannington's "Kind", ADR 0012) flags molding lines
+    // so the book can price them at a separate markup. Only that parser emits it;
+    // every other sheet leaves it blank, so trim stays false.
+    trim: /^(trim|y|yes|true|1)$/i.test(str(raw.trim)),
     cost,
     sfPerUnit: numOrNull(raw.sfPerUnit),
     pcPerUnit: numOrNull(raw.pcPerUnit),

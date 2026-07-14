@@ -76,7 +76,12 @@ trim must **surface when its floor's Color Code is searched, floor first.**
   priced, through the normal review-before-apply wizard. Nothing new is stored
   and no migration is required.
 - Trims are ordinary special-order products: they price by the book's markup,
-  snapshot on pick, and drift like any other — no new product kind.
+  snapshot on pick, and drift like any other — no new product kind. Each trim
+  row now carries a `trim` marker (the parser's "Kind" canonical column), so the
+  book can price trims at a **separate markup** from the floors: `markups.trim`
+  (edited in the book's Markup panel, shown only when the book has trims)
+  outranks the group override and default in `resolveMarkup`. Left blank it falls
+  back to the default, so nothing changes for a book that doesn't set it.
 - The parser is **layout-specific by design.** A future Mannington re-format
   breaks it back to "0 rows recognized" (a visible warning), never to garbage —
   the same honesty guarantee every import path carries.

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseMapped } from "./pricebook.js";
+import { resolveMarkup } from "./orderbook.js";
 
 // Build text items the way pdf.js yields them: { str, x, y, w }.
 const word = (x, y, s) => ({ str: s, x, y, w: String(s).length * 6 });
@@ -74,6 +75,16 @@ test("trim rows: SKU = catalog #, per-piece cost, no floor type, 'fits' code in 
   assert.equal(trim.cost, 13.68);                // Quarter Round header price
   assert.match(trim.description, /Spalted Wych Elm Dew — Quarter Round/);
   assert.match(trim.description, /fits APX020/);  // shown in the search bar, searchable
+});
+
+test("trims carry the trim marker, floors don't — the book can price them apart", () => {
+  const { items } = run(apexPage);
+  assert.equal(items.find((i) => i.sku === "384421").trim, true);   // a molding line
+  assert.equal(items.find((i) => i.sku === "APX020").trim, false);  // a floor covering
+  // A book with a floor default of 45% and a trim markup of 30% prices each apart.
+  const markups = { default: 45, trim: 30 };
+  assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "APX020")), 45);
+  assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "384421")), 30);
 });
 
 test("a trim shared by two colors is one product listing both parent codes", () => {
