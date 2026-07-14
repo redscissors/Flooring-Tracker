@@ -7,7 +7,7 @@ import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrif
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -352,6 +352,23 @@ function printProduct(p, s) {
   const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) + (miscQty(p) !== 1 ? "/ea" : "") : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
   return { size, C, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
 }
+// The honest extended vendor cost of a special-order line: the snapshotted
+// per-unit cost (costSqft, parallel to priceSqft) carried through the SAME
+// quantity math as its sell (printProduct.line), so hand-editing the sale price
+// moves the margin, not the cost. Rows saved before costSqft existed fall back
+// to deriving the cost from the markup — the prior behavior, correct until the
+// price is edited. `sell` is the line's extended sell (printProduct.line).
+function orderLineCost(p, s, sell) {
+  if (String(p.costSqft ?? "").trim() !== "") {
+    const csf = num(p.costSqft);
+    if (p.type === "misc") return csf * miscQty(p);
+    const C = getCarton(p, s);
+    const sf = p.qtyType === "sqft" ? num(p.qty) : 0;
+    return (C ? C.order * C.sf : sf) * csf;
+  }
+  const pct = num(p.markupPct);
+  return pct > 0 ? sell / (1 + pct / 100) : sell;
+}
 // Estimate area headers show the flooring subtotal only — material costs live
 // in the bottom "Setting materials & sundries" breakdown.
 const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
@@ -418,7 +435,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null });
 
@@ -1995,7 +2012,7 @@ export default function App({ user, onSignOut }) {
     const sell = p.type === "misc" ? num(p.priceSqft) * miscQty(p)
       : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft)
       : 0;
-    if (sell > 0) soLines.push({ sell, markupPct: num(p.markupPct) });
+    if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, settings, sell), markupPct: num(p.markupPct) });
   }));
   const margin = specialOrderMargin(soLines);
   const pMats = sel && sel._full ? printMatList(sel, settings) : [];
@@ -2687,7 +2704,7 @@ export default function App({ user, onSignOut }) {
                                       {oDrift.markup && `markup ${oDrift.markup.from}% → ${oDrift.markup.to}%`}
                                     </span>
                                   )}
-                                  <button tabIndex={-1} onClick={() => { const priced = pricedItem(oItem, oBook?.data?.markups); updProduct(a.id, p.id, { priceSqft: String(oDrift.to), cost: oItem.cost != null ? String(oItem.cost) : "", markupPct: priced.markupPct != null ? String(priced.markupPct) : "" }); }} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
+                                  <button tabIndex={-1} onClick={() => { const priced = pricedItem(oItem, oBook?.data?.markups); const csf = rowCostSqft(oItem); updProduct(a.id, p.id, { priceSqft: String(oDrift.to), cost: oItem.cost != null ? String(oItem.cost) : "", costSqft: csf != null ? String(Math.round(csf * 100) / 100) : "", markupPct: priced.markupPct != null ? String(priced.markupPct) : "" }); }} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                                 </>)}
                                 {p.freightFlag && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
                                 {baseAlt && (
@@ -3191,10 +3208,11 @@ function Modal({ title, children, onClose }) {
 const ORDER_UNIT_CODE = { ct: "CT", sh: "SH", sf: "SF", units: "PC", ea: "EA" };
 
 // One product row → the fields the order-entry panel shows. Special-order rows
-// (bookId set) carry a snapshotted cost; the sell is the row's line total, so
-// the implied cost is sell ÷ (1 + markup/100) — unit-agnostic, matching
-// specialOrderMargin. Per-unit values are the extended totals ÷ ordered qty, so
-// they read in the sell unit (per carton / sheet / piece / sf). The item text
+// (bookId set) carry a snapshotted cost; the sell is the row's line total, and
+// the cost is the honest vendor cost carried through the same quantity math
+// (orderLineCost) — so a hand-edited sale price moves the margin, not the cost.
+// Per-unit values are the extended totals ÷ ordered qty, so they read in the
+// sell unit (per carton / sheet / piece / sf). The item text
 // splits at the SKU: size + color on top, SKU + coverage beneath — thickness
 // dropped, spaces only. Carton/sheet rows lead with a CT/SH tag (also in the
 // copied text) since the order-entry system can't be switched off "each".
@@ -3210,8 +3228,7 @@ function orderEntryRow(p, s, area) {
   const sizePlain = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
   const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${unitCode}` : "";
   const extSell = c.line;
-  const markupPct = num(p.markupPct);
-  const extCost = markupPct > 0 ? extSell / (1 + markupPct / 100) : extSell;
+  const extCost = orderLineCost(p, s, extSell);
   const copy = [tag, sizePlain, p.brandColor, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   return {
     id: p.id, special: !!p.bookId, area,
