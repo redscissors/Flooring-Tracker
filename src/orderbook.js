@@ -53,6 +53,10 @@ export function normOrderItem(f = {}) {
     size: str(f.size),
     thickness: str(f.thickness),
     type: f.type || null,
+    // A trim/molding line (Mannington's "Kind" column, ADR 0012). Type-blank like
+    // any accessory, but flagged so the book can mark trims up at their own rate
+    // (resolveMarkup), separate from the floors.
+    trim: !!f.trim,
     // Order items store COST, never a selling price — price/priceSqft are
     // derived at display via the book's markup (pricedItem), never persisted.
     price: null,
@@ -102,12 +106,18 @@ export function costSqft(item) {
   return null;
 }
 
-// The markup percent for an item under a book's markups config. A per-group
-// override (byGroup keyed on the mapping-chosen groupBy field) outranks the
-// book default; an unmapped/absent group quietly uses the default.
+// The markup percent for an item under a book's markups config. A trim line
+// (Mannington, ADR 0012) uses the book's trim markup when one is set — it is the
+// most specific rule, so it outranks any per-group override. Otherwise a
+// per-group override (byGroup keyed on the mapping-chosen groupBy field) outranks
+// the book default; an unmapped/absent group quietly uses the default.
 export function resolveMarkup(markups, item) {
   const m = markups || {};
   const def = numOr(m.default, 0);
+  if (item?.trim && m.trim != null) {
+    const t = numOr(m.trim);
+    if (t != null) return t;
+  }
   const key = m.groupBy ? str(item?.[m.groupBy]) : "";
   if (key && m.byGroup && m.byGroup[key] != null) {
     const g = numOr(m.byGroup[key]);
@@ -221,7 +231,7 @@ export function orderFloorFirst(results, query) {
 
 // The item fields whose change makes a re-import a "changed" row. Order books
 // track cost (not sell) plus the vendor attributes a re-issue can move.
-const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
 
 // Compare freshly parsed items against the book's current rows — same contract
 // as diffStock: added / changed / missing (marked inactive on apply, never

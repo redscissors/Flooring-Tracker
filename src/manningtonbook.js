@@ -15,10 +15,13 @@
 //   • flooring — SKU = Color Code (APX020), type vinyl/laminate, cost = the
 //     carton price with its SF/carton coverage so whole-carton ordering works.
 //   • trim     — SKU = Catalog # of the molding piece, type blank (a misc /
-//     transition line), cost = the header price for that trim column. A trim is
-//     color-matched to one or more flooring items; its parent Color Code(s) ride
-//     in the description so searching a floor's code surfaces its trims (the
-//     flooring row, an exact SKU match, still ranks first — orderFloorFirst).
+//     transition line), cost = the header price for that trim column, and a
+//     `trim` marker (the "Kind" canonical column) so the book can price trims at
+//     their own markup, separate from the floors (orderbook resolveMarkup). A
+//     trim is color-matched to one or more flooring items; its parent Color
+//     Code(s) ride in the description so searching a floor's code surfaces its
+//     trims (the flooring row, an exact SKU match, still ranks first —
+//     orderFloorFirst).
 //
 // Like every import path the honesty guarantee holds: a row is only consumed
 // when its code cell matches the SKU pattern downstream, so a re-organized sheet
@@ -90,9 +93,9 @@ const cellIn = (items, lo, hi) => items.filter((i) => i.x >= lo && i.x < hi).sor
 // The parser has already resolved each row, so the mapping is a straight
 // column→field assignment (like pdfbook's CANON_MAPPING). Color Code and Catalog
 // # are both alphanumeric with a digit, so the SKU pattern accepts either.
-const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type"];
+const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind"];
 const CANON_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim" },
   headerRow: 0,
   skuPattern: "^(?=.*\\d)[A-Za-z0-9]{3,14}$",
   defaultType: "",
@@ -191,7 +194,7 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
   const rows = [CANON.slice()];
   for (const f of flooring) {
     rows.push([f.colorCode, f.name, f.productLine, f.color, f.size,
-      f.sfPerUnit != null ? String(f.sfPerUnit) : "", f.cost != null ? String(f.cost) : "", f.unit, f.type]);
+      f.sfPerUnit != null ? String(f.sfPerUnit) : "", f.cost != null ? String(f.cost) : "", f.unit, f.type, ""]);
   }
   // Trim rows: SKU = catalog #, priced per piece (EA), no flooring type (a misc /
   // transition line). The parent color code(s) ride in the description ("… —
@@ -203,7 +206,7 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, codes.length && `· fits ${codes.join(" ")}`]
       .filter(Boolean).join(" ");
-    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", ""]);
+    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim"]);
   }
 
   if (!dataRows) warnings.push("No Mannington product rows were recognized — is this the Cartons Detail price list?");

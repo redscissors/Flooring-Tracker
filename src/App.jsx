@@ -3764,8 +3764,17 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
   const groupBy = markups.groupBy || book.data?.mapping?.groupBy || "";
   const [def, setDef] = useState(markups.default != null ? String(markups.default) : "");
   const [byGroup, setByGroup] = useState(markups.byGroup || {});
+  const [trim, setTrim] = useState(markups.trim != null ? String(markups.trim) : "");
+  // Books carrying trim/molding lines (Mannington, ADR 0012) can mark trims up at
+  // their own rate; the field is hidden on books that have no trims.
+  const hasTrims = (items || []).some((it) => it.trim);
 
-  const commit = (nextDef, nextBy) => onSave({ ...(groupBy ? { groupBy } : {}), default: num(nextDef), byGroup: nextBy });
+  const commit = (nextDef, nextBy, nextTrim = trim) => onSave({
+    ...(groupBy ? { groupBy } : {}),
+    default: num(nextDef),
+    byGroup: nextBy,
+    ...(String(nextTrim).trim() !== "" ? { trim: num(nextTrim) } : {}),
+  });
   const setGroup = (key, val) => {
     const next = { ...byGroup };
     if (val === "" || val == null) delete next[key]; else next[key] = num(val);
@@ -3780,12 +3789,19 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
         <span className="text-sm font-medium">Markup</span>
         <span className="text-[11px] text-slate-400">selling price = cost × (1 + markup)</span>
       </div>
-      <div className="flex items-end gap-3 mt-2">
+      <div className="flex items-end gap-3 mt-2 flex-wrap">
         <div>
           <label className={lbl}>Default %</label>
           <input type="number" className={`${inp} w-24`} value={def} onChange={(e) => setDef(e.target.value)} onBlur={() => commit(def, byGroup)} placeholder="0" />
         </div>
         <span className="text-[11px] text-slate-400 pb-2">$10 cost → {money(10 * (1 + num(def) / 100))} sell</span>
+        {hasTrims && (
+          <div className="ml-auto text-right">
+            <label className={lbl}>Trim %</label>
+            <input type="number" className={`${inp} w-24`} value={trim} onChange={(e) => setTrim(e.target.value)} onBlur={() => commit(def, byGroup, trim)} placeholder={String(num(def))} />
+            <p className="text-[10px] text-slate-400 mt-0.5">reducers, T-molds, stair-noses… (blank = default)</p>
+          </div>
+        )}
       </div>
       {groupBy ? (groups.length > 0 && (
         <div className="mt-3">

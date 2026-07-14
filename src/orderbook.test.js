@@ -104,6 +104,19 @@ test("resolveMarkup: an unmapped group quietly uses the default", () => {
   assert.equal(resolveMarkup(null, oi({})), 0);
 });
 
+test("resolveMarkup: a trim line uses the book's trim markup, outranking group + default", () => {
+  const markups = { groupBy: "mfg", default: 45, byGroup: { CER: 60 }, trim: 30 };
+  assert.equal(resolveMarkup(markups, oi({ trim: true })), 30);        // trim wins over default
+  assert.equal(resolveMarkup(markups, oi({ trim: true, mfg: "CER" })), 30); // and over a group override
+  assert.equal(resolveMarkup(markups, oi({ trim: false, mfg: "CER" })), 60); // a floor still takes its group
+  assert.equal(resolveMarkup(markups, oi({ trim: false })), 45);       // a floor with no group → default
+});
+
+test("resolveMarkup: no trim markup set → a trim falls back to the default", () => {
+  assert.equal(resolveMarkup({ default: 45 }, oi({ trim: true })), 45);
+  assert.equal(resolveMarkup({ default: 45, trim: 0 }, oi({ trim: true })), 0); // an explicit 0% is honored
+});
+
 test("sellPrice rounds cost × (1 + pct/100) to cents", () => {
   assert.equal(sellPrice(10, 45), 14.5);
   assert.equal(sellPrice(2.1, 40), 2.94);
