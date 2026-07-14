@@ -61,8 +61,8 @@ trim must **surface when its floor's Color Code is searched, floor first.**
      **no flooring type** so it lands as a misc/transition line. Its parent Color
      Code(s) ride in the description ("… — Quarter Round · fits APX020 FXR240"),
      which feeds the ADR 0009 §6 `search_text` column — **no SQL change** — so a
-     floor-code search finds the trim, and the description doubles as a "which
-     floors this fits" note.
+     floor-code search surfaces the trim in the picker, and the "fits" note tells
+     the salesperson which floors the molding matches.
 
 4. **`orderFloorFirst(results, query)` (pure, in `orderbook.js`) ranks the floor
    above its trims.** A color-code search returns the floor (exact SKU) plus every
@@ -80,6 +80,7 @@ trim must **surface when its floor's Color Code is searched, floor first.**
 - The parser is **layout-specific by design.** A future Mannington re-format
   breaks it back to "0 rows recognized" (a visible warning), never to garbage —
   the same honesty guarantee every import path carries.
-- Putting parent codes in the description makes them visible on a picked trim
-  line. That was judged useful (it identifies the matching floor) rather than
-  noise; revisit if it reads as clutter on a printed quote.
+- Putting the parent codes in the description shows a "fits APX020…" note in the
+  search picker (owner preference, 2026-07-14) and makes the trim findable by its
+  floor's code. The note also rides onto a picked trim line; revisit if it reads
+  as clutter on a printed quote.

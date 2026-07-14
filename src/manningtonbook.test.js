@@ -65,23 +65,22 @@ test("flooring rows: SKU = color code, carton cost + coverage, category → type
   assert.equal(floor.productLine, "ADURA APEX"); // section heading, code stripped
 });
 
-test("trim rows: SKU = catalog #, per-piece cost, no floor type, parent code in description", () => {
+test("trim rows: SKU = catalog #, per-piece cost, no floor type, 'fits' code in description", () => {
   const { items } = run(apexPage);
   const trim = items.find((i) => i.sku === "384421");
   assert.ok(trim, "trim keyed by its catalog number");
   assert.equal(trim.type, null);                 // a misc / transition line, not a floor
   assert.equal(trim.priceUnit, "EA");
   assert.equal(trim.cost, 13.68);                // Quarter Round header price
-  assert.match(trim.description, /Quarter Round/);
-  assert.match(trim.description, /APX020/);       // fits its parent floor's code (searchable)
+  assert.match(trim.description, /Spalted Wych Elm Dew — Quarter Round/);
+  assert.match(trim.description, /fits APX020/);  // shown in the search bar, searchable
 });
 
 test("a trim shared by two colors is one product listing both parent codes", () => {
   const { items, meta } = run(apexPage);
   const shared = items.filter((i) => i.sku === "384469");
   assert.equal(shared.length, 1, "deduped to a single trim product");
-  assert.match(shared[0].description, /APX020/);
-  assert.match(shared[0].description, /APX040/);
+  assert.match(shared[0].description, /fits APX020 APX040/); // both parents, searchable
   assert.equal(meta.trims, 5); // 384421,384445,384430,384454 + shared 384469
 });
 

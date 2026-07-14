@@ -194,10 +194,10 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
       f.sfPerUnit != null ? String(f.sfPerUnit) : "", f.cost != null ? String(f.cost) : "", f.unit, f.type]);
   }
   // Trim rows: SKU = catalog #, priced per piece (EA), no flooring type (a misc /
-  // transition line). The parent color code(s) ride in the description (searched
-  // via search_text) so a floor code search finds the trim; the name reads
-  // "<pattern> — <TrimType> · fits <codes>". Collection/color are left blank so
-  // the description stays the clean, self-contained line shown on a quote.
+  // transition line). The parent color code(s) ride in the description ("… —
+  // Quarter Round · fits APX020 FXR240"), which feeds search_text so a floor-code
+  // search surfaces the trim in the picker, and the "fits" note tells the
+  // salesperson which floors the molding matches.
   for (const t of trims.values()) {
     const codes = [...t.codes];
     const parent = [...t.names][0] || "";
