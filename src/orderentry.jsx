@@ -8,8 +8,9 @@
 // green check, so you can track which specials you've already keyed. Stock
 // lines follow with per-line checkboxes plus "Copy all" / "Copy selected",
 // each line as SKU⇥quantity (the order desk's Cut & Order format). The
-// estimated materials (mortar, grout, grout base, caulk, underlayment) get
-// the same treatment in their own section beneath the stock lines.
+// estimated materials (mortar, grout, grout base, caulk, underlayment) are
+// stock items too, so they ride the same list — labeled with their kind —
+// and one "Copy all" pastes the whole order.
 //
 // Pure presentation: App.jsx builds the row objects (orderEntryRow) from the
 // snapshotted product rows and passes them in. Nothing here mutates state,
@@ -100,8 +101,6 @@ function SpecialRow({ r, alt }) {
 // Checkbox list with "Copy all" / "Copy selected": one line per item, SKU then
 // a tab then the bare order quantity — the format the shop's order desk pastes
 // (SKU⇥qty), matching Cut & Order. A row with no SKU copies its name instead.
-// Used for the stock product rows and the estimated-materials rows; each
-// section keeps its own selection.
 function CopySection({ title, rows, emptyText, hint }) {
   const [sel, setSel] = useState(() => new Set());
   const toggle = (id) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -139,7 +138,7 @@ function CopySection({ title, rows, emptyText, hint }) {
   );
 }
 
-export function OrderEntryPanel({ name, special = [], stock = [], materials = [], onClose }) {
+export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
@@ -174,13 +173,9 @@ export function OrderEntryPanel({ name, special = [], stock = [], materials = []
             )}
           </section>
 
-          {/* Stock — check the lines you want, then Copy all / Copy selected */}
+          {/* Stock — products + estimated materials; check lines, then Copy all / Copy selected */}
           <CopySection title="Stock" rows={stock} emptyText="No stock items in this project."
             hint="Each line copies as SKU + tab + quantity, ready to paste." />
-
-          {/* Estimated setting materials — grout, mortar, caulk, underlayment */}
-          <CopySection title="Materials" rows={materials} emptyText="No estimated materials in this project."
-            hint="Estimated quantities from the materials summary — each line copies as SKU + tab + quantity." />
         </div>
       </div>
     </div>

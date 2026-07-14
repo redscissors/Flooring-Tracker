@@ -3044,7 +3044,7 @@ export default function App({ user, onSignOut }) {
         const rows = [];
         (sel.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
         const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
-        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={rows.filter((r) => !r.special)} materials={mats} onClose={() => setShowOrderCopy(false)} />;
+        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} onClose={() => setShowOrderCopy(false)} />;
       })()}
 
       {custModal && (() => {
