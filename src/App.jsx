@@ -3461,12 +3461,113 @@ function StaleChip({ days }) {
   );
 }
 
+// The multi-file drop router (ADR 0009 PR C). Reads each dropped file once,
+// routes it to a book (or the shop workbook), lets the user fix unmatched files,
+// then steps through each file's normal import preview one at a time. Registry
+// files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
+// stock preview. No new write path — each apply is the book's existing one.
+function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+  const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
+  const [phase, setPhase] = useState("route"); // "route" | "run"
+  const [qi, setQi] = useState(0); // index into the runnable queue
+  const [active, setActive] = useState(null); // { row, book, items } for the current registry step
+  const registryBooks = books.filter((b) => b.kind === "order" || b.kind === "stock");
+
+  // Read + route every file once, fault-isolated: a file that won't parse gets an
+  // error row and is skipped; the rest still route.
+  useEffect(() => { let ok = true; (async () => {
+    const out = [];
+    for (const file of files) {
+      const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+      try {
+        const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
+        const fp = computeFingerprint(parsed);
+        const r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
+        out.push({ file, ...parsed, ...r });
+      } catch (x) { out.push({ file, error: "Could not read this file" }); }
+    }
+    if (ok) setRows(out);
+  })(); return () => { ok = false; }; }, []);
+
+  const setTarget = (i, target) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, target } : r)));
+  const runnable = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip");
+  const advance = () => setQi((i) => i + 1);
+
+  // Drive the queue: stock rows go through the App stock preview (a separate
+  // modal — we render nothing until it calls back); registry rows load their
+  // book's items and render the wizard. Past the end, close the router.
+  useEffect(() => {
+    if (phase !== "run") return;
+    if (qi >= runnable.length) { onClose(); return; }
+    const row = runnable[qi];
+    if (row.target === "stock") { setActive(null); importStockFile(row.file, advance); return; }
+    let ok = true;
+    setActive(null);
+    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
+    return () => { ok = false; };
+  }, [phase, qi]);
+
+  if (phase === "route") {
+    const bookOpts = [["skip", "Skip this file"], ["stock", "Shop workbook (stock)"], ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
+    return (
+      <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
+        <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-1"><h3 className="ft-serif text-2xl">Route {files.length} file{files.length === 1 ? "" : "s"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+          <p className="text-xs text-slate-400 mb-3">Each file is sent to its own book's import preview, one at a time. Unfamiliar files need a book picked.</p>
+          {rows == null ? <p className="text-sm text-slate-400 py-6 text-center">Reading files…</p> : (
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
+              {rows.map((r, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                  <FileText size={15} className="text-slate-400 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate">{r.file.name}</div>
+                    <div className={`text-[11px] ${r.error ? "text-red-500" : r.target && r.target !== "skip" ? "text-slate-400" : "text-amber-600"}`}>{r.error || r.reason}</div>
+                  </div>
+                  {r.error ? <span className="text-[11px] text-red-500 shrink-0">Skipped</span> : (
+                    <select className={`${inp} w-auto text-xs`} value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
+                      {bookOpts.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-4">
+            <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+            <button onClick={() => { setQi(0); setPhase("run"); }} disabled={!runnable.length} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Review {runnable.length} file{runnable.length === 1 ? "" : "s"} →</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Run phase: the stock step is handled by the App stock preview; render nothing
+  // until a registry step has its book + items loaded.
+  if (!active) return null;
+  const stepNote = <div className="text-[11px] text-slate-400 mb-2">Reviewing {qi + 1} of {runnable.length} — {active.row.file.name}</div>;
+  return (
+    <BookImportWizard
+      key={active.book.id + qi}
+      book={active.book} existingItems={active.items}
+      preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
+      onClose={advance}
+      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } advance(); }}
+      saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
+      types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
+    />
+  );
+}
+
 function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
   const [hideCosts, setHideCosts] = useState(false);
+  const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
+  const [dragOver, setDragOver] = useState(false);
+  const dropRef = useRef(null);
+  const takeFiles = (list) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped(fs); };
 
   const stockBooks = books.filter((b) => b.kind === "stock");
   const orderBooks = books.filter((b) => b.kind === "order");
@@ -3537,6 +3638,19 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             </button>
           </div>
         </div>
+
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
+          className={`mt-4 rounded-xl border-2 border-dashed px-4 py-5 text-center text-sm ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-500"}`}
+        >
+          <Upload size={17} className="inline mr-1.5 -mt-0.5 text-slate-400" />
+          Drop vendor sheets or the shop workbook here — <button onClick={() => dropRef.current?.click()} className="underline text-indigo-600 hover:text-indigo-700">browse…</button>
+          <div className="text-[11px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many. Each file routes to its book; unfamiliar files ask.</div>
+          <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
+        </div>
+        {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
         {sel === "stock" ? (
           <div className="mt-3">
