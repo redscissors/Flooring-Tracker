@@ -335,6 +335,7 @@ export function seedCatalog(flat) {
     grouts: co.grouts.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
     mortars: co.mortars.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
     underlayments: seedUnderlaysFor(co.name),
+    attached: [],
   }));
   const extraG = Object.keys(g).filter((n) => !seededG.has(n));
   const extraM = Object.keys(m).filter((n) => !seededM.has(n));
@@ -344,6 +345,7 @@ export function seedCatalog(flat) {
       grouts: extraG.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
       mortars: extraM.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
       underlayments: [],
+      attached: [],
     });
   }
   return { companies, categories: [], defaults: normDefaults() };
@@ -401,6 +403,7 @@ export function normalizeCatalog(catalog) {
     grouts: (co?.grouts || []).map(normGroutProduct),
     mortars: (co?.mortars || []).map(normMortarProduct),
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
+    attached: (co?.attached || []).map(normAttachedProduct),
   }));
   return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, categories: (Array.isArray(catalog?.categories) ? catalog.categories : []).map(normCategory), defaults: normDefaults(catalog?.defaults) };
 }
@@ -428,7 +431,7 @@ export function isDuplicateName(catalog, kind, name) {
 }
 
 export function addCompany(catalog, name) {
-  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [] };
+  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [], underlayments: [], attached: [] };
   return { ...catalog, companies: [...(catalog?.companies || []), company] };
 }
 
@@ -436,7 +439,7 @@ export function addCompany(catalog, name) {
 // caller's gate (see isDuplicateName) — this is the pure append.
 export function addProduct(catalog, companyId, kind, fields) {
   const base = { id: cid(), name: String(fields?.name || "").trim(), enabled: true };
-  const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : underlayFields(fields);
+  const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : kind === "attached" ? attachedFields(fields) : underlayFields(fields);
   const product = { ...base, ...shape };
   return { ...catalog, companies: (catalog?.companies || []).map((co) => co.id === companyId ? { ...co, [kind]: [...(co[kind] || []), product] } : co) };
 }
@@ -562,6 +565,36 @@ export function addCategory(catalog, fields) {
 
 export function updateCategory(catalog, categoryId, patch) {
   return { ...catalog, categories: (catalog?.categories || []).map((c) => c.id === categoryId ? normCategory({ ...c, ...patch, id: c.id }) : c) };
+}
+
+const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, sku: skuField(p) });
+const normAttachedProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...attachedFields(p) });
+
+// Attached names are unique within their category (a "RENO-U" trim and a
+// "RENO-U" threshold can coexist) — the per-kind convention, category-scoped.
+export function isDuplicateAttachedName(catalog, categoryId, name) {
+  const target = normName(name);
+  if (!target) return false;
+  for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (p.categoryId === categoryId && normName(p.name) === target) return true;
+  return false;
+}
+
+export const offeredAttached = (catalog, categoryId) => {
+  const names = [];
+  for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (isOffered(co, p) && p.categoryId === categoryId) names.push(p.name);
+  return names;
+};
+
+// Deleting a category is permanent and sharper than disabling: its products
+// are pruned from every company, and (once jobs wire in, PR 3) saved jobs
+// keep the stored name but stop calculating — same consequence as deleting a
+// product.
+export function removeCategory(catalog, categoryId) {
+  return {
+    ...catalog,
+    categories: (catalog?.categories || []).filter((c) => c.id !== categoryId),
+    companies: (catalog?.companies || []).map((co) => (co.attached || []).some((p) => p.categoryId === categoryId) ? { ...co, attached: co.attached.filter((p) => p.categoryId !== categoryId) } : co),
+  };
 }
 
 // Operational provenance, shared team-wide with the settings record: who last
