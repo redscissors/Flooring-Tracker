@@ -678,6 +678,21 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
 const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
 const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, display: "flex", alignItems: "center" };
 
+// PROTOTYPE (mobile two-line rows, ?variant=E) — throwaway, do not build on.
+// Below 768px each product row renders as two wrapping decks instead of the
+// 9-column grid: Size + Product/Color on the first line, then self-labeled
+// fields (SKU / Cov. / SF / Price / Order / Total) that reflow when the
+// screen runs out of width. Same state, same handlers — layout only.
+// Switcher pill is dev-only; the URL param works in any build.
+function EField({ label, right, flex, tint, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex, padding: "0 2px", borderRight: "1px solid var(--ft-row-line)", ...(tint ? { background: TOTAL_WASH, borderRadius: "var(--ft-r)" } : null) }}>
+      <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)", padding: "3px 6px 0", whiteSpace: "nowrap", textAlign: right ? "right" : "left" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 3, justifyContent: right ? "flex-end" : "flex-start" }}>{children}</div>
+    </div>
+  );
+}
+
 // Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
 // commit (blur) back into the row's L / W / thickness fields. When the row
 // carries a free-text `sizeText` (a non-rectangular vendor size like "2\" Hex",
@@ -1044,6 +1059,10 @@ export default function App({ user, onSignOut }) {
   }, [theme]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
+  // PROTOTYPE (?variant=E): mobile two-line product rows — see EField above.
+  const [protoVariant, setProtoVariant] = useState(() => { try { return new URLSearchParams(window.location.search).get("variant") || ""; } catch { return ""; } });
+  const setVariant = (v) => { setProtoVariant(v); try { const u = new URL(window.location); if (v) u.searchParams.set("variant", v); else u.searchParams.delete("variant"); window.history.replaceState(null, "", u); } catch { /* URL API unavailable — state alone still switches */ } };
+  const protoE = protoVariant === "E" && !isWide;
   const [namingVersion, setNamingVersion] = useState(false);
   const [versionName, setVersionName] = useState("");
   const [saveOk, setSaveOk] = useState(false);
@@ -1836,7 +1855,7 @@ export default function App({ user, onSignOut }) {
   // The grabbed card pops out and tracks the pointer via CSS `translate`; drop
   // targets are hit-tested with elementFromPoint (the card is pointer-events:
   // none while held). Data is written once, on drop, through moveProduct.
-  const startDrag = (e, aid, p, pi) => {
+  const startDrag = (e, aid, p, pi, holdMs = 220) => {
     if (e.button != null && e.button !== 0) return;
     const node = e.currentTarget.closest("[data-prod-card]");
     const main = mainRef.current;
@@ -1846,7 +1865,7 @@ export default function App({ user, onSignOut }) {
     const last = { ...start };
     const abort = () => { clearTimeout(timer); window.removeEventListener("pointermove", onHoldMove); window.removeEventListener("pointerup", abort); window.removeEventListener("pointercancel", abort); };
     const onHoldMove = (ev) => { last.x = ev.clientX; last.y = ev.clientY; if (Math.hypot(last.x - start.x, last.y - start.y) > 6) abort(); };
-    const timer = setTimeout(() => { abort(); beginDrag(node, main, last.x, last.y, aid, p, pi); }, 220);
+    const timer = setTimeout(() => { abort(); beginDrag(node, main, last.x, last.y, aid, p, pi); }, holdMs);
     window.addEventListener("pointermove", onHoldMove);
     window.addEventListener("pointerup", abort);
     window.addEventListener("pointercancel", abort);
@@ -1891,8 +1910,15 @@ export default function App({ user, onSignOut }) {
       d.raf = requestAnimationFrame(loop);
     };
     d.raf = requestAnimationFrame(loop);
+    // Once the card has popped out, claim the touch gesture — otherwise the
+    // browser starts scrolling on the first finger move and fires
+    // pointercancel, killing the drag (surfaces without touch-action:none,
+    // e.g. long-press on the row itself).
+    const stopTouchScroll = (ev) => ev.preventDefault();
+    window.addEventListener("touchmove", stopTouchScroll, { passive: false });
     const finish = (commit) => {
       cancelAnimationFrame(d.raf);
+      window.removeEventListener("touchmove", stopTouchScroll);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
@@ -2593,7 +2619,7 @@ export default function App({ user, onSignOut }) {
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""].filter(Boolean).join(" · ")}</span>
+                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{(protoE ? [areaTotal > 0 ? money(areaTotal) : ""] : [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
@@ -2608,6 +2634,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
+                      {!protoE && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
@@ -2619,6 +2646,7 @@ export default function App({ user, onSignOut }) {
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)", textAlign: "right" }}>Total</div>
                         <div />
                       </div>
+                      )}
                       {a.products.map((p, pi) => {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
@@ -2768,6 +2796,79 @@ export default function App({ user, onSignOut }) {
                             </div>
                             ) : (<>
                             {/* main product row */}
+                            {protoE ? (
+                            /* PROTOTYPE ?variant=E — two wrapping decks; same cells & handlers as the grid branch below.
+                               Long-press on any non-interactive part of the row pops it out for drag
+                               (startDrag's own 220ms hold + move-abort does the gesture detection). */
+                            <div onPointerDown={(e) => { if (e.target.closest("input,button,select,textarea")) return; startDrag(e, a.id, p, pi, 350); }}
+                              style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px 4px 0 0" }}>
+                                <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                                {/* size box hugs its content so Product/Color sits as far left as it can */}
+                                <div style={{ width: `calc(${Math.max((p.type === "tile" ? (p.sizeText || (p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "")) : p.sizeText || "").length, 4)}ch + 14px)`, flex: "none", display: "flex", alignItems: "center", minWidth: 0 }}>
+                                  {p.type === "tile" ? (
+                                    <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
+                                  ) : p.type === "misc" ? (
+                                    <span className="px-1" style={{ color: "var(--ft-faint)" }}>Misc</span>
+                                  ) : (
+                                    <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                  )}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 12 }}>
+                                  <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
+                                </div>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="ft-noprint shrink-0 p-1 pr-2 text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={12} /></button>}
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", rowGap: 4, padding: "1px 6px 7px" }}>
+                                <EField label="SKU" flex="1.4 1 88px">
+                                  <div className="ft-mono" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 9.5 }}>
+                                    {stock.length > 0 || searchOrder ? (
+                                      <SkuPicker value={p.sku || ""} stock={stock}
+                                        onChange={(v) => updProduct(a.id, p.id, { sku: v })}
+                                        onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
+                                        onPickMany={(items) => addStockProducts(a.id, p.id, items)}
+                                        searchOrder={searchOrder} bookName={bookName}
+                                        wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
+                                    ) : (
+                                      <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
+                                    )}
+                                  </div>
+                                </EField>
+                                <EField label="Cov." right flex="0.8 1 74px">
+                                  {p.type !== "misc" && p.qtyType === "sqft" ? (<div className="ft-mono" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 9.5 }}>
+                                    <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0 }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                    {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-1" style={{ fontSize: 8, color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
+                                  </div>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
+                                </EField>
+                                <EField label="SF" right flex="0.55 1 50px">
+                                  {p.type !== "misc" && p.qtyType === "sqft" ? (
+                                    <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
+                                  ) : <span className="px-2 ml-auto" style={{ color: "var(--ft-faint)" }}>—</span>}
+                                </EField>
+                                <EField label="Price" right tint flex="0.6 1 56px">
+                                  <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                </EField>
+                                <EField label="Order" right flex="0.9 1 80px">
+                                  {p.type !== "misc" && C ? (<>
+                                    <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />
+                                    <span className="shrink-0" style={{ fontSize: 9.5 }}>{C.unit}</span>
+                                    <span className="ft-noprint flex flex-col shrink-0 pr-1">
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(C.order + 1) })} title="One more carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronUp size={9} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(Math.max(0, C.order - 1)) })} title="One less carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronDown size={9} /></button>
+                                    </span>
+                                  </>) : p.type === "misc" || p.qtyType === "count" ? (<>
+                                    <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} placeholder={p.type === "misc" ? "1" : "0"} title="Quantity" />
+                                    {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>EA</span> : (
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "sqft" })} title="Counted each — click to switch to square feet" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>EA</button>
+                                    )}
+                                  </>) : (<>
+                                    <span className="text-slate-500">{num(p.qty) > 0 ? sf1(num(p.qty)) : ""}</span>
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
+                                  </>)}
+                                </EField>
+                              </div>
+                            </div>
+                            ) : (
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
@@ -2835,6 +2936,7 @@ export default function App({ user, onSignOut }) {
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
                             </div>
+                            )}
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
                               <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "var(--ft-area-row)" }}>
                                 <span className="text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>
@@ -3390,6 +3492,15 @@ export default function App({ user, onSignOut }) {
         );
       })()}
 
+      {/* PROTOTYPE switcher (dev builds only) — flips the mobile two-line row
+          variant; ?variant=E also works directly in any build. */}
+      {import.meta.env.DEV && !isWide && (
+        <div className="print:hidden fixed left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold shadow-lg" style={{ bottom: 66, zIndex: 90, background: "var(--ft-accent)", color: "var(--ft-accent-ink)" }}>
+          <button onClick={() => setVariant(protoVariant === "E" ? "" : "E")} className="px-1" style={{ color: "inherit" }}>‹</button>
+          <span style={{ minWidth: 118, textAlign: "center" }}>{protoVariant === "E" ? "E — two-line rows" : "current layout"}</span>
+          <button onClick={() => setVariant(protoVariant === "E" ? "" : "E")} className="px-1" style={{ color: "inherit" }}>›</button>
+        </div>
+      )}
       {toast && <div className="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg z-50">{toast}</div>}
     </div>
   );
