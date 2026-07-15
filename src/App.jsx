@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
@@ -4462,10 +4462,21 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
+// The Materials & add-ons library's built-in categories (spec 2026-07-15,
+// PR 1). Locked: math and floor scope live in code; only their catalog
+// content and chip default are team-editable. Custom add-on categories
+// join this list in a later PR.
+const MATERIAL_CATEGORIES = [
+  { id: "grout", label: "Grout", kind: "grouts", icon: Paintbrush, applies: "Tile", math: "Volumetric — scales with tile size, joint & thickness" },
+  { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side" },
+  { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
+];
+
 function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
-  const [section, setSection] = useState("grout");
+  const [section, setSection] = useState("materials");
+  const [cat, setCat] = useState("grout"); // which Materials & add-ons category is open
   // Master→detail selection: an existing product, or (via `adding`) an
   // add-draft under a company. View state only, never persisted.
   const [sel, setSel] = useState(null); // { companyId, kind, productId }
@@ -4558,8 +4569,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
   const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
   const addCo = adding ? catalog.companies.find((c) => c.id === adding.companyId) : null;
-  const kindsFor = section === "grout" ? ["grouts"] : ["mortars", "underlayments"];
-  const kindTag = { grouts: "Grout", mortars: "Mortar", underlayments: "Underlayment" };
+  const kindsFor = [{ grout: "grouts", mortar: "mortars", underlay: "underlayments" }[cat]];
   const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0);
   // A company "belongs" to a section by having products of its kinds — the rest
   // sit in a collapsed group so e.g. underlayment-only brands stay out of
@@ -4575,8 +4585,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
     { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${1 + books.length} books` : stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
-    { id: "grout", label: "Grout & colors", icon: Paintbrush, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length, 0)) },
-    { id: "matunder", label: "Mortar & underlayment", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.mortars.length + (c.underlayments?.length || 0), 0)) },
+    { id: "materials", label: "Materials & add-ons", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length + c.mortars.length + (c.underlayments?.length || 0), 0)) },
     { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
   ];
 
@@ -4846,8 +4855,21 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           </div>
         </aside>
 
-        {(section === "grout" || section === "matunder") ? (
+        {section === "materials" ? (
           <>
+            <div className="w-44 shrink-0 border-r border-slate-200 overflow-y-auto py-3 px-2 space-y-0.5">
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 mb-1">Materials</div>
+              {MATERIAL_CATEGORIES.map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => { setCat(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); setRename(null); setCoRename(null); }}
+                  className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${cat === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                  <Icon size={14} className={cat === id ? "" : "text-slate-400"} />
+                  <span className="flex-1 truncate">{label}</span>
+                  <Lock size={10} className={cat === id ? "text-white/60" : "text-slate-300"} />
+                </button>
+              ))}
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 pt-3 mb-1">Add-ons</div>
+              <p className="px-1.5 text-[11px] text-slate-400">None yet.</p>
+            </div>
             <div className="w-72 shrink-0 border-r border-slate-200 overflow-y-auto py-2">
               <p className="px-3 pb-1.5 text-[11px] text-slate-400">Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
               {catalog.companies.filter(inSection).map((co) => (
@@ -4857,7 +4879,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                     <button key={p.id} onClick={() => pickProduct(co.id, kind, p.id)} className={`w-full text-left pl-9 pr-2.5 py-1.5 flex items-center gap-2 border-l-2 ${active ? "border-indigo-600 bg-indigo-50/40" : "border-transparent hover:bg-slate-50"}`}>
                       <span className="min-w-0 flex-1">
                         <span className={`flex items-center gap-1 text-sm ${p.enabled ? "font-medium" : "text-slate-400"}`}><span className="truncate">{p.name}</span>{(kind === "grouts" || kind === "mortars") && isDefaultMaterial(kind, p.name) && <Star size={10} className="fill-current text-indigo-500 shrink-0" title="Default for new tile rows" />}</span>
-                        <span className="block text-[10px] text-slate-400 truncate">{section === "matunder" ? `${kindTag[kind]} · ${masterHint(kind, p)}` : masterHint(kind, p)}</span>
+                        <span className="block text-[10px] text-slate-400 truncate">{masterHint(kind, p)}</span>
                       </span>
                       <ChevronRight size={13} className="text-slate-300 shrink-0" />
                     </button>
@@ -4868,7 +4890,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <button onClick={() => setShowOthers(!showOthers)} className="w-full px-3 py-1 flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600">
                     <ChevronRight size={11} className={`transition-transform ${showOthers ? "rotate-90" : ""}`} />
-                    <span className="flex-1 text-left">Companies with no {section === "grout" ? "grouts" : "mortars or underlayments"}</span>
+                    <span className="flex-1 text-left">Companies with no {kindLabel(kindsFor[0])}s</span>
                     <span>{others.length}</span>
                   </button>
                   {showOthers && others.map((co) => <div key={co.id}>{companyHeader(co)}</div>)}
