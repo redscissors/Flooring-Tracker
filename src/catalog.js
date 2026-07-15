@@ -240,6 +240,11 @@ export function materialWarnings(p, s) {
     const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((d) => !p.underlay.installSkip?.[d.id]);
     if (defs.length && !getUnderlayInstall(p, s)) out.push("install");
   }
+  // Add-on categories (ADR 0016): a checked chip whose product no longer
+  // resolves — or whose coverage can't compute — is warned like the built-ins.
+  for (const cat of (s.catalog?.categories || [])) {
+    if (p.attached?.[cat.id]?.checked && !getAttached(p, s, cat)) out.push(`attach:${cat.id}`);
+  }
   return out;
 }
 
@@ -488,13 +493,14 @@ export function removeCompany(catalog, companyId) {
 // since-hidden product still computes. Names are unique per kind, so last write
 // on a duplicate would win — but uniqueness is enforced on add.
 export function resolveCatalog(catalog) {
-  const grouts = {}, mortars = {}, underlayments = {};
+  const grouts = {}, mortars = {}, underlayments = {}, attached = {};
   for (const co of (catalog?.companies || [])) {
     for (const p of (co.grouts || [])) grouts[p.name] = groutFields(p);
     for (const p of (co.mortars || [])) mortars[p.name] = mortarFields(p);
     for (const p of (co.underlayments || [])) underlayments[p.name] = underlayFields(p);
+    for (const p of (co.attached || [])) { (attached[p.categoryId] ||= {})[p.name] = attachedFields(p); }
   }
-  return { grouts, mortars, underlayments };
+  return { grouts, mortars, underlayments, attached };
 }
 
 // A product is offered in a job dropdown only when BOTH its company and itself
@@ -584,6 +590,55 @@ export const offeredAttached = (catalog, categoryId) => {
   for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (isOffered(co, p) && p.categoryId === categoryId) names.push(p.name);
   return names;
 };
+
+// The enabled add-on categories a product row of `type` offers as chips: an
+// empty floorTypes list = every type (underlayment's `types` convention).
+export const offeredCategories = (catalog, type) =>
+  (catalog?.categories || []).filter((c) => c.enabled !== false && (!(c.floorTypes || []).length || (c.floorTypes || []).includes(type)));
+
+// A job's add-on material for one category, resolved by NAME at calc time
+// (mortar/underlayment convention — no snapshot). Same
+// `{ exact, order, unit, price, product }` shape as getUnderlay. Two quantity
+// models: "manual" (the typed per-row quantity IS the amount, no area math) and
+// "coverage" (flat sq ft/unit scaled off area × waste, a manual total wins —
+// identical to underlayment). Returns null when the product name no longer
+// resolves (deleted/renamed) so materialWarnings can flag it. Never on misc.
+export function getAttached(p, s, category) {
+  if (!category || p.type === "misc") return null;
+  const a = p.attached?.[category.id];
+  if (!a || !a.checked) return null;
+  const prod = (s.attached?.[category.id] || {})[a.product];
+  if (!prod) return null;
+  const unit = prod.unit || "units", price = num(prod.price), product = a.product;
+  if (category.math === "manual") { const v = num(a.manual); return { exact: v, order: v, unit, price, product }; }
+  if (a.manual !== "" && a.manual != null) { const v = num(a.manual); return { exact: v, order: v, unit, price, product }; }
+  if (p.qtyType !== "sqft") return null;
+  const sqft = num(p.qty); if (!sqft) return { exact: 0, order: 0, unit, price, product };
+  const cov = num(prod.coverage); if (!cov) return null;
+  const exact = sqft * wasteFor(p, s) / cov;
+  return { exact, order: ceilQty(exact), unit, price, product };
+}
+
+// Whole-job add-on materials, aggregated one line per (category, product):
+// exact summed then ceiled once (like the on-screen totals), cost from the
+// ceiled order. Shared by the order summary, estimate breakdown, order sheet,
+// and grand total so they can never disagree (the groutBaseList precedent).
+// `cust.categories` are the job's areas; add-on categories live on s.catalog.
+export function attachedList(cust, s) {
+  const cats = s.catalog?.categories || [];
+  if (!cats.length) return [];
+  const byCat = new Map();
+  for (const area of (cust?.categories || [])) for (const p of (area.products || [])) for (const cat of cats) {
+    const A = getAttached(p, s, cat); if (!A) continue;
+    const m = byCat.get(cat.id) || new Map();
+    const e = m.get(A.product) || { categoryId: cat.id, category: cat.name, product: A.product, unit: A.unit, price: A.price, exact: 0 };
+    e.exact += A.exact; e.unit = A.unit; e.price = A.price;
+    m.set(A.product, e); byCat.set(cat.id, m);
+  }
+  const out = [];
+  for (const cat of cats) { const m = byCat.get(cat.id); if (!m) continue; for (const e of m.values()) { const order = ceilQty(e.exact); const sku = s.attached?.[cat.id]?.[e.product]?.sku || ""; out.push({ ...e, sku, order, cost: order * num(e.price) }); } }
+  return out;
+}
 
 // Deleting a category is permanent and sharper than disabling: its products
 // are pruned from every company, and (once jobs wire in, PR 3) saved jobs

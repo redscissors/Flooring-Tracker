@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -1032,4 +1032,104 @@ test("attached products survive a serialize/normalize round-trip", () => {
   assert.equal(co.attached.length, 1);
   assert.equal(co.attached[0].categoryId, catId);
   assert.equal(co.attached[0].sku, "T-114");
+});
+
+// --- ADR 0016 PR 3: job wiring (getAttached / attachedList / warnings) --------
+
+// A settings object carrying one add-on category + one attached product, with
+// the derived `attached` name map resolved (as withDerived does at calc time).
+const withCategory = ({ math = "coverage", floorTypes = [], def = "", coverage = 40, unit = "pieces", price = 12, sku = "T-114", name = "RENO-U" } = {}) => {
+  const s0 = normalizeSettings(undefined);
+  let c = addCategory(s0.catalog, { name: "Trim", floorTypes, math, default: def });
+  const catId = c.categories[0].id;
+  const coId = c.companies[0].id;
+  c = addProduct(c, coId, "attached", { name, categoryId: catId, sku, unit, price, coverage });
+  const s = normalizeSettings(serializeSettings({ ...s0, catalog: c }));
+  return { s, catId, coId, cat: s.catalog.categories[0] };
+};
+
+// A job (customer) with a single area holding the given products.
+const job = (...products) => ({ categories: [{ id: "a1", products }] });
+const attachRow = (catId, over = {}) => ({ type: "tile", qtyType: "sqft", qty: "200", L: "12", W: "12", thickness: "0.375", attached: { [catId]: { checked: true, product: "RENO-U", manual: "", ...over } } });
+
+test("resolveCatalog exposes attached products by category and name", () => {
+  const { s, catId } = withCategory({ coverage: 40, unit: "pieces", price: 12, sku: "T-114" });
+  assert.equal(s.attached[catId]["RENO-U"].coverage, 40);
+  assert.equal(s.attached[catId]["RENO-U"].unit, "pieces");
+  assert.equal(s.attached[catId]["RENO-U"].price, 12);
+  assert.equal(s.attached[catId]["RENO-U"].sku, "T-114");
+  // Old records with no categories resolve to an empty attached map.
+  assert.deepEqual(resolveCatalog(normalizeSettings(undefined).catalog).attached, {});
+});
+
+test("getAttached coverage math scales off area × waste, ceils, honors manual override", () => {
+  const { s, catId, cat } = withCategory({ math: "coverage", coverage: 40 });
+  const A = getAttached(attachRow(catId), s, cat); // 200 * 1.1 / 40 = 5.5
+  assert.equal(A.exact, 200 * 1.1 / 40);
+  assert.equal(A.order, 6);
+  assert.equal(A.unit, "pieces");
+  assert.equal(A.price, 12);
+  assert.equal(A.product, "RENO-U");
+  // A vinyl row uses the floor waste rate, not tile's.
+  const vs = { ...s, waste: { tile: 10, floor: 20 } };
+  assert.equal(getAttached(attachRow(catId, {}), { ...vs }, cat).exact, 200 * 1.1 / 40); // tile row still tile rate
+  const vRow = { ...attachRow(catId), type: "vinyl" };
+  assert.equal(getAttached(vRow, vs, cat).exact, 200 * 1.2 / 40);
+  // Manual override wins over the calc, same as underlayment.
+  assert.equal(getAttached(attachRow(catId, { manual: "3" }), s, cat).order, 3);
+});
+
+test("getAttached manual math returns the typed quantity, no area math", () => {
+  const { s, catId, cat } = withCategory({ math: "manual" });
+  const A = getAttached(attachRow(catId, { manual: "4" }), s, cat);
+  assert.equal(A.exact, 4);
+  assert.equal(A.order, 4);
+  // Independent of sq ft / coverage.
+  const A2 = getAttached({ ...attachRow(catId, { manual: "4" }), qty: "9999" }, s, cat);
+  assert.equal(A2.order, 4);
+});
+
+test("getAttached is null when unchecked, on misc rows, or when the name no longer resolves", () => {
+  const { s, catId, cat } = withCategory({ math: "coverage", coverage: 40 });
+  assert.equal(getAttached(attachRow(catId, { checked: false }), s, cat), null);
+  assert.equal(getAttached({ ...attachRow(catId), type: "misc" }, s, cat), null);
+  assert.equal(getAttached(attachRow(catId, { product: "Ghost Trim" }), s, cat), null);
+  // No area yet → exact 0 (a fresh row; the SF cell owns the empty state).
+  assert.equal(getAttached(attachRow(catId, {}), { ...s }, cat).exact >= 0, true);
+  assert.equal(getAttached({ ...attachRow(catId), qty: "" }, s, cat).order, 0);
+});
+
+test("offeredCategories floor-scopes and honors enabled", () => {
+  const s0 = normalizeSettings(undefined);
+  let c = addCategory(s0.catalog, { name: "Trim", floorTypes: ["tile"], math: "manual" });
+  c = addCategory(c, { name: "Sealer", floorTypes: [], math: "coverage" }); // all types
+  const off = updateCategory(c, c.categories[0].id, { enabled: false });
+  assert.deepEqual(offeredCategories(c, "tile").map((x) => x.name), ["Trim", "Sealer"]);
+  assert.deepEqual(offeredCategories(c, "vinyl").map((x) => x.name), ["Sealer"]);
+  assert.deepEqual(offeredCategories(off, "tile").map((x) => x.name), ["Sealer"]); // disabled dropped
+});
+
+test("attachedList aggregates one line per (category, product), ceiling once", () => {
+  const { s, catId, cat } = withCategory({ math: "coverage", coverage: 40, price: 12 });
+  // Two tile rows of RENO-U: 5.5 + 2.75 = 8.25 exact → 9 ordered (ceil once).
+  const j = job(attachRow(catId), { ...attachRow(catId), qty: "100" });
+  const list = attachedList(j, s);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].category, "Trim");
+  assert.equal(list[0].product, "RENO-U");
+  assert.equal(list[0].exact, 200 * 1.1 / 40 + 100 * 1.1 / 40);
+  assert.equal(list[0].order, 9);
+  assert.equal(list[0].sku, "T-114");
+  assert.equal(list[0].cost, 9 * 12);
+  // No categories → empty.
+  assert.deepEqual(attachedList(j, normalizeSettings(undefined)), []);
+});
+
+test("materialWarnings flags a checked add-on whose product no longer resolves", () => {
+  const { s, catId, cat } = withCategory({ math: "coverage", coverage: 40 });
+  assert.deepEqual(materialWarnings(attachRow(catId), s), []);
+  assert.deepEqual(materialWarnings(attachRow(catId, { product: "Ghost Trim" }), s), [`attach:${catId}`]);
+  // A coverage product with no coverage set can't compute → warns.
+  const noCov = withCategory({ math: "coverage", coverage: 0 });
+  assert.deepEqual(materialWarnings(attachRow(noCov.catId), noCov.s), [`attach:${noCov.catId}`]);
 });
