@@ -1336,6 +1336,10 @@ export default function App({ user, onSignOut }) {
     const inBuckets = new Set(upserts.map((u) => u.sku));
     const rest = [...disable].filter((s) => !inBuckets.has(s));
     if (rest.length) await setBookItemsDisabled(bookId, rest, true);
+    // A disable-only apply (identical book, just toggling SKUs) must NOT reset
+    // the book's last-import date/staleness or add an import-history version —
+    // no vendor data actually landed. Only a real import stamps/snapshots.
+    if (!upserts.length) { flashSaved(); return; }
     const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
     if (opts.superseded?.length) li.superseded = opts.superseded;
     if (disable.size) li.disabled = disable.size;
@@ -4068,6 +4072,13 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const supersedeOld = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => p.oldSku);
   const disableSkus = [...new Set([...ignored, ...supersedeOld])];
   const appliedSupersede = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => ({ oldSku: p.oldSku, newSku: p.newSku }));
+  const importCount = diff.added.length + diff.changed.length + diff.missing.length;
+  // Disabling SKUs is a valid apply even when the re-import is otherwise a no-op
+  // (identical book → every row unchanged) — so the button also opens on pending
+  // disables, and reads them alone when there's no import to report.
+  const applyLabel = importCount === 0 && disableSkus.length
+    ? `Apply — ${disableSkus.length} disabled`
+    : `Apply — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retiring${disableSkus.length ? ` · ${disableSkus.length} disabled` : ""}`;
 
   return (
     <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
@@ -4241,7 +4252,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede }); }} disabled={diff.added.length + diff.changed.length + diff.missing.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply — {diff.added.length} new · {diff.changed.length} changed · {diff.missing.length} retiring{disableSkus.length ? ` · ${disableSkus.length} disabled` : ""}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede }); }} disabled={importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>
