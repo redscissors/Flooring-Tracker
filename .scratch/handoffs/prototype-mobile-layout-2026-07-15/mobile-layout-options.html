@@ -243,6 +243,35 @@ input,select{font-family:inherit;color:var(--ft-text)}
 .sheet .sbody{overflow-y:auto;padding:14px 16px 22px}
 .sheet .field{padding:11px 12px;font-size:15px}
 
+/* ================= OPTION E — two-line grid ================= */
+.e-hdr,.e-l2{display:grid;grid-template-columns:1.12fr .6fr .6fr .76fr .9fr 1fr 26px}
+.e-hdr{background:var(--ft-area-head);border-bottom:1px solid var(--ft-grid-line)}
+.e-hdr span{font-size:8.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ft-muted);padding:5px 7px;border-right:1px solid var(--ft-row-line);white-space:nowrap;overflow:hidden}
+.e-hdr span.num{text-align:right}
+.e-hdr span:last-child{border-right:none}
+.e-row{border-bottom:1px solid var(--ft-row-line)}
+.e-row:last-of-type{border-bottom:none}
+.e-l1{display:flex;align-items:center;gap:7px;padding:7px 9px 3px}
+.e-l1 input{border:none;background:transparent;font:inherit;color:inherit;padding:3px 4px;border-radius:var(--ft-r);min-width:0}
+.e-l1 input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card)}
+input.e-size{width:88px;flex:none;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
+input.e-name{flex:1;font-weight:600;font-size:13px}
+.e-l2>*{border-right:1px solid var(--ft-row-line);min-width:0;display:flex;align-items:center}
+.e-l2>*:last-child{border-right:none}
+.e-cell{width:100%;min-width:0;border:none;background:transparent;font:inherit;color:inherit;font-size:11.5px;padding:7px;font-variant-numeric:tabular-nums}
+.e-cell:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card);border-radius:var(--ft-r)}
+.e-cell.num{text-align:right}
+.e-cell.sku{font-size:10.5px;color:var(--ft-muted)}
+.e-tint{background:var(--ft-area-head)}
+.e-ord{flex-direction:column;align-items:flex-end;justify-content:center;padding:4px 7px;gap:0}
+.e-ord .o{font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.e-ord .ex{font-size:8.5px;color:var(--ft-faint);font-variant-numeric:tabular-nums}
+.e-tot{justify-content:flex-end;padding:7px;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.e-act{justify-content:center;color:var(--ft-faint);font-size:14px}
+.e-mats{padding:4px 9px 6px 24px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.e-mats span{font-size:10px;color:var(--ft-muted)}
+.e-mats b{font-weight:600;color:var(--ft-text)}
+
 /* ================= OPTION D — sticky-rail spreadsheet ================= */
 .d-chips{display:flex;gap:6px;padding:9px 12px 2px;flex-wrap:wrap}
 .d-chip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:600;color:var(--ft-muted)}
@@ -266,9 +295,9 @@ input,select{font-family:inherit;color:var(--ft-text)}
 
 <div class="shell">
   <header>
-    <div class="eyebrow acc">FloorTrack · Prototype · 4 variants · throwaway</div>
+    <div class="eyebrow acc">FloorTrack · Prototype · 5 variants · throwaway</div>
     <h1><span class="the">the</span> estimate builder, on a phone</h1>
-    <p>Same project, four structurally different mobile treatments of the part that breaks today — the fixed 9-column product grid. Flip between options; on a desktop you see it inside a phone frame, and if you open this page on your actual phone each option runs full-screen. Inputs are live to feel, but nothing saves.</p>
+    <p>Same project, five structurally different mobile treatments of the part that breaks today — the fixed 9-column product grid. Flip between options; on a desktop you see it inside a phone frame, and if you open this page on your actual phone each option runs full-screen. Inputs are live to feel, but nothing saves.</p>
   </header>
 
   <div class="cols">
@@ -323,6 +352,11 @@ const OPTS = [
    strong:"Most information per screen; great for reviewing/quoting on-site; pinned total always visible.",
    weak:"Read-first: every edit goes through the sheet; dense lines are small tap targets.",
    cost:"Medium. Ledger view is near the print layout that already exists; sheet reuses editor fields." },
+ { k:"E", name:"Two-line grid", tag:"your sketch · current design, wrapped",
+   blurb:"Keeps today's grid exactly, but each row wraps to two decks: Size and Product/Color on the first line; the column header moves down to label the second line — SKU · Cov. · SF · Price · Order · Total. Every column gets roughly double its current width.",
+   strong:"Same design language and column scanning as desktop; all numbers visible and editable in place; no navigation at all.",
+   weak:"Rows are ~2× as tall; the second line is still six columns on a 390px screen, so it stays dense; materials still need the drawer.",
+   cost:"Low. Under the existing isWide flag the row grid template splits in two and the header strip labels only the numeric deck — same components, same handlers." },
  { k:"D", name:"Sticky-rail spreadsheet", tag:"least change",
    blurb:"Keep the grid, make it pannable: product column sticks left, the number columns scroll horizontally under it, and chips jump to a column group. Taller rows for touch.",
    strong:"Preserves the spreadsheet muscle memory and column scanning; smallest conceptual change.",
@@ -563,9 +597,40 @@ function bindD(root){
   }));
 }
 
+/* ---------- Option E — two-line grid ---------- */
+function renderE(){
+  const hdr = `
+    <div class="e-hdr">
+      <span>SKU</span><span class="num">Cov.</span><span class="num">SF</span>
+      <span class="num">Price</span><span class="num">Order</span><span class="num">Total</span><span></span>
+    </div>`;
+  const row = p => `
+    <div class="e-row">
+      <div class="e-l1">
+        <span class="typechip t-${p.type}">${p.tl}</span>
+        <input class="e-size" value="${p.size}">
+        <input class="e-name" value="${p.name}">
+      </div>
+      <div class="e-l2">
+        <div><input class="e-cell sku" value="${p.sku}"></div>
+        <div><input class="e-cell num" value="${p.cov}"></div>
+        <div><input class="e-cell num" inputmode="decimal" value="${p.sf}"></div>
+        <div class="e-tint"><input class="e-cell num" inputmode="decimal" value="${p.price.toFixed(2)}"></div>
+        <div class="e-ord"><span class="o">${p.ord}</span><span class="ex">${p.exact}</span></div>
+        <div class="e-tint e-tot">${money(p.total)}</div>
+        <button class="e-act">⋮</button>
+      </div>
+      ${p.mats.length?`<div class="e-mats">${p.mats.map(m=>`<span><b>${m.k}</b> ${m.v.split(" · ")[0]} · ${m.q}</span>`).join("")}</div>`:""}
+    </div>`;
+  return topbar() + `<div class="screen">` + projhead() +
+    P.areas.map(a=>areaShell(a, hdr + a.products.map(row).join(""))).join("") +
+    `<button class="addarea">+ Add area</button>` + ordsum() + `</div>`;
+}
+function bindE(){}
+
 /* ---------- switcher / rail ---------- */
-const RENDER = [renderA, renderB, renderC, renderD];
-const BIND   = [bindA, bindB, bindC, bindD];
+const RENDER = [renderA, renderB, renderC, renderE, renderD];
+const BIND   = [bindA, bindB, bindC, bindE, bindD];
 
 function show(i){
   cur = (i + OPTS.length) % OPTS.length;
@@ -609,8 +674,8 @@ function renderNotes(){
     if(e.key==="ArrowRight") show(cur+1);
   });
   const q = new URLSearchParams(location.search).get("variant");
-  const start = Math.max(0, OPTS.findIndex(o=>o.k===q));
-  show(start === -1 ? 0 : start);
+  const found = OPTS.findIndex(o=>o.k===q);
+  show(found >= 0 ? found : OPTS.findIndex(o=>o.k==="E"));
 })();
 </script>
 </body></html>
