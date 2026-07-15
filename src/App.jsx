@@ -2799,8 +2799,8 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (<>
-                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" style={{ flex: 1, minWidth: 0 }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-1" style={{ fontSize: 8, color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
+                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" style={{ flex: 1, minWidth: 0, padding: "6px 2px" }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
                                 </>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
