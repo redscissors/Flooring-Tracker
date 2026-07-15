@@ -618,6 +618,16 @@ const PACKAGING_RE = /\(\s*[^)]*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs)\s*\)/gi;
 const SHEET_TOKEN_RE = new RegExp(`\\(?\\s*(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?\\s*(?:sheets?|shts?)\\b\\s*\\)?`, "i");
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
 const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
+// A penny round is one shape however the sheet spells it ("PENNY ROUND",
+// "PENNY RND", "PENNY") and is always labeled "Penny" — so "PENNY ROUND" never
+// reads as the separate shape word "Round". Its chip size can sit right before
+// the word ("3/4\"PENNY"), after it with an inch mark ("PENNY ROUND 3/4 INCH"),
+// or be absent (a mesh sheet whose printed size is only the sheet). Triggered by
+// "penny" alone; a bare "round" with no penny stays a generic shape (ADR 0015).
+const PENNY_RE = /\bpenny\b/i;
+const PENNY_STRIP_RE = /\b(penny|round|rnd)\b/gi;
+const PENNY_DIM_BEFORE_RE = new RegExp(`(${DIM})\\s*["']?\\s*(?=(?:penny|round|rnd)\\b)`, "i");
+const PENNY_DIM_INCH_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})`, "i");
 
 // SHOUTING vendor text → Title Case; already-cased text is left alone (so an
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
@@ -647,32 +657,43 @@ export function splitSizeFromDescription(desc) {
   // Thickness first, so "10MM" can't be mistaken for part of a size.
   const mm = s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
-  const sz = s.match(SIZE_RE);
-  // Take the first L×W as the size, then strip EVERY L×W token from the name —
-  // some sheets print the size in both the color and the description column
-  // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
-  // what put the size back in the product name next to a filled size cell.
-  if (sz) {
-    const a = dimVal(sz[1]), b = dimVal(sz[2]);
-    const shape = s.match(new RegExp(`\\b(${SHAPE_WORDS})\\b`, "i"));
-    s = s.replace(new RegExp(SIZE_RE.source, "gi"), " ");
-    if (shape && a === b && a <= 6) {
-      // Equal dims plus a shape word is a hex/penny chip ("HEX MOS
-      // 1-1/2X1-1/2") — read as the vendor-spelled shape size, ticket 009's
-      // display model, rather than a 1.5x1.5 rectangle. Capped small: an
-      // equal L×W over 6" next to a shape word is a mosaic SHEET size
-      // ("HEX MOSAIC 13X13 SHT"), which must stay a rectangle.
-      size = `${sz[1]}" ${titleCase(shape[1])}`;
-      s = s.replace(shape[0], " ");
-    } else {
-      size = `${a}x${b}`; // decimal ("8.5x10") so parseTileSize fills the L/W cells
-    }
+  if (PENNY_RE.test(s)) {
+    // Penny handled on its own so "penny round" is one shape, not a "Round" size.
+    let dim = "";
+    const before = s.match(PENNY_DIM_BEFORE_RE);
+    if (before) { dim = before[1]; s = s.replace(before[0], " "); }
+    else { const inch = s.match(PENNY_DIM_INCH_RE); if (inch) { dim = inch[1]; s = s.replace(inch[0], " "); } }
+    if (dim) size = `${dim}" Penny`;          // chip size → grout computes from it
+    else if (!sheetSize) sheetSize = "Penny";  // no printed chip size → a "Penny sheet"
+    s = s.replace(PENNY_STRIP_RE, " ");
   } else {
-    const shp = s.match(SHAPE_SIZE_RE);
-    if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
-    else {
-      const rev = s.match(SIZE_SHAPE_RE);
-      if (rev) { size = `${rev[3]}" ${titleCase(rev[1])}`; s = s.replace(rev[0], ` ${rev[2]} `); }
+    const sz = s.match(SIZE_RE);
+    // Take the first L×W as the size, then strip EVERY L×W token from the name —
+    // some sheets print the size in both the color and the description column
+    // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
+    // what put the size back in the product name next to a filled size cell.
+    if (sz) {
+      const a = dimVal(sz[1]), b = dimVal(sz[2]);
+      const shape = s.match(new RegExp(`\\b(${SHAPE_WORDS})\\b`, "i"));
+      s = s.replace(new RegExp(SIZE_RE.source, "gi"), " ");
+      if (shape && a === b && a <= 6) {
+        // Equal dims plus a shape word is a hex/penny chip ("HEX MOS
+        // 1-1/2X1-1/2") — read as the vendor-spelled shape size, ticket 009's
+        // display model, rather than a 1.5x1.5 rectangle. Capped small: an
+        // equal L×W over 6" next to a shape word is a mosaic SHEET size
+        // ("HEX MOSAIC 13X13 SHT"), which must stay a rectangle.
+        size = `${sz[1]}" ${titleCase(shape[1])}`;
+        s = s.replace(shape[0], " ");
+      } else {
+        size = `${a}x${b}`; // decimal ("8.5x10") so parseTileSize fills the L/W cells
+      }
+    } else {
+      const shp = s.match(SHAPE_SIZE_RE);
+      if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
+      else {
+        const rev = s.match(SIZE_SHAPE_RE);
+        if (rev) { size = `${rev[3]}" ${titleCase(rev[1])}`; s = s.replace(rev[0], ` ${rev[2]} `); }
+      }
     }
   }
   if (!thickness) {

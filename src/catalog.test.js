@@ -163,6 +163,25 @@ test("groutExact/mortarExact from the catalog match the flat-settings result", (
   assert.equal(groutExact(p, tuned), groutExact(p, tunedFlat));
 });
 
+test("penny rounds get extra grout for the corners the circle leaves (ADR 0015)", () => {
+  const s = mergeSettings(undefined);
+  // Same 3/4" size and 1/8" joint; the only difference is the round shape.
+  const square = tile({ L: "0.75", W: "0.75", thickness: "0.25", sizeText: "3/4 Square" });
+  const penny = tile({ L: "0.75", W: "0.75", thickness: "0.25", sizeText: '3/4" Penny' });
+  const sq = groutExact(square, s), pn = groutExact(penny, s);
+  assert.ok(pn > sq, "a penny needs more grout than the square proxy");
+  // Corner fill for d=0.75, J=0.125, T=0.25: adds ((0.75^2·(1−π/4))/(0.875^2))·0.25
+  // onto the square joint volume — about a 1.47× uplift.
+  assert.ok(Math.abs(pn / sq - 1.47) < 0.02, `uplift ~1.47×, got ${(pn / sq).toFixed(3)}`);
+  // getGrout flags the row so the estimate can say why the grout is higher.
+  assert.equal(getGrout(penny, s).round, true);
+  assert.equal(getGrout(square, s).round, false);
+  // A hex tiles flush — no uplift.
+  const hex = tile({ L: "2", W: "2", sizeText: '2" Hexagon' });
+  assert.equal(getGrout(hex, s).round, false);
+  assert.equal(groutExact(hex, s), groutExact(tile({ L: "2", W: "2", sizeText: "" }), s));
+});
+
 test("resolve-by-name finds a product regardless of enabled state (hidden product still calculates)", () => {
   const s = normalizeSettings(undefined);
   // Disable every PermaColor Select entry; resolveCatalog must still expose it.

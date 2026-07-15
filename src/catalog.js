@@ -74,11 +74,24 @@ export function getMortar(p, s) {
   return { exact: ex, order: ceilQty(ex), unit: m.unit, price: num(m.price), product: p.mortar.product };
 }
 
+// A penny round (or any round chip) leaves grout at the four corners its circle
+// can't reach — area the L×W square proxy never accounts for — so it needs more
+// grout than a square tile of the same size. `roundGroutExtra` is that corner
+// fill as a volume-per-area term added onto the square joint volume: each cell
+// is (d+J)², the circle covers πd²/4, so the corners are d²(1−π/4) of the cell
+// (ADR 0015). Rounds are recognized by the "Penny"/"Round" the size string
+// carries (hexes tile flush and are excluded). Off for square tiles.
+const ROUND_RE = /\b(penny|round)\b/i;
+export const isRoundTile = (p) => p?.type === "tile" && ROUND_RE.test(String(p?.sizeText || ""));
+const roundGroutExtra = (d, J, T) => { const cell = d + J; return cell > 0 ? ((d * d * (1 - Math.PI / 4)) / (cell * cell)) * T : 0; };
+
 export function groutExact(p, s) {
   if (p.type !== "tile" || p.qtyType !== "sqft") return null;
   const sqft = num(p.qty), L = num(p.L), W = num(p.W), T = num(p.thickness), J = num(p.grout.joint);
   if (!sqft || !L || !W || !T || !J) return null;
-  const vol = ((L + W) / (L * W)) * T * J; if (!vol) return null;
+  let vol = ((L + W) / (L * W)) * T * J;
+  if (isRoundTile(p)) vol += roundGroutExtra((L + W) / 2, J, T);
+  if (!vol) return null;
   const cov = num(s.grouts[p.grout.product]?.coverage) * (REF / vol);
   return sqft * wasteFor(p, s) / (cov || 1);
 }
@@ -86,9 +99,9 @@ export function groutExact(p, s) {
 export function getGrout(p, s) {
   if (p.type !== "tile" || !p.grout.checked) return null;
   const g = s.grouts[p.grout.product] || {};
-  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color }; }
+  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) }; }
   const ex = groutExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color };
+  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) };
 }
 
 // The base unit a two-part grout drags along (ADR 0006). One base per grout kit,

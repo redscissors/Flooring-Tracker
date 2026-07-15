@@ -480,6 +480,22 @@ test("splitSizeFromDescription: a parenthesized SHEET token is the sheet, not th
   assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC POLISHED (9X11 SHEET)"), { size: "", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Polished", sheetSize: "9x11" });
 });
 
+test("splitSizeFromDescription: penny rounds are one shape labeled Penny, size before/after/absent (ADR 0015)", () => {
+  // Size AFTER the shape, spelled "3/4 INCH" — the reported ANASOCCPENNY34 rows.
+  assert.deepEqual(splitSizeFromDescription("SOHO CEMENT CHIC PENNY ROUND MOSAIC 3/4 INCH GLOSSY"), { size: '3/4" Penny', thickness: "", name: "Soho Cement Chic Mosaic Glossy", sheetSize: "" });
+  // Size BEFORE the shape, jammed against it with an inch mark.
+  assert.deepEqual(splitSizeFromDescription('SOHO CANVAS WHITE 3/4"PENNY RND GLOSSY *NEW PKG*'), { size: '3/4" Penny', thickness: "", name: "Soho Canvas White Glossy *New Pkg*", sheetSize: "" });
+  // A bare number right before the shape (no inch mark) still reads (ticket 009).
+  assert.equal(splitSizeFromDescription("1 Penny Round White").size, '1" Penny');
+  // No printed chip size → a "Penny" sheet (sheetSize), the chip typed on the row.
+  const noSize = splitSizeFromDescription("ELEMENT CLOUD PENNY ROUND MOSAIC");
+  assert.equal(noSize.size, "");
+  assert.equal(noSize.sheetSize, "Penny");
+  assert.equal(noSize.name, "Element Cloud Mosaic");
+  // "penny round" never splits into the standalone shape word "Round".
+  assert.doesNotMatch(splitSizeFromDescription("SOHO GALLERY GREY PENNY ROUND MOSAIC 3/4 INCH GLOSSY").size, /Round/);
+});
+
 test("parseMapped: a mosaic sheet with SF/CT N/A derives coverage and a labeled sheet size (ADR 0014)", () => {
   const mapping = {
     headerRow: 0,
