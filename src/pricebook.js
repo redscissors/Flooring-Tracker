@@ -21,7 +21,7 @@
 // re-arranged sheet degrades to "items went missing" (visible in the import
 // diff preview) rather than garbage rows.
 
-import { normOrderItem } from "./orderbook.js";
+import { normOrderItem, unitComboWarnings } from "./orderbook.js";
 
 const SKU_RE = /^\d{4,8}$/;
 const str = (c) => (c == null ? "" : String(c).trim());
@@ -678,7 +678,12 @@ export function parseMapped(rows, mapping) {
     items.push(mappedItem(m, raw, sku, sem));
   }
   if (!consumed) warnings.push(`No rows matched the SKU pattern /${skuRe.source}/ — check the SKU column and pattern.`);
-  return { items: dedupeMapped(items, warnings), warnings };
+  const deduped = dedupeMapped(items, warnings);
+  // Unit sanity before anything applies: rows whose U/M combination the
+  // pricing code has never been taught get named here, not silently mispriced
+  // (the VTC bullnose lesson — see unitComboWarnings).
+  warnings.push(...unitComboWarnings(deduped));
+  return { items: deduped, warnings };
 }
 
 // A flag cell can carry several markers ("xx *"); each maps through the legend.

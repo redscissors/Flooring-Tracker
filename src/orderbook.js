@@ -13,7 +13,7 @@
 // tierPrices (book-defined contractor pricing). Picking one produces the same
 // patch stockPatch builds, then adds bookId/cost/markupPct and the flags.
 
-import { stockPatch, stockPriceSqft, priceUnitOf } from "./stock.js";
+import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, sellUnitFactor, fillsFlooring, isPieceUnit, isCartonUnit } from "./stock.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => {
@@ -98,11 +98,12 @@ export const bookItemData = ({ sku, bookId, active, updatedAt, ...data }) => dat
 
 // Per-sq-ft cost, mirroring stockPriceSqft: the cost as-is when the item is
 // priced by the square foot, else derived from a carton/sheet cost and its
-// SF/CT coverage. Count/flat items (EA, PC with no coverage) have none.
+// SF/CT coverage — scaled by PC/CT first when the cost is per piece
+// (perCartonFactor). Count/flat items (EA, PC with no coverage) have none.
 export function costSqft(item) {
   if (!item || item.cost == null) return null;
   if (/^(sf|sft|sqft)$/i.test(priceUnitOf(item))) return item.cost;
-  if (item.sfPerUnit > 0) return round4(item.cost / item.sfPerUnit);
+  if (item.sfPerUnit > 0) return round4((item.cost * perCartonFactor(item)) / item.sfPerUnit);
   return null;
 }
 
@@ -137,7 +138,9 @@ export const sellPrice = (cost, pct) => (cost == null ? null : round2(cost * (1 
 export const rowCostSqft = (item) => {
   if (!item || item.cost == null) return null;
   const csf = item.type ? costSqft(item) : null;
-  return csf != null ? csf : item.cost;
+  // Count lines cost per SELL unit: a carton-only trim's cost is per carton
+  // (× PC/CT), matching the per-carton sell the patch snapshots.
+  return csf != null ? csf : item.cost * sellUnitFactor(item);
 };
 
 // A stock-shaped item with price/priceSqft filled from cost × markup, so
@@ -189,7 +192,10 @@ export function orderPatch(item, book, product) {
 export function orderDrift(item, book, product) {
   if (!item) return null;
   const priced = pricedItem(item, book?.data?.markups);
-  const now = priced.type ? stockPriceSqft(priced) : priced.price;
+  // Mirror the pick: flooring lines drift on $/sqft, count lines on the flat
+  // price per sell unit (× PC/CT for a carton-only trim, like the patch).
+  const now = fillsFlooring(priced) ? stockPriceSqft(priced)
+    : priced.price != null ? round2(priced.price * sellUnitFactor(priced)) : null;
   const cur = parseFloat(product.priceSqft);
   if (now == null || !Number.isFinite(cur)) return null;
   const to = round2(now);
@@ -275,6 +281,41 @@ export function diffBookItems(existing, parsed) {
 export function editedInDiff(existing, parsed) {
   const { changed } = diffBookItems(existing, parsed);
   return changed.filter(({ prev }) => prev && prev.editedAt).map(({ prev }) => prev);
+}
+
+// --- import-time unit sanity ---------------------------------------------------
+
+// Tally parsed rows whose units the pricing code can't handle honestly, for the
+// import wizard to show BEFORE apply. Born of the VTC bullnose audit (2026-07):
+// 801 per-piece-priced, carton-sold rows silently underpriced 1–20× because no
+// check owned the question "does this sheet carry a unit combination we've
+// never priced?". Every combination the code DOES handle has a row in the
+// truth table (unitcombos.test.js); teaching it a new one starts there.
+// Rule-based, not a combo whitelist, so single-U/M books stay quiet.
+export function unitComboWarnings(items) {
+  const groups = new Map();
+  const add = (msg, sku) => {
+    const g = groups.get(msg) || { n: 0, skus: [] };
+    g.n++;
+    if (g.skus.length < 3 && sku) g.skus.push(sku);
+    groups.set(msg, g);
+  };
+  for (const it of items || []) {
+    const pu = priceUnitOf(it), ou = orderUnitOf(it);
+    if (it.cost == null && it.price == null) { add("with no price on the sheet — landing unpriced", it.sku); continue; }
+    if (it.cost === 0 || it.price === 0) { add("with a $0 price on the sheet — landing as $0 lines", it.sku); continue; }
+    if (isPieceUnit(pu) && !(it.pcPerUnit > 0)) {
+      // Without PC/CT a per-piece price can't be converted to the carton the
+      // vendor actually sells (or to a per-carton SF/CT) — the very hole the
+      // bullnose audit found.
+      if (isCartonUnit(ou)) { add(`priced per ${pu.toUpperCase()} but sold by the ${ou.toUpperCase()} with no PC/CT column mapped — the carton price can't be built (may land unpriced or underpriced)`, it.sku); continue; }
+      if (it.sfPerUnit > 0 && ou && ou.toUpperCase() !== pu.toUpperCase()) { add(`priced per ${pu.toUpperCase()} with SF/CT coverage but no PC/CT column mapped — the derived $/sqft may be off by the carton's piece count`, it.sku); continue; }
+    }
+    if (pu && ou && ou.toUpperCase() !== pu.toUpperCase() && !isCartonUnit(ou) && !isPieceUnit(ou) && !/^(sf|sft|sqft)$/i.test(ou)) {
+      add(`sold by an unfamiliar unit "${ou}" — check how these rows land before trusting their price`, it.sku);
+    }
+  }
+  return [...groups.entries()].map(([msg, g]) => `${g.n} row${g.n === 1 ? "" : "s"} ${msg} (${g.skus.join(", ")}${g.n > g.skus.length ? ", …" : ""}).`);
 }
 
 // --- markup group summary ----------------------------------------------------

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
-  bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst,
+  bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -102,6 +102,100 @@ test("orderPatch: costSqft reads the split cost basis, and a misc line carries i
   assert.equal(orderPatch(split, book(), {}).costSqft, "3.29");   // cost basis is SF, not carton
   const misc = oi({ sku: "ACC1", type: null, unit: "EA", cost: 15, sfPerUnit: null });
   assert.equal(orderPatch(misc, book(), {}).costSqft, "15");      // per-each cost for a flat line
+});
+
+// --- per-piece cost basis (VTC trims & mosaics, 2026-07 mispricing fix) --------
+
+test("costSqft: a per-piece cost scales by PC/CT before dividing by the carton's SF/CT", () => {
+  // Real VTC row CTIEPLIBN336R: $27.99/pc bullnose, 8 pc per carton, 5.38 sf per
+  // carton → $41.62/sqft. The old cost ÷ SF/CT gave $5.20 — 8× underpriced.
+  assert.equal(costSqft(oi({ unit: "", priceUnit: "PC", orderUnit: "CT", cost: 27.99, sfPerUnit: 5.38, pcPerUnit: 8 })), 41.6208);
+});
+
+test("costSqft: a per-sheet cost scales the same way (mosaic sold by the carton)", () => {
+  // Real VTC row EDISAIVMOS22: $21.29/sheet, 9 sheets/ctn, 8.72 sf/ctn.
+  assert.equal(costSqft(oi({ unit: "", priceUnit: "SH", orderUnit: "CT", cost: 21.29, sfPerUnit: 8.72, pcPerUnit: 9 })), 21.9736);
+});
+
+test("costSqft: piece-priced with coverage but no PC/CT keeps the per-unit read (stock-book mosaics)", () => {
+  // Single-U/M books carry sfPerUnit per the priced unit itself — no scaling.
+  assert.equal(costSqft(oi({ unit: "SH", cost: 27.99, sfPerUnit: 2 })), 13.995);
+});
+
+test("orderPatch: a piece-priced carton-sold trim prices and bills by the real carton", () => {
+  const item = oi({ sku: "CTIEPLIBN336R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 27.99, sfPerUnit: 5.38, pcPerUnit: 8 });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.priceSqft, "52.03");    // 41.6208 × 1.25
+  assert.equal(patch.cartonSf, "5.38");
+  assert.equal(patch.cartonUnit, "CT");
+  assert.equal(patch.costSqft, "41.62");
+  // One carton totals ≈ 8 pieces at the marked-up piece price: 52.03 × 5.38 ≈ 279.9.
+});
+
+test("orderPatch: a piece-priced carton-sold trim with NO coverage lands as a count line priced per carton", () => {
+  // Real VTC row CDSTABABN240R: $56.89/pc bullnose, No Broken = CT, 10 pc/ctn,
+  // SF/CT = N/A. Was a $0 sqft line; now a Miscellaneous line per carton.
+  const item = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 56.89, pcPerUnit: 10 });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.type, "misc");
+  assert.equal(patch.priceSqft, "711.1");    // (56.89 × 1.25 = 71.11/pc) × 10 pc per carton
+  assert.match(patch.brandColor, /carton of 10/);
+  assert.equal(patch.costSqft, "568.9");     // vendor cost per carton, for the margin
+  assert.equal(patch.cost, "56.89");         // raw per-piece cost, for drift
+});
+
+test("orderPatch: loose pieces of a cartoned tile still price by the carton's economics", () => {
+  // PC-priced, No Broken = PC, but SF/CT + PC/CT are carton figures.
+  const item = oi({ sku: "LOOSE1", type: "tile", unit: "", priceUnit: "PC", orderUnit: "PC", cost: 4.5, sfPerUnit: 16, pcPerUnit: 8 });
+  const patch = orderPatch(item, book(), {});
+  assert.equal(patch.priceSqft, "2.81");     // (4.5 × 8 / 16) × 1.25
+  assert.equal(patch.cartonSf, undefined);   // sold loose — no whole-carton rounding
+});
+
+test("orderDrift: a count-landed carton line drifts on its per-carton sell", () => {
+  const row = { priceSqft: "711.1", cost: "56.89", markupPct: "25" };
+  const item = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 60, pcPerUnit: 10 });
+  const drift = orderDrift(item, book(), row);
+  assert.equal(drift.to, 750);               // (60 × 1.25) × 10
+  assert.deepEqual(drift.cost, { from: 56.89, to: 60 });
+  // and no false drift when nothing moved
+  const same = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 56.89, pcPerUnit: 10 });
+  assert.equal(orderDrift(same, book(), row), null);
+});
+
+// --- import-time unit sanity ---------------------------------------------------
+
+test("unitComboWarnings: flags piece-priced carton-sold rows with no PC/CT to convert with", () => {
+  const items = [
+    oi({ sku: "BN1", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 27.99, pcPerUnit: null }),
+    oi({ sku: "BN2", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 14.64, sfPerUnit: 5.38, pcPerUnit: null }),
+  ];
+  const warns = unitComboWarnings(items);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0], /^2 rows/);
+  assert.match(warns[0], /PC\/CT/);
+  assert.match(warns[0], /BN1, BN2/);
+});
+
+test("unitComboWarnings: flags rows with no price and unfamiliar sell units", () => {
+  const warns = unitComboWarnings([
+    oi({ sku: "NOP1", cost: null }),
+    oi({ sku: "ODD1", unit: "", priceUnit: "PC", orderUnit: "PA", cost: 9, pcPerUnit: 4 }),
+  ]);
+  assert.equal(warns.length, 2);
+  assert.match(warns.join(" "), /unpriced/);
+  assert.match(warns.join(" "), /"PA"/);
+});
+
+test("unitComboWarnings: silent for combos the pricing code handles", () => {
+  const items = [
+    oi({ sku: "OK1", unit: "SF", cost: 3.29, sfPerUnit: 15.5 }),                                              // classic sqft
+    oi({ sku: "OK2", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 27.99, sfPerUnit: 5.38, pcPerUnit: 8 }), // Case 1
+    oi({ sku: "OK3", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 56.89, pcPerUnit: 10 }),               // Case 2
+    oi({ sku: "OK4", unit: "SH", cost: 27.99, sfPerUnit: 2 }),                                                // single-U/M mosaic
+    oi({ sku: "OK5", unit: "EA", cost: 15 }),                                                                 // flat accessory
+  ];
+  assert.deepEqual(unitComboWarnings(items), []);
 });
 
 // --- markup resolution -------------------------------------------------------
