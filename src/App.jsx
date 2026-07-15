@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from 
 import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
+import { fetchAllRows } from "./fetchall.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
@@ -1165,9 +1166,8 @@ export default function App({ user, onSignOut }) {
   };
 
   const loadStock = async () => {
-    const { data: rows, error } = await supabase.from("stock_items").select("sku, active, data, updated_at");
-    if (error) throw error;
-    return (rows || []).map(normStockItem);
+    const rows = await fetchAllRows(() => supabase.from("stock_items").select("sku, active, data, updated_at").order("sku"));
+    return rows.map(normStockItem);
   };
 
   // Parse a freshly exported price book workbook in the browser and show what
@@ -1264,9 +1264,8 @@ export default function App({ user, onSignOut }) {
   // A book's items, loaded on demand (Settings browse). Not held in app state —
   // the caller keeps them while the book is open.
   const loadBookItems = async (bookId) => {
-    const { data: rows, error } = await supabase.from("price_book_items").select("sku, active, data, updated_at").eq("book_id", bookId);
-    if (error) throw error;
-    return (rows || []).map((r) => normBookItem(r, bookId));
+    const rows = await fetchAllRows(() => supabase.from("price_book_items").select("sku, active, data, updated_at").eq("book_id", bookId).order("sku"));
+    return rows.map((r) => normBookItem(r, bookId));
   };
 
   const addBook = async ({ kind, name }) => {
