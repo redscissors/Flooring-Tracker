@@ -678,12 +678,12 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
 const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
 const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, display: "flex", alignItems: "center" };
 
-// PROTOTYPE (mobile two-line rows, ?variant=E) — throwaway, do not build on.
 // Below 768px each product row renders as two wrapping decks instead of the
 // 9-column grid: Size + Product/Color on the first line, then self-labeled
-// fields (SKU / Cov. / SF / Price / Order / Total) that reflow when the
-// screen runs out of width. Same state, same handlers — layout only.
-// Switcher pill is dev-only; the URL param works in any build.
+// fields (SKU / Cov. / SF / Price / Order) that reflow when the screen runs
+// out of width — a shared column header can't stay aligned once fields wrap,
+// so each one carries its own label instead. Same state, same handlers as
+// the desktop grid below — layout only.
 function EField({ label, right, flex, tint, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex, padding: "0 2px", borderRight: "1px solid var(--ft-row-line)", ...(tint ? { background: TOTAL_WASH, borderRadius: "var(--ft-r)" } : null) }}>
@@ -1059,10 +1059,6 @@ export default function App({ user, onSignOut }) {
   }, [theme]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
-  // PROTOTYPE (?variant=E): mobile two-line product rows — see EField above.
-  const [protoVariant, setProtoVariant] = useState(() => { try { return new URLSearchParams(window.location.search).get("variant") || ""; } catch { return ""; } });
-  const setVariant = (v) => { setProtoVariant(v); try { const u = new URL(window.location); if (v) u.searchParams.set("variant", v); else u.searchParams.delete("variant"); window.history.replaceState(null, "", u); } catch { /* URL API unavailable — state alone still switches */ } };
-  const protoE = protoVariant === "E" && !isWide;
   const [namingVersion, setNamingVersion] = useState(false);
   const [versionName, setVersionName] = useState("");
   const [saveOk, setSaveOk] = useState(false);
@@ -2619,7 +2615,7 @@ export default function App({ user, onSignOut }) {
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{(protoE ? [areaTotal > 0 ? money(areaTotal) : ""] : [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
+                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{(isWide ? [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""] : [areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
@@ -2634,7 +2630,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      {!protoE && (
+                      {isWide && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
@@ -2795,11 +2791,12 @@ export default function App({ user, onSignOut }) {
                               </div>
                             </div>
                             ) : (<>
-                            {/* main product row */}
-                            {protoE ? (
-                            /* PROTOTYPE ?variant=E — two wrapping decks; same cells & handlers as the grid branch below.
-                               Long-press on any non-interactive part of the row pops it out for drag
-                               (startDrag's own 220ms hold + move-abort does the gesture detection). */
+                            {/* main product row: two wrapping decks below 768px (see EField above),
+                                the 9-column grid at desktop width */}
+                            {!isWide ? (
+                            /* Long-press on any non-interactive part of the row pops it out for
+                               drag (startDrag's own hold + move-abort does the gesture detection;
+                               inputs/buttons are excluded so typing is unaffected). */
                             <div onPointerDown={(e) => { if (e.target.closest("input,button,select,textarea")) return; startDrag(e, a.id, p, pi, 350); }}
                               style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px 4px 0 0" }}>
@@ -3492,15 +3489,6 @@ export default function App({ user, onSignOut }) {
         );
       })()}
 
-      {/* PROTOTYPE switcher (dev builds only) — flips the mobile two-line row
-          variant; ?variant=E also works directly in any build. */}
-      {import.meta.env.DEV && !isWide && (
-        <div className="print:hidden fixed left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold shadow-lg" style={{ bottom: 66, zIndex: 90, background: "var(--ft-accent)", color: "var(--ft-accent-ink)" }}>
-          <button onClick={() => setVariant(protoVariant === "E" ? "" : "E")} className="px-1" style={{ color: "inherit" }}>‹</button>
-          <span style={{ minWidth: 118, textAlign: "center" }}>{protoVariant === "E" ? "E — two-line rows" : "current layout"}</span>
-          <button onClick={() => setVariant(protoVariant === "E" ? "" : "E")} className="px-1" style={{ color: "inherit" }}>›</button>
-        </div>
-      )}
       {toast && <div className="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg z-50">{toast}</div>}
     </div>
   );

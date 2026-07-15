@@ -55,3 +55,22 @@ Next: judge with a real job on a real phone (`npm run dev`, open with
 rendering (delete the switcher + `?variant` gate), sweep the row-adjacent
 mobile leftovers (materials drawer width, popover clamps), and PR with fresh
 preview proof. Then delete this folder.
+
+## Promoted (2026-07-15)
+
+The `?variant=E` gate and the dev-only switcher pill are removed. Mobile
+(<768px) now renders the two-line rows unconditionally — no URL param needed;
+desktop (≥768px) is unchanged and still renders the 9-column grid.
+`protoE`/`protoVariant`/`setVariant` are gone; the row branch now switches on
+the existing `isWide` flag like every other responsive point in App.jsx.
+
+Promotion proof (real app, stubbed Supabase, on PR #122's branch):
+`promote-mobile.png` / `promote-mobile-scrolled.png` (two-line rows, no
+`?variant`) and `promote-desktop.png` (grid header + `SIZE / TYPE` columns
+intact) in this folder.
+
+Still open (separate follow-up, not blocking this merge): the materials
+drawer width and a few fixed-width popovers noted in the original design
+doc — those weren't part of the row redesign the owner reviewed.
+
+Folder stays until PR #122 merges, then delete.
