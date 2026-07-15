@@ -177,6 +177,99 @@ test("a header whose labels wrap above the Item# line does not leak as the colle
   assert.equal(items[0].productLine, "Mayan Garden Collection");
 });
 
+// --- Glazzio mosaics: chip vs. sheet (issue 016, ADR 0014 amendment) ----------
+
+// Antiquities layout: a literal "Sheet Size" column and no chip anywhere (the
+// shape is prose — "Hexagon"/"Diamond"). The sheet must NOT become the tile size.
+test("mosaic with a Sheet Size column: sheet → coverage, chip left blank to prompt", () => {
+  const header = [
+    word(75, 175, "Item"), word(97, 175, "#"),
+    word(141, 175, "Color"), word(169, 175, "Name"),
+    word(219, 175, "Description"),
+    word(300, 175, "Sheet"), word(328, 175, "Size"),
+    word(372, 175, "SQF"), word(394, 175, "Per"), word(412, 175, "Sheet"),
+    word(455, 175, "$"), word(463, 175, "Per"), word(480, 175, "SQF"),
+    word(521, 175, "$"), word(529, 175, "Per"), word(547, 175, "Sheet"),
+  ];
+  const row = [
+    word(73, 198, "ANQ52"), word(127, 198, "Eqyptian"), word(166, 198, "Ivory"),
+    word(227, 198, "Hexagon"),
+    word(289, 198, "11"), word(302, 198, '3/4"'), word(321, 198, "x"), word(329, 198, "11"), word(342, 198, '7/8"'),
+    word(396, 198, "0.97"), word(463, 198, "$16.20"), word(533, 198, "$15.71"),
+  ];
+  const page = [word(52, 152, "Antiquities"), word(103, 152, "Collection"), ...header, ...row];
+  const { items } = parse(page);
+  const it = items.find((i) => i.sku === "ANQ52");
+  assert.ok(it, "row survives");
+  assert.equal(it.size, "", "the sheet dimension never fills the chip size");
+  assert.equal(it.sheetSize, "11.75x11.875", "sheet dimension carried as sheetSize");
+  assert.equal(it.sfPerUnit, 0.97, "per-sheet coverage");
+  assert.equal(it.cost, 15.71); // priced per sheet, $/sqft = 15.71 / .97 ≈ 16.20 (reconciles)
+  assert.match(it.description, /Hexagon/, "shape word stays in the name for the prompt");
+});
+
+// Aragon/Academia layout: Rows per Sheet + a prose SHEET SIZE line, no chip. The
+// chip is derived (sheet ÷ rows) and coverage comes from the prose "= X SQF".
+test("mosaic with Rows per Sheet + prose sheet line: chip derived, coverage from prose", () => {
+  const header = [
+    word(80, 139, "Item"), word(102, 139, "#"),
+    word(176, 139, "Color"), word(203, 139, "Name"),
+    word(277, 139, "Rows"), word(305, 139, "per"), word(322, 139, "Sheet"),
+    word(392, 139, "$"), word(399, 139, "Per"), word(417, 139, "SQF"),
+    word(483, 139, "$"), word(491, 139, "Per"), word(508, 139, "Sheet"),
+  ];
+  const row = [
+    word(73, 162, "AGH5411"), word(180, 162, "Qassle"), word(212, 162, "Blu"),
+    word(307, 162, "12"), word(400, 162, "$15.30"), word(492, 162, "$14.43"),
+  ];
+  const prose = [
+    word(43, 220, "SHEET"), word(77, 220, "SIZE:"), word(103, 220, "11"), word(116, 220, '1/2"'),
+    word(135, 220, "x"), word(142, 220, "11"), word(155, 220, '13/16"'), word(185, 220, "="),
+    word(193, 220, ".943"), word(214, 220, "SQF"),
+  ];
+  const page = [word(44, 121, "Aragon"), word(82, 121, "Hills"), word(107, 121, "Collection"), ...header, ...row, ...prose];
+  const { items } = parse(page);
+  const it = items.find((i) => i.sku === "AGH5411");
+  assert.ok(it, "row survives");
+  assert.equal(it.size, "1x1", "chip ≈ 11.66 / 12 rows ≈ 1\", squared for grout");
+  assert.equal(it.sheetSize, "11.5x11.8125");
+  assert.equal(it.sfPerUnit, 0.943, "coverage from the prose = .943 SQF");
+  assert.equal(it.cost, 14.43); // per sheet; $/sqft = 14.43 / .943 ≈ 15.30 (reconciles)
+  assert.equal(it.pcPerUnit, null, "Rows per Sheet is NOT piece packaging");
+});
+
+// Eos 24x48 layout: a mosaic sub-table whose longer "-M" code kerns against the
+// color name (no gutter) so the SKU/name cell merges. The code is peeled back
+// off so the row survives, its name-borne "2x2" chip parses, and the coverage
+// comes from the combined "…COVERAGE… MOSAIC COVERAGE: 12 x 12 = 1 SQF" line.
+test("mosaic sub-table: merged SKU is un-split so the row survives with its 2x2 chip", () => {
+  const header = [
+    word(86, 235, "Item"), word(105, 235, "#"),
+    word(155, 235, "Color"), word(179, 235, "Name"),
+    word(231, 235, "Variation"), word(283, 235, "Thickness"), word(364, 235, "PEI"), word(421, 235, "Finish"),
+    word(479, 235, "$"), word(486, 235, "per"), word(501, 235, "Sheet/SQF"),
+  ];
+  // The -M code's right edge overlaps the color name → detectColumns merges them.
+  const row = [
+    word(72, 257, "LRGSTB10-M"), word(129, 257, "Stream"), word(158, 257, "Bone"),
+    word(179, 257, "2x2"), word(194, 257, "Mosaic"),
+    word(291, 257, "10mm"), word(367, 257, "III"), word(417, 257, "Polished"), word(498, 257, "$21.00"),
+  ];
+  const prose = [
+    word(69, 281, "24x48"), word(91, 281, "COVERAGE"), word(135, 281, ":"), word(139, 281, "7.75"), word(155, 281, "SQF/PC"),
+    word(405, 281, "MOSAIC"), word(436, 281, "COVERAGE:"), word(483, 281, "12"), word(493, 281, "x"), word(498, 281, '12"'), word(511, 281, "="), word(518, 281, "1"), word(524, 281, "SQF"),
+  ];
+  const page = [word(69, 163, "24x48-6"), ...header, ...row, ...prose];
+  const { items } = parse(page);
+  const it = items.find((i) => i.sku === "LRGSTB10-M");
+  assert.ok(it, "the merged-SKU row is not dropped");
+  assert.equal(it.size, "2x2", "the name-borne chip size parses");
+  assert.equal(it.sheetSize, "12x12", "sheet from the MOSAIC COVERAGE segment, not the 24x48 before it");
+  assert.equal(it.sfPerUnit, 1, "one 12x12 sheet = 1 SQF");
+  assert.equal(it.cost, 21);
+  assert.match(it.description, /Stream Bone/);
+});
+
 test("clusterRows merges a two-baseline row but keeps distinct rows apart", () => {
   const rows = clusterRows([
     word(50, 100, "A"), word(200, 101, "B"), // 1px apart → same row

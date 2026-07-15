@@ -769,7 +769,10 @@ function mappedItem(mapping, raw, sku, sem) {
   // carry no size column. When size isn't separately mapped, pull them out so
   // the pick fills the tile size cells and the name reads clean.
   let size = str(raw.size), thickness = str(raw.thickness), descText = str(raw.description);
-  let sheetSize = "", sfPerUnit = numOrNull(raw.sfPerUnit);
+  // An explicitly-mapped Sheet Size column (the Glazzio PDF path, ADR 0014
+  // amendment) is the backing sheet, never the chip — carried as sheetSize, with
+  // the tile L×W left to the chip size below.
+  let sheetSize = str(raw.sheetSize) || "", sfPerUnit = numOrNull(raw.sfPerUnit);
   const coverage = numOrNull(raw.coverage);
   if (!size && descText) {
     const split = splitSizeFromDescription(descText);
@@ -777,7 +780,7 @@ function mappedItem(mapping, raw, sku, sem) {
     if (split.thickness && !thickness) thickness = split.thickness;
     // A sheet dimension only stands in when the description gave no chip size —
     // a real chip size (e.g. "2\" Hexagon") always wins for the tile L×W.
-    if (split.sheetSize && !size) sheetSize = split.sheetSize;
+    if (split.sheetSize && !size && !sheetSize) sheetSize = split.sheetSize;
     if (split.size || split.thickness || split.sheetSize) descText = split.name;
   }
   // Mosaic sold by the sheet with SF/CT left blank (Milestone marble hexes): the
