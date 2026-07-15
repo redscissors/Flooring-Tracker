@@ -138,7 +138,14 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // color), snapshotted at the same moment; the SKU shows on caulk
            // lines and tubes × caulkPrice joins the estimate totals (rows
            // without a snapshot price cost $0, as before).
-           underlay:{checked,product,manual,install} }
+           underlay:{checked,product,manual,install},
+           attached:{ [categoryId]: {checked,product,manual} } }
+           // attached = add-on material categories (ADR 0016, PR 3): one entry
+           // per custom category, keyed by the category id, resolved by NAME at
+           // calc time (mortar convention, no snapshot). getAttached does the
+           // math — "coverage" scales like underlayment, "manual" is the typed
+           // quantity — and attachedList aggregates the job's lines once for the
+           // order summary, estimate breakdown, order sheet, and grand total.
            // underlay.install = also order the catalog-defined install
            // materials (backer mortar, screws) for the chosen underlayment
            // cartonSf = sq ft one carton/sheet covers (any type but misc;
@@ -224,8 +231,14 @@ The Add-ons group below the built-ins holds team-defined custom material
 categories (ADR 0016): `catalog.categories` (name · floorTypes · coverage-or-
 manual math · chip default · enabled) with company-grouped products in each
 company's flat `attached` array (`categoryId` ties product → category), full
-price-book parity including exact-SKU price refresh on import. Settings-only
-until the PR-3 job wiring; jobs will resolve these by name like mortar.
+price-book parity including exact-SKU price refresh on import. Jobs wire them in
+(PR 3): each enabled category whose `floorTypes` include a product row's type
+shows an add chip beside Grout/Mortar/Underlayment; toggling it on pre-fills the
+category default and the line joins the materials box, order summary, estimate
+breakdown/totals, printed estimate, and order sheet. `getAttached` does the math
+("coverage" like underlayment, "manual" a typed quantity), `attachedList` the
+shared aggregate, and `materialWarnings` flags a checked chip whose product no
+longer resolves — all resolving by name at calc time, like mortar.
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add
