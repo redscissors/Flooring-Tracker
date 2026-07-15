@@ -7,6 +7,12 @@
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
 
+// The product a brand-new tile row defaults its grout/mortar chip to. Team-set
+// via Settings and stored on `catalog.defaults`; these seed values are only the
+// starting point (and the last-resort when a stored default is blank).
+export const DEFAULT_GROUT = "PermaColor Select";
+export const DEFAULT_MORTAR = "ProLite";
+
 // The flooring types a product row can be. Underlayment products are tagged with
 // the subset of these they apply to (an empty tag list = applies to all types).
 export const FLOOR_TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
@@ -340,7 +346,21 @@ export function seedCatalog(flat) {
       underlayments: [],
     });
   }
-  return { companies };
+  return { companies, defaults: normDefaults() };
+}
+
+// The team's chosen chip defaults, one per material kind. Stored names are kept
+// verbatim (they may point at a now-hidden product); resolveMaterialDefault
+// decides at chip time whether they still apply. Absent → the seed names.
+export const normDefaults = (raw) => ({
+  grout: String(raw?.grout ?? DEFAULT_GROUT),
+  mortar: String(raw?.mortar ?? DEFAULT_MORTAR),
+});
+
+// Set the chip default for a kind ("grouts"/"mortars") to a product name.
+export function setCatalogDefault(catalog, kind, name) {
+  const key = kind === "grouts" ? "grout" : "mortar";
+  return { ...catalog, defaults: { ...normDefaults(catalog?.defaults), [key]: String(name || "") } };
 }
 
 const normGroutProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...groutFields(p) });
@@ -381,7 +401,7 @@ export function normalizeCatalog(catalog) {
     mortars: (co?.mortars || []).map(normMortarProduct),
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
   }));
-  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds };
+  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, defaults: normDefaults(catalog?.defaults) };
 }
 
 // True when the stored catalog already contains every starter underlayment
@@ -485,6 +505,21 @@ const offeredNames = (catalog, kind) => {
 };
 export const offeredGrouts = (catalog) => offeredNames(catalog, "grouts");
 export const offeredMortars = (catalog) => offeredNames(catalog, "mortars");
+
+// The product a fresh row's grout/mortar chip should show, resolved against
+// what the catalog currently offers. Order of preference:
+//   1. the row's own pick, when it is still offered (a real, valid choice)
+//   2. the team's catalog default (`preferred`), when it is still offered
+//   3. the first offered product — so the chip never lands on a name that
+//      computes nothing (e.g. a renamed/removed seed like ProLite)
+// A fresh row carries no pick (product ""), so the catalog default governs it;
+// falls through to "" only when the catalog offers nothing.
+export const resolveMaterialDefault = (offered, current, preferred) => {
+  const list = offered || [];
+  if (current && list.includes(current)) return current;
+  if (preferred && list.includes(preferred)) return preferred;
+  return list[0] || "";
+};
 
 // Underlayments are additionally filtered by flooring type: a product is offered
 // to a job only when its `types` tag includes that type (an empty tag = all).
