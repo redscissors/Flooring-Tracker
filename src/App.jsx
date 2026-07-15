@@ -3434,10 +3434,14 @@ function orderEntryRow(p, s, area) {
   const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${unitCode}` : "";
   const extSell = c.line;
   const extCost = orderLineCost(p, s, extSell);
-  const copy = [tag, sizePlain, p.brandColor, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  // A Mannington trim's name carries a "· fits APX020 …" note (manningtonbook.js)
+  // that helps the picker surface it under a floor-code search; it's noise once
+  // the trim is on the order, so drop it from the panel's name and copied text.
+  const name = String(p.brandColor || "").replace(/\s*·\s*fits\b.*$/i, "").trim();
+  const copy = [tag, sizePlain, name, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   return {
     id: p.id, special: !!p.bookId, area,
-    tag, sizePlain, name: p.brandColor, sku: p.sku, coverage,
+    tag, sizePlain, name, sku: p.sku, coverage,
     qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
