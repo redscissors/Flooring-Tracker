@@ -453,6 +453,28 @@ test("splitSizeFromDescription: mixed-fraction dims parse whole, not from the mi
   assert.equal(splitSizeFromDescription("MOROCCAN CONC OFF WHITE 12X24 RECT *NEW PKG").size, "12x24");
 });
 
+test("splitSizeFromDescription: shape word BEFORE the size (MLS/ANA EFT hex rows)", () => {
+  // ANALMCPHEX2PN — the reported row: 'HEXAGON 2 INCH' left the size cell empty.
+  assert.deepEqual(splitSizeFromDescription("LA MARCA CALACATTA PAONAZZO HEXAGON 2 INCH POL *2022 PROD"), { size: '2" Hexagon', thickness: "", name: "La Marca Calacatta Paonazzo Pol *2022 Prod" });
+  // 'HEX 3 IN' — bare IN counts as the inch mark.
+  assert.deepEqual(splitSizeFromDescription("LUXURY AMANI GREY HEX 3 IN POLISHED"), { size: '3" Hex', thickness: "", name: "Luxury Amani Grey Polished" });
+  // 'HEXAGON MOSAIC 2"' — the MOSAIC between shape and size stays in the name.
+  assert.deepEqual(splitSizeFromDescription('JEM ARIA GOLD HEXAGON MOSAIC 2" MATTE'), { size: '2" Hexagon', thickness: "", name: "Jem Aria Gold Mosaic Matte" });
+  assert.equal(splitSizeFromDescription('SHAPES METROPOLIS HEXAGON 10" CHISELED RECT').size, '10" Hexagon');
+  assert.equal(splitSizeFromDescription("MAYFAIR ALLURE IVORY HEXAGON MOSAIC 1.25 INCH POL*NEW PKG*").size, '1.25" Hexagon');
+  // The number-first spelling now takes a spelled-out inch word too.
+  assert.equal(splitSizeFromDescription("MOROCCAN CONC OFF WHITE 2 INCH HEX TILE").size, '2" Hex');
+  // No inch mark on the number → not a size ("HEXAGON 2022 PROD" stays a name).
+  assert.equal(splitSizeFromDescription("ODDBALL GREY HEXAGON 2022 PROD").size, "");
+});
+
+test("splitSizeFromDescription: sheet-size parens leave no litter (MLSMBOGHEXM/P)", () => {
+  // The reported MLS rows: the sheet L×W is the size (the settled mosaic-sheet
+  // model) and the hollowed-out "( SHEET)" is dropped from the name.
+  assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC MATTE (9X11 SHEET)"), { size: "9x11", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Matte" });
+  assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC POLISHED (9X11 SHEET)"), { size: "9x11", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Polished" });
+});
+
 test("mmToFraction: metric thickness → the fraction the trade calls it", () => {
   assert.equal(mmToFraction(6), '1/4"');
   assert.equal(mmToFraction(8), '5/16"');

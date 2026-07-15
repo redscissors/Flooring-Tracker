@@ -597,7 +597,13 @@ const SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?`, "i
 // being shoved into the color name. A bare '6"' with no shape word is left in
 // the name on purpose — no shape word, no coverage.
 const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
-const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*(${SHAPE_WORDS})\\b`, "i");
+const INCH_MARK = `["']|in(?:ch(?:es)?)?\\b`;
+const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})?\\s*(${SHAPE_WORDS})\\b`, "i");
+// The MLS/ANA EFT sheets write the shape FIRST — 'HEXAGON 2 INCH', 'HEX 3 IN',
+// 'HEXAGON MOSAIC 2" MATTE'. Matched only when the number carries an inch mark,
+// so a trailing code ("HEXAGON 2022 PROD") can never read as a size. A
+// MOS/MOSAIC between shape and size is kept in the name — it says sheet goods.
+const SIZE_SHAPE_RE = new RegExp(`\\b(${SHAPE_WORDS})\\b\\s+((?:mos(?:aics?)?\\s+)?)(${DIM})\\s*(?:${INCH_MARK})`, "i");
 // "(12X10/SH)"-style packaging tokens (sheet dims + a per-unit) are never the
 // item's size — dropped before matching so the chip size wins and the name
 // keeps no "( /Sh)" litter.
@@ -648,11 +654,18 @@ export function splitSizeFromDescription(desc) {
   } else {
     const shp = s.match(SHAPE_SIZE_RE);
     if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
+    else {
+      const rev = s.match(SIZE_SHAPE_RE);
+      if (rev) { size = `${rev[3]}" ${titleCase(rev[1])}`; s = s.replace(rev[0], ` ${rev[2]} `); }
+    }
   }
   if (!thickness) {
     const fr = s.match(THICK_FRAC_RE);
     if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }
   }
+  // A stripped size can hollow out a parenthesized token — "(9X11 SHEET)" →
+  // "( SHEET)" — so drop parens left holding nothing but a packaging word.
+  s = s.replace(/\(\s*(?:sheets?|shts?|sh|pcs?|nominal|nom)?\s*\)/gi, " ");
   // Drop only leftover standalone "x" tokens (from a stripped size), never an
   // "x" inside a word like "Max".
   const name = smartCase(s.split(/\s+/).filter((w) => w && !/^[x×]$/i.test(w)).join(" "));
