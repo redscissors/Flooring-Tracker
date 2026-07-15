@@ -183,10 +183,16 @@ export function stockPatch(item, product) {
   const patch = { sku: item.sku };
   const psf = item.type ? stockPriceSqft(item) : null;
   const orderUnit = orderUnitOf(item);
+  // A mosaic backing sheet (ADR 0014) is one sheet per "piece" whatever the book
+  // calls the No-Broken unit: VTC lists the same marble hex as SH on the matte
+  // row and PC on the polished one. Either way each piece is a sheet with real
+  // coverage, so it orders in whole sheets by the sheet's own SF — the PC spelling
+  // must match its SH sibling, not fall through to loose exact-area ordering.
+  const sheetUnit = /^(sh|sht|sheet)s?$/i.test(orderUnit) || (!!item.sheetSize && isPieceUnit(orderUnit));
   // An explicit "No Broken" unit of PC/EA means the vendor sells loose pieces —
   // order the exact area, never round up to whole cartons. Only a separately
   // mapped orderUnit triggers this, so single-U/M books never change.
-  const looseOrder = /^(pc|pcs|piece|ea|each)$/i.test(str(item.orderUnit));
+  const looseOrder = /^(pc|pcs|piece|ea|each)$/i.test(str(item.orderUnit)) && !sheetUnit;
   if (fillsFlooring(item)) {
     patch.type = item.type;
     patch.qtyType = "sqft";
@@ -194,11 +200,12 @@ export function stockPatch(item, product) {
     if (psf != null) patch.priceSqft = String(round2(psf));
     if (item.sfPerUnit > 0 && !looseOrder) {
       // sfPerUnit is SF/CT — coverage per CARTON. When the sell unit is a sheet
-      // (a mosaic's "No Broken U/M" = SH), one sheet covers SF/CT ÷ pieces-per-
-      // carton, not the whole carton; without this the row orders ~PC/CT× too
-      // few sheets and rounds to full-carton chunks (VTC EFT books). Stock-book
-      // items carry no pcPerUnit, so their per-sheet coverage is left as-is.
-      const perSell = /^(sh|sht|sheet)s?$/i.test(orderUnit) && item.pcPerUnit > 0
+      // (a mosaic's "No Broken U/M" = SH, or a PC that is really a backing sheet),
+      // one sheet covers SF/CT ÷ pieces-per-carton, not the whole carton; without
+      // this the row orders ~PC/CT× too few sheets and rounds to full-carton
+      // chunks (VTC EFT books). Stock-book items carry no pcPerUnit, so their
+      // per-sheet coverage is left as-is.
+      const perSell = sheetUnit && item.pcPerUnit > 0
         ? round4(item.sfPerUnit / item.pcPerUnit)
         : item.sfPerUnit;
       patch.cartonSf = String(perSell);

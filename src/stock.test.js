@@ -154,6 +154,26 @@ test("a mosaic sheet shows a labeled sheet size and leaves L×W blank for a hand
   assert.equal(patch.priceSqft, "42.53");
 });
 
+test("a mosaic sheet whose No-Broken unit is spelled PC still orders whole sheets (ADR 0014)", () => {
+  // VTC lists the identical marble hex as SH on the matte row and PC on the
+  // polished one — a "piece" here is the 9×11 backing sheet, so it must snapshot
+  // the same per-sheet coverage as its SH sibling, not fall to loose exact-area.
+  const it = { sku: "MLSMBOIHEXP", type: "tile", priceUnit: "PC", orderUnit: "PC", sheetSize: "9x11", pcPerUnit: 10, sfPerUnit: 6.875, description: "Marbles Oniciata Ivory Hex Mosaic Polished", price: 32.54 };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.cartonSf, "0.6875");       // one 9×11 sheet, same as the SH sibling
+  assert.equal(patch.cartonUnit, "PC");         // reflects this row's own No-Broken unit
+  assert.equal(patch.sizeText, "9x11 sheet");
+  assert.equal(patch.priceSqft, "47.33");       // 32.54 × 10 ÷ 6.875
+});
+
+test("a loose piece-sold tile with no sheet (a per-piece bullnose w/ coverage) still orders exact area", () => {
+  // The looseOrder path is unchanged for genuine loose pieces: no sheetSize, so a
+  // PC No-Broken unit keeps its exact-area ordering (no carton/sheet rounding).
+  const it = { sku: "LOOSEPC", type: "tile", priceUnit: "SF", orderUnit: "PC", sfPerUnit: 5, pcPerUnit: 8, priceSqft: 4 };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.cartonSf, undefined);
+});
+
 test("a 94\" hex reducer fills free-text sizeText with no derived L/W (ticket 009 guard)", () => {
   const it = normStockItem({ sku: "R94", data: { type: "tile", unit: "LF", size: '94" Hex', description: "Reducer Oak", price: 20, priceSqft: 3 } });
   const patch = stockPatch(it, {});
