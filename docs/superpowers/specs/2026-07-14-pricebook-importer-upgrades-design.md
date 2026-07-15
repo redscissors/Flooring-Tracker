@@ -113,41 +113,66 @@ drift-resolve fetch (App.jsx ~1665), `findStock`, `loadBookItems`.
 
 ## PR B — import review: problems + supersede
 
-### Structured per-row problems
+**Scope (owner decision 2026-07-15):** PR B covers the **registry book import
+wizard** only (`BookImportWizard`), where all the real vendor-import pain lives.
+The shop stock workbook import (`importPriceBook` modal) is deferred to a later
+PR bundled with a stock item table — PR A left the stock workbook with no
+browse/re-enable UI, so disabling a stock SKU there would strand it.
 
-Parsers additionally tag items: `item.problems: string[]` (problem kind codes),
-kinds initially: `no-type` (no flooring type resolved), `no-cost`
-(missing/zero cost), `unit-combo` (the ADR 0013 suspicious unit combinations —
-same detection as today's `unitComboWarnings`, now also stamped per row).
-Aggregate `warnings` remain for file-level issues (no SKU column, no rows
-matched). `problems` is preview-only — stripped before writing to the DB
-(`bookItemData` already strips non-data fields).
+### Per-row problems (a derived classifier, not a stored field)
 
-### Preview UI (BookImportWizard + stock import modal)
+A pure helper **`itemProblems(item)`** in `src/orderbook.js` returns the problem
+codes for one item; the wizard maps it over the parsed items to build the
+review list. Nothing is stored on the item (avoids any risk of leaking into the
+`data` jsonb) and `unitComboWarnings` is refactored to build on the same helper
+(one source of truth). Problem kinds are exactly the **pricing/unit hazards**
+that misprice a line — the checks that caught the VTC bullnose bug:
+
+- `no-price` — no cost/price on the sheet (lands unpriced)
+- `zero-price` — $0 cost/price (lands as a $0 line)
+- `no-pc-carton` — per-piece price, sold by the carton, no PC/CT (carton price
+  can't be built)
+- `pc-sf-mismatch` — per-piece price with SF/CT but no PC/CT (derived $/sqft may
+  be off by the carton's piece count)
+- `unfamiliar-unit` — sold by a unit the pricing code doesn't handle
+
+**Untyped ("Misc") rows are NOT problems** (owner decision 2026-07-15): being a
+Misc count line is legitimate by design (ADR 0013 — hundreds of trims are
+correctly Misc). The preview keeps its existing amber "Misc" type cell as the
+informational marker; it does not enter the Problems list. Aggregate `warnings`
+remain for file-level issues (no SKU column, no rows matched).
+
+### Preview UI (BookImportWizard)
 
 - A **Problems (N)** section: full list (scrollable, not truncated), grouped by
   kind, each row showing SKU · description · what's wrong.
 - Per-row **Include / Ignore** toggle; per-group "Ignore all". Default
   Include.
-- Apply: ignored rows upsert with `disabled: true`; included rows import as
-  today. (Apply now sets the `disabled` column explicitly for *new* rows only:
-  added rows carry the toggle's value; changed/missing rows never touch the
-  column, preserving the user's earlier choice.)
+- Apply: **ignored SKUs are disabled** — uniformly, whether the row is new,
+  changed, or unchanged. New/changed/missing rows carry an explicit `disabled`
+  column in the upsert (added → the ignore toggle; changed/missing → preserve
+  the prior value unless newly ignored, keeping every upsert row's column set
+  identical for PostgREST batch consistency). Ignored SKUs that fall in no
+  upsert bucket (unchanged rows) are disabled via the PR A `setBookItemsDisabled`
+  path. Included rows import exactly as today.
 
 ### N-suffix supersede detection
 
-- During diff: for each incoming SKU matching `^(.+)N$` (case-insensitive
-  trailing `n`), if the base SKU exists among incoming items **or** the book's
-  existing items and that old item is enabled (`!disabled`), emit a supersede
-  pair `{ oldSku, newSku }`.
+- Pure helper **`supersedePairs(existing, parsed)`** in `src/orderbook.js`: for
+  each incoming SKU ending in `n`/`N`, if the SKU minus that trailing letter
+  exactly equals another SKU present in the incoming file **or** the book's
+  existing items, and that base item is currently enabled (`!disabled`), emit a
+  pair `{ oldSku, newSku, oldDesc, newDesc }`. One level, exact base match.
 - Preview shows a **Superseded SKUs** group: old and new side by side with both
   descriptions for a sanity check, each pair pre-checked "disable old".
-- Apply: checked pairs set `disabled = true` on the old SKU (via the PR A write
-  path). The applied pair list is recorded in the book's `lastImport` note so
-  there's a record of what got retired.
-- Scope: registry books and the stock book both get the detection (same diff
-  helper); the convention is vendor-agnostic by design — a false pair is
-  visible in the preview and untickable.
+- Apply: checked pairs add their `oldSku` to the same ignore/disable set — the
+  old SKU is disabled through the identical path (upsert column when it's in the
+  `missing` bucket, which superseded SKUs usually are; else `setBookItemsDisabled`).
+  The applied pair list + ignored count are recorded in the book's `lastImport`
+  note.
+- Rollback safety: replaying a version snapshot through `applyBookImport` passes
+  no ignore set and preserves each row's live `disabled` from its `prev`, so a
+  rollback never wipes the team's disable choices.
 
 ## PR C — single drop area
 
