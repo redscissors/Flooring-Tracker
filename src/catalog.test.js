@@ -242,7 +242,46 @@ test("getCarton never applies to misc lines, count rows, or rows without a carto
 
 // --- Slice 04: enabled checkboxes drive dropdown eligibility -----------------
 
-import { isOffered, offeredGrouts, offeredMortars } from "./catalog.js";
+import { isOffered, offeredGrouts, offeredMortars, resolveMaterialDefault, normDefaults, setCatalogDefault } from "./catalog.js";
+
+test("resolveMaterialDefault keeps the row's own pick when it is still offered", () => {
+  assert.equal(resolveMaterialDefault(["ProLite", "AcrylPro"], "AcrylPro", "ProLite"), "AcrylPro");
+});
+
+test("resolveMaterialDefault uses the catalog default for a fresh (blank) row", () => {
+  assert.equal(resolveMaterialDefault(["ProLite", "AcrylPro"], "", "AcrylPro"), "AcrylPro");
+});
+
+test("resolveMaterialDefault falls to the first offered when neither pick nor catalog default is offered", () => {
+  assert.equal(resolveMaterialDefault(["AcrylPro", "Schluter All Set"], "ProLite", "ProLite"), "AcrylPro");
+});
+
+test("resolveMaterialDefault returns '' when the catalog offers nothing", () => {
+  assert.equal(resolveMaterialDefault([], "ProLite", "ProLite"), "");
+  assert.equal(resolveMaterialDefault(undefined, "", ""), "");
+});
+
+test("normDefaults seeds ProLite / PermaColor Select and keeps stored names verbatim", () => {
+  assert.deepEqual(normDefaults(undefined), { grout: "PermaColor Select", mortar: "ProLite" });
+  assert.deepEqual(normDefaults({ grout: "CEG-Lite", mortar: "AcrylPro" }), { grout: "CEG-Lite", mortar: "AcrylPro" });
+});
+
+test("setCatalogDefault updates only the named kind's default", () => {
+  const s = normalizeSettings(undefined);
+  const c1 = setCatalogDefault(s.catalog, "mortars", "AcrylPro");
+  assert.equal(c1.defaults.mortar, "AcrylPro");
+  assert.equal(c1.defaults.grout, "PermaColor Select");
+  const c2 = setCatalogDefault(c1, "grouts", "Tec Power Grout");
+  assert.equal(c2.defaults.grout, "Tec Power Grout");
+  assert.equal(c2.defaults.mortar, "AcrylPro");
+});
+
+test("normalizeSettings carries catalog.defaults through a serialize round-trip", () => {
+  const s = normalizeSettings(undefined);
+  const c = setCatalogDefault(s.catalog, "mortars", "Schluter All Set");
+  const round = normalizeSettings(serializeSettings({ ...s, catalog: c }));
+  assert.equal(round.catalog.defaults.mortar, "Schluter All Set");
+});
 
 test("isOffered requires both the company and the product to be enabled", () => {
   assert.equal(isOffered({ enabled: true }, { enabled: true }), true);
