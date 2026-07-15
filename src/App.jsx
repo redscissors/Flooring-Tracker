@@ -1315,19 +1315,31 @@ export default function App({ user, onSignOut }) {
   };
 
   // Apply a mapped-import diff: upsert added/changed items, mark missing SKUs
-  // inactive (never delete), stamp the book's lastImport. Same chunked-upsert
-  // shape as the stock import.
-  const applyBookImport = async (bookId, diff) => {
+  // inactive (never delete), stamp the book's lastImport. opts.disableSkus (PR B)
+  // are the SKUs the user ignored or superseded — they land disabled. Every
+  // upsert row carries an explicit `disabled` so the batch's columns are uniform
+  // for PostgREST: added take the ignore value; changed/missing preserve their
+  // prior disabled unless newly ignored. Ignored SKUs in no bucket (unchanged
+  // rows) are disabled through the PR A path.
+  const applyBookImport = async (bookId, diff, opts = {}) => {
+    const disable = new Set(opts.disableSkus || []);
+    const off = (sku, prevDisabled) => (disable.has(sku) ? true : !!prevDisabled);
     const upserts = [
-      ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, data: bookItemData(it) })),
-      ...diff.changed.map(({ item }) => ({ book_id: bookId, sku: item.sku, active: true, data: bookItemData(item) })),
-      ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, data: bookItemData(it) })),
+      ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, disabled: disable.has(it.sku), data: bookItemData(it) })),
+      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(item) })),
+      ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, disabled: off(it.sku, it.disabled), data: bookItemData(it) })),
     ];
     for (let i = 0; i < upserts.length; i += 200) {
       const { error } = await supabase.from("price_book_items").upsert(upserts.slice(i, i + 200), { onConflict: "book_id,sku" });
       if (error) throw error;
     }
-    await updateBook(bookId, { dataPatch: { lastImport: { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length } } });
+    const inBuckets = new Set(upserts.map((u) => u.sku));
+    const rest = [...disable].filter((s) => !inBuckets.has(s));
+    if (rest.length) await setBookItemsDisabled(bookId, rest, true);
+    const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
+    if (opts.superseded?.length) li.superseded = opts.superseded;
+    if (disable.size) li.disabled = disable.size;
+    await updateBook(bookId, { dataPatch: { lastImport: li } });
     await snapshotBookVersion(bookId, appliedFromDiff(diff), bookItemData);
   };
 
@@ -3646,8 +3658,8 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
     try { await applyBookImport(book.id, diff); reload(); setVSeq((s) => s + 1); }
     catch (x) { /* surfaced by applyBookImport */ }
   };
-  const onApply = async (diff) => {
-    try { await applyBookImport(book.id, diff); setWizard(false); reload(); setVSeq((s) => s + 1); }
+  const onApply = async (diff, opts) => {
+    try { await applyBookImport(book.id, diff, opts); setWizard(false); reload(); setVSeq((s) => s + 1); }
     catch (x) { /* surfaced by applyBookImport */ }
   };
 
