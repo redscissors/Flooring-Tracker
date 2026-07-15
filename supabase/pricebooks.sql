@@ -30,6 +30,10 @@ create table if not exists public.price_book_items (
   book_id    text not null references public.price_books(id),
   sku        text not null,
   active     boolean not null default true,
+  -- Team-controlled "don't offer in search" switch — a column, not a data
+  -- field, so import upserts can never overwrite the team's choice
+  -- (pricebook-disabled.sql adds it on pre-2026-07 installs).
+  disabled   boolean not null default false,
   -- Same item shape as stock_items.data plus, for order books: cost, mfg,
   -- leadTime, msrp, freightFlag, tierPrices.
   data       jsonb not null default '{}'::jsonb,

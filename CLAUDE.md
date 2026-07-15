@@ -73,6 +73,10 @@ supabase/
                     # RPC (pg_trgm word_similarity) for typo-tolerant selection-row
                     # order search + trade synonyms (ADR 0009 §6; src/synonyms.js;
                     # code falls back to synonym-aware exact ILIKE until it is run)
+  pricebook-disabled.sql  # run once on pre-2026-07 installs: per-item `disabled`
+                    # column on price_book_items + stock_items + the fuzzy RPC's
+                    # disabled filter (team-controlled hide-from-search switch;
+                    # folded into pricebooks.sql/stock.sql for fresh installs)
   migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```

@@ -1,6 +1,8 @@
 -- Price book library — fuzzy selection-row search (ADR 0009 §6, Option A + D)
 -- Run once, AFTER supabase/pricebook-search.sql (needs pg_trgm + the generated
--- search_text column). Dashboard -> SQL Editor -> Run. Safe to re-run.
+-- search_text column) and with the `disabled` column present (pricebooks.sql
+-- on fresh installs, pricebook-disabled.sql on older ones).
+-- Dashboard -> SQL Editor -> Run. Safe to re-run.
 --
 -- Today the selection-row picker matches order items by exact substring
 -- (search_text ILIKE '%word%'), so a misspelled or nickname query finds
@@ -36,6 +38,7 @@ as $$
   from public.price_book_items i
   where i.book_id = any(p_book_ids)
     and i.active
+    and not i.disabled
     and (
       -- every group must be satisfied by at least one of its alternates
       select bool_and(
