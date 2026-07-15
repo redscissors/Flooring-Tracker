@@ -367,6 +367,28 @@ test("stockBaseCompanion builds the catalog base at a 1:1 ratio, null when none"
   assert.equal(stockBaseCompanion(pigment("Latasil Caulk"), stock), null);
 });
 
+test("syncCatalogPrices refreshes attached (custom category) products by exact SKU", () => {
+  const cat = {
+    companies: [{ id: "co1", name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [], attached: [
+      { id: "p1", categoryId: "cat1", name: "RENO-U", enabled: true, sku: "T-114", unit: "pieces", price: 15, coverage: 0 },
+    ] }],
+    categories: [{ id: "cat1", name: "Trim", floorTypes: [], math: "manual", default: "", enabled: true }],
+  };
+  const items = [item({ sku: "T-114", description: "RENO-U transition", price: 18.4 })];
+  const { catalog: next, changes } = syncCatalogPrices(cat, items);
+  assert.equal(next.companies[0].attached[0].price, 18.4);
+  assert.deepEqual(changes, [{ name: "RENO-U", from: 15, to: 18.4, sku: "T-114" }]);
+  // untouched fields survive
+  assert.equal(next.companies[0].attached[0].categoryId, "cat1");
+  assert.deepEqual(next.categories, cat.categories);
+});
+
+test("syncCatalogPrices leaves companies without an attached key alone", () => {
+  const cat = { companies: [{ id: "co1", name: "Tec", enabled: true, grouts: [], mortars: [], underlayments: [] }] };
+  const { catalog: next } = syncCatalogPrices(cat, []);
+  assert.equal("attached" in next.companies[0], false);
+});
+
 test("syncCatalogPrices refreshes a SKU-linked product from that exact item", () => {
   const items = [
     item({ sku: "1519025", description: "85 Almond Permacolor Color Kit", price: 5.39 }),
