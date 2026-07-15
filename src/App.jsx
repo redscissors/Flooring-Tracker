@@ -4662,7 +4662,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     const offered = cat === "grout" ? offeredGrouts(catalog)
       : cat === "mortar" ? offeredMortars(catalog)
         : catalog.companies.flatMap((co) => (co.underlayments || []).filter((u) => isOffered(co, u)).map((u) => u.name));
-    const current = String(catalog.defaults?.[cat === "underlay" ? "underlay" : cat] || "");
+    const current = String(catalog.defaults?.[cat] || "");
     const Icon = meta.icon;
     return (
       <div className="max-w-xl">

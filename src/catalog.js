@@ -358,7 +358,7 @@ export const normDefaults = (raw) => ({
   underlay: String(raw?.underlay ?? ""),
 });
 
-// Set the chip default for a kind ("grouts"/"mortars") to a product name.
+// Set the chip default for a kind ("grouts"/"mortars"/"underlayments") to a product name.
 export function setCatalogDefault(catalog, kind, name) {
   const key = kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlay";
   return { ...catalog, defaults: { ...normDefaults(catalog?.defaults), [key]: String(name || "") } };
