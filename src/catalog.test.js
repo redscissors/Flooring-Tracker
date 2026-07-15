@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -884,4 +884,71 @@ test("materialWarnings: underlayment and install-material failures", () => {
   hardie.install = hardie.install.map((m) => ({ ...m, coverage: 0 }));
   const s3 = { ...s2, ...resolveCatalog(s2.catalog) };
   assert.deepEqual(materialWarnings(mk({ product: "HardieBacker", install: true }), s3), ["install"]);
+});
+
+// --- Custom material categories (ADR 0016) ------------------------------------
+
+test("normalizeCatalog defaults categories to [] and old catalogs round-trip unchanged", () => {
+  const old = normalizeSettings(undefined); // pre-PR-2 shape has no categories
+  assert.deepEqual(old.catalog.categories, []);
+  const round = normalizeSettings(serializeSettings(old));
+  assert.deepEqual(round.catalog.categories, []);
+  assert.deepEqual(round.catalog.companies.map((c) => c.name), old.catalog.companies.map((c) => c.name));
+});
+
+test("addCategory appends a normalized, enabled category", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "  Trim ", floorTypes: ["tile", "misc", "vinyl"], math: "manual" });
+  assert.equal(c.categories.length, 1);
+  const cat = c.categories[0];
+  assert.ok(cat.id);
+  assert.equal(cat.enabled, true);
+  assert.equal(cat.name, "Trim");
+  assert.deepEqual(cat.floorTypes, ["tile", "vinyl"]); // misc is not a floor type
+  assert.equal(cat.math, "manual");
+  assert.equal(cat.default, "");
+});
+
+test("category math falls back to coverage on junk; floorTypes to []", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "Sealer", math: "volumetric" });
+  assert.equal(c.categories[0].math, "coverage");
+  assert.deepEqual(c.categories[0].floorTypes, []);
+});
+
+test("updateCategory patches fields, keeps the id, re-normalizes", () => {
+  const s = normalizeSettings(undefined);
+  const c1 = addCategory(s.catalog, { name: "Trim", math: "manual" });
+  const id = c1.categories[0].id;
+  const c2 = updateCategory(c1, id, { name: "Trim & transitions", math: "coverage", default: "RENO-U", enabled: false, floorTypes: ["tile"] });
+  const cat = c2.categories[0];
+  assert.equal(cat.id, id);
+  assert.equal(cat.name, "Trim & transitions");
+  assert.equal(cat.math, "coverage");
+  assert.equal(cat.default, "RENO-U");
+  assert.equal(cat.enabled, false);
+  assert.deepEqual(cat.floorTypes, ["tile"]);
+});
+
+test("categories survive a serialize/normalize round-trip", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "Trim", floorTypes: ["tile"], math: "manual" });
+  const round = normalizeSettings(serializeSettings({ ...s, catalog: c }));
+  assert.equal(round.catalog.categories.length, 1);
+  assert.equal(round.catalog.categories[0].name, "Trim");
+  assert.equal(round.catalog.categories[0].math, "manual");
+  assert.equal(round.catalog.categories[0].id, c.categories[0].id);
+});
+
+test("isDuplicateCategoryName matches case/space-insensitively and shadows built-ins", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "Trim" });
+  assert.equal(isDuplicateCategoryName(c, " trim "), true);
+  assert.equal(isDuplicateCategoryName(c, "Grout"), true);
+  assert.equal(isDuplicateCategoryName(c, "Mortar"), true);
+  assert.equal(isDuplicateCategoryName(c, "Underlayment"), true);
+  assert.equal(isDuplicateCategoryName(c, "Sealer"), false);
+  assert.equal(isDuplicateCategoryName(c, ""), false);
+  // exceptId lets a category "rename" to its own name
+  assert.equal(isDuplicateCategoryName(c, "TRIM", c.categories[0].id), false);
 });

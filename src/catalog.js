@@ -346,7 +346,7 @@ export function seedCatalog(flat) {
       underlayments: [],
     });
   }
-  return { companies, defaults: normDefaults() };
+  return { companies, categories: [], defaults: normDefaults() };
 }
 
 // The team's chosen chip defaults, one per material kind. Stored names are kept
@@ -402,7 +402,7 @@ export function normalizeCatalog(catalog) {
     mortars: (co?.mortars || []).map(normMortarProduct),
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
   }));
-  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, defaults: normDefaults(catalog?.defaults) };
+  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, categories: (Array.isArray(catalog?.categories) ? catalog.categories : []).map(normCategory), defaults: normDefaults(catalog?.defaults) };
 }
 
 // True when the stored catalog already contains every starter underlayment
@@ -529,6 +529,40 @@ export const offeredUnderlayments = (catalog, type) => {
   for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (!(p.types || []).length || p.types.includes(type))) names.push(p.name);
   return names;
 };
+
+// --- Custom material categories (ADR 0016) -----------------------------------
+// The built-ins (grout/mortar/underlayment) stay first-class code; `categories`
+// holds only the team's custom add-on categories (Trim, Sealer, …). floorTypes
+// empty = offered on all types (underlayment's `types` convention); `math`
+// picks the quantity model: "coverage" = flat sq ft/unit like underlayment,
+// "manual" = typed per-row quantity. `default` is the chip's pre-selected
+// product name (resolveMaterialDefault semantics; "" = first offered).
+export const CATEGORY_MATHS = ["coverage", "manual"];
+const categoryFields = (c) => ({
+  name: String(c?.name ?? "").trim(),
+  floorTypes: (Array.isArray(c?.floorTypes) ? c.floorTypes : []).filter((t) => FLOOR_TYPES.includes(t)),
+  math: CATEGORY_MATHS.includes(c?.math) ? c.math : "coverage",
+  default: String(c?.default ?? ""),
+});
+const normCategory = (c) => ({ id: c?.id || cid(), enabled: c?.enabled !== false, ...categoryFields(c) });
+
+// Custom names may not collide with each other or shadow a built-in label —
+// the Materials & add-ons nav lists both groups side by side.
+const BUILTIN_CATEGORY_NAMES = ["grout", "mortar", "underlayment"];
+export function isDuplicateCategoryName(catalog, name, exceptId) {
+  const target = normName(name);
+  if (!target) return false;
+  if (BUILTIN_CATEGORY_NAMES.includes(target)) return true;
+  return (catalog?.categories || []).some((c) => c.id !== exceptId && normName(c.name) === target);
+}
+
+export function addCategory(catalog, fields) {
+  return { ...catalog, categories: [...(catalog?.categories || []), normCategory({ ...fields, id: undefined, enabled: true })] };
+}
+
+export function updateCategory(catalog, categoryId, patch) {
+  return { ...catalog, categories: (catalog?.categories || []).map((c) => c.id === categoryId ? normCategory({ ...c, ...patch, id: c.id }) : c) };
+}
 
 // Operational provenance, shared team-wide with the settings record: who last
 // ran the price-book import / backup download, and when. Purely informational —
