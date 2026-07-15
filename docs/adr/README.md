@@ -19,3 +19,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0013](0013-unit-combo-pricing-semantics.md) | Unit-combo pricing: piece prices scale by PC/CT; unknown combos warn at import | Accepted | 2026-07-14 |
 | [0014](0014-mosaic-sheet-size-derived-coverage.md) | A mosaic's SHEET dimension gives coverage, never the tile size | Accepted | 2026-07-15 |
 | [0015](0015-penny-round-size-and-grout-uplift.md) | Penny rounds: one "Penny" shape, with a corner-fill grout uplift | Accepted | 2026-07-15 |
+| [0016](0016-custom-material-categories.md) | Custom material categories: present-only unification over three locked built-ins | Accepted | 2026-07-15 |
