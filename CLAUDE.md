@@ -58,6 +58,14 @@ src/
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
                     # (N-suffix old→new), surfaced in the wizard's review step
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
+  dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
+                    # `computeFingerprint` / `routeFile` map each dropped file to
+                    # its book — shop workbook by sheet-name signature
+                    # (`detectStockWorkbook` in pricebook.js), VTC/Mannington by
+                    # format tag, others by a book's saved mapping that parses the
+                    # file; a book stamps `data.importFingerprint` on import so the
+                    # next drop matches. The Price book library's drop area routes a
+                    # mixed drop and reuses each book's normal import preview.
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
