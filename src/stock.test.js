@@ -164,6 +164,23 @@ test("an unpriced trim SKU still links and describes, leaving price empty", () =
   assert.equal(patch.sku, "13191");
 });
 
+test("a per-piece price with PC/CT scales to the carton before deriving $/sqft", () => {
+  // Two-unit books carry SF/CT per CARTON while a PC price is per piece — the
+  // derivation must multiply by PC/CT first (the VTC bullnose mispricing).
+  const it = { sku: "CTIEPLIBN336R", type: "tile", priceUnit: "PC", orderUnit: "CT", price: 27.99, sfPerUnit: 5.38, pcPerUnit: 8 };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.priceSqft, "41.62");   // (27.99 × 8) / 5.38, not 27.99 / 5.38
+  assert.equal(patch.cartonSf, "5.38");
+});
+
+test("a typed, piece-priced, carton-sold item with no coverage lands as a count line per carton", () => {
+  const it = { sku: "CDSTABABN240R", type: "tile", priceUnit: "PC", orderUnit: "CT", price: 71.11, pcPerUnit: 10, description: "Tahoe Barrel Bullnose 2x40" };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "misc");         // no coverage → no honest sqft line
+  assert.equal(patch.priceSqft, "711.1");   // per carton of 10, matching how it's sold
+  assert.match(patch.brandColor, /carton of 10/);
+});
+
 // --- drift -----------------------------------------------------------------------
 
 test("stockDrift flags a snapshot whose price the book has since changed", () => {

@@ -105,13 +105,39 @@ const label = (it) => {
 export const priceUnitOf = (item) => str(item?.priceUnit) || str(item?.unit);
 export const orderUnitOf = (item) => str(item?.orderUnit) || str(item?.unit);
 
+// Unit classes for the split: piece-ish units are quoted per single
+// piece/sheet/each/stick; carton-ish units bundle pcPerUnit of them.
+const PIECE_UNIT_RE = /^(pc|pcs|piece|ea|each|sh|sht|sheet|st|stick)s?$/i;
+const CARTON_UNIT_RE = /^(ct|ctn|carton|bx|box)s?$/i;
+export const isPieceUnit = (u) => PIECE_UNIT_RE.test(str(u));
+export const isCartonUnit = (u) => CARTON_UNIT_RE.test(str(u));
+
+// In a book that carries PC/CT, SF/CT coverage is per CARTON while a piece-ish
+// price is per single piece — money relative to sfPerUnit must scale by
+// pieces-per-carton first. (VTC: a $27.99/pc bullnose in an 8-pc, 5.38-sf
+// carton costs $41.62/sqft, not $27.99 ÷ 5.38 = $5.20.) Books without
+// pcPerUnit (the stock workbook) quote sfPerUnit per the priced unit itself,
+// so they keep factor 1.
+export const perCartonFactor = (item) => (isPieceUnit(priceUnitOf(item)) && item.pcPerUnit > 0 ? item.pcPerUnit : 1);
+
+// Price-basis → sell-unit factor for count lines: a per-piece price on an item
+// the vendor only breaks by the carton (No Broken U/M = CT) sells at price ×
+// pieces-per-carton. 1 when the units agree or PC/CT is unknown.
+export const sellUnitFactor = (item) => (isPieceUnit(priceUnitOf(item)) && isCartonUnit(orderUnitOf(item)) && item.pcPerUnit > 0 ? item.pcPerUnit : 1);
+
 // The per-sq-ft price a stock item carries: the book's SF price when present,
 // else derived from the carton/sheet price and its coverage — mosaic sheets
 // (U/M "SH") often list only a sheet price.
 export const stockPriceSqft = (item) =>
   item.priceSqft != null ? item.priceSqft
-    : item.price != null && item.sfPerUnit > 0 ? Math.round((item.price / item.sfPerUnit) * 10000) / 10000
+    : item.price != null && item.sfPerUnit > 0 ? round4((item.price * perCartonFactor(item)) / item.sfPerUnit)
       : null;
+
+// Whether a picked item fills a real flooring line (sqft math) or a flat count
+// line: it needs a type AND either a per-sqft price or coverage to compute one
+// from. A typed trim priced per piece with no SF/CT has neither — pretending
+// it covers area made it a $0 line before 2026-07.
+export const fillsFlooring = (item) => !!item?.type && (stockPriceSqft(item) != null || item.sfPerUnit > 0);
 
 // A non-rectangular tile size (a hex "2\" Hex") has no L×W cell to land in, but
 // grout/mortar still need a proxy. deriveSquareDim returns the single dimension
@@ -159,7 +185,7 @@ export function stockPatch(item, product) {
   // order the exact area, never round up to whole cartons. Only a separately
   // mapped orderUnit triggers this, so single-U/M books never change.
   const looseOrder = /^(pc|pcs|piece|ea|each)$/i.test(str(item.orderUnit));
-  if (item.type && (psf != null || orderUnit === "CT" || orderUnit === "SH")) {
+  if (fillsFlooring(item)) {
     patch.type = item.type;
     patch.qtyType = "sqft";
     patch.brandColor = label(item);
@@ -191,8 +217,12 @@ export function stockPatch(item, product) {
     }
   } else {
     patch.type = "misc";
-    patch.brandColor = [label(item), item.size].filter(Boolean).join(" — ");
-    if (item.price != null) patch.priceSqft = String(item.price);
+    // A carton-only sell unit (No Broken = CT) prices the line per carton —
+    // piece price × PC/CT — because that's the smallest thing the vendor sells;
+    // the name says so, and the qty is cartons.
+    const factor = sellUnitFactor(item);
+    patch.brandColor = [label(item), item.size].filter(Boolean).join(" — ") + (factor > 1 ? ` — carton of ${factor}` : "");
+    if (item.price != null) patch.priceSqft = String(factor > 1 ? round2(item.price * factor) : item.price);
   }
   return patch;
 }
