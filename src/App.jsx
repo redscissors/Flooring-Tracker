@@ -8,7 +8,7 @@ import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrif
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -3959,6 +3959,11 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const [defaultType, setDefaultType] = useState(saved?.defaultType || "");
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
+  const [ignored, setIgnored] = useState(() => new Set());   // SKUs the user chose to ignore (→ disabled)
+  const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
+  const toggleSet = (setter) => (key) => setter((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleIgnored = toggleSet(setIgnored);
+  const toggleKeepOld = toggleSet(setKeepOld);
 
   const sheet = sheets?.find((s) => s.name === sheetName) || null;
   const rows = sheet?.rows || [];
@@ -4055,6 +4060,14 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const headerLabel = (i) => String(headerCells[i] ?? "").replace(/\s+/g, " ").trim();
 
   const preview = items.slice(0, 8);
+
+  // Per-row pricing/unit hazards and N-suffix supersede pairs for the review
+  // sections. Derived each render like `diff` — nothing is stored on an item.
+  const problems = sheet ? items.map((it) => ({ it, probs: itemProblems(it) })).filter((x) => x.probs.length) : [];
+  const supersedes = sheet ? supersedePairs(existingItems, items) : [];
+  const supersedeOld = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => p.oldSku);
+  const disableSkus = [...new Set([...ignored, ...supersedeOld])];
+  const appliedSupersede = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => ({ oldSku: p.oldSku, newSku: p.newSku }));
 
   return (
     <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
@@ -4180,11 +4193,55 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
               )}
             </div>
 
+            {problems.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-amber-800">{problems.length} problem row{problems.length === 1 ? "" : "s"} — these will misprice unless fixed at the source</span>
+                  <div className="flex gap-2 text-xs">
+                    <button onClick={() => setIgnored(new Set(problems.map((p) => p.it.sku)))} className="rounded-md border border-amber-300 px-2 py-1 text-amber-700 hover:bg-amber-100">Ignore all</button>
+                    <button onClick={() => setIgnored(new Set())} className="rounded-md border border-slate-200 px-2 py-1 text-slate-500 hover:bg-white">Include all</button>
+                  </div>
+                </div>
+                <div className="mt-2 max-h-56 overflow-y-auto divide-y divide-amber-100 border-t border-amber-100">
+                  {problems.map(({ it, probs }) => {
+                    const off = ignored.has(it.sku);
+                    return (
+                      <div key={it.sku} className="py-1.5 flex items-center gap-2 text-xs">
+                        <span className="font-mono text-slate-500 shrink-0">{it.sku}</span>
+                        <span className="truncate flex-1 min-w-0">{it.description || "—"}<span className="text-amber-700"> · {probs[0].msg}</span></span>
+                        <button onClick={() => toggleIgnored(it.sku)} className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-medium ${off ? "bg-slate-200 text-slate-600" : "bg-white border border-amber-300 text-amber-700"}`}>{off ? "Ignored" : "Include"}</button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[11px] text-amber-700">Ignored rows still import, but disabled — hidden from SKU search. Turn any back on later from the book table.</p>
+              </div>
+            )}
+
+            {supersedes.length > 0 && (
+              <div className="rounded-lg border border-slate-200 p-3">
+                <span className="text-sm font-medium">{supersedes.length} superseded SKU{supersedes.length === 1 ? "" : "s"} — a new “N” code replaces an older one</span>
+                <div className="mt-2 max-h-56 overflow-y-auto divide-y divide-slate-100 border-t border-slate-100">
+                  {supersedes.map((p) => (
+                    <label key={`${p.oldSku}>${p.newSku}`} className="py-1.5 flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={!keepOld.has(p.oldSku)} onChange={() => toggleKeepOld(p.oldSku)} title="Disable the old SKU" />
+                      <span className="flex-1 min-w-0 truncate">
+                        <span className="font-mono text-slate-400 line-through">{p.oldSku}</span>{p.oldDesc ? ` ${p.oldDesc}` : ""}
+                        <span className="mx-1 text-slate-300">→</span>
+                        <span className="font-mono text-slate-600">{p.newSku}</span>{p.newDesc ? ` ${p.newDesc}` : ""}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-400">Checked = disable the old SKU (kept for saved estimates, just hidden from new search). Uncheck to keep it active.</p>
+              </div>
+            )}
+
             <div className="flex justify-between items-center pt-1">
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(diff); }} disabled={diff.added.length + diff.changed.length + diff.missing.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply — {diff.added.length} new · {diff.changed.length} changed · {diff.missing.length} retiring</button>
+                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede }); }} disabled={diff.added.length + diff.changed.length + diff.missing.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply — {diff.added.length} new · {diff.changed.length} changed · {diff.missing.length} retiring{disableSkus.length ? ` · ${disableSkus.length} disabled` : ""}</button>
               </div>
             </div>
           </div>
