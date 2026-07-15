@@ -26,6 +26,7 @@ export const normStockItem = (row) => ({
   subtype: str(row.data?.subtype),
   unit: str(row.data?.unit),
   size: str(row.data?.size),
+  sheetSize: str(row.data?.sheetSize),
   thickness: str(row.data?.thickness),
   type: row.data?.type || null,
   price: numOr(row.data?.price),
@@ -42,7 +43,7 @@ export const stockData = ({ sku, active, updatedAt, disabled, ...data }) => data
 
 // --- search -------------------------------------------------------------------
 
-const hay = (it) => [it.sku, it.description, it.brand, it.product, it.color, it.section, it.sheet, it.size, it.note].join(" ").toLowerCase();
+const hay = (it) => [it.sku, it.description, it.brand, it.product, it.color, it.section, it.sheet, it.size, it.sheetSize, it.note].join(" ").toLowerCase();
 
 // The price book labels transition pieces by profile (Reducer, T-Mold, End
 // Cap, Stairnose…), so the trade word "transition" would find nothing without
@@ -204,12 +205,18 @@ export function stockPatch(item, product) {
       patch.cartonUnit = orderUnit || "CT";
     }
     if (item.type === "tile") {
-      const lw = parseTileSize(item.size);
-      if (lw) { patch.L = lw[0]; patch.W = lw[1]; }
-      else if (item.size) {
-        patch.sizeText = item.size;                 // display the vendor string, e.g. "2\" Hex"
-        const n = deriveSquareDim(item);            // null unless the coverage guard passes
-        if (n != null) { patch.L = String(n); patch.W = String(n); }
+      if (item.sheetSize) {
+        // A mosaic sheet: show the sheet size as free text and leave L×W blank so
+        // the row prompts for the chip size grout/mortar compute from (ADR 0014).
+        patch.sizeText = `${item.sheetSize} sheet`;
+      } else {
+        const lw = parseTileSize(item.size);
+        if (lw) { patch.L = lw[0]; patch.W = lw[1]; }
+        else if (item.size) {
+          patch.sizeText = item.size;               // display the vendor string, e.g. "2\" Hex"
+          const n = deriveSquareDim(item);          // null unless the coverage guard passes
+          if (n != null) { patch.L = String(n); patch.W = String(n); }
+        }
       }
       const th = parseThickness(item.thickness);
       if (th) patch.thickness = th;

@@ -140,6 +140,20 @@ test("a fraction hex chip fills sizeText and the derived square L/W (ticket 010)
   assert.equal(patch.W, "1.5");
 });
 
+test("a mosaic sheet shows a labeled sheet size and leaves L×W blank for a hand-entered chip (ADR 0014)", () => {
+  // A plain order-shaped item (pcPerUnit lives on order items, not the stock norm).
+  const it = { sku: "MLSMBOGHEXM", type: "tile", priceUnit: "PC", orderUnit: "SH", sheetSize: "9x11", pcPerUnit: 10, sfPerUnit: 6.875, description: "Marbles Oniciata Grey Hex Mosaic Matte", price: 29.24 };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "tile");             // a real square-foot tile, not a count line
+  assert.equal(patch.sizeText, "9x11 sheet");   // the sheet reads as the vendor size
+  assert.equal(patch.L, undefined);             // L×W blank → the row prompts for the chip size
+  assert.equal(patch.W, undefined);
+  assert.equal(patch.cartonSf, "0.6875");       // one 9×11 sheet covers 0.6875 sf
+  assert.equal(patch.cartonUnit, "SH");
+  // $/sqft = per-piece price × PC/CT ÷ SF/CT = 29.24 × 10 ÷ 6.875.
+  assert.equal(patch.priceSqft, "42.53");
+});
+
 test("a 94\" hex reducer fills free-text sizeText with no derived L/W (ticket 009 guard)", () => {
   const it = normStockItem({ sku: "R94", data: { type: "tile", unit: "LF", size: '94" Hex', description: "Reducer Oak", price: 20, priceSqft: 3 } });
   const patch = stockPatch(it, {});

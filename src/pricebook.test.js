@@ -404,18 +404,18 @@ test("parseMapped: thickness embedded in the description becomes an inch fractio
 });
 
 test("splitSizeFromDescription: pulls size + thickness, leaves the rest as a clean name", () => {
-  assert.deepEqual(splitSizeFromDescription("EARTH ASH GRAY 12X24 10MM"), { size: "12x24", thickness: '3/8"', name: "Earth Ash Gray" });
-  assert.deepEqual(splitSizeFromDescription("2 x 8 SUBWAY WHITE"), { size: "2x8", thickness: "", name: "Subway White" });
-  assert.deepEqual(splitSizeFromDescription('OAK PLANK 5X48 3/8"'), { size: "5x48", thickness: '3/8"', name: "Oak Plank" });
+  assert.deepEqual(splitSizeFromDescription("EARTH ASH GRAY 12X24 10MM"), { size: "12x24", thickness: '3/8"', name: "Earth Ash Gray", sheetSize: "" });
+  assert.deepEqual(splitSizeFromDescription("2 x 8 SUBWAY WHITE"), { size: "2x8", thickness: "", name: "Subway White", sheetSize: "" });
+  assert.deepEqual(splitSizeFromDescription('OAK PLANK 5X48 3/8"'), { size: "5x48", thickness: '3/8"', name: "Oak Plank", sheetSize: "" });
   // No LxW → passes through unchanged (honest fallback, nothing invented).
-  assert.deepEqual(splitSizeFromDescription("BULLNOSE TRIM PIECE"), { size: "", thickness: "", name: "Bullnose Trim Piece" });
+  assert.deepEqual(splitSizeFromDescription("BULLNOSE TRIM PIECE"), { size: "", thickness: "", name: "Bullnose Trim Piece", sheetSize: "" });
   // An "x" inside a word is never stripped.
   assert.equal(splitSizeFromDescription("MAX GREY 12X12").name, "Max Grey");
   // Already-mixed-case text is left as-is.
   assert.equal(splitSizeFromDescription("MSI Stone 12x12").name, "MSI Stone");
   // A size printed in both the color and the description column is stripped
   // from the name entirely, not left on a second copy beside a filled size cell.
-  assert.deepEqual(splitSizeFromDescription("Ovo 3x12 Glossy 3x12 Ceramic Glossy Tile"), { size: "3x12", thickness: "", name: "Ovo Glossy Ceramic Glossy Tile" });
+  assert.deepEqual(splitSizeFromDescription("Ovo 3x12 Glossy 3x12 Ceramic Glossy Tile"), { size: "3x12", thickness: "", name: "Ovo Glossy Ceramic Glossy Tile", sheetSize: "" });
 });
 
 test("splitSizeFromDescription: a single-dimension hex size becomes the size string, not the name (ticket 009)", () => {
@@ -427,7 +427,7 @@ test("splitSizeFromDescription: a single-dimension hex size becomes the size str
   assert.equal(splitSizeFromDescription("1 Penny Round White").size, '1" Penny');
   // A bare dimension with no shape word is intentionally NOT a shape size — it
   // stays in the name, no coverage.
-  assert.deepEqual(splitSizeFromDescription('SLATE 6" LEDGER'), { size: "", thickness: "", name: 'Slate 6" Ledger' });
+  assert.deepEqual(splitSizeFromDescription('SLATE 6" LEDGER'), { size: "", thickness: "", name: 'Slate 6" Ledger', sheetSize: "" });
   // An L×W still wins — the shape branch only fires when SIZE_RE missed.
   assert.equal(splitSizeFromDescription('8"x9" Hex Grey').size, "8x9");
 });
@@ -435,19 +435,23 @@ test("splitSizeFromDescription: a single-dimension hex size becomes the size str
 test("splitSizeFromDescription: mixed-fraction dims parse whole, not from the middle (ticket 010)", () => {
   // The MRZ book's hex-mosaic chip size — SIZE_RE used to grab "2X1" out of
   // "1-1/2X1-1/2" and leave "1-1/ -1/2" litter in the name.
-  assert.deepEqual(splitSizeFromDescription("MOROCCAN CONC OFF WHITE HEX MOS 1-1/2X1-1/2"), { size: '1-1/2" Hex', thickness: "", name: "Moroccan Conc Off White Mos" });
+  assert.deepEqual(splitSizeFromDescription("MOROCCAN CONC OFF WHITE HEX MOS 1-1/2X1-1/2"), { size: '1-1/2" Hex', thickness: "", name: "Moroccan Conc Off White Mos", sheetSize: "" });
   // A packaging token ((12X10/SH)) is never the size and leaves no "( /Sh)" litter.
-  assert.deepEqual(splitSizeFromDescription("ARTEZEN ELEGANT WHITE HEX MOS 1-1/2X1-1/2 (12X10/SH)"), { size: '1-1/2" Hex', thickness: "", name: "Artezen Elegant White Mos" });
+  assert.deepEqual(splitSizeFromDescription("ARTEZEN ELEGANT WHITE HEX MOS 1-1/2X1-1/2 (12X10/SH)"), { size: '1-1/2" Hex', thickness: "", name: "Artezen Elegant White Mos", sheetSize: "" });
   // A single-dim shape size behind a packaging token takes the chip, not the sheet.
   assert.equal(splitSizeFromDescription('GEOMETAL CHAMPAGNE GOLD 3" HEX MOS (11X12/SH)').size, '3" Hex');
   // Unequal fraction dims stay a rectangle — decimal so the L/W cells fill —
   // and the shape word stays in the name.
-  assert.deepEqual(splitSizeFromDescription("ATTITUDE SIMPLY GREY HEX 8-1/2X10"), { size: "8.5x10", thickness: "", name: "Attitude Simply Grey Hex" });
+  assert.deepEqual(splitSizeFromDescription("ATTITUDE SIMPLY GREY HEX 8-1/2X10"), { size: "8.5x10", thickness: "", name: "Attitude Simply Grey Hex", sheetSize: "" });
   // Equal whole-number dims with a shape word read as a shape size too.
   assert.equal(splitSizeFromDescription("SUBURB GREY 2X2 HEX MATTE").size, '2" Hex');
-  // Equal dims over the chip cap are a mosaic SHEET size, not a chip — a
-  // "13X13 SHT" of hexes must not read as a 13" hex.
-  assert.equal(splitSizeFromDescription("EESOME GOLD HEX MOSAIC 13X13 SHT MIXED").size, "13x13");
+  // An explicit SHEET/SHT token is the backing-sheet dimension, not the tile —
+  // it lands in `sheetSize` (never the chip size), and coverage derives from it
+  // at import (ADR 0014). "13X13 SHT" must not read as a 13" hex OR a 13x13 tile.
+  const sheet = splitSizeFromDescription("EESOME GOLD HEX MOSAIC 13X13 SHT MIXED");
+  assert.equal(sheet.size, "");
+  assert.equal(sheet.sheetSize, "13x13");
+  assert.equal(sheet.name, "Eesome Gold Hex Mosaic Mixed");
   // Regressions: the plain spellings are untouched.
   assert.equal(splitSizeFromDescription('MOROCCAN CONC OFF WHITE 8" HEX TILE').size, '8" Hex');
   assert.equal(splitSizeFromDescription("MOROCCAN CONC OFF WHITE 12X24 RECT *NEW PKG").size, "12x24");
@@ -455,11 +459,11 @@ test("splitSizeFromDescription: mixed-fraction dims parse whole, not from the mi
 
 test("splitSizeFromDescription: shape word BEFORE the size (MLS/ANA EFT hex rows)", () => {
   // ANALMCPHEX2PN — the reported row: 'HEXAGON 2 INCH' left the size cell empty.
-  assert.deepEqual(splitSizeFromDescription("LA MARCA CALACATTA PAONAZZO HEXAGON 2 INCH POL *2022 PROD"), { size: '2" Hexagon', thickness: "", name: "La Marca Calacatta Paonazzo Pol *2022 Prod" });
+  assert.deepEqual(splitSizeFromDescription("LA MARCA CALACATTA PAONAZZO HEXAGON 2 INCH POL *2022 PROD"), { size: '2" Hexagon', thickness: "", name: "La Marca Calacatta Paonazzo Pol *2022 Prod", sheetSize: "" });
   // 'HEX 3 IN' — bare IN counts as the inch mark.
-  assert.deepEqual(splitSizeFromDescription("LUXURY AMANI GREY HEX 3 IN POLISHED"), { size: '3" Hex', thickness: "", name: "Luxury Amani Grey Polished" });
+  assert.deepEqual(splitSizeFromDescription("LUXURY AMANI GREY HEX 3 IN POLISHED"), { size: '3" Hex', thickness: "", name: "Luxury Amani Grey Polished", sheetSize: "" });
   // 'HEXAGON MOSAIC 2"' — the MOSAIC between shape and size stays in the name.
-  assert.deepEqual(splitSizeFromDescription('JEM ARIA GOLD HEXAGON MOSAIC 2" MATTE'), { size: '2" Hexagon', thickness: "", name: "Jem Aria Gold Mosaic Matte" });
+  assert.deepEqual(splitSizeFromDescription('JEM ARIA GOLD HEXAGON MOSAIC 2" MATTE'), { size: '2" Hexagon', thickness: "", name: "Jem Aria Gold Mosaic Matte", sheetSize: "" });
   assert.equal(splitSizeFromDescription('SHAPES METROPOLIS HEXAGON 10" CHISELED RECT').size, '10" Hexagon');
   assert.equal(splitSizeFromDescription("MAYFAIR ALLURE IVORY HEXAGON MOSAIC 1.25 INCH POL*NEW PKG*").size, '1.25" Hexagon');
   // The number-first spelling now takes a spelled-out inch word too.
@@ -468,11 +472,32 @@ test("splitSizeFromDescription: shape word BEFORE the size (MLS/ANA EFT hex rows
   assert.equal(splitSizeFromDescription("ODDBALL GREY HEXAGON 2022 PROD").size, "");
 });
 
-test("splitSizeFromDescription: sheet-size parens leave no litter (MLSMBOGHEXM/P)", () => {
-  // The reported MLS rows: the sheet L×W is the size (the settled mosaic-sheet
-  // model) and the hollowed-out "( SHEET)" is dropped from the name.
-  assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC MATTE (9X11 SHEET)"), { size: "9x11", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Matte" });
-  assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC POLISHED (9X11 SHEET)"), { size: "9x11", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Polished" });
+test("splitSizeFromDescription: a parenthesized SHEET token is the sheet, not the tile size (MLSMBOGHEXM/P)", () => {
+  // The reported MLS marble rows: "(9X11 SHEET)" is the backing sheet — it lands
+  // in `sheetSize`, the chip `size` stays empty (the description names no chip),
+  // and the parens leave no litter in the name (ADR 0014).
+  assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC MATTE (9X11 SHEET)"), { size: "", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Matte", sheetSize: "9x11" });
+  assert.deepEqual(splitSizeFromDescription("MARBLES ONICIATA GREY HEX MOSAIC POLISHED (9X11 SHEET)"), { size: "", thickness: "", name: "Marbles Oniciata Grey Hex Mosaic Polished", sheetSize: "9x11" });
+});
+
+test("parseMapped: a mosaic sheet with SF/CT N/A derives coverage and a labeled sheet size (ADR 0014)", () => {
+  const mapping = {
+    headerRow: 0,
+    columns: { 0: "sku", 1: "description", 2: "cost", 3: "priceUnit", 4: "orderUnit", 5: "pcPerUnit", 6: "sfPerUnit" },
+    skuPattern: "^[A-Z0-9]{6,20}$",
+    defaultType: "tile",
+  };
+  const rows = [
+    ["SKU", "DESC", "COST", "PRICE UM", "NO BROKEN UM", "PC/CT", "SF/CT"],
+    ["MLSMBOGHEXM", "MARBLES ONICIATA GREY HEX MOSAIC MATTE (9X11 SHEET)", "29.24", "PC", "SH", "10", "N/A"],
+  ];
+  const { items } = parseMapped(rows, mapping);
+  const it = items.find((i) => i.sku === "MLSMBOGHEXM");
+  assert.equal(it.size, "");                    // the sheet L×W is never the chip size
+  assert.equal(it.sheetSize, "9x11");
+  assert.equal(it.description, "Marbles Oniciata Grey Hex Mosaic Matte");
+  // 9×11 in = 0.6875 sf/sheet × 10 sheets/carton = 6.875 sf/carton.
+  assert.equal(it.sfPerUnit, 6.875);
 });
 
 test("mmToFraction: metric thickness → the fraction the trade calls it", () => {
