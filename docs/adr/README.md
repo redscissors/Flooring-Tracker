@@ -17,3 +17,5 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0011](0011-margin-visibility-ephemeral.md) | On-screen materials margin is ephemeral, default-hidden, never printed | Accepted | 2026-07-13 |
 | [0012](0012-mannington-cartons-import.md) | Mannington Cartons Detail: a fixed-grid PDF parser that also imports color-matched trims as their own products | Accepted | 2026-07-14 |
 | [0013](0013-unit-combo-pricing-semantics.md) | Unit-combo pricing: piece prices scale by PC/CT; unknown combos warn at import | Accepted | 2026-07-14 |
+| [0014](0014-mosaic-sheet-size-derived-coverage.md) | A mosaic's SHEET dimension gives coverage, never the tile size | Accepted | 2026-07-15 |
+| [0015](0015-penny-round-size-and-grout-uplift.md) | Penny rounds: one "Penny" shape, with a corner-fill grout uplift | Accepted | 2026-07-15 |

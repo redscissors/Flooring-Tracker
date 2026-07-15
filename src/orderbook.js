@@ -52,6 +52,11 @@ export function normOrderItem(f = {}) {
     priceUnit: str(f.priceUnit),
     orderUnit: str(f.orderUnit),
     size: str(f.size),
+    // The mosaic backing-sheet dimension ("9x11"), set only when the description
+    // gave no chip size. Its presence tells the pick to show the size as a
+    // labeled sheet and leave the tile L×W blank for a hand-entered chip size
+    // (grout/mortar), while coverage was derived from it at import (ADR 0014).
+    sheetSize: str(f.sheetSize),
     thickness: str(f.thickness),
     type: f.type || null,
     // A trim/molding line (Mannington's "Kind" column, ADR 0012). Type-blank like
