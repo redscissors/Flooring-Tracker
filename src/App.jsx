@@ -2546,7 +2546,7 @@ export default function App({ user, onSignOut }) {
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""].filter(Boolean).join(" · ")}</span>
+                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{(protoE ? [areaTotal > 0 ? money(areaTotal) : ""] : [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
@@ -2714,7 +2714,8 @@ export default function App({ user, onSignOut }) {
                             <div style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px 4px 0 0" }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
-                                <div style={{ width: 98, flex: "none", display: "flex", alignItems: "center", minWidth: 0 }}>
+                                {/* size box hugs its content so Product/Color sits as far left as it can */}
+                                <div style={{ width: `calc(${Math.max((p.type === "tile" ? (p.sizeText || (p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "")) : p.sizeText || "").length, 4)}ch + 14px)`, flex: "none", display: "flex", alignItems: "center", minWidth: 0 }}>
                                   {p.type === "tile" ? (
                                     <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
                                   ) : p.type === "misc" ? (
@@ -2725,10 +2726,6 @@ export default function App({ user, onSignOut }) {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 12 }}>
                                   <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
-                                </div>
-                                <div className="ft-noprint flex items-center gap-0.5 shrink-0 pr-1">
-                                  <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-1 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={14} /></button>
-                                  {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-1 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>}
                                 </div>
                               </div>
                               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", rowGap: 4, padding: "1px 6px 7px" }}>
@@ -2778,9 +2775,10 @@ export default function App({ user, onSignOut }) {
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                   </>)}
                                 </EField>
-                                <EField label="Total" right tint flex="1 1 84px">
-                                  <span style={{ padding: "6px 8px", fontWeight: 700 }}>{line > 0 ? money(line) : PRINT_DASH}</span>
-                                </EField>
+                              </div>
+                              <div className="ft-noprint" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, borderTop: "1px solid var(--ft-row-line)", padding: "1px 10px" }}>
+                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="rounded touch-none cursor-grab text-slate-300 hover:text-slate-500" style={{ lineHeight: 0, padding: "2px 0" }}><Hand size={11} /></button>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="text-slate-300 hover:text-red-500" style={{ lineHeight: 0, padding: "2px 0" }}><Trash2 size={11} /></button>}
                               </div>
                             </div>
                             ) : (
