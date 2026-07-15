@@ -419,3 +419,38 @@ test("groutCaulkItem finds the same section's caulk column in the picked color",
   // A family that IS the caulk column matches itself.
   assert.equal(groutCaulkItem(stock, "Laticrete Latasil Caulk", "Raven").sku, "1519068");
 });
+
+// --- disabled switch (importer-upgrades spec, PR A) ----------------------------
+
+test("normStockItem maps the disabled column legacy-safe; stockData strips it", () => {
+  const off = normStockItem({ sku: "22222", disabled: true, data: { description: "Blue tile" } });
+  const legacy = normStockItem({ sku: "11111", data: { description: "Blue tile" } });
+  assert.equal(off.disabled, true);
+  assert.equal(legacy.disabled, false);
+  assert.equal("disabled" in stockData(off), false); // never lands in the jsonb payload
+});
+
+test("searchStock skips disabled items", () => {
+  const on = normStockItem({ sku: "11111", data: { description: "Blue glass tile" } });
+  const off = normStockItem({ sku: "22222", disabled: true, data: { description: "Blue glass tile" } });
+  assert.deepEqual(searchStock([on, off], "blue glass").map((i) => i.sku), ["11111"]);
+});
+
+test("grout family colors and their caulk skip disabled SKUs", () => {
+  const g = (sku, color, disabled = false) =>
+    normStockItem({ sku, disabled, data: { sheet: "Grout & Caulk", section: "TEC", product: "TEC Power Grout", color, price: 21 } });
+  const caulk = (sku, color, disabled = false) =>
+    normStockItem({ sku, disabled, data: { sheet: "Grout & Caulk", section: "TEC", product: "TEC Caulk", color, price: 9 } });
+  const stock = [g("70001", "Charcoal"), g("70002", "Bone", true), caulk("70003", "Charcoal", true)];
+  const fams = groutFamilies(stock);
+  const powerGrout = fams.find((f) => f.product === "TEC Power Grout");
+  assert.deepEqual(powerGrout.colors.map((c) => c.color), ["Charcoal"]); // Bone is disabled
+  assert.equal(groutCaulkItem(stock, "TEC Power Grout", "Charcoal"), null); // its caulk is disabled
+});
+
+test("syncCatalogPrices ignores disabled items", () => {
+  const items = [normStockItem({ sku: "50001", disabled: true, data: { description: "ProLite Mortar", price: 44 } })];
+  const catalog = { companies: [{ id: "c1", name: "TEC", grouts: [], mortars: [{ id: "m1", name: "ProLite Mortar", price: "30" }], underlayments: [] }] };
+  const { changes } = syncCatalogPrices(catalog, items);
+  assert.equal(changes.length, 0);
+});
