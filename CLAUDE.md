@@ -248,8 +248,9 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   settings use `setSettings`, and to-do items use `addTodo`/`updateTodo`/
   `delTodo`/`reorderTodos`/`clearDoneTodos`. Stock rows are written only by
   the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
-  `active=false` marks — no deletes). Keep these write paths;
-  don't write ad hoc.
+  `active=false` marks — no deletes). Registry-item enable/disable flips only
+  the `disabled` column via `setBookItemsDisabled` — never through the import
+  upserts. Keep these write paths; don't write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
 - The theme ("the ned" Moss kit: ink & paper UI, single moss-green accent,

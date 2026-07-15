@@ -1166,7 +1166,10 @@ export default function App({ user, onSignOut }) {
   };
 
   const loadStock = async () => {
-    const rows = await fetchAllRows(() => supabase.from("stock_items").select("sku, active, data, updated_at").order("sku"));
+    // select * so the app keeps working whether or not the disabled column
+    // exists yet (pricebook-disabled.sql); a named select of a missing column
+    // errors and would silently kill the SKU picker.
+    const rows = await fetchAllRows(() => supabase.from("stock_items").select("*").order("sku"));
     return rows.map(normStockItem);
   };
 
@@ -1264,7 +1267,7 @@ export default function App({ user, onSignOut }) {
   // A book's items, loaded on demand (Settings browse). Not held in app state —
   // the caller keeps them while the book is open.
   const loadBookItems = async (bookId) => {
-    const rows = await fetchAllRows(() => supabase.from("price_book_items").select("sku, active, data, updated_at").eq("book_id", bookId).order("sku"));
+    const rows = await fetchAllRows(() => supabase.from("price_book_items").select("*").eq("book_id", bookId).order("sku"));
     return rows.map((r) => normBookItem(r, bookId));
   };
 
@@ -1382,6 +1385,18 @@ export default function App({ user, onSignOut }) {
     if (error) { ping("Save failed"); throw error; }
     flashSaved();
     return data;
+  };
+
+  // Enable/disable book items (importer-upgrades spec, PR A): flips ONLY the
+  // disabled column, keyed (book_id, sku). Import upserts never mention the
+  // column, so the team's choice survives every reimport. Chunked like the
+  // imports.
+  const setBookItemsDisabled = async (bookId, skus, disabled) => {
+    for (let i = 0; i < skus.length; i += 200) {
+      const { error } = await supabase.from("price_book_items").update({ disabled }).eq("book_id", bookId).in("sku", skus.slice(i, i + 200));
+      if (error) { ping("Save failed — has supabase/pricebook-disabled.sql been run?"); throw error; }
+    }
+    flashSaved();
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -1604,7 +1619,7 @@ export default function App({ user, onSignOut }) {
     const byId = new Map(orderBooks.map((b) => [b.id, b]));
     const ids = orderBooks.map((b) => b.id);
     const price = (rows) => (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
-    const base = () => supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
+    const base = () => supabase.from("price_book_items").select("*").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
     // Every group must match (AND across the typed words), matching searchStock's
     // word-by-word rule; within a group any synonym alternate matches (OR).
     // `size` isn't in the generated search_text column, so the ILIKE fallback ORs
@@ -1617,7 +1632,9 @@ export default function App({ user, onSignOut }) {
       const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
       if (fuzzyRpc.current) {
         const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: 0.3, p_limit: SKU_SHOW * 2 });
-        if (!error) return orderFloorFirst(price(rows), q);
+        // The client-side disabled guard (both paths) also covers installs
+        // where the RPC/column migrations haven't been re-run yet.
+        if (!error) return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);
         // PGRST202 / 42883 = undefined_function: the fuzzy migration isn't run yet.
         if (error.code !== "PGRST202" && error.code !== "42883") throw error;
         fuzzyRpc.current = false;
@@ -1626,7 +1643,7 @@ export default function App({ user, onSignOut }) {
       for (const grp of groups) query = query.or(grp.flatMap((alt) => fields.map((f) => `${f}.ilike.%${alt}%`)).join(","));
       const { data: rows, error } = await query;
       if (error) throw error;
-      return orderFloorFirst(price(rows), q);
+      return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);
     };
   }, [orderBooks]);
   // The distinct (book, SKU) pairs the open project's order rows reference, as
@@ -3040,7 +3057,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} />
       )}
 
       {showTodos && (
@@ -3399,7 +3416,7 @@ function StaleChip({ days }) {
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3494,7 +3511,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
           </div>
         ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
@@ -3595,7 +3612,7 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [wizard, setWizard] = useState(false);
@@ -4125,7 +4142,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4573,7 +4590,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
