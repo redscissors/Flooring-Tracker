@@ -1199,26 +1199,24 @@ export default function App({ user, onSignOut }) {
 
   // Parse a freshly exported price book workbook in the browser and show what
   // an import would change — nothing is written until the preview is applied.
-  const importPriceBook = (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    (async () => {
-      setImporting(true);
-      try {
-        const XLSX = await import("xlsx");
-        const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
-        const sheets = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
-        const { items, warnings } = parsePriceBook(sheets);
-        if (!items.length) { ping("No stock items found in that file"); }
-        else {
-          const parsed = items.map((it) => ({ ...it, active: true }));
-          setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed) });
-        }
-      } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); }
-      setImporting(false);
-    })();
+  // Read + preview a shop-workbook file. onDone (from the multi-file drop router)
+  // fires whether the preview opens, is empty, or errors, and is carried on the
+  // preview so its Apply/Cancel can advance the router's queue.
+  const importStockFile = async (file, onDone) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const sheets = await readXlsxSheets(file);
+      const { items, warnings } = parsePriceBook(sheets);
+      if (!items.length) { ping("No stock items found in that file"); onDone?.(); }
+      else {
+        const parsed = items.map((it) => ({ ...it, active: true }));
+        setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed), onDone });
+      }
+    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(); }
+    setImporting(false);
   };
+  const importPriceBook = (e) => { const f = e.target.files?.[0]; e.target.value = ""; importStockFile(f); };
 
   // Upsert by SKU: new + changed items, plus active-off rows for items that
   // dropped out of the book (never deleted — old selections keep resolving).
@@ -1239,7 +1237,7 @@ export default function App({ user, onSignOut }) {
   };
 
   const applyImport = async () => {
-    const { diff, sync } = importPreview;
+    const { diff, sync, onDone } = importPreview;
     setImportPreview(null);
     try {
       await upsertStock(diff);
@@ -1251,6 +1249,7 @@ export default function App({ user, onSignOut }) {
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
     } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
+    onDone?.();
   };
 
   // Roll the shop workbook back to a version snapshot: replay it through the
@@ -1367,7 +1366,11 @@ export default function App({ user, onSignOut }) {
     const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
     if (opts.superseded?.length) li.superseded = opts.superseded;
     if (disable.size) li.disabled = disable.size;
-    await updateBook(bookId, { dataPatch: { lastImport: li } });
+    const dataPatch = { lastImport: li };
+    // Remember what this file looks like so the drop router (PR C) matches the
+    // next drop of the same vendor sheet to this book.
+    if (opts.fingerprint?.format) dataPatch.importFingerprint = opts.fingerprint;
+    await updateBook(bookId, { dataPatch });
     await snapshotBookVersion(bookId, appliedFromDiff(diff), bookItemData);
   };
 
@@ -3092,7 +3095,7 @@ export default function App({ user, onSignOut }) {
       {showSettings && (
         <SettingsWorkspace onClose={() => setShowSettings(false)}
           settings={settings} setSettings={setSettings} stock={stock} gFamilies={gFamilies}
-          importing={importing} importPriceBook={importPriceBook} pbRef={pbRef}
+          importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
@@ -3156,12 +3159,14 @@ export default function App({ user, onSignOut }) {
       })()}
 
       {importPreview && (() => {
-        const { parsed, diff, warnings, sync } = importPreview;
+        const { parsed, diff, warnings, sync, onDone } = importPreview;
         const total = diff.added.length + diff.changed.length + diff.missing.length;
         const money2 = (n) => (n == null ? "—" : money(n));
         const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
+        // Cancelling still advances the drop router's queue (onDone), same as Apply.
+        const closePreview = () => { setImportPreview(null); onDone?.(); };
         return (
-          <Modal onClose={() => setImportPreview(null)} title="Import price book">
+          <Modal onClose={closePreview} title="Import price book">
             <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
             {total === 0 && sync.changes.length === 0 && <p className="text-sm text-slate-400 mb-3">Everything already matches the current stock list — nothing to apply.</p>}
             {diff.changed.length > 0 && (
@@ -3200,7 +3205,7 @@ export default function App({ user, onSignOut }) {
               </div>
             )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setImportPreview(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={closePreview} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
               <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import{total > 0 ? ` — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retired` : ""}</button>
             </div>
           </Modal>
@@ -3456,7 +3461,7 @@ function StaleChip({ days }) {
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -4286,7 +4291,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4734,7 +4739,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
