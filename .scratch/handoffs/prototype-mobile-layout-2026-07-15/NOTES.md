@@ -34,9 +34,24 @@ B's full-screen editor for input.
 
 ## Decision
 
-_Pending — owner to flip through the variants and pick (or combine)._
+**Owner picked E** (2026-07-15), refined across two rounds: no shared column
+header on mobile — each field carries its own label directly above it, and the
+second deck flex-wraps when width runs out (Total drops to its own line on a
+390px phone).
 
-Once a direction is picked: prototype it in-app per
-`docs/skills-reference/prototype/UI.md` (variants behind `?variant=` under the
-existing `isWide` flag), then implement properly with preview proof before any
-merge (non-negotiable #3). Then delete this folder.
+**In-app prototype is live** per `docs/skills-reference/prototype/UI.md`:
+`?variant=E` on any build renders mobile (<768px) product rows as the two
+wrapping decks; a dev-only switcher pill (bottom of screen, `import.meta.env.DEV`)
+flips between `current layout` and `E — two-line rows`. Desktop is untouched.
+Code: `EField` + the `protoE` branch in the product-row render (marked
+PROTOTYPE in App.jsx). Same state, same handlers — layout only.
+
+Preview proof (real app, stubbed Supabase — no live data touched):
+`app-E.png` / `app-E-scrolled.png` vs `app-current.png` in this folder. The
+current grid crushes the same row that variant E renders fully legible.
+
+Next: judge with a real job on a real phone (`npm run dev`, open with
+`?variant=E`). If it holds up, promote: fold the E branch in as *the* mobile
+rendering (delete the switcher + `?variant` gate), sweep the row-adjacent
+mobile leftovers (materials drawer width, popover clamps), and PR with fresh
+preview proof. Then delete this folder.
