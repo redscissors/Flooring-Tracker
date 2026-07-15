@@ -1850,8 +1850,15 @@ export default function App({ user, onSignOut }) {
       d.raf = requestAnimationFrame(loop);
     };
     d.raf = requestAnimationFrame(loop);
+    // Once the card has popped out, claim the touch gesture — otherwise the
+    // browser starts scrolling on the first finger move and fires
+    // pointercancel, killing the drag (surfaces without touch-action:none,
+    // e.g. long-press on the row itself).
+    const stopTouchScroll = (ev) => ev.preventDefault();
+    window.addEventListener("touchmove", stopTouchScroll, { passive: false });
     const finish = (commit) => {
       cancelAnimationFrame(d.raf);
+      window.removeEventListener("touchmove", stopTouchScroll);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
@@ -2678,9 +2685,6 @@ export default function App({ user, onSignOut }) {
                         const omniText = omniQ[p.id] || "";
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
                         const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
-                        // PROTOTYPE ?variant=E: the collapsed materials pill leaves a 44px
-                        // gutter at its right; the row's drag/delete stack docks there.
-                        const eHasPill = stripMats.length > 0 || warns.length > 0 || (!hasMats && addables.length > 0);
                         return (
                           // flow-root keeps the collapsed pill's bottom margin inside the
                           // card — collapsed through, it painted a white strip between rows
@@ -2713,8 +2717,11 @@ export default function App({ user, onSignOut }) {
                             ) : (<>
                             {/* main product row */}
                             {protoE ? (
-                            /* PROTOTYPE ?variant=E — two wrapping decks; same cells & handlers as the grid branch below */
-                            <div style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
+                            /* PROTOTYPE ?variant=E — two wrapping decks; same cells & handlers as the grid branch below.
+                               Long-press on any non-interactive part of the row pops it out for drag
+                               (startDrag's own 220ms hold + move-abort does the gesture detection). */
+                            <div onPointerDown={(e) => { if (e.target.closest("input,button,select,textarea")) return; startDrag(e, a.id, p, pi); }}
+                              style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px 4px 0 0" }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                                 {/* size box hugs its content so Product/Color sits as far left as it can */}
@@ -2730,6 +2737,7 @@ export default function App({ user, onSignOut }) {
                                 <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 12 }}>
                                   <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
                                 </div>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="ft-noprint shrink-0 p-1 pr-2 text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={12} /></button>}
                               </div>
                               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", rowGap: 4, padding: "1px 6px 7px" }}>
                                 <EField label="SKU" flex="1.4 1 88px">
@@ -2778,20 +2786,7 @@ export default function App({ user, onSignOut }) {
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                   </>)}
                                 </EField>
-                                {!eHasPill && (
-                                  <div className="ft-noprint" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 2px 0 8px" }}>
-                                    {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={11} /></button>}
-                                    <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="rounded touch-none cursor-grab text-slate-300 hover:text-slate-500" style={{ lineHeight: 0 }}><Hand size={11} /></button>
-                                  </div>
-                                )}
                               </div>
-                              {eHasPill && (
-                                /* docks into the pill's 44px right gutter (card is the positioned ancestor) */
-                                <div className="ft-noprint" style={{ position: "absolute", right: 4, bottom: 10, width: 36, display: "flex", flexDirection: "column", alignItems: "center", gap: 7, zIndex: 5 }}>
-                                  {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={12} /></button>}
-                                  <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="rounded touch-none cursor-grab text-slate-300 hover:text-slate-500" style={{ lineHeight: 0 }}><Hand size={12} /></button>
-                                </div>
-                              )}
                             </div>
                             ) : (
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
