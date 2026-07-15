@@ -3615,6 +3615,8 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
 function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
+  const [show, setShow] = useState("all"); // all | enabled | disabled
+  const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
@@ -3631,9 +3633,12 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const cost = (n) => (hideCosts ? "•••" : n == null ? "—" : money(n));
   const activeItems = (items || []).filter((it) => it.active);
   const query = q.trim().toLowerCase();
-  const shown = (items || [])
-    .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query))
-    .slice(0, 300);
+  // Bulk enable/disable acts on ALL filtered matches, not the 300-row display slice.
+  const filtered = (items || [])
+    .filter((it) => (show === "disabled" ? it.disabled : show === "enabled" ? !it.disabled : true))
+    .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query));
+  const shown = filtered.slice(0, 300);
+  const disabledCount = (items || []).filter((it) => it.disabled).length;
 
   // Apply an import/rollback diff and refresh the table + history. applyBookImport
   // itself writes the version, so a rollback lands as the newest one.
@@ -3655,6 +3660,16 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
       setItems((its) => (its || []).map((x) => x.sku === edited.sku ? merged : x));
       setEditItem(null);
     } catch (x) { /* surfaced by updateBookItem */ }
+  };
+
+  // Optimistic toggle; rolls the list back if the write fails (e.g. the
+  // disabled-column migration hasn't been run).
+  const setDisabled = async (skus, disabled) => {
+    const set = new Set(skus);
+    const prev = items;
+    setItems((its) => (its || []).map((x) => (set.has(x.sku) ? { ...x, disabled } : x)));
+    try { await setBookItemsDisabled(book.id, skus, disabled); }
+    catch (x) { setItems(prev); }
   };
 
   return (
@@ -3693,11 +3708,34 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
 
       {items && items.length > 0 && (
         <>
-          <input className={`${inp} mt-4 max-w-sm`} placeholder="Search this book…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <input className={`${inp} max-w-sm`} placeholder="Search this book…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+              {[["all", "All"], ["enabled", "Enabled"], ["disabled", disabledCount ? `Disabled (${disabledCount})` : "Disabled"]].map(([v, label]) => (
+                <button key={v} onClick={() => setShow(v)} className={`px-2.5 py-1.5 ${show === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
+              ))}
+            </div>
+            {(query || show !== "all") && filtered.length > 0 && (
+              <>
+                <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable all {filtered.length}</button>
+                <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable all {filtered.length}</button>
+              </>
+            )}
+          </div>
+          {confirmBulk && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+              <span className="text-amber-700 flex-1">
+                {confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length} item{filtered.length === 1 ? "" : "s"}{query ? ` matching “${q.trim()}”` : ""}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.
+              </span>
+              <button onClick={() => { setDisabled(filtered.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length}</button>
+              <button onClick={() => setConfirmBulk(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+          )}
           <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
                 <tr>
+                  <th className="px-2 py-1.5 w-8"></th>
                   <th className="text-left px-2 py-1.5">SKU</th>
                   <th className="text-left px-2 py-1.5">Description</th>
                   {isOrder && <th className="text-left px-2 py-1.5">Mfg</th>}
@@ -3713,12 +3751,14 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                   const priced = isOrder ? pricedItem(it, markups) : it;
                   const sell = priced.priceSqft != null ? priced.priceSqft : priced.price;
                   return (
-                    <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued ? "text-slate-300" : ""}`}>
+                    <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
+                      <td className="px-2 py-1.5"><input type="checkbox" checked={!it.disabled} onChange={(e) => setDisabled([it.sku], !e.target.checked)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} /></td>
                       <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
                       <td className="px-2 py-1.5">
                         {it.description || "—"}
                         {it.freightFlag && <span className="ml-1.5 text-[9px] uppercase rounded bg-amber-100 text-amber-700 px-1 py-0.5">freight</span>}
                         {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
+                        {it.disabled && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">off</span>}
                         {it.editedAt && <span title={`Hand-edited${it.editedBy ? ` by ${it.editedBy}` : ""} ${new Date(it.editedAt).toLocaleDateString()} — a re-import overwrites this`} className="ml-1.5 text-[9px] uppercase rounded bg-indigo-100 text-indigo-700 px-1 py-0.5">edited</span>}
                       </td>
                       {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
@@ -3733,7 +3773,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
               </tbody>
             </table>
           </div>
-          {(items.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {items.length}.</p>}
+          {(filtered.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {filtered.length}.</p>}
         </>
       )}
 
