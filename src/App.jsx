@@ -2678,6 +2678,9 @@ export default function App({ user, onSignOut }) {
                         const omniText = omniQ[p.id] || "";
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
                         const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
+                        // PROTOTYPE ?variant=E: the collapsed materials pill leaves a 44px
+                        // gutter at its right; the row's drag/delete stack docks there.
+                        const eHasPill = stripMats.length > 0 || warns.length > 0 || (!hasMats && addables.length > 0);
                         return (
                           // flow-root keeps the collapsed pill's bottom margin inside the
                           // card — collapsed through, it painted a white strip between rows
@@ -2775,11 +2778,20 @@ export default function App({ user, onSignOut }) {
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                   </>)}
                                 </EField>
+                                {!eHasPill && (
+                                  <div className="ft-noprint" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 2px 0 8px" }}>
+                                    {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={11} /></button>}
+                                    <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="rounded touch-none cursor-grab text-slate-300 hover:text-slate-500" style={{ lineHeight: 0 }}><Hand size={11} /></button>
+                                  </div>
+                                )}
                               </div>
-                              <div className="ft-noprint" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, borderTop: "1px solid var(--ft-row-line)", padding: "1px 10px" }}>
-                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="rounded touch-none cursor-grab text-slate-300 hover:text-slate-500" style={{ lineHeight: 0, padding: "2px 0" }}><Hand size={11} /></button>
-                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="text-slate-300 hover:text-red-500" style={{ lineHeight: 0, padding: "2px 0" }}><Trash2 size={11} /></button>}
-                              </div>
+                              {eHasPill && (
+                                /* docks into the pill's 44px right gutter (card is the positioned ancestor) */
+                                <div className="ft-noprint" style={{ position: "absolute", right: 4, bottom: 10, width: 36, display: "flex", flexDirection: "column", alignItems: "center", gap: 7, zIndex: 5 }}>
+                                  {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={12} /></button>}
+                                  <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="rounded touch-none cursor-grab text-slate-300 hover:text-slate-500" style={{ lineHeight: 0 }}><Hand size={12} /></button>
+                                </div>
+                              )}
                             </div>
                             ) : (
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
