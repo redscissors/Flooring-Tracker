@@ -1795,7 +1795,7 @@ export default function App({ user, onSignOut }) {
   // The grabbed card pops out and tracks the pointer via CSS `translate`; drop
   // targets are hit-tested with elementFromPoint (the card is pointer-events:
   // none while held). Data is written once, on drop, through moveProduct.
-  const startDrag = (e, aid, p, pi) => {
+  const startDrag = (e, aid, p, pi, holdMs = 220) => {
     if (e.button != null && e.button !== 0) return;
     const node = e.currentTarget.closest("[data-prod-card]");
     const main = mainRef.current;
@@ -1805,7 +1805,7 @@ export default function App({ user, onSignOut }) {
     const last = { ...start };
     const abort = () => { clearTimeout(timer); window.removeEventListener("pointermove", onHoldMove); window.removeEventListener("pointerup", abort); window.removeEventListener("pointercancel", abort); };
     const onHoldMove = (ev) => { last.x = ev.clientX; last.y = ev.clientY; if (Math.hypot(last.x - start.x, last.y - start.y) > 6) abort(); };
-    const timer = setTimeout(() => { abort(); beginDrag(node, main, last.x, last.y, aid, p, pi); }, 220);
+    const timer = setTimeout(() => { abort(); beginDrag(node, main, last.x, last.y, aid, p, pi); }, holdMs);
     window.addEventListener("pointermove", onHoldMove);
     window.addEventListener("pointerup", abort);
     window.addEventListener("pointercancel", abort);
@@ -2720,7 +2720,7 @@ export default function App({ user, onSignOut }) {
                             /* PROTOTYPE ?variant=E — two wrapping decks; same cells & handlers as the grid branch below.
                                Long-press on any non-interactive part of the row pops it out for drag
                                (startDrag's own 220ms hold + move-abort does the gesture detection). */
-                            <div onPointerDown={(e) => { if (e.target.closest("input,button,select,textarea")) return; startDrag(e, a.id, p, pi); }}
+                            <div onPointerDown={(e) => { if (e.target.closest("input,button,select,textarea")) return; startDrag(e, a.id, p, pi, 350); }}
                               style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px 4px 0 0" }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
