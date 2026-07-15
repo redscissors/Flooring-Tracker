@@ -66,3 +66,44 @@ The sheet dimension is genuinely useful — a 9×11 sheet covers 0.6875 sf of fl
 - The ticket-010 behavior of keeping a `13X13 SHT` mosaic as a `13x13` rectangle
   size is superseded: it now lands in `sheetSize`, consistent with the rule that
   a sheet dimension is coverage, not tile geometry.
+
+## Amendment 2026-07-15 — the PDF path and the chip cascade (issue 016)
+
+ADR 0014 was written for the VTC **mapped .xlsx** path, where the sheet token
+rides inside a description column and `splitSizeFromDescription` pulls it out.
+The Glazzio **text-PDF** path (ADR 0010, `src/pdfbook.js`) never hit that code:
+it has its own header-driven columns, and three of its mosaic layouts broke
+differently (issue 016).
+
+- **Egyptian/Antiquities layout** carries a literal `Sheet Size` column. Its
+  header matched on the word "size", so the sheet dimension filled the tile L×W —
+  the exact failure this ADR forbids, now on the PDF path. Fix: `headerFieldFor`
+  routes a `Sheet Size` header to its own `sheetSize` field (never `size`), and
+  `mappedItem` reads an explicitly-mapped `sheetSize` column, not only the
+  description split.
+- **Aragon/Academia layout** prints the sheet dimension and coverage only as a
+  prose line (`SHEET SIZE: 11 1/2" x 11 13/16" = .943 SQF`, or the 24x48 pages'
+  `MOSAIC COVERAGE: 12 x 12" = 1 SQF`). `parsePdfPages` now reads that line per
+  table section and applies it as the section's sheet size + per-sheet coverage
+  when the row's own columns leave them blank — so the row prices per sheet and
+  orders in whole sheets, and the printed `$/SQF` reconciles it (the existing
+  self-consistency guard).
+- **The chip is resolved by a cascade**, because not every page prints one:
+  (1) a chip size in the color name wins (unchanged); else (2) the chip is
+  derived from `Rows per Sheet ÷ sheet dimension` (a square chip that stands in
+  for grout volume — a 1" square ≈ a 1" hex); else (3) L×W is left blank and the
+  ticket-009 "＋ add size for grout" box prompts the salesperson, exactly as this
+  ADR already specified. `Rows per Sheet` is parsed to its own field and used
+  only for this derivation — it is **not** `pcPerUnit` (piece packaging), so it
+  never divides the per-sheet coverage.
+- **Sub-table SKU un-merge.** On the 24x48 pages the longer `-M` mosaic code
+  kerns against the color name with no gutter, so column detection merged them
+  and the row (its SKU cell now carrying spaces) was dropped by the pattern gate.
+  When a leftmost/SKU cell is a SKU-shaped token followed by more text, the code
+  peels the token back off as the SKU and returns the remainder to the name, so
+  the mosaic rows survive and their name-borne chip size (`2x2`) parses normally.
+
+The doctrine is unchanged — a sheet dimension is coverage, never grout geometry;
+the chip is the grout geometry, filled automatically when the book gives us
+enough and by one manual entry when it does not. This amendment only teaches the
+PDF path the same rule and adds the rows-per-sheet derivation as a middle rung.
