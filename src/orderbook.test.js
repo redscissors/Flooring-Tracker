@@ -4,6 +4,7 @@ import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
+  itemProblems, supersedePairs,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -497,4 +498,42 @@ test("normBookItem maps the disabled column legacy-safe; bookItemData strips it"
   assert.equal(off.disabled, true);
   assert.equal(legacy.disabled, false);
   assert.equal("disabled" in bookItemData(off), false); // the import upsert's jsonb must never carry it
+});
+
+// --- itemProblems classifier (import-review spec, PR B) ------------------------
+
+test("itemProblems flags the pricing/unit hazards, and nothing else", () => {
+  assert.deepEqual(itemProblems(oi({ type: "tile", priceUnit: "SF", orderUnit: "CT", cost: 3.29, sfPerUnit: 15.5, pcPerUnit: 12 })), []);
+  assert.equal(itemProblems(normOrderItem({ sku: "A", priceUnit: "SF" }))[0].code, "no-price");
+  assert.equal(itemProblems(oi({ cost: 0 }))[0].code, "zero-price");
+  assert.equal(itemProblems(normOrderItem({ sku: "B", priceUnit: "PC", orderUnit: "CT", cost: 27.99 }))[0].code, "no-pc-carton");
+  assert.equal(itemProblems(normOrderItem({ sku: "C", priceUnit: "PC", orderUnit: "SF", cost: 4, sfPerUnit: 16 }))[0].code, "pc-sf-mismatch");
+  assert.equal(itemProblems(normOrderItem({ sku: "D", priceUnit: "SF", orderUnit: "ROLL", cost: 5 }))[0].code, "unfamiliar-unit");
+});
+
+test("an untyped misc line with a clean price is NOT a problem", () => {
+  assert.deepEqual(itemProblems(normOrderItem({ sku: "E", priceUnit: "PC", orderUnit: "PC", cost: 14.44, pcPerUnit: 20 })), []);
+});
+
+// --- supersedePairs (import-review spec, PR B) ---------------------------------
+
+const bi = (sku, over = {}) => normBookItem({ sku, active: true, disabled: over.disabled, data: { description: over.description || sku } }, "bk");
+
+test("supersedePairs pairs an N-suffixed newcomer with its base in the file", () => {
+  const parsed = [normOrderItem({ sku: "123456", description: "Old Oak" }), normOrderItem({ sku: "123456N", description: "New Oak" })];
+  const pairs = supersedePairs([], parsed);
+  assert.deepEqual(pairs, [{ oldSku: "123456", newSku: "123456N", oldDesc: "Old Oak", newDesc: "New Oak" }]);
+});
+
+test("supersedePairs matches a base that only exists in the book already", () => {
+  const existing = [bi("789012", { description: "Existing Maple" })];
+  const parsed = [normOrderItem({ sku: "789012N", description: "New Maple" })];
+  assert.equal(supersedePairs(existing, parsed).length, 1);
+  assert.equal(supersedePairs(existing, parsed)[0].oldSku, "789012");
+});
+
+test("supersedePairs skips a base that is already disabled, and lone N SKUs with no base", () => {
+  const existing = [bi("555", { disabled: true, description: "Off" })];
+  assert.deepEqual(supersedePairs(existing, [normOrderItem({ sku: "555N" })]), []);
+  assert.deepEqual(supersedePairs([], [normOrderItem({ sku: "PLAN" })]), []);
 });

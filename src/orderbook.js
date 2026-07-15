@@ -287,37 +287,72 @@ export function editedInDiff(existing, parsed) {
 
 // --- import-time unit sanity ---------------------------------------------------
 
-// Tally parsed rows whose units the pricing code can't handle honestly, for the
-// import wizard to show BEFORE apply. Born of the VTC bullnose audit (2026-07):
-// 801 per-piece-priced, carton-sold rows silently underpriced 1–20× because no
-// check owned the question "does this sheet carry a unit combination we've
-// never priced?". Every combination the code DOES handle has a row in the
-// truth table (unitcombos.test.js); teaching it a new one starts there.
-// Rule-based, not a combo whitelist, so single-U/M books stay quiet.
+// Per-row pricing/unit hazard classifier. Returns the problem(s) that make a
+// row misprice — 0 or 1 today, short-circuiting in priority order. Born of the
+// VTC bullnose audit (2026-07): 801 per-piece-priced, carton-sold rows silently
+// underpriced 1–20× because no check owned "does this sheet carry a unit
+// combination we've never priced?". Every combination the code DOES handle
+// returns [] (unitcombos.test.js is the truth table). An untyped "Misc" row is
+// NOT a hazard — landing as a count line is by design (ADR 0013).
+export function itemProblems(item) {
+  const it = item || {};
+  const pu = priceUnitOf(it), ou = orderUnitOf(it);
+  if (it.cost == null && it.price == null) return [{ code: "no-price", msg: "with no price on the sheet — landing unpriced" }];
+  if (it.cost === 0 || it.price === 0) return [{ code: "zero-price", msg: "with a $0 price on the sheet — landing as $0 lines" }];
+  if (isPieceUnit(pu) && !(it.pcPerUnit > 0)) {
+    // Without PC/CT a per-piece price can't be converted to the carton the
+    // vendor actually sells (or to a per-carton SF/CT) — the bullnose hole.
+    if (isCartonUnit(ou)) return [{ code: "no-pc-carton", msg: `priced per ${pu.toUpperCase()} but sold by the ${ou.toUpperCase()} with no PC/CT column mapped — the carton price can't be built (may land unpriced or underpriced)` }];
+    if (it.sfPerUnit > 0 && ou && ou.toUpperCase() !== pu.toUpperCase()) return [{ code: "pc-sf-mismatch", msg: `priced per ${pu.toUpperCase()} with SF/CT coverage but no PC/CT column mapped — the derived $/sqft may be off by the carton's piece count` }];
+  }
+  if (pu && ou && ou.toUpperCase() !== pu.toUpperCase() && !isCartonUnit(ou) && !isPieceUnit(ou) && !/^(sf|sft|sqft)$/i.test(ou)) {
+    return [{ code: "unfamiliar-unit", msg: `sold by an unfamiliar unit "${ou}" — check how these rows land before trusting their price` }];
+  }
+  return [];
+}
+
+// Aggregate the per-row hazards for the import wizard's file-level warning list:
+// group by message, keep ≤3 sample SKUs each. Rule-based via itemProblems, so
+// single-U/M books stay quiet.
 export function unitComboWarnings(items) {
   const groups = new Map();
-  const add = (msg, sku) => {
+  for (const it of items || []) {
+    const probs = itemProblems(it);
+    if (!probs.length) continue;
+    const { msg } = probs[0];
     const g = groups.get(msg) || { n: 0, skus: [] };
     g.n++;
-    if (g.skus.length < 3 && sku) g.skus.push(sku);
+    if (g.skus.length < 3 && it.sku) g.skus.push(it.sku);
     groups.set(msg, g);
-  };
-  for (const it of items || []) {
-    const pu = priceUnitOf(it), ou = orderUnitOf(it);
-    if (it.cost == null && it.price == null) { add("with no price on the sheet — landing unpriced", it.sku); continue; }
-    if (it.cost === 0 || it.price === 0) { add("with a $0 price on the sheet — landing as $0 lines", it.sku); continue; }
-    if (isPieceUnit(pu) && !(it.pcPerUnit > 0)) {
-      // Without PC/CT a per-piece price can't be converted to the carton the
-      // vendor actually sells (or to a per-carton SF/CT) — the very hole the
-      // bullnose audit found.
-      if (isCartonUnit(ou)) { add(`priced per ${pu.toUpperCase()} but sold by the ${ou.toUpperCase()} with no PC/CT column mapped — the carton price can't be built (may land unpriced or underpriced)`, it.sku); continue; }
-      if (it.sfPerUnit > 0 && ou && ou.toUpperCase() !== pu.toUpperCase()) { add(`priced per ${pu.toUpperCase()} with SF/CT coverage but no PC/CT column mapped — the derived $/sqft may be off by the carton's piece count`, it.sku); continue; }
-    }
-    if (pu && ou && ou.toUpperCase() !== pu.toUpperCase() && !isCartonUnit(ou) && !isPieceUnit(ou) && !/^(sf|sft|sqft)$/i.test(ou)) {
-      add(`sold by an unfamiliar unit "${ou}" — check how these rows land before trusting their price`, it.sku);
-    }
   }
   return [...groups.entries()].map(([msg, g]) => `${g.n} row${g.n === 1 ? "" : "s"} ${msg} (${g.skus.join(", ")}${g.n > g.skus.length ? ", …" : ""}).`);
+}
+
+// N-suffix supersede detection. Vendors reissue a SKU by appending N to mark a
+// new version of an older code (VTC convention). For each incoming SKU ending
+// in n/N whose base (the SKU minus that trailing letter) exactly matches another
+// SKU present in this file OR the book's existing items, emit a pair so the
+// import can offer to disable the old code. Only enabled bases are flagged
+// (nothing to retire otherwise); the existence guard keeps ordinary N-ending
+// SKUs ("PLAN") from producing false pairs. One level, exact base match — a
+// wrong pair is visible and untickable in the preview.
+export function supersedePairs(existing, parsed) {
+  const bySku = new Map();
+  for (const it of existing || []) bySku.set(it.sku, it);
+  for (const it of parsed || []) bySku.set(it.sku, it); // incoming wins for description
+  const pairs = [];
+  const seen = new Set();
+  for (const it of parsed || []) {
+    const m = /^(.+)[nN]$/.exec(it.sku || "");
+    if (!m) continue;
+    const base = bySku.get(m[1]);
+    if (!base || base.sku === it.sku || base.disabled) continue;
+    const key = `${base.sku}>${it.sku}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ oldSku: base.sku, newSku: it.sku, oldDesc: base.description || "", newDesc: it.description || "" });
+  }
+  return pairs;
 }
 
 // --- markup group summary ----------------------------------------------------
