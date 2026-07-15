@@ -220,6 +220,12 @@ the add-product actions, rename, and delete (when empty). Products rename in
 place from the detail header (`renameProduct` in catalog.js — same saved-jobs
 consequence as delete since jobs resolve by name, and a renamed seed
 underlayment tombstones its seed name like a deleted one).
+The Add-ons group below the built-ins holds team-defined custom material
+categories (ADR 0016): `catalog.categories` (name · floorTypes · coverage-or-
+manual math · chip default · enabled) with company-grouped products in each
+company's flat `attached` array (`categoryId` ties product → category), full
+price-book parity including exact-SKU price refresh on import. Settings-only
+until the PR-3 job wiring; jobs will resolve these by name like mortar.
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -884,4 +884,152 @@ test("materialWarnings: underlayment and install-material failures", () => {
   hardie.install = hardie.install.map((m) => ({ ...m, coverage: 0 }));
   const s3 = { ...s2, ...resolveCatalog(s2.catalog) };
   assert.deepEqual(materialWarnings(mk({ product: "HardieBacker", install: true }), s3), ["install"]);
+});
+
+// --- Custom material categories (ADR 0016) ------------------------------------
+
+test("normalizeCatalog defaults categories to [] and old catalogs round-trip unchanged", () => {
+  const old = normalizeSettings(undefined); // pre-PR-2 shape has no categories
+  assert.deepEqual(old.catalog.categories, []);
+  const round = normalizeSettings(serializeSettings(old));
+  assert.deepEqual(round.catalog.categories, []);
+  assert.deepEqual(round.catalog.companies.map((c) => c.name), old.catalog.companies.map((c) => c.name));
+});
+
+test("addCategory appends a normalized, enabled category", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "  Trim ", floorTypes: ["tile", "misc", "vinyl"], math: "manual" });
+  assert.equal(c.categories.length, 1);
+  const cat = c.categories[0];
+  assert.ok(cat.id);
+  assert.equal(cat.enabled, true);
+  assert.equal(cat.name, "Trim");
+  assert.deepEqual(cat.floorTypes, ["tile", "vinyl"]); // misc is not a floor type
+  assert.equal(cat.math, "manual");
+  assert.equal(cat.default, "");
+});
+
+test("category math falls back to coverage on junk; floorTypes to []", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "Sealer", math: "volumetric" });
+  assert.equal(c.categories[0].math, "coverage");
+  assert.deepEqual(c.categories[0].floorTypes, []);
+});
+
+test("updateCategory patches fields, keeps the id, re-normalizes", () => {
+  const s = normalizeSettings(undefined);
+  const c1 = addCategory(s.catalog, { name: "Trim", math: "manual" });
+  const id = c1.categories[0].id;
+  const c2 = updateCategory(c1, id, { name: "Trim & transitions", math: "coverage", default: "RENO-U", enabled: false, floorTypes: ["tile"] });
+  const cat = c2.categories[0];
+  assert.equal(cat.id, id);
+  assert.equal(cat.name, "Trim & transitions");
+  assert.equal(cat.math, "coverage");
+  assert.equal(cat.default, "RENO-U");
+  assert.equal(cat.enabled, false);
+  assert.deepEqual(cat.floorTypes, ["tile"]);
+});
+
+test("categories survive a serialize/normalize round-trip", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "Trim", floorTypes: ["tile"], math: "manual" });
+  const round = normalizeSettings(serializeSettings({ ...s, catalog: c }));
+  assert.equal(round.catalog.categories.length, 1);
+  assert.equal(round.catalog.categories[0].name, "Trim");
+  assert.equal(round.catalog.categories[0].math, "manual");
+  assert.equal(round.catalog.categories[0].id, c.categories[0].id);
+});
+
+test("isDuplicateCategoryName matches case/space-insensitively and shadows built-ins", () => {
+  const s = normalizeSettings(undefined);
+  const c = addCategory(s.catalog, { name: "Trim" });
+  assert.equal(isDuplicateCategoryName(c, " trim "), true);
+  assert.equal(isDuplicateCategoryName(c, "Grout"), true);
+  assert.equal(isDuplicateCategoryName(c, "Mortar"), true);
+  assert.equal(isDuplicateCategoryName(c, "Underlayment"), true);
+  assert.equal(isDuplicateCategoryName(c, "Sealer"), false);
+  assert.equal(isDuplicateCategoryName(c, ""), false);
+  // exceptId lets a category "rename" to its own name
+  assert.equal(isDuplicateCategoryName(c, "TRIM", c.categories[0].id), false);
+});
+
+test("normalizeCatalog defaults attached to [] on every company; stored items keep their shape", () => {
+  const s = normalizeSettings(undefined);
+  assert.ok(s.catalog.companies.every((co) => Array.isArray(co.attached) && co.attached.length === 0));
+  const raw = serializeSettings(s);
+  raw.catalog.companies[0].attached = [{ name: "RENO-U", categoryId: "cat1", sku: " T-114 ", unit: "pieces", price: 18.4, coverage: 0 }];
+  const round = normalizeSettings(raw);
+  const p = round.catalog.companies[0].attached[0];
+  assert.ok(p.id);
+  assert.equal(p.enabled, true);
+  assert.equal(p.categoryId, "cat1");
+  assert.equal(p.sku, "T-114");
+  assert.equal(p.unit, "pieces");
+  assert.equal(p.price, 18.4);
+});
+
+const trimCatalog = () => {
+  const s = normalizeSettings(undefined);
+  const c1 = addCategory(s.catalog, { name: "Trim", math: "manual" });
+  const catId = c1.categories[0].id;
+  const coId = c1.companies[0].id;
+  const c2 = addProduct(c1, coId, "attached", { name: "RENO-U", categoryId: catId, sku: "T-114", unit: "pieces", price: 18.4 });
+  return { catalog: c2, catId, coId };
+};
+
+test("addProduct kind 'attached' appends under the company with the category link", () => {
+  const { catalog, catId, coId } = trimCatalog();
+  const co = catalog.companies.find((c) => c.id === coId);
+  assert.equal(co.attached.length, 1);
+  assert.equal(co.attached[0].name, "RENO-U");
+  assert.equal(co.attached[0].categoryId, catId);
+  assert.equal(co.attached[0].enabled, true);
+});
+
+test("attached names are unique per category, not globally", () => {
+  const { catalog, catId, coId } = trimCatalog();
+  assert.equal(isDuplicateAttachedName(catalog, catId, " reno-u "), true);
+  assert.equal(isDuplicateAttachedName(catalog, "other-cat", "RENO-U"), false);
+  assert.equal(isDuplicateAttachedName(catalog, catId, ""), false);
+  const c2 = addProduct(catalog, coId, "attached", { name: "RENO-U", categoryId: "other-cat" });
+  assert.equal(isDuplicateAttachedName(c2, "other-cat", "RENO-U"), true);
+});
+
+test("offeredAttached scopes to the category and honors company/product enabled", () => {
+  const { catalog, catId, coId } = trimCatalog();
+  assert.deepEqual(offeredAttached(catalog, catId), ["RENO-U"]);
+  assert.deepEqual(offeredAttached(catalog, "other-cat"), []);
+  const pid = catalog.companies.find((c) => c.id === coId).attached[0].id;
+  const off = { ...catalog, companies: catalog.companies.map((co) => co.id === coId ? { ...co, attached: co.attached.map((p) => p.id === pid ? { ...p, enabled: false } : p) } : co) };
+  assert.deepEqual(offeredAttached(off, catId), []);
+  const coOff = { ...catalog, companies: catalog.companies.map((co) => co.id === coId ? { ...co, enabled: false } : co) };
+  assert.deepEqual(offeredAttached(coOff, catId), []);
+});
+
+test("removeProduct and renameProduct work on kind 'attached'", () => {
+  const { catalog, coId } = trimCatalog();
+  const pid = catalog.companies.find((c) => c.id === coId).attached[0].id;
+  const renamed = renameProduct(catalog, coId, "attached", pid, "RENO-U 1/4\"");
+  assert.equal(renamed.companies.find((c) => c.id === coId).attached[0].name, "RENO-U 1/4\"");
+  const removed = removeProduct(catalog, coId, "attached", pid);
+  assert.equal(removed.companies.find((c) => c.id === coId).attached.length, 0);
+});
+
+test("removeCategory drops the category and prunes its products from every company", () => {
+  const { catalog, catId, coId } = trimCatalog();
+  const c2 = addProduct(catalog, coId, "attached", { name: "Other cat item", categoryId: "keep-me" });
+  const c3 = removeCategory(c2, catId);
+  assert.deepEqual(c3.categories, []);
+  const co = c3.companies.find((c) => c.id === coId);
+  assert.deepEqual(co.attached.map((p) => p.name), ["Other cat item"]);
+});
+
+test("attached products survive a serialize/normalize round-trip", () => {
+  const { catalog, catId, coId } = trimCatalog();
+  const s = normalizeSettings(undefined);
+  const round = normalizeSettings(serializeSettings({ ...s, catalog }));
+  const co = round.catalog.companies.find((c) => c.id === coId);
+  assert.equal(co.attached.length, 1);
+  assert.equal(co.attached[0].categoryId, catId);
+  assert.equal(co.attached[0].sku, "T-114");
 });

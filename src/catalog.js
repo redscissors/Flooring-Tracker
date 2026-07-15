@@ -335,6 +335,7 @@ export function seedCatalog(flat) {
     grouts: co.grouts.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
     mortars: co.mortars.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
     underlayments: seedUnderlaysFor(co.name),
+    attached: [],
   }));
   const extraG = Object.keys(g).filter((n) => !seededG.has(n));
   const extraM = Object.keys(m).filter((n) => !seededM.has(n));
@@ -344,9 +345,10 @@ export function seedCatalog(flat) {
       grouts: extraG.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
       mortars: extraM.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
       underlayments: [],
+      attached: [],
     });
   }
-  return { companies, defaults: normDefaults() };
+  return { companies, categories: [], defaults: normDefaults() };
 }
 
 // The team's chosen chip defaults, one per material kind. Stored names are kept
@@ -401,8 +403,9 @@ export function normalizeCatalog(catalog) {
     grouts: (co?.grouts || []).map(normGroutProduct),
     mortars: (co?.mortars || []).map(normMortarProduct),
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
+    attached: (co?.attached || []).map(normAttachedProduct),
   }));
-  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, defaults: normDefaults(catalog?.defaults) };
+  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, categories: (Array.isArray(catalog?.categories) ? catalog.categories : []).map(normCategory), defaults: normDefaults(catalog?.defaults) };
 }
 
 // True when the stored catalog already contains every starter underlayment
@@ -428,7 +431,7 @@ export function isDuplicateName(catalog, kind, name) {
 }
 
 export function addCompany(catalog, name) {
-  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [] };
+  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [], underlayments: [], attached: [] };
   return { ...catalog, companies: [...(catalog?.companies || []), company] };
 }
 
@@ -436,7 +439,7 @@ export function addCompany(catalog, name) {
 // caller's gate (see isDuplicateName) — this is the pure append.
 export function addProduct(catalog, companyId, kind, fields) {
   const base = { id: cid(), name: String(fields?.name || "").trim(), enabled: true };
-  const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : underlayFields(fields);
+  const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : kind === "attached" ? attachedFields(fields) : underlayFields(fields);
   const product = { ...base, ...shape };
   return { ...catalog, companies: (catalog?.companies || []).map((co) => co.id === companyId ? { ...co, [kind]: [...(co[kind] || []), product] } : co) };
 }
@@ -529,6 +532,70 @@ export const offeredUnderlayments = (catalog, type) => {
   for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (!(p.types || []).length || p.types.includes(type))) names.push(p.name);
   return names;
 };
+
+// --- Custom material categories (ADR 0016) -----------------------------------
+// The built-ins (grout/mortar/underlayment) stay first-class code; `categories`
+// holds only the team's custom add-on categories (Trim, Sealer, …). floorTypes
+// empty = offered on all types (underlayment's `types` convention); `math`
+// picks the quantity model: "coverage" = flat sq ft/unit like underlayment,
+// "manual" = typed per-row quantity. `default` is the chip's pre-selected
+// product name (resolveMaterialDefault semantics; "" = first offered).
+export const CATEGORY_MATHS = ["coverage", "manual"];
+const categoryFields = (c) => ({
+  name: String(c?.name ?? "").trim(),
+  floorTypes: (Array.isArray(c?.floorTypes) ? c.floorTypes : []).filter((t) => FLOOR_TYPES.includes(t)),
+  math: CATEGORY_MATHS.includes(c?.math) ? c.math : "coverage",
+  default: String(c?.default ?? ""),
+});
+const normCategory = (c) => ({ id: c?.id || cid(), enabled: c?.enabled !== false, ...categoryFields(c) });
+
+// Custom names may not collide with each other or shadow a built-in label —
+// the Materials & add-ons nav lists both groups side by side.
+const BUILTIN_CATEGORY_NAMES = ["grout", "mortar", "underlayment"];
+export function isDuplicateCategoryName(catalog, name, exceptId) {
+  const target = normName(name);
+  if (!target) return false;
+  if (BUILTIN_CATEGORY_NAMES.includes(target)) return true;
+  return (catalog?.categories || []).some((c) => c.id !== exceptId && normName(c.name) === target);
+}
+
+export function addCategory(catalog, fields) {
+  return { ...catalog, categories: [...(catalog?.categories || []), normCategory({ ...fields, id: undefined, enabled: true })] };
+}
+
+export function updateCategory(catalog, categoryId, patch) {
+  return { ...catalog, categories: (catalog?.categories || []).map((c) => c.id === categoryId ? normCategory({ ...c, ...patch, id: c.id }) : c) };
+}
+
+const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, sku: skuField(p) });
+const normAttachedProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...attachedFields(p) });
+
+// Attached names are unique within their category (a "RENO-U" trim and a
+// "RENO-U" threshold can coexist) — the per-kind convention, category-scoped.
+export function isDuplicateAttachedName(catalog, categoryId, name) {
+  const target = normName(name);
+  if (!target) return false;
+  for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (p.categoryId === categoryId && normName(p.name) === target) return true;
+  return false;
+}
+
+export const offeredAttached = (catalog, categoryId) => {
+  const names = [];
+  for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (isOffered(co, p) && p.categoryId === categoryId) names.push(p.name);
+  return names;
+};
+
+// Deleting a category is permanent and sharper than disabling: its products
+// are pruned from every company, and (once jobs wire in, PR 3) saved jobs
+// keep the stored name but stop calculating — same consequence as deleting a
+// product.
+export function removeCategory(catalog, categoryId) {
+  return {
+    ...catalog,
+    categories: (catalog?.categories || []).filter((c) => c.id !== categoryId),
+    companies: (catalog?.companies || []).map((co) => (co.attached || []).some((p) => p.categoryId === categoryId) ? { ...co, attached: co.attached.filter((p) => p.categoryId !== categoryId) } : co),
+  };
+}
 
 // Operational provenance, shared team-wide with the settings record: who last
 // ran the price-book import / backup download, and when. Purely informational —

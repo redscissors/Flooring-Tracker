@@ -406,7 +406,7 @@ export function syncCatalogPrices(catalog, items) {
       changes.push({ name: p.name, from, to, sku });
       return { ...p, price: to };
     });
-    return { ...co, grouts: syncKind(co.grouts), mortars: syncKind(co.mortars), underlayments: syncKind(co.underlayments) };
+    return { ...co, grouts: syncKind(co.grouts), mortars: syncKind(co.mortars), underlayments: syncKind(co.underlayments), ...(co.attached ? { attached: syncKind(co.attached) } : {}) };
   });
   return { catalog: { ...catalog, companies }, changes };
 }

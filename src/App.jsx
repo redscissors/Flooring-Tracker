@@ -1,9 +1,9 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
-import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
+import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
@@ -4489,6 +4489,11 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const [showOthers, setShowOthers] = useState(false); // "Not in this section" group
   const [rename, setRename] = useState(null); // { value, error } — renaming the selected product
   const [coRename, setCoRename] = useState(null); // { id, value } — renaming a company inline
+  const [addingCat, setAddingCat] = useState(false); // New-category modal
+  const [catDraft, setCatDraft] = useState({ name: "", floorTypes: [], math: "coverage" });
+  const [catError, setCatError] = useState("");
+  const [catRename, setCatRename] = useState(null); // { value, error } — renaming the open custom category
+  const [confirmDelCat, setConfirmDelCat] = useState(false);
 
   // Spread the whole catalog, not just companies, so sibling fields
   // (defaults, removedSeeds) survive a company/product edit.
@@ -4503,16 +4508,20 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const setInstallKind = (cid, u, mid, kind) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).map((m) => m.id !== mid || m.kind === kind ? m : { ...newInstallItem(kind), id: m.id, coverage: m.coverage }) });
   const mortarNames = catalog.companies.flatMap((c) => c.mortars.map((m) => m.name));
 
-  const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlayment";
+  const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : kind === "attached" ? (customCat?.name || "add-on") : "underlayment";
   // The team's chip default for a kind, compared name-wise the way jobs resolve.
   const isDefaultMaterial = (kind, name) => String(catalog.defaults?.[{ grouts: "grout", mortars: "mortar", underlayments: "underlay" }[kind]] || "").trim().toLowerCase() === String(name || "").trim().toLowerCase();
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
+  // An attached product's chip default lives on ITS category (only reachable
+  // while that category is the open one, so customCat is the right scope).
+  const isCategoryDefault = (p) => !!customCat && String(customCat.default || "").trim().toLowerCase() === String(p?.name || "").trim().toLowerCase() && customCat.default !== "";
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "attached" ? { name: "", coverage: "", unit: "units", price: "", sku: "", categoryId: cat } : kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
   const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); setRename(null); };
   const submitAdd = () => {
     const name = (draft.name || "").trim();
     if (!name) { setError("Product name is required."); return; }
-    if (isDuplicateName(catalog, adding.kind, name)) { setError(`A ${kindLabel(adding.kind)} named "${name}" already exists.`); return; }
+    const dup = adding.kind === "attached" ? isDuplicateAttachedName(catalog, draft.categoryId, name) : isDuplicateName(catalog, adding.kind, name);
+    if (dup) { setError(`A ${kindLabel(adding.kind)} named "${name}" already exists.`); return; }
     onChange(addProduct(catalog, adding.companyId, adding.kind, { ...draft, name }));
     setAdding(null); setError("");
   };
@@ -4520,6 +4529,17 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   // section" group — open the add form for it right away so it doesn't seem to
   // vanish.
   const submitCompany = () => { const name = newCompany.trim(); if (!name) return; const next = addCompany(catalog, name); onChange(next); setNewCompany(""); setShowOthers(true); startAdd(next.companies[next.companies.length - 1].id, kindsFor[0]); };
+  const openNewCategory = () => { setAddingCat(true); setCatDraft({ name: "", floorTypes: [], math: "coverage" }); setCatError(""); };
+  const submitCategory = () => {
+    const name = catDraft.name.trim();
+    if (!name) { setCatError("Category name is required."); return; }
+    if (isDuplicateCategoryName(catalog, name)) { setCatError(`A category named "${name}" already exists.`); return; }
+    const next = addCategory(catalog, { ...catDraft, name });
+    onChange(next);
+    setAddingCat(false); setSel(null); setAdding(null); setConfirmDelCat(false); setCatRename(null);
+    setCat(next.categories[next.categories.length - 1].id);
+  };
+  const openCat = (id) => { setCat(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); setRename(null); setCoRename(null); setCatRename(null); setConfirmDelCat(false); };
   // The book rarely carries coverage, so most items still need it typed in —
   // mortars always do (three tiers can't come from one number). The pick keeps
   // the item's SKU on the product (ADR 0006), and a Laticrete pigment brings
@@ -4557,35 +4577,40 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   );
   // Which flooring types an underlayment is offered for. No chips selected = all
   // types (the empty-tag convention in the catalog).
-  const typeChips = (selected, onVal) => {
+  const typeChips = (selected, onVal, list = types) => {
     const sel = selected || [];
     const toggle = (t) => onVal(sel.includes(t) ? sel.filter((x) => x !== t) : [...sel, t]);
     return (
       <div><label className={lbl}>Offered for {sel.length === 0 && <span className="text-slate-400 font-normal normal-case tracking-normal">(all types)</span>}</label>
-        <div className="flex flex-wrap gap-1">{types.map((t) => <button key={t} onClick={() => toggle(t)} className={`text-xs rounded-md px-2 py-1 border ${sel.includes(t) ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{typeLabels[t]}</button>)}</div>
+        <div className="flex flex-wrap gap-1">{list.map((t) => <button key={t} onClick={() => toggle(t)} className={`text-xs rounded-md px-2 py-1 border ${sel.includes(t) ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{typeLabels[t]}</button>)}</div>
       </div>
     );
   };
+  const floorTypeList = types.filter((t) => t !== "misc");
   const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
   const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
   const addCo = adding ? catalog.companies.find((c) => c.id === adding.companyId) : null;
-  const kindsFor = [{ grout: "grouts", mortar: "mortars", underlay: "underlayments" }[cat]];
-  const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0);
+  const customCat = (catalog.categories || []).find((c) => c.id === cat);
+  const kindsFor = customCat ? ["attached"] : [{ grout: "grouts", mortar: "mortars", underlay: "underlayments" }[cat]];
+  // The products a company shows in the current section — attached rows are
+  // additionally scoped to the open custom category.
+  const prodsOf = (co, kind) => kind === "attached" ? (co.attached || []).filter((p) => p.categoryId === cat) : (co[kind] || []);
+  const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0) + (co.attached?.length || 0);
   // A company "belongs" to a section by having products of its kinds — the rest
   // sit in a collapsed group so e.g. underlayment-only brands stay out of
   // Grout & colors. Deleting a company's last grout drops it out of the
   // section the same way.
-  const inSection = (co) => kindsFor.some((k) => (co[k] || []).length > 0);
+  const inSection = (co) => kindsFor.some((k) => prodsOf(co, k).length > 0);
   const famFor = (g) => (g.book ? gFamilies.find((f) => f.product.toLowerCase() === g.book.toLowerCase()) : null);
   const masterHint = (kind, p) => kind === "grouts"
     ? (p.book ? (famFor(p) ? `${famFor(p).colors.length} colors · book` : "book link missing") : "standard colors")
-    : kind === "mortars" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
+    : kind === "mortars" || kind === "attached" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
       : ((p.types || []).length ? p.types.map((t) => typeLabels[t]).join(", ") : "all types") + ((p.install || []).length ? ` · ${p.install.length} install` : "");
   const SECTIONS = [
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
     { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${1 + books.length} books` : stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
-    { id: "materials", label: "Materials & add-ons", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length + c.mortars.length + (c.underlayments?.length || 0), 0)) },
+    { id: "materials", label: "Materials & add-ons", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length + c.mortars.length + (c.underlayments?.length || 0) + (c.attached?.length || 0), 0)) },
     { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
   ];
 
@@ -4619,7 +4644,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     const submitRename = () => {
       const name = (rename?.value || "").trim();
       if (!name) { setRename({ ...rename, error: "Name is required." }); return; }
-      if (name.toLowerCase() !== p.name.trim().toLowerCase() && isDuplicateName(catalog, kind, name)) { setRename({ ...rename, error: `A ${kindLabel(kind)} named "${name}" already exists.` }); return; }
+      if (name.toLowerCase() !== p.name.trim().toLowerCase() && (kind === "attached" ? isDuplicateAttachedName(catalog, p.categoryId, name) : isDuplicateName(catalog, kind, name))) { setRename({ ...rename, error: `A ${kindLabel(kind)} named "${name}" already exists.` }); return; }
       onChange(renameProduct(catalog, co.id, kind, p.id, name));
       setRename(null);
     };
@@ -4644,9 +4669,9 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 pt-1">
-          {(isDefaultMaterial(kind, p.name)
-            ? <span title={kind === "underlayments" ? "Rows turning on the underlayment chip start with this product" : "New tile rows start with this material"} className="flex items-center gap-1 text-xs font-medium text-indigo-600"><Star size={12} className="fill-current" /> Default</span>
-            : <button onClick={() => onChange(setCatalogDefault(catalog, kind, p.name))} title={kind === "underlayments" ? "Make this the product the underlayment chip starts with" : "Make this the default new tile rows start with"} className="text-xs text-slate-400 hover:text-indigo-600">Set as default</button>)}
+          {((kind === "attached" ? isCategoryDefault(p) : isDefaultMaterial(kind, p.name))
+            ? <span title={kind === "attached" ? `Rows turning on the ${customCat?.name} chip start with this product` : kind === "underlayments" ? "Rows turning on the underlayment chip start with this product" : "New tile rows start with this material"} className="flex items-center gap-1 text-xs font-medium text-indigo-600"><Star size={12} className="fill-current" /> Default</span>
+            : <button onClick={() => onChange(kind === "attached" ? updateCategory(catalog, p.categoryId, { default: p.name }) : setCatalogDefault(catalog, kind, p.name))} title={kind === "attached" ? `Make this the product the ${customCat?.name} chip starts with` : kind === "underlayments" ? "Make this the product the underlayment chip starts with" : "Make this the default new tile rows start with"} className="text-xs text-slate-400 hover:text-indigo-600">Set as default</button>)}
           <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(p.enabled, () => setProduct(co.id, kind, p.id, { enabled: !p.enabled }), p.enabled ? "Hide from job dropdowns" : "Offer in job dropdowns")} offered on jobs</label>
           {delButton(co, kind, p)}
         </div>
@@ -4681,6 +4706,76 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           <p className="text-[11px] text-slate-400 mt-1.5">{cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."}</p>
         </div>
         <p className="text-xs text-slate-400 mt-8">Pick a product on the left to edit its numbers — or add one under its company.</p>
+      </div>
+    );
+  };
+
+  // The custom-category counterpart: everything the built-in pane locks is
+  // editable here (spec 2026-07-15, PR 2). Job chips arrive with PR 3.
+  const renderCustomCategoryPane = () => {
+    const c = customCat;
+    const offered = offeredAttached(catalog, c.id);
+    const productCount = catalog.companies.reduce((n, co) => n + (co.attached || []).filter((p) => p.categoryId === c.id).length, 0);
+    const submitCatRename = () => {
+      const name = (catRename?.value || "").trim();
+      if (!name) { setCatRename({ ...catRename, error: "Name is required." }); return; }
+      if (isDuplicateCategoryName(catalog, name, c.id)) { setCatRename({ ...catRename, error: `A category named "${name}" already exists.` }); return; }
+      onChange(updateCategory(catalog, c.id, { name }));
+      setCatRename(null);
+    };
+    return (
+      <div className="max-w-xl">
+        <p className="ft-eyebrow text-[10px] text-slate-400">Materials &amp; add-ons · add-on</p>
+        {catRename ? (
+          <div className="max-w-md mt-1">
+            <div className="flex items-center gap-2">
+              <input autoFocus value={catRename.value} onChange={(e) => setCatRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitCatRename(); if (e.key === "Escape") setCatRename(null); }} className={inp + " font-medium"} />
+              <button onClick={submitCatRename} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700 shrink-0">Save</button>
+              <button onClick={() => setCatRename(null)} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+            {catRename.error && <div className="text-xs text-red-500 mt-1">{catRename.error}</div>}
+          </div>
+        ) : (
+          <h2 className="ft-serif text-3xl leading-tight mt-1 flex items-center gap-2.5"><Tag size={22} className="text-slate-400" /> {c.name}
+            <button onClick={() => setCatRename({ value: c.name })} title={`Rename ${c.name}`} className="text-slate-300 hover:text-slate-600"><Pencil size={15} /></button>
+          </h2>
+        )}
+        <div className="mt-5 space-y-5 max-w-md">
+          <div>
+            {typeChips(c.floorTypes, (v) => onChange(updateCategory(catalog, c.id, { floorTypes: v })), floorTypeList)}
+            <p className="text-[11px] text-slate-400 mt-1">Which product rows offer this add-on's chip. None selected = every type.</p>
+          </div>
+          <div>
+            <label className={lbl}>Quantity</label>
+            <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
+              {[["coverage", "Coverage"], ["manual", "Manual"]].map(([k, t]) => (
+                <button key={k} onClick={() => onChange(updateCategory(catalog, c.id, { math: k }))} className={`px-3.5 py-2 font-medium ${c.math === k ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t}</button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{c.math === "coverage" ? "One unit covers a set sq ft — quantities scale off the row's area plus waste, with a per-row manual override." : "A typed per-row quantity (starts at 1) — no area math."}</p>
+          </div>
+          <div className="max-w-xs">
+            <label className={lbl}>Default product</label>
+            <select value={offered.includes(c.default) ? c.default : ""} onChange={(e) => onChange(updateCategory(catalog, c.id, { default: e.target.value }))} className={inp}>
+              <option value="">— first offered —</option>
+              {offered.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1.5">Pre-selected when a row's {c.name} chip is turned on.</p>
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(c.enabled, () => onChange(updateCategory(catalog, c.id, { enabled: !c.enabled })), c.enabled ? "Hide this add-on's chip from job rows" : "Offer this add-on's chip on job rows")} offered on jobs</label>
+        </div>
+        <p className="text-xs text-slate-400 mt-6">Job rows pick these up in an upcoming update — for now this builds the catalog.</p>
+        <div className="mt-8 pt-5 border-t border-slate-100">
+          {confirmDelCat ? (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-red-600 flex-1">Delete "{c.name}"{productCount ? ` and its ${productCount} product${productCount === 1 ? "" : "s"}` : ""} from every company? Jobs that use them keep the name but stop calculating. To just hide the chip, uncheck "offered on jobs" instead.</span>
+              <button onClick={() => { onChange(removeCategory(catalog, c.id)); setConfirmDelCat(false); setSel(null); setCat("grout"); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
+              <button onClick={() => setConfirmDelCat(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelCat(true)} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1"><Trash2 size={12} /> Delete category</button>
+          )}
+        </div>
       </div>
     );
   };
@@ -4806,6 +4901,19 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
       </div>
     </div>
   );
+  const renderAttachedDetail = (co, p) => (
+    <div key={p.id}>
+      {detailHeader(co, "attached", p, customCat?.name || "Add-on")}
+      {delConfirm(co, "attached", p)}
+      <div className="flex flex-wrap items-end gap-2.5 mt-4">
+        {customCat?.math === "coverage" && <div className="w-36">{numField("Cov. sq ft/unit", p.coverage, (v) => setProduct(co.id, "attached", p.id, { coverage: v }))}</div>}
+        <div className="w-24">{txtField("Unit", p.unit, (v) => setProduct(co.id, "attached", p.id, { unit: v }))}</div>
+        <div className="w-28">{numField("$/unit", p.price, (v) => setProduct(co.id, "attached", p.id, { price: v }))}</div>
+        <div className="w-36">{txtField("SKU", p.sku || "", (v) => setProduct(co.id, "attached", p.id, { sku: v }))}</div>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1.5">{customCat?.math === "coverage" ? "One unit covers this many sq ft — quantities scale off the row's area plus waste." : "Ordered by a typed per-row quantity — no coverage math."} A SKU lets price-book imports refresh the price.</p>
+    </div>
+  );
   const renderAddForm = () => addCo && (
     <div className="max-w-xl">
       <div className="ft-eyebrow text-[9px] mb-1">{addCo.name}</div>
@@ -4813,7 +4921,14 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
       <div className="mt-4 space-y-2">
         {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
         <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp} />
-        {adding.kind === "grouts" ? (
+        {adding.kind === "attached" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {customCat?.math === "coverage" && numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
+            {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+            {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+            {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
+          </div>
+        ) : adding.kind === "grouts" ? (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
@@ -4891,7 +5006,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             <div className="w-44 shrink-0 border-r border-slate-200 overflow-y-auto py-3 px-2 space-y-0.5">
               <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 mb-1">Materials</div>
               {MATERIAL_CATEGORIES.map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => { setCat(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); setRename(null); setCoRename(null); }}
+                <button key={id} onClick={() => openCat(id)}
                   className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${cat === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
                   <Icon size={14} className={cat === id ? "" : "text-slate-400"} />
                   <span className="flex-1 truncate">{label}</span>
@@ -4899,17 +5014,26 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                 </button>
               ))}
               <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 pt-3 mb-1">Add-ons</div>
-              <p className="px-1.5 text-[11px] text-slate-400">None yet.</p>
+              {(catalog.categories || []).length === 0 && <p className="px-1.5 text-[11px] text-slate-400">None yet.</p>}
+              {(catalog.categories || []).map((c) => (
+                <button key={c.id} onClick={() => openCat(c.id)}
+                  className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${cat === c.id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                  <Tag size={14} className={cat === c.id ? "" : "text-slate-400"} />
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {!c.enabled && <span className={`text-[10px] ${cat === c.id ? "text-white/70" : "text-slate-400"}`}>off</span>}
+                </button>
+              ))}
+              <button onClick={openNewCategory} className="w-full flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2 py-1.5 text-slate-500 hover:bg-slate-50 mt-1"><Plus size={12} /> New category</button>
             </div>
             <div className="w-72 shrink-0 border-r border-slate-200 overflow-y-auto py-2">
               <p className="px-3 pb-1.5 text-[11px] text-slate-400">Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
               {catalog.companies.filter(inSection).map((co) => (
                 <div key={co.id} className="mb-1">
                   {companyHeader(co)}
-                  {kindsFor.flatMap((kind) => (co[kind] || []).map((p) => { const active = sel && sel.companyId === co.id && sel.kind === kind && sel.productId === p.id; return (
+                  {kindsFor.flatMap((kind) => prodsOf(co, kind).map((p) => { const active = sel && sel.companyId === co.id && sel.kind === kind && sel.productId === p.id; return (
                     <button key={p.id} onClick={() => pickProduct(co.id, kind, p.id)} className={`w-full text-left pl-9 pr-2.5 py-1.5 flex items-center gap-2 border-l-2 ${active ? "border-indigo-600 bg-indigo-50/40" : "border-transparent hover:bg-slate-50"}`}>
                       <span className="min-w-0 flex-1">
-                        <span className={`flex items-center gap-1 text-sm ${p.enabled ? "font-medium" : "text-slate-400"}`}><span className="truncate">{p.name}</span>{isDefaultMaterial(kind, p.name) && <Star size={10} className="fill-current text-indigo-500 shrink-0" title="Chip default" />}</span>
+                        <span className={`flex items-center gap-1 text-sm ${p.enabled ? "font-medium" : "text-slate-400"}`}><span className="truncate">{p.name}</span>{(kind === "attached" ? isCategoryDefault(p) : isDefaultMaterial(kind, p.name)) && <Star size={10} className="fill-current text-indigo-500 shrink-0" title="Chip default" />}</span>
                         <span className="block text-[10px] text-slate-400 truncate">{masterHint(kind, p)}</span>
                       </span>
                       <ChevronRight size={13} className="text-slate-300 shrink-0" />
@@ -4921,7 +5045,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <button onClick={() => setShowOthers(!showOthers)} className="w-full px-3 py-1 flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600">
                     <ChevronRight size={11} className={`transition-transform ${showOthers ? "rotate-90" : ""}`} />
-                    <span className="flex-1 text-left">Companies with no {kindLabel(kindsFor[0])}s</span>
+                    <span className="flex-1 text-left">Companies with no {kindsFor[0] === "attached" ? `${kindLabel("attached")} products` : `${kindLabel(kindsFor[0])}s`}</span>
                     <span>{others.length}</span>
                   </button>
                   {showOthers && others.map((co) => <div key={co.id}>{companyHeader(co)}</div>)}
@@ -4936,8 +5060,9 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
               {adding ? renderAddForm()
                 : selProd && sel.kind === "grouts" ? renderGroutDetail(selCo, selProd)
                   : selProd && sel.kind === "mortars" ? renderMortarDetail(selCo, selProd)
-                    : selProd ? renderUnderlayDetail(selCo, selProd)
-                      : renderCategoryPane()}
+                    : selProd && sel.kind === "attached" ? renderAttachedDetail(selCo, selProd)
+                      : selProd ? renderUnderlayDetail(selCo, selProd)
+                        : customCat ? renderCustomCategoryPane() : renderCategoryPane()}
             </div>
           </>
         ) : section === "profile" ? (
@@ -4982,6 +5107,27 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
               <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
             </div>
           </div>
+        )}
+        {addingCat && (
+          <Modal title="New category" onClose={() => setAddingCat(false)}>
+            <label className={lbl}>Name</label>
+            <input className={inp} value={catDraft.name} autoFocus placeholder="e.g. Trim, Sealer, Thresholds" onChange={(e) => setCatDraft({ ...catDraft, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && submitCategory()} />
+            <div className="mt-3">{typeChips(catDraft.floorTypes, (v) => setCatDraft({ ...catDraft, floorTypes: v }), floorTypeList)}</div>
+            <label className={lbl + " mt-3"}>Quantity</label>
+            <div className="flex gap-2">
+              {[["coverage", "Coverage", "Sq ft per unit — scales off the row's area plus waste"], ["manual", "Manual", "Typed per-row quantity — no area math"]].map(([k, t, d]) => (
+                <button key={k} onClick={() => setCatDraft({ ...catDraft, math: k })} className={`flex-1 text-left rounded-lg border px-3 py-2 ${catDraft.math === k ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                  <div className="text-sm font-medium">{t}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{d}</div>
+                </button>
+              ))}
+            </div>
+            {catError && <div className="text-xs text-red-500 mt-2">{catError}</div>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setAddingCat(false)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={submitCategory} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Create category</button>
+            </div>
+          </Modal>
         )}
       </div>
     </div>
