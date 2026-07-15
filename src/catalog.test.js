@@ -262,8 +262,9 @@ test("resolveMaterialDefault returns '' when the catalog offers nothing", () => 
 });
 
 test("normDefaults seeds ProLite / PermaColor Select and keeps stored names verbatim", () => {
-  assert.deepEqual(normDefaults(undefined), { grout: "PermaColor Select", mortar: "ProLite" });
-  assert.deepEqual(normDefaults({ grout: "CEG-Lite", mortar: "AcrylPro" }), { grout: "CEG-Lite", mortar: "AcrylPro" });
+  assert.deepEqual(normDefaults(undefined), { grout: "PermaColor Select", mortar: "ProLite", underlay: "" });
+  assert.deepEqual(normDefaults({ grout: "CEG-Lite", mortar: "AcrylPro" }), { grout: "CEG-Lite", mortar: "AcrylPro", underlay: "" });
+  assert.equal(normDefaults({ underlay: "HardieBacker" }).underlay, "HardieBacker");
 });
 
 test("setCatalogDefault updates only the named kind's default", () => {
@@ -281,6 +282,21 @@ test("normalizeSettings carries catalog.defaults through a serialize round-trip"
   const c = setCatalogDefault(s.catalog, "mortars", "Schluter All Set");
   const round = normalizeSettings(serializeSettings({ ...s, catalog: c }));
   assert.equal(round.catalog.defaults.mortar, "Schluter All Set");
+});
+
+test("setCatalogDefault 'underlayments' sets defaults.underlay and leaves grout/mortar", () => {
+  const s = normalizeSettings(undefined);
+  const c = setCatalogDefault(s.catalog, "underlayments", "HardieBacker");
+  assert.equal(c.defaults.underlay, "HardieBacker");
+  assert.equal(c.defaults.grout, "PermaColor Select");
+  assert.equal(c.defaults.mortar, "ProLite");
+});
+
+test("underlay default survives a serialize round-trip", () => {
+  const s = normalizeSettings(undefined);
+  const c = setCatalogDefault(s.catalog, "underlayments", "HardieBacker");
+  const round = normalizeSettings(serializeSettings({ ...s, catalog: c }));
+  assert.equal(round.catalog.defaults.underlay, "HardieBacker");
 });
 
 test("isOffered requires both the company and the product to be enabled", () => {

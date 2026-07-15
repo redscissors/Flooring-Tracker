@@ -355,11 +355,12 @@ export function seedCatalog(flat) {
 export const normDefaults = (raw) => ({
   grout: String(raw?.grout ?? DEFAULT_GROUT),
   mortar: String(raw?.mortar ?? DEFAULT_MORTAR),
+  underlay: String(raw?.underlay ?? ""),
 });
 
 // Set the chip default for a kind ("grouts"/"mortars") to a product name.
 export function setCatalogDefault(catalog, kind, name) {
-  const key = kind === "grouts" ? "grout" : "mortar";
+  const key = kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlay";
   return { ...catalog, defaults: { ...normDefaults(catalog?.defaults), [key]: String(name || "") } };
 }
 
