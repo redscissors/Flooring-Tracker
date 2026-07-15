@@ -488,3 +488,13 @@ test("orderFloorFirst: stable and safe on empty/undefined", () => {
   assert.deepEqual(orderFloorFirst([], "x"), []);
   assert.deepEqual(orderFloorFirst(undefined, "x"), []);
 });
+
+// --- disabled switch (importer-upgrades spec, PR A) ----------------------------
+
+test("normBookItem maps the disabled column legacy-safe; bookItemData strips it", () => {
+  const off = normBookItem({ sku: "ABC123", active: true, disabled: true, data: { description: "Trim" } }, "book1");
+  const legacy = normBookItem({ sku: "ABC124", active: true, data: { description: "Trim" } }, "book1");
+  assert.equal(off.disabled, true);
+  assert.equal(legacy.disabled, false);
+  assert.equal("disabled" in bookItemData(off), false); // the import upsert's jsonb must never carry it
+});

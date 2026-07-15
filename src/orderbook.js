@@ -35,6 +35,7 @@ export function normOrderItem(f = {}) {
     sku: str(f.sku),
     bookId: str(f.bookId),
     active: f.active !== false,
+    disabled: !!f.disabled,
     updatedAt: f.updatedAt ?? null,
     sheet: str(f.sheet),
     section: str(f.section),
@@ -86,13 +87,14 @@ export function normOrderItem(f = {}) {
 export function normBookItem(row, bookId = "") {
   const it = normOrderItem({ sku: row.sku, bookId: bookId || row.book_id, ...(row.data || {}) });
   it.active = row.active !== false;
+  it.disabled = row.disabled === true;
   it.updatedAt = row.updated_at ? new Date(row.updated_at).getTime() : null;
   return it;
 }
 
 // The jsonb payload written back on import — everything except the
-// column-backed fields (book_id, sku, active, updated_at).
-export const bookItemData = ({ sku, bookId, active, updatedAt, ...data }) => data;
+// column-backed fields (book_id, sku, active, disabled, updated_at).
+export const bookItemData = ({ sku, bookId, active, updatedAt, disabled, ...data }) => data;
 
 // --- cost, markup, sell ------------------------------------------------------
 

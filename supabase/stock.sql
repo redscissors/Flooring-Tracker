@@ -14,6 +14,10 @@
 create table if not exists public.stock_items (
   sku        text primary key,
   active     boolean not null default true,
+  -- Team-controlled "don't offer in search" switch — a column, not a data
+  -- field, so import upserts can never overwrite the team's choice
+  -- (pricebook-disabled.sql adds it on pre-2026-07 installs).
+  disabled   boolean not null default false,
   data       jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );

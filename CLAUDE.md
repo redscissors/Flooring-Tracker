@@ -73,6 +73,10 @@ supabase/
                     # RPC (pg_trgm word_similarity) for typo-tolerant selection-row
                     # order search + trade synonyms (ADR 0009 §6; src/synonyms.js;
                     # code falls back to synonym-aware exact ILIKE until it is run)
+  pricebook-disabled.sql  # run once on pre-2026-07 installs: per-item `disabled`
+                    # column on price_book_items + stock_items + the fuzzy RPC's
+                    # disabled filter (team-controlled hide-from-search switch;
+                    # folded into pricebooks.sql/stock.sql for fresh installs)
   migrate-shared-only.sql  # run once on pre-ADR-0004 installs: drop visibility/archived
 netlify.toml        # build config for Netlify
 ```
@@ -244,8 +248,9 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   settings use `setSettings`, and to-do items use `addTodo`/`updateTodo`/
   `delTodo`/`reorderTodos`/`clearDoneTodos`. Stock rows are written only by
   the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
-  `active=false` marks — no deletes). Keep these write paths;
-  don't write ad hoc.
+  `active=false` marks — no deletes). Registry-item enable/disable flips only
+  the `disabled` column via `setBookItemsDisabled` — never through the import
+  upserts. Keep these write paths; don't write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
 - The theme ("the ned" Moss kit: ink & paper UI, single moss-green accent,

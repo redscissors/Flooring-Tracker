@@ -14,6 +14,7 @@ const round4 = (n) => Math.round(n * 10000) / 10000;
 export const normStockItem = (row) => ({
   sku: str(row.sku),
   active: row.active !== false,
+  disabled: row.disabled === true,
   updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
   sheet: str(row.data?.sheet),
   section: str(row.data?.section),
@@ -36,8 +37,8 @@ export const normStockItem = (row) => ({
 });
 
 // The jsonb payload written back on import — everything except the column-backed
-// fields (sku, active, updated_at).
-export const stockData = ({ sku, active, updatedAt, ...data }) => data;
+// fields (sku, active, disabled, updated_at).
+export const stockData = ({ sku, active, updatedAt, disabled, ...data }) => data;
 
 // --- search -------------------------------------------------------------------
 
@@ -59,7 +60,7 @@ export function searchStock(items, query) {
   const words = q.split(/\s+/).filter(Boolean);
   const out = [];
   for (const it of items) {
-    if (!it.active || it.discontinued) continue;
+    if (!it.active || it.discontinued || it.disabled) continue;
     const h = hay(it);
     const ok = /^\d+$/.test(q) ? it.sku.startsWith(q) : words.every((w) => wordHit(h, w));
     if (ok) out.push(it);
@@ -257,7 +258,7 @@ const baseFamily = (it) => {
   return /spectralock/i.test(t) ? "spectralock" : /permacolor/i.test(t) ? "permacolor" : null;
 };
 const familyBases = (stock, family) =>
-  stock.filter((it) => it.active && !it.discontinued && isBaseUnit(it) && baseFamily(it) === family);
+  stock.filter((it) => it.active && !it.discontinued && !it.disabled && isBaseUnit(it) && baseFamily(it) === family);
 
 // The base unit to auto-add when a pigment is picked, or null for anything that
 // needs none (Latasil caulk, the base units themselves, ordinary flooring).
@@ -305,7 +306,7 @@ const isGroutColorItem = (it) => it.sheet === "Grout & Caulk" && !!it.product &&
 export function groutFamilies(stock) {
   const fams = new Map();
   for (const it of stock) {
-    if (!it.active || it.discontinued || !isGroutColorItem(it)) continue;
+    if (!it.active || it.discontinued || it.disabled || !isGroutColorItem(it)) continue;
     const f = fams.get(it.product) || { product: it.product, brand: it.brand || "", price: null, colors: [] };
     f.colors.push({ color: it.color, sku: it.sku });
     if (f.price == null && it.price != null) f.price = it.price;
@@ -332,7 +333,7 @@ export function groutCaulkItem(stock, family, color) {
   const g = groutColorItem(stock, family, color);
   if (!g || !g.section) return null;
   if (/caulk/i.test(g.product)) return g;
-  return stock.find((it) => it.active && !it.discontinued && isGroutColorItem(it) && /caulk/i.test(it.product) && it.section === g.section && it.color.toLowerCase() === g.color.toLowerCase()) || null;
+  return stock.find((it) => it.active && !it.discontinued && !it.disabled && isGroutColorItem(it) && /caulk/i.test(it.product) && it.section === g.section && it.color.toLowerCase() === g.color.toLowerCase()) || null;
 }
 
 // --- import diff -----------------------------------------------------------------
@@ -378,7 +379,7 @@ const itemMatches = (name, it) => {
 // matching both ProLite and ProLite Rapid Set is not).
 export function syncCatalogPrices(catalog, items) {
   const changes = [];
-  const priced = items.filter((it) => it.active !== false && !it.discontinued && it.price != null);
+  const priced = items.filter((it) => it.active !== false && !it.discontinued && !it.disabled && it.price != null);
   const bySku = new Map(priced.map((it) => [it.sku, it]));
   const companies = (catalog?.companies || []).map((co) => {
     const syncKind = (list) => (list || []).map((p) => {

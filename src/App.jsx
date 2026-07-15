@@ -1166,7 +1166,10 @@ export default function App({ user, onSignOut }) {
   };
 
   const loadStock = async () => {
-    const rows = await fetchAllRows(() => supabase.from("stock_items").select("sku, active, data, updated_at").order("sku"));
+    // select * so the app keeps working whether or not the disabled column
+    // exists yet (pricebook-disabled.sql); a named select of a missing column
+    // errors and would silently kill the SKU picker.
+    const rows = await fetchAllRows(() => supabase.from("stock_items").select("*").order("sku"));
     return rows.map(normStockItem);
   };
 
@@ -1264,7 +1267,7 @@ export default function App({ user, onSignOut }) {
   // A book's items, loaded on demand (Settings browse). Not held in app state —
   // the caller keeps them while the book is open.
   const loadBookItems = async (bookId) => {
-    const rows = await fetchAllRows(() => supabase.from("price_book_items").select("sku, active, data, updated_at").eq("book_id", bookId).order("sku"));
+    const rows = await fetchAllRows(() => supabase.from("price_book_items").select("*").eq("book_id", bookId).order("sku"));
     return rows.map((r) => normBookItem(r, bookId));
   };
 
@@ -1382,6 +1385,18 @@ export default function App({ user, onSignOut }) {
     if (error) { ping("Save failed"); throw error; }
     flashSaved();
     return data;
+  };
+
+  // Enable/disable book items (importer-upgrades spec, PR A): flips ONLY the
+  // disabled column, keyed (book_id, sku). Import upserts never mention the
+  // column, so the team's choice survives every reimport. Chunked like the
+  // imports.
+  const setBookItemsDisabled = async (bookId, skus, disabled) => {
+    for (let i = 0; i < skus.length; i += 200) {
+      const { error } = await supabase.from("price_book_items").update({ disabled }).eq("book_id", bookId).in("sku", skus.slice(i, i + 200));
+      if (error) { ping("Save failed — has supabase/pricebook-disabled.sql been run?"); throw error; }
+    }
+    flashSaved();
   };
 
   const migrateLegacyCustomers = async (legacy) => {
@@ -1604,7 +1619,7 @@ export default function App({ user, onSignOut }) {
     const byId = new Map(orderBooks.map((b) => [b.id, b]));
     const ids = orderBooks.map((b) => b.id);
     const price = (rows) => (rows || []).map((r) => pricedItem(normBookItem(r, r.book_id), byId.get(r.book_id)?.data?.markups));
-    const base = () => supabase.from("price_book_items").select("book_id, sku, active, data, updated_at").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
+    const base = () => supabase.from("price_book_items").select("*").in("book_id", ids).eq("active", true).limit(SKU_SHOW * 2);
     // Every group must match (AND across the typed words), matching searchStock's
     // word-by-word rule; within a group any synonym alternate matches (OR).
     // `size` isn't in the generated search_text column, so the ILIKE fallback ORs
@@ -1617,7 +1632,9 @@ export default function App({ user, onSignOut }) {
       const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
       if (fuzzyRpc.current) {
         const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: 0.3, p_limit: SKU_SHOW * 2 });
-        if (!error) return orderFloorFirst(price(rows), q);
+        // The client-side disabled guard (both paths) also covers installs
+        // where the RPC/column migrations haven't been re-run yet.
+        if (!error) return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);
         // PGRST202 / 42883 = undefined_function: the fuzzy migration isn't run yet.
         if (error.code !== "PGRST202" && error.code !== "42883") throw error;
         fuzzyRpc.current = false;
@@ -1626,7 +1643,7 @@ export default function App({ user, onSignOut }) {
       for (const grp of groups) query = query.or(grp.flatMap((alt) => fields.map((f) => `${f}.ilike.%${alt}%`)).join(","));
       const { data: rows, error } = await query;
       if (error) throw error;
-      return orderFloorFirst(price(rows), q);
+      return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);
     };
   }, [orderBooks]);
   // The distinct (book, SKU) pairs the open project's order rows reference, as
@@ -3040,7 +3057,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} />
       )}
 
       {showTodos && (
@@ -3399,7 +3416,7 @@ function StaleChip({ days }) {
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3494,7 +3511,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
           </div>
         ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
@@ -3595,9 +3612,11 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
+  const [show, setShow] = useState("all"); // all | enabled | disabled
+  const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
@@ -3614,9 +3633,12 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const cost = (n) => (hideCosts ? "•••" : n == null ? "—" : money(n));
   const activeItems = (items || []).filter((it) => it.active);
   const query = q.trim().toLowerCase();
-  const shown = (items || [])
-    .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query))
-    .slice(0, 300);
+  // Bulk enable/disable acts on ALL filtered matches, not the 300-row display slice.
+  const filtered = (items || [])
+    .filter((it) => (show === "disabled" ? it.disabled : show === "enabled" ? !it.disabled : true))
+    .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query));
+  const shown = filtered.slice(0, 300);
+  const disabledCount = (items || []).filter((it) => it.disabled).length;
 
   // Apply an import/rollback diff and refresh the table + history. applyBookImport
   // itself writes the version, so a rollback lands as the newest one.
@@ -3638,6 +3660,16 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
       setItems((its) => (its || []).map((x) => x.sku === edited.sku ? merged : x));
       setEditItem(null);
     } catch (x) { /* surfaced by updateBookItem */ }
+  };
+
+  // Optimistic toggle; rolls the list back if the write fails (e.g. the
+  // disabled-column migration hasn't been run).
+  const setDisabled = async (skus, disabled) => {
+    const set = new Set(skus);
+    const prev = items;
+    setItems((its) => (its || []).map((x) => (set.has(x.sku) ? { ...x, disabled } : x)));
+    try { await setBookItemsDisabled(book.id, skus, disabled); }
+    catch (x) { setItems(prev); }
   };
 
   return (
@@ -3676,11 +3708,34 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
 
       {items && items.length > 0 && (
         <>
-          <input className={`${inp} mt-4 max-w-sm`} placeholder="Search this book…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <input className={`${inp} max-w-sm`} placeholder="Search this book…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+              {[["all", "All"], ["enabled", "Enabled"], ["disabled", disabledCount ? `Disabled (${disabledCount})` : "Disabled"]].map(([v, label]) => (
+                <button key={v} onClick={() => setShow(v)} className={`px-2.5 py-1.5 ${show === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
+              ))}
+            </div>
+            {(query || show !== "all") && filtered.length > 0 && (
+              <>
+                <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable all {filtered.length}</button>
+                <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable all {filtered.length}</button>
+              </>
+            )}
+          </div>
+          {confirmBulk && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+              <span className="text-amber-700 flex-1">
+                {confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length} item{filtered.length === 1 ? "" : "s"}{query ? ` matching “${q.trim()}”` : ""}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.
+              </span>
+              <button onClick={() => { setDisabled(filtered.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length}</button>
+              <button onClick={() => setConfirmBulk(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+          )}
           <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
                 <tr>
+                  <th className="px-2 py-1.5 w-8"></th>
                   <th className="text-left px-2 py-1.5">SKU</th>
                   <th className="text-left px-2 py-1.5">Description</th>
                   {isOrder && <th className="text-left px-2 py-1.5">Mfg</th>}
@@ -3696,12 +3751,14 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                   const priced = isOrder ? pricedItem(it, markups) : it;
                   const sell = priced.priceSqft != null ? priced.priceSqft : priced.price;
                   return (
-                    <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued ? "text-slate-300" : ""}`}>
+                    <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
+                      <td className="px-2 py-1.5"><input type="checkbox" checked={!it.disabled} onChange={(e) => setDisabled([it.sku], !e.target.checked)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} /></td>
                       <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
                       <td className="px-2 py-1.5">
                         {it.description || "—"}
                         {it.freightFlag && <span className="ml-1.5 text-[9px] uppercase rounded bg-amber-100 text-amber-700 px-1 py-0.5">freight</span>}
                         {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
+                        {it.disabled && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">off</span>}
                         {it.editedAt && <span title={`Hand-edited${it.editedBy ? ` by ${it.editedBy}` : ""} ${new Date(it.editedAt).toLocaleDateString()} — a re-import overwrites this`} className="ml-1.5 text-[9px] uppercase rounded bg-indigo-100 text-indigo-700 px-1 py-0.5">edited</span>}
                       </td>
                       {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
@@ -3716,7 +3773,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
               </tbody>
             </table>
           </div>
-          {(items.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {items.length}.</p>}
+          {(filtered.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {filtered.length}.</p>}
         </>
       )}
 
@@ -4125,7 +4182,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4573,7 +4630,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
