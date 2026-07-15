@@ -208,8 +208,10 @@ into the estimate totals; caulk itself never lives in the catalog.
 Unlinked grouts keep the code-defined standard color list. Custom
 underlayment install items also carry an optional `sku`.
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
-App.jsx): left-nav sections (General · Price book · Grout & colors · Mortar &
-underlayment · Backup & restore) with master→detail catalog editing; every
+App.jsx): left-nav sections (General · Price book · Materials & add-ons ·
+Backup & restore; the built-in Grout / Mortar / Underlayment categories
+present as a locked library, spec 2026-07-15) with master→detail catalog
+editing; every
 SKU-bearing field is price-book-search-first with manual entry as the
 fallback. The catalog master list is section-scoped: a company shows under a
 section only when it has products of that section's kinds, the rest sit in a

@@ -1,9 +1,9 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
-import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
+import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
@@ -2646,7 +2646,8 @@ export default function App({ user, onSignOut }) {
                         const underlayNames = offeredUnderlayments(settings.catalog, p.type);
                         const underlayOpts = p.underlay.product && !underlayNames.includes(p.underlay.product) ? [p.underlay.product, ...underlayNames] : underlayNames;
                         const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
-                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayNames[0] || "") } });
+                        const underlayDefault = resolveMaterialDefault(underlayNames, "", settings.catalog.defaults?.underlay);
+                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
                         // Collapsed rows reuse the print sheet's inline material line
                         // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
                         // wants the collapsed line identical to the printed one.
@@ -2977,7 +2978,7 @@ export default function App({ user, onSignOut }) {
                                   <div className="px-2.5 py-1 flex items-center gap-2">
                                     <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
-                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayDefault}</span>
                                   </div>
                                 )}
                               </div>
@@ -4461,10 +4462,21 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
+// The Materials & add-ons library's built-in categories (spec 2026-07-15,
+// PR 1). Locked: math and floor scope live in code; only their catalog
+// content and chip default are team-editable. Custom add-on categories
+// join this list in a later PR.
+const MATERIAL_CATEGORIES = [
+  { id: "grout", label: "Grout", kind: "grouts", icon: Paintbrush, applies: "Tile", math: "Volumetric — scales with tile size, joint & thickness" },
+  { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side" },
+  { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
+];
+
 function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
-  const [section, setSection] = useState("grout");
+  const [section, setSection] = useState("materials");
+  const [cat, setCat] = useState("grout"); // which Materials & add-ons category is open
   // Master→detail selection: an existing product, or (via `adding`) an
   // add-draft under a company. View state only, never persisted.
   const [sel, setSel] = useState(null); // { companyId, kind, productId }
@@ -4493,7 +4505,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
 
   const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlayment";
   // The team's chip default for a kind, compared name-wise the way jobs resolve.
-  const isDefaultMaterial = (kind, name) => String(catalog.defaults?.[kind === "grouts" ? "grout" : "mortar"] || "").trim().toLowerCase() === String(name || "").trim().toLowerCase();
+  const isDefaultMaterial = (kind, name) => String(catalog.defaults?.[{ grouts: "grout", mortars: "mortar", underlayments: "underlay" }[kind]] || "").trim().toLowerCase() === String(name || "").trim().toLowerCase();
   const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
   const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); setRename(null); };
@@ -4557,8 +4569,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
   const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
   const addCo = adding ? catalog.companies.find((c) => c.id === adding.companyId) : null;
-  const kindsFor = section === "grout" ? ["grouts"] : ["mortars", "underlayments"];
-  const kindTag = { grouts: "Grout", mortars: "Mortar", underlayments: "Underlayment" };
+  const kindsFor = [{ grout: "grouts", mortar: "mortars", underlay: "underlayments" }[cat]];
   const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0);
   // A company "belongs" to a section by having products of its kinds — the rest
   // sit in a collapsed group so e.g. underlayment-only brands stay out of
@@ -4574,8 +4585,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
     { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${1 + books.length} books` : stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
-    { id: "grout", label: "Grout & colors", icon: Paintbrush, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length, 0)) },
-    { id: "matunder", label: "Mortar & underlayment", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.mortars.length + (c.underlayments?.length || 0), 0)) },
+    { id: "materials", label: "Materials & add-ons", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length + c.mortars.length + (c.underlayments?.length || 0), 0)) },
     { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
   ];
 
@@ -4634,12 +4644,43 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 pt-1">
-          {(kind === "grouts" || kind === "mortars") && (isDefaultMaterial(kind, p.name)
-            ? <span title="New tile rows start with this material" className="flex items-center gap-1 text-xs font-medium text-indigo-600"><Star size={12} className="fill-current" /> Default</span>
-            : <button onClick={() => onChange(setCatalogDefault(catalog, kind, p.name))} title="Make this the default new tile rows start with" className="text-xs text-slate-400 hover:text-indigo-600">Set as default</button>)}
+          {(isDefaultMaterial(kind, p.name)
+            ? <span title={kind === "underlayments" ? "Rows turning on the underlayment chip start with this product" : "New tile rows start with this material"} className="flex items-center gap-1 text-xs font-medium text-indigo-600"><Star size={12} className="fill-current" /> Default</span>
+            : <button onClick={() => onChange(setCatalogDefault(catalog, kind, p.name))} title={kind === "underlayments" ? "Make this the product the underlayment chip starts with" : "Make this the default new tile rows start with"} className="text-xs text-slate-400 hover:text-indigo-600">Set as default</button>)}
           <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(p.enabled, () => setProduct(co.id, kind, p.id, { enabled: !p.enabled }), p.enabled ? "Hide from job dropdowns" : "Offer in job dropdowns")} offered on jobs</label>
           {delButton(co, kind, p)}
         </div>
+      </div>
+    );
+  };
+
+  // Shown while no product is selected: the built-in category's locked
+  // identity plus its one team-editable knob, the chip default. Underlay's
+  // blank option = "first offered", today's pre-default behavior.
+  const renderCategoryPane = () => {
+    const meta = MATERIAL_CATEGORIES.find((c) => c.id === cat);
+    const offered = cat === "grout" ? offeredGrouts(catalog)
+      : cat === "mortar" ? offeredMortars(catalog)
+        : catalog.companies.flatMap((co) => (co.underlayments || []).filter((u) => isOffered(co, u)).map((u) => u.name));
+    const current = String(catalog.defaults?.[cat] || "");
+    const Icon = meta.icon;
+    return (
+      <div className="max-w-xl">
+        <p className="ft-eyebrow text-[10px] text-slate-400">Materials &amp; add-ons · built-in</p>
+        <h2 className="ft-serif text-3xl leading-tight mt-1 flex items-center gap-2.5"><Icon size={22} className="text-slate-400" /> {meta.label} <Lock size={14} className="text-slate-300" /></h2>
+        <div className="mt-5 space-y-2 text-sm">
+          <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Applies to</span><span className="text-slate-500">{meta.applies}</span></div>
+          <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Quantity</span><span className="text-slate-500">{meta.math}</span></div>
+        </div>
+        <div className="mt-6 max-w-xs">
+          <label className={lbl}>Default product</label>
+          <select value={offered.includes(current) ? current : ""} onChange={(e) => onChange(setCatalogDefault(catalog, meta.kind, e.target.value))} className={inp}>
+            {cat === "underlay" ? <option value="">— first offered —</option> : !offered.includes(current) && <option value="">Select…</option>}
+            {offered.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <p className="text-[11px] text-slate-400 mt-1.5">{cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."}</p>
+        </div>
+        <p className="text-xs text-slate-400 mt-8">Pick a product on the left to edit its numbers — or add one under its company.</p>
       </div>
     );
   };
@@ -4845,8 +4886,21 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           </div>
         </aside>
 
-        {(section === "grout" || section === "matunder") ? (
+        {section === "materials" ? (
           <>
+            <div className="w-44 shrink-0 border-r border-slate-200 overflow-y-auto py-3 px-2 space-y-0.5">
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 mb-1">Materials</div>
+              {MATERIAL_CATEGORIES.map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => { setCat(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); setRename(null); setCoRename(null); }}
+                  className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${cat === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                  <Icon size={14} className={cat === id ? "" : "text-slate-400"} />
+                  <span className="flex-1 truncate">{label}</span>
+                  <Lock size={10} className={cat === id ? "text-white/60" : "text-slate-300"} />
+                </button>
+              ))}
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 pt-3 mb-1">Add-ons</div>
+              <p className="px-1.5 text-[11px] text-slate-400">None yet.</p>
+            </div>
             <div className="w-72 shrink-0 border-r border-slate-200 overflow-y-auto py-2">
               <p className="px-3 pb-1.5 text-[11px] text-slate-400">Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
               {catalog.companies.filter(inSection).map((co) => (
@@ -4855,8 +4909,8 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                   {kindsFor.flatMap((kind) => (co[kind] || []).map((p) => { const active = sel && sel.companyId === co.id && sel.kind === kind && sel.productId === p.id; return (
                     <button key={p.id} onClick={() => pickProduct(co.id, kind, p.id)} className={`w-full text-left pl-9 pr-2.5 py-1.5 flex items-center gap-2 border-l-2 ${active ? "border-indigo-600 bg-indigo-50/40" : "border-transparent hover:bg-slate-50"}`}>
                       <span className="min-w-0 flex-1">
-                        <span className={`flex items-center gap-1 text-sm ${p.enabled ? "font-medium" : "text-slate-400"}`}><span className="truncate">{p.name}</span>{(kind === "grouts" || kind === "mortars") && isDefaultMaterial(kind, p.name) && <Star size={10} className="fill-current text-indigo-500 shrink-0" title="Default for new tile rows" />}</span>
-                        <span className="block text-[10px] text-slate-400 truncate">{section === "matunder" ? `${kindTag[kind]} · ${masterHint(kind, p)}` : masterHint(kind, p)}</span>
+                        <span className={`flex items-center gap-1 text-sm ${p.enabled ? "font-medium" : "text-slate-400"}`}><span className="truncate">{p.name}</span>{isDefaultMaterial(kind, p.name) && <Star size={10} className="fill-current text-indigo-500 shrink-0" title="Chip default" />}</span>
+                        <span className="block text-[10px] text-slate-400 truncate">{masterHint(kind, p)}</span>
                       </span>
                       <ChevronRight size={13} className="text-slate-300 shrink-0" />
                     </button>
@@ -4867,7 +4921,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <button onClick={() => setShowOthers(!showOthers)} className="w-full px-3 py-1 flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600">
                     <ChevronRight size={11} className={`transition-transform ${showOthers ? "rotate-90" : ""}`} />
-                    <span className="flex-1 text-left">Companies with no {section === "grout" ? "grouts" : "mortars or underlayments"}</span>
+                    <span className="flex-1 text-left">Companies with no {kindLabel(kindsFor[0])}s</span>
                     <span>{others.length}</span>
                   </button>
                   {showOthers && others.map((co) => <div key={co.id}>{companyHeader(co)}</div>)}
@@ -4883,7 +4937,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                 : selProd && sel.kind === "grouts" ? renderGroutDetail(selCo, selProd)
                   : selProd && sel.kind === "mortars" ? renderMortarDetail(selCo, selProd)
                     : selProd ? renderUnderlayDetail(selCo, selProd)
-                      : <div className="h-full flex items-center justify-center text-sm text-slate-400">Select a product on the left — or add one under its company.</div>}
+                      : renderCategoryPane()}
             </div>
           </>
         ) : section === "profile" ? (
