@@ -52,6 +52,11 @@ src/
                     # transition products keyed by Catalog #, flagged `trim` so
                     # the book can mark trims up separately from floors (ADR 0012)
   stock.js          # stock search / SKU fill / drift / import diff / catalog sync
+  orderbook.js      # special-order ("order") book helpers (ADR 0009): item shape,
+                    # cost/markup/sell, pick snapshot, drift, import diff, and the
+                    # import-review classifiers `itemProblems` (per-row pricing/unit
+                    # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
+                    # (N-suffix old→new), surfaced in the wizard's review step
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
