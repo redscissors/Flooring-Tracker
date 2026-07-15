@@ -26,7 +26,7 @@ fields. No app code touched.
 | A | Stacked cards | each row becomes a card: identity line, labeled field grid, materials behind a chip | low–medium |
 | B | Drill-down editor | one-line summary rows; tap opens a full-screen editor with big fields + sticky total | medium (**recommended**) |
 | C | Ledger + bottom sheet | screen reads like the printed estimate; tap a line to edit in a bottom sheet; pinned total bar | medium |
-| E | Two-line grid (owner's sketch) | keep today's grid, but each row wraps to two decks: Size + Product/Color on line 1; the column header moves down to label line 2 (SKU · Cov. · SF · Price · Order · Total), doubling every column's width | low |
+| E | Two-line grid (owner's sketch) | keep today's grid, but each row wraps to two decks: Size + Product/Color on line 1; each field carries its own name above it (SKU · Cov. · SF · Price · Order · Total) and fields wrap to another line when space runs out | low |
 | D | Sticky-rail spreadsheet | keep the grid; product column sticks left, numbers pan horizontally, chips jump to column groups | low |
 
 Likely real answer is a **hybrid**: C's ledger as the phone's read view with
