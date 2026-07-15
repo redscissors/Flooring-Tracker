@@ -91,6 +91,17 @@ export function parsePriceBook(sheets) {
   return { items: dedupe(items, warnings), warnings };
 }
 
+// The shop workbook is recognized by its hand-built sheet names — the special
+// parsers key off these exact names (parsePriceBook above), and no vendor file
+// carries them. Two or more distinctive names present ⇒ it's the stock workbook.
+// Used by the multi-file drop router (PR C) to route a dropped workbook to the
+// stock import instead of a registry book.
+export const STOCK_SHEET_NAMES = ["Grout & Caulk", "Mann Aduramax", "Tile Seats, Curbs, Trims", "Hardwood", "Vinyl", "Tile", "Index"];
+export function detectStockWorkbook(sheets) {
+  const names = new Set((sheets || []).map((s) => s.name));
+  return STOCK_SHEET_NAMES.filter((n) => names.has(n)).length >= 2;
+}
+
 // --- generic sectioned tables -------------------------------------------------
 
 function parseTables(sheet, rows, items, warnings) {
