@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectStockWorkbook } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const parse = (...sheets) => parsePriceBook(sheets);
@@ -549,6 +549,13 @@ test("detectVtcEft: the mapping parses all rows incl. digit-free item codes", ()
   assert.equal(carrara.type, "tile");
   assert.equal(items.find((i) => i.sku === "ANASLAB4848").freightFlag, true);
   assert.equal(items.find((i) => i.sku === "WOWALPLRNDEDGE").discontinued, true);
+});
+
+test("detectStockWorkbook: two distinctive sheet names ⇒ true; a lone vendor sheet ⇒ false", () => {
+  assert.equal(detectStockWorkbook([{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }]), true);
+  assert.equal(detectStockWorkbook([{ name: "Tile", rows: [] }]), false); // one name alone isn't enough
+  assert.equal(detectStockWorkbook([{ name: "EFT", rows: [["Item Code"]] }]), false);
+  assert.equal(detectStockWorkbook([]), false);
 });
 
 test("detectVtcEft: returns null when the signature is absent", () => {

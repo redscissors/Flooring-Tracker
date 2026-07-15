@@ -6,6 +6,7 @@ import { fetchAllRows } from "./fetchall.js";
 import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
+import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs } from "./orderbook.js";
@@ -14,6 +15,29 @@ import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import NedMark from "./NedMark.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
+
+// Shared file readers for every import path (the shop workbook, a registry
+// book's wizard, and the multi-file drop router) — parse an .xlsx into
+// arrays-of-arrays sheets, or a text .pdf into per-page positioned text items.
+// xlsx and pdfjs are lazy-loaded so they never weigh on first paint.
+async function readXlsxSheets(file) {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  return wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
+}
+async function readPdfPages(file) {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const vh = page.getViewport({ scale: 1 }).height; // pdf y is bottom-up; flip to top-down
+    const content = await page.getTextContent();
+    pages.push(content.items.filter((i) => i.str && i.str.trim()).map((i) => ({ str: i.str, x: i.transform[4], y: vh - i.transform[5], w: i.width })));
+  }
+  return pages;
+}
 
 const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
@@ -1175,26 +1199,24 @@ export default function App({ user, onSignOut }) {
 
   // Parse a freshly exported price book workbook in the browser and show what
   // an import would change — nothing is written until the preview is applied.
-  const importPriceBook = (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    (async () => {
-      setImporting(true);
-      try {
-        const XLSX = await import("xlsx");
-        const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
-        const sheets = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
-        const { items, warnings } = parsePriceBook(sheets);
-        if (!items.length) { ping("No stock items found in that file"); }
-        else {
-          const parsed = items.map((it) => ({ ...it, active: true }));
-          setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed) });
-        }
-      } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); }
-      setImporting(false);
-    })();
+  // Read + preview a shop-workbook file. onDone (from the multi-file drop router)
+  // fires whether the preview opens, is empty, or errors, and is carried on the
+  // preview so its Apply/Cancel can advance the router's queue.
+  const importStockFile = async (file, onDone) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const sheets = await readXlsxSheets(file);
+      const { items, warnings } = parsePriceBook(sheets);
+      if (!items.length) { ping("No stock items found in that file"); onDone?.(); }
+      else {
+        const parsed = items.map((it) => ({ ...it, active: true }));
+        setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed), onDone });
+      }
+    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(); }
+    setImporting(false);
   };
+  const importPriceBook = (e) => { const f = e.target.files?.[0]; e.target.value = ""; importStockFile(f); };
 
   // Upsert by SKU: new + changed items, plus active-off rows for items that
   // dropped out of the book (never deleted — old selections keep resolving).
@@ -1215,7 +1237,7 @@ export default function App({ user, onSignOut }) {
   };
 
   const applyImport = async () => {
-    const { diff, sync } = importPreview;
+    const { diff, sync, onDone } = importPreview;
     setImportPreview(null);
     try {
       await upsertStock(diff);
@@ -1227,6 +1249,7 @@ export default function App({ user, onSignOut }) {
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
     } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
+    onDone?.();
   };
 
   // Roll the shop workbook back to a version snapshot: replay it through the
@@ -1343,7 +1366,11 @@ export default function App({ user, onSignOut }) {
     const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
     if (opts.superseded?.length) li.superseded = opts.superseded;
     if (disable.size) li.disabled = disable.size;
-    await updateBook(bookId, { dataPatch: { lastImport: li } });
+    const dataPatch = { lastImport: li };
+    // Remember what this file looks like so the drop router (PR C) matches the
+    // next drop of the same vendor sheet to this book.
+    if (opts.fingerprint?.format) dataPatch.importFingerprint = opts.fingerprint;
+    await updateBook(bookId, { dataPatch });
     await snapshotBookVersion(bookId, appliedFromDiff(diff), bookItemData);
   };
 
@@ -3068,7 +3095,7 @@ export default function App({ user, onSignOut }) {
       {showSettings && (
         <SettingsWorkspace onClose={() => setShowSettings(false)}
           settings={settings} setSettings={setSettings} stock={stock} gFamilies={gFamilies}
-          importing={importing} importPriceBook={importPriceBook} pbRef={pbRef}
+          importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
@@ -3132,12 +3159,14 @@ export default function App({ user, onSignOut }) {
       })()}
 
       {importPreview && (() => {
-        const { parsed, diff, warnings, sync } = importPreview;
+        const { parsed, diff, warnings, sync, onDone } = importPreview;
         const total = diff.added.length + diff.changed.length + diff.missing.length;
         const money2 = (n) => (n == null ? "—" : money(n));
         const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
+        // Cancelling still advances the drop router's queue (onDone), same as Apply.
+        const closePreview = () => { setImportPreview(null); onDone?.(); };
         return (
-          <Modal onClose={() => setImportPreview(null)} title="Import price book">
+          <Modal onClose={closePreview} title="Import price book">
             <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
             {total === 0 && sync.changes.length === 0 && <p className="text-sm text-slate-400 mb-3">Everything already matches the current stock list — nothing to apply.</p>}
             {diff.changed.length > 0 && (
@@ -3176,7 +3205,7 @@ export default function App({ user, onSignOut }) {
               </div>
             )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setImportPreview(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={closePreview} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
               <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import{total > 0 ? ` — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retired` : ""}</button>
             </div>
           </Modal>
@@ -3432,12 +3461,113 @@ function StaleChip({ days }) {
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+// The multi-file drop router (ADR 0009 PR C). Reads each dropped file once,
+// routes it to a book (or the shop workbook), lets the user fix unmatched files,
+// then steps through each file's normal import preview one at a time. Registry
+// files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
+// stock preview. No new write path — each apply is the book's existing one.
+function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+  const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
+  const [phase, setPhase] = useState("route"); // "route" | "run"
+  const [qi, setQi] = useState(0); // index into the runnable queue
+  const [active, setActive] = useState(null); // { row, book, items } for the current registry step
+  const registryBooks = books.filter((b) => b.kind === "order" || b.kind === "stock");
+
+  // Read + route every file once, fault-isolated: a file that won't parse gets an
+  // error row and is skipped; the rest still route.
+  useEffect(() => { let ok = true; (async () => {
+    const out = [];
+    for (const file of files) {
+      const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+      try {
+        const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
+        const fp = computeFingerprint(parsed);
+        const r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
+        out.push({ file, ...parsed, ...r });
+      } catch (x) { out.push({ file, error: "Could not read this file" }); }
+    }
+    if (ok) setRows(out);
+  })(); return () => { ok = false; }; }, []);
+
+  const setTarget = (i, target) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, target } : r)));
+  const runnable = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip");
+  const advance = () => setQi((i) => i + 1);
+
+  // Drive the queue: stock rows go through the App stock preview (a separate
+  // modal — we render nothing until it calls back); registry rows load their
+  // book's items and render the wizard. Past the end, close the router.
+  useEffect(() => {
+    if (phase !== "run") return;
+    if (qi >= runnable.length) { onClose(); return; }
+    const row = runnable[qi];
+    if (row.target === "stock") { setActive(null); importStockFile(row.file, advance); return; }
+    let ok = true;
+    setActive(null);
+    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
+    return () => { ok = false; };
+  }, [phase, qi]);
+
+  if (phase === "route") {
+    const bookOpts = [["skip", "Skip this file"], ["stock", "Shop workbook (stock)"], ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
+    return (
+      <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
+        <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-1"><h3 className="ft-serif text-2xl">Route {files.length} file{files.length === 1 ? "" : "s"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+          <p className="text-xs text-slate-400 mb-3">Each file is sent to its own book's import preview, one at a time. Unfamiliar files need a book picked.</p>
+          {rows == null ? <p className="text-sm text-slate-400 py-6 text-center">Reading files…</p> : (
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
+              {rows.map((r, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                  <FileText size={15} className="text-slate-400 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate">{r.file.name}</div>
+                    <div className={`text-[11px] ${r.error ? "text-red-500" : r.target && r.target !== "skip" ? "text-slate-400" : "text-amber-600"}`}>{r.error || r.reason}</div>
+                  </div>
+                  {r.error ? <span className="text-[11px] text-red-500 shrink-0">Skipped</span> : (
+                    <select className={`${inp} w-auto text-xs`} value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
+                      {bookOpts.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-4">
+            <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+            <button onClick={() => { setQi(0); setPhase("run"); }} disabled={!runnable.length} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Review {runnable.length} file{runnable.length === 1 ? "" : "s"} →</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Run phase: the stock step is handled by the App stock preview; render nothing
+  // until a registry step has its book + items loaded.
+  if (!active) return null;
+  const stepNote = <div className="text-[11px] text-slate-400 mb-2">Reviewing {qi + 1} of {runnable.length} — {active.row.file.name}</div>;
+  return (
+    <BookImportWizard
+      key={active.book.id + qi}
+      book={active.book} existingItems={active.items}
+      preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
+      onClose={advance}
+      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } advance(); }}
+      saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
+      types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
+    />
+  );
+}
+
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
   const [hideCosts, setHideCosts] = useState(false);
+  const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
+  const [dragOver, setDragOver] = useState(false);
+  const dropRef = useRef(null);
+  const takeFiles = (list) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped(fs); };
 
   const stockBooks = books.filter((b) => b.kind === "stock");
   const orderBooks = books.filter((b) => b.kind === "order");
@@ -3508,6 +3638,19 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             </button>
           </div>
         </div>
+
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
+          className={`mt-4 rounded-xl border-2 border-dashed px-4 py-5 text-center text-sm ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-500"}`}
+        >
+          <Upload size={17} className="inline mr-1.5 -mt-0.5 text-slate-400" />
+          Drop vendor sheets or the shop workbook here — <button onClick={() => dropRef.current?.click()} className="underline text-indigo-600 hover:text-indigo-700">browse…</button>
+          <div className="text-[11px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many. Each file routes to its book; unfamiliar files ask.</div>
+          <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
+        </div>
+        {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
         {sel === "stock" ? (
           <div className="mt-3">
@@ -3951,7 +4094,7 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
 // too), set the SKU pattern and a status-flag legend, watch the parse preview
 // live, then apply the diff. The mapping is saved on the book so re-imports are
 // one click. The parse is entirely client-side; nothing writes until Apply.
-function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts }) {
+function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote }) {
   const saved = book.data?.mapping || null;
   const [sheets, setSheets] = useState(null); // [{ name, rows }]
   const [sheetName, setSheetName] = useState(saved?.sheet || "");
@@ -3963,6 +4106,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const [defaultType, setDefaultType] = useState(saved?.defaultType || "");
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
+  const [fmt, setFmt] = useState("generic"); // detected file format, stamped as the book's import fingerprint
   const [ignored, setIgnored] = useState(() => new Set());   // SKUs the user chose to ignore (→ disabled)
   const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
   const toggleSet = (setter) => (key) => setter((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -3973,39 +4117,30 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const rows = sheet?.rows || [];
   const maxCol = Math.min(30, rows.reduce((m, r) => Math.max(m, r?.length || 0), 0));
 
-  const onFile = async (e) => {
-    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+  // Turn a chosen file — or sheets/pages the multi-file drop router already
+  // parsed — into the wizard's sheet list + auto-mapping, and remember the
+  // detected format for the book's import fingerprint.
+  const ingest = async ({ file, sheets: preSheets, pages: prePages, isPdf }) => {
     setReading(true); setErr("");
     try {
-      // Text-PDF vendor price lists: extract each page's text items with pdf.js
-      // (lazy-loaded like xlsx) and let pdfbook align every page's own header
-      // onto one canonical sheet, then apply its suggested mapping. Everything
-      // downstream — sheet picker, mapping controls, diff preview — is unchanged.
-      if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-        const doc = await pdfjs.getDocument({ data: await f.arrayBuffer() }).promise;
-        const pages = [];
-        for (let p = 1; p <= doc.numPages; p++) {
-          const page = await doc.getPage(p);
-          const vh = page.getViewport({ scale: 1 }).height; // pdf y is bottom-up; flip to top-down
-          const content = await page.getTextContent();
-          pages.push(content.items.filter((i) => i.str && i.str.trim()).map((i) => ({ str: i.str, x: i.transform[4], y: vh - i.transform[5], w: i.width })));
-        }
-        // Mannington's account price list leads each row with Pattern, not the
-        // item code, so the generic header-driven reader finds no table; its
-        // fixed grid gets a dedicated parser (ADR 0012) that emits the same
-        // canonical shape. Every other text PDF stays on parsePdfPages.
+      // Text-PDF vendor price lists: pdfbook aligns every page's own header onto
+      // one canonical sheet, then we apply its suggested mapping. Mannington's
+      // account list leads each row with Pattern, not the item code, so its fixed
+      // grid gets a dedicated parser (ADR 0012); every other text PDF stays on
+      // parsePdfPages. Everything downstream — sheet picker, mapping controls,
+      // diff preview — is unchanged.
+      if (isPdf || prePages) {
+        const pages = prePages || (await readPdfPages(file));
+        setFmt(fileFormat({ pages, isPdf: true }));
         const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : parsePdfPages;
-        const { name, rows, mapping } = parsePdf(pages, f.name.replace(/\.pdf$/i, ""));
+        const { name, rows, mapping } = parsePdf(pages, (file?.name || book.name || "book").replace(/\.pdf$/i, ""));
         setSheets([{ name, rows }]);
         applyDetected({ sheet: name, ...mapping });
         setReading(false);
         return;
       }
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
-      const parsed = wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
+      const parsed = preSheets || (await readXlsxSheets(file));
+      setFmt(fileFormat({ sheets: parsed }));
       setSheets(parsed);
       // A saved mapping wins; else recognize the VTC "EFT" template (fills the
       // whole mapping in one step); else pick the best data sheet by header
@@ -4019,6 +4154,10 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
     } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls, or a text-based .pdf?"); }
     setReading(false);
   };
+  const onFile = (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) ingest({ file: f, isPdf: /\.pdf$/i.test(f.name) || f.type === "application/pdf" }); };
+  // The router hands in an already-parsed file; ingest it once on mount so the
+  // wizard opens straight on the preview (no chooser flash, no second read).
+  useEffect(() => { if (preParsed && !sheets) ingest(preParsed); }, []);
 
   // A recognized vendor template (detectVtcEft) fills every mapping control at
   // once, so a known sheet is one upload with nothing to hand-map.
@@ -4072,6 +4211,9 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const supersedeOld = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => p.oldSku);
   const disableSkus = [...new Set([...ignored, ...supersedeOld])];
   const appliedSupersede = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => ({ oldSku: p.oldSku, newSku: p.newSku }));
+  // Stamp the book with what this file looks like so the drop router matches the
+  // next drop of the same vendor sheet (format tag + header signature).
+  const fingerprint = sheet ? { format: fmt, headerSig: computeFingerprint({ sheets: sheets || [] }).headerSig } : null;
   const importCount = diff.added.length + diff.changed.length + diff.missing.length;
   // Disabling SKUs is a valid apply even when the re-import is otherwise a no-op
   // (identical book → every row unchanged) — so the button also opens on pending
@@ -4084,6 +4226,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
     <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3"><h3 className="ft-serif text-2xl">Import — {book.name || "book"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+        {stepNote}
 
         {!sheets ? (
           <div className="py-8 text-center">
@@ -4252,7 +4395,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede }); }} disabled={importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede, fingerprint }); }} disabled={importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>
@@ -4262,7 +4405,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("grout");
@@ -4710,7 +4853,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
