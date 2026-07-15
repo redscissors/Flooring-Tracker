@@ -96,14 +96,29 @@ const SKU_SHOW = 30;
 // no bookId; two order books can legitimately reuse a SKU, so the book scopes it.
 const hitKey = (it) => (it.bookId || "stock") + "|" + it.sku;
 
+// The product's face size for a search row — thickness is its own field, so a
+// vendor that jammed it onto the L×W (e.g. "12x24x9mm") gets trimmed back to the
+// face dimensions; a non-rectangular shape ("2\" Hex") passes through whole.
+const faceSize = (it) => {
+  const s = String(it?.size || "").trim();
+  const m = s.match(/^\s*(\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d+(?:\.\d+)?\s*["']?)/i);
+  return (m ? m[1] : s).trim();
+};
+
+const SizeChip = ({ it }) => {
+  const sz = faceSize(it);
+  return sz ? <span className="ft-mono text-[11px] font-semibold text-slate-500 shrink-0">{sz}</span> : null;
+};
+
 const StockHit = ({ it }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product || it.section}</span>
     </div>
     <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
-      <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
+      <span className="truncate">{[it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
       <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
   </>
@@ -117,6 +132,7 @@ const OrderHit = ({ it, bookName }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product}</span>
       <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
@@ -163,8 +179,20 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
   useEffect(() => {
     if (!open) return;
     const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
+    // Focus leaving the field (Tab, or clicking into another input) must dismiss
+    // too — a pointer-outside alone leaves the panel orphaned over the new field.
+    // Deferred so focus has settled onto its target; picks keep focus in the
+    // anchor (they preventDefault on mousedown), so they never trip this.
+    const onFocusOut = () => requestAnimationFrame(() => {
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && !anchorRef.current?.contains(ae) && !panelRef.current?.contains(ae)) onDismiss();
+    });
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    anchorRef.current?.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      anchorRef.current?.removeEventListener("focusout", onFocusOut);
+    };
   }, [open]);
   return pos;
 };
@@ -227,22 +255,32 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
     else if (picked.length) onPickMany(picked);
     close();
   };
+  // Enter and Tab both commit: a built-up multi-selection, else the highlighted
+  // (hovered/arrowed) row, else the first match. Tab only hijacks when the panel
+  // is actually offering something — otherwise it stays plain field navigation.
+  const commitFromKey = () => {
+    if (picked.length) commit();
+    else if (results[hi]) pick(results[hi]);
+    else if (results.length) pick(results[0]);
+  };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
     if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (picked.length) commit();
-      else if (results[hi]) pick(results[hi]);
-      else if (results.length) pick(results[0]);
-    }
+    if (e.key === "Enter") { e.preventDefault(); commitFromKey(); }
+    if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
     if (e.key === "Escape") close();
   };
+  // Pick/toggle on mousedown (not click): the results list re-renders as the
+  // debounced order matches stream in, and a click that spans that re-render is
+  // dropped by the browser (pointerup lands on a fresh node) — the row looked
+  // like it "just closed the popup". preventDefault also keeps focus in the
+  // field so the pick never trips the focus-out dismiss.
+  const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
   return (
     <div ref={wrapRef} className={wrapClass ?? "relative shrink-0 h-9 border-r border-slate-200"} style={wrapStyle ?? { ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey} data-c="sku"
-        className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+        className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
@@ -250,9 +288,9 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
             {results.map((it, i) => {
               const sel = picked.some((x) => hitKey(x) === hitKey(it));
               return (
-                <div key={hitKey(it)} onClick={(e) => (e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                <div key={hitKey(it)} onMouseDown={(e) => onRow(e, it)} onMouseEnter={() => setHi(i)}
                   className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                  <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
                     className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
                   <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                 </div>
@@ -262,7 +300,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
           <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
             <span className="truncate">{matchSummary(results.length, total)}</span>
             {picked.length > 0 ? (
-              <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+              <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
             ) : (
               <span className="ml-auto shrink-0">Shift-click to pick several</span>
             )}
@@ -293,7 +331,7 @@ function StockSearch({ stock, onPick, inp, placeholder = "Search the price book 
         <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-60 overflow-y-auto">
             {results.map((it) => (
-              <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); pick(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                 <StockHit it={it} />
               </button>
             ))}
@@ -323,7 +361,7 @@ function FamilySearch({ families, onPick, inp }) {
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 max-h-60 overflow-y-auto">
           {matches.map((f) => (
-            <button key={f.product} onClick={() => pick(f)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+            <button key={f.product} onMouseDown={(e) => { e.preventDefault(); pick(f); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>
               <div className="flex items-baseline gap-2 text-[11px] text-slate-400"><span className="truncate">{f.brand}</span>{f.price != null && <span className="ml-auto shrink-0 ft-mono">${f.price.toFixed(2)}</span>}</div>
             </button>
@@ -701,7 +739,7 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
           <div className="max-h-60 overflow-y-auto">
             {matches.map((it) => (
-              <button key={(it.bookId || "stock") + "|" + it.sku} onClick={() => { onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              <button key={(it.bookId || "stock") + "|" + it.sku} onMouseDown={(e) => { e.preventDefault(); onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                 <Hit it={it} bookName={bookName} />
               </button>
             ))}
@@ -753,17 +791,26 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
       onAbandon?.(); close();
     }, 120);
   };
+  const commitFromKey = () => {
+    if (picked.length) commit();
+    else if (results[hi]) pick(results[hi]);
+    else if (results.length) pick(results[0]);
+    else if (query.trim()) goManual();
+  };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
     else if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      if (picked.length) commit();
-      else if (results[hi]) pick(results[hi]);
-      else if (results.length) pick(results[0]);
-      else if (query.trim()) goManual();
-    } else if (e.key === "Escape") close();
+    else if (e.key === "Enter") { e.preventDefault(); commitFromKey(); }
+    // Tab adds the built-up selection (or the highlighted match) when the panel
+    // is offering something; otherwise it stays plain field navigation.
+    else if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
+    else if (e.key === "Escape") close();
   };
+  // Pick/toggle on mousedown, not click: streaming order matches re-render the
+  // list mid-gesture, and a click spanning that re-render is dropped (pointerup
+  // lands on a fresh node) — it read as the popup closing on you. preventDefault
+  // keeps focus in the field so the pick never trips blur/focus-out dismissal.
+  const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
   const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0;
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
@@ -778,9 +825,9 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
               {results.map((it, i) => {
                 const sel = picked.some((x) => hitKey(x) === hitKey(it));
                 return (
-                  <div key={hitKey(it)} onClick={(e) => (e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  <div key={hitKey(it)} onMouseDown={(e) => onRow(e, it)} onMouseEnter={() => setHi(i)}
                     className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                    <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
                       className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
                     <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                   </div>
@@ -795,7 +842,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
             ) : (<>
               <span className="truncate">{matchSummary(results.length, total)}</span>
               {picked.length > 0 ? (
-                <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+                <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
               ) : (
                 <span className="ml-auto shrink-0">Shift-click to pick several</span>
               )}
