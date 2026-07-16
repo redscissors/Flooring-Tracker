@@ -160,10 +160,11 @@ function EstimatePaper({ proj, tv }) {
 
 // --- header column mock (real SegBar / FilesPop) --------------------------------
 
-function HeaderRow({ proj, upd, pcts }) {
+const badgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee" ? "Employee" : pct > 0 ? `${tier[0].toUpperCase()}${tier.slice(1)} \u2212${pct}%` : "";
+function HeaderRow({ proj, upd, pcts, tv, total }) {
   const btn = "h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap bg-white";
   return (
-    <div className="rounded-lg border" style={{ padding: 18, background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+    <div className="rounded-lg border" style={{ padding: 15, background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--ft-border)" }}>
         <div className="min-w-0">
           <div className="ft-eyebrow text-[9px] mb-1">Customer</div>
@@ -171,9 +172,13 @@ function HeaderRow({ proj, upd, pcts }) {
           <div className="text-xs text-slate-500 mt-1 truncate">412 Maple St</div>
           <div className="text-xs text-slate-500 mt-0.5 truncate">🏢 Miller Custom Homes</div>
         </div>
-        <div className="min-w-0 text-center" style={{ borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" }}>
+        <div className="min-w-0 text-center relative" style={{ borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" }}>
+          <div className="absolute top-0 flex flex-col items-end" style={{ right: 16 }}>
+            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(total)}</div>
+            {badgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{badgeText(tv.tier, tv.pct)}</span>}
+          </div>
           <div className="ft-eyebrow text-[9px] mb-1">Project</div>
-          <div className="ft-serif" style={{ fontSize: 24, lineHeight: 1.05 }}>Maple St remodel</div>
+          <div className="ft-serif" style={{ fontSize: 21, lineHeight: 1.05 }}>Maple St remodel</div>
           <div className="text-xs text-slate-500 mt-1">412 Maple St</div>
         </div>
         <div className="min-w-0 text-right">
@@ -183,8 +188,7 @@ function HeaderRow({ proj, upd, pcts }) {
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 }}>
-        <div className="flex flex-col gap-1.5 min-w-0" style={{ height: 84 }}>
-          <div className="ft-eyebrow text-[9px] truncate h-[12px]">Pricing</div>
+        <div className="flex flex-col gap-1.5 min-w-0" style={{ height: 66 }}>
           <SegBar value={proj.priceTier} inputValue={proj.customPct}
             onChange={(v) => upd({ priceTier: v })}
             onInput={(v) => upd({ priceTier: "custom", customPct: v })}
@@ -203,8 +207,8 @@ function HeaderRow({ proj, upd, pcts }) {
               { v: "none", label: "No $", title: "Print no pricing" },
             ]} />
         </div>
-        <textarea readOnly placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none" style={{ height: 84, background: "var(--ft-cream)" }} />
-        <div className="flex flex-col justify-between gap-1.5" style={{ height: 84 }}>
+        <textarea readOnly placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none" style={{ height: 66, background: "var(--ft-cream)" }} />
+        <div className="flex flex-col justify-between gap-1.5" style={{ height: 66 }}>
           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
             <div className="flex gap-1.5">
               <button title="Save a version" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 bg-white"><Save size={14} /></button>
@@ -272,9 +276,17 @@ function Preview() {
   const upd = (patch) => setProj((p) => ({ ...p, ...patch }));
   const tv = tierView(proj, settings);
   const pcts = normPricing(settings.pricing);
+  let total = 0;
+  tv.proj.categories.forEach((a) => a.products.forEach((p) => {
+    total += calcLine(p, tv.settings).line;
+    const G = getGrout(p, tv.settings), M = getMortar(p, tv.settings);
+    if (G) total += G.order * G.price;
+    if (p.grout?.checked && num(p.grout.caulk) > 0) total += num(p.grout.caulk) * num(p.grout.caulkPrice);
+    if (M) total += M.order * M.price;
+  }));
   return (
     <div className="max-w-4xl mx-auto my-8 space-y-5" data-ready="1">
-      <HeaderRow proj={proj} upd={upd} pcts={pcts} />
+      <HeaderRow proj={proj} upd={upd} pcts={pcts} tv={tv} total={total} />
       <ChipsDemo tv={tv} />
       <EstimatePaper proj={proj} tv={tv} />
     </div>

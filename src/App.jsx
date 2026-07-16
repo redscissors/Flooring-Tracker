@@ -482,7 +482,8 @@ const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee
 export const TIER_COLOR = {
   builder: { main: "#2563eb", soft: "#dbeafe" },
   employee: { main: "#0d9488", soft: "#ccfbf1" },
-  sale: { main: "#ea580c", soft: "#ffedd5" },
+  // Sale is pink on purpose — orange/red/yellow read as warnings, not discounts.
+  sale: { main: "#db2777", soft: "#fce7f3" },
   custom: { main: "#7c3aed", soft: "#ede9fe" },
 };
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
@@ -2685,7 +2686,7 @@ export default function App({ user, onSignOut }) {
                   up top, then builder + attachments | notes | actions, then a
                   full-width Add-area row. The middle (project) column is the
                   widest, like the estimate paper's header. */}
-              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+              <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
                 {(() => {
                   const cust = data.people.find((c) => c.id === sel.customerId);
                   const bn = cust ? builderNameOf(cust.builderId) : "";
@@ -2710,12 +2711,18 @@ export default function App({ user, onSignOut }) {
                           )}
                         </div>
                         <div className="min-w-0 relative" style={midPad}>
-                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
+                          {isWide && <div className="absolute top-0 flex flex-col items-end" style={{ right: 16 }}>
+                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                            {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
+                          </div>}
                           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
                           <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
-                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(22px,3vw,28px)", lineHeight: 1.05 }} />
+                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
                           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
-                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
+                          {!isWide && <div className="mt-1">
+                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                            {tierBadgeText(tv.tier, tv.pct) && <span className="inline-block rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
+                          </div>}
                         </div>
                         <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
                           <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
@@ -2723,9 +2730,8 @@ export default function App({ user, onSignOut }) {
                           <div className="text-xs text-slate-500 mt-1 truncate max-w-full">{sp.phone || " "}</div>
                         </div>
                       </div>
-                      <div className="ft-noprint mt-3 pt-3 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
-                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 84 } : {}}>
-                          <div className="ft-eyebrow text-[9px] truncate h-[12px]">Pricing</div>
+                      <div className="ft-noprint mt-2 pt-2 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
+                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 66 } : {}}>
                           {(() => { const pcts = normPricing(settings.pricing); return (
                             <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
                               onChange={(v) => updateProject(sel.id, { priceTier: v })}
@@ -2746,8 +2752,8 @@ export default function App({ user, onSignOut }) {
                               { v: "none", label: "No $", title: "Print no pricing" },
                             ]} />
                         </div>
-                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: isWide ? 84 : 66, background: "var(--ft-cream)" }} />
-                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 84 } : {}}>
+                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
+                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
                           {namingVersion ? (
                             <div className="flex items-center gap-1.5">
                               <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -2778,7 +2784,7 @@ export default function App({ user, onSignOut }) {
                       </div>
                       {/* Ink row — same action as the dashed Add-area bar that
                           trails the areas list; both stay on purpose. */}
-                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-3 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
+                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-2 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
                     </>
                   );
                 })()}
