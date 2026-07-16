@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
@@ -9,7 +9,7 @@ import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -1437,13 +1437,15 @@ export default function App({ user, onSignOut }) {
   // upsert row carries an explicit `disabled` so the batch's columns are uniform
   // for PostgREST: added take the ignore value; changed/missing preserve their
   // prior disabled unless newly ignored. Ignored SKUs in no bucket (unchanged
-  // rows) are disabled through the PR A path.
+  // rows) are disabled through the PR A path. A changed row also keeps the
+  // previous item's flagReview — a confirmed/ignored flag survives the
+  // re-import just like the disabled column, so it never re-nags.
   const applyBookImport = async (bookId, diff, opts = {}) => {
     const disable = new Set(opts.disableSkus || []);
     const off = (sku, prevDisabled) => (disable.has(sku) ? true : !!prevDisabled);
     const upserts = [
       ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, disabled: disable.has(it.sku), data: bookItemData(it) })),
-      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(item) })),
+      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(prev?.flagReview ? { ...item, flagReview: prev.flagReview } : item) })),
       ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, disabled: off(it.sku, it.disabled), data: bookItemData(it) })),
     ];
     for (let i = 0; i < upserts.length; i += 200) {
@@ -1522,6 +1524,27 @@ export default function App({ user, onSignOut }) {
     if (error) { ping("Save failed"); throw error; }
     flashSaved();
     return data;
+  };
+
+  // Flag-review verdicts (confirm-fixed / ignore / undo / reset): rewrite the
+  // row's data jsonb with the new flagReview map, WITHOUT the editedBy/editedAt
+  // stamp — a review is bookkeeping, not a hand-edit, so it must not raise the
+  // wizard's "will be overwritten" warning or the edited chip. `state` null
+  // clears the codes (undo/reset). Returns the written maps so the caller can
+  // merge them into its open list.
+  const reviewBookItemFlags = async (bookId, ops) => {
+    const stamp = { by: profile.name || user.email || "", at: Date.now() };
+    const out = [];
+    for (const { item, codes, state } of ops) {
+      const review = { ...(item.flagReview || {}) };
+      for (const c of codes || []) { if (state) review[c] = { state, ...stamp }; else delete review[c]; }
+      const flagReview = Object.keys(review).length ? review : null;
+      const { error } = await supabase.from("price_book_items").update({ data: { ...bookItemData(item), flagReview } }).eq("book_id", bookId).eq("sku", item.sku);
+      if (error) { ping("Save failed"); throw error; }
+      out.push({ sku: item.sku, flagReview });
+    }
+    flashSaved();
+    return out;
   };
 
   // Enable/disable book items (importer-upgrades spec, PR A): flips ONLY the
@@ -3385,7 +3408,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />
       )}
 
       {showTodos && (
@@ -3853,13 +3876,15 @@ function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems
 
 // The shop workbook's item list with the same enable/disable controls the order
 // books get in BookDetail — search, an All/Enabled/Disabled filter, a per-row
-// toggle, bulk disable/enable of the current filter, and a one-click "re-enable
-// all disabled" reset. Stock rows carry no cost/markup, so the table is trimmed
-// to SKU · description · type · U/M · price. Writes go through setStockItemsDisabled
-// (optimistic, disabled-column only), matching the registry-book path.
+// toggle, select-all + bulk disable/enable of the selected rows, and a one-click
+// "re-enable all disabled" reset. Stock rows carry no cost/markup, so the table
+// is trimmed to SKU · description · type · U/M · price. Writes go through
+// setStockItemsDisabled (optimistic, disabled-column only), matching the
+// registry-book path.
 function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
+  const [selected, setSelected] = useState(() => new Set());
   const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
   const [confirmReset, setConfirmReset] = useState(false);
   const items = stock || [];
@@ -3870,6 +3895,12 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
   const shown = filtered.slice(0, 300);
   const disabledCount = items.filter((it) => it.disabled).length;
   const price = (it) => (it.priceSqft != null ? it.priceSqft : it.price);
+  // Bulk enable/disable acts on the SELECTED rows still in the current filter;
+  // the select-all box covers all filtered matches, not the 300-row slice.
+  const selectedIn = filtered.filter((it) => selected.has(it.sku));
+  const allSelected = filtered.length > 0 && selectedIn.length === filtered.length;
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(filtered.map((it) => it.sku)));
+  const toggleSelect = (sku) => setSelected((s) => { const n = new Set(s); n.has(sku) ? n.delete(sku) : n.add(sku); return n; });
 
   return (
     <div className="mt-5">
@@ -3880,10 +3911,10 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
             <button key={v} onClick={() => setShow(v)} className={`px-2.5 py-1.5 ${show === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
           ))}
         </div>
-        {(query || show !== "all") && filtered.length > 0 && (
+        {selectedIn.length > 0 && (
           <>
-            <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable all {filtered.length}</button>
-            <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable all {filtered.length}</button>
+            <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable selected ({selectedIn.length})</button>
+            <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable selected ({selectedIn.length})</button>
           </>
         )}
         {disabledCount > 0 && (
@@ -3892,8 +3923,8 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
       </div>
       {confirmBulk && (
         <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-          <span className="text-amber-700 flex-1">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length} stock item{filtered.length === 1 ? "" : "s"}{query ? ` matching “${q.trim()}”` : ""}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.</span>
-          <button onClick={() => { setStockItemsDisabled(filtered.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length}</button>
+          <span className="text-amber-700 flex-1">{confirmBulk.disabled ? "Disable" : "Enable"} the {selectedIn.length} selected stock item{selectedIn.length === 1 ? "" : "s"}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.</span>
+          <button onClick={() => { setStockItemsDisabled(selectedIn.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); setSelected(new Set()); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {selectedIn.length}</button>
           <button onClick={() => setConfirmBulk(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
         </div>
       )}
@@ -3908,18 +3939,19 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
             <tr>
-              <th className="px-2 py-1.5 w-8"></th>
+              <th className="px-2 py-1.5 w-8"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select / deselect all filtered rows" /></th>
               <th className="text-left px-2 py-1.5">SKU</th>
               <th className="text-left px-2 py-1.5">Description</th>
               <th className="text-left px-2 py-1.5">Type</th>
               <th className="text-left px-2 py-1.5">U/M</th>
               <th className="text-right px-2 py-1.5">Price</th>
+              <th className="px-2 py-1.5 w-8"></th>
             </tr>
           </thead>
           <tbody>
             {shown.map((it) => (
               <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
-                <td className="px-2 py-1.5"><input type="checkbox" checked={!it.disabled} onChange={(e) => setStockItemsDisabled([it.sku], !e.target.checked)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} /></td>
+                <td className="px-2 py-1.5"><input type="checkbox" checked={selected.has(it.sku)} onChange={() => toggleSelect(it.sku)} title="Select for bulk enable / disable" /></td>
                 <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
                 <td className="px-2 py-1.5">
                   {it.description || it.product || "—"}
@@ -3929,6 +3961,7 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
                 <td className="px-2 py-1.5 text-xs">{it.type ? (typeLabels?.[it.type] || it.type) : "—"}</td>
                 <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{price(it) != null ? money(price(it)) : "—"}</td>
+                <td className="px-2 py-1.5 text-right"><button onClick={() => setStockItemsDisabled([it.sku], !it.disabled)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} className="text-slate-300 hover:text-slate-600">{it.disabled ? <Eye size={13} /> : <EyeOff size={13} />}</button></td>
               </tr>
             ))}
           </tbody>
@@ -3939,7 +3972,7 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -4051,7 +4084,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             {stockCount > 0 && <StockItems stock={stock} setStockItemsDisabled={setStockItemsDisabled} inp={inp} typeLabels={typeLabels} />}
           </div>
         ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
@@ -4154,12 +4187,15 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
+  const [flaggedOnly, setFlaggedOnly] = useState(false); // composes with `show`
+  const [selected, setSelected] = useState(() => new Set()); // SKUs ticked for bulk enable/disable
   const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
   const [confirmReset, setConfirmReset] = useState(false); // re-enable EVERY disabled item
+  const [confirmResetReview, setConfirmResetReview] = useState(false); // clear EVERY confirmed flag
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
@@ -4178,12 +4214,32 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   // For the flag chips: lets a disabled row see its N-successor (supersede).
   const skuSet = useMemo(() => new Set((items || []).map((it) => it.sku)), [items]);
   const query = q.trim().toLowerCase();
-  // Bulk enable/disable acts on ALL filtered matches, not the 300-row display slice.
+  // hazard/advisory flags per row — the "needs a glance" set (info/muted chips
+  // are provenance, not problems). Drives the Flagged filter, its open count,
+  // and the per-row review actions.
+  const flagsBySku = useMemo(() => {
+    const m = new Map();
+    for (const it of items || []) {
+      const fl = itemFlags(it, skuSet).filter((f) => f.tone === "hazard" || f.tone === "advisory");
+      if (fl.length) m.set(it.sku, fl);
+    }
+    return m;
+  }, [items, skuSet]);
+  const openFlagged = [...flagsBySku.values()].filter((fl) => fl.some((f) => !f.resolved)).length;
+  const confirmedCount = (items || []).filter((it) => it.flagReview && Object.values(it.flagReview).some((e) => e.state === "confirmed")).length;
+  // The select-all box and Flagged filter act on ALL filtered matches, not the
+  // 300-row display slice.
   const filtered = (items || [])
     .filter((it) => (show === "disabled" ? it.disabled : show === "enabled" ? !it.disabled : true))
+    .filter((it) => !flaggedOnly || flagsBySku.has(it.sku))
     .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query));
   const shown = filtered.slice(0, 300);
   const disabledCount = (items || []).filter((it) => it.disabled).length;
+  // Bulk enable/disable acts on the SELECTED rows still in the current filter.
+  const selectedIn = filtered.filter((it) => selected.has(it.sku));
+  const allSelected = filtered.length > 0 && selectedIn.length === filtered.length;
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(filtered.map((it) => it.sku)));
+  const toggleSelect = (sku) => setSelected((s) => { const n = new Set(s); n.has(sku) ? n.delete(sku) : n.add(sku); return n; });
 
   // Apply an import/rollback diff and refresh the table + history. applyBookImport
   // itself writes the version, so a rollback lands as the newest one.
@@ -4216,6 +4272,22 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
     try { await setBookItemsDisabled(book.id, skus, disabled); }
     catch (x) { setItems(prev); }
   };
+
+  // Confirm-fixed / ignore / undo / reset a row's flags. The write returns the
+  // stamped flagReview maps, merged back so chips restyle immediately.
+  const applyReview = async (ops) => {
+    try {
+      const out = await reviewBookItemFlags(book.id, ops);
+      const bySku = new Map(out.map((o) => [o.sku, o.flagReview]));
+      setItems((its) => (its || []).map((x) => (bySku.has(x.sku) ? { ...x, flagReview: bySku.get(x.sku) } : x)));
+      setConfirmResetReview(false);
+    } catch (x) { /* surfaced by reviewBookItemFlags */ }
+  };
+  // Clear the "confirmed" verdicts book-wide (ignored ones keep their state) —
+  // any problem that still derives flags again.
+  const resetConfirmed = () => applyReview((items || [])
+    .filter((it) => it.flagReview && Object.values(it.flagReview).some((e) => e.state === "confirmed"))
+    .map((it) => ({ item: it, codes: Object.keys(it.flagReview).filter((c) => it.flagReview[c].state === "confirmed"), state: null })));
 
   return (
     <div className="mt-3">
@@ -4260,14 +4332,26 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                 <button key={v} onClick={() => setShow(v)} className={`px-2.5 py-1.5 ${show === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
               ))}
             </div>
-            {(query || show !== "all") && filtered.length > 0 && (
+            {(flagsBySku.size > 0 || flaggedOnly) && (
+              <button onClick={() => setFlaggedOnly((v) => !v)} title="Only rows with review flags — combines with All / Enabled / Disabled. Flagged rows get Confirm fixed / Ignore buttons; either verdict keeps the row quiet through re-imports." className={`flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 ${flaggedOnly ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                <Flag size={12} /> Flagged{openFlagged ? ` (${openFlagged})` : ""}
+              </button>
+            )}
+            {selectedIn.length > 0 && (
               <>
-                <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable all {filtered.length}</button>
-                <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable all {filtered.length}</button>
+                <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable selected ({selectedIn.length})</button>
+                <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable selected ({selectedIn.length})</button>
               </>
             )}
-            {disabledCount > 0 && (
-              <button onClick={() => setConfirmReset(true)} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50 ml-auto" title="Turn every disabled SKU in this book back on">Re-enable all disabled ({disabledCount})</button>
+            {(disabledCount > 0 || confirmedCount > 0) && (
+              <span className="flex items-center gap-2 ml-auto">
+                {confirmedCount > 0 && (
+                  <button onClick={() => setConfirmResetReview(true)} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50" title="Clear every confirmed-fixed verdict in this book — any problem that still shows flags again">Reset confirmed flags ({confirmedCount})</button>
+                )}
+                {disabledCount > 0 && (
+                  <button onClick={() => setConfirmReset(true)} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50" title="Turn every disabled SKU in this book back on">Re-enable all disabled ({disabledCount})</button>
+                )}
+              </span>
             )}
           </div>
           {confirmReset && (
@@ -4280,17 +4364,24 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
           {confirmBulk && (
             <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
               <span className="text-amber-700 flex-1">
-                {confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length} item{filtered.length === 1 ? "" : "s"}{query ? ` matching “${q.trim()}”` : ""}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.
+                {confirmBulk.disabled ? "Disable" : "Enable"} the {selectedIn.length} selected item{selectedIn.length === 1 ? "" : "s"}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.
               </span>
-              <button onClick={() => { setDisabled(filtered.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length}</button>
+              <button onClick={() => { setDisabled(selectedIn.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); setSelected(new Set()); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {selectedIn.length}</button>
               <button onClick={() => setConfirmBulk(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+          )}
+          {confirmResetReview && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+              <span className="text-amber-700 flex-1">Reset the confirmed-fixed verdict on {confirmedCount} item{confirmedCount === 1 ? "" : "s"}? Any problem that still shows will flag again — and re-warn on the next import — until it's re-confirmed. Ignored flags keep their state.</span>
+              <button onClick={resetConfirmed} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">Reset {confirmedCount}</button>
+              <button onClick={() => setConfirmResetReview(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
             </div>
           )}
           <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
                 <tr>
-                  <th className="px-2 py-1.5 w-8"></th>
+                  <th className="px-2 py-1.5 w-8"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select / deselect all filtered rows" /></th>
                   <th className="text-left px-2 py-1.5">SKU</th>
                   <th className="text-left px-2 py-1.5">Description</th>
                   {isOrder && <th className="text-left px-2 py-1.5">Mfg</th>}
@@ -4298,16 +4389,18 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                   <th className="text-left px-2 py-1.5">Lead</th>
                   {isOrder && <th className="text-right px-2 py-1.5">Cost</th>}
                   <th className="text-right px-2 py-1.5">{isOrder ? "Sell" : "Price"}</th>
-                  <th className="px-2 py-1.5 w-8"></th>
+                  <th className="px-2 py-1.5"></th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map((it) => {
                   const priced = isOrder ? pricedItem(it, markups) : it;
                   const sell = priced.priceSqft != null ? priced.priceSqft : priced.price;
+                  const openCodes = (flagsBySku.get(it.sku) || []).filter((f) => !f.resolved).map((f) => f.code);
+                  const reviewedCodes = Object.keys(it.flagReview || {});
                   return (
                     <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
-                      <td className="px-2 py-1.5"><input type="checkbox" checked={!it.disabled} onChange={(e) => setDisabled([it.sku], !e.target.checked)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} /></td>
+                      <td className="px-2 py-1.5"><input type="checkbox" checked={selected.has(it.sku)} onChange={() => toggleSelect(it.sku)} title="Select for bulk enable / disable" /></td>
                       <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
                       <td className="px-2 py-1.5">
                         {it.description || "—"}
@@ -4317,17 +4410,34 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                         {it.editedAt && <span title={`Hand-edited${it.editedBy ? ` by ${it.editedBy}` : ""} ${new Date(it.editedAt).toLocaleDateString()} — a re-import overwrites this`} className="ml-1.5 text-[9px] uppercase rounded bg-indigo-100 text-indigo-700 px-1 py-0.5">edited</span>}
                         {/* Why this row deserves a glance — derived fresh each render
                             (itemFlags), so fixing an item clears its chip and old
-                            imports get chips retroactively. Hover for the reason. */}
-                        {itemFlags(it, skuSet).map((f) => (
-                          <span key={f.code} title={f.msg} className={`ml-1.5 text-[9px] uppercase rounded px-1 py-0.5 cursor-help ${f.tone === "hazard" ? "bg-amber-100 text-amber-700" : f.tone === "advisory" ? "bg-amber-50 text-amber-600" : f.tone === "info" ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-500"}`}>{f.label}</span>
-                        ))}
+                            imports get chips retroactively. Hover for the reason.
+                            Reviewed flags hide from the normal table (that's the
+                            point) and show restyled in the Flagged view. */}
+                        {itemFlags(it, skuSet).map((f) => {
+                          if (f.resolved && !flaggedOnly) return null;
+                          const rev = it.flagReview?.[f.code];
+                          const title = f.resolved ? `${f.msg} ${f.resolved === "confirmed" ? "Confirmed fixed" : "Ignored"}${rev?.by ? ` by ${rev.by}` : ""}${rev?.at ? ` ${new Date(rev.at).toLocaleDateString()}` : ""} — won't re-flag on re-import.` : f.msg;
+                          const tone = f.resolved === "confirmed" ? "bg-emerald-50 text-emerald-600" : f.resolved === "ignored" ? "bg-slate-100 text-slate-400" : f.tone === "hazard" ? "bg-amber-100 text-amber-700" : f.tone === "advisory" ? "bg-amber-50 text-amber-600" : f.tone === "info" ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-500";
+                          return <span key={f.code} title={title} className={`ml-1.5 text-[9px] uppercase rounded px-1 py-0.5 cursor-help ${tone}`}>{f.label}{f.resolved === "confirmed" ? " ✓" : ""}</span>;
+                        })}
                       </td>
                       {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
                       <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
                       <td className="px-2 py-1.5 text-xs">{it.leadTime || "—"}</td>
                       {isOrder && <td className="px-2 py-1.5 text-right text-xs tabular-nums">{cost(it.cost)}</td>}
                       <td className="px-2 py-1.5 text-right tabular-nums">{sell != null ? money(sell) : "—"}</td>
-                      <td className="px-2 py-1.5 text-right"><button onClick={() => setEditItem(it)} title="Edit this item" className="text-slate-300 hover:text-slate-600"><Pencil size={13} /></button></td>
+                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                        {flaggedOnly && (openCodes.length ? (
+                          <>
+                            <button onClick={() => applyReview([{ item: it, codes: openCodes, state: "confirmed" }])} title="Confirmed fixed — this problem stops flagging and won't re-warn on re-imports" className="text-[11px] rounded border border-emerald-300 text-emerald-700 px-1.5 py-0.5 mr-1 hover:bg-emerald-50">Confirm fixed</button>
+                            <button onClick={() => applyReview([{ item: it, codes: openCodes, state: "ignored" }])} title="Ignore — hide this flag; it won't re-warn on re-imports" className="text-[11px] rounded border border-slate-200 text-slate-500 px-1.5 py-0.5 mr-1 hover:bg-slate-50">Ignore</button>
+                          </>
+                        ) : reviewedCodes.length > 0 && (
+                          <button onClick={() => applyReview([{ item: it, codes: reviewedCodes, state: null }])} title="Undo — flag this row again" className="text-[11px] rounded border border-slate-200 text-slate-500 px-1.5 py-0.5 mr-1 hover:bg-slate-50">Undo</button>
+                        ))}
+                        <button onClick={() => setDisabled([it.sku], !it.disabled)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} className="text-slate-300 hover:text-slate-600 mr-2 align-middle">{it.disabled ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                        <button onClick={() => setEditItem(it)} title="Edit this item" className="text-slate-300 hover:text-slate-600 align-middle"><Pencil size={13} /></button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -4594,7 +4704,11 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   });
 
   const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined };
-  const { items: parsedItems, warnings } = sheet ? parseMapped(rows, mapping) : { items: [], warnings: [] };
+  // Flag verdicts already on the book's rows (confirmed / ignored) mute those
+  // codes in the parse warnings and the problem list below — a reviewed row
+  // must not re-nag on every re-import of the same file.
+  const review = flagReviewBySku(existingItems);
+  const { items: parsedItems, warnings } = sheet ? parseMapped(rows, mapping, review) : { items: [], warnings: [] };
   // Rows the classifier reclassified to per-piece trims (ADR 0013 amendment),
   // listed for review below; un-ticking one keeps it a square-foot line.
   const reclassified = parsedItems.filter((it) => it.trimSignal);
@@ -4618,9 +4732,15 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // disabled (applyImport's `off()` preserves it) and re-prompting to ignore them
   // every import was exactly the nag we're removing. Re-enable from the book table.
   const alreadyDisabled = new Set((existingItems || []).filter((it) => it.disabled).map((it) => it.sku));
-  const problemsAll = sheet ? items.map((it) => ({ it, probs: itemProblems(it) })).filter((x) => x.probs.length) : [];
+  const problemsRaw = sheet ? items.map((it) => ({ it, probs: itemProblems(it) })).filter((x) => x.probs.length) : [];
+  const problemsAll = problemsRaw.map(({ it, probs }) => ({ it, probs: probs.filter((p) => !review.get(it.sku)?.[p.code]) })).filter((x) => x.probs.length);
+  const keptReviewed = problemsRaw.length - problemsAll.length;
   const problems = problemsAll.filter((x) => !alreadyDisabled.has(x.it.sku));
   const keptDisabled = problemsAll.length - problems.length;
+  const quietNote = [
+    keptDisabled > 0 ? `${keptDisabled} previously-disabled row${keptDisabled === 1 ? "" : "s"} stayed off automatically` : "",
+    keptReviewed > 0 ? `${keptReviewed} reviewed row${keptReviewed === 1 ? "" : "s"} (confirmed or ignored earlier) stayed quiet` : "",
+  ].filter(Boolean).join("; ");
   const supersedes = sheet ? supersedePairs(existingItems, items) : [];
   const supersedeOld = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => p.oldSku);
   const disableSkus = [...new Set([...ignored, ...supersedeOld])];
@@ -4783,11 +4903,11 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[11px] text-amber-700">Ignored rows still import, but disabled — hidden from SKU search. Turn any back on later from the book table.{keptDisabled > 0 ? ` ${keptDisabled} previously-disabled row${keptDisabled === 1 ? "" : "s"} stayed off automatically.` : ""}</p>
+                <p className="mt-1.5 text-[11px] text-amber-700">Ignored rows still import, but disabled — hidden from SKU search. Turn any back on later from the book table.{quietNote ? ` ${quietNote}.` : ""}</p>
               </div>
             )}
-            {problems.length === 0 && keptDisabled > 0 && (
-              <p className="text-[11px] text-slate-400">{keptDisabled} previously-disabled row{keptDisabled === 1 ? "" : "s"} stayed off automatically — re-enable from the book table if needed.</p>
+            {problems.length === 0 && quietNote && (
+              <p className="text-[11px] text-slate-400">{quietNote} — manage either from the book table.</p>
             )}
 
             {supersedes.length > 0 && (
@@ -4850,7 +4970,7 @@ const MATERIAL_CATEGORIES = [
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, setStockItemsDisabled, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("materials");
@@ -5473,7 +5593,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>

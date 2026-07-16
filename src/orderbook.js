@@ -24,6 +24,19 @@ const numOr = (v, d = null) => {
 const round2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 const round4 = (n) => (n == null ? null : Math.round(n * 10000) / 10000);
 
+// Per-flag-code review verdicts ({ [code]: { state, by, at } }) — only the two
+// known states survive normalization, so junk in the jsonb can't invent one.
+const normFlagReview = (v) => {
+  if (!v || typeof v !== "object") return null;
+  const out = {};
+  for (const code of Object.keys(v)) {
+    const e = v[code];
+    const state = e && (e.state === "confirmed" || e.state === "ignored") ? e.state : null;
+    if (state) out[code] = { state, by: str(e.by), at: e.at ?? null };
+  }
+  return Object.keys(out).length ? out : null;
+};
+
 // --- the canonical order-item shape ------------------------------------------
 
 // One place both the mapped parser (pricebook.js parseMapped) and the DB-row
@@ -90,7 +103,25 @@ export function normOrderItem(f = {}) {
     // re-import overwrites the item and drops these — the wizard warns first.
     editedBy: str(f.editedBy),
     editedAt: f.editedAt ?? null,
+    // Flag-review verdicts, keyed by hazard/advisory code. "confirmed" = a human
+    // verified/corrected the row, "ignored" = the flag is noise here. Either one
+    // silences that code's chip and its import warnings — a NEW code still
+    // flags. Carried across re-imports by applyBookImport (like the disabled
+    // column), so a reviewed row never re-nags for the same problem.
+    flagReview: normFlagReview(f.flagReview),
   };
+}
+
+// The review verdict on one flag code, or null.
+export const flagReviewed = (item, code) => item?.flagReview?.[code]?.state || null;
+
+// sku → flagReview for the rows that carry one. The wizard builds this from the
+// book's existing items and hands it to parseMapped, so a reviewed problem
+// doesn't re-warn on the next import of the same file.
+export function flagReviewBySku(items) {
+  const m = new Map();
+  for (const it of items || []) if (it.flagReview) m.set(it.sku, it.flagReview);
+  return m;
 }
 
 // A price_book_items DB row → memory. bookId comes from the book_id column.
@@ -335,11 +366,13 @@ export function itemProblems(item) {
 
 // Aggregate the per-row hazards for the import wizard's file-level warning list:
 // group by message, keep ≤3 sample SKUs each. Rule-based via itemProblems, so
-// single-U/M books stay quiet.
-export function unitComboWarnings(items) {
+// single-U/M books stay quiet. `review` (sku → flagReview, see flagReviewBySku)
+// mutes codes a human already confirmed or ignored on the existing book row.
+export function unitComboWarnings(items, review) {
   const groups = new Map();
   for (const it of items || []) {
-    const probs = itemProblems(it);
+    const rev = review?.get(it.sku);
+    const probs = itemProblems(it).filter((p) => !rev?.[p.code]);
     if (!probs.length) continue;
     const { msg } = probs[0];
     const g = groups.get(msg) || { n: 0, skus: [] };
@@ -420,11 +453,14 @@ export function rowAdvisories(item) {
 
 // Aggregate rowAdvisories for the wizard's warning list — same shape and ≤3-SKU
 // sampling as unitComboWarnings, but every message can fire per row (a row can
-// be both mis-split AND a trim-as-area), so all advisories are counted.
-export function importSanityWarnings(items) {
+// be both mis-split AND a trim-as-area), so all advisories are counted. Same
+// `review` mute as unitComboWarnings.
+export function importSanityWarnings(items, review) {
   const groups = new Map();
   for (const it of items || []) {
-    for (const { msg } of rowAdvisories(it)) {
+    const rev = review?.get(it.sku);
+    for (const { code, msg } of rowAdvisories(it)) {
+      if (rev?.[code]) continue;
       const g = groups.get(msg) || { n: 0, skus: [] };
       g.n++;
       if (g.skus.length < 3 && it.sku) g.skus.push(it.sku);
@@ -456,11 +492,13 @@ const TRIM_SIGNAL_MSG = {
 // chips retroactively), the per-piece chip reads the import-stamped trimSignal,
 // and a disabled row explains itself when a reason is derivable — its
 // N-successor existing in `skus` (the supersede that disabled it at import).
+// A hazard/advisory the team reviewed carries its verdict as `resolved`
+// ("confirmed"/"ignored") so the table can quiet or restyle it.
 export function itemFlags(item, skus) {
   const it = item || {};
   const flags = [];
-  for (const p of itemProblems(it)) flags.push({ code: p.code, tone: "hazard", label: FLAG_LABELS[p.code] || p.code, msg: `This row imports ${p.msg}.` });
-  for (const a of rowAdvisories(it)) flags.push({ code: a.code, tone: "advisory", label: FLAG_LABELS[a.code] || a.code, msg: `This row imports ${a.msg}.` });
+  for (const p of itemProblems(it)) flags.push({ code: p.code, tone: "hazard", label: FLAG_LABELS[p.code] || p.code, msg: `This row imports ${p.msg}.`, resolved: flagReviewed(it, p.code) });
+  for (const a of rowAdvisories(it)) flags.push({ code: a.code, tone: "advisory", label: FLAG_LABELS[a.code] || a.code, msg: `This row imports ${a.msg}.`, resolved: flagReviewed(it, a.code) });
   if (it.trimSignal) flags.push({ code: "trim-reclassified", tone: "info", label: "per-piece", msg: TRIM_SIGNAL_MSG[it.trimSignal] || it.trimSignal });
   if (it.disabled && skus) {
     const n = [`${it.sku}N`, `${it.sku}n`].find((s) => skus.has(s));

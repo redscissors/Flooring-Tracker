@@ -404,6 +404,20 @@ test("parseMapped: warns when no cost column is mapped", () => {
   assert.ok(warnings.some((w) => /No cost column/.test(w)));
 });
 
+test("parseMapped: a review map mutes warnings for codes already confirmed/ignored on the book", () => {
+  const rows = [
+    ["", "VTC MFG", "Color", "Pattern", "VTC Item Code", "", "Product Line", "Lead Time", "Consumer", "Dealer", "U/M", "No Broken", "PC/CT", "SF/CT", ""],
+    ["", "CER", "", "3x12", "CER0000021", "BULLNOSE 3X12", "PRESLEY", "", 12, 9, "PC", "CT", "", 5.38, ""],
+  ];
+  const mapping = { ...VTC_MAPPING, headerRow: 0, columns: { ...VTC_MAPPING.columns, 11: "orderUnit" } };
+  const before = parseMapped(rows, mapping);
+  assert.ok(before.warnings.some((w) => /no PC\/CT column mapped/.test(w)));
+  const review = new Map([["CER0000021", { "no-pc-carton": { state: "confirmed", by: "", at: 1 } }]]);
+  const after = parseMapped(rows, mapping, review);
+  assert.equal(after.warnings.some((w) => /no PC\/CT column mapped/.test(w)), false);
+  assert.equal(after.items.length, before.items.length); // muting warns, never rows
+});
+
 test("parseMapped: a repeated SKU with different costs is deduped with a warning", () => {
   const rows = [
     VTC_ROWS[2],

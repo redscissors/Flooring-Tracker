@@ -56,7 +56,10 @@ src/
                     # cost/markup/sell, pick snapshot, drift, import diff, and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
-                    # (N-suffix old→new), surfaced in the wizard's review step
+                    # (N-suffix old→new), surfaced in the wizard's review step.
+                    # An item's `flagReview` ({code: confirmed/ignored verdict},
+                    # ADR 0017) mutes that code's chip + import warnings and is
+                    # carried across re-imports like the disabled column
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
@@ -289,7 +292,10 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
   `active=false` marks — no deletes). Registry-item enable/disable flips only
   the `disabled` column via `setBookItemsDisabled` — never through the import
-  upserts. Keep these write paths; don't write ad hoc.
+  upserts. Flag-review verdicts (ADR 0017) write only through
+  `reviewBookItemFlags` (data jsonb, no edited stamp); `applyBookImport`
+  carries the previous row's `flagReview` onto changed upserts so verdicts
+  survive re-import. Keep these write paths; don't write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
 - The theme ("the ned" Moss kit: ink & paper UI, single moss-green accent,

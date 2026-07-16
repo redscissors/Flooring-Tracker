@@ -5,6 +5,7 @@ import {
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
+  flagReviewed, flagReviewBySku,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -713,4 +714,73 @@ test("itemFlags: a disabled row explains itself when its N-successor exists", ()
 test("itemFlags: a clean row is chipless", () => {
   const it = normOrderItem({ sku: "OK1", type: "tile", description: "Earth Ash Gray", size: "12x24", priceUnit: "SF", orderUnit: "CT", cost: 3.29, sfPerUnit: 15.5, pcPerUnit: 12 });
   assert.deepEqual(itemFlags(it), []);
+});
+
+// --- flag review: confirmed/ignored verdicts survive normalization + mute warnings ---
+
+test("normOrderItem carries flagReview and drops junk states", () => {
+  const it = normOrderItem({ sku: "R1", flagReview: {
+    "no-price": { state: "confirmed", by: "Sam", at: 5 },
+    "zero-price": { state: "ignored" },
+    "trim-as-area": { state: "banana" },
+    "psf-outlier": "nope",
+  } });
+  assert.deepEqual(Object.keys(it.flagReview).sort(), ["no-price", "zero-price"]);
+  assert.equal(flagReviewed(it, "no-price"), "confirmed");
+  assert.equal(flagReviewed(it, "zero-price"), "ignored");
+  assert.equal(flagReviewed(it, "trim-as-area"), null);
+  // all-junk or absent → null, so the data blob stays lean
+  assert.equal(normOrderItem({ sku: "R2", flagReview: { x: { state: "nope" } } }).flagReview, null);
+  assert.equal(normOrderItem({ sku: "R3" }).flagReview, null);
+});
+
+test("flagReview round-trips through bookItemData (survives an import upsert merge)", () => {
+  const it = normOrderItem({ sku: "R4", cost: 3, flagReview: { "no-pc-carton": { state: "ignored", by: "", at: 1 } } });
+  const back = normOrderItem({ sku: "R4", ...bookItemData(it) });
+  assert.equal(flagReviewed(back, "no-pc-carton"), "ignored");
+});
+
+test("itemFlags marks a reviewed code resolved but still derives it", () => {
+  const it = normOrderItem({ sku: "R5", priceUnit: "SF", flagReview: { "no-price": { state: "confirmed", by: "Sam", at: 5 } } });
+  const f = itemFlags(it).find((x) => x.code === "no-price");
+  assert.equal(f.resolved, "confirmed");
+  // an unreviewed code stays unresolved
+  const raw = itemFlags(normOrderItem({ sku: "R6", priceUnit: "SF" })).find((x) => x.code === "no-price");
+  assert.equal(raw.resolved, null);
+});
+
+test("unitComboWarnings mutes reviewed codes per SKU, not per file", () => {
+  const items = [
+    normOrderItem({ sku: "Q1", priceUnit: "SF" }),                    // no price, reviewed
+    normOrderItem({ sku: "Q2", priceUnit: "SF" }),                    // no price, NOT reviewed
+  ];
+  const review = flagReviewBySku([
+    normOrderItem({ sku: "Q1", flagReview: { "no-price": { state: "confirmed", by: "", at: 1 } } }),
+  ]);
+  const warns = unitComboWarnings(items, review);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0], /^1 row /);
+  assert.match(warns[0], /Q2/);
+  assert.doesNotMatch(warns[0], /Q1/);
+  // a DIFFERENT problem on the reviewed SKU still warns
+  const other = [normOrderItem({ sku: "Q1", cost: 0 })]; // zero-price ≠ the reviewed no-price
+  assert.equal(unitComboWarnings(other, review).length, 1);
+});
+
+test("importSanityWarnings mutes reviewed advisory codes the same way", () => {
+  const trimArea = { sku: "Q3", type: "tile", description: "Casbah Indigo Edge", size: "0.3x5", priceUnit: "PC", orderUnit: "CT", pcPerUnit: 10, sfPerUnit: 0.15, cost: 9.24 };
+  const codes = rowAdvisories(normOrderItem(trimArea)).map((a) => a.code);
+  assert.ok(codes.includes("trim-as-area"));
+  const review = flagReviewBySku([normOrderItem({ sku: "Q3", flagReview: Object.fromEntries(codes.map((c) => [c, { state: "ignored", by: "", at: 1 }])) })]);
+  assert.deepEqual(importSanityWarnings([normOrderItem(trimArea)], review), []);
+  assert.ok(importSanityWarnings([normOrderItem(trimArea)]).length > 0);
+});
+
+test("flagReviewBySku maps only the rows that carry a review", () => {
+  const m = flagReviewBySku([
+    normOrderItem({ sku: "A", flagReview: { "no-price": { state: "ignored", by: "", at: 1 } } }),
+    normOrderItem({ sku: "B" }),
+  ]);
+  assert.equal(m.size, 1);
+  assert.ok(m.get("A"));
 });

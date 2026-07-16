@@ -712,7 +712,10 @@ export function splitSizeFromDescription(desc) {
   return { size, thickness, name, sheetSize };
 }
 
-export function parseMapped(rows, mapping) {
+// `review` (sku → flagReview, from the book's existing items) mutes the
+// warnings for problems a human already confirmed or ignored — a reviewed row
+// must not re-nag on every re-import of the same file.
+export function parseMapped(rows, mapping, review) {
   const items = [];
   const warnings = [];
   const m = mapping || {};
@@ -746,10 +749,10 @@ export function parseMapped(rows, mapping) {
   // Unit sanity before anything applies: rows whose U/M combination the
   // pricing code has never been taught get named here, not silently mispriced
   // (the VTC bullnose lesson — see unitComboWarnings).
-  warnings.push(...unitComboWarnings(deduped));
+  warnings.push(...unitComboWarnings(deduped, review));
   // Parse-quality advisories (mis-split sizes, name litter, trim-as-area, price
   // outliers) — non-blocking FYI lines so a silent bad parse gets surfaced.
-  warnings.push(...importSanityWarnings(deduped));
+  warnings.push(...importSanityWarnings(deduped, review));
   return { items: deduped, warnings };
 }
 
