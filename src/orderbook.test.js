@@ -573,6 +573,25 @@ test("rowAdvisories: a trim/molding row priced by the square foot, plus its $/sq
   assert.ok(c.includes("psf-outlier"));
 });
 
+test("rowAdvisories: area-below-piece-cost catches a square-footed trim the lexicon misses", () => {
+  // Real VTC base-cap ADXNEBLBASE12EDS: $23.89/PC, 45 pc/carton, bogus 121.1
+  // SF/CT ⇒ derived cost ~$8.88/sqft, below its own $23.89/pc — priced under
+  // water. The English lexicon also flags this one ("Cap").
+  const eng = codes({ sku: "ADXNEBLBASE12EDS", type: "tile", description: "Neri Black Base Board End Cap", priceUnit: "PC", orderUnit: "PC", pcPerUnit: 45, sfPerUnit: 121.1, cost: 23.89 });
+  assert.ok(eng.includes("area-below-piece-cost"));
+  // The payoff: an Italian trim (angolare = corner) with a notional 10.76 = 1 m²
+  // SF/CT. TRIM_WORD_RE misses it entirely; the cost inversion still catches it.
+  const ita = codes({ sku: "CDSSUSIANGDX", type: "tile", description: "Supreme Silver Angolare Dx", size: "13x48", priceUnit: "PC", orderUnit: "PC", pcPerUnit: 1, sfPerUnit: 10.76, cost: 50 });
+  assert.deepEqual(ita, ["area-below-piece-cost"]);
+  // A genuine large tile sold by the square foot never trips it (SF-priced ⇒
+  // per-sqft cost equals the sheet price, not below it).
+  assert.ok(!codes({ sku: "T", type: "tile", description: "Bristol Brown", size: "12x24", priceUnit: "SF", orderUnit: "CT", sfPerUnit: 15.5, cost: 3.29 }).includes("area-below-piece-cost"));
+  // A mosaic sheet (~1 sqft/sheet) is exempt — a marginal inversion there is real
+  // square-foot product, not a mispriced trim (the noise the guard removes).
+  assert.ok(!codes({ sku: "M", type: "tile", description: "Oslo White 2x2 Mosaic", priceUnit: "PC", orderUnit: "PC", pcPerUnit: 1, sfPerUnit: 1.076, cost: 14.54 }).includes("area-below-piece-cost"));
+  assert.ok(!codes({ sku: "M2", type: "tile", description: "Peacock Blue", priceUnit: "SH", orderUnit: "SH", pcPerUnit: 1, sfPerUnit: 1.02, cost: 23.04 }).includes("area-below-piece-cost"));
+});
+
 test("importSanityWarnings: aggregates by message with ≤3 sample SKUs", () => {
   const items = [
     normOrderItem({ sku: "L1", description: "Foo . Bar" }),
