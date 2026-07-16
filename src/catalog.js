@@ -166,6 +166,23 @@ export function getCarton(p, s) {
   return { exact: ex, order: ceilQty(ex), sf: per, unit };
 }
 
+// A count line sold only by whole cartons (ADR 0013 amendment): p.cartonPc is
+// the pieces one carton holds (the book's PC/CT, snapshotted at pick — the
+// piece-count twin of cartonSf). The entered qty is pieces NEEDED; the order
+// rounds up to full cartons and bills every piece in them, price staying per
+// piece. cartonManual (a carton count) overrides, like flooring cartons. No
+// waste factor — trim is counted, not measured.
+export function getPieceCarton(p) {
+  if (p.type !== "misc") return null;
+  const per = num(p.cartonPc); if (!per) return null;
+  const unit = String(p.cartonUnit || "CT").toLowerCase();
+  if (p.cartonManual !== "" && p.cartonManual != null) { const v = num(p.cartonManual); return { need: v * per, cartons: v, pieces: v * per, per, unit }; }
+  // Blank qty bills one piece, matching the flat-misc convention (miscQty).
+  const need = p.qtyType === "count" && String(p.qty ?? "").trim() !== "" ? num(p.qty) : 1;
+  const cartons = Math.ceil(need / per);
+  return { need, cartons, pieces: cartons * per, per, unit };
+}
+
 // Underlayment / backer coverage is a flat area rate: one unit (roll, sheet,
 // bag) covers `coverage` sq ft, so it scales straight off square footage with
 // the waste factor — no tile-size volumetrics like grout. Applies to every

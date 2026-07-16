@@ -13,7 +13,7 @@
 // tierPrices (book-defined contractor pricing). Picking one produces the same
 // patch stockPatch builds, then adds bookId/cost/markupPct and the flags.
 
-import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, sellUnitFactor, fillsFlooring, isPieceUnit, isCartonUnit } from "./stock.js";
+import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize } from "./stock.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => {
@@ -63,6 +63,11 @@ export function normOrderItem(f = {}) {
     // any accessory, but flagged so the book can mark trims up at their own rate
     // (resolveMarkup), separate from the floors.
     trim: !!f.trim,
+    // Which classifyTrim signal reclassified this row at import (ADR 0013
+    // amendment) — "lexicon" / "inversion" / "notional", empty for a
+    // vendor-declared trim (Mannington's Kind column) or a non-trim. Provenance
+    // for the wizard's review list and the book table's flag chips.
+    trimSignal: str(f.trimSignal),
     // Order items store COST, never a selling price — price/priceSqft are
     // derived at display via the book's markup (pricedItem), never persisted.
     price: null,
@@ -145,9 +150,10 @@ export const sellPrice = (cost, pct) => (cost == null ? null : round2(cost * (1 
 export const rowCostSqft = (item) => {
   if (!item || item.cost == null) return null;
   const csf = item.type ? costSqft(item) : null;
-  // Count lines cost per SELL unit: a carton-only trim's cost is per carton
-  // (× PC/CT), matching the per-carton sell the patch snapshots.
-  return csf != null ? csf : item.cost * sellUnitFactor(item);
+  // Count lines cost per PIECE, matching the per-piece sell the patch
+  // snapshots (ADR 0013 amendment) — carton rounding lives on the row's
+  // cartonPc, never in the price.
+  return csf != null ? csf : item.cost;
 };
 
 // A stock-shaped item with price/priceSqft filled from cost × markup, so
@@ -199,10 +205,21 @@ export function orderPatch(item, book, product) {
 export function orderDrift(item, book, product) {
   if (!item) return null;
   const priced = pricedItem(item, book?.data?.markups);
-  // Mirror the pick: flooring lines drift on $/sqft, count lines on the flat
-  // price per sell unit (× PC/CT for a carton-only trim, like the patch).
-  const now = fillsFlooring(priced) ? stockPriceSqft(priced)
-    : priced.price != null ? round2(priced.price * sellUnitFactor(priced)) : null;
+  const itemArea = fillsFlooring(priced);
+  // Frame guard (ADR 0013 amendment): a row snapshotted in one quote frame
+  // against an item that now sells in the other — a trim reclassified to
+  // per-piece, or the rare reverse — must not show a cross-frame price arrow
+  // ($/sqft vs $/piece is not drift). The chip says the frame moved instead;
+  // re-picking the item is the deliberate act that adopts the new frame.
+  const rowArea = !!product.type && product.type !== "misc";
+  if (rowArea !== itemArea) return { frame: itemArea ? "sqft" : "piece" };
+  // A count row saved before cartonPc existed was snapshotted per CARTON;
+  // the item now quotes per piece — same frame test, price basis moved.
+  if (!itemArea && !str(product.cartonPc) && isCartonUnit(orderUnitOf(priced)) && priced.pcPerUnit > 0) return { frame: "piece" };
+  // Mirror the pick: flooring lines drift on $/sqft, count lines on the
+  // per-piece price.
+  const now = itemArea ? stockPriceSqft(priced)
+    : priced.price != null ? round2(priced.price) : null;
   const cur = parseFloat(product.priceSqft);
   if (now == null || !Number.isFinite(cur)) return null;
   const to = round2(now);
@@ -335,8 +352,24 @@ export function unitComboWarnings(items) {
 
 // --- import parse-quality advisories -------------------------------------------
 
-// Trade words that name a linear/piece accessory rather than a field covering.
-const TRIM_WORD_RE = /reducer|t-?mold|bull ?nose|stair ?nos|threshold|transition|pencil|quarter ?round|\bliner\b|\bedge\b|\btrim\b|\bcap\b/i;
+// Trade words that name a linear/piece accessory rather than a field covering —
+// English plus the Italian the tile vendors actually write (gradino = step,
+// angolo/angolare = corner, scalino = stair edge, battiscopa = baseboard,
+// torello = rounded edge, zoccolo = skirting, fascia/listello = border strips).
+const TRIM_WORD_RE = /reducer|t-?mold|bull ?nose|stair ?nos|threshold|transition|pencil|quarter ?round|\bliner\b|\bedge\b|\btrim\b|\bcap\b|\bcove\b|\btread\b|\briser\b|nosing|skirting|\bcorner\b|\bcrn\b|\bstep\b|v-?cap|\bogee\b|molding|moulding|gradino|gradone|scalino|angolo|angolare|\bango\b|battiscopa|torello|zoccolo|fascia|listello/i;
+const SHEET_UNIT_RE = /^(sh|sht|sheet)s?$/i;
+// Stated SF/CT against the footprint the parsed size implies (piece area ×
+// pieces per carton): ≈1 says the vendor's coverage is real — the piece is a
+// genuine area product however it's priced. null when the size doesn't parse.
+const coverageRatio = (it) => {
+  const lw = parseTileSize(it.size);
+  return lw && it.sfPerUnit > 0 ? it.sfPerUnit / (((+lw[0] * +lw[1]) / 144) * (it.pcPerUnit > 0 ? it.pcPerUnit : 1)) : null;
+};
+const coverageConfirmed = (it) => { const r = coverageRatio(it); return r != null && r >= 0.85 && r <= 1.15; };
+// The vendor's notional metric coverages — 0.5 / 1 / 2 m² in square feet —
+// stamped on trim rows that have no real area to cover. A match (±1%) says the
+// SF/CT is fabricated, not measured.
+const NOTIONAL_M2_SF = [5.38, 10.76, 21.53];
 // Words that name genuine square-foot product a vendor sells by the piece/sheet
 // (a mosaic sheet covers ~1 sqft), so a marginal cost-inversion on one is NOT a
 // mispricing. Used only to exempt these from area-below-piece-cost — the trims
@@ -376,8 +409,11 @@ export function rowAdvisories(item) {
   // covers ~1 sqft, so its marginal inversion is real area product, not a trim —
   // un-guarded they are ~1/3 of the hits. The fix for a real hit is reclassifying
   // the row to a per-piece count line; this only flags it.
-  const sheetUnit = /^(sh|sht|sheet)s?$/i.test(priceUnitOf(it)) || /^(sh|sht|sheet)s?$/i.test(orderUnitOf(it));
-  if (psf != null && psf < it.cost && isPieceUnit(priceUnitOf(it)) && !sheetUnit && !AREA_PIECE_RE.test(`${name} ${str(it.size)}`)) out.push({ code: "area-below-piece-cost", msg: `priced $${it.cost}/${priceUnitOf(it).toUpperCase()} but its derived cost is only $${psf}/sqft — a piece that covers over a square foot being sold by the foot, so it prices below cost; likely a trim (check its SF/CT)` });
+  const sheetUnit = SHEET_UNIT_RE.test(priceUnitOf(it)) || SHEET_UNIT_RE.test(orderUnitOf(it));
+  // Geometry-confirmed coverage (a 24x48 deco panel honestly covering 8 sqft)
+  // is a real area product priced per piece — under water only in the
+  // unit-blind read, so it doesn't warn.
+  if (psf != null && psf < it.cost && isPieceUnit(priceUnitOf(it)) && !sheetUnit && !AREA_PIECE_RE.test(`${name} ${str(it.size)}`) && !coverageConfirmed(it)) out.push({ code: "area-below-piece-cost", msg: `priced $${it.cost}/${priceUnitOf(it).toUpperCase()} but its derived cost is only $${psf}/sqft — a piece that covers over a square foot being sold by the foot, so it prices below cost; likely a trim (check its SF/CT)` });
   if (psf != null && (psf > 150 || psf < 0.25)) out.push({ code: "psf-outlier", msg: `an unusual per-sq-ft cost (about $${psf}) — double-check the unit and coverage (premium goods can legitimately run high)` });
   return out;
 }
@@ -396,6 +432,46 @@ export function importSanityWarnings(items) {
     }
   }
   return [...groups.entries()].map(([msg, g]) => `${g.n} row${g.n === 1 ? "" : "s"} ${msg} (${g.skus.join(", ")}${g.n > g.skus.length ? ", …" : ""}).`);
+}
+
+// --- trim classifier (ADR 0013 amendment) --------------------------------------
+
+// Should this piece-priced, coverage-carrying row quote per PIECE instead of per
+// square foot? The quote frame follows the product kind, not the units — a
+// bullnose and a field tile can carry identical unit signatures, but a
+// salesperson counts trim in pieces. Returns the signal that fired ("lexicon" /
+// "inversion" / "notional") or null to keep today's behavior. First match wins:
+//   sheet    a sheet unit or parsed backing sheet is PHYSICAL evidence of
+//            square-foot product — outranks everything, never reclassified
+//   lexicon  a trim word (EN + IT) — the only signal that sees the ~280
+//            honest-coverage step/tread pieces whose SF/CT is a real
+//            footprint. Outranks the mosaic WORD guard: on the real file
+//            every trim-word + pattern-word row ("Fascia Spina Herringbone")
+//            is a trim — word beats word, physical evidence beats both
+//   guard    a mosaic/pattern word is genuine square-foot product (the
+//            2026-07 geometry audit: mosaics were 70% of naive high-ratio
+//            hits), never reclassified
+//   confirm  the parsed size CONFIRMS the stated coverage (ratio ≈ 1) → a
+//            genuine area product sold by the piece (large-format loose tile);
+//            stays flooring even though its piece cost exceeds its sqft cost
+//   inversion  derived $/sqft cost below the piece's own cost — fabricated
+//            coverage (a piece "covering" more than it possibly does)
+//   notional  SF/CT is a bare metric constant (0.5/1/2 m²) that contradicts
+//            the parsed size — fabricated, but not deep enough to invert
+// Applied at IMPORT (mappedItem) only, so saved snapshots never move and a
+// re-import is what changes a book's picks (ADR 0003 doctrine).
+export function classifyTrim(item) {
+  const it = item || {};
+  if (!it.type || it.cost == null || !(it.sfPerUnit > 0) || !isPieceUnit(priceUnitOf(it))) return null;
+  const text = `${str(it.description)} ${str(it.size)}`;
+  if (it.sheetSize || SHEET_UNIT_RE.test(priceUnitOf(it)) || SHEET_UNIT_RE.test(orderUnitOf(it))) return null;
+  if (TRIM_WORD_RE.test(text)) return "lexicon";
+  if (AREA_PIECE_RE.test(text)) return null;
+  if (coverageConfirmed(it)) return null;
+  const csf = costSqft(it);
+  if (csf != null && csf < it.cost) return "inversion";
+  if (coverageRatio(it) != null && NOTIONAL_M2_SF.some((v) => Math.abs(it.sfPerUnit - v) <= v * 0.01)) return "notional";
+  return null;
 }
 
 // N-suffix supersede detection. Vendors reissue a SKU by appending N to mark a

@@ -21,7 +21,7 @@
 // re-arranged sheet degrades to "items went missing" (visible in the import
 // diff preview) rather than garbage rows.
 
-import { normOrderItem, unitComboWarnings, importSanityWarnings } from "./orderbook.js";
+import { normOrderItem, unitComboWarnings, importSanityWarnings, classifyTrim } from "./orderbook.js";
 
 const SKU_RE = /^\d{4,8}$/;
 const str = (c) => (c == null ? "" : String(c).trim());
@@ -809,7 +809,7 @@ function mappedItem(mapping, raw, sku, sem) {
   const pl = smartCase(str(raw.productLine));
   const label = descText || [smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean).join(" ");
   const name = pl && !startsWithWord(label, pl) ? [pl, label].filter(Boolean).join(" ") : label;
-  return normOrderItem({
+  const it = normOrderItem({
     sku,
     mfg,
     productLine: str(raw.productLine),
@@ -843,6 +843,11 @@ function mappedItem(mapping, raw, sku, sem) {
     discontinued: !!sem.discontinued,
     note: noteBits.filter(Boolean).join(" · "),
   });
+  // A piece-priced trim quotes per piece, not per square foot (ADR 0013
+  // amendment): drop it to the count-line path and keep which signal said so.
+  const signal = classifyTrim(it);
+  if (signal) { it.trim = true; it.type = null; it.trimSignal = signal; }
+  return it;
 }
 
 // Within one mapped sheet a SKU should be unique; if it repeats, keep the

@@ -4,7 +4,7 @@ import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
-  itemProblems, supersedePairs, rowAdvisories, importSanityWarnings,
+  itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -133,15 +133,18 @@ test("orderPatch: a piece-priced carton-sold trim prices and bills by the real c
   // One carton totals ≈ 8 pieces at the marked-up piece price: 52.03 × 5.38 ≈ 279.9.
 });
 
-test("orderPatch: a piece-priced carton-sold trim with NO coverage lands as a count line priced per carton", () => {
+test("orderPatch: a piece-priced carton-sold trim with NO coverage lands as a per-piece count line with carton rounding", () => {
   // Real VTC row CDSTABABN240R: $56.89/pc bullnose, No Broken = CT, 10 pc/ctn,
-  // SF/CT = N/A. Was a $0 sqft line; now a Miscellaneous line per carton.
+  // SF/CT = N/A. Quotes per piece; cartonPc rounds the order to whole cartons
+  // (ADR 0013 amendment — the salesperson enters pieces, never cartons).
   const item = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 56.89, pcPerUnit: 10 });
   const patch = orderPatch(item, book(), {});
   assert.equal(patch.type, "misc");
-  assert.equal(patch.priceSqft, "711.1");    // (56.89 × 1.25 = 71.11/pc) × 10 pc per carton
-  assert.match(patch.brandColor, /carton of 10/);
-  assert.equal(patch.costSqft, "568.9");     // vendor cost per carton, for the margin
+  assert.equal(patch.priceSqft, "71.11");    // 56.89 × 1.25, per PIECE
+  assert.equal(patch.cartonPc, "10");        // order rounds up to cartons of 10
+  assert.equal(patch.cartonUnit, "CT");
+  assert.doesNotMatch(patch.brandColor, /carton of/);  // the row shows the rounding itself
+  assert.equal(patch.costSqft, "56.89");     // vendor cost per piece, for the margin
   assert.equal(patch.cost, "56.89");         // raw per-piece cost, for drift
 });
 
@@ -153,15 +156,26 @@ test("orderPatch: loose pieces of a cartoned tile still price by the carton's ec
   assert.equal(patch.cartonSf, undefined);   // sold loose — no whole-carton rounding
 });
 
-test("orderDrift: a count-landed carton line drifts on its per-carton sell", () => {
-  const row = { priceSqft: "711.1", cost: "56.89", markupPct: "25" };
+test("orderDrift: a count-landed carton line drifts on its per-piece sell", () => {
+  const row = { type: "misc", cartonPc: "10", priceSqft: "71.11", cost: "56.89", markupPct: "25" };
   const item = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 60, pcPerUnit: 10 });
   const drift = orderDrift(item, book(), row);
-  assert.equal(drift.to, 750);               // (60 × 1.25) × 10
+  assert.equal(drift.to, 75);                // 60 × 1.25, per piece
   assert.deepEqual(drift.cost, { from: 56.89, to: 60 });
   // and no false drift when nothing moved
   const same = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 56.89, pcPerUnit: 10 });
   assert.equal(orderDrift(same, book(), row), null);
+});
+
+test("orderDrift: frame guard — cross-frame rows report the moved frame, never a price arrow", () => {
+  // A trim picked as $/sqft before the classifier: the item now sells per piece.
+  const sqftRow = { type: "tile", qtyType: "sqft", priceSqft: "13.32", cost: "23.89" };
+  const trim = oi({ sku: "ADXNEBLBASE12EDS", type: null, trim: true, unit: "", priceUnit: "PC", orderUnit: "PC", cost: 23.89, pcPerUnit: 45 });
+  assert.deepEqual(orderDrift(trim, book(), sqftRow), { frame: "piece" });
+  // A count row saved per-carton (pre-cartonPc): same frame, price basis moved.
+  const cartonRow = { type: "misc", priceSqft: "711.1", cost: "56.89" };
+  const item = oi({ sku: "CDSTABABN240R", type: "tile", unit: "", priceUnit: "PC", orderUnit: "CT", cost: 56.89, pcPerUnit: 10 });
+  assert.deepEqual(orderDrift(item, book(), cartonRow), { frame: "piece" });
 });
 
 // --- import-time unit sanity ---------------------------------------------------
@@ -297,7 +311,7 @@ test("orderDrift: a later markup change surfaces as drift but never rewrites the
 });
 
 test("orderDrift: a vendor cost change is reported with its movement detail", () => {
-  const row = { priceSqft: "10", cost: "8", markupPct: "25" };
+  const row = { type: "tile", priceSqft: "10", cost: "8", markupPct: "25" };
   const item = oi({ sku: "T1", type: "tile", unit: "SF", cost: 8.8, size: "12x24" });
   const drift = orderDrift(item, book({ markups: { default: 25 } }), row);
   assert.equal(drift.to, 11);                // 8.8 × 1.25
@@ -306,7 +320,7 @@ test("orderDrift: a vendor cost change is reported with its movement detail", ()
 
 test("orderDrift: null when the snapshot still matches today's sell", () => {
   const item = oi({ sku: "T1", type: "tile", unit: "SF", cost: 8, size: "12x24" });
-  const row = { priceSqft: "10", cost: "8", markupPct: "25" };
+  const row = { type: "tile", priceSqft: "10", cost: "8", markupPct: "25" };
   assert.equal(orderDrift(item, book({ markups: { default: 25 } }), row), null);
 });
 
@@ -579,10 +593,12 @@ test("rowAdvisories: area-below-piece-cost catches a square-footed trim the lexi
   // water. The English lexicon also flags this one ("Cap").
   const eng = codes({ sku: "ADXNEBLBASE12EDS", type: "tile", description: "Neri Black Base Board End Cap", priceUnit: "PC", orderUnit: "PC", pcPerUnit: 45, sfPerUnit: 121.1, cost: 23.89 });
   assert.ok(eng.includes("area-below-piece-cost"));
-  // The payoff: an Italian trim (angolare = corner) with a notional 10.76 = 1 m²
-  // SF/CT. TRIM_WORD_RE misses it entirely; the cost inversion still catches it.
+  // An Italian trim (angolare = corner) with a notional 10.76 = 1 m² SF/CT.
+  // The bilingual lexicon now names it too; the cost inversion corroborates.
   const ita = codes({ sku: "CDSSUSIANGDX", type: "tile", description: "Supreme Silver Angolare Dx", size: "13x48", priceUnit: "PC", orderUnit: "PC", pcPerUnit: 1, sfPerUnit: 10.76, cost: 50 });
-  assert.deepEqual(ita, ["area-below-piece-cost"]);
+  assert.deepEqual(ita, ["trim-as-area", "area-below-piece-cost"]);
+  // A lexicon-free name still relies on the inversion alone.
+  assert.deepEqual(codes({ sku: "X1", type: "tile", description: "Custom Finishing Piece", size: "13x48", priceUnit: "PC", orderUnit: "PC", pcPerUnit: 1, sfPerUnit: 10.76, cost: 50 }), ["area-below-piece-cost"]);
   // A genuine large tile sold by the square foot never trips it (SF-priced ⇒
   // per-sqft cost equals the sheet price, not below it).
   assert.ok(!codes({ sku: "T", type: "tile", description: "Bristol Brown", size: "12x24", priceUnit: "SF", orderUnit: "CT", sfPerUnit: 15.5, cost: 3.29 }).includes("area-below-piece-cost"));
@@ -603,4 +619,61 @@ test("importSanityWarnings: aggregates by message with ≤3 sample SKUs", () => 
   assert.equal(w.length, 1);
   assert.match(w[0], /^4 rows with leftover punctuation/);
   assert.match(w[0], /L1, L2, L3, …/);
+});
+
+// --- classifyTrim ladder (ADR 0013 amendment: quote frame follows product kind) --
+
+const trimOf = (over) => classifyTrim(normOrderItem({ sku: "T", type: "tile", priceUnit: "PC", orderUnit: "PC", ...over }));
+
+test("classifyTrim: mosaic/sheet guard outranks everything — never a trim", () => {
+  // Notional 1 m² SF/CT on a mosaic is real sheet coverage, not fabrication.
+  assert.equal(trimOf({ description: "Buildtech White Mosaic", size: "1x1", cost: 14.54, sfPerUnit: 10.76, pcPerUnit: 10 }), null);
+  // Sheet units are area product even without a mosaic word.
+  assert.equal(trimOf({ description: "Peacock Blue", priceUnit: "SH", orderUnit: "SH", cost: 23.04, sfPerUnit: 10.2, pcPerUnit: 10 }), null);
+  // A parsed backing sheet (ADR 0014) is a mosaic whatever the name says.
+  assert.equal(trimOf({ description: "Marble Chip", sheetSize: "12x12", cost: 21.79, sfPerUnit: 5.81, pcPerUnit: 6 }), null);
+});
+
+test("classifyTrim: bilingual lexicon — catches honest-coverage trims by name", () => {
+  // Stair tread with REAL footprint coverage (ratio ≈ 1.06) — only the name says trim (CTIEPLISTAIRTRR).
+  assert.equal(trimOf({ description: "Epitome Light St Tread", size: "12x48", orderUnit: "CT", cost: 294.54, sfPerUnit: 8.5, pcPerUnit: 2 }), "lexicon");
+  // Italian: gradino (step), angolare (corner) — the words VTC actually writes.
+  assert.equal(trimOf({ description: "Supreme Beige Gradino Natural", size: "13x48", cost: 266.19, sfPerUnit: 21.53, pcPerUnit: 2 }), "lexicon");
+  assert.equal(trimOf({ description: "Supreme Silver Angolare Dx Natural", size: "13x48", cost: 434.44, sfPerUnit: 10.76, pcPerUnit: 1 }), "lexicon");
+  // English end cap (ADXNEBLBASE12EDS).
+  assert.equal(trimOf({ description: "Neri Black Base Board End Cap 12 In Satin", cost: 23.89, sfPerUnit: 121.1, pcPerUnit: 45 }), "lexicon");
+  // The vendor's "ango" abbreviation of angolo (CTICADAANGODXR).
+  assert.equal(trimOf({ description: "Chalmers Ebony Ango Dx Rect", size: "13x48", cost: 452.29, sfPerUnit: 4.31, pcPerUnit: 1 }), "lexicon");
+  // Word beats word: a trim word next to a pattern word is a trim — a fascia
+  // border strip in a herringbone pattern (CDSPOAVFASSPINA), not a mosaic.
+  // Physical sheet evidence still outranks both (see the guard test).
+  assert.equal(trimOf({ description: "P.D. Ostuni Avorio Fascia Spina (Herringbone)", size: "12x22", orderUnit: "CT", cost: 27.74, sfPerUnit: 8.88, pcPerUnit: 5 }), "lexicon");
+  assert.equal(trimOf({ description: "Water's Edge Mosaic", sheetSize: "12x12", cost: 21.79, sfPerUnit: 5.81, pcPerUnit: 6 }), null, "a parsed backing sheet vetoes even a trim word");
+});
+
+test("classifyTrim: geometry-confirmed coverage keeps a genuine loose tile as flooring", () => {
+  // Large-format field tile sold per piece: $4.50/pc but each piece covers 2 sqft —
+  // cost-inversion would fire, but the size CONFIRMS the coverage (16 = 12x24/144 × 8).
+  assert.equal(trimOf({ description: "Earth Ash Gray", size: "12x24", cost: 4.5, sfPerUnit: 16, pcPerUnit: 8 }), null);
+});
+
+test("classifyTrim: cost-inversion catches fabricated coverage the lexicon misses", () => {
+  // Lexicon-free name, no parseable size, derived $/sqft cost below the piece cost.
+  assert.equal(trimOf({ description: "Neri Black Finishing Piece 12 In", cost: 23.89, sfPerUnit: 121.1, pcPerUnit: 45 }), "inversion");
+  // Same but geometry MISmatch: 13x48 piece (4.33 sf) with 10.76 stated on 1 pc.
+  assert.equal(trimOf({ description: "Custom Deco Dx", size: "13x48", cost: 100, sfPerUnit: 10.76, pcPerUnit: 1 }), "inversion");
+});
+
+test("classifyTrim: notional metric SF/CT + geometry mismatch, no inversion needed", () => {
+  // 0.5 m² stamped on a carton of twelve 3x6 strips (real: 1.5 sf) — cost stays
+  // above water ($8/pc → $17.84/sqft) so inversion can't see it; the 5.38 tell +
+  // the size mismatch can.
+  assert.equal(trimOf({ description: "Deco Strip Dx", size: "3x6", orderUnit: "CT", cost: 8, sfPerUnit: 5.38, pcPerUnit: 12 }), "notional");
+});
+
+test("classifyTrim: out of scope — SF-priced, unpriced, uncovered, untyped rows", () => {
+  assert.equal(trimOf({ description: "Neri Black Bullnose", priceUnit: "SF", cost: 11.34, sfPerUnit: 14.5, pcPerUnit: 116 }), null, "SF-priced trims keep today's path (v1)");
+  assert.equal(trimOf({ description: "Plain Corner", cost: null, sfPerUnit: 10.76 }), null, "no cost");
+  assert.equal(trimOf({ description: "Plain Corner", cost: 12 }), null, "no SF/CT — already a count line");
+  assert.equal(classifyTrim(normOrderItem({ sku: "T", type: null, priceUnit: "PC", description: "Corner Piece", cost: 12, sfPerUnit: 10.76 })), null, "untyped is already a count line");
 });

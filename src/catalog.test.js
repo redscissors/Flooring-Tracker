@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -221,6 +221,25 @@ test("getCarton: an exact carton count doesn't over-order from float noise", () 
   // 200 sf at 10% waste over 22 sf/ct is exactly 10 cartons.
   const C = getCarton(tile({ qty: "200", cartonSf: "22", cartonManual: "" }), s);
   assert.equal(C.order, 10);
+});
+
+test("getPieceCarton: pieces needed round up to whole cartons, billed per piece (ADR 0013 amendment)", () => {
+  // Bullnose, 8 pcs/carton: 14 pieces needed → 2 cartons = 16 pieces billed.
+  const p = tile({ type: "misc", qtyType: "count", qty: "14", cartonPc: "8", cartonUnit: "CT", cartonManual: "" });
+  const PC = getPieceCarton(p);
+  assert.equal(PC.cartons, 2);
+  assert.equal(PC.pieces, 16);
+  assert.equal(PC.per, 8);
+  assert.equal(PC.unit, "ct");
+  // Exactly one carton's worth doesn't over-order.
+  assert.equal(getPieceCarton(tile({ type: "misc", qtyType: "count", qty: "8", cartonPc: "8", cartonManual: "" })).cartons, 1);
+  // A manual carton count overrides, like flooring cartons.
+  assert.equal(getPieceCarton(tile({ type: "misc", qtyType: "count", qty: "14", cartonPc: "8", cartonManual: "3" })).pieces, 24);
+  // Blank qty bills one piece → one carton (the flat-misc convention).
+  assert.equal(getPieceCarton(tile({ type: "misc", qty: "", cartonPc: "8", cartonManual: "" })).cartons, 1);
+  // Loose-sold trims (no cartonPc) and non-misc rows are out of scope.
+  assert.equal(getPieceCarton(tile({ type: "misc", qtyType: "count", qty: "14", cartonPc: "", cartonManual: "" })), null);
+  assert.equal(getPieceCarton(tile({ qtyType: "count", qty: "14", cartonPc: "8", cartonManual: "" })), null);
 });
 
 test("getCarton: a manual total overrides the calculation, same as grout/mortar", () => {

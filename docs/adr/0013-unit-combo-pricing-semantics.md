@@ -84,18 +84,23 @@ Decision, amending §Decision:
    $/sqft frame when the coverage was honest — the change is which unit the
    human types, plus immunity to fabricated coverage.
 2. **Trim detection is a layered classifier at import time** (mappedItem),
-   first match wins: (a) mosaic/sheet guard — mosaic words, a sheet unit, or a
-   `(NxN/SH)` token mean genuine sqft product, never reclassified (the 2026-07
-   geometry audit found mosaics are the dominant false-positive source, 263 of
-   374 high-ratio rows); (b) a bilingual trim lexicon — English plus the
-   Italian vendors actually write (gradino, angolo/angolare, scalino,
-   battiscopa, fascia, torello), which alone sees the ~280 honest-coverage
-   stair/step pieces no numeric test can catch; (c) cost-inversion — derived
-   $/sqft cost below the per-piece cost (227 rows, language-independent);
-   (d) notional metric SF/CT (≈ 1 / 0.5 / 2 m²) combined with a geometry
-   mismatch against the parsed size. Rows nothing fires on keep today's
+   first match wins: (a) physical sheet evidence — a sheet unit or a parsed
+   backing sheet is genuine sqft product, outranks everything; (b) a bilingual
+   trim lexicon — English plus the Italian vendors actually write (gradino,
+   angolo/angolare/ango, scalino, battiscopa, fascia, torello, step/crn),
+   which alone sees the ~480 honest-coverage stair/step pieces no numeric test
+   can catch, and outranks the mosaic WORD guard (on the real file every
+   trim-word + pattern-word row — "Fascia Spina Herringbone" — is a trim);
+   (c) mosaic/pattern-word guard — genuine sqft product, never reclassified
+   (the 2026-07 geometry audit found mosaics are the dominant false-positive
+   source, 263 of 374 high-ratio rows); (d) geometry confirmation — a parsed
+   size that CONFIRMS the stated coverage (ratio ≈ 1) keeps the row flooring
+   (large-format loose tile, muretto/deco panels honestly covering area);
+   (e) cost-inversion — derived $/sqft cost below the per-piece cost,
+   language-independent; (f) notional metric SF/CT (≈ 1 / 0.5 / 2 m²)
+   contradicting the parsed size. Rows nothing fires on keep today's
    behavior, and every reclassified row is listed for review in the import
-   wizard before apply.
+   wizard before apply — un-ticking one keeps it a square-foot line.
 3. **A geometry ratio is NOT the classifier.** Tested on all 6,792 rows:
    stated-vs-computed coverage fails both directions (mosaics explode the high
    side because the description names the chip size; honest-footprint trims
