@@ -434,6 +434,41 @@ export function importSanityWarnings(items) {
   return [...groups.entries()].map(([msg, g]) => `${g.n} row${g.n === 1 ? "" : "s"} ${msg} (${g.skus.join(", ")}${g.n > g.skus.length ? ", …" : ""}).`);
 }
 
+// --- flag chips (book table) ----------------------------------------------------
+
+// Short chip labels for the hazard/advisory codes; the full message rides the
+// chip's tooltip.
+const FLAG_LABELS = {
+  "no-price": "no price", "zero-price": "$0", "no-pc-carton": "no PC/CT",
+  "pc-sf-mismatch": "unit mix", "unfamiliar-unit": "odd unit",
+  "name-litter": "name?", "name-size": "name?", "name-empty": "name?",
+  "trim-as-area": "trim as sqft", "area-below-piece-cost": "under water", "psf-outlier": "$/sqft?",
+};
+const TRIM_SIGNAL_MSG = {
+  lexicon: "Named as a trim (bullnose, gradino, end cap…) — quotes per piece, not by the square foot.",
+  inversion: "Its derived $/sqft cost landed below its own per-piece cost — the sheet's coverage isn't real, so it quotes per piece.",
+  notional: "Its SF/CT is a bare metric constant that contradicts its size — quotes per piece.",
+};
+
+// Why a book row deserves a glance — the derive-at-render source for the book
+// table's flag chips. Nothing is stored: hazards and advisories re-derive from
+// the item each render (hand-fixing the item clears its chip, old imports get
+// chips retroactively), the per-piece chip reads the import-stamped trimSignal,
+// and a disabled row explains itself when a reason is derivable — its
+// N-successor existing in `skus` (the supersede that disabled it at import).
+export function itemFlags(item, skus) {
+  const it = item || {};
+  const flags = [];
+  for (const p of itemProblems(it)) flags.push({ code: p.code, tone: "hazard", label: FLAG_LABELS[p.code] || p.code, msg: `This row imports ${p.msg}.` });
+  for (const a of rowAdvisories(it)) flags.push({ code: a.code, tone: "advisory", label: FLAG_LABELS[a.code] || a.code, msg: `This row imports ${a.msg}.` });
+  if (it.trimSignal) flags.push({ code: "trim-reclassified", tone: "info", label: "per-piece", msg: TRIM_SIGNAL_MSG[it.trimSignal] || it.trimSignal });
+  if (it.disabled && skus) {
+    const n = [`${it.sku}N`, `${it.sku}n`].find((s) => skus.has(s));
+    if (n) flags.push({ code: "superseded", tone: "muted", label: "superseded", msg: `Replaced by ${n} — disabled by the import's supersede step.` });
+  }
+  return flags;
+}
+
 // --- trim classifier (ADR 0013 amendment) --------------------------------------
 
 // Should this piece-priced, coverage-carrying row quote per PIECE instead of per

@@ -4,7 +4,7 @@ import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
-  itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim,
+  itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -676,4 +676,41 @@ test("classifyTrim: out of scope — SF-priced, unpriced, uncovered, untyped row
   assert.equal(trimOf({ description: "Plain Corner", cost: null, sfPerUnit: 10.76 }), null, "no cost");
   assert.equal(trimOf({ description: "Plain Corner", cost: 12 }), null, "no SF/CT — already a count line");
   assert.equal(classifyTrim(normOrderItem({ sku: "T", type: null, priceUnit: "PC", description: "Corner Piece", cost: 12, sfPerUnit: 10.76 })), null, "untyped is already a count line");
+});
+
+// --- itemFlags: the book table's derive-at-render flag chips --------------------
+
+test("itemFlags: hazards and advisories become chips with the full message in tow", () => {
+  const noPrice = normOrderItem({ sku: "F1", priceUnit: "SF" });
+  const f1 = itemFlags(noPrice);
+  assert.equal(f1[0].code, "no-price");
+  assert.equal(f1[0].tone, "hazard");
+  assert.match(f1[0].msg, /landing unpriced/);
+  const trimArea = normOrderItem({ sku: "F2", type: "tile", description: "Casbah Indigo Edge", size: "0.3x5", priceUnit: "PC", orderUnit: "CT", pcPerUnit: 10, sfPerUnit: 0.15, cost: 9.24 });
+  const codes = itemFlags(trimArea).map((f) => f.code);
+  assert.ok(codes.includes("trim-as-area"));
+  assert.ok(itemFlags(trimArea).every((f) => f.tone === "advisory"));
+});
+
+test("itemFlags: a reclassified trim carries a per-piece chip naming its signal", () => {
+  const it = normOrderItem({ sku: "ADXNEBLBASE12EDS", trim: true, trimSignal: "lexicon", priceUnit: "PC", orderUnit: "PC", cost: 23.89, pcPerUnit: 45, sfPerUnit: 121.1 });
+  const f = itemFlags(it).find((x) => x.code === "trim-reclassified");
+  assert.ok(f);
+  assert.equal(f.label, "per-piece");
+  assert.match(f.msg, /named as a trim/i);
+});
+
+test("itemFlags: a disabled row explains itself when its N-successor exists", () => {
+  const old = normOrderItem({ sku: "123456", description: "Old Oak", disabled: true, priceUnit: "SF", cost: 4 });
+  const skus = new Set(["123456", "123456N"]);
+  const f = itemFlags(old, skus).find((x) => x.code === "superseded");
+  assert.ok(f);
+  assert.match(f.msg, /123456N/);
+  // No successor in the book → no superseded chip, just the plain disabled state.
+  assert.equal(itemFlags(old, new Set(["123456"])).find((x) => x.code === "superseded"), undefined);
+});
+
+test("itemFlags: a clean row is chipless", () => {
+  const it = normOrderItem({ sku: "OK1", type: "tile", description: "Earth Ash Gray", size: "12x24", priceUnit: "SF", orderUnit: "CT", cost: 3.29, sfPerUnit: 15.5, pcPerUnit: 12 });
+  assert.deepEqual(itemFlags(it), []);
 });
