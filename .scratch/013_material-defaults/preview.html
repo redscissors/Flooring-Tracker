@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Material chip defaults — preview</title>
+<style>
+  :root{
+    --ink:#1c1a17; --muted:#6b6560; --faint:#9a938c; --paper:#faf8f4;
+    --card:#ffffff; --border:#e7e2da; --rowtint:#f4f1ea; --accent:#4f46e5;
+    --moss:#5b6b4f;
+  }
+  *{box-sizing:border-box;font-family:Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{margin:0;background:var(--paper);color:var(--ink);padding:28px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 22px}
+  .grid{display:grid;grid-template-columns:1fr;gap:24px;max-width:900px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .panel h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0;padding:12px 16px;border-bottom:1px solid var(--border);background:#fcfbf8}
+  .panel .body{padding:16px}
+  .cap{font-size:12px;color:var(--muted);margin:0 0 10px}
+
+  /* collapsed materials strip (off-state chip) */
+  .mats{background:var(--rowtint);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .matrow{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:13px}
+  .matrow + .matrow{border-top:1px solid var(--border)}
+  .cbox{width:18px;height:18px;border-radius:5px;border:1px solid #c9c2b8;background:#fff;flex:none}
+  .mlabel{color:var(--muted)}
+  .mdefault{color:var(--faint);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stale{text-decoration:line-through;color:#c0392b;opacity:.7}
+  .arrow{color:var(--faint)}
+
+  /* settings detail header */
+  .dh{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+  .eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+  .title{font-family:"Playfair Display",Georgia,serif;font-size:28px;line-height:1.1;margin:0;display:flex;align-items:center;gap:10px}
+  .pencil{color:#cfc8bf;font-size:15px}
+  .ctrls{display:flex;align-items:center;gap:14px;flex:none;padding-top:4px;font-size:12px;color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-weight:600}
+  .setdef{color:var(--faint);cursor:pointer;background:none;border:none;font-size:12px}
+  .setdef:hover{color:var(--accent)}
+  .chk{display:inline-flex;align-items:center;gap:6px}
+  .star{width:12px;height:12px;fill:currentColor}
+  .trash{color:#cfc8bf}
+
+  /* master list rows */
+  .master{width:300px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .co{padding:6px 12px;font-size:12px;color:var(--muted);background:#fcfbf8;border-bottom:1px solid var(--border)}
+  .mitem{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 34px;border-left:2px solid transparent}
+  .mitem.active{border-left-color:var(--accent);background:rgba(79,70,229,.06)}
+  .mitem .nm{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600}
+  .mitem .hint{font-size:10px;color:var(--faint)}
+  .mitem .col{display:flex;flex-direction:column;min-width:0;flex:1}
+  .ministar{width:10px;height:10px;fill:var(--accent);color:var(--accent)}
+  .chev{color:#d8d2c9;margin-left:auto}
+  .two{display:flex;gap:18px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+  <h1>Material chip defaults — preview proof</h1>
+  <p class="sub">Prototype of the two surfaces. Not the live app — real markup/classes are in <code>App.jsx</code>.</p>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>1 · Off-state material chip (what a new tile row shows)</h2>
+      <div class="body">
+        <p class="cap"><b>Before:</b> the row hard-defaults to the seed name. If the team retired "ProLite", the chip still names it — and turning it on computes nothing.</p>
+        <div class="mats" style="margin-bottom:18px">
+          <div class="matrow"><span class="cbox"></span><span class="mlabel">Grout</span><span class="mdefault">PermaColor Select</span></div>
+          <div class="matrow"><span class="cbox"></span><span class="mlabel">Mortar</span><span class="mdefault stale">ProLite</span></div>
+        </div>
+        <p class="cap"><b>After:</b> the chip resolves against what the catalog offers — the row's own pick → the team's catalog default → first offered. A retired "ProLite" quietly falls to the current default.</p>
+        <div class="mats">
+          <div class="matrow"><span class="cbox"></span><span class="mlabel">Grout</span><span class="mdefault">PermaColor Select</span></div>
+          <div class="matrow"><span class="cbox"></span><span class="mlabel">Mortar</span><span class="mdefault">AcrylPro</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>2 · Settings · Mortar detail header — Set as default / ★ Default</h2>
+      <div class="body">
+        <p class="cap">Viewing the current default product — the badge marks it:</p>
+        <div class="dh" style="margin-bottom:22px">
+          <div>
+            <div class="eyebrow">Custom Building Products · Mortar</div>
+            <h3 class="title">AcrylPro <span class="pencil">✎</span></h3>
+          </div>
+          <div class="ctrls">
+            <span class="badge"><svg class="star" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Default</span>
+            <span class="chk"><span class="cbox" style="background:var(--accent);border-color:var(--accent)"></span> offered on jobs</span>
+            <span class="trash">🗑</span>
+          </div>
+        </div>
+        <p class="cap">Viewing any other product — click to promote it:</p>
+        <div class="dh">
+          <div>
+            <div class="eyebrow">Schluter · Mortar</div>
+            <h3 class="title">Schluter All Set <span class="pencil">✎</span></h3>
+          </div>
+          <div class="ctrls">
+            <button class="setdef">Set as default</button>
+            <span class="chk"><span class="cbox" style="background:var(--accent);border-color:var(--accent)"></span> offered on jobs</span>
+            <span class="trash">🗑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>3 · Settings master list — the default carries a small star</h2>
+      <div class="body">
+        <div class="two">
+          <div class="master">
+            <div class="co">☑ Custom Building Products</div>
+            <div class="mitem active"><span class="col"><span class="nm">AcrylPro <svg class="ministar" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span><span class="hint">Mortar · gallons</span></span><span class="chev">›</span></div>
+            <div class="mitem"><span class="col"><span class="nm">ProLite</span><span class="hint">Mortar · bags</span></span><span class="chev">›</span></div>
+            <div class="co" style="border-top:1px solid var(--border)">☑ Schluter</div>
+            <div class="mitem"><span class="col"><span class="nm">Schluter All Set</span><span class="hint">Mortar · bags</span></span><span class="chev">›</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

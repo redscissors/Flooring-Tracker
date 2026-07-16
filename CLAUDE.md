@@ -138,7 +138,14 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // color), snapshotted at the same moment; the SKU shows on caulk
            // lines and tubes × caulkPrice joins the estimate totals (rows
            // without a snapshot price cost $0, as before).
-           underlay:{checked,product,manual,install} }
+           underlay:{checked,product,manual,install},
+           attached:{ [categoryId]: {checked,product,manual} } }
+           // attached = add-on material categories (ADR 0016, PR 3): one entry
+           // per custom category, keyed by the category id, resolved by NAME at
+           // calc time (mortar convention, no snapshot). getAttached does the
+           // math — "coverage" scales like underlayment, "manual" is the typed
+           // quantity — and attachedList aggregates the job's lines once for the
+           // order summary, estimate breakdown, order sheet, and grand total.
            // underlay.install = also order the catalog-defined install
            // materials (backer mortar, screws) for the chosen underlayment
            // cartonSf = sq ft one carton/sheet covers (any type but misc;
@@ -208,8 +215,10 @@ into the estimate totals; caulk itself never lives in the catalog.
 Unlinked grouts keep the code-defined standard color list. Custom
 underlayment install items also carry an optional `sku`.
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
-App.jsx): left-nav sections (General · Price book · Grout & colors · Mortar &
-underlayment · Backup & restore) with master→detail catalog editing; every
+App.jsx): left-nav sections (General · Price book · Materials & add-ons ·
+Backup & restore; the built-in Grout / Mortar / Underlayment categories
+present as a locked library, spec 2026-07-15) with master→detail catalog
+editing; every
 SKU-bearing field is price-book-search-first with manual entry as the
 fallback. The catalog master list is section-scoped: a company shows under a
 section only when it has products of that section's kinds, the rest sit in a
@@ -218,6 +227,18 @@ the add-product actions, rename, and delete (when empty). Products rename in
 place from the detail header (`renameProduct` in catalog.js — same saved-jobs
 consequence as delete since jobs resolve by name, and a renamed seed
 underlayment tombstones its seed name like a deleted one).
+The Add-ons group below the built-ins holds team-defined custom material
+categories (ADR 0016): `catalog.categories` (name · floorTypes · coverage-or-
+manual math · chip default · enabled) with company-grouped products in each
+company's flat `attached` array (`categoryId` ties product → category), full
+price-book parity including exact-SKU price refresh on import. Jobs wire them in
+(PR 3): each enabled category whose `floorTypes` include a product row's type
+shows an add chip beside Grout/Mortar/Underlayment; toggling it on pre-fills the
+category default and the line joins the materials box, order summary, estimate
+breakdown/totals, printed estimate, and order sheet. `getAttached` does the math
+("coverage" like underlayment, "manual" a typed quantity), `attachedList` the
+shared aggregate, and `materialWarnings` flags a checked chip whose product no
+longer resolves — all resolving by name at calc time, like mortar.
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add

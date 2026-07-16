@@ -39,10 +39,18 @@ function headerFieldFor(label) {
   if (h.includes("color") || h.includes("colour")) return "name";
   if (h.includes("variation") || h.includes("shade")) return "variation";
   if (h.includes("description") || h.includes("decription")) return "desc";
-  if (h.includes("piece") || h.includes("pcs") || h.includes("rows")) return "pcPerUnit"; // Pieces/Pcs/Rows per Box/Sheet (count)
+  // "Rows per Sheet" (a mosaic's chip-row count) is NOT piece packaging — it is
+  // read only to derive the chip size, never as pcPerUnit (which would divide the
+  // per-sheet coverage). Kept ahead of the piece rule so "rows" wins.
+  if (h.includes("rows")) return "rows";
+  if (h.includes("piece") || h.includes("pcs")) return "pcPerUnit"; // Pieces/Pcs per Box (count)
   if ((h.includes("sqf") || h.startsWith("sf")) && (h.includes("box") || h.includes("sheet"))) return "sfPerUnit"; // SQF per Box/Sheet = coverage
   if (h.includes("sqf") || h.includes("persf")) return "priceSf"; // $ per SQF
   if (h.includes("perbox") || h.includes("boxprice") || h.includes("persheet") || h.includes("percarton")) return "priceBox"; // $ per Box/Sheet/Carton
+  // A mosaic's "Sheet Size" is the backing-sheet dimension, never the chip's
+  // L×W (ADR 0014) — routed to its own field before the generic size rule so it
+  // can't fill the tile size cell and drive grout off a ~12" tile.
+  if (h.includes("sheetsize")) return "sheetSize";
   if (h.includes("size") || h.includes("dimension")) return "size";
   if (h === "price") return "price"; // bare price column, basis inferred per row
   if (h === "um" || h === "uom" || h.includes("unit")) return "unit";
@@ -53,9 +61,9 @@ function headerFieldFor(label) {
 // synthetic header row, and the suggested wizard mapping (index → order-item
 // field). $ per SQF and $ per Box collapse into one cost + its Price U/M so the
 // order model's single-cost item works whether a page prices by box or by foot.
-const CANON = ["Item #", "Name", "Collection", "Variation", "Size", "Pieces/Box", "SQF/Box", "Cost", "Price U/M"];
+const CANON = ["Item #", "Name", "Collection", "Variation", "Size", "Sheet Size", "Pieces/Box", "SQF/Box", "Cost", "Price U/M"];
 const CANON_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "style", 4: "size", 5: "pcPerUnit", 6: "sfPerUnit", 7: "cost", 8: "priceUnit" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "style", 4: "size", 5: "sheetSize", 6: "pcPerUnit", 7: "sfPerUnit", 8: "cost", 9: "priceUnit" },
   headerRow: 0,
   // Glazzio item codes: L11LASA, BSP5203, 18-digit numbers, and dotted ones
   // (L11ST.IM). The stock/default patterns drop the dotted and long-numeric
@@ -68,6 +76,74 @@ const num = (c) => {
   const n = parseFloat(str(c).replace(/[$,]/g, ""));
   return Number.isFinite(n) ? n : null;
 };
+
+// A single dimension as printed on a Glazzio mosaic page: a whole number, a
+// decimal, or a mixed fraction ("11 3/4", "11 13/16"), or a bare fraction.
+const dimNum = (s) => {
+  const t = str(s).replace(/["']/g, " ").trim();
+  const mf = t.match(/^(\d+(?:\.\d+)?)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mf) return +mf[1] + +mf[2] / +mf[3];
+  const bf = t.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (bf) return +bf[1] / +bf[2];
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+// A mixed-fraction dimension token, for the "W x H" of a sheet size. Kept loose
+// so "11 1/2" x 11 13/16"" and "12 x 12"" both split into two dims.
+const MIXED = "\\d+(?:\\.\\d+)?(?:\\s+\\d+\\s*/\\s*\\d+)?|\\d+\\s*/\\s*\\d+";
+const SHEET_DIMS_RE = new RegExp(`(${MIXED})\\s*["']?\\s*[x×]\\s*(${MIXED})`, "i");
+
+// "11 3/4\" x 11 7/8\"" (a Sheet Size cell) or a prose "SHEET SIZE: … " → a
+// decimal "WxH" string parseTileSize/downstream can read; "" when not two dims.
+const parseSheetDims = (s) => {
+  const m = str(s).replace(/["']/g, " ").match(SHEET_DIMS_RE);
+  if (!m) return "";
+  const w = dimNum(m[1]), h = dimNum(m[2]);
+  return w > 0 && h > 0 ? `${w}x${h}` : "";
+};
+
+// A descriptive string that already carries a chip size — "2x2 Mosaic",
+// "Hexagon 2\"" — so a rows-derived chip must not override the printed one.
+const hasChipToken = (s) =>
+  /\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d/i.test(str(s)) ||
+  /\d+(?:\.\d+)?\s*["']?\s*(?:hex|hexagon|penny|round|octagon)/i.test(str(s));
+
+// chip ≈ sheet dimension ÷ rows-per-sheet. The sheet is ~square, so the two
+// sides are averaged; the result snaps to the nearest 1/4". A square chip stands
+// in for grout volume even when the real chip is a hex (a 1" square ≈ a 1" hex).
+// Bounded to ≤6" — a bigger "chip" means this isn't a mosaic and we derive none.
+function deriveChipFromRows(sheetSize, rows) {
+  const r = parseInt(str(rows), 10);
+  if (!(r > 0) || !sheetSize) return "";
+  const [w, h] = sheetSize.split("x").map(Number);
+  if (!(w > 0) || !(h > 0)) return "";
+  const per = (w + h) / 2 / r;
+  if (!(per > 0) || per > 6) return "";
+  const q = Math.round(per * 4) / 4;
+  return `${q}x${q}`;
+}
+
+// A mosaic page states its backing-sheet size and per-sheet coverage as a prose
+// line — "SHEET SIZE: 11 1/2" x 11 13/16" = .943 SQF" or the 24x48 pages'
+// "MOSAIC COVERAGE: 12 x 12" = 1 SQF" — not a column. Scan this table section's
+// band for it so the row can price/order per sheet even when it has no coverage
+// column. Returns { sheetSize, sqf } | null.
+function sheetFactsFor(clustered, header, nextY) {
+  for (const r of clustered) {
+    if (r.y <= header.y || r.y >= nextY) continue;
+    const text = [...r.items].sort((a, b) => a.x - b.x).map((it) => it.str).join(" ");
+    // Read from the keyword onward: the 24x48 pages print the mosaic line right
+    // after an unrelated "24x48 COVERAGE : 7.75 SQF/PC", whose 24x48 would
+    // otherwise be grabbed as the sheet size.
+    const key = text.match(/(?:sheet\s*size|mosaic\s*coverage)\s*:?\s*(.*)$/i);
+    if (!key) continue;
+    const seg = key[1];
+    const cov = seg.match(/=\s*(\.?\d+(?:\.\d+)?)\s*(?:sqf|sf)/i);
+    return { sheetSize: parseSheetDims(seg), sqf: cov ? parseFloat(cov[1]) : null };
+  }
+  return null;
+}
 
 // A token that looks like a product code: alphanumerics (plus . and -) with a
 // digit, and not a tile size ("24x48"). Used to pick the table's product rows
@@ -261,15 +337,39 @@ function assignRow(rowItems, columns) {
 
 // One aligned canonical row from a page's raw field record, or null when there
 // is nothing SKU-ish to anchor it (kept minimal — parseMapped is the real gate).
-function canonRow(raw) {
-  const sku = str(raw.sku);
+// `sheet` carries this table section's prose sheet facts ({ sheetSize, sqf }),
+// applied when the row's own columns leave sheet size / coverage blank.
+function canonRow(raw, sheet) {
+  let sku = str(raw.sku);
   if (!sku) return null;
+  // A leftmost/SKU cell that swallowed the following text — a longer "-M" mosaic
+  // code kerned against the color name with no gutter, so column detection merged
+  // them ("LRGSTB10-M Stream Bone 2x2 Mosaic"). Peel the code back off and return
+  // the remainder to the name, so the row survives the SKU gate and its
+  // name-borne chip size parses. Only ever splits a "<code> <more>" cell.
+  if (/\s/.test(sku)) {
+    const m = sku.match(/^(\S+)\s+(.+)$/);
+    if (m && isSkuish(m[1])) { sku = m[1]; raw = { ...raw, name: [m[2], str(raw.name)].filter(Boolean).join(" ") }; }
+  }
   const name = [str(raw.name), str(raw.desc)].filter(Boolean).join(" ");
+  // Sheet size: an explicit "Sheet Size" column wins, else this section's prose
+  // sheet line. Coverage likewise falls back to the prose "= X SQF".
+  const sheetSize = parseSheetDims(raw.sheetSize) || (sheet ? sheet.sheetSize : "") || "";
+  // The chip cascade: a printed chip size (column, or in the name downstream)
+  // wins; else derive it from Rows per Sheet ÷ sheet dimension; else leave it
+  // blank so the row prompts for the chip (ADR 0014).
+  let size = str(raw.size);
+  if (!size && !hasChipToken(name)) size = deriveChipFromRows(sheetSize, raw.rows);
   // $ per Box is the sellable-unit cost when present (order by box); otherwise
   // $ per SQF prices by the foot; a bare "Price" column follows whichever unit
   // the page implies (box when it lists a box coverage, else by the foot).
   let box = num(raw.priceBox), sf = num(raw.priceSf);
-  const generic = num(raw.price), sfBox = num(raw.sfPerUnit);
+  const generic = num(raw.price);
+  // Coverage: the row's own SF/box column, else this section's prose per-sheet
+  // coverage — so a mosaic priced only per sheet still orders in whole sheets and
+  // derives a $/sqft. The printed prices then reconcile it (guard below).
+  let sfBox = num(raw.sfPerUnit);
+  if (sfBox == null && sheet && sheet.sqf != null) sfBox = sheet.sqf;
   // Self-consistency guard: when the book prints a box price, a $/sqft, AND the
   // SF/box, then box ÷ SF-box must reconcile with the printed $/sqft. If it does
   // not, this row's columns were misread (e.g. a pallet-priced layout with extra
@@ -289,7 +389,7 @@ function canonRow(raw) {
   // into the price slot on an unusual layout. Drop the cost — missing beats wrong.
   const perSf = unit === "SF" ? cost : (cost != null && sfBox ? cost / sfBox : null);
   if (perSf != null && perSf > 200) { cost = null; unit = ""; }
-  return [sku, name, str(raw.collection), str(raw.variation), str(raw.size),
+  return [sku, name, str(raw.collection), str(raw.variation), size, sheetSize,
     raw.pcPerUnit != null ? str(raw.pcPerUnit) : "", sfBox != null ? String(sfBox) : "",
     cost != null ? String(cost) : "", unit];
 }
@@ -331,12 +431,16 @@ export function parsePdfPages(pages, name = "Price list") {
       const columns = detectColumns(productRows.flatMap((row) => row.items), header.items);
       if (!columns.some((c) => c.field === "sku")) continue;
       pageHadTable = true;
+      // A mosaic section states its backing-sheet size + per-sheet coverage as a
+      // prose line ("SHEET SIZE: … = .943 SQF"), not a column; read it once for
+      // the section so each row can price/order per sheet and derive its chip.
+      const sheet = sheetFactsFor(clustered, header, nextY);
       for (const row of productRows) {
         const raw = assignRow(row.items, columns);
         // The book has no Collection column, so stamp the section heading; a
         // page that ever does carry one keeps its own value.
         if (title && !str(raw.collection)) raw.collection = title;
-        const canon = canonRow(raw);
+        const canon = canonRow(raw, sheet);
         if (canon) rows.push(canon);
       }
     }

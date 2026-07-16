@@ -7,6 +7,12 @@
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
 
+// The product a brand-new tile row defaults its grout/mortar chip to. Team-set
+// via Settings and stored on `catalog.defaults`; these seed values are only the
+// starting point (and the last-resort when a stored default is blank).
+export const DEFAULT_GROUT = "PermaColor Select";
+export const DEFAULT_MORTAR = "ProLite";
+
 // The flooring types a product row can be. Underlayment products are tagged with
 // the subset of these they apply to (an empty tag list = applies to all types).
 export const FLOOR_TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
@@ -74,11 +80,24 @@ export function getMortar(p, s) {
   return { exact: ex, order: ceilQty(ex), unit: m.unit, price: num(m.price), product: p.mortar.product };
 }
 
+// A penny round (or any round chip) leaves grout at the four corners its circle
+// can't reach — area the L×W square proxy never accounts for — so it needs more
+// grout than a square tile of the same size. `roundGroutExtra` is that corner
+// fill as a volume-per-area term added onto the square joint volume: each cell
+// is (d+J)², the circle covers πd²/4, so the corners are d²(1−π/4) of the cell
+// (ADR 0015). Rounds are recognized by the "Penny"/"Round" the size string
+// carries (hexes tile flush and are excluded). Off for square tiles.
+const ROUND_RE = /\b(penny|round)\b/i;
+export const isRoundTile = (p) => p?.type === "tile" && ROUND_RE.test(String(p?.sizeText || ""));
+const roundGroutExtra = (d, J, T) => { const cell = d + J; return cell > 0 ? ((d * d * (1 - Math.PI / 4)) / (cell * cell)) * T : 0; };
+
 export function groutExact(p, s) {
   if (p.type !== "tile" || p.qtyType !== "sqft") return null;
   const sqft = num(p.qty), L = num(p.L), W = num(p.W), T = num(p.thickness), J = num(p.grout.joint);
   if (!sqft || !L || !W || !T || !J) return null;
-  const vol = ((L + W) / (L * W)) * T * J; if (!vol) return null;
+  let vol = ((L + W) / (L * W)) * T * J;
+  if (isRoundTile(p)) vol += roundGroutExtra((L + W) / 2, J, T);
+  if (!vol) return null;
   const cov = num(s.grouts[p.grout.product]?.coverage) * (REF / vol);
   return sqft * wasteFor(p, s) / (cov || 1);
 }
@@ -86,9 +105,9 @@ export function groutExact(p, s) {
 export function getGrout(p, s) {
   if (p.type !== "tile" || !p.grout.checked) return null;
   const g = s.grouts[p.grout.product] || {};
-  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color }; }
+  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) }; }
   const ex = groutExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color };
+  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) };
 }
 
 // The base unit a two-part grout drags along (ADR 0006). One base per grout kit,
@@ -221,6 +240,11 @@ export function materialWarnings(p, s) {
     const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((d) => !p.underlay.installSkip?.[d.id]);
     if (defs.length && !getUnderlayInstall(p, s)) out.push("install");
   }
+  // Add-on categories (ADR 0016): a checked chip whose product no longer
+  // resolves — or whose coverage can't compute — is warned like the built-ins.
+  for (const cat of (s.catalog?.categories || [])) {
+    if (p.attached?.[cat.id]?.checked && !getAttached(p, s, cat)) out.push(`attach:${cat.id}`);
+  }
   return out;
 }
 
@@ -316,6 +340,7 @@ export function seedCatalog(flat) {
     grouts: co.grouts.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
     mortars: co.mortars.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
     underlayments: seedUnderlaysFor(co.name),
+    attached: [],
   }));
   const extraG = Object.keys(g).filter((n) => !seededG.has(n));
   const extraM = Object.keys(m).filter((n) => !seededM.has(n));
@@ -325,9 +350,25 @@ export function seedCatalog(flat) {
       grouts: extraG.map((name) => ({ id: cid(), name, enabled: true, ...groutFields(g[name]) })),
       mortars: extraM.map((name) => ({ id: cid(), name, enabled: true, ...mortarFields(m[name]) })),
       underlayments: [],
+      attached: [],
     });
   }
-  return { companies };
+  return { companies, categories: [], defaults: normDefaults() };
+}
+
+// The team's chosen chip defaults, one per material kind. Stored names are kept
+// verbatim (they may point at a now-hidden product); resolveMaterialDefault
+// decides at chip time whether they still apply. Absent → the seed names.
+export const normDefaults = (raw) => ({
+  grout: String(raw?.grout ?? DEFAULT_GROUT),
+  mortar: String(raw?.mortar ?? DEFAULT_MORTAR),
+  underlay: String(raw?.underlay ?? ""),
+});
+
+// Set the chip default for a kind ("grouts"/"mortars"/"underlayments") to a product name.
+export function setCatalogDefault(catalog, kind, name) {
+  const key = kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlay";
+  return { ...catalog, defaults: { ...normDefaults(catalog?.defaults), [key]: String(name || "") } };
 }
 
 const normGroutProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...groutFields(p) });
@@ -367,8 +408,9 @@ export function normalizeCatalog(catalog) {
     grouts: (co?.grouts || []).map(normGroutProduct),
     mortars: (co?.mortars || []).map(normMortarProduct),
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
+    attached: (co?.attached || []).map(normAttachedProduct),
   }));
-  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds };
+  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, categories: (Array.isArray(catalog?.categories) ? catalog.categories : []).map(normCategory), defaults: normDefaults(catalog?.defaults) };
 }
 
 // True when the stored catalog already contains every starter underlayment
@@ -394,7 +436,7 @@ export function isDuplicateName(catalog, kind, name) {
 }
 
 export function addCompany(catalog, name) {
-  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [] };
+  const company = { id: cid(), name: String(name || "").trim() || "New Company", enabled: true, grouts: [], mortars: [], underlayments: [], attached: [] };
   return { ...catalog, companies: [...(catalog?.companies || []), company] };
 }
 
@@ -402,7 +444,7 @@ export function addCompany(catalog, name) {
 // caller's gate (see isDuplicateName) — this is the pure append.
 export function addProduct(catalog, companyId, kind, fields) {
   const base = { id: cid(), name: String(fields?.name || "").trim(), enabled: true };
-  const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : underlayFields(fields);
+  const shape = kind === "grouts" ? groutFields(fields) : kind === "mortars" ? mortarFields(fields) : kind === "attached" ? attachedFields(fields) : underlayFields(fields);
   const product = { ...base, ...shape };
   return { ...catalog, companies: (catalog?.companies || []).map((co) => co.id === companyId ? { ...co, [kind]: [...(co[kind] || []), product] } : co) };
 }
@@ -451,13 +493,14 @@ export function removeCompany(catalog, companyId) {
 // since-hidden product still computes. Names are unique per kind, so last write
 // on a duplicate would win — but uniqueness is enforced on add.
 export function resolveCatalog(catalog) {
-  const grouts = {}, mortars = {}, underlayments = {};
+  const grouts = {}, mortars = {}, underlayments = {}, attached = {};
   for (const co of (catalog?.companies || [])) {
     for (const p of (co.grouts || [])) grouts[p.name] = groutFields(p);
     for (const p of (co.mortars || [])) mortars[p.name] = mortarFields(p);
     for (const p of (co.underlayments || [])) underlayments[p.name] = underlayFields(p);
+    for (const p of (co.attached || [])) { (attached[p.categoryId] ||= {})[p.name] = attachedFields(p); }
   }
-  return { grouts, mortars, underlayments };
+  return { grouts, mortars, underlayments, attached };
 }
 
 // A product is offered in a job dropdown only when BOTH its company and itself
@@ -473,6 +516,21 @@ const offeredNames = (catalog, kind) => {
 export const offeredGrouts = (catalog) => offeredNames(catalog, "grouts");
 export const offeredMortars = (catalog) => offeredNames(catalog, "mortars");
 
+// The product a fresh row's grout/mortar chip should show, resolved against
+// what the catalog currently offers. Order of preference:
+//   1. the row's own pick, when it is still offered (a real, valid choice)
+//   2. the team's catalog default (`preferred`), when it is still offered
+//   3. the first offered product — so the chip never lands on a name that
+//      computes nothing (e.g. a renamed/removed seed like ProLite)
+// A fresh row carries no pick (product ""), so the catalog default governs it;
+// falls through to "" only when the catalog offers nothing.
+export const resolveMaterialDefault = (offered, current, preferred) => {
+  const list = offered || [];
+  if (current && list.includes(current)) return current;
+  if (preferred && list.includes(preferred)) return preferred;
+  return list[0] || "";
+};
+
 // Underlayments are additionally filtered by flooring type: a product is offered
 // to a job only when its `types` tag includes that type (an empty tag = all).
 export const offeredUnderlayments = (catalog, type) => {
@@ -480,6 +538,119 @@ export const offeredUnderlayments = (catalog, type) => {
   for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (!(p.types || []).length || p.types.includes(type))) names.push(p.name);
   return names;
 };
+
+// --- Custom material categories (ADR 0016) -----------------------------------
+// The built-ins (grout/mortar/underlayment) stay first-class code; `categories`
+// holds only the team's custom add-on categories (Trim, Sealer, …). floorTypes
+// empty = offered on all types (underlayment's `types` convention); `math`
+// picks the quantity model: "coverage" = flat sq ft/unit like underlayment,
+// "manual" = typed per-row quantity. `default` is the chip's pre-selected
+// product name (resolveMaterialDefault semantics; "" = first offered).
+export const CATEGORY_MATHS = ["coverage", "manual"];
+const categoryFields = (c) => ({
+  name: String(c?.name ?? "").trim(),
+  floorTypes: (Array.isArray(c?.floorTypes) ? c.floorTypes : []).filter((t) => FLOOR_TYPES.includes(t)),
+  math: CATEGORY_MATHS.includes(c?.math) ? c.math : "coverage",
+  default: String(c?.default ?? ""),
+});
+const normCategory = (c) => ({ id: c?.id || cid(), enabled: c?.enabled !== false, ...categoryFields(c) });
+
+// Custom names may not collide with each other or shadow a built-in label —
+// the Materials & add-ons nav lists both groups side by side.
+const BUILTIN_CATEGORY_NAMES = ["grout", "mortar", "underlayment"];
+export function isDuplicateCategoryName(catalog, name, exceptId) {
+  const target = normName(name);
+  if (!target) return false;
+  if (BUILTIN_CATEGORY_NAMES.includes(target)) return true;
+  return (catalog?.categories || []).some((c) => c.id !== exceptId && normName(c.name) === target);
+}
+
+export function addCategory(catalog, fields) {
+  return { ...catalog, categories: [...(catalog?.categories || []), normCategory({ ...fields, id: undefined, enabled: true })] };
+}
+
+export function updateCategory(catalog, categoryId, patch) {
+  return { ...catalog, categories: (catalog?.categories || []).map((c) => c.id === categoryId ? normCategory({ ...c, ...patch, id: c.id }) : c) };
+}
+
+const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, sku: skuField(p) });
+const normAttachedProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...attachedFields(p) });
+
+// Attached names are unique within their category (a "RENO-U" trim and a
+// "RENO-U" threshold can coexist) — the per-kind convention, category-scoped.
+export function isDuplicateAttachedName(catalog, categoryId, name) {
+  const target = normName(name);
+  if (!target) return false;
+  for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (p.categoryId === categoryId && normName(p.name) === target) return true;
+  return false;
+}
+
+export const offeredAttached = (catalog, categoryId) => {
+  const names = [];
+  for (const co of (catalog?.companies || [])) for (const p of (co.attached || [])) if (isOffered(co, p) && p.categoryId === categoryId) names.push(p.name);
+  return names;
+};
+
+// The enabled add-on categories a product row of `type` offers as chips: an
+// empty floorTypes list = every type (underlayment's `types` convention).
+export const offeredCategories = (catalog, type) =>
+  (catalog?.categories || []).filter((c) => c.enabled !== false && (!(c.floorTypes || []).length || (c.floorTypes || []).includes(type)));
+
+// A job's add-on material for one category, resolved by NAME at calc time
+// (mortar/underlayment convention — no snapshot). Same
+// `{ exact, order, unit, price, product }` shape as getUnderlay. Two quantity
+// models: "manual" (the typed per-row quantity IS the amount, no area math) and
+// "coverage" (flat sq ft/unit scaled off area × waste, a manual total wins —
+// identical to underlayment). Returns null when the product name no longer
+// resolves (deleted/renamed) so materialWarnings can flag it. Never on misc.
+export function getAttached(p, s, category) {
+  if (!category || p.type === "misc") return null;
+  const a = p.attached?.[category.id];
+  if (!a || !a.checked) return null;
+  const prod = (s.attached?.[category.id] || {})[a.product];
+  if (!prod) return null;
+  const unit = prod.unit || "units", price = num(prod.price), product = a.product;
+  if (category.math === "manual") { const v = num(a.manual); return { exact: v, order: v, unit, price, product }; }
+  if (a.manual !== "" && a.manual != null) { const v = num(a.manual); return { exact: v, order: v, unit, price, product }; }
+  if (p.qtyType !== "sqft") return null;
+  const sqft = num(p.qty); if (!sqft) return { exact: 0, order: 0, unit, price, product };
+  const cov = num(prod.coverage); if (!cov) return null;
+  const exact = sqft * wasteFor(p, s) / cov;
+  return { exact, order: ceilQty(exact), unit, price, product };
+}
+
+// Whole-job add-on materials, aggregated one line per (category, product):
+// exact summed then ceiled once (like the on-screen totals), cost from the
+// ceiled order. Shared by the order summary, estimate breakdown, order sheet,
+// and grand total so they can never disagree (the groutBaseList precedent).
+// `cust.categories` are the job's areas; add-on categories live on s.catalog.
+export function attachedList(cust, s) {
+  const cats = s.catalog?.categories || [];
+  if (!cats.length) return [];
+  const byCat = new Map();
+  for (const area of (cust?.categories || [])) for (const p of (area.products || [])) for (const cat of cats) {
+    const A = getAttached(p, s, cat); if (!A) continue;
+    const m = byCat.get(cat.id) || new Map();
+    const e = m.get(A.product) || { categoryId: cat.id, category: cat.name, product: A.product, unit: A.unit, price: A.price, exact: 0 };
+    e.exact += A.exact; e.unit = A.unit; e.price = A.price;
+    m.set(A.product, e); byCat.set(cat.id, m);
+  }
+  const out = [];
+  for (const cat of cats) { const m = byCat.get(cat.id); if (!m) continue; for (const e of m.values()) { const order = ceilQty(e.exact); const sku = s.attached?.[cat.id]?.[e.product]?.sku || ""; out.push({ ...e, sku, order, cost: order * num(e.price) }); } }
+  return out;
+}
+
+// Deleting a category is permanent and sharper than disabling: its products
+// are pruned from every company, and (once jobs wire in, PR 3) saved jobs
+// keep the stored name but stop calculating — same consequence as deleting a
+// product.
+export function removeCategory(catalog, categoryId) {
+  return {
+    ...catalog,
+    categories: (catalog?.categories || []).filter((c) => c.id !== categoryId),
+    companies: (catalog?.companies || []).map((co) => (co.attached || []).some((p) => p.categoryId === categoryId) ? { ...co, attached: co.attached.filter((p) => p.categoryId !== categoryId) } : co),
+  };
+}
 
 // Operational provenance, shared team-wide with the settings record: who last
 // ran the price-book import / backup download, and when. Purely informational —

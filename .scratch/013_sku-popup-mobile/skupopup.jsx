@@ -43,15 +43,27 @@ const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos.bottom
 
 const hitKey = (it) => (it.bookId || "stock") + "|" + it.sku;
 
+const faceSize = (it) => {
+  const s = String(it?.size || "").trim();
+  const m = s.match(/^\s*(\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d+(?:\.\d+)?\s*["']?)/i);
+  return (m ? m[1] : s).trim();
+};
+
+const SizeChip = ({ it }) => {
+  const sz = faceSize(it);
+  return sz ? <span className="ft-mono text-[11px] font-semibold text-slate-500 shrink-0">{sz}</span> : null;
+};
+
 const StockHit = ({ it }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product || it.section}</span>
     </div>
     <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
       <span className="md:hidden ft-mono shrink-0">{it.sku}</span>
-      <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
+      <span className="truncate">{[it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
       <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
   </>
@@ -61,6 +73,7 @@ const OrderHit = ({ it, bookName }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product}</span>
       <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>

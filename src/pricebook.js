@@ -32,6 +32,7 @@ const numOrNull = (c) => {
   return Number.isFinite(n) ? n : null;
 };
 const round2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
+const round4 = (n) => (n == null ? null : Math.round(n * 10000) / 10000);
 
 // Header-name → item field. Compared lowercased with spaces/punctuation
 // collapsed, so "Retail ", "SF Price" and "Price / SF" all land.
@@ -597,13 +598,36 @@ const SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?`, "i
 // being shoved into the color name. A bare '6"' with no shape word is left in
 // the name on purpose — no shape word, no coverage.
 const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
-const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*(${SHAPE_WORDS})\\b`, "i");
+const INCH_MARK = `["']|in(?:ch(?:es)?)?\\b`;
+const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})?\\s*(${SHAPE_WORDS})\\b`, "i");
+// The MLS/ANA EFT sheets write the shape FIRST — 'HEXAGON 2 INCH', 'HEX 3 IN',
+// 'HEXAGON MOSAIC 2" MATTE'. Matched only when the number carries an inch mark,
+// so a trailing code ("HEXAGON 2022 PROD") can never read as a size. A
+// MOS/MOSAIC between shape and size is kept in the name — it says sheet goods.
+const SIZE_SHAPE_RE = new RegExp(`\\b(${SHAPE_WORDS})\\b\\s+((?:mos(?:aics?)?\\s+)?)(${DIM})\\s*(?:${INCH_MARK})`, "i");
 // "(12X10/SH)"-style packaging tokens (sheet dims + a per-unit) are never the
 // item's size — dropped before matching so the chip size wins and the name
 // keeps no "( /Sh)" litter.
 const PACKAGING_RE = /\(\s*[^)]*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs)\s*\)/gi;
+// A mosaic's SHEET dimension — "(9X11 SHEET)", "13X13 SHT" — is the size of the
+// backing sheet, NOT the chip. It gives the sheet's area (so coverage can be
+// derived when the book leaves SF/CT blank) but must never stand in as the tile
+// L×W, which grout/mortar would then read as one giant tile. Returned as its
+// own `sheetSize` and only used when the description carries no chip size; the
+// chip size is entered by hand on the row (ADR 0014).
+const SHEET_TOKEN_RE = new RegExp(`\\(?\\s*(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?\\s*(?:sheets?|shts?)\\b\\s*\\)?`, "i");
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
 const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
+// A penny round is one shape however the sheet spells it ("PENNY ROUND",
+// "PENNY RND", "PENNY") and is always labeled "Penny" — so "PENNY ROUND" never
+// reads as the separate shape word "Round". Its chip size can sit right before
+// the word ("3/4\"PENNY"), after it with an inch mark ("PENNY ROUND 3/4 INCH"),
+// or be absent (a mesh sheet whose printed size is only the sheet). Triggered by
+// "penny" alone; a bare "round" with no penny stays a generic shape (ADR 0015).
+const PENNY_RE = /\bpenny\b/i;
+const PENNY_STRIP_RE = /\b(penny|round|rnd)\b/gi;
+const PENNY_DIM_BEFORE_RE = new RegExp(`(${DIM})\\s*["']?\\s*(?=(?:penny|round|rnd)\\b)`, "i");
+const PENNY_DIM_INCH_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})`, "i");
 
 // SHOUTING vendor text → Title Case; already-cased text is left alone (so an
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
@@ -619,44 +643,70 @@ const startsWithWord = (text, prefix) => {
 
 export function splitSizeFromDescription(desc) {
   let s = str(desc);
-  if (!s) return { size: "", thickness: "", name: "" };
-  let size = "", thickness = "";
+  if (!s) return { size: "", thickness: "", name: "", sheetSize: "" };
+  let size = "", thickness = "", sheetSize = "";
   s = s.replace(PACKAGING_RE, " ");
+  // A SHEET dimension is pulled out before the size regexes so its L×W can't be
+  // read as the chip size — it is the mosaic's backing sheet, not the tile.
+  const sheetTok = s.match(SHEET_TOKEN_RE);
+  if (sheetTok) {
+    const a = dimVal(sheetTok[1]), b = dimVal(sheetTok[2]);
+    if (a > 0 && b > 0) sheetSize = `${a}x${b}`;
+    s = s.replace(sheetTok[0], " ");
+  }
   // Thickness first, so "10MM" can't be mistaken for part of a size.
   const mm = s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
-  const sz = s.match(SIZE_RE);
-  // Take the first L×W as the size, then strip EVERY L×W token from the name —
-  // some sheets print the size in both the color and the description column
-  // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
-  // what put the size back in the product name next to a filled size cell.
-  if (sz) {
-    const a = dimVal(sz[1]), b = dimVal(sz[2]);
-    const shape = s.match(new RegExp(`\\b(${SHAPE_WORDS})\\b`, "i"));
-    s = s.replace(new RegExp(SIZE_RE.source, "gi"), " ");
-    if (shape && a === b && a <= 6) {
-      // Equal dims plus a shape word is a hex/penny chip ("HEX MOS
-      // 1-1/2X1-1/2") — read as the vendor-spelled shape size, ticket 009's
-      // display model, rather than a 1.5x1.5 rectangle. Capped small: an
-      // equal L×W over 6" next to a shape word is a mosaic SHEET size
-      // ("HEX MOSAIC 13X13 SHT"), which must stay a rectangle.
-      size = `${sz[1]}" ${titleCase(shape[1])}`;
-      s = s.replace(shape[0], " ");
-    } else {
-      size = `${a}x${b}`; // decimal ("8.5x10") so parseTileSize fills the L/W cells
-    }
+  if (PENNY_RE.test(s)) {
+    // Penny handled on its own so "penny round" is one shape, not a "Round" size.
+    let dim = "";
+    const before = s.match(PENNY_DIM_BEFORE_RE);
+    if (before) { dim = before[1]; s = s.replace(before[0], " "); }
+    else { const inch = s.match(PENNY_DIM_INCH_RE); if (inch) { dim = inch[1]; s = s.replace(inch[0], " "); } }
+    if (dim) size = `${dim}" Penny`;          // chip size → grout computes from it
+    else if (!sheetSize) sheetSize = "Penny";  // no printed chip size → a "Penny sheet"
+    s = s.replace(PENNY_STRIP_RE, " ");
   } else {
-    const shp = s.match(SHAPE_SIZE_RE);
-    if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
+    const sz = s.match(SIZE_RE);
+    // Take the first L×W as the size, then strip EVERY L×W token from the name —
+    // some sheets print the size in both the color and the description column
+    // ("Ovo 3x12 Glossy" + "3x12 Ceramic Tile"), and leaving the second copy is
+    // what put the size back in the product name next to a filled size cell.
+    if (sz) {
+      const a = dimVal(sz[1]), b = dimVal(sz[2]);
+      const shape = s.match(new RegExp(`\\b(${SHAPE_WORDS})\\b`, "i"));
+      s = s.replace(new RegExp(SIZE_RE.source, "gi"), " ");
+      if (shape && a === b && a <= 6) {
+        // Equal dims plus a shape word is a hex/penny chip ("HEX MOS
+        // 1-1/2X1-1/2") — read as the vendor-spelled shape size, ticket 009's
+        // display model, rather than a 1.5x1.5 rectangle. Capped small: an
+        // equal L×W over 6" next to a shape word is a mosaic SHEET size
+        // ("HEX MOSAIC 13X13 SHT"), which must stay a rectangle.
+        size = `${sz[1]}" ${titleCase(shape[1])}`;
+        s = s.replace(shape[0], " ");
+      } else {
+        size = `${a}x${b}`; // decimal ("8.5x10") so parseTileSize fills the L/W cells
+      }
+    } else {
+      const shp = s.match(SHAPE_SIZE_RE);
+      if (shp) { size = `${shp[1]}" ${titleCase(shp[2])}`; s = s.replace(new RegExp(SHAPE_SIZE_RE.source, "gi"), " "); }
+      else {
+        const rev = s.match(SIZE_SHAPE_RE);
+        if (rev) { size = `${rev[3]}" ${titleCase(rev[1])}`; s = s.replace(rev[0], ` ${rev[2]} `); }
+      }
+    }
   }
   if (!thickness) {
     const fr = s.match(THICK_FRAC_RE);
     if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }
   }
+  // A stripped size can hollow out a parenthesized token — "(9X11 SHEET)" →
+  // "( SHEET)" — so drop parens left holding nothing but a packaging word.
+  s = s.replace(/\(\s*(?:sheets?|shts?|sh|pcs?|nominal|nom)?\s*\)/gi, " ");
   // Drop only leftover standalone "x" tokens (from a stripped size), never an
   // "x" inside a word like "Max".
   const name = smartCase(s.split(/\s+/).filter((w) => w && !/^[x×]$/i.test(w)).join(" "));
-  return { size, thickness, name };
+  return { size, thickness, name, sheetSize };
 }
 
 export function parseMapped(rows, mapping) {
@@ -719,11 +769,29 @@ function mappedItem(mapping, raw, sku, sem) {
   // carry no size column. When size isn't separately mapped, pull them out so
   // the pick fills the tile size cells and the name reads clean.
   let size = str(raw.size), thickness = str(raw.thickness), descText = str(raw.description);
+  // An explicitly-mapped Sheet Size column (the Glazzio PDF path, ADR 0014
+  // amendment) is the backing sheet, never the chip — carried as sheetSize, with
+  // the tile L×W left to the chip size below.
+  let sheetSize = str(raw.sheetSize) || "", sfPerUnit = numOrNull(raw.sfPerUnit);
+  const coverage = numOrNull(raw.coverage);
   if (!size && descText) {
     const split = splitSizeFromDescription(descText);
     if (split.size) size = split.size;
     if (split.thickness && !thickness) thickness = split.thickness;
-    if (split.size || split.thickness) descText = split.name;
+    // A sheet dimension only stands in when the description gave no chip size —
+    // a real chip size (e.g. "2\" Hexagon") always wins for the tile L×W.
+    if (split.sheetSize && !size && !sheetSize) sheetSize = split.sheetSize;
+    if (split.size || split.thickness || split.sheetSize) descText = split.name;
+  }
+  // Mosaic sold by the sheet with SF/CT left blank (Milestone marble hexes): the
+  // sheet's own L×W gives its area, so coverage-per-carton = sheet SF × pieces-
+  // per-carton. This makes it a real square-foot tile (priced $/sqft, ordered in
+  // whole sheets) instead of a bare count line, WITHOUT reading the sheet dims as
+  // the tile size — the chip size for grout/mortar is added on the row (ADR 0014).
+  if (sheetSize && sfPerUnit == null && coverage == null) {
+    const [sw, sh] = sheetSize.split("x").map(Number);
+    const pcpu = numOrNull(raw.pcPerUnit) || 1;
+    if (sw > 0 && sh > 0) sfPerUnit = round4(((sw * sh) / 144) * pcpu);
   }
   // The label is the product line fronting the cleaned description
   // ("Presley Earth Ash Gray") — the settled VTC spec (ADR 0009, §3). Color and
@@ -752,6 +820,7 @@ function mappedItem(mapping, raw, sku, sem) {
     priceUnit: str(raw.priceUnit),
     orderUnit: str(raw.orderUnit),
     size,
+    sheetSize,
     thickness,
     type,
     // A mapped "trim" column (Mannington's "Kind", ADR 0012) flags molding lines
@@ -759,7 +828,7 @@ function mappedItem(mapping, raw, sku, sem) {
     // every other sheet leaves it blank, so trim stays false.
     trim: /^(trim|y|yes|true|1)$/i.test(str(raw.trim)),
     cost,
-    sfPerUnit: numOrNull(raw.sfPerUnit),
+    sfPerUnit,
     pcPerUnit: numOrNull(raw.pcPerUnit),
     coverage: numOrNull(raw.coverage),
     leadTime: str(raw.leadTime),

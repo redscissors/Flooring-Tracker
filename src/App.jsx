@@ -1,9 +1,9 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
-import { num, ceilQty, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct } from "./catalog.js";
+import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
@@ -96,17 +96,32 @@ const SKU_SHOW = 30;
 // no bookId; two order books can legitimately reuse a SKU, so the book scopes it.
 const hitKey = (it) => (it.bookId || "stock") + "|" + it.sku;
 
-// Below md (the phone layout) the SKU drops to the second line so the
-// description gets the full first line of the narrow popup.
+// The product's face size for a search row — thickness is its own field, so a
+// vendor that jammed it onto the L×W (e.g. "12x24x9mm") gets trimmed back to the
+// face dimensions; a non-rectangular shape ("2\" Hex") passes through whole.
+const faceSize = (it) => {
+  const s = String(it?.size || "").trim();
+  const m = s.match(/^\s*(\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d+(?:\.\d+)?\s*["']?)/i);
+  return (m ? m[1] : s).trim();
+};
+
+const SizeChip = ({ it }) => {
+  const sz = faceSize(it);
+  return sz ? <span className="ft-mono text-[11px] font-semibold text-slate-500 shrink-0">{sz}</span> : null;
+};
+
+// Below md (the phone layout) the SKU drops to the second line so the size
+// and description get the full first line of the narrow popup.
 const StockHit = ({ it }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product || it.section}</span>
     </div>
     <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
       <span className="md:hidden ft-mono shrink-0">{it.sku}</span>
-      <span className="truncate">{[it.size, it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
+      <span className="truncate">{[it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
       <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
   </>
@@ -120,6 +135,7 @@ const OrderHit = ({ it, bookName }) => (
   <>
     <div className="flex items-baseline gap-2">
       <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product}</span>
       <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
@@ -178,8 +194,20 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
   useEffect(() => {
     if (!open) return;
     const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
+    // Focus leaving the field (Tab, or clicking into another input) must dismiss
+    // too — a pointer-outside alone leaves the panel orphaned over the new field.
+    // Deferred so focus has settled onto its target; picks keep focus in the
+    // anchor (they preventDefault on mousedown), so they never trip this.
+    const onFocusOut = () => requestAnimationFrame(() => {
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && !anchorRef.current?.contains(ae) && !panelRef.current?.contains(ae)) onDismiss();
+    });
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    anchorRef.current?.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      anchorRef.current?.removeEventListener("focusout", onFocusOut);
+    };
   }, [open]);
   return pos;
 };
@@ -243,22 +271,32 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
     else if (picked.length) onPickMany(picked);
     close();
   };
+  // Enter and Tab both commit: a built-up multi-selection, else the highlighted
+  // (hovered/arrowed) row, else the first match. Tab only hijacks when the panel
+  // is actually offering something — otherwise it stays plain field navigation.
+  const commitFromKey = () => {
+    if (picked.length) commit();
+    else if (results[hi]) pick(results[hi]);
+    else if (results.length) pick(results[0]);
+  };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
     if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (picked.length) commit();
-      else if (results[hi]) pick(results[hi]);
-      else if (results.length) pick(results[0]);
-    }
+    if (e.key === "Enter") { e.preventDefault(); commitFromKey(); }
+    if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
     if (e.key === "Escape") close();
   };
+  // Pick/toggle on mousedown (not click): the results list re-renders as the
+  // debounced order matches stream in, and a click that spans that re-render is
+  // dropped by the browser (pointerup lands on a fresh node) — the row looked
+  // like it "just closed the popup". preventDefault also keeps focus in the
+  // field so the pick never trips the focus-out dismiss.
+  const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
   return (
     <div ref={wrapRef} className={wrapClass ?? "relative shrink-0 h-9 border-r border-slate-200"} style={wrapStyle ?? { ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey} data-c="sku"
-        className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several at once." />
+        className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
@@ -266,9 +304,9 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
             {results.map((it, i) => {
               const sel = picked.some((x) => hitKey(x) === hitKey(it));
               return (
-                <div key={hitKey(it)} onClick={(e) => (e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                <div key={hitKey(it)} onMouseDown={(e) => onRow(e, it)} onMouseEnter={() => setHi(i)}
                   className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                  <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
                     className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
                   <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                 </div>
@@ -278,7 +316,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
           <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
             <span className="truncate">{matchSummary(results.length, total)}</span>
             {picked.length > 0 ? (
-              <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+              <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
             ) : (
               <span className="ml-auto shrink-0">Shift-click to pick several</span>
             )}
@@ -309,7 +347,7 @@ function StockSearch({ stock, onPick, inp, placeholder = "Search the price book 
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {results.map((it) => (
-              <button key={it.sku} onClick={() => pick(it)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); pick(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                 <StockHit it={it} />
               </button>
             ))}
@@ -339,7 +377,7 @@ function FamilySearch({ families, onPick, inp }) {
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 overflow-y-auto">
           {matches.map((f) => (
-            <button key={f.product} onClick={() => pick(f)} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+            <button key={f.product} onMouseDown={(e) => { e.preventDefault(); pick(f); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>
               <div className="flex items-baseline gap-2 text-[11px] text-slate-400"><span className="truncate">{f.brand}</span>{f.price != null && <span className="ml-auto shrink-0 ft-mono">${f.price.toFixed(2)}</span>}</div>
             </button>
@@ -378,7 +416,7 @@ function printProduct(p, s) {
     // Show selected grout even when the quantity can't be computed (e.g. tile
     // thickness/joint not entered) so it prints like mortar/backer instead of
     // silently vanishing; blank order/price when uncomputed.
-    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: j ? `${j} joint` : "", inline: true, order: G ? G.order : 0, unit: G ? G.unit : "", exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0 });
+    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: [j ? `${j} joint` : "", G && G.round ? "penny round" : ""].filter(Boolean).join(" · "), inline: true, order: G ? G.order : 0, unit: G ? G.unit : "", exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0 });
     const ck = num(p.grout.caulk);
     if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", sku: p.grout.caulkSku || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, price: num(p.grout.caulkPrice), cost: ck * num(p.grout.caulkPrice) });
   }
@@ -387,6 +425,13 @@ function printProduct(p, s) {
   IN.forEach((m) => mats.push(m.kind === "mortar"
     ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }
     : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", sku: m.sku || "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
+  // Add-on categories (ADR 0016) print inline under the product and roll into
+  // the bottom breakdown, keyed by category + product name; the category name
+  // is the material "kind" (no fixed KSHORT — labels fall back to it).
+  for (const cat of (s.catalog?.categories || [])) {
+    const A = getAttached(p, s, cat); if (!A) continue;
+    mats.push({ kind: cat.name, addon: true, key: `x|${cat.id}|${A.product}`, name: A.product, spec: "", sku: s.attached?.[cat.id]?.[A.product]?.sku || "", detail: "", inline: true, order: A.order, unit: A.unit, exact: A.exact, price: A.price, cost: A.price > 0 ? A.order * A.price : 0 });
+  }
   const thickSuffix = p.type === "tile" && p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : "";
   const size = p.type === "tile" ? (p.sizeText ? `${p.sizeText}${thickSuffix}` : `${p.L}" × ${p.W}"${thickSuffix}`) : (p.sizeText || "");
   const qtyText = p.type === "misc" ? String(miscQty(p)) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
@@ -443,12 +488,15 @@ function printMatList(cust, s) {
   const rows = [...agg.values()].map((m) => ({ ...m, sku: m.sku || matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
   const bases = groutBaseList(rows.filter((m) => m.kind === "Grout").map((m) => ({ product: m.name, order: m.order })), s)
     .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
-  return [...rows, ...bases].sort((x, y) => PRINT_KINDS.indexOf(x.kind) - PRINT_KINDS.indexOf(y.kind));
+  // Built-in kinds sort by PRINT_KINDS; add-on categories (unknown kinds) sort
+  // after them, grouped so each category gets one breakdown heading.
+  const rank = (k) => { const i = PRINT_KINDS.indexOf(k); return i < 0 ? PRINT_KINDS.length : i; };
+  return [...rows, ...bases].sort((x, y) => rank(x.kind) - rank(y.kind));
 }
 const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
-const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "PermaColor Select", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "" }, mortar: { checked: false, product: "ProLite", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } });
+const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "" }, mortar: { checked: false, product: "", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} }, attached: {} });
 const newArea = () => ({ id: uid(), name: "", note: "", products: [newProduct()] });
 const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
 // A row with no identity yet — the empty state renders as a price-book search
@@ -476,7 +524,10 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "PermaColor Select", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "ProLite", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} } });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
+// Add-on material selections, keyed by category id (ADR 0016). Old records have
+// no `attached` — they normalize to {} and stay valid.
+const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null });
 
@@ -643,6 +694,21 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
 const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
 const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, display: "flex", alignItems: "center" };
 
+// Below 768px each product row renders as two wrapping decks instead of the
+// 9-column grid: Size + Product/Color on the first line, then self-labeled
+// fields (SKU / Cov. / SF / Price / Order) that reflow when the screen runs
+// out of width — a shared column header can't stay aligned once fields wrap,
+// so each one carries its own label instead. Same state, same handlers as
+// the desktop grid below — layout only.
+function EField({ label, right, flex, tint, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex, padding: "0 2px", borderRight: "1px solid var(--ft-row-line)", ...(tint ? { background: TOTAL_WASH, borderRadius: "var(--ft-r)" } : null) }}>
+      <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)", padding: "3px 6px 0", whiteSpace: "nowrap", textAlign: right ? "right" : "left" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 3, justifyContent: right ? "flex-end" : "flex-start" }}>{children}</div>
+    </div>
+  );
+}
+
 // Tile size cell: one typeable "L×W" or "L×W×thickness" string, parsed on
 // commit (blur) back into the row's L / W / thickness fields. When the row
 // carries a free-text `sizeText` (a non-rectangular vendor size like "2\" Hex",
@@ -717,7 +783,7 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {matches.map((it) => (
-              <button key={(it.bookId || "stock") + "|" + it.sku} onClick={() => { onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+              <button key={(it.bookId || "stock") + "|" + it.sku} onMouseDown={(e) => { e.preventDefault(); onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                 <Hit it={it} bookName={bookName} />
               </button>
             ))}
@@ -769,17 +835,26 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
       onAbandon?.(); close();
     }, 120);
   };
+  const commitFromKey = () => {
+    if (picked.length) commit();
+    else if (results[hi]) pick(results[hi]);
+    else if (results.length) pick(results[0]);
+    else if (query.trim()) goManual();
+  };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
     else if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      if (picked.length) commit();
-      else if (results[hi]) pick(results[hi]);
-      else if (results.length) pick(results[0]);
-      else if (query.trim()) goManual();
-    } else if (e.key === "Escape") close();
+    else if (e.key === "Enter") { e.preventDefault(); commitFromKey(); }
+    // Tab adds the built-up selection (or the highlighted match) when the panel
+    // is offering something; otherwise it stays plain field navigation.
+    else if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
+    else if (e.key === "Escape") close();
   };
+  // Pick/toggle on mousedown, not click: streaming order matches re-render the
+  // list mid-gesture, and a click spanning that re-render is dropped (pointerup
+  // lands on a fresh node) — it read as the popup closing on you. preventDefault
+  // keeps focus in the field so the pick never trips blur/focus-out dismissal.
+  const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
   const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0;
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
@@ -794,9 +869,9 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
               {results.map((it, i) => {
                 const sel = picked.some((x) => hitKey(x) === hitKey(it));
                 return (
-                  <div key={hitKey(it)} onClick={(e) => (e.shiftKey ? toggle(it) : pick(it))} onMouseEnter={() => setHi(i)}
+                  <div key={hitKey(it)} onMouseDown={(e) => onRow(e, it)} onMouseEnter={() => setHi(i)}
                     className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                    <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                    <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
                       className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
                     <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
                   </div>
@@ -811,7 +886,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
             ) : (<>
               <span className="truncate">{matchSummary(results.length, total)}</span>
               {picked.length > 0 ? (
-                <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+                <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
               ) : (
                 <span className="ml-auto shrink-0">Shift-click to pick several</span>
               )}
@@ -1792,7 +1867,7 @@ export default function App({ user, onSignOut }) {
   // The grabbed card pops out and tracks the pointer via CSS `translate`; drop
   // targets are hit-tested with elementFromPoint (the card is pointer-events:
   // none while held). Data is written once, on drop, through moveProduct.
-  const startDrag = (e, aid, p, pi) => {
+  const startDrag = (e, aid, p, pi, holdMs = 220) => {
     if (e.button != null && e.button !== 0) return;
     const node = e.currentTarget.closest("[data-prod-card]");
     const main = mainRef.current;
@@ -1802,7 +1877,7 @@ export default function App({ user, onSignOut }) {
     const last = { ...start };
     const abort = () => { clearTimeout(timer); window.removeEventListener("pointermove", onHoldMove); window.removeEventListener("pointerup", abort); window.removeEventListener("pointercancel", abort); };
     const onHoldMove = (ev) => { last.x = ev.clientX; last.y = ev.clientY; if (Math.hypot(last.x - start.x, last.y - start.y) > 6) abort(); };
-    const timer = setTimeout(() => { abort(); beginDrag(node, main, last.x, last.y, aid, p, pi); }, 220);
+    const timer = setTimeout(() => { abort(); beginDrag(node, main, last.x, last.y, aid, p, pi); }, holdMs);
     window.addEventListener("pointermove", onHoldMove);
     window.addEventListener("pointerup", abort);
     window.addEventListener("pointercancel", abort);
@@ -1847,8 +1922,15 @@ export default function App({ user, onSignOut }) {
       d.raf = requestAnimationFrame(loop);
     };
     d.raf = requestAnimationFrame(loop);
+    // Once the card has popped out, claim the touch gesture — otherwise the
+    // browser starts scrolling on the first finger move and fires
+    // pointercancel, killing the drag (surfaces without touch-action:none,
+    // e.g. long-press on the row itself).
+    const stopTouchScroll = (ev) => ev.preventDefault();
+    window.addEventListener("touchmove", stopTouchScroll, { passive: false });
     const finish = (commit) => {
       cancelAnimationFrame(d.raf);
+      window.removeEventListener("touchmove", stopTouchScroll);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
@@ -2076,6 +2158,11 @@ export default function App({ user, onSignOut }) {
   // from gList — not per line — and their cost joins the grout family's.
   const bList = groutBaseList(gList, settings);
   const baseCost = bList.reduce((t, b) => t + b.cost, 0);
+  // Add-on categories (ADR 0016), aggregated once and shared by the order
+  // summary, order sheet, and grand total. Grouped by category for the summary.
+  const aList = sel?._full ? attachedList(sel, settings) : [];
+  const addonCost = aList.reduce((t, r) => t + r.cost, 0);
+  const aByCat = (settings.catalog.categories || []).map((cat) => ({ cat, rows: aList.filter((r) => r.categoryId === cat.id) })).filter((g) => g.rows.length > 0);
   // Every estimated material line with an order quantity, flattened and labeled
   // — shared by the printed order sheet and the order-entry panel.
   const matLines = [
@@ -2084,8 +2171,9 @@ export default function App({ user, onSignOut }) {
     ...bList.filter((b) => b.order > 0).map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
     ...cList.filter((c) => c.order > 0).map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
     ...uList.filter((u) => u.order > 0).map((u) => ({ ...u, kind: "Underlayment" })),
+    ...aList.filter((r) => r.order > 0).map((r) => ({ ...r, kind: r.category })),
   ];
-  const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0; const grandTotal = flooringPrice + groutCost + baseCost + caulkCost + mortarCost + underlayCost + miscCost;
+  const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0 || aList.length > 0; const materialsCost = groutCost + baseCost + caulkCost + mortarCost + underlayCost + addonCost; const grandTotal = flooringPrice + materialsCost + miscCost;
   // Internal materials margin over special-order rows only (ADR 0011 / 0009 §8.1):
   // those snapshot a cost. Each row's sell mirrors its flooring/misc line total,
   // so this margin is a subset of grandTotal. On screen only — never printed.
@@ -2164,7 +2252,7 @@ export default function App({ user, onSignOut }) {
                       <div style={{ padding: "0 12px 4px 24px", fontSize: 9.5, color: "var(--ft-muted)", display: "flex", gap: 16, flexWrap: "wrap" }}>
                         {inline.map((m, i) => (
                           <span key={i}>
-                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.spec}</>}{m.detail && <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span>}</>}
+                            <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : <>{m.name}{m.spec && <> — {m.spec}</>}{m.detail && <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span>}</>}
                           </span>
                         ))}
                       </div>
@@ -2204,7 +2292,7 @@ export default function App({ user, onSignOut }) {
                   </div>
                   <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-border)", marginTop: 2, paddingTop: 8 }}>
                     <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Materials subtotal</div>
-                    <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}</div>
+                    <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(materialsCost)}</div>
                   </div>
                 </div>
               </div>
@@ -2214,7 +2302,7 @@ export default function App({ user, onSignOut }) {
                 <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>
                   {[
                     flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
-                    groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 ? `Materials ${money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)}` : "",
+                    materialsCost > 0 ? `Materials ${money(materialsCost)}` : "",
                     totalSqft > 0 ? `${totalSqft.toLocaleString()} SF measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
                   ].filter(Boolean).join(" · ")}
                 </div>
@@ -2543,7 +2631,7 @@ export default function App({ user, onSignOut }) {
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""].filter(Boolean).join(" · ")}</span>
+                        <span className="ft-mono" style={{ fontSize: 10.5 }}>{(isWide ? [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""] : [areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
@@ -2558,6 +2646,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
+                      {isWide && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
@@ -2569,6 +2658,7 @@ export default function App({ user, onSignOut }) {
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)", textAlign: "right" }}>Total</div>
                         <div />
                       </div>
+                      )}
                       {a.products.map((p, pi) => {
                         const G = getGrout(p, settings), M = getMortar(p, settings);
                         const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
@@ -2593,6 +2683,15 @@ export default function App({ user, onSignOut }) {
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
                         const pickGroutColor = (color) => { const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
                         const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+                        // Turning a material on: keep the row's pick when the catalog
+                        // still offers it, else the team's catalog default, else the
+                        // first offered — so "click to choose" never activates a
+                        // renamed/removed name (e.g. a retired ProLite). A saved job's
+                        // explicit pick is untouched; it only injects back as a select
+                        // option, as before.
+                        const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
+                        const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
+                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
@@ -2606,7 +2705,8 @@ export default function App({ user, onSignOut }) {
                         const underlayNames = offeredUnderlayments(settings.catalog, p.type);
                         const underlayOpts = p.underlay.product && !underlayNames.includes(p.underlay.product) ? [p.underlay.product, ...underlayNames] : underlayNames;
                         const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
-                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayNames[0] || "") } });
+                        const underlayDefault = resolveMaterialDefault(underlayNames, "", settings.catalog.defaults?.underlay);
+                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
                         // Collapsed rows reuse the print sheet's inline material line
                         // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
                         // wants the collapsed line identical to the printed one.
@@ -2614,17 +2714,21 @@ export default function App({ user, onSignOut }) {
                         const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
                         const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
                         const warns = materialWarnings(p, settings);
+                        // Add-on categories (ADR 0016) this row's flooring type offers.
+                        const offCats = p.type === "misc" ? [] : offeredCategories(settings.catalog, p.type);
                         const WLBL = { grout: "Grout", mortar: "Mortar", underlay: underlayLabel(p.type), install: "Install materials" };
+                        const warnLabel = (w) => w.startsWith("attach:") ? (settings.catalog.categories.find((c) => c.id === w.slice(7))?.name || "Add-on") : WLBL[w];
                         // The strip shows uncomputed grout as a name with no number;
                         // when it's being warned about, the warning replaces that ghost.
                         const stripMats = pInline.filter((m) => !(m.kind === "Grout" && m.order <= 0 && warns.includes("grout")));
-                        const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked);
+                        const hasMats = p.type !== "misc" && ((p.type === "tile" && (p.grout.checked || p.mortar.checked)) || p.underlay.checked || offCats.some((c) => p.attached?.[c.id]?.checked));
                         const openMats = () => setMatOpen({ [p.id]: true });
                         const closeMats = () => setMatOpen({});
                         const addables = p.type === "misc" ? [] : [
                           ...(p.type === "tile" && !p.grout.checked ? ["Grout"] : []),
                           ...(p.type === "tile" && !p.mortar.checked ? ["Mortar"] : []),
                           ...(!p.underlay.checked ? [KSHORT[underlayLabel(p.type)]] : []),
+                          ...offCats.filter((c) => !p.attached?.[c.id]?.checked).map((c) => c.name),
                         ];
                         const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
                         const mUnit = M ? M.unit : settings.mortars[p.mortar.product]?.unit || "";
@@ -2703,7 +2807,81 @@ export default function App({ user, onSignOut }) {
                               </div>
                             </div>
                             ) : (<>
-                            {/* main product row */}
+                            {/* main product row: two wrapping decks below 768px (see EField above),
+                                the 9-column grid at desktop width */}
+                            {!isWide ? (
+                            /* Long-press on any non-interactive part of the row pops it out for
+                               drag (startDrag's own hold + move-abort does the gesture detection;
+                               inputs/buttons are excluded so typing is unaffected). */
+                            <div onPointerDown={(e) => { if (e.target.closest("input,button,select,textarea")) return; startDrag(e, a.id, p, pi, 350); }}
+                              style={{ fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px 4px 0 0" }}>
+                                <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                                {/* size box hugs its content so Product/Color sits as far left as it can */}
+                                <div style={{ width: `calc(${Math.max((p.type === "tile" ? (p.sizeText || (p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "")) : p.sizeText || "").length, 4)}ch + 14px)`, flex: "none", display: "flex", alignItems: "center", minWidth: 0 }}>
+                                  {p.type === "tile" ? (
+                                    <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
+                                  ) : p.type === "misc" ? (
+                                    <span className="px-1" style={{ color: "var(--ft-faint)" }}>Misc</span>
+                                  ) : (
+                                    <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                  )}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 12 }}>
+                                  <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
+                                </div>
+                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="ft-noprint shrink-0 p-1 pr-2 text-slate-300 hover:text-red-500" style={{ lineHeight: 0 }}><Trash2 size={12} /></button>}
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", rowGap: 4, padding: "1px 6px 7px" }}>
+                                <EField label="SKU" flex="1.4 1 88px">
+                                  <div className="ft-mono" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 9.5 }}>
+                                    {stock.length > 0 || searchOrder ? (
+                                      <SkuPicker value={p.sku || ""} stock={stock}
+                                        onChange={(v) => updProduct(a.id, p.id, { sku: v })}
+                                        onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
+                                        onPickMany={(items) => addStockProducts(a.id, p.id, items)}
+                                        searchOrder={searchOrder} bookName={bookName}
+                                        wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
+                                    ) : (
+                                      <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
+                                    )}
+                                  </div>
+                                </EField>
+                                <EField label="Cov." right flex="0.8 1 74px">
+                                  {p.type !== "misc" && p.qtyType === "sqft" ? (<div className="ft-mono" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", fontSize: 9.5 }}>
+                                    <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0 }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                    {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-1" style={{ fontSize: 8, color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
+                                  </div>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
+                                </EField>
+                                <EField label="SF" right flex="0.55 1 50px">
+                                  {p.type !== "misc" && p.qtyType === "sqft" ? (
+                                    <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
+                                  ) : <span className="px-2 ml-auto" style={{ color: "var(--ft-faint)" }}>—</span>}
+                                </EField>
+                                <EField label="Price" right tint flex="0.6 1 56px">
+                                  <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                </EField>
+                                <EField label="Order" right flex="0.9 1 80px">
+                                  {p.type !== "misc" && C ? (<>
+                                    <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />
+                                    <span className="shrink-0" style={{ fontSize: 9.5 }}>{C.unit}</span>
+                                    <span className="ft-noprint flex flex-col shrink-0 pr-1">
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(C.order + 1) })} title="One more carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronUp size={9} /></button>
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(Math.max(0, C.order - 1)) })} title="One less carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronDown size={9} /></button>
+                                    </span>
+                                  </>) : p.type === "misc" || p.qtyType === "count" ? (<>
+                                    <input type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} placeholder={p.type === "misc" ? "1" : "0"} title="Quantity" />
+                                    {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>EA</span> : (
+                                      <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "sqft" })} title="Counted each — click to switch to square feet" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>EA</button>
+                                    )}
+                                  </>) : (<>
+                                    <span className="text-slate-500">{num(p.qty) > 0 ? sf1(num(p.qty)) : ""}</span>
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
+                                  </>)}
+                                </EField>
+                              </div>
+                            </div>
+                            ) : (
                             <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
@@ -2735,8 +2913,8 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (<>
-                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell" style={{ flex: 1, minWidth: 0 }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-1" style={{ fontSize: 8, color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
+                                  <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0, padding: "6px 2px" }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
+                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
                                 </>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
@@ -2771,6 +2949,7 @@ export default function App({ user, onSignOut }) {
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
                             </div>
+                            )}
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
                               <div className="ft-noprint flex items-center gap-2 px-3 py-1.5 text-xs" style={{ background: "var(--ft-area-row)" }}>
                                 <span className="text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>
@@ -2844,9 +3023,9 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type === "tile" && !p.grout.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } })} title="Add grout" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={addGrout} title="Add grout" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Grout</span>
-                                    <span className="text-xs text-slate-400 truncate">{p.grout.product || groutNames[0] || ""}</span>
+                                    <span className="text-xs text-slate-400 truncate">{groutDefault || ""}</span>
                                   </div>
                                 )}
                                 {p.type === "tile" && p.mortar.checked && (
@@ -2864,9 +3043,9 @@ export default function App({ user, onSignOut }) {
                                 )}
                                 {p.type === "tile" && !p.mortar.checked && (
                                   <div className="px-2.5 py-1 flex items-center gap-2">
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true } })} title="Add mortar" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, checked: true, product: mortarDefault } })} title="Add mortar" className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">Mortar</span>
-                                    <span className="text-xs text-slate-400 truncate">{p.mortar.product || mortarNames[0] || ""}</span>
+                                    <span className="text-xs text-slate-400 truncate">{mortarDefault || ""}</span>
                                   </div>
                                 )}
                                 {p.type !== "misc" && p.underlay.checked && (
@@ -2937,9 +3116,45 @@ export default function App({ user, onSignOut }) {
                                   <div className="px-2.5 py-1 flex items-center gap-2">
                                     <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
-                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayNames[0] || ""}</span>
+                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayDefault}</span>
                                   </div>
                                 )}
+                                {offCats.map((cat) => {
+                                  const jobA = p.attached?.[cat.id] || { checked: false, product: "", manual: "" };
+                                  const names = offeredAttached(settings.catalog, cat.id);
+                                  const opts = jobA.product && !names.includes(jobA.product) ? [jobA.product, ...names] : names;
+                                  const def = resolveMaterialDefault(names, jobA.product, cat.default);
+                                  const A = getAttached(p, settings, cat);
+                                  const pf = settings.attached?.[cat.id]?.[jobA.product];
+                                  const aUnit = A ? A.unit : pf?.unit || "";
+                                  const covEx = cat.math === "coverage" && p.qtyType === "sqft" && num(p.qty) > 0 && num(pf?.coverage) > 0 ? num(p.qty) * wasteFor(p, settings) / num(pf.coverage) : null;
+                                  const setA = (patch) => updProduct(a.id, p.id, { attached: { ...p.attached, [cat.id]: { ...jobA, ...patch } } });
+                                  const toggleOn = () => setA({ checked: true, product: jobA.product || def, manual: cat.math === "manual" ? (jobA.manual || "1") : jobA.manual });
+                                  return jobA.checked ? (
+                                    <div key={cat.id} className="px-2.5 py-1.5" style={{ background: rowTint }}>
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                                        <button tabIndex={-1} onClick={() => setA({ checked: false })} title={`Remove ${cat.name.toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: accent, color: "var(--ft-type-ink)" }}><Check size={12} /></button>
+                                        <span className="text-sm font-medium">{cat.name}</span>
+                                        <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
+                                          {names.length > 0 || jobA.product ? (
+                                            <FitSelect sm value={jobA.product} display={jobA.product || "Select…"} onChange={(e) => setA({ product: e.target.value })}>{!jobA.product && <option value="">Select…</option>}{opts.map((n) => <option key={n} value={n}>{n}</option>)}</FitSelect>
+                                          ) : (
+                                            <span className="text-amber-500 text-xs">No {cat.name.toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</span>
+                                          )}
+                                          {pf?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{pf.sku}</span>}
+                                        </div>
+                                        <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{covEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{covEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={cat.math === "manual" ? jobA.manual : (A ? String(A.order) : "")} onChange={(e) => setA({ manual: e.target.value })} placeholder={cat.math === "manual" ? "qty" : "—"} title={cat.math === "manual" ? "Quantity to order" : "Total — type to override the calculated amount"} className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{aUnit}</span></span>
+                                        {cat.math === "coverage" && !A && jobA.product && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + a coverage for this product to calculate, or type a total above.</div>}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div key={cat.id} className="px-2.5 py-1 flex items-center gap-2">
+                                      <button tabIndex={-1} onClick={toggleOn} title={`Add ${cat.name.toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
+                                      <span className="text-sm text-slate-500">{cat.name}</span>
+                                      <span className="text-xs text-slate-400 truncate">{jobA.product || def}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                               {noteInput}
                               </div>
@@ -2950,12 +3165,12 @@ export default function App({ user, onSignOut }) {
                               <button onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
                                 {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
-                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind]}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
+                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
                                   </span>
                                 ))}
                                 {warns.map((w) => (
                                   <span key={w} className="ft-warn-orange inline-flex items-center font-semibold" style={{ gap: 4 }}>
-                                    <AlertTriangle size={10} /> {WLBL[w]} — not calculating
+                                    <AlertTriangle size={10} /> {warnLabel(w)} — not calculating
                                   </span>
                                 ))}
                                 <span className="flex-1" />
@@ -3001,7 +3216,7 @@ export default function App({ user, onSignOut }) {
                       <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Materials Estimate</span>
                       <span className="ft-serif" style={{ fontSize: 20 }}>Order summary</span>
                     </div>
-                    {groutCost + baseCost + caulkCost + mortarCost + underlayCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(groutCost + baseCost + caulkCost + mortarCost + underlayCost)} materials</span>}
+                    {materialsCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(materialsCost)} materials</span>}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-6" style={{ padding: 16 }}>
                     <div>
@@ -3031,12 +3246,24 @@ export default function App({ user, onSignOut }) {
                         </div>
                       ))}
                     </div>
+                    {aByCat.map(({ cat, rows }) => (
+                      <div key={cat.id}>
+                        <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>{cat.name}</div>
+                        {rows.map((r, i) => (
+                          <div key={"x" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                            <span className="font-medium min-w-0">{r.product}{r.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{r.sku}</span>}</span>
+                            <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{r.order > 0 ? <>{r.order} {r.unit}</> : "—"}{r.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(r.cost)}</span> : r.order === 0 && r.price > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(r.price)}/{u1(1, r.unit)}</span> : null}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                     <div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
                         <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
                         <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
                         {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
+                        {aByCat.map(({ cat, rows }) => { const c = rows.reduce((t, r) => t + r.cost, 0); return c > 0 ? <div key={cat.id} className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>{cat.name}</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(c)}</span></div> : null; })}
                         {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
                         <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                         <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
@@ -3322,10 +3549,14 @@ function orderEntryRow(p, s, area) {
   const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${unitCode}` : "";
   const extSell = c.line;
   const extCost = orderLineCost(p, s, extSell);
-  const copy = [tag, sizePlain, p.brandColor, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  // A Mannington trim's name carries a "· fits APX020 …" note (manningtonbook.js)
+  // that helps the picker surface it under a floor-code search; it's noise once
+  // the trim is on the order, so drop it from the panel's name and copied text.
+  const name = String(p.brandColor || "").replace(/\s*·\s*fits\b.*$/i, "").trim();
+  const copy = [tag, sizePlain, name, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   return {
     id: p.id, special: !!p.bookId, area,
-    tag, sizePlain, name: p.brandColor, sku: p.sku, coverage,
+    tag, sizePlain, name, sku: p.sku, coverage,
     qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
@@ -4421,10 +4652,21 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   );
 }
 
+// The Materials & add-ons library's built-in categories (spec 2026-07-15,
+// PR 1). Locked: math and floor scope live in code; only their catalog
+// content and chip default are team-editable. Custom add-on categories
+// join this list in a later PR.
+const MATERIAL_CATEGORIES = [
+  { id: "grout", label: "Grout", kind: "grouts", icon: Paintbrush, applies: "Tile", math: "Volumetric — scales with tile size, joint & thickness" },
+  { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side" },
+  { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
+];
+
 function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
-  const [section, setSection] = useState("grout");
+  const [section, setSection] = useState("materials");
+  const [cat, setCat] = useState("grout"); // which Materials & add-ons category is open
   // Master→detail selection: an existing product, or (via `adding`) an
   // add-draft under a company. View state only, never persisted.
   const [sel, setSel] = useState(null); // { companyId, kind, productId }
@@ -4437,9 +4679,16 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const [showOthers, setShowOthers] = useState(false); // "Not in this section" group
   const [rename, setRename] = useState(null); // { value, error } — renaming the selected product
   const [coRename, setCoRename] = useState(null); // { id, value } — renaming a company inline
+  const [addingCat, setAddingCat] = useState(false); // New-category modal
+  const [catDraft, setCatDraft] = useState({ name: "", floorTypes: [], math: "coverage" });
+  const [catError, setCatError] = useState("");
+  const [catRename, setCatRename] = useState(null); // { value, error } — renaming the open custom category
+  const [confirmDelCat, setConfirmDelCat] = useState(false);
 
-  const setCompany = (cid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
-  const setProduct = (cid, kind, pid, patch) => onChange({ companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
+  // Spread the whole catalog, not just companies, so sibling fields
+  // (defaults, removedSeeds) survive a company/product edit.
+  const setCompany = (cid, patch) => onChange({ ...catalog, companies: catalog.companies.map((co) => co.id === cid ? { ...co, ...patch } : co) });
+  const setProduct = (cid, kind, pid, patch) => onChange({ ...catalog, companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
   const setInstallItem = (cid, u, mid, patch) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).map((m) => m.id === mid ? { ...m, ...patch } : m) });
   const delInstallItem = (cid, u, mid) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).filter((m) => m.id !== mid) });
   const newInstallItem = (kind) => kind === "mortar" ? { id: uid(), kind: "mortar", product: "", coverage: "" } : { id: uid(), kind: "custom", name: "", coverage: "", unit: "units", price: "", sku: "" };
@@ -4449,14 +4698,20 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const setInstallKind = (cid, u, mid, kind) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).map((m) => m.id !== mid || m.kind === kind ? m : { ...newInstallItem(kind), id: m.id, coverage: m.coverage }) });
   const mortarNames = catalog.companies.flatMap((c) => c.mortars.map((m) => m.name));
 
-  const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : "underlayment";
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
+  const kindLabel = (kind) => kind === "grouts" ? "grout" : kind === "mortars" ? "mortar" : kind === "attached" ? (customCat?.name || "add-on") : "underlayment";
+  // The team's chip default for a kind, compared name-wise the way jobs resolve.
+  const isDefaultMaterial = (kind, name) => String(catalog.defaults?.[{ grouts: "grout", mortars: "mortar", underlayments: "underlay" }[kind]] || "").trim().toLowerCase() === String(name || "").trim().toLowerCase();
+  // An attached product's chip default lives on ITS category (only reachable
+  // while that category is the open one, so customCat is the right scope).
+  const isCategoryDefault = (p) => !!customCat && String(customCat.default || "").trim().toLowerCase() === String(p?.name || "").trim().toLowerCase() && customCat.default !== "";
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "attached" ? { name: "", coverage: "", unit: "units", price: "", sku: "", categoryId: cat } : kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
   const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); setRename(null); };
   const submitAdd = () => {
     const name = (draft.name || "").trim();
     if (!name) { setError("Product name is required."); return; }
-    if (isDuplicateName(catalog, adding.kind, name)) { setError(`A ${kindLabel(adding.kind)} named "${name}" already exists.`); return; }
+    const dup = adding.kind === "attached" ? isDuplicateAttachedName(catalog, draft.categoryId, name) : isDuplicateName(catalog, adding.kind, name);
+    if (dup) { setError(`A ${kindLabel(adding.kind)} named "${name}" already exists.`); return; }
     onChange(addProduct(catalog, adding.companyId, adding.kind, { ...draft, name }));
     setAdding(null); setError("");
   };
@@ -4464,6 +4719,17 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   // section" group — open the add form for it right away so it doesn't seem to
   // vanish.
   const submitCompany = () => { const name = newCompany.trim(); if (!name) return; const next = addCompany(catalog, name); onChange(next); setNewCompany(""); setShowOthers(true); startAdd(next.companies[next.companies.length - 1].id, kindsFor[0]); };
+  const openNewCategory = () => { setAddingCat(true); setCatDraft({ name: "", floorTypes: [], math: "coverage" }); setCatError(""); };
+  const submitCategory = () => {
+    const name = catDraft.name.trim();
+    if (!name) { setCatError("Category name is required."); return; }
+    if (isDuplicateCategoryName(catalog, name)) { setCatError(`A category named "${name}" already exists.`); return; }
+    const next = addCategory(catalog, { ...catDraft, name });
+    onChange(next);
+    setAddingCat(false); setSel(null); setAdding(null); setConfirmDelCat(false); setCatRename(null);
+    setCat(next.categories[next.categories.length - 1].id);
+  };
+  const openCat = (id) => { setCat(id); setSel(null); setAdding(null); setConfirmDel(null); setMenuFor(null); setShowOthers(false); setRename(null); setCoRename(null); setCatRename(null); setConfirmDelCat(false); };
   // The book rarely carries coverage, so most items still need it typed in —
   // mortars always do (three tiers can't come from one number). The pick keeps
   // the item's SKU on the product (ADR 0006), and a Laticrete pigment brings
@@ -4501,37 +4767,40 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   );
   // Which flooring types an underlayment is offered for. No chips selected = all
   // types (the empty-tag convention in the catalog).
-  const typeChips = (selected, onVal) => {
+  const typeChips = (selected, onVal, list = types) => {
     const sel = selected || [];
     const toggle = (t) => onVal(sel.includes(t) ? sel.filter((x) => x !== t) : [...sel, t]);
     return (
       <div><label className={lbl}>Offered for {sel.length === 0 && <span className="text-slate-400 font-normal normal-case tracking-normal">(all types)</span>}</label>
-        <div className="flex flex-wrap gap-1">{types.map((t) => <button key={t} onClick={() => toggle(t)} className={`text-xs rounded-md px-2 py-1 border ${sel.includes(t) ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{typeLabels[t]}</button>)}</div>
+        <div className="flex flex-wrap gap-1">{list.map((t) => <button key={t} onClick={() => toggle(t)} className={`text-xs rounded-md px-2 py-1 border ${sel.includes(t) ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>{typeLabels[t]}</button>)}</div>
       </div>
     );
   };
+  const floorTypeList = types.filter((t) => t !== "misc");
   const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
   const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
   const addCo = adding ? catalog.companies.find((c) => c.id === adding.companyId) : null;
-  const kindsFor = section === "grout" ? ["grouts"] : ["mortars", "underlayments"];
-  const kindTag = { grouts: "Grout", mortars: "Mortar", underlayments: "Underlayment" };
-  const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0);
+  const customCat = (catalog.categories || []).find((c) => c.id === cat);
+  const kindsFor = customCat ? ["attached"] : [{ grout: "grouts", mortar: "mortars", underlay: "underlayments" }[cat]];
+  // The products a company shows in the current section — attached rows are
+  // additionally scoped to the open custom category.
+  const prodsOf = (co, kind) => kind === "attached" ? (co.attached || []).filter((p) => p.categoryId === cat) : (co[kind] || []);
+  const countAll = (co) => co.grouts.length + co.mortars.length + (co.underlayments?.length || 0) + (co.attached?.length || 0);
   // A company "belongs" to a section by having products of its kinds — the rest
   // sit in a collapsed group so e.g. underlayment-only brands stay out of
   // Grout & colors. Deleting a company's last grout drops it out of the
   // section the same way.
-  const inSection = (co) => kindsFor.some((k) => (co[k] || []).length > 0);
+  const inSection = (co) => kindsFor.some((k) => prodsOf(co, k).length > 0);
   const famFor = (g) => (g.book ? gFamilies.find((f) => f.product.toLowerCase() === g.book.toLowerCase()) : null);
   const masterHint = (kind, p) => kind === "grouts"
     ? (p.book ? (famFor(p) ? `${famFor(p).colors.length} colors · book` : "book link missing") : "standard colors")
-    : kind === "mortars" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
+    : kind === "mortars" || kind === "attached" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
       : ((p.types || []).length ? p.types.map((t) => typeLabels[t]).join(", ") : "all types") + ((p.install || []).length ? ` · ${p.install.length} install` : "");
   const SECTIONS = [
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
     { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${1 + books.length} books` : stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
-    { id: "grout", label: "Grout & colors", icon: Paintbrush, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length, 0)) },
-    { id: "matunder", label: "Mortar & underlayment", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.mortars.length + (c.underlayments?.length || 0), 0)) },
+    { id: "materials", label: "Materials & add-ons", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length + c.mortars.length + (c.underlayments?.length || 0) + (c.attached?.length || 0), 0)) },
     { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
   ];
 
@@ -4565,7 +4834,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
     const submitRename = () => {
       const name = (rename?.value || "").trim();
       if (!name) { setRename({ ...rename, error: "Name is required." }); return; }
-      if (name.toLowerCase() !== p.name.trim().toLowerCase() && isDuplicateName(catalog, kind, name)) { setRename({ ...rename, error: `A ${kindLabel(kind)} named "${name}" already exists.` }); return; }
+      if (name.toLowerCase() !== p.name.trim().toLowerCase() && (kind === "attached" ? isDuplicateAttachedName(catalog, p.categoryId, name) : isDuplicateName(catalog, kind, name))) { setRename({ ...rename, error: `A ${kindLabel(kind)} named "${name}" already exists.` }); return; }
       onChange(renameProduct(catalog, co.id, kind, p.id, name));
       setRename(null);
     };
@@ -4590,8 +4859,112 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 pt-1">
+          {((kind === "attached" ? isCategoryDefault(p) : isDefaultMaterial(kind, p.name))
+            ? <span title={kind === "attached" ? `Rows turning on the ${customCat?.name} chip start with this product` : kind === "underlayments" ? "Rows turning on the underlayment chip start with this product" : "New tile rows start with this material"} className="flex items-center gap-1 text-xs font-medium text-indigo-600"><Star size={12} className="fill-current" /> Default</span>
+            : <button onClick={() => onChange(kind === "attached" ? updateCategory(catalog, p.categoryId, { default: p.name }) : setCatalogDefault(catalog, kind, p.name))} title={kind === "attached" ? `Make this the product the ${customCat?.name} chip starts with` : kind === "underlayments" ? "Make this the product the underlayment chip starts with" : "Make this the default new tile rows start with"} className="text-xs text-slate-400 hover:text-indigo-600">Set as default</button>)}
           <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(p.enabled, () => setProduct(co.id, kind, p.id, { enabled: !p.enabled }), p.enabled ? "Hide from job dropdowns" : "Offer in job dropdowns")} offered on jobs</label>
           {delButton(co, kind, p)}
+        </div>
+      </div>
+    );
+  };
+
+  // Shown while no product is selected: the built-in category's locked
+  // identity plus its one team-editable knob, the chip default. Underlay's
+  // blank option = "first offered", today's pre-default behavior.
+  const renderCategoryPane = () => {
+    const meta = MATERIAL_CATEGORIES.find((c) => c.id === cat);
+    const offered = cat === "grout" ? offeredGrouts(catalog)
+      : cat === "mortar" ? offeredMortars(catalog)
+        : catalog.companies.flatMap((co) => (co.underlayments || []).filter((u) => isOffered(co, u)).map((u) => u.name));
+    const current = String(catalog.defaults?.[cat] || "");
+    const Icon = meta.icon;
+    return (
+      <div className="max-w-xl">
+        <p className="ft-eyebrow text-[10px] text-slate-400">Materials &amp; add-ons · built-in</p>
+        <h2 className="ft-serif text-3xl leading-tight mt-1 flex items-center gap-2.5"><Icon size={22} className="text-slate-400" /> {meta.label} <Lock size={14} className="text-slate-300" /></h2>
+        <div className="mt-5 space-y-2 text-sm">
+          <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Applies to</span><span className="text-slate-500">{meta.applies}</span></div>
+          <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Quantity</span><span className="text-slate-500">{meta.math}</span></div>
+        </div>
+        <div className="mt-6 max-w-xs">
+          <label className={lbl}>Default product</label>
+          <select value={offered.includes(current) ? current : ""} onChange={(e) => onChange(setCatalogDefault(catalog, meta.kind, e.target.value))} className={inp}>
+            {cat === "underlay" ? <option value="">— first offered —</option> : !offered.includes(current) && <option value="">Select…</option>}
+            {offered.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <p className="text-[11px] text-slate-400 mt-1.5">{cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."}</p>
+        </div>
+        <p className="text-xs text-slate-400 mt-8">Pick a product on the left to edit its numbers — or add one under its company.</p>
+      </div>
+    );
+  };
+
+  // The custom-category counterpart: everything the built-in pane locks is
+  // editable here (spec 2026-07-15, PR 2). Job chips arrive with PR 3.
+  const renderCustomCategoryPane = () => {
+    const c = customCat;
+    const offered = offeredAttached(catalog, c.id);
+    const productCount = catalog.companies.reduce((n, co) => n + (co.attached || []).filter((p) => p.categoryId === c.id).length, 0);
+    const submitCatRename = () => {
+      const name = (catRename?.value || "").trim();
+      if (!name) { setCatRename({ ...catRename, error: "Name is required." }); return; }
+      if (isDuplicateCategoryName(catalog, name, c.id)) { setCatRename({ ...catRename, error: `A category named "${name}" already exists.` }); return; }
+      onChange(updateCategory(catalog, c.id, { name }));
+      setCatRename(null);
+    };
+    return (
+      <div className="max-w-xl">
+        <p className="ft-eyebrow text-[10px] text-slate-400">Materials &amp; add-ons · add-on</p>
+        {catRename ? (
+          <div className="max-w-md mt-1">
+            <div className="flex items-center gap-2">
+              <input autoFocus value={catRename.value} onChange={(e) => setCatRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitCatRename(); if (e.key === "Escape") setCatRename(null); }} className={inp + " font-medium"} />
+              <button onClick={submitCatRename} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700 shrink-0">Save</button>
+              <button onClick={() => setCatRename(null)} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+            {catRename.error && <div className="text-xs text-red-500 mt-1">{catRename.error}</div>}
+          </div>
+        ) : (
+          <h2 className="ft-serif text-3xl leading-tight mt-1 flex items-center gap-2.5"><Tag size={22} className="text-slate-400" /> {c.name}
+            <button onClick={() => setCatRename({ value: c.name })} title={`Rename ${c.name}`} className="text-slate-300 hover:text-slate-600"><Pencil size={15} /></button>
+          </h2>
+        )}
+        <div className="mt-5 space-y-5 max-w-md">
+          <div>
+            {typeChips(c.floorTypes, (v) => onChange(updateCategory(catalog, c.id, { floorTypes: v })), floorTypeList)}
+            <p className="text-[11px] text-slate-400 mt-1">Which product rows offer this add-on's chip. None selected = every type.</p>
+          </div>
+          <div>
+            <label className={lbl}>Quantity</label>
+            <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
+              {[["coverage", "Coverage"], ["manual", "Manual"]].map(([k, t]) => (
+                <button key={k} onClick={() => onChange(updateCategory(catalog, c.id, { math: k }))} className={`px-3.5 py-2 font-medium ${c.math === k ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t}</button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{c.math === "coverage" ? "One unit covers a set sq ft — quantities scale off the row's area plus waste, with a per-row manual override." : "A typed per-row quantity (starts at 1) — no area math."}</p>
+          </div>
+          <div className="max-w-xs">
+            <label className={lbl}>Default product</label>
+            <select value={offered.includes(c.default) ? c.default : ""} onChange={(e) => onChange(updateCategory(catalog, c.id, { default: e.target.value }))} className={inp}>
+              <option value="">— first offered —</option>
+              {offered.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1.5">Pre-selected when a row's {c.name} chip is turned on.</p>
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(c.enabled, () => onChange(updateCategory(catalog, c.id, { enabled: !c.enabled })), c.enabled ? "Hide this add-on's chip from job rows" : "Offer this add-on's chip on job rows")} offered on jobs</label>
+        </div>
+        <p className="text-xs text-slate-400 mt-6">Job rows pick these up in an upcoming update — for now this builds the catalog.</p>
+        <div className="mt-8 pt-5 border-t border-slate-100">
+          {confirmDelCat ? (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-red-600 flex-1">Delete "{c.name}"{productCount ? ` and its ${productCount} product${productCount === 1 ? "" : "s"}` : ""} from every company? Jobs that use them keep the name but stop calculating. To just hide the chip, uncheck "offered on jobs" instead.</span>
+              <button onClick={() => { onChange(removeCategory(catalog, c.id)); setConfirmDelCat(false); setSel(null); setCat("grout"); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
+              <button onClick={() => setConfirmDelCat(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelCat(true)} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1"><Trash2 size={12} /> Delete category</button>
+          )}
         </div>
       </div>
     );
@@ -4718,6 +5091,19 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
       </div>
     </div>
   );
+  const renderAttachedDetail = (co, p) => (
+    <div key={p.id}>
+      {detailHeader(co, "attached", p, customCat?.name || "Add-on")}
+      {delConfirm(co, "attached", p)}
+      <div className="flex flex-wrap items-end gap-2.5 mt-4">
+        {customCat?.math === "coverage" && <div className="w-36">{numField("Cov. sq ft/unit", p.coverage, (v) => setProduct(co.id, "attached", p.id, { coverage: v }))}</div>}
+        <div className="w-24">{txtField("Unit", p.unit, (v) => setProduct(co.id, "attached", p.id, { unit: v }))}</div>
+        <div className="w-28">{numField("$/unit", p.price, (v) => setProduct(co.id, "attached", p.id, { price: v }))}</div>
+        <div className="w-36">{txtField("SKU", p.sku || "", (v) => setProduct(co.id, "attached", p.id, { sku: v }))}</div>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1.5">{customCat?.math === "coverage" ? "One unit covers this many sq ft — quantities scale off the row's area plus waste." : "Ordered by a typed per-row quantity — no coverage math."} A SKU lets price-book imports refresh the price.</p>
+    </div>
+  );
   const renderAddForm = () => addCo && (
     <div className="max-w-xl">
       <div className="ft-eyebrow text-[9px] mb-1">{addCo.name}</div>
@@ -4725,7 +5111,14 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
       <div className="mt-4 space-y-2">
         {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
         <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp} />
-        {adding.kind === "grouts" ? (
+        {adding.kind === "attached" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {customCat?.math === "coverage" && numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
+            {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
+            {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+            {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
+          </div>
+        ) : adding.kind === "grouts" ? (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
@@ -4798,18 +5191,40 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
           </div>
         </aside>
 
-        {(section === "grout" || section === "matunder") ? (
+        {section === "materials" ? (
           <>
+            <div className="w-44 shrink-0 border-r border-slate-200 overflow-y-auto py-3 px-2 space-y-0.5">
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 mb-1">Materials</div>
+              {MATERIAL_CATEGORIES.map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => openCat(id)}
+                  className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${cat === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                  <Icon size={14} className={cat === id ? "" : "text-slate-400"} />
+                  <span className="flex-1 truncate">{label}</span>
+                  <Lock size={10} className={cat === id ? "text-white/60" : "text-slate-300"} />
+                </button>
+              ))}
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 pt-3 mb-1">Add-ons</div>
+              {(catalog.categories || []).length === 0 && <p className="px-1.5 text-[11px] text-slate-400">None yet.</p>}
+              {(catalog.categories || []).map((c) => (
+                <button key={c.id} onClick={() => openCat(c.id)}
+                  className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${cat === c.id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                  <Tag size={14} className={cat === c.id ? "" : "text-slate-400"} />
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {!c.enabled && <span className={`text-[10px] ${cat === c.id ? "text-white/70" : "text-slate-400"}`}>off</span>}
+                </button>
+              ))}
+              <button onClick={openNewCategory} className="w-full flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2 py-1.5 text-slate-500 hover:bg-slate-50 mt-1"><Plus size={12} /> New category</button>
+            </div>
             <div className="w-72 shrink-0 border-r border-slate-200 overflow-y-auto py-2">
               <p className="px-3 pb-1.5 text-[11px] text-slate-400">Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
               {catalog.companies.filter(inSection).map((co) => (
                 <div key={co.id} className="mb-1">
                   {companyHeader(co)}
-                  {kindsFor.flatMap((kind) => (co[kind] || []).map((p) => { const active = sel && sel.companyId === co.id && sel.kind === kind && sel.productId === p.id; return (
+                  {kindsFor.flatMap((kind) => prodsOf(co, kind).map((p) => { const active = sel && sel.companyId === co.id && sel.kind === kind && sel.productId === p.id; return (
                     <button key={p.id} onClick={() => pickProduct(co.id, kind, p.id)} className={`w-full text-left pl-9 pr-2.5 py-1.5 flex items-center gap-2 border-l-2 ${active ? "border-indigo-600 bg-indigo-50/40" : "border-transparent hover:bg-slate-50"}`}>
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-sm truncate ${p.enabled ? "font-medium" : "text-slate-400"}`}>{p.name}</span>
-                        <span className="block text-[10px] text-slate-400 truncate">{section === "matunder" ? `${kindTag[kind]} · ${masterHint(kind, p)}` : masterHint(kind, p)}</span>
+                        <span className={`flex items-center gap-1 text-sm ${p.enabled ? "font-medium" : "text-slate-400"}`}><span className="truncate">{p.name}</span>{(kind === "attached" ? isCategoryDefault(p) : isDefaultMaterial(kind, p.name)) && <Star size={10} className="fill-current text-indigo-500 shrink-0" title="Chip default" />}</span>
+                        <span className="block text-[10px] text-slate-400 truncate">{masterHint(kind, p)}</span>
                       </span>
                       <ChevronRight size={13} className="text-slate-300 shrink-0" />
                     </button>
@@ -4820,7 +5235,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <button onClick={() => setShowOthers(!showOthers)} className="w-full px-3 py-1 flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600">
                     <ChevronRight size={11} className={`transition-transform ${showOthers ? "rotate-90" : ""}`} />
-                    <span className="flex-1 text-left">Companies with no {section === "grout" ? "grouts" : "mortars or underlayments"}</span>
+                    <span className="flex-1 text-left">Companies with no {kindsFor[0] === "attached" ? `${kindLabel("attached")} products` : `${kindLabel(kindsFor[0])}s`}</span>
                     <span>{others.length}</span>
                   </button>
                   {showOthers && others.map((co) => <div key={co.id}>{companyHeader(co)}</div>)}
@@ -4835,8 +5250,9 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
               {adding ? renderAddForm()
                 : selProd && sel.kind === "grouts" ? renderGroutDetail(selCo, selProd)
                   : selProd && sel.kind === "mortars" ? renderMortarDetail(selCo, selProd)
-                    : selProd ? renderUnderlayDetail(selCo, selProd)
-                      : <div className="h-full flex items-center justify-center text-sm text-slate-400">Select a product on the left — or add one under its company.</div>}
+                    : selProd && sel.kind === "attached" ? renderAttachedDetail(selCo, selProd)
+                      : selProd ? renderUnderlayDetail(selCo, selProd)
+                        : customCat ? renderCustomCategoryPane() : renderCategoryPane()}
             </div>
           </>
         ) : section === "profile" ? (
@@ -4881,6 +5297,27 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
               <input ref={fileRef} type="file" accept="application/json" onChange={importBackup} className="hidden" />
             </div>
           </div>
+        )}
+        {addingCat && (
+          <Modal title="New category" onClose={() => setAddingCat(false)}>
+            <label className={lbl}>Name</label>
+            <input className={inp} value={catDraft.name} autoFocus placeholder="e.g. Trim, Sealer, Thresholds" onChange={(e) => setCatDraft({ ...catDraft, name: e.target.value })} onKeyDown={(e) => e.key === "Enter" && submitCategory()} />
+            <div className="mt-3">{typeChips(catDraft.floorTypes, (v) => setCatDraft({ ...catDraft, floorTypes: v }), floorTypeList)}</div>
+            <label className={lbl + " mt-3"}>Quantity</label>
+            <div className="flex gap-2">
+              {[["coverage", "Coverage", "Sq ft per unit — scales off the row's area plus waste"], ["manual", "Manual", "Typed per-row quantity — no area math"]].map(([k, t, d]) => (
+                <button key={k} onClick={() => setCatDraft({ ...catDraft, math: k })} className={`flex-1 text-left rounded-lg border px-3 py-2 ${catDraft.math === k ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                  <div className="text-sm font-medium">{t}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{d}</div>
+                </button>
+              ))}
+            </div>
+            {catError && <div className="text-xs text-red-500 mt-2">{catError}</div>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setAddingCat(false)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+              <button onClick={submitCategory} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Create category</button>
+            </div>
+          </Modal>
         )}
       </div>
     </div>

@@ -1,0 +1,675 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><title>FloorTrack — Mobile Layout Prototypes</title>
+<style>
+/* ---- Moss kit tokens, lifted verbatim from src/index.css ---- */
+:root{
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-field:#FFFFFF;
+  --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-grid-line:rgba(28,26,23,.34);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+  --ft-accent:#1C1A17; --ft-accent-ink:#F6F3EC;
+  --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-sand:#EDE9DD; --ft-band:#E7E3D6; --ft-row-line:#ECE8DC;
+  --ft-area-head:#E7E3D6; --ft-area-row:#F6F3EC;
+  --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
+  --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
+  --ft-shadow:rgba(28,26,23,.10);
+  --ft-type-tile:#2A3A1B; --ft-type-vinyl:#57703A; --ft-type-hardwood:#40542A;
+  --ft-ui:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  --ft-r:4px; --ft-r-lg:6px;
+  --pg:#EFEBE1; --pg-ink:#1C1A17;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ft-cream:#1C1A17; --ft-card:#26231F; --ft-field:#26231F;
+    --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+    --ft-grid-line:rgba(246,243,236,.30);
+    --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C;
+    --ft-accent:#F6F3EC; --ft-accent-ink:#1C1A17;
+    --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
+    --ft-sand:#33302A; --ft-band:#2F2C26; --ft-row-line:#37342D;
+    --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab,#1C1A17 95%, white);
+    --ft-shadow:rgba(0,0,0,.45);
+    --ft-type-tile:#6B8A44; --ft-type-vinyl:#93B56A; --ft-type-hardwood:#7FA055;
+    --pg:#141210; --pg-ink:#F6F3EC;
+  }
+}
+:root[data-theme="dark"]{
+  --ft-cream:#1C1A17; --ft-card:#26231F; --ft-field:#26231F;
+  --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+  --ft-grid-line:rgba(246,243,236,.30);
+  --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C;
+  --ft-accent:#F6F3EC; --ft-accent-ink:#1C1A17;
+  --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
+  --ft-sand:#33302A; --ft-band:#2F2C26; --ft-row-line:#37342D;
+  --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab,#1C1A17 95%, white);
+  --ft-shadow:rgba(0,0,0,.45);
+  --ft-type-tile:#6B8A44; --ft-type-vinyl:#93B56A; --ft-type-hardwood:#7FA055;
+  --pg:#141210; --pg-ink:#F6F3EC;
+}
+:root[data-theme="light"]{
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-field:#FFFFFF;
+  --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-grid-line:rgba(28,26,23,.34);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+  --ft-accent:#1C1A17; --ft-accent-ink:#F6F3EC;
+  --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-sand:#EDE9DD; --ft-band:#E7E3D6; --ft-row-line:#ECE8DC;
+  --ft-area-head:#E7E3D6; --ft-area-row:#F6F3EC;
+  --ft-shadow:rgba(28,26,23,.10);
+  --ft-type-tile:#2A3A1B; --ft-type-vinyl:#57703A; --ft-type-hardwood:#40542A;
+  --pg:#EFEBE1; --pg-ink:#1C1A17;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--pg);color:var(--pg-ink);font-family:var(--ft-ui);}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
+input,select{font-family:inherit;color:var(--ft-text)}
+.eyebrow{font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ft-muted);font-size:10px}
+.eyebrow.acc{color:var(--ft-brand-deep);letter-spacing:.16em}
+.mono{font-variant-numeric:tabular-nums}
+
+/* ================= page shell (desktop) ================= */
+.shell{max-width:1120px;margin:0 auto;padding:28px 20px 80px}
+.shell>header{margin-bottom:22px}
+.shell h1{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:6px 0 8px}
+.shell h1 .the{color:var(--ft-brand)}
+.shell header p{max-width:62ch;line-height:1.55;color:var(--ft-muted);margin:0;font-size:14px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:start}
+.rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:20px}
+.optbtn{text-align:left;border:1px solid var(--ft-border);border-radius:var(--ft-r-lg);background:var(--ft-card);padding:14px 16px;transition:border-color .15s, box-shadow .15s}
+.optbtn:hover{border-color:var(--ft-border-strong)}
+.optbtn.on{border-color:var(--ft-brand);box-shadow:0 0 0 1px var(--ft-brand), 0 6px 18px var(--ft-shadow)}
+.optbtn .k{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ft-accent);color:var(--ft-accent-ink);font-size:11px;font-weight:700;margin-right:9px}
+.optbtn.on .k{background:var(--ft-brand);color:#fff}
+.optbtn .nm{font-weight:700;font-size:14.5px;color:var(--ft-text)}
+.optbtn .tag{margin-left:8px;font-size:10.5px;color:var(--ft-brand-deep);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.optbtn p{margin:7px 0 0;font-size:12.5px;line-height:1.5;color:var(--ft-muted)}
+.notes{border:1px solid var(--ft-border);border-radius:var(--ft-r-lg);background:var(--ft-card);padding:16px;font-size:12.5px;line-height:1.55;color:var(--ft-text)}
+.notes h3{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-brand-deep)}
+.notes dl{margin:10px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.notes dt{font-weight:700;color:var(--ft-muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding-top:1px}
+.notes dd{margin:0;color:var(--ft-text)}
+.hint{font-size:11.5px;color:var(--ft-faint);line-height:1.5;margin-top:2px}
+
+/* ================= phone frame ================= */
+.stage{display:flex;flex-direction:column;align-items:center;gap:12px}
+.frame{width:398px;border-radius:38px;padding:10px;background:#1C1A17;box-shadow:0 24px 60px var(--ft-shadow), inset 0 0 0 1.5px #3A3630}
+:root[data-theme="dark"] .frame{background:#000}
+.phone{position:relative;width:378px;height:742px;border-radius:30px;overflow:hidden;background:var(--ft-cream);color:var(--ft-text);display:flex;flex-direction:column}
+.stage .cap{font-size:12px;color:var(--ft-muted)}
+.stage .cap b{color:var(--pg-ink)}
+
+/* on a real phone: drop frame, go full-bleed */
+@media (max-width:860px){
+  .shell{padding:0}
+  .shell>header{padding:18px 16px 4px}
+  .cols{display:block}
+  .rail{display:none}
+  .stage{gap:0}
+  .frame{width:100%;border-radius:0;padding:0;background:none;box-shadow:none}
+  .phone{width:100%;height:calc(100dvh - 6px);border-radius:0}
+  .stage .cap{display:none}
+}
+
+/* floating variant switcher (project prototype convention) */
+.switcher{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:90;display:none;align-items:center;gap:2px;background:var(--ft-accent);color:var(--ft-accent-ink);border-radius:999px;padding:6px 10px;box-shadow:0 10px 28px rgba(0,0,0,.35);font-size:13px;font-weight:700}
+.switcher button{color:inherit;font-size:16px;padding:2px 8px}
+.switcher .lbl{min-width:150px;text-align:center}
+@media (max-width:860px){.switcher{display:flex}}
+
+/* ================= shared in-phone chrome ================= */
+.topbar{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--ft-cream);border-bottom:1px solid var(--ft-border);flex:none}
+.topbar .burger{display:flex;flex-direction:column;gap:4px;padding:4px 2px}
+.topbar .burger i{display:block;width:17px;height:1.8px;background:var(--ft-text);border-radius:2px}
+.wordmark{font-weight:700;letter-spacing:-.02em;text-transform:lowercase;line-height:1;display:inline-flex;flex-direction:column;font-size:19px}
+.wordmark .the{font-size:9px;font-weight:600;color:var(--ft-brand);margin:0 0 -1px 2px;letter-spacing:.02em}
+.topbar .pj{flex:1;min-width:0;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.screen{flex:1;overflow-y:auto;overscroll-behavior:contain;position:relative}
+.screen::-webkit-scrollbar{width:0}
+.money{font-variant-numeric:tabular-nums;font-weight:700}
+.typechip{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border-radius:3px;color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.03em}
+.t-tile{background:var(--ft-type-tile)} .t-vinyl{background:var(--ft-type-vinyl)} .t-hardwood{background:var(--ft-type-hardwood)}
+:root[data-theme="dark"] .typechip{color:#1C1A17}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .typechip{color:#1C1A17}}
+:root[data-theme="light"] .typechip{color:#fff}
+.field{background:var(--ft-field);border:1px solid var(--ft-border);border-radius:var(--ft-r);padding:7px 9px;font-size:13px;width:100%;min-width:0}
+.field:focus{outline:none;box-shadow:0 0 0 2px var(--ft-brand)}
+.flabel{display:block;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted);margin-bottom:4px}
+.projhead{margin:12px 12px 10px;border:1px solid var(--ft-border);border-radius:var(--ft-r-lg);background:var(--ft-tint);padding:12px 14px}
+.projhead .cust{font-weight:700;font-size:16.5px}
+.projhead .sub{font-size:12px;color:var(--ft-muted);margin-top:2px}
+.projhead .acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.pbtn{border:1px solid var(--ft-border-strong);border-radius:var(--ft-r);padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--ft-text);background:var(--ft-card)}
+.pbtn.solid{background:var(--ft-accent);color:var(--ft-accent-ink);border-color:transparent}
+.areahead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;background:var(--ft-area-head);padding:8px 12px;border-bottom:1px solid var(--ft-grid-line)}
+.areahead .nm{font-weight:700;font-size:13.5px}
+.areahead .sum{font-size:11px;color:var(--ft-muted);font-variant-numeric:tabular-nums}
+.areacard{margin:0 12px 14px;border:1px solid var(--ft-grid-line);border-radius:var(--ft-r-lg);overflow:hidden;background:var(--ft-area-row)}
+.addrow{display:block;width:100%;text-align:center;padding:8px;font-size:12px;font-weight:600;color:var(--ft-brand-deep);border-top:1px dashed var(--ft-border-strong)}
+.addarea{display:block;width:calc(100% - 24px);margin:0 12px 14px;padding:10px;text-align:center;border-radius:var(--ft-r);background:var(--ft-accent);color:var(--ft-accent-ink);font-weight:700;font-size:13px}
+
+/* order summary (shared, stacks like the real md:grid-cols-4 -> 1) */
+.ordsum{margin:0 12px 20px;border:1px solid var(--ft-border);border-radius:var(--ft-r-lg);background:var(--ft-card);overflow:hidden}
+.ordsum .hd{display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px;border-bottom:1px solid var(--ft-border)}
+.ordsum .hd .a{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.ordsum .hd .b{font-weight:600;font-size:14px}
+.ordsum .grp{padding:10px 14px;border-bottom:1px solid var(--ft-row-line)}
+.ordsum .grp h4{margin:0 0 6px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ft-muted)}
+.ordsum .li{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0}
+.ordsum .li .s{color:var(--ft-muted);font-size:10.5px}
+.ordsum .tot{padding:12px 14px}
+.ordsum .tr{display:flex;justify-content:space-between;font-size:12.5px;padding:2.5px 0;color:var(--ft-muted)}
+.ordsum .tr b{color:var(--ft-text);font-variant-numeric:tabular-nums;font-weight:600}
+.ordsum .grand{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:10px;border-top:1px solid var(--ft-border-strong)}
+.ordsum .grand .g{font-size:24px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+
+/* ================= OPTION A — stacked cards ================= */
+.a-prod{border-bottom:1px solid var(--ft-row-line);padding:10px 12px}
+.a-prod:last-of-type{border-bottom:none}
+.a-id{display:flex;align-items:center;gap:8px;min-width:0}
+.a-id .nm{flex:1;min-width:0;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-id .sku{font-size:10px;color:var(--ft-faint);font-variant-numeric:tabular-nums}
+.a-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
+.a-cell .flabel{margin-bottom:3px}
+.a-cell .field{padding:6px 8px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.a-cell .field.lft{text-align:left}
+.a-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px;gap:8px}
+.a-order{font-size:12px;color:var(--ft-muted);font-variant-numeric:tabular-nums}
+.a-order b{color:var(--ft-text);font-size:13px}
+.a-total{font-size:15px}
+.matchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ft-border-strong);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--ft-text);background:var(--ft-card);white-space:nowrap;flex:none}
+.matchip .dot{width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
+.a-mats{margin-top:9px;border:1px solid var(--ft-border);border-radius:var(--ft-r);background:var(--ft-card);padding:9px 11px;display:none}
+.a-mats.open{display:block}
+.a-mats .ml{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:4px 0}
+.a-mats .ml+.ml{border-top:1px solid var(--ft-row-line)}
+.a-mats .ml .s{color:var(--ft-muted);font-size:10.5px}
+.a-mats .ml .q{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+
+/* ================= OPTION B — drill-down ================= */
+.b-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px;border-bottom:1px solid var(--ft-row-line);background:none}
+.b-row:active{background:var(--ft-hover)}
+.b-main{flex:1;min-width:0}
+.b-main .nm{display:block;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-main .sub{display:block;font-size:11px;color:var(--ft-muted);margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-num{text-align:right;flex:none}
+.b-num .t{display:block;font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+.b-num .o{display:block;font-size:10.5px;color:var(--ft-muted);font-variant-numeric:tabular-nums}
+.b-chev{color:var(--ft-faint);font-size:18px;flex:none}
+.b-editor{position:absolute;inset:0;background:var(--ft-cream);transform:translateX(105%);transition:transform .22s ease;z-index:5;display:flex;flex-direction:column}
+.b-editor.open{transform:translateX(0)}
+@media (prefers-reduced-motion:reduce){.b-editor{transition:none}}
+.b-ehead{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--ft-border);background:var(--ft-cream);flex:none}
+.b-ehead .back{font-size:13px;font-weight:700;color:var(--ft-brand-deep);padding:4px 6px 4px 0}
+.b-ehead .ti{flex:1;font-weight:700;font-size:14.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-ebody{flex:1;overflow-y:auto;padding:14px 14px 90px}
+.b-sec{margin-bottom:16px}
+.b-sec h4{margin:0 0 8px;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.b-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.b-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.b-editor .field{padding:11px 12px;font-size:15px}
+.b-stick{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--ft-accent);color:var(--ft-accent-ink);z-index:6}
+.b-stick .o{font-size:12px;opacity:.75;font-variant-numeric:tabular-nums}
+.b-stick .t{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:var(--ft-r);overflow:hidden}
+.seg button{padding:9px 13px;font-size:13px;font-weight:600;color:var(--ft-muted);background:var(--ft-card)}
+.seg button.on{background:var(--ft-sand);color:var(--ft-text)}
+
+/* ================= OPTION C — ledger + bottom sheet ================= */
+.c-line{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;padding:9px 12px;border-bottom:1px solid var(--ft-row-line);font-size:12.5px}
+.c-line:active{background:var(--ft-hover)}
+.c-line .nm{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-line .sz{color:var(--ft-muted);font-size:11px;flex:none;font-variant-numeric:tabular-nums}
+.c-line .t{font-weight:700;flex:none;font-variant-numeric:tabular-nums}
+.c-sub{display:block;font-size:10.5px;color:var(--ft-muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.c-mat{padding:5px 12px 5px 24px;font-size:11px;color:var(--ft-muted);border-bottom:1px solid var(--ft-row-line);display:flex;justify-content:space-between;gap:8px}
+.c-mat .q{font-variant-numeric:tabular-nums}
+.c-totbar{flex:none;background:var(--ft-accent);color:var(--ft-accent-ink);padding:0 16px;z-index:8}
+.c-totbar .bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0;width:100%;text-align:left;color:inherit}
+.c-totbar .g{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.c-totbar .x{font-size:11px;opacity:.7;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.c-tots{display:none;padding-bottom:12px}
+.c-tots.open{display:block}
+.c-tots .tr{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;opacity:.85;font-variant-numeric:tabular-nums}
+.scrim{position:absolute;inset:0;background:rgba(20,15,10,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ft-cream);border-radius:14px 14px 0 0;transform:translateY(105%);transition:transform .24s ease;z-index:11;max-height:86%;display:flex;flex-direction:column;box-shadow:0 -12px 40px rgba(0,0,0,.25)}
+.sheet.open{transform:translateY(0)}
+@media (prefers-reduced-motion:reduce){.sheet,.scrim{transition:none}}
+.sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--ft-border-strong);margin:8px auto 2px;flex:none}
+.sheet .shead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 16px 10px;border-bottom:1px solid var(--ft-border);flex:none}
+.sheet .shead .ti{font-weight:700;font-size:15px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet .shead .done{font-weight:700;font-size:13px;color:var(--ft-brand-deep);padding:4px 2px}
+.sheet .sbody{overflow-y:auto;padding:14px 16px 22px}
+.sheet .field{padding:11px 12px;font-size:15px}
+
+/* ================= OPTION E — two-line row, labels per field ================= */
+.e-row{border-bottom:1px solid var(--ft-row-line)}
+.e-row:last-of-type{border-bottom:none}
+.e-l1{display:flex;align-items:center;gap:7px;padding:8px 9px 1px}
+.e-l1 input{border:none;background:transparent;font:inherit;color:inherit;padding:3px 4px;border-radius:var(--ft-r);min-width:0}
+.e-l1 input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card)}
+input.e-size{width:88px;flex:none;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
+input.e-name{flex:1;font-weight:600;font-size:13px}
+.e-l2{display:flex;flex-wrap:wrap;align-items:stretch;padding:3px 6px 8px;row-gap:6px}
+.e-f{display:flex;flex-direction:column;gap:1px;min-width:0;padding:0 6px;border-right:1px solid var(--ft-row-line)}
+.e-f:last-of-type{border-right:none}
+.e-f .fl{font-size:8px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-muted);padding:0 4px;white-space:nowrap}
+.e-f input,.e-f .val{border:none;background:transparent;font:inherit;color:inherit;font-size:11.5px;padding:4px;min-width:0;width:100%;font-variant-numeric:tabular-nums;border-radius:var(--ft-r)}
+.e-f input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card)}
+.e-f.num .fl,.e-f.num input,.e-f.num .val{text-align:right}
+.e-f.sku{flex:1.4 1 86px}
+.e-f.sku input{font-size:10.5px;color:var(--ft-muted)}
+.e-f.cov{flex:.5 1 44px}
+.e-f.sf{flex:.5 1 46px}
+.e-f.price{flex:.6 1 54px}
+.e-f.ord{flex:.8 1 62px}
+.e-f.tot{flex:1 1 72px}
+.e-f.tint{background:var(--ft-area-head);border-radius:var(--ft-r)}
+.e-f .val.money{font-weight:700}
+.e-f .ex{font-size:8.5px;color:var(--ft-faint);text-align:right;padding:0 4px;font-variant-numeric:tabular-nums}
+.e-mats{padding:0 9px 7px 24px;display:flex;flex-wrap:wrap;gap:3px 12px}
+.e-mats span{font-size:10px;color:var(--ft-muted)}
+.e-mats b{font-weight:600;color:var(--ft-text)}
+
+/* ================= OPTION D — sticky-rail spreadsheet ================= */
+.d-chips{display:flex;gap:6px;padding:9px 12px 2px;flex-wrap:wrap}
+.d-chip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:600;color:var(--ft-muted)}
+.d-chip.on{background:var(--ft-accent);color:var(--ft-accent-ink);border-color:transparent}
+.d-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.d-tbl{border-collapse:collapse;min-width:100%}
+.d-tbl th,.d-tbl td{border-bottom:1px solid var(--ft-row-line);border-right:1px solid var(--ft-row-line);padding:0;font-size:12px;white-space:nowrap}
+.d-tbl th{background:var(--ft-area-head);font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-muted);text-align:left;padding:6px 9px}
+.d-tbl td .cell{display:block;width:100%;min-width:64px;border:none;background:transparent;padding:10px 9px;font:inherit;color:inherit;font-variant-numeric:tabular-nums}
+.d-tbl td .cell:focus{outline:none;box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-card)}
+.d-tbl .stick{position:sticky;left:0;z-index:2;background:var(--ft-area-row);border-right:1px solid var(--ft-grid-line);max-width:168px;box-shadow:4px 0 8px -4px var(--ft-shadow)}
+.d-tbl th.stick{background:var(--ft-area-head);z-index:3}
+.d-tbl .stick .pcell{display:flex;flex-direction:column;gap:2px;padding:7px 9px;max-width:168px}
+.d-tbl .stick .nm{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d-tbl .stick .sub{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--ft-muted);font-variant-numeric:tabular-nums}
+.d-tbl td.num{text-align:right}
+.d-tbl td.tint{background:var(--ft-area-head)}
+.d-tbl td .cell.num{text-align:right}
+.d-hint{padding:6px 12px 10px;font-size:10.5px;color:var(--ft-faint)}
+</style>
+
+<div class="shell">
+  <header>
+    <div class="eyebrow acc">FloorTrack · Prototype · 5 variants · throwaway</div>
+    <h1><span class="the">the</span> estimate builder, on a phone</h1>
+    <p>Same project, five structurally different mobile treatments of the part that breaks today — the fixed 9-column product grid. Flip between options; on a desktop you see it inside a phone frame, and if you open this page on your actual phone each option runs full-screen. Inputs are live to feel, but nothing saves.</p>
+  </header>
+
+  <div class="cols">
+    <div class="rail" id="rail"></div>
+    <div class="stage">
+      <div class="frame"><div class="phone" id="phone"></div></div>
+      <div class="cap">Viewing option <b id="capk">A</b> — <span id="capn"></span></div>
+    </div>
+  </div>
+</div>
+
+<div class="switcher" id="switcher">
+  <button id="swPrev" aria-label="Previous option">‹</button>
+  <span class="lbl" id="swLbl">A — Stacked cards</span>
+  <button id="swNext" aria-label="Next option">›</button>
+</div>
+
+<script>
+const money = n => "$" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+const P = {
+  customer:"Hendricks Residence", project:"Main floor remodel", phone:"(555) 214-8890",
+  areas:[
+    { name:"Kitchen + Dining", sf:368, amt:2084.53, products:[
+      { id:"p1", type:"tile", tl:"T", size:"12×24×3/8", name:"Daltile — Emerson Wood Brindle", sku:"EW03-1224", cov:"15.6", sf:320, price:4.89, exact:"22.56", ord:"23 CT", total:1754.53,
+        mats:[ {k:"Grout", v:"Permacolor · Smoke Grey · 1/8\"", sku:"PC-SG-25", q:"3 bags"},
+               {k:"Caulk", v:"Smoke Grey (color-matched)", sku:"CLK-SG", q:"2 tubes"},
+               {k:"Mortar", v:"254 Platinum", sku:"254-50", q:"7 bags"} ] },
+      { id:"p2", type:"tile", tl:"T", size:"3×12", name:"Arctic White gloss — backsplash", sku:"AW-312", cov:"—", sf:48, price:6.25, exact:"52.80", ord:"53 SF", total:330.00,
+        mats:[ {k:"Grout", v:"Permacolor · Bright White · 1/16\"", sku:"PC-BW-25", q:"1 bag"},
+               {k:"Mortar", v:"254 Platinum White", sku:"254W-50", q:"2 bags"} ] } ]},
+    { name:"Primary Bath", sf:140, amt:653.56, products:[
+      { id:"p3", type:"vinyl", tl:"V", size:"7×48", name:"Mannington — Adura Max Sausalito", sku:"MAX-SAU7", cov:"27.3", sf:140, price:3.99, exact:"5.64", ord:"6 CT", total:653.56, mats:[] } ]}
+  ],
+  totals:{ flooring:2738.09, grout:113.58, mortar:94.15, underlay:0, grand:2945.82 }
+};
+
+const OPTS = [
+ { k:"A", name:"Stacked cards", tag:"everything inline",
+   blurb:"Each product row becomes a card: identity line on top, labeled number fields in a grid under it, materials behind a chip. Nothing hides behind navigation — closest to the desktop's \"see it all\" feel.",
+   strong:"Zero navigation; all numbers visible and editable in place; easiest mental match to the desktop grid.",
+   weak:"Tall — a 3-product area is ~3 screens; per-row scanning down a column (compare prices) is gone.",
+   cost:"Low–medium. Pure re-layout of the existing row under the isWide flag; same state, same handlers." },
+ { k:"B", name:"Drill-down editor", tag:"most native-app",
+   blurb:"Rows compress to one-line summaries (name · size · SF → order + total). Tapping opens a full-screen editor with big touch fields, grouped sections, and a sticky running total. Tap ‹ Back to return.",
+   strong:"Compact overview and roomy editing; big touch targets; grout/mortar get real space instead of a cramped drawer.",
+   weak:"Edits cost two taps; you can't see two products' numbers while editing one.",
+   cost:"Medium. New editor screen, but it can reuse the existing field components; summary row is simple.",
+   rec:true },
+ { k:"C", name:"Ledger + bottom sheet", tag:"reads like the estimate",
+   blurb:"The screen reads like the printed estimate — dense, scannable lines with materials indented under each product. Tap any line to edit it in a bottom sheet; totals live in a pinned bar that expands.",
+   strong:"Most information per screen; great for reviewing/quoting on-site; pinned total always visible.",
+   weak:"Read-first: every edit goes through the sheet; dense lines are small tap targets.",
+   cost:"Medium. Ledger view is near the print layout that already exists; sheet reuses editor fields." },
+ { k:"E", name:"Two-line grid", tag:"your sketch · current design, wrapped",
+   blurb:"Keeps today's grid look, but each row wraps to two decks: Size and Product/Color on the first line; below, each field carries its own name right above it — SKU · Cov. · SF · Price · Order · Total — no shared header strip, so the fields can wrap when space runs out.",
+   strong:"Same design language as desktop; all numbers visible and editable in place; per-field labels mean nothing depends on column alignment, so nothing ever crushes.",
+   weak:"Rows are ~2× as tall; labels repeat on every row, which adds visual noise; strict column scanning down an area is looser than a true grid.",
+   cost:"Low. Under the existing isWide flag the row renders as two flex-wrap decks of labeled fields — same components, same handlers, header strip simply hidden on mobile." },
+ { k:"D", name:"Sticky-rail spreadsheet", tag:"least change",
+   blurb:"Keep the grid, make it pannable: product column sticks left, the number columns scroll horizontally under it, and chips jump to a column group. Taller rows for touch.",
+   strong:"Preserves the spreadsheet muscle memory and column scanning; smallest conceptual change.",
+   weak:"Horizontal panning on a phone is fiddly; editing in a moving grid invites mis-taps; headers/rows must stay in lockstep.",
+   cost:"Low. Wrap the existing grid in a scroll container, widen the columns, add sticky positioning." }
+];
+
+let cur = 0;
+
+/* ---------- shared chrome ---------- */
+const topbar = () => `
+  <div class="topbar">
+    <button class="burger" aria-label="Menu"><i></i><i></i><i></i></button>
+    <span class="wordmark"><span class="the">the</span>ned</span>
+    <span class="pj">${P.customer}</span>
+  </div>`;
+
+const projhead = () => `
+  <div class="projhead">
+    <div class="cust">${P.customer}</div>
+    <div class="sub">${P.project} · ${P.phone}</div>
+    <div class="acts">
+      <button class="pbtn">Version</button><button class="pbtn">History</button>
+      <button class="pbtn">Order sheet</button><button class="pbtn solid">Print</button>
+    </div>
+  </div>`;
+
+const ordsum = () => `
+  <div class="ordsum">
+    <div class="hd"><span class="a">Materials estimate</span><span class="b">Order summary</span></div>
+    <div class="grp"><h4>Grout &amp; caulk</h4>
+      <div class="li"><span>Permacolor · Smoke Grey<br><span class="s">PC-SG-25 · 3 bags</span></span><span class="money">$96.00</span></div>
+      <div class="li"><span>Matching caulk · Smoke Grey<br><span class="s">CLK-SG · 2 tubes</span></span><span class="money">$17.58</span></div>
+    </div>
+    <div class="grp"><h4>Mortar</h4>
+      <div class="li"><span>254 Platinum<br><span class="s">254-50 · 9 bags</span></span><span class="money">$94.15</span></div>
+    </div>
+    <div class="tot">
+      <div class="tr"><span>Flooring</span><b>${money(P.totals.flooring)}</b></div>
+      <div class="tr"><span>Grout &amp; caulk</span><b>${money(P.totals.grout)}</b></div>
+      <div class="tr"><span>Mortar</span><b>${money(P.totals.mortar)}</b></div>
+      <div class="grand"><span class="eyebrow acc">Total</span><span class="g">${money(P.totals.grand)}</span></div>
+      <div class="tr" style="margin-top:6px"><span>Quantities include 10% waste</span><span></span></div>
+    </div>
+  </div>`;
+
+const areaShell = (a, inner) => `
+  <div class="areacard">
+    <div class="areahead"><span class="nm">${a.name}</span><span class="sum">${a.sf} SF · ${money(a.amt)}</span></div>
+    ${inner}
+    <button class="addrow">+ Add product</button>
+  </div>`;
+
+/* ---------- Option A — stacked cards ---------- */
+function renderA(){
+  const prod = p => `
+    <div class="a-prod">
+      <div class="a-id">
+        <span class="typechip t-${p.type}">${p.tl}</span>
+        <span class="nm">${p.name}</span>
+        <span class="sku">${p.sku}</span>
+      </div>
+      <div class="a-grid">
+        <label class="a-cell"><span class="flabel">Size</span><input class="field lft" value="${p.size}"></label>
+        <label class="a-cell"><span class="flabel">SF</span><input class="field" inputmode="decimal" value="${p.sf}"></label>
+        <label class="a-cell"><span class="flabel">Price /SF</span><input class="field" inputmode="decimal" value="${p.price.toFixed(2)}"></label>
+      </div>
+      <div class="a-foot">
+        <button class="matchip" data-mats="${p.id}"><span class="dot"></span>Materials${p.mats.length ? " · " + p.mats.length : ""}</button>
+        <span class="a-order">Order <b>${p.ord}</b> <span style="color:var(--ft-faint)">(${p.exact})</span></span>
+        <span class="a-total money">${money(p.total)}</span>
+      </div>
+      ${p.mats.length ? `<div class="a-mats" id="mats-${p.id}">
+        ${p.mats.map(m=>`<div class="ml"><span><b style="font-weight:600">${m.k}</b> — ${m.v}<br><span class="s">${m.sku}</span></span><span class="q">${m.q}</span></div>`).join("")}
+      </div>`:""}
+    </div>`;
+  return topbar() + `<div class="screen">` + projhead() +
+    P.areas.map(a=>areaShell(a, a.products.map(prod).join(""))).join("") +
+    `<button class="addarea">+ Add area</button>` + ordsum() + `</div>`;
+}
+function bindA(root){
+  root.querySelectorAll("[data-mats]").forEach(b=>{
+    b.addEventListener("click",()=>root.querySelector("#mats-"+b.dataset.mats)?.classList.toggle("open"));
+  });
+}
+
+/* ---------- Option B — drill-down ---------- */
+function renderB(){
+  const row = p => `
+    <button class="b-row" data-edit="${p.id}">
+      <span class="typechip t-${p.type}">${p.tl}</span>
+      <span class="b-main"><span class="nm">${p.name}</span><span class="sub">${p.size} · ${p.sf} SF · ${p.sku}</span></span>
+      <span class="b-num"><span class="t">${money(p.total)}</span><span class="o">${p.ord}</span></span>
+      <span class="b-chev">›</span>
+    </button>`;
+  const editors = P.areas.flatMap(a=>a.products).map(p=>`
+    <div class="b-editor" id="ed-${p.id}">
+      <div class="b-ehead"><button class="back" data-back="${p.id}">‹ Back</button><span class="ti">${p.name}</span></div>
+      <div class="b-ebody">
+        <div class="b-sec"><h4>Product</h4>
+          <div style="display:grid;gap:10px">
+            <label><span class="flabel">Product / color — search the price book</span><input class="field" value="${p.name}"></label>
+            <div class="b-2col">
+              <label><span class="flabel">SKU</span><input class="field" value="${p.sku}"></label>
+              <label><span class="flabel">Size</span><input class="field" value="${p.size}"></label>
+            </div>
+          </div>
+        </div>
+        <div class="b-sec"><h4>Quantity &amp; price</h4>
+          <div class="b-3col">
+            <label><span class="flabel">SF</span><input class="field" inputmode="decimal" value="${p.sf}"></label>
+            <label><span class="flabel">Price /SF</span><input class="field" inputmode="decimal" value="${p.price.toFixed(2)}"></label>
+            <label><span class="flabel">Cov. SF/CT</span><input class="field" value="${p.cov}"></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+            <span class="flabel" style="margin:0">Order</span>
+            <span class="seg"><button class="on">− </button><button style="pointer-events:none">${p.ord}</button><button> +</button></span>
+            <span style="font-size:11px;color:var(--ft-faint)" class="mono">exact ${p.exact}</span>
+          </div>
+        </div>
+        ${p.mats.length?`<div class="b-sec"><h4>Materials</h4>
+          ${p.mats.map(m=>`
+            <div style="border:1px solid var(--ft-border);border-radius:var(--ft-r);padding:10px 12px;margin-bottom:8px;background:var(--ft-card)">
+              <div style="display:flex;justify-content:space-between;font-size:13px"><b>${m.k}</b><span class="mono" style="font-weight:600">${m.q}</span></div>
+              <div style="font-size:12px;color:var(--ft-muted);margin-top:3px">${m.v} · <span class="mono">${m.sku}</span></div>
+            </div>`).join("")}
+        </div>`:""}
+      </div>
+      <div class="b-stick"><span class="o">${p.ord} · ${p.sf} SF @ ${money(p.price)}</span><span class="t">${money(p.total)}</span></div>
+    </div>`).join("");
+  return topbar() + `<div class="screen">` + projhead() +
+    P.areas.map(a=>areaShell(a, a.products.map(row).join(""))).join("") +
+    `<button class="addarea">+ Add area</button>` + ordsum() + editors + `</div>`;
+}
+function bindB(root){
+  root.querySelectorAll("[data-edit]").forEach(b=>b.addEventListener("click",()=>{
+    root.querySelector("#ed-"+b.dataset.edit)?.classList.add("open");
+  }));
+  root.querySelectorAll("[data-back]").forEach(b=>b.addEventListener("click",()=>{
+    root.querySelector("#ed-"+b.dataset.back)?.classList.remove("open");
+  }));
+}
+
+/* ---------- Option C — ledger + bottom sheet ---------- */
+function renderC(){
+  const line = p => `
+    <button class="c-line" data-sheet="${p.id}">
+      <span class="typechip t-${p.type}">${p.tl}</span>
+      <span class="nm">${p.name}<span class="c-sub">${p.sku} · ${p.sf} SF @ ${money(p.price)} · order ${p.ord}</span></span>
+      <span class="sz">${p.size}</span>
+      <span class="t">${money(p.total)}</span>
+    </button>
+    ${p.mats.map(m=>`<div class="c-mat"><span>↳ ${m.k} — ${m.v}</span><span class="q">${m.q}</span></div>`).join("")}`;
+  const sheets = P.areas.flatMap(a=>a.products).map(p=>`
+    <div class="sheet" id="sh-${p.id}">
+      <div class="grab"></div>
+      <div class="shead"><span class="ti">${p.name}</span><button class="done" data-close="${p.id}">Done</button></div>
+      <div class="sbody">
+        <div class="b-3col">
+          <label><span class="flabel">SF</span><input class="field" inputmode="decimal" value="${p.sf}"></label>
+          <label><span class="flabel">Price /SF</span><input class="field" inputmode="decimal" value="${p.price.toFixed(2)}"></label>
+          <label><span class="flabel">Size</span><input class="field" value="${p.size}"></label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+          <span class="flabel" style="margin:0">Order</span>
+          <span class="seg"><button>−</button><button style="pointer-events:none">${p.ord}</button><button>+</button></span>
+          <span style="font-size:11px;color:var(--ft-faint)" class="mono">exact ${p.exact}</span>
+        </div>
+        ${p.mats.length?`<div style="margin-top:14px"><span class="flabel">Materials</span>
+          ${p.mats.map(m=>`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--ft-row-line)"><span>${m.k} — ${m.v}</span><span class="mono" style="font-weight:600">${m.q}</span></div>`).join("")}
+        </div>`:""}
+        <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:15px"><b>Line total</b><b class="mono">${money(p.total)}</b></div>
+      </div>
+    </div>`).join("");
+  return topbar() + `<div class="screen">` + projhead() +
+    P.areas.map(a=>areaShell(a, a.products.map(line).join(""))).join("") +
+    `<button class="addarea">+ Add area</button>` + ordsum() +
+    `<div class="scrim" id="c-scrim"></div>` + sheets + `</div>` +
+    `<div class="c-totbar">
+      <button class="bar" id="c-totbtn"><span class="x">Total · tap for breakdown</span><span class="g">${money(P.totals.grand)}</span></button>
+      <div class="c-tots" id="c-tots">
+        <div class="tr"><span>Flooring</span><span>${money(P.totals.flooring)}</span></div>
+        <div class="tr"><span>Grout &amp; caulk</span><span>${money(P.totals.grout)}</span></div>
+        <div class="tr"><span>Mortar</span><span>${money(P.totals.mortar)}</span></div>
+      </div>
+    </div>`;
+}
+function bindC(root){
+  const scrim = root.querySelector("#c-scrim");
+  const closeAll = ()=>{ root.querySelectorAll(".sheet.open").forEach(s=>s.classList.remove("open")); scrim.classList.remove("on"); };
+  root.querySelectorAll("[data-sheet]").forEach(b=>b.addEventListener("click",()=>{
+    closeAll(); root.querySelector("#sh-"+b.dataset.sheet)?.classList.add("open"); scrim.classList.add("on");
+  }));
+  root.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeAll));
+  scrim.addEventListener("click",closeAll);
+  root.querySelector("#c-totbtn").addEventListener("click",()=>root.querySelector("#c-tots").classList.toggle("open"));
+}
+
+/* ---------- Option D — sticky-rail spreadsheet ---------- */
+function renderD(){
+  const rows = a => a.products.map(p=>`
+    <tr>
+      <td class="stick"><div class="pcell"><span class="nm">${p.name}</span><span class="sub"><span class="typechip t-${p.type}">${p.tl}</span>${p.size} · ${p.sku}</span></div></td>
+      <td class="num" data-g="qty"><input class="cell num" inputmode="decimal" value="${p.sf}"></td>
+      <td class="num"><input class="cell num" value="${p.cov}"></td>
+      <td class="num tint" data-g="price"><input class="cell num" inputmode="decimal" value="${p.price.toFixed(2)}"></td>
+      <td class="num" data-g="order"><span class="cell num">${p.ord}</span></td>
+      <td class="num"><span class="cell num" style="color:var(--ft-faint)">${p.exact}</span></td>
+      <td class="num tint"><span class="cell num money">${money(p.total)}</span></td>
+    </tr>`).join("");
+  const table = a => `
+    <div class="d-wrap">
+      <table class="d-tbl">
+        <thead><tr>
+          <th class="stick">Product</th><th data-h="qty">SF</th><th>Cov.</th><th data-h="price">Price</th><th data-h="order">Order</th><th>Exact</th><th>Total</th>
+        </tr></thead>
+        <tbody>${rows(a)}</tbody>
+      </table>
+    </div>`;
+  return topbar() + `<div class="screen">` + projhead() +
+    `<div class="d-chips">
+       <button class="d-chip on" data-jump="qty">Qty</button>
+       <button class="d-chip" data-jump="price">Price</button>
+       <button class="d-chip" data-jump="order">Order &amp; total</button>
+     </div>
+     <div class="d-hint">Product stays pinned — swipe the numbers sideways, or jump with a chip.</div>` +
+    P.areas.map(a=>areaShell(a, table(a))).join("") +
+    `<button class="addarea">+ Add area</button>` + ordsum() + `</div>`;
+}
+function bindD(root){
+  root.querySelectorAll(".d-chip").forEach(c=>c.addEventListener("click",()=>{
+    root.querySelectorAll(".d-chip").forEach(x=>x.classList.remove("on"));
+    c.classList.add("on");
+    root.querySelectorAll(".d-wrap").forEach(w=>{
+      const cell = w.querySelector(`[data-g="${c.dataset.jump}"], [data-h="${c.dataset.jump}"]`);
+      if(cell) w.scrollTo({left: c.dataset.jump==="qty" ? 0 : cell.offsetLeft - 172, behavior:"smooth"});
+    });
+  }));
+}
+
+/* ---------- Option E — two-line grid ---------- */
+function renderE(){
+  const row = p => `
+    <div class="e-row">
+      <div class="e-l1">
+        <span class="typechip t-${p.type}">${p.tl}</span>
+        <input class="e-size" value="${p.size}">
+        <input class="e-name" value="${p.name}">
+      </div>
+      <div class="e-l2">
+        <label class="e-f sku"><span class="fl">SKU</span><input value="${p.sku}"></label>
+        <label class="e-f cov num"><span class="fl">Cov.</span><input value="${p.cov}"></label>
+        <label class="e-f sf num"><span class="fl">SF</span><input inputmode="decimal" value="${p.sf}"></label>
+        <label class="e-f price num tint"><span class="fl">Price</span><input inputmode="decimal" value="${p.price.toFixed(2)}"></label>
+        <div class="e-f ord num"><span class="fl">Order</span><span class="val" style="font-weight:600">${p.ord}</span><span class="ex">${p.exact}</span></div>
+        <div class="e-f tot num tint"><span class="fl">Total</span><span class="val money">${money(p.total)}</span></div>
+      </div>
+      ${p.mats.length?`<div class="e-mats">${p.mats.map(m=>`<span><b>${m.k}</b> ${m.v.split(" · ")[0]} · ${m.q}</span>`).join("")}</div>`:""}
+    </div>`;
+  return topbar() + `<div class="screen">` + projhead() +
+    P.areas.map(a=>areaShell(a, a.products.map(row).join(""))).join("") +
+    `<button class="addarea">+ Add area</button>` + ordsum() + `</div>`;
+}
+function bindE(){}
+
+/* ---------- switcher / rail ---------- */
+const RENDER = [renderA, renderB, renderC, renderE, renderD];
+const BIND   = [bindA, bindB, bindC, bindE, bindD];
+
+function show(i){
+  cur = (i + OPTS.length) % OPTS.length;
+  const phone = document.getElementById("phone");
+  phone.innerHTML = RENDER[cur]();
+  BIND[cur](phone);
+  document.getElementById("capk").textContent = OPTS[cur].k;
+  document.getElementById("capn").textContent = OPTS[cur].name;
+  document.getElementById("swLbl").textContent = OPTS[cur].k + " — " + OPTS[cur].name;
+  document.querySelectorAll(".optbtn").forEach((b,j)=>b.classList.toggle("on", j===cur));
+  renderNotes();
+  history.replaceState(null,"","?variant="+OPTS[cur].k);
+}
+
+function renderNotes(){
+  const o = OPTS[cur];
+  document.getElementById("noteBox").innerHTML = `
+    <h3>Option ${o.k} — trade-offs</h3>
+    <dl>
+      <dt>Strong</dt><dd>${o.strong}</dd>
+      <dt>Weak</dt><dd>${o.weak}</dd>
+      <dt>Build</dt><dd>${o.cost}</dd>
+    </dl>`;
+}
+
+(function init(){
+  const rail = document.getElementById("rail");
+  rail.innerHTML = OPTS.map((o,i)=>`
+    <button class="optbtn${i===0?" on":""}" data-i="${i}">
+      <span class="k">${o.k}</span><span class="nm">${o.name}</span><span class="tag">${o.tag}${o.rec?" · recommended":""}</span>
+      <p>${o.blurb}</p>
+    </button>`).join("") +
+    `<div class="notes" id="noteBox"></div>
+     <p class="hint">All four use the app's real Moss theme tokens and mirror the real fields (SKU, Cov., SF, Price, Order with exact value, materials). Open this page on your phone to feel each one full-screen. A hybrid is likely the real answer — e.g. C's ledger for review with B's editor for input.</p>`;
+  rail.querySelectorAll(".optbtn").forEach(b=>b.addEventListener("click",()=>show(+b.dataset.i)));
+  document.getElementById("swPrev").addEventListener("click",()=>show(cur-1));
+  document.getElementById("swNext").addEventListener("click",()=>show(cur+1));
+  document.addEventListener("keydown",e=>{
+    if(/input|textarea|select/i.test(document.activeElement?.tagName||"")) return;
+    if(e.key==="ArrowLeft") show(cur-1);
+    if(e.key==="ArrowRight") show(cur+1);
+  });
+  const q = new URLSearchParams(location.search).get("variant");
+  const found = OPTS.findIndex(o=>o.k===q);
+  show(found >= 0 ? found : OPTS.findIndex(o=>o.k==="E"));
+})();
+</script>
+</body></html>
