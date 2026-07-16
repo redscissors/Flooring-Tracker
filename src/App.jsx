@@ -628,6 +628,58 @@ function SalespersonPop({ value, fallback, onChange, alignRight }) {
   );
 }
 
+// Single-choice slide bar (spec 2026-07-16) — mirrors the header action
+// buttons' 30px height. An `input` option renders an inline % field (the
+// Custom tier) that selects its tier on focus/typing.
+function SegBar({ value, onChange, options, inputValue, onInput }) {
+  return (
+    <div className="flex h-[30px] shrink-0 rounded-md border border-slate-200 overflow-hidden bg-white">
+      {options.map((o, i) => {
+        const active = value === o.v;
+        const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? "bg-indigo-600 text-white" : "text-slate-500 hover:bg-slate-50");
+        if (o.input) return (
+          <label key={o.v} className={seg + " cursor-text px-1"} title={o.title}>
+            <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)} placeholder="%" className={"w-8 bg-transparent text-right focus:outline-none " + (active ? "text-white placeholder:text-white/60" : "text-slate-500")} />
+            <span className="pr-0.5">%</span>
+          </label>
+        );
+        return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={seg}>{o.label}</button>;
+      })}
+    </div>
+  );
+}
+
+// Files, collapsed to a paperclip chip (spec 2026-07-16): the old dashed box
+// moved into an anchored popover so header column 1 can hold the pricing bars.
+function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  const n = (attachments || []).length;
+  const W = 260;
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Files (not printed)" className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 h-[20px] text-[11px] text-slate-500 hover:bg-slate-50 shrink-0">
+        <Paperclip size={11} /> {n > 0 ? n : "Files"}
+      </button>
+      {open && pos && createPortal(
+        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
+          <div className="ft-eyebrow text-[9px] mb-1.5">Files <span className="normal-case tracking-normal font-normal text-slate-400">— not printed</span></div>
+          <div className="flex flex-wrap gap-1">
+            {(attachments || []).map((m) => (
+              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
+                <button onClick={() => onOpen(m)} className="hover:text-indigo-600 max-w-[9rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
+                <button onClick={() => onDelete(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
+              </span>
+            ))}
+            <button onClick={onAdd} className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
+          </div>
+        </div>, document.body)}
+    </>
+  );
+}
+
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
@@ -2615,21 +2667,34 @@ export default function App({ user, onSignOut }) {
                         </div>
                       </div>
                       <div className="ft-noprint mt-3 pt-3 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
-                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 66 } : {}}>
-                          <div className="ft-eyebrow text-[9px] truncate">{bn || "Files"}</div>
-                          <div className="flex-1 min-h-0 rounded-md border border-dashed border-slate-300 px-1.5 py-1 flex flex-wrap gap-1 items-start content-start overflow-hidden">
-                            {(sel.attachments || []).map((m) => (
-                              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
-                                <button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[7rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
-                                <button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
-                              </span>
-                            ))}
-                            <button onClick={() => attRef.current?.click()} title="Attach a file (not printed)" className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
+                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 92 } : {}}>
+                          <div className="flex items-center justify-between gap-2 min-w-0 h-[20px]">
+                            <div className="ft-eyebrow text-[9px] truncate">{bn || "Pricing"}</div>
+                            <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
                             <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
                           </div>
+                          {(() => { const pcts = normPricing(settings.pricing); return (
+                            <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
+                              onChange={(v) => updateProject(sel.id, { priceTier: v })}
+                              onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
+                              options={[
+                                { v: "retail", label: "Retail", title: "Retail pricing" },
+                                { v: "builder", label: "Bldr", title: `Builder pricing — ${pcts.builderPct}% off retail` },
+                                { v: "employee", label: "Emp", title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
+                                { v: "sale", label: "Sale", title: `Sale pricing — ${pcts.salePct}% off retail` },
+                                { v: "custom", input: true, title: "Custom % off retail" },
+                              ]} />
+                          ); })()}
+                          <SegBar value={sel.printPricing || "full"}
+                            onChange={(v) => updateProject(sel.id, { printPricing: v })}
+                            options={[
+                              { v: "full", label: "All $", title: "Print every price and total" },
+                              { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
+                              { v: "none", label: "No $", title: "Print no pricing" },
+                            ]} />
                         </div>
-                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
-                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
+                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: isWide ? 92 : 66, background: "var(--ft-cream)" }} />
+                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 92 } : {}}>
                           {namingVersion ? (
                             <div className="flex items-center gap-1.5">
                               <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
