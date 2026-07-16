@@ -9,7 +9,7 @@ import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -4172,6 +4172,8 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const isOrder = book.kind === "order";
   const cost = (n) => (hideCosts ? "•••" : n == null ? "—" : money(n));
   const activeItems = (items || []).filter((it) => it.active);
+  // For the flag chips: lets a disabled row see its N-successor (supersede).
+  const skuSet = useMemo(() => new Set((items || []).map((it) => it.sku)), [items]);
   const query = q.trim().toLowerCase();
   // Bulk enable/disable acts on ALL filtered matches, not the 300-row display slice.
   const filtered = (items || [])
@@ -4310,6 +4312,12 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                         {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
                         {it.disabled && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">off</span>}
                         {it.editedAt && <span title={`Hand-edited${it.editedBy ? ` by ${it.editedBy}` : ""} ${new Date(it.editedAt).toLocaleDateString()} — a re-import overwrites this`} className="ml-1.5 text-[9px] uppercase rounded bg-indigo-100 text-indigo-700 px-1 py-0.5">edited</span>}
+                        {/* Why this row deserves a glance — derived fresh each render
+                            (itemFlags), so fixing an item clears its chip and old
+                            imports get chips retroactively. Hover for the reason. */}
+                        {itemFlags(it, skuSet).map((f) => (
+                          <span key={f.code} title={f.msg} className={`ml-1.5 text-[9px] uppercase rounded px-1 py-0.5 cursor-help ${f.tone === "hazard" ? "bg-amber-100 text-amber-700" : f.tone === "advisory" ? "bg-amber-50 text-amber-600" : f.tone === "info" ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-500"}`}>{f.label}</span>
+                        ))}
                       </td>
                       {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
                       <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
