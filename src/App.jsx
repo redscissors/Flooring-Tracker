@@ -643,10 +643,10 @@ function SalespersonPop({ value, fallback, onChange, alignRight }) {
 // for the .scratch preview harnesses only.
 export function SegBar({ value, onChange, options, inputValue, onInput }) {
   return (
-    <div className="flex h-[30px] shrink-0 rounded-md border border-slate-200 overflow-hidden bg-white">
+    <div className="flex h-[30px] shrink-0 rounded-md border border-slate-200 overflow-hidden" style={{ background: "var(--ft-band)" }}>
       {options.map((o, i) => {
         const active = value === o.v;
-        const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? "bg-indigo-600 text-white" : "text-slate-500 hover:bg-slate-50");
+        const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? "bg-indigo-600 text-white" : "text-slate-500 hover:bg-white");
         if (o.input) return (
           <label key={o.v} className={seg + " cursor-text px-1"} title={o.title}>
             <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)} className={"w-8 bg-transparent text-right focus:outline-none " + (active ? "text-white" : "text-slate-500")} />
