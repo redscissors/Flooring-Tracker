@@ -136,7 +136,7 @@ Area     { id, name, note, products: Product[] }
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
-           cartonSf, cartonUnit, cartonManual, note,
+           cartonSf, cartonPc, cartonUnit, cartonManual, note,
            grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice}, mortar:{checked,product,manual},
            // grout.sku = the picked color's own price-book SKU, snapshotted at
            // color-pick time when the grout is linked to a book family
@@ -161,6 +161,9 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // order is whole cartons — exact = sqft×(1+waste)/cartonSf, order =
            // ceil, cartonManual overrides (like grout) — and the line total is
            // ordered cartons × cartonSf × priceSqft instead of sqft × priceSqft.
+           // cartonPc = the piece-count twin for carton-only count lines
+           // (ADR 0013 amendment): pieces typed in the grid's SF/EA column
+           // round up to whole cartons of cartonPc, billing every piece.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...} }
 ```
