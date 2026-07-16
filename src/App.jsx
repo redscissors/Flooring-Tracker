@@ -2193,8 +2193,14 @@ export default function App({ user, onSignOut }) {
     ping("Backup restored");
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
+  // The tier lens (spec 2026-07-16): everything on-screen and on the estimate
+  // computes from the tier-priced pair; quantities are price-independent so the
+  // order sheet and order-entry copies (which print no prices) are unaffected.
+  // The raw `sel` stays the editable/stored truth.
+  const tv = tierView(sel && sel._full ? sel : null, settings);
+  const tSet = tv.settings;
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, caulkCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
-  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { const PC = getPieceCarton(p); miscCost += num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: settings.grouts[p.grout.product]?.unit || "units", price: num(settings.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { caulkCost += ck * num(p.grout.caulkPrice); const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", sku: "", unit: "tubes", price: 0, exact: 0 }; cAgg[k].sku = cAgg[k].sku || p.grout.caulkSku || ""; if (num(p.grout.caulkPrice) > 0) cAgg[k].price = num(p.grout.caulkPrice); cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: settings.mortars[p.mortar.product]?.unit || "units", price: num(settings.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: settings.underlayments?.[p.underlay.product]?.unit || "units", price: num(settings.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
+  (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { const PC = getPieceCarton(p); miscCost += num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, tSet); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, tSet); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: tSet.grouts[p.grout.product]?.unit || "units", price: num(tSet.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { caulkCost += ck * num(p.grout.caulkPrice); const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", sku: "", unit: "tubes", price: 0, exact: 0 }; cAgg[k].sku = cAgg[k].sku || p.grout.caulkSku || ""; if (num(p.grout.caulkPrice) > 0) cAgg[k].price = num(p.grout.caulkPrice); cAgg[k].exact += ck; } } const M = getMortar(p, tSet); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: tSet.mortars[p.mortar.product]?.unit || "units", price: num(tSet.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, tSet); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: tSet.underlayments?.[p.underlay.product]?.unit || "units", price: num(tSet.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, tSet); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
   // The color's own snapshotted SKU (ADR 0007) outranks the catalog product SKU.
   const gList = Object.values(gAgg).map((g) => { const order = ceilQty(g.exact); return { ...g, sku: g.colorSku || settings.grouts[g.product]?.sku || "", order, cost: order * num(g.price) }; });
   const mList = Object.values(mAgg).map((m) => { const order = ceilQty(m.exact); return { ...m, sku: settings.mortars[m.product]?.sku || "", order, cost: order * num(m.price) }; });
@@ -2202,11 +2208,11 @@ export default function App({ user, onSignOut }) {
   const cList = Object.values(cAgg).map((c) => { const order = ceilQty(c.exact); return { ...c, order, cost: order * num(c.price) }; });
   // Base units ride the CONSOLIDATED kit counts (ADR 0006), so they're derived
   // from gList — not per line — and their cost joins the grout family's.
-  const bList = groutBaseList(gList, settings);
+  const bList = groutBaseList(gList, tSet);
   const baseCost = bList.reduce((t, b) => t + b.cost, 0);
   // Add-on categories (ADR 0016), aggregated once and shared by the order
   // summary, order sheet, and grand total. Grouped by category for the summary.
-  const aList = sel?._full ? attachedList(sel, settings) : [];
+  const aList = sel?._full ? attachedList(tv.proj, tSet) : [];
   const addonCost = aList.reduce((t, r) => t + r.cost, 0);
   const aByCat = (settings.catalog.categories || []).map((cat) => ({ cat, rows: aList.filter((r) => r.categoryId === cat.id) })).filter((g) => g.rows.length > 0);
   // Every estimated material line with an order quantity, flattened and labeled
@@ -2224,17 +2230,17 @@ export default function App({ user, onSignOut }) {
   // those snapshot a cost. Each row's sell mirrors its flooring/misc line total,
   // so this margin is a subset of grandTotal. On screen only — never printed.
   const soLines = [];
-  (sel?.categories || []).forEach((a) => a.products.forEach((p) => {
+  (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => {
     if (!(num(p.cost) > 0)) return;
-    const C = getCarton(p, settings);
+    const C = getCarton(p, tSet);
     const PC = getPieceCarton(p);
     const sell = p.type === "misc" ? num(p.priceSqft) * (PC ? PC.pieces : miscQty(p))
       : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft)
       : 0;
-    if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, settings, sell), markupPct: num(p.markupPct) });
+    if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, tSet, sell), markupPct: num(p.markupPct) });
   }));
   const margin = specialOrderMargin(soLines);
-  const pMats = sel && sel._full ? printMatList(sel, settings) : [];
+  const pMats = sel && sel._full ? printMatList(tv.proj, tSet) : [];
 
   // The estimate "paper", moved verbatim from the hidden print block. It renders in
   // BOTH the print layout and the on-screen Print preview tab — one source, so the
@@ -2272,18 +2278,18 @@ export default function App({ user, onSignOut }) {
               );
             })()}
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
-            {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
+            {tv.proj.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
                 <div className="flex justify-between items-center" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
                   <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
-                  <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
+                  <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, tSet) > 0 ? money(printAreaFloor(a, tSet)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
                 <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
                   <div>Size</div><div>Product / Color</div><div>SKU</div><div>Cov.</div>
                   <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
                 </div>
-                {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
+                {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, tSet); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
                   <Fragment key={p.id}>
                     <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "2px 12px 6px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid var(--ft-border)" : "none" }}>
                       <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.sizeText || (p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH)}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
@@ -2664,7 +2670,7 @@ export default function App({ user, onSignOut }) {
               <div>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
-                  const areaTotal = printAreaFloor(a, settings);
+                  const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
                   const areaMatOpen = a.products.some((pp) => matOpen[pp.id]);
                   return (
                   // overflow-hidden lifts while a card is dragged (so the floating
@@ -3432,8 +3438,12 @@ export default function App({ user, onSignOut }) {
       )}
 
       {showOrderCopy && sel && sel._full && (() => {
+        // Order entry reads RETAIL on every tier except Employee, which carries
+        // through (spec 2026-07-16) — the salesperson keys builder/sale discounts
+        // into the vendor order by hand.
+        const oeProj = tv.tier === "employee" ? tv.proj : sel;
         const rows = [];
-        (sel.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
+        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
         const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
         return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} onClose={() => setShowOrderCopy(false)} />;
       })()}
