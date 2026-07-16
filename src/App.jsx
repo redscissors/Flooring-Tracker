@@ -11,6 +11,7 @@ import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
+import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import NedMark from "./NedMark.jsx";
@@ -518,7 +519,7 @@ const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, product
 // never read live again — projects are team-shared, so without the snapshot a
 // teammate opening the job would print THEIR name on the estimate. Editable
 // only through the header's salesperson popover.
-const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [], salesperson: null });
+const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full" });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -532,7 +533,7 @@ const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type
 // no `attached` — they normalize to {} and stay valid.
 const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing) });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
 // real column. personData is what gets written back to the jsonb.

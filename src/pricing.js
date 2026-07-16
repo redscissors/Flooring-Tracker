@@ -10,7 +10,9 @@
 // snapshotted vendor cost (ADR 0011) and leaves everything else at retail —
 // employeeNoCost flags those lines so the screen can say why.
 
-import { num } from "./catalog.js";
+import { num, normPricing } from "./catalog.js";
+
+export { normPricing };
 
 export const TIER_IDS = ["retail", "builder", "employee", "sale", "custom"];
 export const PRINT_PRICING_IDS = ["full", "unit", "none"];
@@ -24,12 +26,6 @@ const clampPct = (v, dflt = 0) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : dflt;
 };
-
-// Settings-level tier percentages ({ builderPct, salePct }), defaults 8 / 10.
-export const normPricing = (raw) => ({
-  builderPct: clampPct(raw?.builderPct, 8),
-  salePct: clampPct(raw?.salePct, 10),
-});
 
 // The discount percent the project's tier applies (0 for retail/employee).
 export function tierPct(proj, settings) {
