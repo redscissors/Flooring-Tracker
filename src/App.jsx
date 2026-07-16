@@ -1533,6 +1533,25 @@ export default function App({ user, onSignOut }) {
     flashSaved();
   };
 
+  // Same disabled-column flip for the shop workbook's stock_items (keyed by sku,
+  // no book_id). Optimistic — the row list reflects it immediately and rolls back
+  // on a failed write. Stock imports strip the column (stockData) too, so the
+  // team's choice survives every re-import just like the registry books'.
+  const setStockItemsDisabled = async (skus, disabled) => {
+    const set = new Set(skus);
+    setStock((s) => s.map((it) => (set.has(it.sku) ? { ...it, disabled } : it)));
+    try {
+      for (let i = 0; i < skus.length; i += 200) {
+        const { error } = await supabase.from("stock_items").update({ disabled }).in("sku", skus.slice(i, i + 200));
+        if (error) throw error;
+      }
+      flashSaved();
+    } catch (x) {
+      ping("Save failed — has supabase/pricebook-disabled.sql been run?");
+      try { setStock(await loadStock()); } catch (_) { /* keep optimistic view */ }
+    }
+  };
+
   const migrateLegacyCustomers = async (legacy) => {
     for (const c of legacy) {
       // Move attachment files from <user_id>/<file_id> to <customer_id>/<file_id>.
@@ -3343,7 +3362,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />
       )}
 
       {showTodos && (
@@ -3805,7 +3824,95 @@ function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+// The shop workbook's item list with the same enable/disable controls the order
+// books get in BookDetail — search, an All/Enabled/Disabled filter, a per-row
+// toggle, bulk disable/enable of the current filter, and a one-click "re-enable
+// all disabled" reset. Stock rows carry no cost/markup, so the table is trimmed
+// to SKU · description · type · U/M · price. Writes go through setStockItemsDisabled
+// (optimistic, disabled-column only), matching the registry-book path.
+function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
+  const [q, setQ] = useState("");
+  const [show, setShow] = useState("all"); // all | enabled | disabled
+  const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
+  const [confirmReset, setConfirmReset] = useState(false);
+  const items = stock || [];
+  const query = q.trim().toLowerCase();
+  const filtered = items
+    .filter((it) => (show === "disabled" ? it.disabled : show === "enabled" ? !it.disabled : true))
+    .filter((it) => !query || `${it.sku} ${it.description} ${it.brand} ${it.color} ${it.product}`.toLowerCase().includes(query));
+  const shown = filtered.slice(0, 300);
+  const disabledCount = items.filter((it) => it.disabled).length;
+  const price = (it) => (it.priceSqft != null ? it.priceSqft : it.price);
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <input className={`${inp} max-w-sm`} placeholder="Search stock items…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+          {[["all", "All"], ["enabled", "Enabled"], ["disabled", disabledCount ? `Disabled (${disabledCount})` : "Disabled"]].map(([v, label]) => (
+            <button key={v} onClick={() => setShow(v)} className={`px-2.5 py-1.5 ${show === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
+          ))}
+        </div>
+        {(query || show !== "all") && filtered.length > 0 && (
+          <>
+            <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable all {filtered.length}</button>
+            <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable all {filtered.length}</button>
+          </>
+        )}
+        {disabledCount > 0 && (
+          <button onClick={() => setConfirmReset(true)} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50 ml-auto" title="Turn every disabled stock SKU back on">Re-enable all disabled ({disabledCount})</button>
+        )}
+      </div>
+      {confirmBulk && (
+        <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+          <span className="text-amber-700 flex-1">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length} stock item{filtered.length === 1 ? "" : "s"}{query ? ` matching “${q.trim()}”` : ""}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.</span>
+          <button onClick={() => { setStockItemsDisabled(filtered.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {filtered.length}</button>
+          <button onClick={() => setConfirmBulk(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+        </div>
+      )}
+      {confirmReset && (
+        <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+          <span className="text-amber-700 flex-1">Re-enable all {disabledCount} disabled stock item{disabledCount === 1 ? "" : "s"}, regardless of the current filter? They'll show in SKU search again for everyone.</span>
+          <button onClick={() => { setStockItemsDisabled(items.filter((it) => it.disabled).map((it) => it.sku), false); setConfirmReset(false); setShow("all"); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">Re-enable all {disabledCount}</button>
+          <button onClick={() => setConfirmReset(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+        </div>
+      )}
+      <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
+            <tr>
+              <th className="px-2 py-1.5 w-8"></th>
+              <th className="text-left px-2 py-1.5">SKU</th>
+              <th className="text-left px-2 py-1.5">Description</th>
+              <th className="text-left px-2 py-1.5">Type</th>
+              <th className="text-left px-2 py-1.5">U/M</th>
+              <th className="text-right px-2 py-1.5">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((it) => (
+              <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
+                <td className="px-2 py-1.5"><input type="checkbox" checked={!it.disabled} onChange={(e) => setStockItemsDisabled([it.sku], !e.target.checked)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} /></td>
+                <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
+                <td className="px-2 py-1.5">
+                  {it.description || it.product || "—"}
+                  {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
+                  {it.disabled && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">off</span>}
+                </td>
+                <td className="px-2 py-1.5 text-xs">{it.type ? (typeLabels?.[it.type] || it.type) : "—"}</td>
+                <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{price(it) != null ? money(price(it)) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {(filtered.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {filtered.length}.</p>}
+    </div>
+  );
+}
+
+function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
@@ -3915,6 +4022,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               loadVersions={loadBookVersions} loadSnapshot={loadBookVersionSnapshot} pinVersion={pinBookVersion}
               snapshotToItems={(snap) => snap.map((r) => normStockItem({ sku: r.sku, active: true, data: r.data || {} }))}
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
+            {stockCount > 0 && <StockItems stock={stock} setStockItemsDisabled={setStockItemsDisabled} inp={inp} typeLabels={typeLabels} />}
           </div>
         ) : selBook ? (
           <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
@@ -4682,7 +4790,7 @@ const MATERIAL_CATEGORIES = [
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, setStockItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("materials");
@@ -5305,7 +5413,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
