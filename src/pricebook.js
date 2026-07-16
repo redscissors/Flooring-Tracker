@@ -21,7 +21,7 @@
 // re-arranged sheet degrades to "items went missing" (visible in the import
 // diff preview) rather than garbage rows.
 
-import { normOrderItem, unitComboWarnings } from "./orderbook.js";
+import { normOrderItem, unitComboWarnings, importSanityWarnings } from "./orderbook.js";
 
 const SKU_RE = /^\d{4,8}$/;
 const str = (c) => (c == null ? "" : String(c).trim());
@@ -747,6 +747,9 @@ export function parseMapped(rows, mapping) {
   // pricing code has never been taught get named here, not silently mispriced
   // (the VTC bullnose lesson — see unitComboWarnings).
   warnings.push(...unitComboWarnings(deduped));
+  // Parse-quality advisories (mis-split sizes, name litter, trim-as-area, price
+  // outliers) — non-blocking FYI lines so a silent bad parse gets surfaced.
+  warnings.push(...importSanityWarnings(deduped));
   return { items: deduped, warnings };
 }
 
