@@ -476,6 +476,15 @@ const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "
 // The on-screen tier badge beside the grand total — a discounted screen must
 // never be mistaken for retail.
 const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee" ? "Employee" : pct > 0 ? `${tier[0].toUpperCase()}${tier.slice(1)} −${pct}%` : "";
+// Each tier owns a color (owner request): the selected segment, the Order
+// entry / Print buttons, and every tier-adjusted price wear it, so a glance
+// says which pricing the job is on. Retail keeps the default look.
+export const TIER_COLOR = {
+  builder: { main: "#2563eb", soft: "#dbeafe" },
+  employee: { main: "#0d9488", soft: "#ccfbf1" },
+  sale: { main: "#dc2626", soft: "#fee2e2" },
+  custom: { main: "#7c3aed", soft: "#ede9fe" },
+};
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU
 // is display-only, per ADR 0006).
@@ -644,14 +653,15 @@ export function SegBar({ value, onChange, options, inputValue, onInput }) {
     <div className="flex h-[30px] shrink-0 rounded-md border border-slate-200 overflow-hidden" style={{ background: "var(--ft-band)" }}>
       {options.map((o, i) => {
         const active = value === o.v;
-        const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? "bg-indigo-600 text-white" : "text-slate-500 hover:bg-white");
+        const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? (o.color ? "text-white" : "bg-indigo-600 text-white") : "text-slate-500 hover:bg-white");
+        const fill = active && o.color ? { background: o.color } : undefined;
         if (o.input) return (
-          <label key={o.v} className={seg + " cursor-text px-1"} title={o.title}>
+          <label key={o.v} className={seg + " cursor-text px-1"} style={fill} title={o.title}>
             <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)} className={"w-8 bg-transparent text-right focus:outline-none " + (active ? "text-white" : "text-slate-500")} />
             <span className="pr-0.5">%</span>
           </label>
         );
-        return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={seg}>{o.label}</button>;
+        return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={seg} style={fill}>{o.label}</button>;
       })}
     </div>
   );
@@ -778,16 +788,21 @@ function EField({ label, right, flex, tint, children }) {
 // slides beneath as a micro field — the GridSizeInput footnote pattern.
 // Retail stays the stored value; the top line is derived, never typed.
 const TIER_LONG = { builder: "Builder", employee: "Employee", sale: "Sale", custom: "Custom" };
-export function GridPriceCell({ p, tier, tierPrice, onRetail, title }) {
-  if (tierPrice == null) return (
+export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title }) {
+  if (tierPrice == null && !noCost) return (
     <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" placeholder="0.00" title={title} />
   );
+  const color = TIER_COLOR[tier]?.main || "var(--ft-brand-deep)";
   return (
     <div className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
-      <div className="text-right font-bold" style={{ fontSize: 11, padding: "3px 4px 0", color: "var(--ft-brand-deep)" }} title={`${TIER_LONG[tier]} price — what the estimate uses`}>{money(tierPrice)}</div>
+      {noCost ? (
+        <div className="text-right font-bold" style={{ fontSize: 10.5, padding: "3px 4px 0", color: "#dc2626" }} title="No vendor cost on this line — Employee can't compute cost + 6%, so it stays at the retail price below">Retail</div>
+      ) : (
+        <div className="text-right font-bold" style={{ fontSize: 11, padding: "3px 4px 0", color }} title={`${TIER_LONG[tier]} price — what the estimate uses`}>{money(tierPrice)}</div>
+      )}
       <div className="flex items-center justify-end" style={{ gap: 2, padding: "0 4px 2px" }}>
         <span style={{ fontSize: 8.5, color: "var(--ft-faint)" }}>retail</span>
-        <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={`${title} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
+        <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={noCost ? `${title} — the estimate uses this retail price (no cost on the line)` : `${title} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
       </div>
     </div>
   );
@@ -2694,12 +2709,12 @@ export default function App({ user, onSignOut }) {
                           )}
                         </div>
                         <div className="min-w-0 relative" style={midPad}>
-                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
+                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
                           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
                           <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
                           <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(22px,3vw,28px)", lineHeight: 1.05 }} />
                           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
-                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
+                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
                         </div>
                         <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
                           <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
@@ -2720,10 +2735,10 @@ export default function App({ user, onSignOut }) {
                               onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
                               options={[
                                 { v: "retail", label: "Retail", title: "Retail pricing" },
-                                { v: "builder", label: "Bldr", title: `Builder pricing — ${pcts.builderPct}% off retail` },
-                                { v: "employee", label: "Emp", title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
-                                { v: "sale", label: "Sale", title: `Sale pricing — ${pcts.salePct}% off retail` },
-                                { v: "custom", input: true, title: "Custom % off retail" },
+                                { v: "builder", label: "Bldr", color: TIER_COLOR.builder.main, title: `Builder pricing — ${pcts.builderPct}% off retail` },
+                                { v: "employee", label: "Emp", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
+                                { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${pcts.salePct}% off retail` },
+                                { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
                               ]} />
                           ); })()}
                           <SegBar value={sel.printPricing || "full"}
@@ -2754,9 +2769,11 @@ export default function App({ user, onSignOut }) {
                               </div>
                             </div>
                           )}
+                          {/* Non-retail tiers repaint both buttons in the tier's color —
+                              the pricing state is visible right where you commit to it. */}
                           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-                            <button onClick={() => setShowOrderCopy(true)} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
-                            <button onClick={() => setPrintMode("estimate")} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
+                            <button onClick={() => setShowOrderCopy(true)} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
+                            <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
                           </div>
                         </div>
                       </div>
@@ -3029,7 +3046,7 @@ export default function App({ user, onSignOut }) {
                                   )}
                                 </EField>
                                 <EField label="Price" right tint flex="0.6 1 56px">
-                                  <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                  <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                                 </EField>
                                 <EField label="Order" right flex="0.9 1 80px">
                                   {p.type !== "misc" && C ? (<>
@@ -3106,7 +3123,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
@@ -3135,7 +3152,7 @@ export default function App({ user, onSignOut }) {
                               </div>
                               {tierPrice != null && tLine > 0 ? (
                                 <div style={{ ...gridCell, background: totalTint, flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "2px 8px", gap: 1 }}>
-                                  <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{money(tLine)}</span>
+                                  <span style={{ fontWeight: 700, color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(tLine)}</span>
                                   <span style={{ fontSize: 8.5, color: "var(--ft-faint)", lineHeight: 1.1 }}>retail {money(line)}</span>
                                 </div>
                               ) : (
@@ -3154,9 +3171,8 @@ export default function App({ user, onSignOut }) {
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                               </div>
                             )}
-                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt || tierNoCost) && (
+                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt) && (
                               <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
-                                {tierNoCost && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">no cost — retail</span>}
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
@@ -3484,7 +3500,7 @@ export default function App({ user, onSignOut }) {
                     {renderEstimatePaper()}
                   </div>
                   <div className="text-center mt-4">
-                    <button onClick={() => setPrintMode("estimate")} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
+                    <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
                   </div>
                 </div>
               )}

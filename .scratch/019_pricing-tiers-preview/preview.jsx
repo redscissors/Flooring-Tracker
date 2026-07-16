@@ -11,7 +11,7 @@ import { Save, History, ClipboardList, Trash2, Copy, Printer, Plus } from "lucid
 import "../../src/index.css";
 import { num, getCarton, getPieceCarton, getGrout, getMortar } from "../../src/catalog.js";
 import { tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing, normPrintPricing } from "../../src/pricing.js";
-import { SegBar, FilesPop, GridPriceCell } from "../../src/App.jsx";
+import { SegBar, FilesPop, GridPriceCell, TIER_COLOR } from "../../src/App.jsx";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -175,10 +175,10 @@ function HeaderRow({ proj, upd, pcts }) {
             onInput={(v) => upd({ priceTier: "custom", customPct: v })}
             options={[
               { v: "retail", label: "Retail", title: "Retail pricing" },
-              { v: "builder", label: "Bldr", title: `Builder pricing — ${pcts.builderPct}% off retail` },
-              { v: "employee", label: "Emp", title: "Employee pricing — cost + 6%" },
-              { v: "sale", label: "Sale", title: `Sale pricing — ${pcts.salePct}% off retail` },
-              { v: "custom", input: true, title: "Custom % off retail" },
+              { v: "builder", label: "Bldr", color: TIER_COLOR.builder.main, title: `Builder pricing — ${pcts.builderPct}% off retail` },
+              { v: "employee", label: "Emp", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6%" },
+              { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${pcts.salePct}% off retail` },
+              { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
             ]} />
           <SegBar value={proj.printPricing}
             onChange={(v) => upd({ printPricing: v })}
@@ -201,8 +201,8 @@ function HeaderRow({ proj, upd, pcts }) {
             </div>
           </div>
           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-            <button className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 text-white"><Copy size={14} /> Order entry</button>
-            <button className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 text-white"><Printer size={14} /> Print</button>
+            <button style={TIER_COLOR[proj.priceTier] ? { background: TIER_COLOR[proj.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 text-white"><Copy size={14} /> Order entry</button>
+            <button style={TIER_COLOR[proj.priceTier] ? { background: TIER_COLOR[proj.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 text-white"><Printer size={14} /> Print</button>
           </div>
         </div>
       </div>
@@ -231,14 +231,13 @@ function ChipsDemo({ tv }) {
             <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 110px 110px", fontSize: 11, fontWeight: 600, borderTop: "1px solid var(--ft-row-line)" }}>
               <div style={{ ...gridCell, padding: "6px 8px" }} className="truncate">
                 {p.brandColor}
-                {noCost && <span className="ml-2 shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium" style={{ fontSize: 10 }}>no cost — retail</span>}
-              </div>
+                              </div>
               <div style={gridCell}>
-                <GridPriceCell p={p} tier={tv.tier} tierPrice={tp} onRetail={() => {}} title="Price per sq ft" />
+                <GridPriceCell p={p} tier={tv.tier} tierPrice={tp} noCost={noCost} onRetail={() => {}} title="Price per sq ft" />
               </div>
               {tp != null && tLine > 0 ? (
                 <div style={{ ...gridCell, flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "2px 8px", gap: 1, borderRight: "none" }}>
-                  <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{money(tLine)}</span>
+                  <span style={{ fontWeight: 700, color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(tLine)}</span>
                   <span style={{ fontSize: 8.5, color: "var(--ft-faint)", lineHeight: 1.1 }}>retail {money(line)}</span>
                 </div>
               ) : (
