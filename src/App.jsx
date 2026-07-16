@@ -3815,7 +3815,9 @@ function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems
                     <div className={`text-[11px] ${r.error ? "text-red-500" : r.target && r.target !== "skip" ? "text-slate-400" : "text-amber-600"}`}>{r.error || r.reason}</div>
                   </div>
                   {r.error ? <span className="text-[11px] text-red-500 shrink-0">Skipped</span> : (
-                    <select className={`${inp} w-auto text-xs`} value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
+                    // !w-auto: inp carries w-full, which outranks a plain w-auto
+                    // in the generated CSS and squeezes the filename to nothing.
+                    <select className={`${inp} !w-auto shrink-0 text-xs`} value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
                       {bookOpts.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                     </select>
                   )}
@@ -3972,6 +3974,18 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   return (
     <div className="flex-1 flex overflow-hidden">
       <div className="w-56 shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-3">
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
+          onClick={() => dropRef.current?.click()}
+          className={`rounded-lg border-2 border-dashed px-2 py-3 text-center text-xs cursor-pointer ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+        >
+          <Upload size={15} className="mx-auto mb-1 text-slate-400" />
+          Drop vendor sheets or the shop workbook — <span className="underline text-indigo-600">browse…</span>
+          <div className="text-[10px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many; each routes to its book</div>
+          <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
+        </div>
         <div>
           <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Stock</div>
           <button onClick={() => setSel("stock")} className={rowCls(sel === "stock")}>
@@ -4018,19 +4032,6 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           </div>
         </div>
 
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
-          className={`mt-4 rounded-xl border-2 border-dashed px-4 py-5 text-center text-sm ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-500"}`}
-        >
-          <Upload size={17} className="inline mr-1.5 -mt-0.5 text-slate-400" />
-          Drop vendor sheets or the shop workbook here — <button onClick={() => dropRef.current?.click()} className="underline text-indigo-600 hover:text-indigo-700">browse…</button>
-          <div className="text-[11px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many. Each file routes to its book; unfamiliar files ask.</div>
-          <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
-        </div>
-        {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
-
         {sel === "stock" ? (
           <div className="mt-3">
             <p className="text-xs text-slate-400 max-w-xl">
@@ -4055,6 +4056,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
       </div>
+
+      {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>
@@ -4623,8 +4626,9 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const disableSkus = [...new Set([...ignored, ...supersedeOld])];
   const appliedSupersede = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => ({ oldSku: p.oldSku, newSku: p.newSku }));
   // Stamp the book with what this file looks like so the drop router matches the
-  // next drop of the same vendor sheet (format tag + header signature).
-  const fingerprint = sheet ? { format: fmt, headerSig: computeFingerprint({ sheets: sheets || [] }).headerSig } : null;
+  // next drop of the same vendor sheet (format tag + header signature + the EFT
+  // brand-title line, which is what tells Virginia Tile's sibling files apart).
+  const fingerprint = sheet ? (({ headerSig, titleSig }) => ({ format: fmt, headerSig, titleSig }))(computeFingerprint({ sheets: sheets || [] })) : null;
   const importCount = diff.added.length + diff.changed.length + diff.missing.length;
   // Disabling SKUs is a valid apply even when the re-import is otherwise a no-op
   // (identical book → every row unchanged) — so the button also opens on pending

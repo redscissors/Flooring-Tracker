@@ -62,10 +62,15 @@ src/
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature
                     # (`detectStockWorkbook` in pricebook.js), VTC/Mannington by
-                    # format tag, others by a book's saved mapping that parses the
-                    # file; a book stamps `data.importFingerprint` on import so the
-                    # next drop matches. The Price book library's drop area routes a
-                    # mixed drop and reuses each book's normal import preview.
+                    # format tag PLUS the EFT brand-title line above the header
+                    # ("Virginia Tile Core" / "Anatolia Tile" / …), since VTC
+                    # reuses one template for every brand it distributes — a
+                    # title mismatch is a hard "not this book"; others by a
+                    # book's saved mapping that parses the file. A book stamps
+                    # `data.importFingerprint` on import so the next drop
+                    # matches. The Price book library's drop area (top of the
+                    # book-list sidebar) routes a mixed drop and reuses each
+                    # book's normal import preview.
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
