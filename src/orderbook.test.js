@@ -4,7 +4,7 @@ import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
-  itemProblems, supersedePairs,
+  itemProblems, supersedePairs, rowAdvisories, importSanityWarnings,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -536,4 +536,52 @@ test("supersedePairs skips a base that is already disabled, and lone N SKUs with
   const existing = [bi("555", { disabled: true, description: "Off" })];
   assert.deepEqual(supersedePairs(existing, [normOrderItem({ sku: "555N" })]), []);
   assert.deepEqual(supersedePairs([], [normOrderItem({ sku: "PLAN" })]), []);
+});
+
+// --- import parse-quality advisories (rowAdvisories / importSanityWarnings) ----
+
+const codes = (over) => rowAdvisories(normOrderItem(over)).map((a) => a.code);
+
+test("rowAdvisories: a clean flooring row is quiet", () => {
+  assert.deepEqual(codes({ sku: "A", type: "tile", description: "Crafted White Rounded Edge", size: "0.43x12", priceUnit: "PC", orderUnit: "CT", pcPerUnit: 16, cost: 9.24 }), []);
+  assert.deepEqual(codes({ sku: "B", type: "tile", description: "Earth Ash Gray", size: "12x24", priceUnit: "SF", orderUnit: "CT", cost: 3.29, sfPerUnit: 15.5, pcPerUnit: 12 }), []);
+});
+
+test("rowAdvisories: leftover-punctuation litter (the original .43X12 mis-split residue)", () => {
+  // What the description looked like BEFORE the DIM fix: a lone "." left behind.
+  assert.deepEqual(codes({ sku: "C", description: "Crafted White . Rounded Edge" }), ["name-litter"]);
+  assert.deepEqual(codes({ sku: "D", description: "Foo ()" }), ["name-litter"]);
+  // A legitimate " - " separator is NOT litter.
+  assert.deepEqual(codes({ sku: "E", type: "tile", description: "Black - White Mix", size: "12x12", priceUnit: "SF", cost: 4, sfPerUnit: 10 }), []);
+});
+
+test("rowAdvisories: a size still sitting in the product name", () => {
+  assert.deepEqual(codes({ sku: "F", description: "Ovo 3x12 Glossy" }), ["name-size"]);
+  assert.deepEqual(codes({ sku: "G", description: "Casbah Indigo .3x5 Edge" }), ["name-size"]);
+});
+
+test("rowAdvisories: a degenerate (empty / one-char) name", () => {
+  assert.deepEqual(codes({ sku: "H", description: "" }), ["name-empty"]);
+  assert.deepEqual(codes({ sku: "I", description: "•" }), ["name-empty"]);
+});
+
+test("rowAdvisories: a trim/molding row priced by the square foot, plus its $/sqft outlier", () => {
+  // Real WOW row CASBAH INDIGO EDGE .3X5: $9.24/pc, 10 pc/ctn, 0.15 SF/ctn ⇒
+  // ~$616/sqft. It fills flooring (typed + coverage) yet reads as an EDGE.
+  const c = codes({ sku: "WOWCSINEDGE", type: "tile", description: "Casbah Indigo Edge", size: "0.3x5", priceUnit: "PC", orderUnit: "CT", pcPerUnit: 10, sfPerUnit: 0.15, cost: 9.24 });
+  assert.ok(c.includes("trim-as-area"));
+  assert.ok(c.includes("psf-outlier"));
+});
+
+test("importSanityWarnings: aggregates by message with ≤3 sample SKUs", () => {
+  const items = [
+    normOrderItem({ sku: "L1", description: "Foo . Bar" }),
+    normOrderItem({ sku: "L2", description: "Baz . Qux" }),
+    normOrderItem({ sku: "L3", description: "One . Two" }),
+    normOrderItem({ sku: "L4", description: "Three . Four" }),
+  ];
+  const w = importSanityWarnings(items);
+  assert.equal(w.length, 1);
+  assert.match(w[0], /^4 rows with leftover punctuation/);
+  assert.match(w[0], /L1, L2, L3, …/);
 });

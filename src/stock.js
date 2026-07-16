@@ -78,7 +78,12 @@ export const findStock = (items, sku) => (str(sku) ? items.find((it) => it.sku =
 // tile size cells instead of being shoved into the color name; anything with no
 // L×W ('6"', "Esagonia", "2\" Hex") → null.
 export const parseTileSize = (size) => {
-  const m = str(size).match(/(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+  // Each dim also accepts a leading-decimal with no leading zero (".43x12") —
+  // vendors that map their own size column (Mannington/Glazzio PDF) can print
+  // pencil/edge widths that way, and the digit-first pattern used to read ".43"
+  // as "43". The leading-decimal alt is second so a match starting at the dot
+  // claims the whole ".43" instead of stopping at the "43".
+  const m = str(size).match(/(\d+(?:\.\d+)?|\.\d+)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?|\.\d+)/i);
   return m ? [m[1], m[2]] : null;
 };
 

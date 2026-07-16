@@ -333,6 +333,54 @@ export function unitComboWarnings(items) {
   return [...groups.entries()].map(([msg, g]) => `${g.n} row${g.n === 1 ? "" : "s"} ${msg} (${g.skus.join(", ")}${g.n > g.skus.length ? ", …" : ""}).`);
 }
 
+// --- import parse-quality advisories -------------------------------------------
+
+// Trade words that name a linear/piece accessory rather than a field covering.
+const TRIM_WORD_RE = /reducer|t-?mold|bull ?nose|stair ?nos|threshold|transition|pencil|quarter ?round|\bliner\b|\bedge\b|\btrim\b|\bcap\b/i;
+// A size-shaped token ("12x24", ".43x12") — includes the leading-decimal form so
+// an un-split VTC pencil width is caught, not just whole-number sizes.
+const RESIDUAL_SIZE_RE = /(?:\d+(?:\.\d+)?|\.\d+)\s*["']?\s*[x×]\s*(?:\d+(?:\.\d+)?|\.\d+)/i;
+// A lone "." / "·" / "x" token, an empty "()", or a name that opens/closes on a
+// dot — the residue a mis-split size leaves (".43X12" once dropped the "." and
+// left "Crafted White . Rounded Edge"). Hyphens/commas are NOT litter: vendors
+// use " - " as a legitimate separator, so flagging them would be noise.
+const NAME_LITTER_RE = /(^|\s)[.·x×]($|\s)|\(\s*\)|^\s*\.|\.\s*$/i;
+
+// Per-row advisories: parse-quality and plausibility flags that are worth a
+// human glance but are NOT the hard mispricing hazards itemProblems owns. These
+// never block an import — they only add FYI lines to the wizard's warning list,
+// so the next unhandled parse shape is surfaced instead of shipping silently
+// (the ".43X12" → "43x12" lesson). One message per issue, most-telling first.
+export function rowAdvisories(item) {
+  const it = item || {};
+  const name = str(it.description);
+  const out = [];
+  const clean = name.replace(/[^a-z0-9]/gi, "");
+  if (NAME_LITTER_RE.test(name)) out.push({ code: "name-litter", msg: "with leftover punctuation in the name after size parsing — the size may be mis-split" });
+  else if (RESIDUAL_SIZE_RE.test(name)) out.push({ code: "name-size", msg: "still showing a size in the product name — the size column may be unmapped or an unrecognized spelling" });
+  else if (clean.length <= 1) out.push({ code: "name-empty", msg: "parsing to an empty or one-character name — check the description column" });
+  if (fillsFlooring(it) && TRIM_WORD_RE.test(`${name} ${str(it.size)}`)) out.push({ code: "trim-as-area", msg: "a trim/molding line priced by the square foot — confirm it should cover area, not sell per piece" });
+  const psf = it.type ? costSqft(it) : null;
+  if (psf != null && (psf > 150 || psf < 0.25)) out.push({ code: "psf-outlier", msg: `an unusual per-sq-ft cost (about $${psf}) — double-check the unit and coverage (premium goods can legitimately run high)` });
+  return out;
+}
+
+// Aggregate rowAdvisories for the wizard's warning list — same shape and ≤3-SKU
+// sampling as unitComboWarnings, but every message can fire per row (a row can
+// be both mis-split AND a trim-as-area), so all advisories are counted.
+export function importSanityWarnings(items) {
+  const groups = new Map();
+  for (const it of items || []) {
+    for (const { msg } of rowAdvisories(it)) {
+      const g = groups.get(msg) || { n: 0, skus: [] };
+      g.n++;
+      if (g.skus.length < 3 && it.sku) g.skus.push(it.sku);
+      groups.set(msg, g);
+    }
+  }
+  return [...groups.entries()].map(([msg, g]) => `${g.n} row${g.n === 1 ? "" : "s"} ${msg} (${g.skus.join(", ")}${g.n > g.skus.length ? ", …" : ""}).`);
+}
+
 // N-suffix supersede detection. Vendors reissue a SKU by appending N to mark a
 // new version of an older code (VTC convention). For each incoming SKU ending
 // in n/N whose base (the SKU minus that trailing letter) exactly matches another

@@ -457,6 +457,16 @@ test("splitSizeFromDescription: mixed-fraction dims parse whole, not from the mi
   assert.equal(splitSizeFromDescription("MOROCCAN CONC OFF WHITE 12X24 RECT *NEW PKG").size, "12x24");
 });
 
+test("splitSizeFromDescription: leading-decimal dims (VTC pencil/edge trim, no leading zero)", () => {
+  // VTC writes edge/pencil trim widths as a bare decimal — ".43X12", ".3X4.6".
+  // SIZE_RE's DIM required a digit before the dot, so the leading "." was dropped:
+  // ".43X12" read as "43x12" (100× too wide) and left a stray "." in the name.
+  assert.deepEqual(splitSizeFromDescription("CRAFTED WHITE .43X12 ROUNDED EDGE"), { size: "0.43x12", thickness: "", name: "Crafted White Rounded Edge", sheetSize: "" });
+  assert.deepEqual(splitSizeFromDescription("BITS CELADON .3X4.6 GLOSS"), { size: "0.3x4.6", thickness: "", name: "Bits Celadon Gloss", sheetSize: "" });
+  // A leading zero was always fine and must stay fine.
+  assert.equal(splitSizeFromDescription("POTTERS SWAN ROUNDED EDGE 0.5X10 GLOSSY").size, "0.5x10");
+});
+
 test("splitSizeFromDescription: shape word BEFORE the size (MLS/ANA EFT hex rows)", () => {
   // ANALMCPHEX2PN — the reported row: 'HEXAGON 2 INCH' left the size cell empty.
   assert.deepEqual(splitSizeFromDescription("LA MARCA CALACATTA PAONAZZO HEXAGON 2 INCH POL *2022 PROD"), { size: '2" Hexagon', thickness: "", name: "La Marca Calacatta Paonazzo Pol *2022 Prod", sheetSize: "" });

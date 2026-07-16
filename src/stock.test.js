@@ -19,6 +19,11 @@ test("parseTileSize handles the price book's size spellings", () => {
   assert.equal(parseTileSize("Esagonia"), null);
   assert.equal(parseTileSize('6"'), null);
   assert.equal(parseTileSize('2" Hex'), null); // single dimension, no L×W
+  // A leading-decimal width with no leading zero (VTC/Mannington pencil trim)
+  // must parse whole — the digit-first pattern used to read ".43" as "43".
+  assert.deepEqual(parseTileSize(".43x12"), [".43", "12"]);
+  assert.deepEqual(parseTileSize(".3x4.6"), [".3", "4.6"]);
+  assert.deepEqual(parseTileSize("0.5x10"), ["0.5", "10"]);
 });
 
 test("parseThickness handles fractions, millimeters and decimals", () => {
