@@ -469,6 +469,11 @@ const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "U
 const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
 const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
+// Per-line tier chip labels (spec 2026-07-16).
+const TIER_SHORT = { builder: "bldr", employee: "emp", sale: "sale", custom: "cust" };
+// The on-screen tier badge beside the grand total — a discounted screen must
+// never be mistaken for retail.
+const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee" ? "Employee" : pct > 0 ? `${tier[0].toUpperCase()}${tier.slice(1)} −${pct}%` : "";
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU
 // is display-only, per ADR 0006).
@@ -2653,12 +2658,12 @@ export default function App({ user, onSignOut }) {
                           )}
                         </div>
                         <div className="min-w-0 relative" style={midPad}>
-                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>}
+                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
                           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
                           <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
                           <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(22px,3vw,28px)", lineHeight: 1.05 }} />
                           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
-                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>}
+                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: "var(--ft-brand-deep)" }}>{tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mr-1.5 font-semibold" style={{ background: "var(--ft-brand-soft)", fontSize: 10 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}{money(grandTotal)}</div>}
                         </div>
                         <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
                           <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
@@ -2788,6 +2793,11 @@ export default function App({ user, onSignOut }) {
                         // cartonSf for flooring sqft, cartonPc for per-piece count lines.
                         const C = getCarton(p, settings), cEx = cartonExact(p, settings), PC = getPieceCarton(p);
                         const line = p.type === "misc" ? num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)) : C ? C.order * C.sf * num(p.priceSqft) : sf * num(p.priceSqft);
+                        // Tier lens (spec 2026-07-16): the price INPUT stays the stored
+                        // retail; the chip + line total show the tier the estimate uses.
+                        const tierPrice = tv.tier !== "retail" ? tierUnitPrice(p, tv.tier, tv.pct) : null;
+                        const tierNoCost = tv.tier === "employee" && employeeNoCost(p);
+                        const tLine = tierPrice == null ? line : p.type === "misc" ? tierPrice * (PC ? PC.pieces : miscQty(p)) : C ? C.order * C.sf * tierPrice : sf * tierPrice;
                         // Dropdowns are driven by the catalog (resolve-by-name). A selection
                         // whose stored product is no longer offered is injected back as an
                         // option so it still shows — same pattern as tile thickness above.
@@ -2830,7 +2840,7 @@ export default function App({ user, onSignOut }) {
                         // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
                         // wants the collapsed line identical to the printed one.
                         const matExpanded = !!matOpen[p.id];
-                        const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
+                        const pInline = printProduct(tv.proj.categories[ai]?.products[pi] || p, tSet).mats.filter((m) => m.inline);
                         const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
                         const warns = materialWarnings(p, settings);
                         // Add-on categories (ADR 0016) this row's flooring type offers.
@@ -3087,7 +3097,7 @@ export default function App({ user, onSignOut }) {
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                 </>)}
                               </div>
-                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
+                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
@@ -3101,8 +3111,14 @@ export default function App({ user, onSignOut }) {
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                               </div>
                             )}
-                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt) && (
+                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt || tierPrice != null || tierNoCost) && (
                               <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
+                                {tierPrice != null && (
+                                  <span className="shrink-0 rounded px-1.5 py-0.5 font-medium" style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>
+                                    {TIER_SHORT[tv.tier]} {money(tierPrice)}{p.type === "misc" || p.qtyType === "count" ? "/ea" : "/sf"}
+                                  </span>
+                                )}
+                                {tierNoCost && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">no cost — retail</span>}
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
