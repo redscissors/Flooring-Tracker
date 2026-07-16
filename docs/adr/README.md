@@ -20,3 +20,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0014](0014-mosaic-sheet-size-derived-coverage.md) | A mosaic's SHEET dimension gives coverage, never the tile size | Accepted | 2026-07-15 |
 | [0015](0015-penny-round-size-and-grout-uplift.md) | Penny rounds: one "Penny" shape, with a corner-fill grout uplift | Accepted | 2026-07-15 |
 | [0016](0016-custom-material-categories.md) | Custom material categories: present-only unification over three locked built-ins | Accepted | 2026-07-15 |
+| [0017](0017-flag-review-verdicts.md) | Flag-review verdicts: per-item, per-code confirm/ignore that survives re-import | Accepted | 2026-07-16 |
