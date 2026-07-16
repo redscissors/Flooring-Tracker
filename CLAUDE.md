@@ -128,7 +128,14 @@ todo row      : { id (text pk), position (float — open-item order, smaller = h
 
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[],
-           salesperson: { name, phone, email } | null }
+           salesperson: { name, phone, email } | null,
+           priceTier: "retail|builder|employee|sale|custom", customPct,
+           printPricing: "full|unit|none" }
+           // priceTier/printPricing (ADR 0018) = the job's price point and how
+           // much pricing the printed estimate shows. Tiers are a DISPLAY LENS
+           // (src/pricing.js tierView) over the stored retail prices — rows are
+           // never repriced. Employee = costSqft × 1.06 on costed lines only;
+           // order entry stays retail except on the Employee tier.
            // salesperson = snapshot of the CREATOR's profile (ADR 0008); the
            // estimate prints it (falling back to the signed-in profile when
            // null, i.e. pre-0008 records); editable via the header popover.
@@ -165,7 +172,9 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // (ADR 0013 amendment): pieces typed in the grid's SF/EA column
            // round up to whole cartons of cartonPc, billing every piece.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
-Settings { wastePct, mortars{...}, grouts{...} }
+Settings { wastePct, mortars{...}, grouts{...},
+           pricing: { builderPct: 8, salePct: 10 } }   // Builder/Sale tier %s,
+                                                       // edited in Settings → Price book (ADR 0018)
 ```
 
 **Versions** (issue 003) live in their own table so customer saves never carry
