@@ -62,3 +62,52 @@ knowing.
   landing silently free.
 - A future book with genuinely new unit semantics will announce itself as a
   wizard warning instead of mispricing quietly.
+
+## Amendment (2026-07-15): the quote frame follows the product kind, not the units
+
+The 25-07-28 file exposed the rule this ADR missed: **units tell you how to
+convert; they cannot tell you which frame to quote in.** A bullnose and a field
+tile can carry identical unit signatures (priced PC, No Broken CT, real SF/CT
+and PC/CT), yet a salesperson counts trim in pieces and measures tile in square
+feet. Worse, vendors stamp *notional* coverage on trims — `ADXNEBLBASE12EDS`, a
+12" base-board end cap, carries SF/CT 121.1 (45 pcs × 1 m² each), which the
+fillsFlooring gate read as real coverage and priced at $13.32/sqft against a
+$23.89/pc cost — below its own cost, on a quote.
+
+Decision, amending §Decision:
+
+1. **A piece-priced trim is a count line even when SF/CT is present.** The
+   salesperson enters *pieces needed*; a carton-only sell unit (No Broken = CT)
+   rounds that count up to whole cartons of PC/CT (the piece-count twin of
+   `cartonSf`), and the line totals pieces-bought × piece price. SF/CT on a
+   trim row is ignored for pricing. Mathematically identical totals to the
+   $/sqft frame when the coverage was honest — the change is which unit the
+   human types, plus immunity to fabricated coverage.
+2. **Trim detection is a layered classifier at import time** (mappedItem),
+   first match wins: (a) mosaic/sheet guard — mosaic words, a sheet unit, or a
+   `(NxN/SH)` token mean genuine sqft product, never reclassified (the 2026-07
+   geometry audit found mosaics are the dominant false-positive source, 263 of
+   374 high-ratio rows); (b) a bilingual trim lexicon — English plus the
+   Italian vendors actually write (gradino, angolo/angolare, scalino,
+   battiscopa, fascia, torello), which alone sees the ~280 honest-coverage
+   stair/step pieces no numeric test can catch; (c) cost-inversion — derived
+   $/sqft cost below the per-piece cost (227 rows, language-independent);
+   (d) notional metric SF/CT (≈ 1 / 0.5 / 2 m²) combined with a geometry
+   mismatch against the parsed size. Rows nothing fires on keep today's
+   behavior, and every reclassified row is listed for review in the import
+   wizard before apply.
+3. **A geometry ratio is NOT the classifier.** Tested on all 6,792 rows:
+   stated-vs-computed coverage fails both directions (mosaics explode the high
+   side because the description names the chip size; honest-footprint trims
+   sit at ratio ≈ 1.0). It survives only as a low-tail signal inside (d).
+4. **Reclassified items set `trim: true`** (the ADR 0012 Mannington flag), so
+   the book's trim markup applies to them and the pick lands on the existing
+   count-line path — no new pricing machinery.
+5. **Drift guards the frame change:** a saved row snapshotted as $/sqft whose
+   item now sells per piece must say so instead of comparing prices across
+   frames.
+
+Shipped ahead of the classifier: the `area-below-piece-cost` import advisory
+(rowAdvisories), the language-independent tripwire that flags any piece-priced
+row whose derived $/sqft cost lands below its own piece cost — under water at
+any markup — with the same mosaic/sheet exemption as (a).

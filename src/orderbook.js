@@ -337,6 +337,11 @@ export function unitComboWarnings(items) {
 
 // Trade words that name a linear/piece accessory rather than a field covering.
 const TRIM_WORD_RE = /reducer|t-?mold|bull ?nose|stair ?nos|threshold|transition|pencil|quarter ?round|\bliner\b|\bedge\b|\btrim\b|\bcap\b/i;
+// Words that name genuine square-foot product a vendor sells by the piece/sheet
+// (a mosaic sheet covers ~1 sqft), so a marginal cost-inversion on one is NOT a
+// mispricing. Used only to exempt these from area-below-piece-cost — the trims
+// are the signal there, and un-guarded these are ~1/3 of the false hits.
+const AREA_PIECE_RE = /mosaic|\bmos\b|mos\d|hexagon|\bhex\b|esagono|penny|pebble|chevron|herringbone|\b3d\b/i;
 // A size-shaped token ("12x24", ".43x12") — includes the leading-decimal form so
 // an un-split VTC pencil width is caught, not just whole-number sizes.
 const RESIDUAL_SIZE_RE = /(?:\d+(?:\.\d+)?|\.\d+)\s*["']?\s*[x×]\s*(?:\d+(?:\.\d+)?|\.\d+)/i;
@@ -361,6 +366,18 @@ export function rowAdvisories(item) {
   else if (clean.length <= 1) out.push({ code: "name-empty", msg: "parsing to an empty or one-character name — check the description column" });
   if (fillsFlooring(it) && TRIM_WORD_RE.test(`${name} ${str(it.size)}`)) out.push({ code: "trim-as-area", msg: "a trim/molding line priced by the square foot — confirm it should cover area, not sell per piece" });
   const psf = it.type ? costSqft(it) : null;
+  // Cost-inversion: a piece-priced row being sold by the square foot whose
+  // derived $/sqft cost sits BELOW its own per-piece cost — i.e. the piece
+  // covers more than a square foot, so square-footing it (usually off a bogus
+  // SF/CT) prices it under water. Language-independent, so it catches the trims
+  // the TRIM_WORD_RE lexicon misses — VTC's Italian gradino/angolo/fascia step
+  // and corner pieces stamped with a notional metric SF/CT (10.76 = 1 m²).
+  // Mosaics/sheets are exempt (AREA_PIECE_RE / a sheet unit): a sheet legitimately
+  // covers ~1 sqft, so its marginal inversion is real area product, not a trim —
+  // un-guarded they are ~1/3 of the hits. The fix for a real hit is reclassifying
+  // the row to a per-piece count line; this only flags it.
+  const sheetUnit = /^(sh|sht|sheet)s?$/i.test(priceUnitOf(it)) || /^(sh|sht|sheet)s?$/i.test(orderUnitOf(it));
+  if (psf != null && psf < it.cost && isPieceUnit(priceUnitOf(it)) && !sheetUnit && !AREA_PIECE_RE.test(`${name} ${str(it.size)}`)) out.push({ code: "area-below-piece-cost", msg: `priced $${it.cost}/${priceUnitOf(it).toUpperCase()} but its derived cost is only $${psf}/sqft — a piece that covers over a square foot being sold by the foot, so it prices below cost; likely a trim (check its SF/CT)` });
   if (psf != null && (psf > 150 || psf < 0.25)) out.push({ code: "psf-outlier", msg: `an unusual per-sq-ft cost (about $${psf}) — double-check the unit and coverage (premium goods can legitimately run high)` });
   return out;
 }

@@ -4696,7 +4696,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                   <Pencil size={11} className="inline -mt-0.5 mr-1" />{editedOverwritten.length} item{editedOverwritten.length === 1 ? " you" : "s you"} hand-edited will be overwritten by this import.
                 </p>
               )}
-              {warnings.length > 0 && <ul className="mt-1 text-[11px] text-amber-600 list-disc pl-4">{warnings.slice(0, 4).map((w, i) => <li key={i}>{w}</li>)}</ul>}
+              {warnings.length > 0 && <ul className="mt-1 text-[11px] text-amber-600 list-disc pl-4 max-h-36 overflow-y-auto">{warnings.slice(0, 12).map((w, i) => <li key={i}>{w}</li>)}{warnings.length > 12 && <li className="list-none text-slate-400">…and {warnings.length - 12} more</li>}</ul>}
               {preview.length > 0 && (
                 <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
                   <table className="w-full text-xs">
