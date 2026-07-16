@@ -164,12 +164,27 @@ function HeaderRow({ proj, upd, pcts }) {
   const btn = "h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap bg-white";
   return (
     <div className="rounded-lg border" style={{ padding: 18, background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--ft-border)" }}>
+        <div className="min-w-0">
+          <div className="ft-eyebrow text-[9px] mb-1">Customer</div>
+          <div className="ft-serif text-indigo-600" style={{ fontSize: 19, lineHeight: 1.15 }}>Dana Whitfield ▾</div>
+          <div className="text-xs text-slate-500 mt-1 truncate">412 Maple St</div>
+          <div className="text-xs text-slate-500 mt-0.5 truncate">🏢 Miller Custom Homes</div>
+        </div>
+        <div className="min-w-0 text-center" style={{ borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" }}>
+          <div className="ft-eyebrow text-[9px] mb-1">Project</div>
+          <div className="ft-serif" style={{ fontSize: 24, lineHeight: 1.05 }}>Maple St remodel</div>
+          <div className="text-xs text-slate-500 mt-1">412 Maple St</div>
+        </div>
+        <div className="min-w-0 text-right">
+          <div className="ft-eyebrow text-[9px] mb-1">Salesperson</div>
+          <div className="ft-serif" style={{ fontSize: 17 }}>Sam Keim</div>
+          <div className="text-xs text-slate-500 mt-1">(555) 210-8877</div>
+        </div>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 }}>
-        <div className="flex flex-col gap-1.5 min-w-0" style={{ height: 92 }}>
-          <div className="flex items-center justify-between gap-2 min-w-0 h-[20px]">
-            <div className="ft-eyebrow text-[9px] truncate">Miller Custom Homes</div>
-            <FilesPop attachments={[{ id: "f1", name: "measure-sheet.pdf", size: 88000 }, { id: "f2", name: "tile-photo.jpg", size: 421000 }]} onOpen={() => {}} onDelete={() => {}} onAdd={() => {}} />
-          </div>
+        <div className="flex flex-col gap-1.5 min-w-0" style={{ height: 84 }}>
+          <div className="ft-eyebrow text-[9px] truncate h-[12px]">Pricing</div>
           <SegBar value={proj.priceTier} inputValue={proj.customPct}
             onChange={(v) => upd({ priceTier: v })}
             onInput={(v) => upd({ priceTier: "custom", customPct: v })}
@@ -188,12 +203,13 @@ function HeaderRow({ proj, upd, pcts }) {
               { v: "none", label: "No $", title: "Print no pricing" },
             ]} />
         </div>
-        <textarea readOnly placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none" style={{ height: 92, background: "var(--ft-cream)" }} />
-        <div className="flex flex-col justify-between gap-1.5" style={{ height: 92 }}>
+        <textarea readOnly placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none" style={{ height: 84, background: "var(--ft-cream)" }} />
+        <div className="flex flex-col justify-between gap-1.5" style={{ height: 84 }}>
           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
             <div className="flex gap-1.5">
-              <button className={btn}><Save size={14} /> Version</button>
-              <button className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-white"><History size={14} /></button>
+              <button title="Save a version" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 bg-white"><Save size={14} /></button>
+              <FilesPop attachments={[{ id: "f1", name: "measure-sheet.pdf", size: 88000 }, { id: "f2", name: "tile-photo.jpg", size: 421000 }]} onOpen={() => {}} onDelete={() => {}} onAdd={() => {}} />
+              <button title="Version history" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 bg-white"><History size={14} /></button>
             </div>
             <div className="flex gap-1.5">
               <button className={btn}><ClipboardList size={14} /> Order sheet</button>

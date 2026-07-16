@@ -482,7 +482,7 @@ const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee
 export const TIER_COLOR = {
   builder: { main: "#2563eb", soft: "#dbeafe" },
   employee: { main: "#0d9488", soft: "#ccfbf1" },
-  sale: { main: "#dc2626", soft: "#fee2e2" },
+  sale: { main: "#ea580c", soft: "#ffedd5" },
   custom: { main: "#7c3aed", soft: "#ede9fe" },
 };
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
@@ -678,8 +678,8 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
   const W = 260;
   return (
     <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Files (not printed)" className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 h-[20px] text-[11px] text-slate-500 hover:bg-slate-50 shrink-0">
-        <Paperclip size={11} /> {n > 0 ? n : "Files"}
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title={`Files (not printed)${n ? ` — ${n}` : ""}`} className="h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50">
+        <Paperclip size={14} />{n > 0 && <span className="font-semibold">{n}</span>}
       </button>
       {open && pos && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
@@ -2703,6 +2703,7 @@ export default function App({ user, onSignOut }) {
                                 <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={14} className="shrink-0" />
                               </button>
                               <div className="text-xs text-slate-500 mt-1 truncate">{cust.address || " "}</div>
+                              {bn && <div className="text-xs text-slate-500 mt-0.5 truncate flex items-center gap-1"><Building2 size={11} className="shrink-0 text-slate-400" /> {bn}</div>}
                             </>
                           ) : (
                             <div className="text-amber-600 text-sm font-semibold" style={{ lineHeight: 1.6 }}>Unassigned job</div>
@@ -2723,12 +2724,8 @@ export default function App({ user, onSignOut }) {
                         </div>
                       </div>
                       <div className="ft-noprint mt-3 pt-3 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
-                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 92 } : {}}>
-                          <div className="flex items-center justify-between gap-2 min-w-0 h-[20px]">
-                            <div className="ft-eyebrow text-[9px] truncate">{bn || "Pricing"}</div>
-                            <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
-                            <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                          </div>
+                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 84 } : {}}>
+                          <div className="ft-eyebrow text-[9px] truncate h-[12px]">Pricing</div>
                           {(() => { const pcts = normPricing(settings.pricing); return (
                             <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
                               onChange={(v) => updateProject(sel.id, { priceTier: v })}
@@ -2749,8 +2746,8 @@ export default function App({ user, onSignOut }) {
                               { v: "none", label: "No $", title: "Print no pricing" },
                             ]} />
                         </div>
-                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: isWide ? 92 : 66, background: "var(--ft-cream)" }} />
-                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 92 } : {}}>
+                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: isWide ? 84 : 66, background: "var(--ft-cream)" }} />
+                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 84 } : {}}>
                           {namingVersion ? (
                             <div className="flex items-center gap-1.5">
                               <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -2760,8 +2757,10 @@ export default function App({ user, onSignOut }) {
                           ) : (
                             <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
                               <div className="flex gap-1.5">
-                                <button onClick={startVersionName} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><Save size={14} /> Version</button>
-                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
+                                <button onClick={startVersionName} title="Save a version" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><Save size={14} /></button>
+                                <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
+                                <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
+                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
                               </div>
                               <div className="flex gap-1.5">
                                 <button onClick={() => setPrintMode("order")} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
