@@ -473,8 +473,6 @@ const PRINT_COLS_UNIT = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr";
 const PRINT_COLS_NONE = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.8fr";
 const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
-// Per-line tier chip labels (spec 2026-07-16).
-const TIER_SHORT = { builder: "bldr", employee: "emp", sale: "sale", custom: "cust" };
 // The on-screen tier badge beside the grand total — a discounted screen must
 // never be mistaken for retail.
 const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee" ? "Employee" : pct > 0 ? `${tier[0].toUpperCase()}${tier.slice(1)} −${pct}%` : "";
@@ -771,6 +769,26 @@ function EField({ label, right, flex, tint, children }) {
     <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex, padding: "0 2px", borderRight: "1px solid var(--ft-row-line)", ...(tint ? { background: TOTAL_WASH, borderRadius: "var(--ft-r)" } : null) }}>
       <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)", padding: "3px 6px 0", whiteSpace: "nowrap", textAlign: right ? "right" : "left" }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 3, justifyContent: right ? "flex-end" : "flex-start" }}>{children}</div>
+    </div>
+  );
+}
+
+// Price cell under a non-retail tier: the tier-adjusted price takes the
+// input's spot (color-coded like the tier chips) and the editable retail
+// slides beneath as a micro field — the GridSizeInput footnote pattern.
+// Retail stays the stored value; the top line is derived, never typed.
+const TIER_LONG = { builder: "Builder", employee: "Employee", sale: "Sale", custom: "Custom" };
+export function GridPriceCell({ p, tier, tierPrice, onRetail, title }) {
+  if (tierPrice == null) return (
+    <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" placeholder="0.00" title={title} />
+  );
+  return (
+    <div className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
+      <div className="text-right font-bold" style={{ fontSize: 11, padding: "3px 4px 0", color: "var(--ft-brand-deep)" }} title={`${TIER_LONG[tier]} price — what the estimate uses`}>{money(tierPrice)}</div>
+      <div className="flex items-center justify-end" style={{ gap: 2, padding: "0 4px 2px" }}>
+        <span style={{ fontSize: 8.5, color: "var(--ft-faint)" }}>retail</span>
+        <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={`${title} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
+      </div>
     </div>
   );
 }
@@ -3011,7 +3029,7 @@ export default function App({ user, onSignOut }) {
                                   )}
                                 </EField>
                                 <EField label="Price" right tint flex="0.6 1 56px">
-                                  <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                  <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                                 </EField>
                                 <EField label="Order" right flex="0.9 1 80px">
                                   {p.type !== "misc" && C ? (<>
@@ -3088,7 +3106,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
@@ -3115,7 +3133,14 @@ export default function App({ user, onSignOut }) {
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                 </>)}
                               </div>
-                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
+                              {tierPrice != null && tLine > 0 ? (
+                                <div style={{ ...gridCell, background: totalTint, flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "2px 8px", gap: 1 }}>
+                                  <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{money(tLine)}</span>
+                                  <span style={{ fontSize: 8.5, color: "var(--ft-faint)", lineHeight: 1.1 }}>retail {money(line)}</span>
+                                </div>
+                              ) : (
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
+                              )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
@@ -3129,13 +3154,8 @@ export default function App({ user, onSignOut }) {
                                 <button onClick={() => setConfirmProd(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
                               </div>
                             )}
-                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt || tierPrice != null || tierNoCost) && (
+                            {(drift || oDrift || p.freightFlag || stockRetired || baseAlt || tierNoCost) && (
                               <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
-                                {tierPrice != null && (
-                                  <span className="shrink-0 rounded px-1.5 py-0.5 font-medium" style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>
-                                    {TIER_SHORT[tv.tier]} {money(tierPrice)}{p.type === "misc" || p.qtyType === "count" ? "/ea" : "/sf"}
-                                  </span>
-                                )}
                                 {tierNoCost && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">no cost — retail</span>}
                                 {drift && (<>
                                   <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>

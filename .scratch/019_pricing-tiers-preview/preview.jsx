@@ -11,12 +11,11 @@ import { Save, History, ClipboardList, Trash2, Copy, Printer, Plus } from "lucid
 import "../../src/index.css";
 import { num, getCarton, getPieceCarton, getGrout, getMortar } from "../../src/catalog.js";
 import { tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing, normPrintPricing } from "../../src/pricing.js";
-import { SegBar, FilesPop } from "../../src/App.jsx";
+import { SegBar, FilesPop, GridPriceCell } from "../../src/App.jsx";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
 const miscQty = (p) => (p.qtyType === "count" && String(p.qty ?? "").trim() !== "" ? num(p.qty) : 1);
-const TIER_SHORT = { builder: "bldr", employee: "emp", sale: "sale", custom: "cust" };
 
 // --- fixture -------------------------------------------------------------------
 
@@ -212,25 +211,43 @@ function HeaderRow({ proj, upd, pcts }) {
   );
 }
 
-// Per-line tier chips, as the edit grid shows them.
+// Edit-grid Price + Total cells under the tier: the REAL GridPriceCell (tier
+// price in the input's spot, retail slides beneath) and the stacked total.
 function ChipsDemo({ tv }) {
-  if (tv.tier === "retail") return null;
+  const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, display: "flex", alignItems: "center" };
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-3 text-xs space-y-1.5">
-      <div className="ft-eyebrow text-[9px]">Edit-grid tier chips</div>
-      {tv.proj.categories.flatMap((a) => a.products).map((p) => {
-        const orig = PROJECT.categories.flatMap((a) => a.products).find((o) => o.id === p.id);
-        const tp = tierUnitPrice(orig, tv.tier, tv.pct);
-        const noCost = tv.tier === "employee" && employeeNoCost(orig);
-        return (
-          <div key={p.id} className="flex items-center gap-2">
-            <span className="w-56 truncate text-slate-500">{orig.brandColor}</span>
-            <span className="ft-mono text-slate-400">{money(num(orig.priceSqft))} retail</span>
-            {tp != null && <span className="shrink-0 rounded px-1.5 py-0.5 font-medium" style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>{TIER_SHORT[tv.tier]} {money(tp)}{orig.type === "misc" ? "/ea" : "/sf"}</span>}
-            {noCost && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">no cost — retail</span>}
-          </div>
-        );
-      })}
+    <div className="bg-white rounded-lg border border-slate-200 p-3 text-xs">
+      <div className="ft-eyebrow text-[9px] mb-2">Edit-grid Price / Total cells{tv.tier === "retail" ? " (retail — unchanged)" : ""}</div>
+      <div className="rounded border border-slate-200 overflow-hidden">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 110px", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)", background: "var(--ft-area-head)" }}>
+          <div style={{ padding: "5px 8px" }}>Product</div><div style={{ padding: "5px 8px", textAlign: "right" }}>Price</div><div style={{ padding: "5px 8px", textAlign: "right" }}>Total</div>
+        </div>
+        {PROJECT.categories.flatMap((a) => a.products).map((p) => {
+          const tp = tierUnitPrice(p, tv.tier, tv.pct);
+          const noCost = tv.tier === "employee" && employeeNoCost(p);
+          const line = calcLine(p, settings).line;
+          const tLine = tp == null ? line : p.type === "misc" ? tp * miscQty(p) : calcLine({ ...p, priceSqft: String(tp) }, settings).line;
+          return (
+            <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 110px 110px", fontSize: 11, fontWeight: 600, borderTop: "1px solid var(--ft-row-line)" }}>
+              <div style={{ ...gridCell, padding: "6px 8px" }} className="truncate">
+                {p.brandColor}
+                {noCost && <span className="ml-2 shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium" style={{ fontSize: 10 }}>no cost — retail</span>}
+              </div>
+              <div style={gridCell}>
+                <GridPriceCell p={p} tier={tv.tier} tierPrice={tp} onRetail={() => {}} title="Price per sq ft" />
+              </div>
+              {tp != null && tLine > 0 ? (
+                <div style={{ ...gridCell, flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "2px 8px", gap: 1, borderRight: "none" }}>
+                  <span style={{ fontWeight: 700, color: "var(--ft-brand-deep)" }}>{money(tLine)}</span>
+                  <span style={{ fontSize: 8.5, color: "var(--ft-faint)", lineHeight: 1.1 }}>retail {money(line)}</span>
+                </div>
+              ) : (
+                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, borderRight: "none" }}>{money(line)}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
