@@ -582,13 +582,16 @@ export function mmToFraction(mm) {
 }
 
 // A dimension can be a mixed fraction — vendor sheets print hex chips as
-// "1-1/2X1-1/2" — or a bare fraction. Bare fraction tries first so an
-// unanchored match can't stop at the "3" of "3/4".
-const DIM = "\\d+/\\d+|\\d+(?:\\.\\d+)?(?:-\\d+/\\d+)?";
+// "1-1/2X1-1/2" — a bare fraction, or a leading-decimal like ".43" (VTC writes
+// pencil/edge trim widths with no leading zero: ".43X12", ".3X4.6"). The
+// leading-decimal alt sits before the plain-number alt so a match starting at
+// the dot claims the whole ".43" instead of stopping at the "43". Bare fraction
+// stays first so an unanchored match can't stop at the "3" of "3/4".
+const DIM = "\\d+/\\d+|\\.\\d+|\\d+(?:\\.\\d+)?(?:-\\d+/\\d+)?";
 const dimVal = (s) => {
   const f = str(s).match(/^(\d+)\/(\d+)$/);
   if (f) return +f[1] / +f[2];
-  const m = str(s).match(/^(\d+(?:\.\d+)?)(?:-(\d+)\/(\d+))?$/);
+  const m = str(s).match(/^(\d+(?:\.\d+)?|\.\d+)(?:-(\d+)\/(\d+))?$/);
   return m ? parseFloat(m[1]) + (m[2] ? +m[2] / +m[3] : 0) : NaN;
 };
 const SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?`, "i");
