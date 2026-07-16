@@ -4187,6 +4187,21 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           </div>
         </div>
 
+        {/* Team-wide tier percentages (spec 2026-07-16). A project picks its
+            tier on the job header; these set what Builder/Sale mean. */}
+        {(() => { const pcts = normPricing(settings.pricing); const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } }); return (
+          <div className="mt-3 flex items-center gap-4 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
+            <span className="ft-eyebrow text-[10px]">Pricing tiers</span>
+            <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
+              Builder <input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+            </label>
+            <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
+              Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+            </label>
+            <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
+          </div>
+        ); })()}
+
         {sel === "stock" ? (
           <div className="mt-3">
             <p className="text-xs text-slate-400 max-w-xl">
