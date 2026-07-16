@@ -639,8 +639,9 @@ function SalespersonPop({ value, fallback, onChange, alignRight }) {
 
 // Single-choice slide bar (spec 2026-07-16) — mirrors the header action
 // buttons' 30px height. An `input` option renders an inline % field (the
-// Custom tier) that selects its tier on focus/typing.
-function SegBar({ value, onChange, options, inputValue, onInput }) {
+// Custom tier) that selects its tier on focus/typing. Exported (with FilesPop)
+// for the .scratch preview harnesses only.
+export function SegBar({ value, onChange, options, inputValue, onInput }) {
   return (
     <div className="flex h-[30px] shrink-0 rounded-md border border-slate-200 overflow-hidden bg-white">
       {options.map((o, i) => {
@@ -648,7 +649,7 @@ function SegBar({ value, onChange, options, inputValue, onInput }) {
         const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? "bg-indigo-600 text-white" : "text-slate-500 hover:bg-slate-50");
         if (o.input) return (
           <label key={o.v} className={seg + " cursor-text px-1"} title={o.title}>
-            <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)} placeholder="%" className={"w-8 bg-transparent text-right focus:outline-none " + (active ? "text-white placeholder:text-white/60" : "text-slate-500")} />
+            <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)} className={"w-8 bg-transparent text-right focus:outline-none " + (active ? "text-white" : "text-slate-500")} />
             <span className="pr-0.5">%</span>
           </label>
         );
@@ -660,7 +661,7 @@ function SegBar({ value, onChange, options, inputValue, onInput }) {
 
 // Files, collapsed to a paperclip chip (spec 2026-07-16): the old dashed box
 // moved into an anchored popover so header column 1 can hold the pricing bars.
-function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
+export function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
