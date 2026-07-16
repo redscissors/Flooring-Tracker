@@ -110,14 +110,17 @@ const SizeChip = ({ it }) => {
   return sz ? <span className="ft-mono text-[11px] font-semibold text-slate-500 shrink-0">{sz}</span> : null;
 };
 
+// Below md (the phone layout) the SKU drops to the second line so the size
+// and description get the full first line of the narrow popup.
 const StockHit = ({ it }) => (
   <>
     <div className="flex items-baseline gap-2">
-      <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
       <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product || it.section}</span>
     </div>
     <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
+      <span className="md:hidden ft-mono shrink-0">{it.sku}</span>
       <span className="truncate">{[it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
       <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
@@ -131,12 +134,13 @@ const StockHit = ({ it }) => (
 const OrderHit = ({ it, bookName }) => (
   <>
     <div className="flex items-baseline gap-2">
-      <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
+      <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
       <SizeChip it={it} />
       <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product}</span>
       <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
     <div className="flex items-baseline gap-1.5 text-[11px]">
+      <span className="md:hidden ft-mono text-slate-400 shrink-0">{it.sku}</span>
       <span className="shrink-0 rounded px-1 bg-indigo-50 text-indigo-600 font-medium">{bookName(it.bookId)} · special order</span>
       {it.leadTime && <span className="text-slate-400 truncate">{it.leadTime}</span>}
       {it.freightFlag && <span className="shrink-0 rounded px-1 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
@@ -163,13 +167,24 @@ const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${to
 // the panel anchors to the input with fixed coordinates instead. Returns the
 // anchor's viewport rect (tracked through scroll/resize) and dismisses on a
 // pointer-down outside both the anchor and the panel.
+// The panel opens below the anchor but flips above it when the space below
+// can't fit a full panel and the space above shows more (on phones the
+// keyboard eats the bottom half of the screen). pos carries `top` OR `bottom`
+// plus `maxH`, the room on the chosen side; vPos() is the style fragment.
+const PANEL_MAX = 320; // tallest search panel: max-h-72 list + footer
 const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
   const [pos, setPos] = useState(null);
   useLayoutEffect(() => {
     if (!open) { setPos(null); return; }
     const place = () => {
       const r = anchorRef.current?.getBoundingClientRect();
-      if (r) setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+      if (!r) return;
+      const below = window.innerHeight - r.bottom - 12;
+      const above = r.top - 12;
+      const up = below < Math.min(PANEL_MAX, above);
+      setPos(up
+        ? { bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width, maxH: Math.max(above, 120) }
+        : { top: r.bottom + 4, left: r.left, width: r.width, maxH: Math.max(below, 120) });
     };
     place();
     window.addEventListener("scroll", place, true);
@@ -196,6 +211,7 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
   }, [open]);
   return pos;
 };
+const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos.bottom });
 
 // Order-book search for the selection-row pickers (ADR 0009 §6). Stock stays
 // instant from the in-memory list; special-order matches stream in behind them
@@ -282,9 +298,9 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
         onKeyDown={onKey} data-c="sku"
         className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
-        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
-          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
-          <div className="max-h-72 overflow-y-auto">
+        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          <div className="max-h-72 min-h-0 overflow-y-auto">
             {results.map((it, i) => {
               const sel = picked.some((x) => hitKey(x) === hitKey(it));
               return (
@@ -297,7 +313,7 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
               );
             })}
           </div>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+          <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
             <span className="truncate">{matchSummary(results.length, total)}</span>
             {picked.length > 0 ? (
               <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
@@ -328,15 +344,15 @@ function StockSearch({ stock, onPick, inp, placeholder = "Search the price book 
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
         className={inp} placeholder={placeholder} />
       {open && pos && results.length > 0 && createPortal(
-        <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50">
-          <div className="max-h-60 overflow-y-auto">
+        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          <div className="max-h-60 min-h-0 overflow-y-auto">
             {results.map((it) => (
               <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); pick(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                 <StockHit it={it} />
               </button>
             ))}
           </div>
-          <div className="px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
+          <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
         </div>, document.body)}
     </div>
   );
@@ -359,7 +375,7 @@ function FamilySearch({ families, onPick, inp }) {
         onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape") setOpen(false); }}
         className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
       {open && pos && matches.length > 0 && createPortal(
-        <div ref={panelRef} style={{ top: pos.top, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 max-h-60 overflow-y-auto">
+        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 overflow-y-auto">
           {matches.map((f) => (
             <button key={f.product} onMouseDown={(e) => { e.preventDefault(); pick(f); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>
@@ -594,7 +610,7 @@ function SalespersonPop({ value, fallback, onChange, alignRight }) {
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
+        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
           <div className="ft-eyebrow text-[9px]">Salesperson</div>
           <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
           <input value={sp.phone} onChange={(e) => onChange({ ...sp, phone: e.target.value })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
@@ -652,7 +668,7 @@ function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
       </button>
       )}
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ position: "fixed", top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176 }}
+        <div ref={panelRef} style={{ position: "fixed", ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176, maxHeight: pos.maxH, overflowY: "auto" }}
           className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 overflow-hidden">
           {TYPES.map((t) => {
             const on = !blank && t === type;
@@ -763,9 +779,9 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
         data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
       {open && pos && matches.length > 0 && createPortal(
-        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
-          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
-          <div className="max-h-60 overflow-y-auto">
+        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          <div className="max-h-60 min-h-0 overflow-y-auto">
             {matches.map((it) => (
               <button key={(it.bookId || "stock") + "|" + it.sku} onMouseDown={(e) => { e.preventDefault(); onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                 <Hit it={it} bookName={bookName} />
@@ -846,10 +862,10 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {open && pos && (results.length > 0 || picked.length > 0 || noHits) && createPortal(
-        <div ref={panelRef} style={{ top: pos.top, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
-          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50">
+        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
+          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           {results.length > 0 && (
-            <div className="max-h-72 overflow-y-auto">
+            <div className="max-h-72 min-h-0 overflow-y-auto">
               {results.map((it, i) => {
                 const sel = picked.some((x) => hitKey(x) === hitKey(it));
                 return (
@@ -863,7 +879,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
               })}
             </div>
           )}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+          <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
             {noHits ? (
               <><span className="truncate">No price-book match.</span>
                 <button onMouseDown={(e) => { e.preventDefault(); onManual(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Enter "{query.trim()}" by hand</button></>
