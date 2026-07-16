@@ -4023,6 +4023,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
   const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
+  const [confirmReset, setConfirmReset] = useState(false); // re-enable EVERY disabled item
   const [wizard, setWizard] = useState(false);
   const [name, setName] = useState(book.name);
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
@@ -4127,7 +4128,17 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                 <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable all {filtered.length}</button>
               </>
             )}
+            {disabledCount > 0 && (
+              <button onClick={() => setConfirmReset(true)} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50 ml-auto" title="Turn every disabled SKU in this book back on">Re-enable all disabled ({disabledCount})</button>
+            )}
           </div>
+          {confirmReset && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+              <span className="text-amber-700 flex-1">Re-enable all {disabledCount} disabled item{disabledCount === 1 ? "" : "s"} in this book, regardless of the current filter? They'll show in SKU search again for everyone.</span>
+              <button onClick={() => { setDisabled((items || []).filter((it) => it.disabled).map((it) => it.sku), false); setConfirmReset(false); setShow("all"); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">Re-enable all {disabledCount}</button>
+              <button onClick={() => setConfirmReset(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+            </div>
+          )}
           {confirmBulk && (
             <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
               <span className="text-amber-700 flex-1">
@@ -4453,7 +4464,13 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
 
   // Per-row pricing/unit hazards and N-suffix supersede pairs for the review
   // sections. Derived each render like `diff` — nothing is stored on an item.
-  const problems = sheet ? items.map((it) => ({ it, probs: itemProblems(it) })).filter((x) => x.probs.length) : [];
+  // Rows already disabled in the book are NOT re-surfaced for ignoring: they stay
+  // disabled (applyImport's `off()` preserves it) and re-prompting to ignore them
+  // every import was exactly the nag we're removing. Re-enable from the book table.
+  const alreadyDisabled = new Set((existingItems || []).filter((it) => it.disabled).map((it) => it.sku));
+  const problemsAll = sheet ? items.map((it) => ({ it, probs: itemProblems(it) })).filter((x) => x.probs.length) : [];
+  const problems = problemsAll.filter((x) => !alreadyDisabled.has(x.it.sku));
+  const keptDisabled = problemsAll.length - problems.length;
   const supersedes = sheet ? supersedePairs(existingItems, items) : [];
   const supersedeOld = supersedes.filter((p) => !keepOld.has(p.oldSku)).map((p) => p.oldSku);
   const disableSkus = [...new Set([...ignored, ...supersedeOld])];
@@ -4615,8 +4632,11 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[11px] text-amber-700">Ignored rows still import, but disabled — hidden from SKU search. Turn any back on later from the book table.</p>
+                <p className="mt-1.5 text-[11px] text-amber-700">Ignored rows still import, but disabled — hidden from SKU search. Turn any back on later from the book table.{keptDisabled > 0 ? ` ${keptDisabled} previously-disabled row${keptDisabled === 1 ? "" : "s"} stayed off automatically.` : ""}</p>
               </div>
+            )}
+            {problems.length === 0 && keptDisabled > 0 && (
+              <p className="text-[11px] text-slate-400">{keptDisabled} previously-disabled row{keptDisabled === 1 ? "" : "s"} stayed off automatically — re-enable from the book table if needed.</p>
             )}
 
             {supersedes.length > 0 && (
