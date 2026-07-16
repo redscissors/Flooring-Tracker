@@ -20,13 +20,26 @@ export function fileFormat({ sheets, pages, isPdf }) {
 // before a saved mapping exists. VTC files fingerprint off their detected header
 // row; other xlsx files off the best data sheet's first non-empty row. PDFs get
 // no header signature (their layout is grid-driven, matched by format tag).
+//
+// EFT files also get a title signature: Virginia Tile reuses the exact same
+// template for every brand it distributes (VTC Core, Anatolia, Home
+// Collection…), so the format tag and header are identical across brands. The
+// one cell that names the price list is the title line just above the header
+// row ("Virginia Tile Core" / "Anatolia Tile" / "VTC Home Collection") —
+// that's what tells the sibling files apart.
 export function computeFingerprint({ sheets, pages, isPdf }) {
   const format = fileFormat({ sheets, pages, isPdf });
-  let header = [];
+  let header = [], title = "";
   if (!isPdf) {
     const eft = detectVtcEft(sheets || []);
-    if (eft) header = sheets.find((s) => s.name === eft.sheet)?.rows?.[eft.headerRow] || [];
-    else {
+    if (eft) {
+      const rows = sheets.find((s) => s.name === eft.sheet)?.rows || [];
+      header = rows[eft.headerRow] || [];
+      for (let r = eft.headerRow - 1; r >= 0; r--) {
+        const text = (rows[r] || []).map((c) => String(c ?? "").trim()).filter(Boolean).join(" ");
+        if (text) { title = text; break; }
+      }
+    } else {
       for (const s of sheets || []) {
         const row = (s.rows || []).find((r) => (r || []).some((c) => c != null && String(c).trim()));
         if (row) { header = row; break; }
@@ -34,7 +47,7 @@ export function computeFingerprint({ sheets, pages, isPdf }) {
     }
   }
   const headerSig = header.map((c) => String(c ?? "").toLowerCase().replace(/\s+/g, "")).filter(Boolean).sort().join("|");
-  return { format, headerSig };
+  return { format, headerSig, title, titleSig: title.toLowerCase().replace(/\s+/g, " ") };
 }
 
 // Does a book's saved mapping actually parse this file? A cheap "would the
@@ -50,12 +63,12 @@ export function mappingMatchesFile(mapping, sheets) {
   catch { return false; }
 }
 
-const labelFor = (format, b) =>
-  format === "vtc-eft" ? `Virginia Tile EFT → ${b?.name || "book"}`
+const labelFor = (format, b, title) =>
+  format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} → ${b?.name || "book"}`
     : format === "mannington" ? `Mannington cartons → ${b?.name || "book"}`
       : `Matches ${b?.name || "book"}'s saved layout`;
-const reasonFor = (format) =>
-  format === "vtc-eft" ? "Virginia Tile EFT — pick which book"
+const reasonFor = (format, title) =>
+  format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} — pick which book`
     : format === "mannington" ? "Mannington cartons — pick which book"
       : "Unrecognized layout — pick a book";
 
@@ -64,19 +77,31 @@ const reasonFor = (format) =>
 // parses the file (so pre-PR-C books, which have a saved mapping but no
 // fingerprint, still match). Exactly one candidate ⇒ confident target; zero or
 // several ⇒ null target and the routing UI asks.
-export function routeFile({ format, headerSig, sheets }, books) {
+//
+// Sibling-template rule: when both the file and a book's fingerprint carry a
+// title (the EFT brand line), a matching title outranks every other signal and
+// a mismatched title is a definite "not this book" — including the mapping
+// probe, since Virginia Tile's shared template parses under every sibling
+// book's mapping. Books stamped before titles existed keep matching by format
+// alone until their next import stamps one.
+export function routeFile({ format, headerSig, titleSig, title, sheets }, books) {
   if (format === "stock") return { target: "stock", candidates: [], reason: "Shop workbook (sheet names matched)" };
-  const cand = new Set();
+  const byTitle = new Set(), cand = new Set();
   for (const b of books || []) {
     const fp = b.data?.importFingerprint;
-    if (format !== "generic" && fp?.format === format) cand.add(b.id);
+    const sameFormat = format !== "generic" && fp?.format === format;
+    if (sameFormat && fp?.titleSig && titleSig) {
+      if (fp.titleSig === titleSig) byTitle.add(b.id);
+      continue;
+    }
+    if (sameFormat) cand.add(b.id);
     else if (fp?.headerSig && headerSig && fp.headerSig === headerSig) cand.add(b.id);
     else if (mappingMatchesFile(b.data?.mapping, sheets)) cand.add(b.id);
   }
-  const candidates = [...cand];
+  const candidates = byTitle.size ? [...byTitle] : [...cand];
   if (candidates.length === 1) {
     const b = (books || []).find((x) => x.id === candidates[0]);
-    return { target: candidates[0], candidates, reason: labelFor(format, b) };
+    return { target: candidates[0], candidates, reason: labelFor(format, b, title) };
   }
-  return { target: null, candidates, reason: candidates.length ? "More than one book could take this file" : reasonFor(format) };
+  return { target: null, candidates, reason: candidates.length ? "More than one book could take this file" : reasonFor(format, title) };
 }

@@ -41,6 +41,45 @@ test("routeFile: one VTC book by fingerprint ⇒ confident; two ⇒ ask", () => 
   assert.deepEqual(routeFile({ format: "vtc-eft", headerSig: "", sheets: vtcSheets }, [b1, b2]).candidates.sort(), ["b1", "b2"]);
 });
 
+// Virginia Tile's EFT template is identical across the brands it distributes;
+// only the title line above the header names the price list.
+const eftSheets = (title) => [{ name: "MFG Data", rows: [
+  ["Account Name:  KEIM LUMBER CO"],
+  [],
+  [title],
+  [],
+  ["Item Code", "VTC Mfg", "Description", "Dealer Price"],
+  ["ABC123", "ANA", "Oak 12X24", 3.29],
+] }];
+
+test("computeFingerprint: EFT brand title above the header becomes the title signature", () => {
+  const fp = computeFingerprint({ sheets: eftSheets("Anatolia  Tile") });
+  assert.equal(fp.format, "vtc-eft");
+  assert.equal(fp.title, "Anatolia  Tile");
+  assert.equal(fp.titleSig, "anatolia tile");
+  assert.equal(computeFingerprint({ sheets: vtcSheets }).titleSig, ""); // nothing above the header
+});
+
+test("routeFile: sibling EFT files route by brand title, not just the shared format", () => {
+  const core = { id: "core", name: "VTC Core", data: { importFingerprint: { format: "vtc-eft", titleSig: "virginia tile core" }, mapping: { ...vtcMapping, sheet: "MFG Data", headerRow: 4 } } };
+  const ana = { id: "ana", name: "Anatolia", data: { importFingerprint: { format: "vtc-eft", titleSig: "anatolia tile" } } };
+  const file = { format: "vtc-eft", headerSig: "", titleSig: "anatolia tile", sheets: eftSheets("Anatolia Tile") };
+  // Core's saved mapping parses the Anatolia file (same template) — the title
+  // mismatch still keeps it out.
+  assert.equal(routeFile(file, [core, ana]).target, "ana");
+  // No book carries this brand ⇒ every titled EFT book is excluded, ask.
+  const hc = { ...file, titleSig: "vtc home collection", sheets: eftSheets("VTC Home Collection") };
+  assert.equal(routeFile(hc, [core, ana]).target, null);
+  assert.deepEqual(routeFile(hc, [core, ana]).candidates, []);
+});
+
+test("routeFile: a title match outranks a pre-title EFT book's format-only match", () => {
+  const old = { id: "old", name: "VTC (pre-title)", data: { importFingerprint: { format: "vtc-eft" } } };
+  const ana = { id: "ana", name: "Anatolia", data: { importFingerprint: { format: "vtc-eft", titleSig: "anatolia tile" } } };
+  const file = { format: "vtc-eft", headerSig: "", titleSig: "anatolia tile", sheets: eftSheets("Anatolia Tile") };
+  assert.equal(routeFile(file, [old, ana]).target, "ana");
+});
+
 test("routeFile: a pre-fingerprint book is matched by its saved mapping", () => {
   const b = { id: "b1", name: "VTC Core", data: { mapping: vtcMapping } };
   assert.equal(routeFile({ format: "vtc-eft", headerSig: "", sheets: vtcSheets }, [b]).target, "b1");
