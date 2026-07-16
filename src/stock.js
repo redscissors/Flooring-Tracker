@@ -127,10 +127,6 @@ export const isCartonUnit = (u) => CARTON_UNIT_RE.test(str(u));
 // so they keep factor 1.
 export const perCartonFactor = (item) => (isPieceUnit(priceUnitOf(item)) && item.pcPerUnit > 0 ? item.pcPerUnit : 1);
 
-// Price-basis → sell-unit factor for count lines: a per-piece price on an item
-// the vendor only breaks by the carton (No Broken U/M = CT) sells at price ×
-// pieces-per-carton. 1 when the units agree or PC/CT is unknown.
-export const sellUnitFactor = (item) => (isPieceUnit(priceUnitOf(item)) && isCartonUnit(orderUnitOf(item)) && item.pcPerUnit > 0 ? item.pcPerUnit : 1);
 
 // The per-sq-ft price a stock item carries: the book's SF price when present,
 // else derived from the carton/sheet price and its coverage — mosaic sheets
@@ -237,12 +233,17 @@ export function stockPatch(item, product) {
     }
   } else {
     patch.type = "misc";
-    // A carton-only sell unit (No Broken = CT) prices the line per carton —
-    // piece price × PC/CT — because that's the smallest thing the vendor sells;
-    // the name says so, and the qty is cartons.
-    const factor = sellUnitFactor(item);
-    patch.brandColor = [label(item), item.size].filter(Boolean).join(" — ") + (factor > 1 ? ` — carton of ${factor}` : "");
-    if (item.price != null) patch.priceSqft = String(factor > 1 ? round2(item.price * factor) : item.price);
+    // A count line prices and quotes per PIECE (ADR 0013 amendment) — the
+    // salesperson enters how many pieces the job needs. A carton-only sell
+    // unit (No Broken = CT) doesn't change the price basis; it rounds the
+    // ordered count up to whole cartons of PC/CT via cartonPc, the piece-count
+    // twin of cartonSf.
+    patch.brandColor = [label(item), item.size].filter(Boolean).join(" — ");
+    if (item.price != null) patch.priceSqft = String(item.price);
+    if (isCartonUnit(orderUnitOf(item)) && item.pcPerUnit > 0) {
+      patch.cartonPc = String(item.pcPerUnit);
+      patch.cartonUnit = orderUnitOf(item) || "CT";
+    }
   }
   return patch;
 }

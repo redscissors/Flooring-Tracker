@@ -212,12 +212,14 @@ test("a per-piece price with PC/CT scales to the carton before deriving $/sqft",
   assert.equal(patch.cartonSf, "5.38");
 });
 
-test("a typed, piece-priced, carton-sold item with no coverage lands as a count line per carton", () => {
+test("a typed, piece-priced, carton-sold item with no coverage lands as a per-piece count line with carton rounding", () => {
   const it = { sku: "CDSTABABN240R", type: "tile", priceUnit: "PC", orderUnit: "CT", price: 71.11, pcPerUnit: 10, description: "Tahoe Barrel Bullnose 2x40" };
   const patch = stockPatch(it, {});
   assert.equal(patch.type, "misc");         // no coverage → no honest sqft line
-  assert.equal(patch.priceSqft, "711.1");   // per carton of 10, matching how it's sold
-  assert.match(patch.brandColor, /carton of 10/);
+  assert.equal(patch.priceSqft, "71.11");   // per PIECE (ADR 0013 amendment)
+  assert.equal(patch.cartonPc, "10");       // ordering rounds up to cartons of 10
+  assert.equal(patch.cartonUnit, "CT");
+  assert.doesNotMatch(patch.brandColor, /carton of/);
 });
 
 // --- drift -----------------------------------------------------------------------

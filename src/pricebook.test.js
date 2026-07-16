@@ -323,6 +323,30 @@ test("parseMapped: reads mapped columns, applies the flag legend, stores cost no
   assert.match(bySku(items, "FLO0000003").note, /DISCO BY ADX/);
 });
 
+test("parseMapped: a piece-priced trim reclassifies to a count line at import (ADR 0013 amendment)", () => {
+  const rows = [
+    ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "", "Product Line Name", "", "", "Dealer", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", ""],
+    // The real end cap: notional 121.1 SF/CT (45 pcs × 1 m²) on a per-piece trim.
+    ["", "ADX", "NEBL", "BASE12EDS", "ADXNEBLBASE12EDS", "NERI BLACK BASE BOARD END CAP 12 IN SATIN", "NERI", "", "", 23.89, "PC", "PC", 45, 121.1, ""],
+    // A genuine SF-priced field tile in the same sheet stays flooring.
+    ["", "ADX", "EAAS", "312", "ADXEAAS312", "EARTH ASH GRAY 3X12", "EARTH", "", "", 11.64, "SF", "PC", 50, 12.5, ""],
+  ];
+  const mapping = {
+    headerRow: 0, skuPattern: "^[A-Z0-9]{6,20}$", defaultType: "tile",
+    columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 5: "description", 6: "productLine", 9: "cost", 10: "priceUnit", 11: "orderUnit", 12: "pcPerUnit", 13: "sfPerUnit" },
+  };
+  const { items } = parseMapped(rows, mapping);
+  const trim = bySku(items, "ADXNEBLBASE12EDS");
+  assert.equal(trim.trim, true);
+  assert.equal(trim.type, null);            // count line — quotes per piece
+  assert.equal(trim.trimSignal, "lexicon"); // provenance for review list & chips
+  assert.equal(trim.cost, 23.89);           // cost untouched, still per piece
+  const tile = bySku(items, "ADXEAAS312");
+  assert.equal(tile.trim, false);
+  assert.equal(tile.type, "tile");
+  assert.equal(tile.trimSignal, "");
+});
+
 test("parseMapped: real MFG-Data shape — code columns stay out of the label, product line isn't doubled", () => {
   // The live VTC "MFG Data" sheet (unlike the hand-picked fixture above) has
   // VTC Color / VTC Pattern as internal CODES (EAAS / 312) and a product line
