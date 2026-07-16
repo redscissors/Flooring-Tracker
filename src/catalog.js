@@ -688,12 +688,17 @@ export const normOps = (raw) => {
   return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}) };
 };
 
+// Team-wide tier percentages (spec 2026-07-16): Builder / Sale % off retail,
+// edited in Settings → Price book, clamped to a sane discount range.
+const pct100 = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : dflt; };
+export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10) });
+
 // The in-memory settings object carries the catalog plus derived grouts/mortars
-// maps the math reads. Only { waste, catalog, ops } is persisted.
+// maps the math reads. Only { waste, catalog, pricing, ops } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
 export const serializeSettings = (s) => {
   const ops = normOps(s.ops);
-  return { waste: s.waste, catalog: s.catalog, ...(ops ? { ops } : {}) };
+  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), ...(ops ? { ops } : {}) };
 };
 
 // Entry point for loaded/imported settings: backfill a pre-catalog record by
@@ -705,5 +710,5 @@ export function normalizeSettings(raw) {
     ? normalizeCatalog(raw.catalog)
     : seedCatalog(mergeSettings(raw));
   const ops = normOps(raw?.ops);
-  return withDerived({ waste, catalog, ...(ops ? { ops } : {}) });
+  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), ...(ops ? { ops } : {}) });
 }

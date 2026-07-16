@@ -1152,3 +1152,18 @@ test("materialWarnings flags a checked add-on whose product no longer resolves",
   const noCov = withCategory({ math: "coverage", coverage: 0 });
   assert.deepEqual(materialWarnings(attachRow(noCov.catId), noCov.s), [`attach:${noCov.catId}`]);
 });
+
+// --- Pricing tiers (spec 2026-07-16): settings carry the tier percentages ----
+
+test("normalizeSettings attaches pricing defaults and keeps stored values", () => {
+  assert.deepEqual(normalizeSettings().pricing, { builderPct: 8, salePct: 10 });
+  const s = normalizeSettings({ pricing: { builderPct: 12, salePct: 25 } });
+  assert.deepEqual(s.pricing, { builderPct: 12, salePct: 25 });
+});
+
+test("serializeSettings persists pricing and round-trips", () => {
+  const s = normalizeSettings({ pricing: { builderPct: 6 } });
+  const out = serializeSettings(s);
+  assert.deepEqual(out.pricing, { builderPct: 6, salePct: 10 });
+  assert.deepEqual(normalizeSettings(out).pricing, { builderPct: 6, salePct: 10 });
+});

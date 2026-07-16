@@ -11,6 +11,7 @@ import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
+import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import NedMark from "./NedMark.jsx";
@@ -466,8 +467,25 @@ const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "U
 // empty cells render (the Color column is a dash for now — the data model
 // keeps brand+color in one brandColor field).
 const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
+// Print-pricing variants (spec 2026-07-16): "unit" drops the Total column,
+// "none" drops Price too — quantities/SKUs keep the sheet a selection document.
+const PRINT_COLS_UNIT = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr";
+const PRINT_COLS_NONE = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.8fr";
 const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
+// The on-screen tier badge beside the grand total — a discounted screen must
+// never be mistaken for retail.
+const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee" ? "Employee" : pct > 0 ? `${tier[0].toUpperCase()}${tier.slice(1)} −${pct}%` : "";
+// Each tier owns a color (owner request): the selected segment, the Order
+// entry / Print buttons, and every tier-adjusted price wear it, so a glance
+// says which pricing the job is on. Retail keeps the default look.
+export const TIER_COLOR = {
+  builder: { main: "#2563eb", soft: "#dbeafe" },
+  employee: { main: "#0d9488", soft: "#ccfbf1" },
+  // Sale is pink on purpose — orange/red/yellow read as warnings, not discounts.
+  sale: { main: "#db2777", soft: "#fce7f3" },
+  custom: { main: "#7c3aed", soft: "#ede9fe" },
+};
 const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU
 // is display-only, per ADR 0006).
@@ -518,7 +536,7 @@ const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, product
 // never read live again — projects are team-shared, so without the snapshot a
 // teammate opening the job would print THEIR name on the estimate. Editable
 // only through the header's salesperson popover.
-const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [], salesperson: null });
+const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full" });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -532,7 +550,7 @@ const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type
 // no `attached` — they normalize to {} and stay valid.
 const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing) });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
 // real column. personData is what gets written back to the jsonb.
@@ -627,6 +645,60 @@ function SalespersonPop({ value, fallback, onChange, alignRight }) {
   );
 }
 
+// Single-choice slide bar (spec 2026-07-16) — mirrors the header action
+// buttons' 30px height. An `input` option renders an inline % field (the
+// Custom tier) that selects its tier on focus/typing. Exported (with FilesPop)
+// for the .scratch preview harnesses only.
+export function SegBar({ value, onChange, options, inputValue, onInput }) {
+  return (
+    <div className="flex h-[30px] shrink-0 rounded-md border border-slate-200 overflow-hidden" style={{ background: "var(--ft-band)" }}>
+      {options.map((o, i) => {
+        const active = value === o.v;
+        const seg = "flex-1 min-w-0 flex items-center justify-center text-[11.5px] font-semibold transition-colors " + (i > 0 ? "border-l border-slate-200 " : "") + (active ? (o.color ? "text-white" : "bg-indigo-600 text-white") : "text-slate-500 hover:bg-white");
+        const fill = active && o.color ? { background: o.color } : undefined;
+        if (o.input) return (
+          <label key={o.v} className={seg + " cursor-text px-1"} style={fill} title={o.title}>
+            <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)} className={"w-8 bg-transparent text-right focus:outline-none " + (active ? "text-white" : "text-slate-500")} />
+            <span className="pr-0.5">%</span>
+          </label>
+        );
+        return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={seg} style={fill}>{o.label}</button>;
+      })}
+    </div>
+  );
+}
+
+// Files, collapsed to a paperclip chip (spec 2026-07-16): the old dashed box
+// moved into an anchored popover so header column 1 can hold the pricing bars.
+export function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  const n = (attachments || []).length;
+  const W = 260;
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title={`Files (not printed)${n ? ` — ${n}` : ""}`} className="h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50">
+        <Paperclip size={14} />{n > 0 && <span className="font-semibold">{n}</span>}
+      </button>
+      {open && pos && createPortal(
+        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
+          <div className="ft-eyebrow text-[9px] mb-1.5">Files <span className="normal-case tracking-normal font-normal text-slate-400">— not printed</span></div>
+          <div className="flex flex-wrap gap-1">
+            {(attachments || []).map((m) => (
+              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
+                <button onClick={() => onOpen(m)} className="hover:text-indigo-600 max-w-[9rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
+                <button onClick={() => onDelete(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
+              </span>
+            ))}
+            <button onClick={onAdd} className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
+          </div>
+        </div>, document.body)}
+    </>
+  );
+}
+
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
@@ -708,6 +780,31 @@ function EField({ label, right, flex, tint, children }) {
     <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex, padding: "0 2px", borderRight: "1px solid var(--ft-row-line)", ...(tint ? { background: TOTAL_WASH, borderRadius: "var(--ft-r)" } : null) }}>
       <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)", padding: "3px 6px 0", whiteSpace: "nowrap", textAlign: right ? "right" : "left" }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 3, justifyContent: right ? "flex-end" : "flex-start" }}>{children}</div>
+    </div>
+  );
+}
+
+// Price cell under a non-retail tier: the tier-adjusted price takes the
+// input's spot (color-coded like the tier chips) and the editable retail
+// slides beneath as a micro field — the GridSizeInput footnote pattern.
+// Retail stays the stored value; the top line is derived, never typed.
+const TIER_LONG = { builder: "Builder", employee: "Employee", sale: "Sale", custom: "Custom" };
+export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title }) {
+  if (tierPrice == null && !noCost) return (
+    <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" placeholder="0.00" title={title} />
+  );
+  const color = TIER_COLOR[tier]?.main || "var(--ft-brand-deep)";
+  return (
+    <div className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
+      {noCost ? (
+        <div className="text-right font-bold" style={{ fontSize: 10.5, padding: "3px 4px 0", color: "#dc2626" }} title="No vendor cost on this line — Employee can't compute cost + 6%, so it stays at the retail price below">Retail</div>
+      ) : (
+        <div className="text-right font-bold" style={{ fontSize: 11, padding: "3px 4px 0", color }} title={`${TIER_LONG[tier]} price — what the estimate uses`}>{money(tierPrice)}</div>
+      )}
+      <div className="flex items-center justify-end" style={{ gap: 2, padding: "0 4px 2px" }}>
+        <span style={{ fontSize: 8.5, color: "var(--ft-faint)" }}>retail</span>
+        <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={noCost ? `${title} — the estimate uses this retail price (no cost on the line)` : `${title} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
+      </div>
     </div>
   );
 }
@@ -2192,8 +2289,14 @@ export default function App({ user, onSignOut }) {
     ping("Backup restored");
   } catch (x) { ping("Invalid file"); } }; fr.readAsText(f); e.target.value = ""; };
 
+  // The tier lens (spec 2026-07-16): everything on-screen and on the estimate
+  // computes from the tier-priced pair; quantities are price-independent so the
+  // order sheet and order-entry copies (which print no prices) are unaffected.
+  // The raw `sel` stays the editable/stored truth.
+  const tv = tierView(sel && sel._full ? sel : null, settings);
+  const tSet = tv.settings;
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, caulkCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
-  (sel?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { const PC = getPieceCarton(p); miscCost += num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, settings); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, settings); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: settings.grouts[p.grout.product]?.unit || "units", price: num(settings.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { caulkCost += ck * num(p.grout.caulkPrice); const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", sku: "", unit: "tubes", price: 0, exact: 0 }; cAgg[k].sku = cAgg[k].sku || p.grout.caulkSku || ""; if (num(p.grout.caulkPrice) > 0) cAgg[k].price = num(p.grout.caulkPrice); cAgg[k].exact += ck; } } const M = getMortar(p, settings); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: settings.mortars[p.mortar.product]?.unit || "units", price: num(settings.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, settings); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: settings.underlayments?.[p.underlay.product]?.unit || "units", price: num(settings.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, settings); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
+  (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { const PC = getPieceCarton(p); miscCost += num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, tSet); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, tSet); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: tSet.grouts[p.grout.product]?.unit || "units", price: num(tSet.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { caulkCost += ck * num(p.grout.caulkPrice); const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", sku: "", unit: "tubes", price: 0, exact: 0 }; cAgg[k].sku = cAgg[k].sku || p.grout.caulkSku || ""; if (num(p.grout.caulkPrice) > 0) cAgg[k].price = num(p.grout.caulkPrice); cAgg[k].exact += ck; } } const M = getMortar(p, tSet); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: tSet.mortars[p.mortar.product]?.unit || "units", price: num(tSet.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, tSet); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: tSet.underlayments?.[p.underlay.product]?.unit || "units", price: num(tSet.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, tSet); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
   // The color's own snapshotted SKU (ADR 0007) outranks the catalog product SKU.
   const gList = Object.values(gAgg).map((g) => { const order = ceilQty(g.exact); return { ...g, sku: g.colorSku || settings.grouts[g.product]?.sku || "", order, cost: order * num(g.price) }; });
   const mList = Object.values(mAgg).map((m) => { const order = ceilQty(m.exact); return { ...m, sku: settings.mortars[m.product]?.sku || "", order, cost: order * num(m.price) }; });
@@ -2201,11 +2304,11 @@ export default function App({ user, onSignOut }) {
   const cList = Object.values(cAgg).map((c) => { const order = ceilQty(c.exact); return { ...c, order, cost: order * num(c.price) }; });
   // Base units ride the CONSOLIDATED kit counts (ADR 0006), so they're derived
   // from gList — not per line — and their cost joins the grout family's.
-  const bList = groutBaseList(gList, settings);
+  const bList = groutBaseList(gList, tSet);
   const baseCost = bList.reduce((t, b) => t + b.cost, 0);
   // Add-on categories (ADR 0016), aggregated once and shared by the order
   // summary, order sheet, and grand total. Grouped by category for the summary.
-  const aList = sel?._full ? attachedList(sel, settings) : [];
+  const aList = sel?._full ? attachedList(tv.proj, tSet) : [];
   const addonCost = aList.reduce((t, r) => t + r.cost, 0);
   const aByCat = (settings.catalog.categories || []).map((cat) => ({ cat, rows: aList.filter((r) => r.categoryId === cat.id) })).filter((g) => g.rows.length > 0);
   // Every estimated material line with an order quantity, flattened and labeled
@@ -2223,28 +2326,38 @@ export default function App({ user, onSignOut }) {
   // those snapshot a cost. Each row's sell mirrors its flooring/misc line total,
   // so this margin is a subset of grandTotal. On screen only — never printed.
   const soLines = [];
-  (sel?.categories || []).forEach((a) => a.products.forEach((p) => {
+  (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => {
     if (!(num(p.cost) > 0)) return;
-    const C = getCarton(p, settings);
+    const C = getCarton(p, tSet);
     const PC = getPieceCarton(p);
     const sell = p.type === "misc" ? num(p.priceSqft) * (PC ? PC.pieces : miscQty(p))
       : p.qtyType === "sqft" ? (C ? C.order * C.sf : num(p.qty)) * num(p.priceSqft)
       : 0;
-    if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, settings, sell), markupPct: num(p.markupPct) });
+    if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, tSet, sell), markupPct: num(p.markupPct) });
   }));
   const margin = specialOrderMargin(soLines);
-  const pMats = sel && sel._full ? printMatList(sel, settings) : [];
+  const pMats = sel && sel._full ? printMatList(tv.proj, tSet) : [];
 
   // The estimate "paper", moved verbatim from the hidden print block. It renders in
   // BOTH the print layout and the on-screen Print preview tab — one source, so the
   // preview can never drift from what actually prints. Callers guard sel && sel._full.
-  const renderEstimatePaper = () => (
+  const renderEstimatePaper = () => {
+    // Print pricing switch (spec 2026-07-16): "full" prints everything, "unit"
+    // keeps per-unit prices but no line/job totals, "none" prints no money at
+    // all (the sheet still works as a selection/scope document). The tier tag
+    // only prints when some price does — it explains the numbers.
+    const pMode = normPrintPricing(sel.printPricing);
+    const showUnit = pMode !== "none", showTotals = pMode === "full";
+    const pCols = showTotals ? PRINT_COLS : showUnit ? PRINT_COLS_UNIT : PRINT_COLS_NONE;
+    const tag = showUnit ? tierTag(tv.tier, tv.pct) : "";
+    return (
           <div>
             <div className="flex justify-between items-center mb-5" style={{ borderBottom: "2px solid var(--ft-text)", paddingBottom: 16 }}>
               <img src={keimLogo} alt="Keim" style={{ height: 40, width: "auto", display: "block" }} />
               <div className="flex flex-col items-end" style={{ gap: 4 }}>
                 <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".24em", color: "var(--ft-brand-deep)" }}>Selection Sheet</div>
                 <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</div>
+                {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
               </div>
             </div>
             {(() => {
@@ -2271,28 +2384,28 @@ export default function App({ user, onSignOut }) {
               );
             })()}
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
-            {sel.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
+            {tv.proj.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
                 <div className="flex justify-between items-center" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
                   <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
-                  <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", printAreaFloor(a, settings) > 0 ? money(printAreaFloor(a, settings)) : ""].filter(Boolean).join(" · ")}</div>
+                  <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", showTotals && printAreaFloor(a, tSet) > 0 ? money(printAreaFloor(a, tSet)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
-                <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: pCols, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
                   <div>Size</div><div>Product / Color</div><div>SKU</div><div>Cov.</div>
-                  <div className="text-right">SF</div><div className="text-right">Price</div><div className="text-right">Order</div><div className="text-right">Total</div>
+                  <div className="text-right">SF</div>{showUnit && <div className="text-right">Price</div>}<div className="text-right">Order</div>{showTotals && <div className="text-right">Total</div>}
                 </div>
-                {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, settings); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
+                {a.products.filter((p) => !rowBlank(p)).map((p, pi) => { const c = printProduct(p, tSet); const inline = c.mats.filter((m) => m.inline); const thickLabel = p.type === "tile" && p.thickness ? THICK.find((t) => t.v === String(p.thickness))?.label || `${p.thickness}"` : ""; return (
                   <Fragment key={p.id}>
-                    <div style={{ display: "grid", gridTemplateColumns: PRINT_COLS, gap: 7, padding: "2px 12px 6px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid var(--ft-border)" : "none" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: pCols, gap: 7, padding: "2px 12px 6px", fontSize: 11, alignItems: "baseline", borderTop: pi > 0 ? "1px solid var(--ft-border)" : "none" }}>
                       <div style={{ whiteSpace: "nowrap" }}>{p.type === "tile" ? <>{p.sizeText || (p.L && p.W ? `${p.L}×${p.W}` : PRINT_DASH)}{thickLabel && <span style={{ fontSize: 9.5, color: "var(--ft-muted)" }}> · {thickLabel}</span>}</> : (p.sizeText || PRINT_DASH)}</div>
                       <div style={{ fontWeight: 700 }}>{p.brandColor || TLBL[p.type]}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10, color: "var(--ft-muted)" }}> · {TLBL[p.type]}</span>}</div>
                       <div className="ft-mono" style={{ fontSize: 9 }}>{p.sku || PRINT_DASH}</div>
                       <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? <>{sf1(c.C.sf)}<span style={{ fontSize: 7.5, color: "var(--ft-muted)" }}> SF/{c.C.unit.toUpperCase()}</span></> : PRINT_DASH}</div>
                       <div className="text-right">{p.qtyType === "sqft" && num(p.qty) > 0 ? sf1(num(p.qty)) : PRINT_DASH}</div>
-                      <div className="text-right">{num(p.priceSqft) > 0 ? money(num(p.priceSqft)) : PRINT_DASH}</div>
+                      {showUnit && <div className="text-right">{num(p.priceSqft) > 0 ? money(num(p.priceSqft)) : PRINT_DASH}</div>}
                       <div className="text-right whitespace-nowrap">{p.type === "misc" ? `${c.qtyText} EA` : c.C && c.C.order > 0 ? `${c.C.order} ${c.C.unit}` : c.qtyText || PRINT_DASH}</div>
-                      <div className="text-right" style={{ fontWeight: 700 }}>{c.line > 0 ? money(c.line) : PRINT_DASH}</div>
+                      {showTotals && <div className="text-right" style={{ fontWeight: 700 }}>{c.line > 0 ? money(c.line) : PRINT_DASH}</div>}
                     </div>
                     {inline.length > 0 && (
                       <div style={{ padding: "0 12px 4px 24px", fontSize: 9.5, color: "var(--ft-muted)", display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -2328,7 +2441,7 @@ export default function App({ user, onSignOut }) {
                           <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>{g.kind}</div>
                           {g.items.map((m, i) => (
                             <div key={i} style={{ marginBottom: 4 }}>
-                              <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.order > 0 && <> · {m.order} {u1(m.order, m.unit)}</>} <span className="ft-mono" style={{ fontWeight: 400, fontSize: 10 }}>{m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : ""}</span></div>
+                              <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.order > 0 && <> · {m.order} {u1(m.order, m.unit)}</>} <span className="ft-mono" style={{ fontWeight: 400, fontSize: 10 }}>{!showUnit ? "" : showTotals && m.cost > 0 ? money(m.cost) : m.price > 0 ? `${money(m.price)}/${u1(1, m.unit)}` : ""}</span></div>
                               <div style={{ fontSize: 10, color: "var(--ft-muted)" }}>{[m.spec, m.sku, m.exact > 0 ? `(${m.exact.toFixed(2)})` : ""].filter(Boolean).join(" · ")}</div>
                             </div>
                           ))}
@@ -2336,10 +2449,12 @@ export default function App({ user, onSignOut }) {
                       ));
                     })()}
                   </div>
+                  {showTotals && (
                   <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-border)", marginTop: 2, paddingTop: 8 }}>
                     <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Materials subtotal</div>
                     <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(materialsCost)}</div>
                   </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2347,14 +2462,14 @@ export default function App({ user, onSignOut }) {
               <div className="flex justify-between items-center gap-4" style={{ borderTop: "2px solid var(--ft-text)", paddingTop: 12 }}>
                 <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>
                   {[
-                    flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
-                    materialsCost > 0 ? `Materials ${money(materialsCost)}` : "",
+                    showTotals && flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
+                    showTotals && materialsCost > 0 ? `Materials ${money(materialsCost)}` : "",
                     totalSqft > 0 ? `${totalSqft.toLocaleString()} SF measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
                   ].filter(Boolean).join(" · ")}
                 </div>
-                {grandTotal > 0 && <div className="flex items-baseline gap-2 shrink-0"><span className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span><span className="ft-serif" style={{ fontSize: 22 }}>{money(grandTotal)}</span></div>}
+                {showTotals && grandTotal > 0 && <div className="flex items-baseline gap-2 shrink-0"><span className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span><span className="ft-serif" style={{ fontSize: 22 }}>{money(grandTotal)}</span></div>}
               </div>
-              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
+              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities{showUnit ? " and prices" : ""} are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
             </div>
             <div className="break-inside-avoid flex mt-6" style={{ gap: 40 }}>
               <div className="flex-1 flex flex-col" style={{ gap: 4 }}>
@@ -2373,7 +2488,8 @@ export default function App({ user, onSignOut }) {
               <div className="text-[9.5px] text-slate-400">Prepared with the ned</div>
             </div>
           </div>
-  );
+    );
+  };
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
   // Search spans builder + customer contact + project names (ADR 0005).
@@ -2570,7 +2686,7 @@ export default function App({ user, onSignOut }) {
                   up top, then builder + attachments | notes | actions, then a
                   full-width Add-area row. The middle (project) column is the
                   widest, like the estimate paper's header. */}
-              <div className="rounded-lg border mb-4" style={{ padding: "clamp(12px,1.8vw,18px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+              <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
                 {(() => {
                   const cust = data.people.find((c) => c.id === sel.customerId);
                   const bn = cust ? builderNameOf(cust.builderId) : "";
@@ -2588,18 +2704,25 @@ export default function App({ user, onSignOut }) {
                                 <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={14} className="shrink-0" />
                               </button>
                               <div className="text-xs text-slate-500 mt-1 truncate">{cust.address || " "}</div>
+                              {bn && <div className="text-xs text-slate-500 mt-0.5 truncate flex items-center gap-1"><Building2 size={11} className="shrink-0 text-slate-400" /> {bn}</div>}
                             </>
                           ) : (
                             <div className="text-amber-600 text-sm font-semibold" style={{ lineHeight: 1.6 }}>Unassigned job</div>
                           )}
                         </div>
                         <div className="min-w-0 relative" style={midPad}>
-                          {isWide && <div className="ft-mono absolute top-0 text-[12px] font-bold" style={{ right: 16, color: "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>}
+                          {isWide && <div className="absolute top-0 flex flex-col items-end" style={{ right: 16 }}>
+                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                            {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
+                          </div>}
                           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
                           <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
-                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(22px,3vw,28px)", lineHeight: 1.05 }} />
+                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
                           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
-                          {!isWide && <div className="ft-mono text-[12px] font-bold mt-1" style={{ color: "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>}
+                          {!isWide && <div className="mt-1">
+                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                            {tierBadgeText(tv.tier, tv.pct) && <span className="inline-block rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
+                          </div>}
                         </div>
                         <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
                           <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
@@ -2607,19 +2730,27 @@ export default function App({ user, onSignOut }) {
                           <div className="text-xs text-slate-500 mt-1 truncate max-w-full">{sp.phone || " "}</div>
                         </div>
                       </div>
-                      <div className="ft-noprint mt-3 pt-3 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
+                      <div className="ft-noprint mt-2 pt-2 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
                         <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 66 } : {}}>
-                          <div className="ft-eyebrow text-[9px] truncate">{bn || "Files"}</div>
-                          <div className="flex-1 min-h-0 rounded-md border border-dashed border-slate-300 px-1.5 py-1 flex flex-wrap gap-1 items-start content-start overflow-hidden">
-                            {(sel.attachments || []).map((m) => (
-                              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
-                                <button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[7rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
-                                <button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
-                              </span>
-                            ))}
-                            <button onClick={() => attRef.current?.click()} title="Attach a file (not printed)" className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
-                            <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                          </div>
+                          {(() => { const pcts = normPricing(settings.pricing); return (
+                            <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
+                              onChange={(v) => updateProject(sel.id, { priceTier: v })}
+                              onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
+                              options={[
+                                { v: "retail", label: "Retail", title: "Retail pricing" },
+                                { v: "builder", label: "Bldr", color: TIER_COLOR.builder.main, title: `Builder pricing — ${pcts.builderPct}% off retail` },
+                                { v: "employee", label: "Emp", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
+                                { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${pcts.salePct}% off retail` },
+                                { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
+                              ]} />
+                          ); })()}
+                          <SegBar value={sel.printPricing || "full"}
+                            onChange={(v) => updateProject(sel.id, { printPricing: v })}
+                            options={[
+                              { v: "full", label: "All $", title: "Print every price and total" },
+                              { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
+                              { v: "none", label: "No $", title: "Print no pricing" },
+                            ]} />
                         </div>
                         <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
                         <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
@@ -2632,8 +2763,10 @@ export default function App({ user, onSignOut }) {
                           ) : (
                             <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
                               <div className="flex gap-1.5">
-                                <button onClick={startVersionName} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><Save size={14} /> Version</button>
-                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
+                                <button onClick={startVersionName} title="Save a version" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><Save size={14} /></button>
+                                <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
+                                <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
+                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
                               </div>
                               <div className="flex gap-1.5">
                                 <button onClick={() => setPrintMode("order")} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
@@ -2641,15 +2774,17 @@ export default function App({ user, onSignOut }) {
                               </div>
                             </div>
                           )}
+                          {/* Non-retail tiers repaint both buttons in the tier's color —
+                              the pricing state is visible right where you commit to it. */}
                           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-                            <button onClick={() => setShowOrderCopy(true)} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
-                            <button onClick={() => setPrintMode("estimate")} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
+                            <button onClick={() => setShowOrderCopy(true)} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
+                            <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
                           </div>
                         </div>
                       </div>
                       {/* Ink row — same action as the dashed Add-area bar that
                           trails the areas list; both stay on purpose. */}
-                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-3 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
+                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-2 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
                     </>
                   );
                 })()}
@@ -2663,7 +2798,7 @@ export default function App({ user, onSignOut }) {
               <div>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
-                  const areaTotal = printAreaFloor(a, settings);
+                  const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
                   const areaMatOpen = a.products.some((pp) => matOpen[pp.id]);
                   return (
                   // overflow-hidden lifts while a card is dragged (so the floating
@@ -2716,6 +2851,11 @@ export default function App({ user, onSignOut }) {
                         // cartonSf for flooring sqft, cartonPc for per-piece count lines.
                         const C = getCarton(p, settings), cEx = cartonExact(p, settings), PC = getPieceCarton(p);
                         const line = p.type === "misc" ? num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)) : C ? C.order * C.sf * num(p.priceSqft) : sf * num(p.priceSqft);
+                        // Tier lens (spec 2026-07-16): the price INPUT stays the stored
+                        // retail; the chip + line total show the tier the estimate uses.
+                        const tierPrice = tv.tier !== "retail" ? tierUnitPrice(p, tv.tier, tv.pct) : null;
+                        const tierNoCost = tv.tier === "employee" && employeeNoCost(p);
+                        const tLine = tierPrice == null ? line : p.type === "misc" ? tierPrice * (PC ? PC.pieces : miscQty(p)) : C ? C.order * C.sf * tierPrice : sf * tierPrice;
                         // Dropdowns are driven by the catalog (resolve-by-name). A selection
                         // whose stored product is no longer offered is injected back as an
                         // option so it still shows — same pattern as tile thickness above.
@@ -2758,7 +2898,7 @@ export default function App({ user, onSignOut }) {
                         // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
                         // wants the collapsed line identical to the printed one.
                         const matExpanded = !!matOpen[p.id];
-                        const pInline = printProduct(p, settings).mats.filter((m) => m.inline);
+                        const pInline = printProduct(tv.proj.categories[ai]?.products[pi] || p, tSet).mats.filter((m) => m.inline);
                         const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
                         const warns = materialWarnings(p, settings);
                         // Add-on categories (ADR 0016) this row's flooring type offers.
@@ -2911,7 +3051,7 @@ export default function App({ user, onSignOut }) {
                                   )}
                                 </EField>
                                 <EField label="Price" right tint flex="0.6 1 56px">
-                                  <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                  <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                                 </EField>
                                 <EField label="Order" right flex="0.9 1 80px">
                                   {p.type !== "misc" && C ? (<>
@@ -2988,7 +3128,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <input type="number" value={p.priceSqft} onChange={(e) => updProduct(a.id, p.id, { priceSqft: e.target.value })} data-c="price" className="ft-cell text-right" placeholder="0.00" title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
@@ -3015,7 +3155,14 @@ export default function App({ user, onSignOut }) {
                                   <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "count" })} title="Square feet — click to switch to counted each" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>sf</button>
                                 </>)}
                               </div>
-                              <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{line > 0 ? money(line) : PRINT_DASH}</div>
+                              {tierPrice != null && tLine > 0 ? (
+                                <div style={{ ...gridCell, background: totalTint, flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "2px 8px", gap: 1 }}>
+                                  <span style={{ fontWeight: 700, color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(tLine)}</span>
+                                  <span style={{ fontSize: 8.5, color: "var(--ft-faint)", lineHeight: 1.1 }}>retail {money(line)}</span>
+                                </div>
+                              ) : (
+                                <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
+                              )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
                                 <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
                                 {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
@@ -3358,7 +3505,7 @@ export default function App({ user, onSignOut }) {
                     {renderEstimatePaper()}
                   </div>
                   <div className="text-center mt-4">
-                    <button onClick={() => setPrintMode("estimate")} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
+                    <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
                   </div>
                 </div>
               )}
@@ -3431,8 +3578,12 @@ export default function App({ user, onSignOut }) {
       )}
 
       {showOrderCopy && sel && sel._full && (() => {
+        // Order entry reads RETAIL on every tier except Employee, which carries
+        // through (spec 2026-07-16) — the salesperson keys builder/sale discounts
+        // into the vendor order by hand.
+        const oeProj = tv.tier === "employee" ? tv.proj : sel;
         const rows = [];
-        (sel.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
+        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
         const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
         return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} onClose={() => setShowOrderCopy(false)} />;
       })()}
@@ -4077,6 +4228,21 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             </button>
           </div>
         </div>
+
+        {/* Team-wide tier percentages (spec 2026-07-16). A project picks its
+            tier on the job header; these set what Builder/Sale mean. */}
+        {(() => { const pcts = normPricing(settings.pricing); const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } }); return (
+          <div className="mt-3 flex items-center gap-4 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
+            <span className="ft-eyebrow text-[10px]">Pricing tiers</span>
+            <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
+              Builder <input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+            </label>
+            <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
+              Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+            </label>
+            <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
+          </div>
+        ); })()}
 
         {sel === "stock" ? (
           <div className="mt-3">
