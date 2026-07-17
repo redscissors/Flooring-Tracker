@@ -333,6 +333,12 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ft-shadow:rgba(28,26,23,.06);
 }
 
+/* Mobile bottom sheet + scrim (mobile shell 2026-07-16). */
+@keyframes ft-sheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes ft-scrim-in{from{opacity:0}to{opacity:1}}
+.ft-sheet{animation:ft-sheet-up .26s cubic-bezier(.32,.72,.29,1);}
+.ft-sheet-scrim{animation:ft-scrim-in .2s ease;}
+
 @media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }
 
 /* Area cards take the grid line as their resting outline (a touch darker than

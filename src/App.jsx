@@ -700,6 +700,30 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
   );
 }
 
+// Mobile bottom sheet (mobile shell 2026-07-16): the phone's pop-open editing
+// surface — scrim + slide-up panel with an optional pinned footer. Portaled so
+// nothing in the edit view can clip it; desktop never renders one. Exported
+// (like SegBar/FilesPop) for the .scratch preview harnesses only.
+export function MobileSheet({ open, onClose, title, badge, children, footer }) {
+  if (!open) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 print:hidden">
+      <div className="ft-sheet-scrim absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="ft-sheet absolute left-0 right-0 bottom-0 flex flex-col" style={{ background: "var(--ft-cream)", maxHeight: "88%", borderRadius: "12px 12px 0 0", boxShadow: "0 -8px 40px rgba(28,26,23,.25)" }}>
+        <div className="mx-auto mt-2 h-1 w-9 rounded-full shrink-0" style={{ background: "var(--ft-border-strong)" }} />
+        <div className="flex items-center gap-2 px-4 pt-1.5 pb-2 shrink-0">
+          <div className="ft-serif text-[16px] flex-1 min-w-0 truncate">{title}</div>
+          {badge}
+          <button onClick={onClose} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400"><X size={14} /></button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3">{children}</div>
+        {footer && <div className="flex items-center gap-2 px-4 pt-2.5 border-t border-slate-200 shrink-0" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>{footer}</div>}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
@@ -1181,6 +1205,8 @@ export default function App({ user, onSignOut }) {
   const [saveOk, setSaveOk] = useState(false);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
+  const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
+  const [activeAreaId, setActiveAreaId] = useState(null); // mobile add bar: the + Product target area
   // Internal materials-margin reveal (ADR 0011): ephemeral, default hidden, never
   // persisted, never printed. Resets when switching projects (customer-safe).
   const [showMargin, setShowMargin] = useState(false);
@@ -1878,6 +1904,38 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
+  // Mobile add bar (mobile shell 2026-07-16): + Product targets the area in
+  // view — tracked on scroll with the anchor 30% down the viewport (v2 mockup
+  // spec); tapping inside an area also claims it (onClickCapture on the card,
+  // which child stopPropagation can't suppress).
+  useEffect(() => {
+    if (isWide || !sel?._full || viewTab !== "edit") return;
+    const el = mainRef.current; if (!el) return;
+    const pick = () => {
+      const nodes = el.querySelectorAll("[data-area-drop]");
+      if (!nodes.length) return setActiveAreaId(null);
+      const anchor = el.getBoundingClientRect().top + el.clientHeight * 0.3;
+      let cur = nodes[0];
+      nodes.forEach((n) => { if (n.getBoundingClientRect().top <= anchor) cur = n; });
+      setActiveAreaId(cur.getAttribute("data-area-drop"));
+    };
+    pick();
+    el.addEventListener("scroll", pick, { passive: true });
+    return () => el.removeEventListener("scroll", pick);
+  }, [isWide, viewTab, sel?.id, sel?._full, sel?.categories?.length]);
+  // Every area keeps a trailing blank adder row — reuse it instead of stacking
+  // another blank when the add bar's + Product is tapped.
+  const mobileAddProduct = () => {
+    if (!sel?._full) return;
+    const aid = sel.categories.some((a) => a.id === activeAreaId) ? activeAreaId : sel.categories[0]?.id;
+    if (!aid) return addArea();
+    const a = sel.categories.find((x) => x.id === aid);
+    const last = a.products[a.products.length - 1];
+    if (last && rowBlank(last)) {
+      prodRefs.current[last.id]?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      setFocusProdBox(last.id);
+    } else addProduct(aid);
+  };
   const orderBooks = useMemo(() => books.filter((b) => b.kind === "order" && b.active), [books]);
   const bookName = (id) => books.find((b) => b.id === id)?.name || "special order";
   // Prefer the fuzzy RPC (supabase/pricebook-fuzzy.sql); flips false for the
@@ -2562,6 +2620,13 @@ export default function App({ user, onSignOut }) {
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
             <NedMark size={28} />
             <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : ""}</span>
+            {sel && sel._full && (<>
+              <button onClick={() => setProjSheet(true)} className="shrink-0 text-right" style={{ lineHeight: 1.15 }}>
+                <span className="ft-mono block text-[13px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</span>
+                {tierBadgeText(tv.tier, tv.pct) && <span className="block text-[8.5px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
+              </button>
+              <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1.5 text-slate-500"><MoreHorizontal size={15} /></button>
+            </>)}
           </div>
         )}
 
@@ -2686,8 +2751,10 @@ export default function App({ user, onSignOut }) {
               {/* Header card, print-sheet style: customer | project | salesperson
                   up top, then builder + attachments | notes | actions, then a
                   full-width Add-area row. The middle (project) column is the
-                  widest, like the estimate paper's header. */}
-              <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+                  widest, like the estimate paper's header. Desktop only — the
+                  mobile shell (2026-07-16) collapses it to the stat strip +
+                  project sheet below. */}
+              {isWide && <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
                 {(() => {
                   const cust = data.people.find((c) => c.id === sel.customerId);
                   const bn = cust ? builderNameOf(cust.builderId) : "";
@@ -2789,7 +2856,106 @@ export default function App({ user, onSignOut }) {
                     </>
                   );
                 })()}
-              </div>
+              </div>}
+
+              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2): the
+                  header card collapses to a horizontally scrolling stat strip;
+                  the full project controls live in a bottom sheet opened from
+                  the strip, the top bar's total, or ⋯. No Order entry on
+                  mobile — that's a desk task (owner call). */}
+              {!isWide && (() => {
+                const cust = data.people.find((c) => c.id === sel.customerId);
+                const totalSf = sel.categories.reduce((t, a) => t + a.products.reduce((s, p) => s + (p.qtyType === "sqft" ? num(p.qty) : 0), 0), 0);
+                const pcts = normPricing(settings.pricing);
+                const tile = "shrink-0 text-left rounded-md border border-slate-200 bg-white px-2.5 py-1.5";
+                const tLbl = "ft-eyebrow text-[8px]";
+                const tVal = "text-[12.5px] font-bold whitespace-nowrap mt-px";
+                const act = "h-[34px] flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-600";
+                return (
+                  <>
+                    <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
+                    <div className="ft-noprint flex gap-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: "none" }}>
+                      <button onClick={() => cust && setCustModal(cust.id)} className={tile}>
+                        <div className={tLbl}>Customer</div>
+                        <div className={tVal + (cust ? "" : " text-amber-600")}>{cust ? `${cust.name || "Customer"} ▾` : "Unassigned"}</div>
+                      </button>
+                      <div className={tile}><div className={tLbl}>Floor</div><div className={tVal + " ft-mono"}>{sf1(totalSf)} SF</div></div>
+                      <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Print</div><div className={tVal}>{sel.printPricing === "unit" ? "Unit $" : sel.printPricing === "none" ? "No $" : "All $"}</div></button>
+                      <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Files</div><div className={tVal}>{(sel.attachments || []).length}</div></button>
+                      <button onClick={() => setShowVersions(true)} className={tile}><div className={tLbl}>Versions</div><div className={tVal}>{sel.versions?.length || 0}</div></button>
+                      {saveOk && <div className={tile}><div className={tLbl}>Sync</div><div className={tVal} style={{ color: "var(--ft-brand)" }}>Saved ✓</div></div>}
+                    </div>
+                    <MobileSheet open={projSheet} onClose={() => setProjSheet(false)} title={sel.name || "Untitled project"}
+                      badge={tierBadgeText(tv.tier, tv.pct) ? <span className="shrink-0 rounded px-1 py-px font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span> : null}
+                      footer={<>
+                        <div className="flex-1 min-w-0" style={{ lineHeight: 1.15 }}>
+                          <div className="ft-eyebrow text-[8.5px]">Total</div>
+                          <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                        </div>
+                        <button onClick={() => { setProjSheet(false); setPrintMode("estimate"); }} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 text-[13px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-7"><Printer size={15} /> Print</button>
+                      </>}>
+                      <div className="space-y-3">
+                        <div><label className={lbl}>Project name</label><input value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={inp} /></div>
+                        <div><label className={lbl}>Project address</label><input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={inp} /></div>
+                        <div>
+                          <label className={lbl}>Price tier</label>
+                          <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
+                            onChange={(v) => updateProject(sel.id, { priceTier: v })}
+                            onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
+                            options={[
+                              { v: "retail", label: "Retail", title: "Retail pricing" },
+                              { v: "builder", label: "Bldr", color: TIER_COLOR.builder.main, title: `Builder pricing — ${pcts.builderPct}% off retail` },
+                              { v: "employee", label: "Emp", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
+                              { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${pcts.salePct}% off retail` },
+                              { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
+                            ]} />
+                        </div>
+                        <div>
+                          <label className={lbl}>Printed pricing</label>
+                          <SegBar value={sel.printPricing || "full"}
+                            onChange={(v) => updateProject(sel.id, { printPricing: v })}
+                            options={[
+                              { v: "full", label: "All $", title: "Print every price and total" },
+                              { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
+                              { v: "none", label: "No $", title: "Print no pricing" },
+                            ]} />
+                        </div>
+                        <div><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" rows={2} className={inp} /></div>
+                        <div>
+                          <label className={lbl}>Salesperson</label>
+                          <SalespersonPop value={sel.salesperson} fallback={profile} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
+                        </div>
+                        <div>
+                          <label className={lbl}>Files <span className="text-slate-400 font-normal normal-case tracking-normal">— not printed</span></label>
+                          <div className="flex flex-wrap gap-1">
+                            {(sel.attachments || []).map((m) => (
+                              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
+                                <button onClick={() => openAttachment(m)} className="hover:text-indigo-600 max-w-[9rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
+                                <button onClick={() => delAttachment(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
+                              </span>
+                            ))}
+                            <button onClick={() => attRef.current?.click()} className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500"><Paperclip size={11} /> Add</button>
+                          </div>
+                        </div>
+                        {namingVersion ? (
+                          <div className="flex items-center gap-1.5">
+                            <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[34px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <button onClick={confirmVersion} className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
+                            <button onClick={() => setNamingVersion(false)} className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 text-slate-400"><X size={15} /></button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1.5 pt-1">
+                            <button onClick={startVersionName} className={act}><Save size={14} /> Save version</button>
+                            <button onClick={() => { setProjSheet(false); setShowVersions(true); }} className={act}><History size={14} /> History ({sel.versions?.length || 0})</button>
+                            <button onClick={() => { setProjSheet(false); setPrintMode("order"); }} className={act}><ClipboardList size={14} /> Order sheet</button>
+                            <button onClick={() => { setProjSheet(false); setConfirm({ id: sel.id }); }} className={act + " hover:bg-red-50"} style={{ color: "#b91c1c", borderColor: "#fecaca" }}><Trash2 size={14} /> Delete</button>
+                          </div>
+                        )}
+                      </div>
+                    </MobileSheet>
+                  </>
+                );
+              })()}
 
               {sel.categories.length === 0 && <div className="bg-white rounded-lg border border-dashed border-slate-300 p-9 text-center text-sm text-slate-400">No areas yet. Add one to start building this customer's selections.</div>}
 
@@ -2806,8 +2972,8 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-area-head)", padding: "8px 14px" }}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
+                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-area-head)", padding: "8px 14px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
@@ -3431,7 +3597,8 @@ export default function App({ user, onSignOut }) {
                 })}
               </div>
 
-              {sel.categories.length > 0 && (
+              {/* Mobile gets its + Area in the bottom add bar instead. */}
+              {isWide && sel.categories.length > 0 && (
                 <button onClick={addArea} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
               )}
 
@@ -3513,6 +3680,23 @@ export default function App({ user, onSignOut }) {
             </div>
           )}
         </main>
+
+        {/* Mobile add bar (mobile shell 2026-07-16): + Product follows the
+            area in view (activeAreaId); Print wears the tier color like the
+            desktop header buttons. Sits under <main> in the flex column, so
+            it never overlaps content. */}
+        {!isWide && sel && sel._full && viewTab === "edit" && (() => {
+          const cur = sel.categories.find((a) => a.id === activeAreaId) || sel.categories[0];
+          return (
+            <div className="ft-noprint flex gap-2 px-3 pt-2.5 ft-rail border-t border-slate-200" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+              <button onClick={addArea} className="h-[38px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
+              <button onClick={mobileAddProduct} className="h-[38px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
+                <Plus size={14} className="shrink-0" /> Product{cur ? <span className="truncate opacity-75 font-semibold">&nbsp;· {areaLabel(cur, sel.categories.indexOf(cur))}</span> : null}
+              </button>
+              <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-4 text-[12.5px] font-bold"><Printer size={14} /> Print</button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* PRINT VIEW — the print buttons pick the layout: estimate (default, also Ctrl+P) or order sheet */}

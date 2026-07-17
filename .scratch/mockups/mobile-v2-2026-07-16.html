@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ned — mobile v2 (A + stat strip)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+  :root{
+    --paper:#F6F3EC; --card:#FFFFFF; --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A; --band:#E7E3D6; --sand:#EDE9DD; --rowline:#ECE8DC;
+    --line:rgba(28,26,23,.10); --line-strong:rgba(28,26,23,.25); --grid:rgba(28,26,23,.34);
+    --t-tile:#2A3A1B; --t-hard:#40542A; --t-vinyl:#57703A; --t-carpet:#6E8A4C; --t-lam:#87A363; --t-misc:#A4BC84;
+    --bldr:#2563eb; --bldr-soft:#dbeafe;
+    --ui:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:var(--ui);-webkit-tap-highlight-color:transparent}
+  body{background:#1C1A17;color:#F6F3EC;padding:26px 18px 60px}
+  .wrap{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;max-width:1100px;margin:0 auto}
+  .note{width:330px;font-size:13px;color:#A8A29A;line-height:1.55;padding-top:8px}
+  .note h1{font-size:19px;font-weight:800;color:#F6F3EC;letter-spacing:-.01em;margin-bottom:10px}
+  .note ul{margin:10px 0 0 18px}
+  .note li{margin-bottom:9px}
+  .note b{color:#F6F3EC}
+  .note .tag{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:11px;font-weight:800;padding:1px 6px;margin-right:6px}
+
+  .phone{width:377px;height:790px;background:var(--paper);color:var(--ink);border-radius:26px;
+    border:1px solid rgba(246,243,236,.18);overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 22px 60px rgba(0,0,0,.5)}
+
+  .eyebrow{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+  .money{font-variant-numeric:tabular-nums}
+  .badge{display:inline-block;border-radius:4px;padding:1px 4px;font-size:9px;font-weight:700;background:var(--bldr-soft);color:var(--bldr)}
+  .chip-t{width:19px;height:19px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+  .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
+  .scroll::-webkit-scrollbar{width:0}
+
+  .topbar{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--paper);border-bottom:1px solid var(--line);flex:none}
+  .burger{width:30px;height:30px;border:none;background:none;display:flex;align-items:center;justify-content:center;color:var(--ink);flex:none;cursor:pointer}
+  .nmark{font-weight:800;font-size:21px;line-height:1;letter-spacing:-.02em;flex:none}
+  .bar-name{font-size:16.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+  .bar-total{text-align:right;flex:none;line-height:1.05;cursor:pointer;border:none;background:none;padding:0}
+  .bar-total .tt{font-size:13px;font-weight:800;color:var(--bldr)}
+  .bar-total .tb{font-size:8.5px;font-weight:700;color:var(--bldr)}
+  .dots{width:28px;height:28px;border-radius:5px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-weight:800;letter-spacing:1px;font-size:13px;flex:none;cursor:pointer}
+
+  /* stat strip (folded in from variant B) */
+  .stats{display:flex;gap:7px;overflow-x:auto;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--paper);flex:none}
+  .stats::-webkit-scrollbar{height:0}
+  .stat{flex:none;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 11px;cursor:pointer;text-align:left}
+  .stat .sa{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .stat .sb{font-size:13px;font-weight:800;margin-top:1px;white-space:nowrap}
+  .stat.moss .sb{color:var(--moss-deep)}
+
+  .area{background:var(--card);border:1px solid var(--grid);border-radius:6px;overflow:hidden}
+  .area + .area{margin-top:-1px}
+  .area-h{display:flex;align-items:center;gap:8px;background:var(--band);padding:8px 12px;transition:background .25s,box-shadow .25s}
+  .area.cur .area-h{background:color-mix(in oklab,var(--moss) 16%,var(--band));box-shadow:inset 3px 0 0 var(--moss)}
+  .area-h .an{font-size:16px;font-weight:600;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .area-h .am{font-size:10.5px;color:var(--ink);font-weight:600}
+  .prow{display:flex;gap:9px;padding:10px 12px;border-top:1px solid var(--rowline);cursor:pointer;background:var(--card);width:100%;border-left:none;border-right:none;border-bottom:none;text-align:left}
+  .prow:active{background:var(--sand)}
+  .prow .mid{flex:1;min-width:0}
+  .prow .l1{display:flex;align-items:baseline;gap:6px}
+  .prow .nm{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+  .prow .tot{font-size:12.5px;font-weight:800;flex:none}
+  .prow .l2{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:10.5px;color:var(--faint);white-space:nowrap;overflow:hidden}
+  .prow .l2 .qty{color:var(--muted);font-weight:700}
+  .mats{display:flex;gap:3px;margin-left:auto;flex:none}
+  .mats i{font-style:normal;font-size:8.5px;font-weight:800;color:var(--moss-deep);background:color-mix(in oklab,var(--moss) 14%,transparent);border-radius:3px;padding:1px 4px}
+
+  .botbar{flex:none;display:flex;gap:8px;padding:10px 12px 16px;background:var(--paper);border-top:1px solid var(--line)}
+  .btn{border-radius:5px;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:none;white-space:nowrap;overflow:hidden}
+  .btn.ghost{background:var(--card);border:1px solid var(--line-strong);color:var(--ink)}
+  .btn.ink{background:var(--ink);color:var(--paper)}
+  .btn.tier{background:var(--bldr);color:#fff}
+  .botbar .btn{height:40px}
+
+  .scrim{position:absolute;inset:0;background:rgba(28,26,23,.38);opacity:0;pointer-events:none;transition:opacity .22s;z-index:8}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--paper);border-radius:14px 14px 0 0;z-index:9;
+    transform:translateY(102%);transition:transform .26s cubic-bezier(.32,.72,.29,1);max-height:88%;display:flex;flex-direction:column;
+    box-shadow:0 -8px 40px rgba(28,26,23,.25)}
+  .sheet.on{transform:translateY(0)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line-strong);margin:8px auto 2px;flex:none}
+  .sh-h{display:flex;align-items:center;gap:8px;padding:6px 14px 10px;flex:none}
+  .sh-h .t{font-size:15.5px;font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xbtn{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;flex:none}
+  .sh-b{overflow-y:auto;padding:0 14px 14px}
+  .sh-f{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px 16px;border-top:1px solid var(--line);background:var(--paper)}
+  .sh-f .sum{flex:1;line-height:1.1}
+  .sh-f .sum .a{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+  .sh-f .sum .b{font-size:16px;font-weight:800}
+  .sh-f .btn{height:40px;padding:0 26px}
+
+  .fl{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 3px 1px}
+  .fi{width:100%;height:34px;border:1px solid var(--line);border-radius:5px;background:var(--card);padding:0 9px;font-size:13px;font-weight:600;color:var(--ink)}
+  .fi:focus{outline:2px solid var(--moss);outline-offset:-1px}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .fgap{margin-top:9px}
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--card)}
+  .seg button{flex:1;border:none;background:none;font-size:11px;font-weight:700;padding:7px 2px;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .seg.tint button.on{background:var(--bldr);color:#fff}
+  .typerow{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+  .typerow::-webkit-scrollbar{height:0}
+  .tpill{display:flex;align-items:center;gap:5px;border:1px solid var(--line-strong);background:var(--card);border-radius:99px;
+    padding:5px 11px 5px 6px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;flex:none}
+  .tpill .chip-t{width:16px;height:16px;font-size:8.5px}
+  .tpill.on{border-color:var(--ink);color:var(--ink);background:var(--sand)}
+  .step{display:flex;align-items:center;border:1px solid var(--line);border-radius:5px;background:var(--card);height:34px}
+  .step button{width:34px;height:100%;border:none;background:none;font-size:16px;font-weight:700;color:var(--muted);cursor:pointer}
+  .step .v{flex:1;text-align:center;font-size:13.5px;font-weight:800}
+  .matrow{display:flex;align-items:center;gap:9px;padding:9px 2px;border-top:1px solid var(--rowline)}
+  .matrow:first-child{border-top:none}
+  .matrow .mi{flex:1;min-width:0}
+  .matrow .mn{font-size:12.5px;font-weight:700}
+  .matrow .md{font-size:10.5px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sw{width:38px;height:22px;border-radius:11px;background:var(--line-strong);position:relative;flex:none;cursor:pointer;border:none;transition:background .18s}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .18s}
+  .sw.on{background:var(--moss)}
+  .sw.on::after{left:18px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+  .actgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .act{height:38px;border:1px solid var(--line-strong);border-radius:5px;background:var(--card);font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .act.danger{color:#b91c1c;border-color:#fecaca}
+  .notes{width:100%;border:1px solid var(--line);border-radius:5px;background:var(--card);padding:8px 9px;font-size:12.5px;min-height:56px;resize:none;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <h1>ned · mobile v2<br>bottom sheets + stat strip</h1>
+  <span class="tag">changed from v1</span>
+  <ul>
+    <li><b>Stat strip under the top bar</b> (from variant B): Customer · SF · Print · Files · Versions — each tile pops its own sheet. Total stays in the top bar.</li>
+    <li><b>No Order entry anywhere</b> — that's a desk task. Print is the only tier-colored action.</li>
+    <li><b>"+ Product" lines removed from area cards</b>; rows are all signal now.</li>
+    <li><b>Bottom bar is the add bar</b>: + Area · <b>+ Product · &lt;area&gt;</b> · Print. The product button follows your scroll — whichever area is in view is the one it adds to, and that area's header shows a moss edge. <b>Scroll the list to see it switch.</b></li>
+    <li>Tapping <b>+ Product</b> adds a blank row to the active area and opens its sheet ready to fill.</li>
+  </ul>
+</div>
+
+<div class="phone" id="ph">
+  <div class="topbar">
+    <button class="burger" aria-label="menu"><svg width="18" height="14" viewBox="0 0 18 14"><path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <span class="nmark">n</span>
+    <span class="bar-name">Miller Residence</span>
+    <button class="bar-total" data-open="shProj"><div class="tt money">$4,797.22</div><div class="tb">Builder −8%</div></button>
+    <button class="dots" data-open="shProj">⋯</button>
+  </div>
+
+  <div class="stats">
+    <button class="stat" data-open="shCust"><div class="sa">Customer</div><div class="sb">Dave &amp; Anne Miller ▾</div></button>
+    <button class="stat"><div class="sa">Floor</div><div class="sb money">1,180 SF</div></button>
+    <button class="stat" data-open="shProj"><div class="sa">Print</div><div class="sb">All $</div></button>
+    <button class="stat" data-open="shProj"><div class="sa">Files</div><div class="sb">2</div></button>
+    <button class="stat" data-open="shProj"><div class="sa">Versions</div><div class="sb">3</div></button>
+    <button class="stat moss"><div class="sa">Sync</div><div class="sb">Saved ✓</div></button>
+  </div>
+
+  <div class="scroll" id="list" style="padding:10px 12px 8px">
+    <div class="area" data-area="Kitchen">
+      <div class="area-h"><span class="an">Kitchen</span><span class="am money">240 SF · $1,999.28</span></div>
+      <button class="prow" data-open="shProd" data-name="Portfolio · Iron Gray">
+        <span class="chip-t" style="background:var(--t-tile)">T</span>
+        <span class="mid">
+          <span class="l1"><span class="nm">Portfolio · Iron Gray</span><span class="tot money">$837.60</span></span>
+          <span class="l2"><span>PF08-1224 · 12×24</span><span class="qty">240 SF</span><span>@ $3.49</span><span class="mats"><i>G</i><i>M</i></span></span>
+        </span>
+      </button>
+      <button class="prow" data-open="shProd" data-name="COREtec Pro Plus · Copano Oak">
+        <span class="chip-t" style="background:var(--t-vinyl)">V</span>
+        <span class="mid">
+          <span class="l1"><span class="nm">COREtec Pro Plus · Copano Oak</span><span class="tot money">$1,087.53</span></span>
+          <span class="l2"><span>VV017-01005</span><span class="qty">9 ct</span><span>× 28.84 SF @ $4.19</span><span class="mats"><i>U</i></span></span>
+        </span>
+      </button>
+      <button class="prow" data-open="shProd" data-name="Stairnose · Copano Oak">
+        <span class="chip-t" style="background:var(--t-misc)">✕</span>
+        <span class="mid">
+          <span class="l1"><span class="nm">Stairnose · Copano Oak</span><span class="tot money">$248.00</span></span>
+          <span class="l2"><span>VV017-04005</span><span class="qty">4 EA</span><span>@ $62.00</span></span>
+        </span>
+      </button>
+    </div>
+
+    <div class="area" data-area="Master Bath">
+      <div class="area-h"><span class="an">Master Bath</span><span class="am money">68 SF · $702.62</span></div>
+      <button class="prow" data-open="shProd" data-name="Sterlina · Ivory">
+        <span class="chip-t" style="background:var(--t-tile)">T</span>
+        <span class="mid">
+          <span class="l1"><span class="nm">Sterlina · Ivory</span><span class="tot money">$325.72</span></span>
+          <span class="l2"><span>F02STERIV1224 · 12×24</span><span class="qty">68 SF</span><span>@ $4.79</span><span class="mats"><i>G</i><i>M</i></span></span>
+        </span>
+      </button>
+      <button class="prow" data-open="shProd" data-name="Ditra-XL membrane">
+        <span class="chip-t" style="background:var(--t-misc)">✕</span>
+        <span class="mid">
+          <span class="l1"><span class="nm">Ditra-XL membrane</span><span class="tot money">$438.00</span></span>
+          <span class="l2"><span>DXL175</span><span class="qty">1 EA</span><span>@ $438.00</span></span>
+        </span>
+      </button>
+    </div>
+
+    <div class="area" data-area="Living Room">
+      <div class="area-h"><span class="an">Living Room</span><span class="am money">612 SF · $1,627.19</span></div>
+      <button class="prow" data-open="shProd" data-name="Rock Solid · Mineral">
+        <span class="chip-t" style="background:var(--t-carpet)">C</span>
+        <span class="mid">
+          <span class="l1"><span class="nm">Rock Solid · Mineral</span><span class="tot money">$1,768.68</span></span>
+          <span class="l2"><span>RS-114 · 12' roll</span><span class="qty">612 SF</span><span>@ $2.89</span><span class="mats"><i>U</i></span></span>
+        </span>
+      </button>
+    </div>
+    <div style="height:14px"></div>
+  </div>
+
+  <div class="botbar">
+    <button class="btn ghost" style="flex:.55">+ Area</button>
+    <button class="btn ink" id="addProd" style="flex:1.35">+ Product · <span id="curArea">Kitchen</span></button>
+    <button class="btn tier" style="flex:.7">🖶 Print</button>
+  </div>
+
+  <div class="scrim" data-close></div>
+
+  <!-- product sheet -->
+  <div class="sheet" id="shProd">
+    <div class="grab"></div>
+    <div class="sh-h"><span class="t" id="prodTitle">Portfolio · Iron Gray</span><button class="xbtn" data-close>✕</button></div>
+    <div class="sh-b">
+      <div class="typerow">
+        <button class="tpill on"><span class="chip-t" style="background:var(--t-tile)">T</span>Tile</button>
+        <button class="tpill"><span class="chip-t" style="background:var(--t-hard)">H</span>Hardwood</button>
+        <button class="tpill"><span class="chip-t" style="background:var(--t-vinyl)">V</span>Vinyl</button>
+        <button class="tpill"><span class="chip-t" style="background:var(--t-lam)">L</span>Laminate</button>
+        <button class="tpill"><span class="chip-t" style="background:var(--t-carpet)">C</span>Carpet</button>
+      </div>
+      <div class="g2 fgap">
+        <div><div class="fl">Product / color</div><input class="fi" value="Portfolio · Iron Gray"></div>
+        <div><div class="fl">SKU · from price book</div><input class="fi" value="PF08-1224" style="color:var(--moss-deep)"></div>
+      </div>
+      <div class="g3 fgap">
+        <div><div class="fl">Size</div><input class="fi" value="12×24"></div>
+        <div><div class="fl">Thickness</div><input class="fi" value="3/8″"></div>
+        <div><div class="fl">Price / SF</div><input class="fi money" value="$3.49"></div>
+      </div>
+      <div class="g2 fgap">
+        <div><div class="fl">Square feet</div>
+          <div class="step"><button data-step="-5">−</button><span class="v money" data-qty>240</span><button data-step="5">+</button></div>
+        </div>
+        <div><div class="fl">Waste</div>
+          <div class="seg"><button>None</button><button class="on">10%</button><button>15%</button></div>
+        </div>
+      </div>
+      <div class="fl fgap" style="margin-top:14px">Materials</div>
+      <div class="box" style="padding:2px 12px">
+        <div class="matrow">
+          <span class="mi"><span class="mn">Grout — Spectralock Pro</span><span class="md">Silver · 1/8″ joint · 2 units + base ✓</span></span>
+          <button class="sw on" data-sw></button>
+        </div>
+        <div class="matrow">
+          <span class="mi"><span class="mn">Mortar — Multimax Lite</span><span class="md">3 bags · covers 258 SF</span></span>
+          <button class="sw on" data-sw></button>
+        </div>
+        <div class="matrow">
+          <span class="mi"><span class="mn">Underlayment</span><span class="md">Off</span></span>
+          <button class="sw" data-sw></button>
+        </div>
+      </div>
+      <div style="height:8px"></div>
+    </div>
+    <div class="sh-f">
+      <span class="sum"><span class="a">Line total</span><br><span class="b money">$837.60</span></span>
+      <button class="btn ink" data-close>Done</button>
+    </div>
+  </div>
+
+  <!-- project sheet (no Order entry on mobile) -->
+  <div class="sheet" id="shProj">
+    <div class="grab"></div>
+    <div class="sh-h"><span class="t">Miller Residence</span><span class="badge" data-badge>Builder −8%</span><button class="xbtn" data-close>✕</button></div>
+    <div class="sh-b">
+      <div class="fl">Price tier</div>
+      <div class="seg tint" data-tierseg>
+        <button data-tier="retail">Retail</button>
+        <button class="on" data-tier="builder">Bldr</button>
+        <button data-tier="employee">Emp</button>
+        <button data-tier="sale">Sale</button>
+        <button data-tier="custom">%</button>
+      </div>
+      <div class="fl fgap">Printed pricing</div>
+      <div class="seg"><button class="on">All $</button><button>Unit $</button><button>No $</button></div>
+      <div class="fl fgap">Project notes</div>
+      <textarea class="notes">Install after cabinets — week of 8/3. Gate code 4482.</textarea>
+      <div class="fl fgap">Project</div>
+      <div class="actgrid">
+        <button class="act">💾 Save version</button>
+        <button class="act">🕘 History (3)</button>
+        <button class="act">📎 Files (2)</button>
+        <button class="act">✏️ Rename / address</button>
+        <button class="act danger" style="grid-column:span 2">🗑 Delete project</button>
+      </div>
+      <div style="height:8px"></div>
+    </div>
+    <div class="sh-f">
+      <span class="sum"><span class="a">Total</span><br><span class="b money" data-total style="color:var(--bldr)">$4,797.22</span></span>
+      <button class="btn tier" data-tbtn style="height:40px;padding:0 34px" data-close>🖶 Print</button>
+    </div>
+  </div>
+
+  <!-- customer sheet -->
+  <div class="sheet" id="shCust">
+    <div class="grab"></div>
+    <div class="sh-h"><span class="t">Dave &amp; Anne Miller</span><button class="xbtn" data-close>✕</button></div>
+    <div class="sh-b">
+      <div class="g2">
+        <div><div class="fl">Phone</div><input class="fi" value="(616) 555-0147"></div>
+        <div><div class="fl">Email</div><input class="fi" value="dmiller@…"></div>
+      </div>
+      <div class="fgap"><div class="fl">Address</div><input class="fi" value="418 Orchard Hill Dr, Rockford"></div>
+      <div class="fgap"><div class="fl">Builder</div><input class="fi" value="Hearthstone Homes"></div>
+      <div class="fgap"><div class="fl">Notes</div><textarea class="notes">Repeat customer — did their office LVP in 2024.</textarea></div>
+      <div style="height:10px"></div>
+    </div>
+    <div class="sh-f"><span class="sum"><span class="a">2 projects</span></span><button class="btn ink" data-close>Done</button></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+  const ph = document.getElementById('ph');
+  const scrim = ph.querySelector('.scrim');
+  const closeAll = () => { ph.querySelectorAll('.sheet.on').forEach(s => s.classList.remove('on')); scrim.classList.remove('on'); };
+  const open = id => { closeAll(); ph.querySelector('#'+id).classList.add('on'); scrim.classList.add('on'); };
+  ph.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    if (b.dataset.name) document.getElementById('prodTitle').textContent = b.dataset.name;
+    const ar = b.closest('.area'); if (ar) setCur(ar);
+    open(b.dataset.open);
+  }));
+  ph.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeAll));
+  ph.querySelectorAll('[data-sw]').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
+  ph.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+    const v = b.parentElement.querySelector('[data-qty]');
+    v.textContent = Math.max(0, parseInt(v.textContent,10) + parseInt(b.dataset.step,10));
+  }));
+  ph.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => { seg.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); })));
+
+  // tier recolor
+  const TIERS = {
+    retail:  { c:'#40542A', soft:'#e5e7dd', label:'' },
+    builder: { c:'#2563eb', soft:'#dbeafe', label:'Builder −8%' },
+    employee:{ c:'#0d9488', soft:'#ccfbf1', label:'Employee' },
+    sale:    { c:'#db2777', soft:'#fce7f3', label:'Sale −10%' },
+    custom:  { c:'#7c3aed', soft:'#ede9fe', label:'Custom −12%' },
+  };
+  ph.querySelectorAll('[data-tier]').forEach(b => b.addEventListener('click', () => {
+    const t = TIERS[b.dataset.tier];
+    ph.querySelectorAll('.bar-total .tt,.bar-total .tb,[data-total]').forEach(el => el.style.color = t.c);
+    ph.querySelector('.bar-total .tb').textContent = t.label;
+    const badge = ph.querySelector('[data-badge]');
+    badge.textContent = t.label || 'Retail'; badge.style.background = t.soft; badge.style.color = t.c;
+    ph.querySelectorAll('.btn.tier,[data-tbtn]').forEach(el => el.style.background = b.dataset.tier==='retail' ? '#1C1A17' : t.c);
+    const seg = ph.querySelector('[data-tierseg]');
+    seg.querySelectorAll('button').forEach(x => { x.classList.remove('on'); x.style.background=''; x.style.color=''; });
+    b.classList.add('on'); if (b.dataset.tier!=='retail'){ b.style.background=t.c; b.style.color='#fff'; }
+  }));
+
+  // scroll-aware active area -> "+ Product · <area>"
+  const list = document.getElementById('list');
+  const label = document.getElementById('curArea');
+  const areas = [...list.querySelectorAll('.area')];
+  let curArea = areas[0];
+  const setCur = (cur) => {
+    curArea = cur;
+    areas.forEach(a => a.classList.toggle('cur', a === cur));
+    label.textContent = cur.dataset.area;
+    return cur;
+  };
+  const pickCurrent = () => {
+    const anchor = list.getBoundingClientRect().top + list.clientHeight * 0.30;
+    let cur = areas[0];
+    for (const a of areas) { if (a.getBoundingClientRect().top <= anchor) cur = a; }
+    return setCur(cur);
+  };
+  list.addEventListener('scroll', pickCurrent, { passive:true });
+  // touching an area (row tap, header tap) also claims the active state
+  list.addEventListener('click', e => { const a = e.target.closest('.area'); if (a) setCur(a); });
+  pickCurrent();
+
+  // + Product adds a blank row to the active area and opens the sheet
+  document.getElementById('addProd').addEventListener('click', () => {
+    const cur = curArea;
+    const row = document.createElement('button');
+    row.className = 'prow'; row.dataset.open = 'shProd'; row.dataset.name = 'New product — ' + cur.dataset.area;
+    row.innerHTML = '<span class="chip-t" style="background:var(--t-misc)">?</span>' +
+      '<span class="mid"><span class="l1"><span class="nm" style="color:var(--faint)">New product…</span><span class="tot money" style="color:var(--faint)">$0.00</span></span>' +
+      '<span class="l2"><span>tap to fill in</span></span></span>';
+    row.addEventListener('click', () => { document.getElementById('prodTitle').textContent = row.dataset.name; open('shProd'); });
+    cur.appendChild(row);
+    row.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    document.getElementById('prodTitle').textContent = 'New product — ' + cur.dataset.area;
+    open('shProd');
+  });
+</script>
+</body>
+</html>
