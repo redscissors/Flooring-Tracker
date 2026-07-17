@@ -4071,13 +4071,11 @@ export default function App({ user, onSignOut }) {
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
                 <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
                   <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "10px 16px" }}>
-                    <div className="flex items-baseline gap-2.5 min-w-0">
-                      <span className="uppercase shrink-0" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Materials Estimate</span>
-                      <span className="ft-serif" style={{ fontSize: 20 }}>Order summary</span>
-                    </div>
+                    <span className="ft-serif min-w-0 truncate" style={{ fontSize: 20 }}>Materials estimate</span>
                     {materialsCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(materialsCost)} materials</span>}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-6" style={{ padding: 16 }}>
+                  <div style={{ padding: 16, display: "grid", gap: isWide ? 24 : 20, gridTemplateColumns: isWide ? "minmax(0,1fr) 15rem" : "1fr" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(165px,1fr))", columnGap: 24, rowGap: 20, alignContent: "start" }}>
                     <div>
                       <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>Grout</div>
                       {gList.length + bList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...bList.map((b) => ({ product: b.name, sku: b.sku, color: "—", order: b.order, unit: b.unit, cost: b.cost, price: b.price, pending: false })), ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
@@ -4116,7 +4114,9 @@ export default function App({ user, onSignOut }) {
                         ))}
                       </div>
                     ))}
-                    <div>
+                    </div>
+                    <div style={{ background: "var(--ft-tint)", border: "1px solid var(--ft-border)", borderRadius: 8, padding: "12px 14px", alignSelf: "start" }}>
+                      <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 8 }}>Order summary</div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
                         <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
