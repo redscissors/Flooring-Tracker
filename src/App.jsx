@@ -2561,7 +2561,7 @@ export default function App({ user, onSignOut }) {
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
             <NedMark size={28} />
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : "the ned"}</span>
+            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : ""}</span>
           </div>
         )}
 
