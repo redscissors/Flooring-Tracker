@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
-  decodeHandoff, bookmarkletSource, classifySheetBytes,
+  decodeHandoff, bookmarkletSource, harvestVendorLinks, classifySheetBytes,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -69,6 +69,30 @@ test("decodeHandoff returns null on garbage or empty payloads", () => {
   assert.equal(decodeHandoff("!!!"), null);
   assert.equal(decodeHandoff(btoa(JSON.stringify({ v: 2, links: [LINK] }))), null);
   assert.equal(decodeHandoff(btoa(JSON.stringify({ v: 1, links: ["junk"] }))), null);
+});
+
+test("harvestVendorLinks finds URLs in dropdowns and handlers, not just <a> tags", () => {
+  const rel = "/danciko/dancik-ows/d24/getPrettyPriceList/xls?d24_uid=1071&amp;d24_filename=AOT&amp;d24user=C00000XX&amp;d24sesid=Ab3dEf9h";
+  const html = `
+    <select name="pricelist">
+      <option value="${rel}">AOT EFT</option>
+      <option value="${rel.replace("1071", "1045")}">ANA EFT</option>
+    </select>
+    <button onclick="window.open('${LINK}')">View</button>
+    <a href="/somewhere/else">not a price list</a>`;
+  const links = harvestVendorLinks(html, "https://connect24.virginiatile.com/danciko/page");
+  assert.equal(links.length, 3);
+  assert.ok(links.every((u) => u.startsWith("https://connect24.virginiatile.com/")));
+  // Entity-decoded and resolved links parse into valid entries.
+  const entries = links.map(parseVendorLink).filter((e) => e && !entryProblems(e));
+  assert.equal(entries.length, 3);
+  assert.deepEqual(entries.map((e) => e.uid).sort(), ["1045", "1071", "1071"].sort());
+});
+
+test("harvestVendorLinks dedupes and survives junk", () => {
+  assert.deepEqual(harvestVendorLinks(`<a href="${LINK}"></a><option value="${LINK}">`, "https://connect24.virginiatile.com/"), [LINK]);
+  assert.deepEqual(harvestVendorLinks("no links here", "https://connect24.virginiatile.com/"), []);
+  assert.deepEqual(harvestVendorLinks(null, "https://connect24.virginiatile.com/"), []);
 });
 
 test("bookmarkletSource embeds the app origin and stays one line", () => {

@@ -89,14 +89,29 @@ export function entryKey(entry) {
 }
 
 // ---- bookmarklet hand-off ------------------------------------------------
-// The bookmarklet stays dumb: it collects raw link hrefs on the portal page
-// (top document + same-origin frames) and opens the app with them base64'd in
-// the URL *fragment* — fragments never reach a server or its logs, which
-// matters because each link carries the portal session token. All parsing and
-// validation happens app-side in decodeHandoff.
+// The bookmarklet stays dumb: it harvests raw price-list URLs on the portal
+// page (top document + same-origin frames) and opens the app with them
+// base64'd in the URL *fragment* — fragments never reach a server or its
+// logs, which matters because each link carries the portal session token. All
+// parsing and validation happens app-side in decodeHandoff.
+//
+// Harvesting sweeps the serialized HTML, not just <a> tags: some portal pages
+// offer the sheets through a dropdown, so the URLs live in <option> values or
+// inline handler code instead of links. Entity-decode (&amp;) and resolve
+// against the frame's base URL so relative URLs still parse.
+
+const LINK_MARK_RE = /[^\s"'<>()]*getPrettyPriceList[^\s"'<>()]*/g;
+
+export function harvestVendorLinks(html, base) {
+  const out = new Set();
+  for (const m of String(html || "").match(LINK_MARK_RE) || []) {
+    try { out.add(new URL(m.replace(/&amp;/g, "&"), base).href); } catch {}
+  }
+  return [...out];
+}
 
 export function bookmarkletSource(origin) {
-  const src = `(()=>{var L=new Set();var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);if(!L.size){alert("No price list links found. Open the portal page that lists the price sheets, then click the bookmark again.");return}window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify({v:1,links:Array.from(L)})),"_blank")})()`;
+  const src = `(()=>{var L=new Set();var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);if(!L.size){alert("No price sheets found on this page. Open the page or menu that lists them and click the bookmark again — or open one sheet and paste its address into FloorTrack's Fetch panel.");return}window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify({v:1,links:Array.from(L)})),"_blank")})()`;
   return `javascript:${src}`;
 }
 
