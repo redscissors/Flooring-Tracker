@@ -1,7 +1,14 @@
 # Sheoga vendor configurator — prototypes
 
-**Status:** prototype for review · 2026-07-17
+**Status:** in progress — production engine landed · 2026-07-17
 **Open:** `prototype.html` in a browser (fully standalone, no build).
+
+> Production progress: `src/sheoga.js` (data tables + pricing engine +
+> query parser + `lineItems` payload builder, unit-tested in
+> `src/sheoga.test.js`) is implemented; `normP` carries `product.sheoga`.
+> Still to build: the `SheogaConfigurator` popup, the SKU-search pinned row,
+> saved options on the customer / recents per user, and the Settings markup
+> knob (see "Production path" below).
 
 Sheoga Hardwood sells **by description, not SKU** — species × grade × width ×
 solid/engineered, plus texture/scrape, length runs, edge, sap and finishing

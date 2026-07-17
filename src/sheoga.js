@@ -1,0 +1,514 @@
+// Sheoga Hardwood vendor configurator — data module + pure pricing engine
+// (production path in .scratch/023_sheoga-configurator-prototype/README.md).
+//
+// Sheoga sells by DESCRIPTION, not SKU: species × grade × width ×
+// solid/engineered plus texture, lengths, edge, sap and finishing options, a
+// stocked-prefinished color program, herringbone/chevron, and a separate
+// wood-vent & damper program. The generated description IS the order — it's
+// what you read to Sheoga on the phone and what snapshots onto the job line.
+//
+// All table numbers are distributor COST, transcribed by hand from the three
+// vendor sheets (the vent sheet is a scan, so there is no mapped import):
+//   · Sheoga Pricing (Distributors) eff. 2/1/2025 — flooring
+//   · Stocking Vent Prices, Feb 2022              — vents
+//   · Damper cost sheet 1/9/2023                  — dampers
+// A sheet update is a re-transcription of this one file.
+
+const N = null;
+const round2 = (n) => Math.round(n * 100) / 100;
+const fm = (n) => "$" + n.toFixed(2);
+
+export const SHEET_NOTE = "priced from Sheoga sheets · Feb ’25 / Feb ’22";
+export const DEFAULT_MARKUP = 40;
+
+// --- widths & cartons ---------------------------------------------------------
+
+export const WIDTHS = [2.25, 3.25, 4.25, 5.25, 6.25, 7.25, 8.25];
+export const WIDTH_LABEL = { 2.25: '2¼"', 3.25: '3¼"', 4.25: '4¼"', 5.25: '5¼"', 6.25: '6¼"', 7.25: '7¼"', 8.25: '8¼"', 9.25: '9¼"', 11.25: '11¼"' };
+// sf per full carton by width (per shop, 2026-07-17). Live Sawn 9¼"/11¼" have
+// no carton figure — call Sheoga.
+export const CARTON_SF = { 2.25: 22, 3.25: 21, 4.25: 22, 5.25: 20.5, 6.25: 20, 7.25: 23.5, 8.25: 21.5 };
+
+// --- unfinished flooring grid -------------------------------------------------
+// clear/char = solid; eClear/eChar = engineered; each array indexes WIDTHS.
+
+export const UNFINISHED = {
+  "White Oak":     { clear: [5.65, 5.95, 6.25, 6.65, 7.15, 7.70, 8.40], char: [3.60, 3.80, 4.05, 4.35, 4.65, 4.95, 5.25], eClear: [N, 6.00, 6.40, 6.85, 7.30, 7.80, 8.30], eChar: [N, 5.00, 5.35, 5.70, 6.05, 6.45, 6.90] },
+  "Red Oak":       { clear: [3.40, 3.60, 3.80, 4.05, 4.35, 4.65, 4.95], char: [3.00, 3.15, 3.35, 3.60, 3.80, 4.05, 4.30], eClear: [N, 5.05, 5.35, 5.70, 6.10, 6.50, 6.90], eChar: [N, 4.75, 5.05, 5.40, 5.75, 6.10, 6.50] },
+  "Hickory":       { clear: [3.55, 3.80, 4.00, 4.25, 4.55, 4.85, 5.15], char: [3.15, 3.35, 3.55, 3.75, 4.00, 4.25, 4.55], eClear: [N, 5.05, 5.40, 5.75, 6.10, 6.50, 6.95], eChar: [N, 4.80, 5.10, 5.45, 5.80, 6.20, 6.60] },
+  "Maple":         { clear: [4.25, 4.55, 4.85, 5.15, 5.45, 5.85, 6.25], char: [3.30, 3.55, 3.75, 4.00, 4.25, 4.55, 4.80], eClear: [N, 5.35, 5.70, 6.05, 6.45, 6.90, 7.35], eChar: [N, 4.85, 5.15, 5.50, 5.85, 6.25, 6.70] },
+  "Cherry":        { clear: [3.45, 3.65, 3.90, 4.15, 4.40, 4.70, 5.00], char: [3.35, 3.55, 3.80, 4.05, 4.30, 4.60, 4.85], eClear: [N, 5.00, 5.35, 5.70, 6.05, 6.45, 6.90], eChar: [N, 4.85, 5.20, 5.50, 5.90, 6.30, 6.70] },
+  "Walnut":        { clear: [6.90, 7.35, 7.85, 8.35, 8.90, 9.50, 10.15], char: [4.90, 5.20, 5.55, 5.95, 6.35, 6.75, 7.20], eClear: [N, 6.90, 7.35, 7.85, 8.40, 8.95, 9.55], eChar: [N, 5.40, 5.75, 6.10, 6.50, 6.95, 7.40] },
+  "Beech":         { clear: [3.70, 3.90, 4.15, 4.40, N, N, N], char: [3.35, 3.60, 3.80, 4.05, N, N, N], eClear: [N, 5.20, 5.55, 5.90, N, N, N], eChar: [N, 5.00, 5.30, 5.65, N, N, N] },
+  "Q/R White Oak": { clear: [7.45, 7.95, 8.50, 9.05, 9.65, 10.35, 11.05], char: [4.70, 5.05, 5.35, 5.70, 6.10, 6.50, 6.90], eClear: [N, 7.35, 7.85, 8.40, 8.95, 9.55, 10.20], eChar: [N, 5.30, 5.65, 6.05, 6.45, 6.85, 7.35] },
+};
+// Live Sawn White Oak — one grade, its own width run.
+export const LIVE_SAWN = { ws: [5.25, 6.25, 7.25, 8.25, 9.25, 11.25], solid: [3.80, 4.15, 4.55, 4.95, 5.40, 6.50], eng: [5.25, 5.55, 5.95, 6.35, 6.75, N] };
+export const LIVE_SAWN_SP = "Live Sawn White Oak";
+export const SPECIES = Object.keys(UNFINISHED).concat([LIVE_SAWN_SP]);
+
+export const TEXTURES = [
+  { id: "smooth", name: "Smooth (standard)", add: 0, deep: false },
+  { id: "aged", name: "Aged Brush", add: 1.00, deep: true },
+  { id: "sawcut", name: "Saw Cut", add: 1.50, deep: true },
+  { id: "bandsawn", name: "Band Sawn", add: 1.50, deep: true },
+  { id: "country", name: "Country Worn", add: 1.50, deep: false },
+  { id: "vintage", name: "Vintage Charm", add: 1.50, deep: false },
+  { id: "oldmill", name: "Old Mill", add: 2.50, deep: false },
+];
+export const EDGES = [
+  { id: "square", name: "Square edge", add: 0 },
+  { id: "bevel", name: "Micro bevel", add: 0 },
+  { id: "pillow", name: "Hand pillowed", add: 1.00 },
+  { id: "vgroove", name: "Custom V-groove", add: 1.50 },
+];
+export const LENGTHS = [
+  { id: "1-8", name: "1'–8' (standard)", pct: 0 },
+  { id: "1-10", name: "1'–10'", pct: 5 },
+  { id: "2-8", name: "2'–8'", pct: 15 },
+  { id: "2-10", name: "2'–10'", pct: 20 },
+  { id: "3-8", name: "3'–8'", pct: 25 },
+  { id: "3-10", name: "3'–10'", pct: 30 },
+];
+// Established stain picks $1.95 or $2.85 from the selected texture (deep
+// scrapes — sawcut/bandsawn/aged — take the higher rate per the finishing sheet).
+export const FINISHES = [
+  { id: "unf", name: "Unfinished", sub: "finish on site", add: () => 0 },
+  { id: "nat", name: "Prefinished — Natural", sub: "clear ceramic", add: () => 1.65 },
+  { id: "est", name: "Prefinished — Established stain", sub: "$1.95 smooth/OM/CW/VC · $2.85 sawcut/bandsawn/aged", add: (c) => (TEXTURES.find((t) => t.id === c.tex)?.deep ? 2.85 : 1.95) },
+  { id: "t1", name: "Custom color T-1", sub: "to unfinished price", add: () => 3.05 },
+  { id: "t2", name: "Custom color T-2", sub: "to unfinished price", add: () => 3.65 },
+  { id: "t3", name: "Custom color T-3", sub: "to unfinished price", add: () => 3.85 },
+];
+export const NO_SAP = { Cherry: 1.00, Walnut: 2.00 };
+export const SAMPLE_FEE = 750;
+export const CUSTOM_FINISHES = ["t1", "t2", "t3"];
+
+// --- stocked prefinished ------------------------------------------------------
+// Solid, micro bevel; clear widths 2¼–5¼, char widths 2¼–6¼ (STOCKED_WIDTHS).
+
+export const STOCKED = [
+  { sp: "Cherry", color: "Natural", sheen: 30, clear: [N, 5.30, 5.55, 5.80], char: [N, 5.25, 5.50, 5.75, 6.00] },
+  { sp: "Maple", color: "Natural", sheen: 30, clear: [N, 6.20, 6.50, 6.80], char: [4.95, 5.20, 5.40, 5.65, 5.90] },
+  { sp: "Maple", color: "Frost", sheen: 5, clear: N, char: [N, 5.50, 5.70, 5.95, N] },
+  { sp: "Hickory", color: "Natural", sheen: 30, clear: [5.20, 5.45, 5.65, 5.90], char: [4.80, 5.00, 5.20, 5.40, 5.65] },
+  { sp: "Hickory", color: "Buckeye", sheen: 30, clear: [N, 5.75, 5.95, 6.20], char: N },
+  { sp: "Hickory", color: "Hickory Nut", sheen: 30, clear: N, char: [N, 5.30, 5.50, 5.70, 5.95] },
+  { sp: "Hickory", color: "Toasted Acorn", sheen: 30, clear: N, char: [N, 5.30, 5.50, 5.70, 5.95] },
+  { sp: "Red Oak", color: "Natural", sheen: 30, clear: [5.05, 5.25, 5.45, 5.70], char: [4.65, 4.80, 5.00, 5.25, N] },
+  { sp: "Red Oak", color: "Toasted Acorn", sheen: 30, clear: [N, 5.55, 5.75, 6.00], char: [N, 5.10, 5.30, 5.55, N] },
+  { sp: "Red Oak", color: "Nutmeg", sheen: 20, clear: N, char: [N, 5.10, 5.30, 5.55, N] },
+  { sp: "Walnut", color: "Natural", sheen: 30, clear: [N, 9.00, 9.50, N], char: [N, 6.85, 7.20, 7.60, 8.00] },
+  { sp: "White Oak", color: "Natural", sheen: 30, clear: [N, 7.60, 7.90, 8.30], char: [5.25, 5.45, 5.70, 6.00, 6.30] },
+  { sp: "White Oak", color: "Cattail", sheen: 30, clear: N, char: [N, 5.75, 6.00, 6.30, 6.60] },
+  { sp: "White Oak", color: "Caramel", sheen: 20, clear: N, char: [N, 5.75, 6.00, 6.30, 6.60] },
+  { sp: "White Oak", color: "Fresh Cut", sheen: 5, clear: N, char: [N, 5.75, 6.00, 6.30, 6.60] },
+  { sp: "Red Oak", color: "Cattail · Sawcut", sheen: 20, tex: true, clear: N, char: [N, N, 7.90, 8.10, 8.35] },
+  { sp: "Hickory", color: "Hickory Nut · Vintage Charm", sheen: 20, tex: true, clear: N, char: [N, N, 7.00, 7.20, 7.45] },
+];
+export const STOCKED_WIDTHS = { clear: [2.25, 3.25, 4.25, 5.25], char: [2.25, 3.25, 4.25, 5.25, 6.25] };
+// Stocked colors are looked up by species + color name, never by table index —
+// a re-transcription that reorders rows must not repoint saved configurations.
+export const stockedItem = (k) => STOCKED.find((x) => x.sp === k.sp && x.color === k.color) || null;
+
+// --- herringbone --------------------------------------------------------------
+// 4 slat-length bands × widths per species. Made to order, no carton rounding.
+
+export const HERRINGBONE = {
+  bands: ['9"–18" slats', '18¼"–28" slats', '28¼"–38" slats', '38¼"–48" slats'],
+  solid: {
+    Beech: { ws: [2.25, 3.25, 4.25, 5.25], p: [[5.50, 5.70, 5.95, 6.20], [5.85, 6.05, 6.30, 6.55], [6.30, 6.50, 6.75, 7.00], [6.80, 7.00, 7.25, 7.50]] },
+    Cherry: { ws: [2.25, 3.25, 4.25, 5.25, 6.25], p: [[5.25, 5.45, 5.70, 5.95, 6.20], [5.60, 5.80, 6.05, 6.30, 6.55], [6.05, 6.25, 6.50, 6.75, 7.00], [6.55, 6.75, 7.00, 7.25, 7.50]] },
+    Maple: { ws: [2.25, 3.25, 4.25, 5.25, 6.25, 7.25], p: [[6.05, 6.35, 6.65, 6.95, 7.25, 7.65], [6.40, 6.70, 7.00, 7.30, 7.60, 8.00], [6.85, 7.15, 7.45, 7.75, 8.05, 8.45], [7.35, 7.65, 7.95, 8.25, 8.55, 8.95]] },
+    Hickory: { ws: [2.25, 3.25, 4.25, 5.25, 6.25, 7.25], p: [[5.35, 5.60, 5.80, 6.05, 6.35, 6.65], [5.70, 5.95, 6.15, 6.40, 6.70, 7.00], [6.15, 6.40, 6.60, 6.85, 7.15, 7.45], [6.65, 6.90, 7.10, 7.35, 7.65, 7.95]] },
+    "Red Oak": { ws: [2.25, 3.25, 4.25, 5.25, 6.25, 7.25], p: [[5.20, 5.40, 5.60, 5.85, 6.15, 6.45], [5.55, 5.75, 5.95, 6.20, 6.50, 6.80], [6.00, 6.20, 6.40, 6.65, 6.95, 7.25], [6.50, 6.70, 6.90, 7.15, 7.45, 7.75]] },
+    Walnut: { ws: [2.25, 3.25, 4.25, 5.25, 6.25, 7.25], p: [[8.70, 9.15, 9.65, 10.15, 10.70, 11.30], [9.05, 9.50, 10.00, 10.50, 11.05, 11.65], [9.50, 9.95, 10.45, 10.95, 11.50, 12.10], [10.00, 10.45, 10.95, 11.45, 12.00, 12.60]] },
+    "White Oak": { ws: [2.25, 3.25, 4.25, 5.25, 6.25, 7.25], p: [[7.45, 7.75, 8.05, 8.45, 8.95, 9.50], [7.80, 8.10, 8.40, 8.80, 9.30, 9.85], [8.25, 8.55, 8.85, 9.25, 9.75, 10.30], [8.75, 9.05, 9.35, 9.75, 10.25, 10.80]] },
+    "Q/R White Oak": { ws: [2.25, 3.25, 4.25, 5.25, 6.25, 7.25], p: [[9.25, 9.75, 10.30, 10.85, 11.45, 12.15], [9.60, 10.10, 10.65, 11.20, 11.80, 12.50], [10.05, 10.55, 11.10, 11.65, 12.25, 12.95], [10.55, 11.05, 11.60, 12.15, 12.75, 13.45]] },
+  },
+  eng: {
+    Beech: { ws: [3.25, 4.25, 5.25], p: [[7.00, 7.35, 7.70], [7.35, 7.70, 8.05], [7.80, 8.15, 8.50], [8.30, 8.65, 9.00]] },
+    Cherry: { ws: [3.25, 4.25, 5.25, 6.25], p: [[6.80, 7.15, 7.50, 7.85], [7.15, 7.50, 7.85, 8.20], [7.60, 7.95, 8.30, 8.65], [8.10, 8.45, 8.80, 9.15]] },
+    Maple: { ws: [3.25, 4.25, 5.25, 6.25, 7.25], p: [[7.15, 7.50, 7.85, 8.25, 8.70], [7.50, 7.85, 8.20, 8.60, 9.05], [7.95, 8.30, 8.65, 9.05, 9.50], [8.45, 8.80, 9.15, 9.55, 10.00]] },
+    Hickory: { ws: [3.25, 4.25, 5.25, 6.25, 7.25], p: [[6.85, 7.20, 7.55, 7.90, 8.30], [7.20, 7.55, 7.90, 8.25, 8.65], [7.65, 8.00, 8.35, 8.70, 9.10], [8.15, 8.50, 8.85, 9.20, 9.60]] },
+    "Red Oak": { ws: [3.25, 4.25, 5.25, 6.25, 7.25], p: [[6.85, 7.15, 7.50, 7.90, 8.30], [7.20, 7.50, 7.85, 8.25, 8.65], [7.65, 7.95, 8.30, 8.70, 9.10], [8.15, 8.45, 8.80, 9.20, 9.60]] },
+    Walnut: { ws: [3.25, 4.25, 5.25, 6.25, 7.25], p: [[8.70, 9.15, 9.65, 10.15, 10.70], [9.05, 9.50, 10.00, 10.50, 11.05], [9.50, 9.95, 10.45, 10.95, 11.50], [10.00, 10.45, 10.95, 11.45, 12.00]] },
+    "White Oak": { ws: [3.25, 4.25, 5.25, 6.25, 7.25], p: [[7.80, 8.20, 8.65, 9.10, 9.60], [8.15, 8.55, 9.00, 9.45, 9.95], [8.60, 9.00, 9.45, 9.90, 10.40], [9.10, 9.50, 9.95, 10.40, 10.90]] },
+    "Q/R White Oak": { ws: [3.25, 4.25, 5.25, 6.25, 7.25], p: [[9.15, 9.65, 10.20, 10.75, 11.35], [9.50, 10.00, 10.55, 11.10, 11.70], [9.95, 10.45, 11.00, 11.55, 12.15], [10.45, 10.95, 11.50, 12.05, 12.65]] },
+  },
+};
+export const CHEVRON_ADD = 3.00;
+
+// --- wood vents & dampers -----------------------------------------------------
+// Two species price groups; sizes are duct W × L in inches ('2¼' = 2.25).
+
+export const VENT_GROUP = { Cherry: "A", Hickory: "A", Beech: "A", "Red Oak": "A", "Hard Maple": "B", "White Oak": "B", "Q/R White Oak": "B", Walnut: "B" };
+// [size, selfRim-A, flush-A, selfRim-B, flush-B]
+export const VENT_STD = [
+  ["2¼×6", 21.88, 18.13, 25.16, 20.85], ["2¼×8", 21.88, 18.13, 25.16, 20.85], ["2¼×10", 21.88, 18.13, 25.16, 20.85], ["2¼×12", 21.88, 18.13, 25.16, 20.85],
+  ["2¼×14", 25.63, 21.25, 29.48, 24.44], ["2¼×16", 29.38, 25.00, 33.79, 28.75], ["2¼×18", 31.25, 27.50, 35.94, 31.63], ["2¼×20", 36.25, 30.63, 41.69, 35.23],
+  ["4×6", 21.88, 18.13, 25.16, 20.85], ["4×8", 21.88, 18.13, 25.16, 20.85], ["4×10", 21.88, 18.13, 25.16, 20.85], ["4×12", 21.88, 18.13, 25.16, 20.85],
+  ["4×14", 25.63, 21.25, 29.48, 24.44], ["4×16", 29.38, 25.00, 33.79, 28.75], ["4×18", 32.50, 27.50, 37.38, 31.63], ["4×20", 36.25, 27.50, 41.69, 28.75],
+  ["6×8", 21.88, 18.13, 25.16, 20.85], ["6×10", 21.88, 18.13, 25.16, 20.85], ["6×12", 23.75, 20.00, 27.31, 23.00], ["6×14", 36.25, 25.00, 41.69, 28.75],
+  ["6×16", 36.25, 25.00, 41.69, 28.75], ["6×18", 39.38, 34.38, 45.29, 39.54], ["6×20", 43.13, 37.50, 49.60, 43.13], ["6×22", 46.88, 38.75, 53.91, 44.56],
+  ["6×24", 54.38, 46.88, 62.54, 53.91], ["6×26", 58.75, 50.00, 67.56, 57.50], ["6×28", 61.88, 47.50, 71.16, 54.63], ["6×30", 65.63, 56.25, 75.48, 64.69], ["6×32", 69.38, 59.38, 79.79, 68.29],
+  ["8×10", 36.25, 25.00, 41.69, 28.75], ["8×12", 36.25, 25.00, 41.69, 28.75], ["8×14", 41.25, 36.88, 47.44, 42.41], ["8×16", 46.88, 39.38, 53.91, 45.29],
+  ["8×18", 54.38, 46.88, 62.54, 53.91], ["8×20", 59.38, 51.25, 68.29, 58.94], ["8×22", 64.38, 55.63, 74.04, 63.98], ["8×24", 69.38, 59.38, 79.79, 68.29],
+  ["8×26", 78.75, 68.75, 90.56, 79.06], ["8×28", 83.75, 72.50, 96.31, 83.38], ["8×30", 88.75, 76.25, 102.06, 87.69], ["8×32", 93.75, 80.63, 107.81, 92.73],
+  ["10×12", 43.13, 37.50, 49.60, 43.13], ["10×14", 53.75, 46.25, 61.81, 53.19], ["10×16", 59.38, 51.25, 68.29, 58.94], ["10×18", 65.63, 56.25, 75.48, 64.69],
+  ["10×20", 76.25, 67.50, 87.69, 77.63], ["10×22", 82.50, 71.25, 94.88, 81.94], ["10×24", 88.75, 76.25, 102.06, 87.69], ["10×26", 94.38, 81.25, 108.54, 93.44],
+  ["10×28", 100.63, 86.25, 115.73, 99.19], ["10×30", 106.88, 91.25, 122.91, 104.94], ["10×32", 112.50, 96.88, 129.38, 111.41],
+];
+// flush vents with frame: [size, A, B]
+export const VENT_FRAMED = [
+  ["2¼×10", 24.38, 28.04], ["2¼×12", 24.38, 28.04], ["2¼×14", 28.75, 33.06], ["4×10", 24.38, 28.04], ["4×12", 25.63, 29.48], ["4×14", 30.63, 35.23],
+  ["4×16", 34.38, 39.54], ["6×10", 25.63, 29.48], ["6×12", 28.75, 33.06], ["6×14", 30.63, 35.23], ["6×24", 62.50, 71.88], ["6×30", 72.50, 83.38],
+];
+// cold air returns: [size, selfRim-A, flush-A, selfRim-B, flush-B]
+export const VENT_CAR = [
+  ["8×14", 48.13, 41.88, 55.35, 48.16], ["8×16", 52.50, 46.25, 60.38, 53.19], ["8×18", 56.88, 50.63, 65.41, 58.23], ["8×20", 61.25, 55.00, 70.44, 63.25],
+  ["8×22", 66.25, 60.00, 76.19, 69.00], ["8×24", 72.50, 66.25, 83.38, 76.19], ["8×26", 75.00, 68.75, 86.25, 79.06], ["8×28", 79.38, 73.13, 91.29, 84.10],
+  ["8×30", 81.25, 76.25, 93.44, 87.69], ["8×32", 85.00, 78.75, 97.75, 90.56],
+  ["10×14", 56.25, 50.00, 64.69, 57.50], ["10×16", 61.25, 55.00, 70.44, 63.25], ["10×18", 66.88, 60.63, 76.91, 69.73], ["10×20", 72.50, 66.25, 83.38, 76.19],
+  ["10×22", 78.13, 71.88, 89.85, 82.66], ["10×24", 86.25, 80.00, 99.19, 92.00], ["10×26", 88.13, 81.88, 101.35, 94.16], ["10×28", 93.75, 87.50, 107.81, 100.63],
+  ["10×30", 97.50, 92.50, 112.13, 106.38], ["10×32", 103.75, 97.50, 119.31, 112.13],
+  ["12×14", 66.25, 60.00, 76.19, 69.00], ["12×16", 72.50, 66.25, 83.38, 76.19], ["12×18", 79.38, 73.13, 91.29, 84.10], ["12×20", 81.25, 76.25, 93.44, 87.69],
+  ["12×22", 89.38, 83.13, 102.79, 95.60], ["12×24", 95.63, 89.38, 109.98, 102.79], ["12×26", 101.88, 95.63, 117.16, 109.98], ["12×28", 108.13, 101.88, 124.35, 117.16],
+  ["12×30", 114.38, 108.13, 131.54, 124.35], ["12×32", 116.25, 110.00, 133.69, 126.50],
+];
+// 3-dimensional (baseboard): [size, A, B]
+export const VENT_3D = [
+  ["4×12", 47.50, 54.63], ["4×14", 50.63, 58.23], ["4×16", 53.75, 61.81], ["4×18", 56.88, 65.41], ["4×20", 60.00, 69.00], ["4×22", 61.88, 71.16], ["4×24", 73.75, 84.81], ["4×32", 96.25, 110.69],
+];
+export const VENT_CATS = [
+  { id: "std-sr", name: "Self-rimming", list: () => VENT_STD, col: (g) => (g === "A" ? 1 : 3), cubed: true },
+  { id: "std-fl", name: "Flush", list: () => VENT_STD, col: (g) => (g === "A" ? 2 : 4), cubed: true, frame: true },
+  { id: "framed", name: "Flush w/ frame", list: () => VENT_FRAMED, col: (g) => (g === "A" ? 1 : 2) },
+  { id: "car-sr", name: "Cold air return · self-rim", list: () => VENT_CAR, col: (g) => (g === "A" ? 1 : 3), cubed: true },
+  { id: "car-fl", name: "Cold air return · flush", list: () => VENT_CAR, col: (g) => (g === "A" ? 2 : 4), cubed: true },
+  { id: "d3", name: "3-Dimensional (baseboard)", list: () => VENT_3D, col: (g) => (g === "A" ? 1 : 2) },
+];
+export const VENT_PREFIN = 28.25;
+export const VENT_TEX = 8.00;
+export const VENT_CUBED = 10.00;
+export const DAMPER_ATTACH = 5.00;
+// [Sheoga cost, stocking (our cost as a Keim stocking dealer), builder, retail]
+export const DAMPERS = {
+  "4×10": [16.00, 20.00, 23.20, 25.60], "4×12": [17.50, 21.88, 25.38, 28.00], "4×14": [19.50, 24.38, 28.28, 31.20],
+  "6×10": [17.50, 21.88, 25.38, 28.00], "6×12": [19.50, 24.38, 28.28, 31.20], "6×14": [22.50, 28.13, 32.63, 36.00], "8×12": [21.50, 26.88, 31.18, 34.40],
+};
+
+// --- configurations -----------------------------------------------------------
+// One configuration = { mode, cfg }. The cfg shape is per-mode; it's what a job
+// row keeps (product.sheoga) so "Reconfigure" reopens the popup pre-filled.
+
+export const MODES = [
+  { id: "floor", label: "Unfinished & custom" },
+  { id: "stocked", label: "Stocked prefinished" },
+  { id: "hb", label: "Herringbone" },
+  { id: "vent", label: "Wood vents" },
+  { id: "damper", label: "Dampers" },
+];
+
+export function defaultConfig(mode) {
+  if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25 };
+  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: 1, chevron: false };
+  if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, tex: false, damper: false, frame: false, qty: 1 };
+  if (mode === "damper") return { size: "4×10", qty: 1 };
+  return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", sample: false };
+}
+
+// --- pricing engine -----------------------------------------------------------
+// Every calc returns null for a combination the sheets don't offer, else
+// { desc, size?, rest?, name, rows, cost, per: 'sf'|'ea', qty?, cartonSf?,
+//   warn, fees } — desc is the canonical order description (size-first),
+// rows the printable cost breakdown, fees flat $ lines that import separately.
+
+export const floorWidths = (f) => (f.sp === LIVE_SAWN_SP ? LIVE_SAWN.ws : WIDTHS);
+
+// Unfinished $/sf for species/grade/construction/width, or null.
+export function floorBase(f) {
+  if (f.sp === LIVE_SAWN_SP) {
+    const i = LIVE_SAWN.ws.indexOf(f.w);
+    return i < 0 ? N : (f.cons === "solid" ? LIVE_SAWN.solid : LIVE_SAWN.eng)[i];
+  }
+  const t = UNFINISHED[f.sp];
+  if (!t) return N;
+  const i = WIDTHS.indexOf(f.w);
+  if (i < 0) return N;
+  return t[f.cons === "eng" ? (f.grade === "clear" ? "eClear" : "eChar") : f.grade === "clear" ? "clear" : "char"][i];
+}
+
+export const gradeName = (f) => (f.sp === LIVE_SAWN_SP ? "Live Sawn" : f.grade === "clear" ? "Clear" : "Character");
+
+export function finishName(f) {
+  const x = FINISHES.find((z) => z.id === f.finish);
+  if (f.finish === "unf") return "Unfinished";
+  if (f.finish === "est") return `Prefinished ${f.stain || "(pick stain)"} stain`;
+  if (f.finish === "nat") return "Prefinished Natural";
+  return `${x.name}${f.stain ? ` “${f.stain}”` : ""}`;
+}
+
+// Length upcharges (%) apply to the unfinished base incl. no-sap, BEFORE the
+// flat $/sf adders (assumption 1 of the design README — sheet just says "Add
+// 15%"). Small-order fees apply whenever a finish is selected and are never
+// folded into the $/sf — they import as their own flat lines at cost.
+export function calcFloor(f, sf) {
+  const base = floorBase(f);
+  if (base == N) return null;
+  const tex = TEXTURES.find((t) => t.id === f.tex);
+  const edge = EDGES.find((e) => e.id === f.edge);
+  const len = LENGTHS.find((l) => l.id === f.len);
+  const fin = FINISHES.find((x) => x.id === f.finish);
+  if (!tex || !edge || !len || !fin) return null;
+  const sap = f.noSap ? NO_SAP[f.sp] || 0 : 0;
+  const lenAdd = ((base + sap) * len.pct) / 100;
+  const finAdd = fin.add(f);
+  const fee = f.finish !== "unf" ? (sf < 250 ? 600 : sf < 500 ? 300 : 0) : 0;
+  const cost = base + sap + lenAdd + tex.add + edge.add + finAdd;
+  const rows = [[`Unfinished base — ${f.sp}, ${gradeName(f)}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
+  if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
+  if (len.pct) rows.push([`${len.name} lengths (+${len.pct}% of base)`, `+${fm(lenAdd)}/sf`]);
+  if (tex.add) rows.push([`Texture — ${tex.name}`, `+${fm(tex.add)}/sf`]);
+  if (edge.add) rows.push([`Edge — ${edge.name}`, `+${fm(edge.add)}/sf`]);
+  if (finAdd) rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]);
+  const fees = [];
+  if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
+  const custom = CUSTOM_FINISHES.includes(f.finish);
+  if (custom && f.sample) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
+  fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
+  const warn = [];
+  if (custom && !f.sample) warn.push("Custom color — add the $750 color-match sample, or call Sheoga");
+  warn.push("Made to order · 5–10% overrun · non-returnable");
+  const size = WIDTH_LABEL[f.w];
+  const rest =
+    `${f.sp} · ${gradeName(f)} · ${f.cons === "solid" ? "Solid" : "Engineered"}` +
+    `${f.noSap && sap ? " · No sap" : ""} · ${tex.name.replace(" (standard)", "")} · ${edge.name} · ${len.name.replace(" (standard)", "")} lengths · ${finishName(f)}`;
+  return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
+}
+
+export function calcStocked(k) {
+  const it = stockedItem(k);
+  if (!it) return null;
+  const arr = it[k.grade];
+  if (!arr) return null;
+  const ws = STOCKED_WIDTHS[k.grade];
+  if (!ws) return null;
+  const i = ws.indexOf(k.w);
+  const p = i < 0 ? N : arr[i];
+  if (p == N) return null;
+  const rows = [[`Stocked prefinished — micro bevel, ${it.sheen}-sheen clear ceramic`, fm(p) + "/sf"]];
+  const size = WIDTH_LABEL[k.w];
+  const rest = `${it.sp} — ${it.color} · ${k.grade === "clear" ? "Clear" : "Character"} · Stocked prefinished, ${it.sheen}-sheen`;
+  return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: p, per: "sf", warn: ["Stocked item — ships from Sheoga stock"], fees: [] };
+}
+
+export function calcHerringbone(h) {
+  const t = HERRINGBONE[h.cons === "solid" ? "solid" : "eng"][h.sp];
+  if (!t) return null;
+  const i = t.ws.indexOf(h.w);
+  if (i < 0) return null;
+  const base = t.p[h.band]?.[i];
+  if (base == N) return null;
+  const rows = [[`Herringbone — ${h.sp} ${h.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[h.w]}, ${HERRINGBONE.bands[h.band]}`, fm(base) + "/sf"]];
+  let cost = base;
+  if (h.chevron) {
+    cost += CHEVRON_ADD;
+    rows.push(["Chevron pattern (slip tongue included)", "+$3.00/sf"]);
+  }
+  const size = WIDTH_LABEL[h.w];
+  const rest = `${h.sp} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${HERRINGBONE.bands[h.band]}`;
+  return {
+    desc: `${size} ${rest}`, size, rest, name: `Sheoga ${size} ${h.chevron ? "Chevron" : "Herringbone"} ${h.sp}`, rows, cost, per: "sf",
+    warn: ["Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding"], fees: [],
+  };
+}
+
+export const ventDims = (sz) => sz.split("×").map((x) => (x === "2¼" ? 2.25 : parseFloat(x)));
+// Frame lineal inches = L + 2W per the vent sheet's note.
+export const frameLineal = (sz) => { const [a, b] = ventDims(sz); return Math.max(a, b) + 2 * Math.min(a, b); };
+
+export function calcVent(v) {
+  const cat = VENT_CATS.find((c) => c.id === v.cat);
+  const g = VENT_GROUP[v.sp];
+  if (!cat || !g) return null;
+  const row = cat.list().find((r) => r[0] === v.size);
+  if (!row) return null;
+  const base = row[cat.col(g)];
+  const rows = [[`${cat.name} vent ${v.size}" — group ${g} (${v.sp})`, fm(base) + " ea"]];
+  let cost = base;
+  if (v.cubed && cat.cubed) { cost += VENT_CUBED; rows.push(["Cubed grille", "+$10.00"]); }
+  if (v.prefin) { cost += VENT_PREFIN; rows.push(["Prefinished", "+$28.25"]); }
+  if (v.tex) { cost += VENT_TEX; rows.push(["Textured", "+$8.00"]); }
+  if (v.damper && DAMPERS[v.size]) {
+    const d = DAMPERS[v.size][1] + DAMPER_ATTACH;
+    cost += d;
+    rows.push([`Damper ${v.size} + $5.00 attach`, `+${fm(d)}`]);
+  }
+  if (v.frame && cat.frame) {
+    const li = frameLineal(v.size);
+    const fc = 0.4 * li;
+    cost += fc;
+    rows.push([`Frame — ${li}" lineal @ $0.40`, `+${fm(fc)}`]);
+  }
+  const desc = `${v.size}" ${cat.name} vent · ${v.sp}${v.cubed && cat.cubed ? " · Cubed" : ""}${v.prefin ? " · Prefinished" : ""}${v.tex ? " · Textured" : ""}${v.damper && DAMPERS[v.size] ? " · w/ damper" : ""}${v.frame && cat.frame ? " · w/ frame" : ""}`;
+  return {
+    desc, name: `Sheoga vent ${v.size}" ${v.sp}`, rows, cost, per: "ea", qty: v.qty || 1,
+    warn: cat.id === "framed" ? ['Overall size adds 2¾" all around the duct size'] : [], fees: [],
+  };
+}
+
+export function calcDamper(d) {
+  const t = DAMPERS[d.size];
+  if (!t) return null;
+  const rows = [
+    [`Damper ${d.size}" — stocking price (our cost)`, fm(t[1]) + " ea"],
+    ["Sheoga list: builder " + fm(t[2]) + " · retail " + fm(t[3]), ""],
+  ];
+  return {
+    desc: `${d.size}" vent damper (loose)`, name: `Sheoga damper ${d.size}"`, rows, cost: t[1], per: "ea", qty: d.qty || 1,
+    warn: ["Attached-to-vent price is damper + $5.00 (use the vent tab)"], fees: [],
+  };
+}
+
+// One configuration snapshot { mode, cfg } → its build, or null.
+export function calcConfig(snap, sf) {
+  if (!snap || !snap.cfg) return null;
+  if (snap.mode === "floor") return calcFloor(snap.cfg, sf);
+  if (snap.mode === "stocked") return calcStocked(snap.cfg);
+  if (snap.mode === "hb") return calcHerringbone(snap.cfg);
+  if (snap.mode === "vent") return calcVent(snap.cfg);
+  if (snap.mode === "damper") return calcDamper(snap.cfg);
+  return null;
+}
+
+// Sell $/unit from distributor cost — same rounding as every other price.
+export const sellOf = (cost, markupPct) => round2(cost * (1 + (markupPct ?? DEFAULT_MARKUP) / 100));
+
+// Whole-carton preview for a sq-ft build (ADR 0013 math: exact always shown,
+// order rounds up). The app row redoes this itself off cartonSf — with waste —
+// so this is display-only for the popup.
+export function cartonize(sf, cartonSf) {
+  if (!(cartonSf > 0) || !(sf > 0)) return null;
+  const exact = sf / cartonSf;
+  const cartons = Math.ceil(exact);
+  return { sf: cartonSf, exact, cartons, billedSf: +(cartons * cartonSf).toFixed(1) };
+}
+
+// --- add-to-line payloads -----------------------------------------------------
+// The Product-row lines one configuration lands on the job (snapshot rule,
+// ADR 0003 — nothing reprices later). Main line: type 'hardwood', description →
+// brandColor (size-first via sizeText like every other row), sell → priceSqft,
+// cost/markup carried per ADR 0011/0018 so tiers and margin read honestly, and
+// the raw configuration kept on the row (product.sheoga) for "Reconfigure".
+// Fees are flat misc lines passed through at cost — never folded into the $/sf.
+
+export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
+  const c = calcConfig(snap, sf);
+  if (!c) return [];
+  const sell = sellOf(c.cost, markupPct);
+  const sheoga = { mode: snap.mode, cfg: JSON.parse(JSON.stringify(snap.cfg)) };
+  const main =
+    c.per === "ea"
+      ? {
+          type: "hardwood", sku: "", sizeText: "", brandColor: `Sheoga — ${c.desc}`, qtyType: "count", qty: String(c.qty || 1),
+          priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
+          note: "Sheoga special order — by description, no SKU", sheoga,
+        }
+      : {
+          type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga — ${c.rest || c.desc}`, qtyType: "sqft", qty: sf > 0 ? String(sf) : "",
+          priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
+          ...(c.cartonSf ? { cartonSf: String(c.cartonSf) } : {}),
+          note: "Sheoga special order — 5-10% overrun, no returns", sheoga,
+        };
+  const fees = (c.fees || []).map((x) => ({
+    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
+    priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
+    note: "Sheoga vendor fee — passed through at cost",
+  }));
+  return [main, ...fees];
+}
+
+// --- SKU-search entry point ---------------------------------------------------
+// Sheoga has no SKUs, so it can never be a book match. The SKU dropdown pins a
+// "Vendor configurators" row when the query starts spelling the vendor (any
+// ≥3-letter prefix of "sheoga") or hits its trade words; the parsed query seeds
+// the popup pre-filled.
+
+export function parseQuery(q) {
+  q = " " + String(q || "").toLowerCase().replace(/[",]/g, "") + " ";
+  const out = {};
+  if (/\bvent|damper|register\b/.test(q)) out.mode = /damper/.test(q) && !/vent/.test(q) ? "damper" : "vent";
+  if (/herringbone|chevron/.test(q)) { out.mode = "hb"; out.chevron = /chevron/.test(q); }
+  const SPP = [
+    ["live sawn", LIVE_SAWN_SP], ["q/r", "Q/R White Oak"], ["qr ", "Q/R White Oak"], ["quarter", "Q/R White Oak"],
+    ["white oak", "White Oak"], ["wht oak", "White Oak"], ["red oak", "Red Oak"], ["hickory", "Hickory"], ["maple", "Maple"],
+    ["cherry", "Cherry"], ["walnut", "Walnut"], ["beech", "Beech"], [" oak", "White Oak"],
+  ];
+  for (const [k, v] of SPP) if (q.includes(k)) { out.sp = v; break; }
+  if (/\bclear\b/.test(q)) out.grade = "clear";
+  else if (/\bchar/.test(q)) out.grade = "char";
+  if (/\beng/.test(q)) out.cons = "eng";
+  else if (/\bsolid\b/.test(q)) out.cons = "solid";
+  const wm = q.match(/(\d{1,2})\s*(?:1\/4|¼|\.25)/);
+  if (wm) { const w = +wm[1] + 0.25; if (WIDTH_LABEL[w]) out.w = w; }
+  const tx = TEXTURES.find((t) => t.id !== "smooth" && q.includes(t.name.toLowerCase().split(" ")[0]));
+  if (tx) out.tex = tx.id;
+  return out;
+}
+
+export function queryHit(q) {
+  const toks = String(q || "").toLowerCase().split(/[^a-z¼/0-9]+/).filter(Boolean);
+  if (toks.some((t) => t.length >= 3 && "sheoga".startsWith(t))) return true;
+  const p = parseQuery(q);
+  return !!(p.sp || p.mode);
+}
+
+// One-line summary of what the pinned row will open ("opens pre-filled: …").
+export function querySummary(p) {
+  if (p.mode === "vent") return "opens on Wood vents" + (p.sp ? ` · ${p.sp}` : "");
+  if (p.mode === "damper") return "opens on Dampers";
+  if (p.mode === "hb") return `opens on Herringbone${p.chevron ? " (chevron)" : ""}${p.sp ? ` · ${p.sp}` : ""}${p.w ? ` · ${WIDTH_LABEL[p.w]}` : ""}`;
+  if (!p.sp && !p.grade && !p.cons && !p.w && !p.tex) return "no SKUs — priced by description · opens the configurator";
+  const bits = [
+    p.sp || "…species",
+    p.grade ? (p.grade === "clear" ? "Clear" : "Character") : null,
+    p.cons ? (p.cons === "eng" ? "Engineered" : "Solid") : null,
+    p.w ? WIDTH_LABEL[p.w] : null,
+    p.tex ? TEXTURES.find((t) => t.id === p.tex).name : null,
+  ].filter(Boolean);
+  return "opens pre-filled: " + bits.join(" · ");
+}
+
+// A parsed query → the { mode, cfg } the popup opens with. Unavailable widths
+// snap to the first offered one so the popup never opens on a dead combo.
+export function seedFromQuery(q) {
+  const p = parseQuery(q);
+  if (p.mode === "vent") {
+    const cfg = defaultConfig("vent");
+    if (p.sp && VENT_GROUP[p.sp]) cfg.sp = p.sp;
+    return { mode: "vent", cfg };
+  }
+  if (p.mode === "damper") return { mode: "damper", cfg: defaultConfig("damper") };
+  if (p.mode === "hb") {
+    const cfg = defaultConfig("hb");
+    if (p.sp && HERRINGBONE.solid[p.sp]) cfg.sp = p.sp;
+    if (p.cons) cfg.cons = p.cons;
+    if (p.chevron) cfg.chevron = true;
+    const t = HERRINGBONE[cfg.cons === "solid" ? "solid" : "eng"][cfg.sp];
+    if (p.w && t.ws.includes(p.w)) cfg.w = p.w;
+    else if (!t.ws.includes(cfg.w)) cfg.w = t.ws[0];
+    return { mode: "hb", cfg };
+  }
+  const cfg = defaultConfig("floor");
+  if (p.sp) cfg.sp = p.sp;
+  if (p.grade) cfg.grade = p.grade;
+  if (p.cons) cfg.cons = p.cons;
+  if (p.w) cfg.w = p.w;
+  if (p.tex) cfg.tex = p.tex;
+  if (floorBase(cfg) == N) {
+    const w2 = floorWidths(cfg).find((w) => floorBase({ ...cfg, w }) != N);
+    if (w2 != null) cfg.w = w2;
+  }
+  return { mode: "floor", cfg };
+}
