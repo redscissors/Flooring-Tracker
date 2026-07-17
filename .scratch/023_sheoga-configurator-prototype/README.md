@@ -26,6 +26,20 @@ the exact Product-row payload.
 Prototype A covers all five programs: unfinished & custom flooring, stocked
 prefinished colors, herringbone/chevron, wood vents, loose dampers.
 
+## Entry point — the SKU search field (section E in the prototype)
+
+Sheoga has no SKUs, so it can never appear as a book match. Instead the SKU
+dropdown grows a pinned **"Vendor configurators"** section, shown under the
+real price-book matches whenever the query hits the vendor's trade words
+(species names, widths, "sheoga", "vent", "herringbone"…). The row parses the
+query — species · grade · width · solid/engineered · texture, or vent/
+herringbone/damper mode — and **opens the popup pre-filled** with it; on Add,
+the configuration snapshots back onto the same product row the search started
+from. Options already **saved on this job** also surface in the dropdown, one
+click back onto the row. (In production this rides the existing search
+plumbing: the vendor's trade words join `synonyms.js`, and the pinned row
+renders whenever the token scan matches — no RPC involved.)
+
 ## Data — transcribed from the three sheets
 
 - `Sheoga Pricing (Distributors) 2.1.25` — unfinished solid/engineered grid
