@@ -30,8 +30,9 @@ prefinished colors, herringbone/chevron, wood vents, loose dampers.
 
 Sheoga has no SKUs, so it can never appear as a book match. Instead the SKU
 dropdown grows a pinned **"Vendor configurators"** section, shown under the
-real price-book matches whenever the query hits the vendor's trade words
-(species names, widths, "sheoga", "vent", "herringbone"…). The row parses the
+real price-book matches as soon as the query starts spelling the vendor —
+**"she" is enough** (any ≥3-letter prefix of "sheoga") — or hits its trade
+words (species names, widths, "vent", "herringbone"…). The row parses the
 query — species · grade · width · solid/engineered · texture, or vent/
 herringbone/damper mode — and **opens the popup pre-filled** with it; on Add,
 the configuration snapshots back onto the same product row the search started
@@ -61,8 +62,10 @@ All prices in the engine are **distributor cost**; the markup control
 ### Assumptions to confirm before production
 1. Length upcharges (%) apply to the unfinished base incl. no-sap, before flat
    $/sf adders (sheet just says "Add 15%").
-2. Small-order fees apply whenever a finish is selected; amortized into $/sf
-   at the entered job size.
+2. Small-order fees apply whenever a finish is selected. Fees are **never
+   folded into the $/sf** — the small-order fee and the $750 color-match
+   sample import as their own flat lines next to the flooring line (passed
+   through at cost, no markup; confirm that's the shop's practice).
 3. Cubed vents = same-size vent + $10 (allowed on standard + cold-air here).
 4. Vent frame lineal inches = L + 2W per the sheet note.
 5. Custom color match ($750) and non-stock prefinished colors are flagged
