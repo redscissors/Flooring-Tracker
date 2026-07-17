@@ -7,6 +7,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
+import { VENDORS, parseVendorLink, entryProblems, entryFileName, entryKey, bookmarkletSource, captureHandoff, clearHandoff } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
@@ -4791,6 +4792,112 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
   );
 }
 
+// Vendor sheet fetch (ADR 0019): the bookmarklet (or a pasted link) supplies
+// portal price-list links; the Netlify relay fetches each sheet's bytes; the
+// results become a File[] handed to the SAME multi-file drop router a
+// drag-drop uses, so routing/diff/apply are unchanged.
+function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
+  const [entries, setEntries] = useState(initialEntries || []);
+  const [checked, setChecked] = useState(() => new Set((initialEntries || []).map(entryKey)));
+  const [pasted, setPasted] = useState("");
+  const [status, setStatus] = useState({});
+  const [running, setRunning] = useState(false);
+  const [fetched, setFetched] = useState(null); // File[] with failures pending user choice
+  const [copied, setCopied] = useState(false);
+
+  const bmSrc = bookmarkletSource(window.location.origin);
+  const vendorLabel = (e) => VENDORS[e.vendor]?.hostLabels?.[e.host] || VENDORS[e.vendor]?.label || e.host;
+
+  const addPasted = () => {
+    const found = pasted.split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
+    if (!found.length) { setPasted(""); return; }
+    setEntries((prev) => {
+      const seen = new Set(prev.map(entryKey));
+      const fresh = found.filter((e) => !seen.has(entryKey(e)));
+      setChecked((c) => new Set([...c, ...fresh.map(entryKey)]));
+      return [...prev, ...fresh];
+    });
+    setPasted("");
+  };
+
+  const finish = (files) => { clearHandoff(); onFiles(files); onClose(); };
+
+  const run = async () => {
+    setRunning(true);
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const picked = entries.filter((e) => checked.has(entryKey(e)));
+    const files = [];
+    let failures = 0;
+    for (const e of picked) {
+      const k = entryKey(e);
+      setStatus((s) => ({ ...s, [k]: "fetching" }));
+      try {
+        const res = await fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(e) });
+        if (!res.ok) {
+          let msg = `failed (${res.status})`;
+          try { const j = await res.json(); msg = j.error === "session-expired" ? "portal session expired — log into the portal and click the bookmark again" : (j.error || msg); } catch {}
+          setStatus((s) => ({ ...s, [k]: msg })); failures++; continue;
+        }
+        files.push(new File([await res.arrayBuffer()], entryFileName(e), { type: "application/vnd.ms-excel" }));
+        setStatus((s) => ({ ...s, [k]: "done" }));
+      } catch { setStatus((s) => ({ ...s, [k]: "network error" })); failures++; }
+    }
+    setRunning(false);
+    if (!failures && files.length) finish(files);
+    else if (files.length) setFetched(files);
+  };
+
+  const pickedCount = entries.filter((e) => checked.has(entryKey(e))).length;
+
+  return (
+    <Modal title="Fetch vendor sheets" onClose={onClose}>
+      {entries.length === 0 ? (
+        <>
+          <p className="text-sm text-slate-600">Skip the download-each-sheet chore: a bookmark grabs every price-list link off the vendor portal in one click and brings them here.</p>
+          <ol className="text-sm text-slate-600 list-decimal ml-5 mt-3 space-y-1.5">
+            <li>Drag this button to your bookmarks bar:{" "}
+              <a ref={(el) => { if (el) el.setAttribute("href", bmSrc); }} onClick={(e) => e.preventDefault()} className="inline-block rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 px-2 py-0.5 text-xs font-medium cursor-grab" title="Drag me to the bookmarks bar">⤓ FloorTrack sheets</a>
+              {" "}<button onClick={() => { navigator.clipboard?.writeText(bmSrc).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }} className="text-[11px] text-slate-400 underline hover:text-slate-600">{copied ? "copied" : "or copy the code"}</button>
+              <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
+            </li>
+            <li>Log into the vendor portal (e.g. Virginia Tile connect24) and open its price lists page.</li>
+            <li>Click the bookmark — FloorTrack opens with every sheet listed here, ready to fetch.</li>
+          </ol>
+          <div className="mt-4">
+            <label className={lbl}>…or paste price-list links (one per line)</label>
+            <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={3} placeholder="https://connect24.virginiatile.com/…getPrettyPriceList…" className={inp + " font-mono text-[11px]"} />
+            <div className="flex justify-end mt-2"><button onClick={addPasted} disabled={!pasted.trim()} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add links</button></div>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500">{entries.length} price sheet{entries.length === 1 ? "" : "s"} from {vendorLabel(entries[0])}. Fetched sheets go through the normal import review — nothing changes without your approval. These links carry your portal session code; it stays in this browser.</p>
+          <div className="mt-3 border border-slate-100 rounded-lg divide-y divide-slate-100 max-h-72 overflow-y-auto">
+            {entries.map((e) => { const k = entryKey(e); const st = status[k]; return (
+              <label key={k} className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" checked={checked.has(k)} disabled={running || Boolean(fetched)} onChange={() => setChecked((c) => { const n = new Set(c); n.has(k) ? n.delete(k) : n.add(k); return n; })} />
+                <span className="flex-1 truncate">{entryFileName(e)}</span>
+                {st === "fetching" && <span className="text-[11px] text-slate-400">fetching…</span>}
+                {st === "done" && <Check size={14} className="text-emerald-600" />}
+                {st && st !== "fetching" && st !== "done" && <span className="text-[11px] text-red-600 max-w-[14rem] text-right">{st}</span>}
+              </label>
+            ); })}
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-4">
+            <button onClick={() => { clearHandoff(); setEntries([]); setChecked(new Set()); setStatus({}); setFetched(null); }} disabled={running} className="text-xs text-slate-400 underline hover:text-slate-600">Clear list</button>
+            {fetched ? (
+              <button onClick={() => finish(fetched)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Import the {fetched.length} that worked</button>
+            ) : (
+              <button onClick={run} disabled={running || pickedCount === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{running ? "Fetching…" : `Fetch ${pickedCount} sheet${pickedCount === 1 ? "" : "s"}`}</button>
+            )}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [sel, setSel] = useState("stock"); // "stock" | bookId
   const [adding, setAdding] = useState(false);
@@ -4799,6 +4906,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const [hideCosts, setHideCosts] = useState(false);
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
+  const [vendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019)
+  const [vfOpen, setVfOpen] = useState(() => Boolean(vendorPending));
   const dropRef = useRef(null);
   const takeFiles = (list) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped(fs); };
 
@@ -4838,6 +4947,10 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           <div className="text-[10px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many; each routes to its book</div>
           <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
         </div>
+        <button onClick={() => setVfOpen(true)} className="w-full flex items-center gap-1.5 text-xs rounded-md border border-slate-200 px-2.5 py-2 text-slate-500 hover:bg-slate-50" title="Pull the latest price sheets straight off a vendor portal — one bookmark click instead of downloading each sheet">
+          <Download size={13} className="text-slate-400" /> Fetch from vendor…
+          {vendorPending && <span className="ml-auto rounded-full bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5">{vendorPending.length}</span>}
+        </button>
         <div>
           <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Stock</div>
           <button onClick={() => setSel("stock")} className={rowCls(sel === "stock")}>
@@ -4925,6 +5038,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
       </div>
 
       {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+
+      {vfOpen && !dropped && <VendorFetchPanel initialEntries={vendorPending} onFiles={setDropped} onClose={() => setVfOpen(false)} inp={inp} lbl={lbl} />}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>
