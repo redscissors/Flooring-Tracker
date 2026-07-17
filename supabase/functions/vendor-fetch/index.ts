@@ -76,7 +76,9 @@ Deno.serve(async (req: Request) => {
 
   let res: Response;
   try {
-    res = await fetch(`https://${entry.host}${cfg.path}?${q}`, { redirect: "manual", signal: AbortSignal.timeout(360000) });
+    // Supabase gives a sync function 150s to answer, so wait just under that:
+    // the observed worst-case portal build is ~103s, well inside this.
+    res = await fetch(`https://${entry.host}${cfg.path}?${q}`, { redirect: "manual", signal: AbortSignal.timeout(145000) });
   } catch (err) {
     const timedOut = (err as Error)?.name === "TimeoutError" || (err as Error)?.name === "AbortError";
     return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });
