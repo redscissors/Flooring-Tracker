@@ -1,0 +1,138 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order summary — layout cleanup</title>
+<style>
+  :root{
+    --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-text:#1C1A17; --ft-faint:#8A8378;
+    --ft-muted:#6b675e; --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.22);
+    --ft-brand:#57703A; --ft-brand-deep:#40542A; --ft-band:#E7E3D6; --ft-row-line:#ECE8DC;
+    --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, var(--ft-card));
+    --ft-ui:"Manrope",ui-sans-serif,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --ft-cream:#1C1A17; --ft-card:#26231F; --ft-text:#F6F3EC; --ft-muted:#A8A29A;
+      --ft-faint:#7A756C; --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+      --ft-brand:#93B56A; --ft-brand-deep:#93B56A; --ft-band:#2F2C26; --ft-row-line:#37342D; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ft-cream);color:var(--ft-text);font-family:var(--ft-ui);
+    padding:24px;line-height:1.35;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .lede{color:var(--ft-muted);font-size:13px;margin:0 0 22px;max-width:70ch}
+  .caption{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ft-brand-deep);margin:30px 0 10px}
+  .sub{font-size:12px;color:var(--ft-muted);margin:-4px 0 12px}
+  .frames{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+  .frame{background:var(--ft-cream);border:1px dashed var(--ft-border-strong);border-radius:10px;padding:12px}
+  .frame > .w{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ft-faint);margin-bottom:8px;text-align:center}
+
+  /* ---- shared card chrome ---- */
+  .card{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:10px;overflow:hidden}
+  .head{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    background:var(--ft-band);padding:10px 16px}
+  .eyebrow{font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--ft-brand-deep)}
+  .title{font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .headL{display:flex;align-items:baseline;gap:10px;min-width:0}
+  .matchip{font-size:10.5px;color:var(--ft-muted);white-space:nowrap}
+  .colhd{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep);
+    border-bottom:1px solid var(--ft-row-line);padding-bottom:4px;margin-bottom:8px}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px}
+  .row .nm{font-weight:500;min-width:0}
+  .row .nm small{display:block;font-weight:400;font-size:9.5px;color:var(--ft-faint)}
+  .row .nm .clr{color:var(--ft-muted);font-weight:400}
+  .row .q{color:var(--ft-muted);white-space:nowrap;text-align:right;font-size:11px}
+  .row .q small{display:block;font-size:10px;color:var(--ft-faint)}
+  .foot{font-size:10.5px;color:var(--ft-faint);margin-top:10px}
+
+  /* ---- CURRENT: rigid 4-col grid, totals share the grid ---- */
+  .cur .body{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;padding:16px}
+  @media(max-width:760px){ .cur .body{grid-template-columns:1fr} }
+  .sums .s{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ft-muted)}
+  .sums .s b{color:var(--ft-text);font-weight:600}
+  .sums .tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:4px;padding-top:10px;
+    border-top:2px solid var(--ft-text)}
+  .sums .tot .l{font-size:13px;font-weight:700}
+  .sums .tot .v{font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1}
+
+  /* ---- PROPOSED: materials auto-reflow + separated cost rail ---- */
+  .new{container-type:inline-size}
+  .new .body{display:grid;grid-template-columns:1fr;gap:16px;padding:14px 16px}
+  @container (min-width:600px){ .new .body{grid-template-columns:minmax(0,1fr) 240px} }
+  .mats{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 22px;align-content:start}
+  .mgroup{break-inside:avoid}
+  .costs{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:12px 14px;align-self:start}
+  .costs .ch{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep);margin-bottom:8px}
+  .note{font-size:12px;color:var(--ft-muted);margin-top:14px}
+  .win{color:var(--ft-brand-deep);font-weight:700}
+</style>
+<div class="wrap">
+  <h1>Order summary — layout cleanup</h1>
+  <p class="lede">The materials estimate currently forces every material category <em>and</em> the cost totals into
+  one rigid 4-column grid, so on tablets the columns cram and the big Total lands wherever the grid drops it.
+  The proposal keeps the same content but lets the material categories reflow to fit any width ("small print",
+  auto-fill), and lifts the cost summary into its own panel that becomes a side rail when there's room and stacks
+  underneath when there isn't.</p>
+
+  <div class="caption">Current</div>
+  <p class="sub">Desktop width — four fixed columns, totals squeezed into the last cell.</p>
+  <div class="card cur" id="tpl-cur"></div>
+
+  <div class="caption">Proposed · fits every width</div>
+  <p class="sub">Same data, rendered at phone / tablet / desktop container widths. Materials flow into as many
+  columns as fit; the cost summary is a distinct panel.</p>
+  <div class="frames">
+    <div class="frame"><div class="w">Phone · 360</div><div style="width:336px"><div class="card new" data-new></div></div></div>
+    <div class="frame"><div class="w">Tablet · 720</div><div style="width:680px"><div class="card new" data-new></div></div></div>
+  </div>
+  <div class="frame" style="margin-top:18px"><div class="w">Desktop · 1100</div><div style="width:1076px"><div class="card new" data-new></div></div></div>
+</div>
+
+<script>
+  const mats = [
+    {hd:"Grout", rows:[
+      {nm:"Permacolor Grout", clr:"Delorean Gray", sku:"PC-DG-25", q:"3 units", c:"$96.00"},
+      {nm:"Permacolor base", sku:"PC-BASE", q:"1 unit", c:"$24.00"},
+      {nm:"Latasil caulk", sku:"LS-DG", q:"2 tubes", c:"$18.00"},
+    ]},
+    {hd:"Mortar", rows:[
+      {nm:"Laticrete 254 Platinum", sku:"254-PLAT", q:"4 bags", c:"$132.00"},
+    ]},
+    {hd:"Underlayment", rows:[
+      {nm:"Ditra 1/8\"", sku:"DITRA-54", q:"2 rolls", c:"$210.00"},
+      {nm:"Kerdi band", sku:"KB-5", q:"1 roll", c:"$46.00"},
+    ]},
+    {hd:"Trim", rows:[
+      {nm:"Schluter reducer", sku:"RENO-100", q:"3 pcs", c:"$54.00"},
+    ]},
+  ];
+  const sums = [
+    ["Flooring","$4,820.00"],["Grout & caulk","$138.00"],["Mortar","$132.00"],
+    ["Underlayment","$256.00"],["Trim","$54.00"],
+  ];
+  const GRAND = "$5,400.00";
+
+  function matColHTML(m){
+    return `<div class="mgroup"><div class="colhd">${m.hd}</div>` + m.rows.map(r=>`
+      <div class="row"><span class="nm">${r.nm}${r.clr?` <span class="clr">· ${r.clr}</span>`:""}${r.sku?`<small>${r.sku}</small>`:""}</span>
+      <span class="q">${r.q}<small>${r.c}</small></span></div>`).join("") + `</div>`;
+  }
+  const headHTML = `<div class="head"><div class="headL">
+    <span class="title">Materials estimate</span></div><span class="matchip">$580.00 materials</span></div>`;
+  const sumsHTML = sums.map(s=>`<div class="s"><span>${s[0]}</span><b>${s[1]}</b></div>`).join("");
+  const totHTML = `<div class="tot"><span class="l">Total</span><span class="v">${GRAND}</span></div>`;
+
+  // CURRENT — material cols + a totals cell all in the 4-col grid
+  document.getElementById("tpl-cur").innerHTML = headHTML +
+    `<div class="body">` + mats.map(matColHTML).join("") +
+    `<div class="sums">${sumsHTML}${totHTML}<div class="foot">Figures include 10% waste. Verify before ordering.</div></div></div>`;
+
+  // PROPOSED — materials auto-reflow, cost summary in its own rail
+  const newBody = `<div class="body">
+      <div class="mats">${mats.map(matColHTML).join("")}</div>
+      <div class="costs"><div class="ch">Order summary</div><div class="sums">${sumsHTML}${totHTML}</div>
+      <div class="note">Figures include 10% waste. Verify before ordering.</div></div>
+    </div>`;
+  document.querySelectorAll("[data-new]").forEach(el=>{ el.innerHTML = headHTML + newBody; });
+</script>
