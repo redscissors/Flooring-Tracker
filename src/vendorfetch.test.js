@@ -4,6 +4,8 @@ import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
   decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries,
   sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes,
+  migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
+  sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -155,4 +157,108 @@ test("classifySheetBytes tells sheets from login bounces", () => {
   assert.equal(classifySheetBytes(enc("<html><body><table><tr><td>1</td></tr></table>")), "sheet"); // HTML export
   assert.equal(classifySheetBytes(enc("<html><form>Please LOGIN with your password")), "login");
   assert.equal(classifySheetBytes(enc("random bytes")), "unknown");
+});
+
+// --- sign-in groups ---------------------------------------------------------
+
+const VT = sheetRecord(parseVendorLink(LINK)); // Virginia Tile · C00000XX
+const VT2 = { ...VT, uid: "1045", filename: "ANA EFT 25 06 04" }; // same account, other sheet
+const OVF = sheetRecord(parseVendorLink(
+  "https://ovf400.ovf.com/danciko/dancik-ows/d24/getPrettyPriceList/xls" +
+  "?d24_uid=196&d24_filename=ovf-tarkett-home-lvt&d24_type=X&d24user=OVF00000XX" +
+  "&d24sesid=Zz9&filename=ovf-tarkett-home-lvt.xls&content-disposition=inline"));
+
+test("groupName labels a portal with the distributor label + dealer account", () => {
+  assert.equal(groupName({ host: "connect24.virginiatile.com", user: "C00000XX" }), "Virginia Tile connect24 · C00000XX");
+  assert.equal(groupName({ host: "ovf400.ovf.com", user: "OVF00000XX" }), "OVF (ovf400) · OVF00000XX");
+  assert.equal(groupName(null), "Vendor sign-in");
+  assert.equal(vendorForHost("connect24.virginiatile.com"), "dancik");
+  assert.equal(vendorForHost("evil.example.com"), null);
+});
+
+test("migrateVendorSheets buckets a flat list by {host,user} dealer account", () => {
+  const groups = migrateVendorSheets([VT, OVF, VT2, VT]); // duplicate VT ignored
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].name, "Virginia Tile connect24 · C00000XX");
+  assert.deepEqual(groups[0].sheets.map((s) => s.uid), ["1071", "1045"]);
+  assert.deepEqual(groups[0].portal, { host: "connect24.virginiatile.com", user: "C00000XX" });
+  assert.equal(groups[0].loginUrl, "");
+  assert.ok(groups[0].id.startsWith("vg_"));
+  assert.equal(groups[1].sheets.length, 1); // OVF account
+  assert.notEqual(groups[0].id, groups[1].id);
+});
+
+test("migrateVendorSheets skips malformed records", () => {
+  assert.deepEqual(migrateVendorSheets([{ vendor: "dancik", host: "", uid: "1", user: "x" }, null, {}]), []);
+  assert.deepEqual(migrateVendorSheets(null), []);
+});
+
+test("normVendorGroups accepts the new shape and coerces bad fields", () => {
+  const groups = normVendorGroups({ vendorGroups: [
+    { id: "g1", name: "My VT", loginUrl: "https://connect24.virginiatile.com/login", portal: { host: "connect24.virginiatile.com", user: "C00000XX" }, sheets: [VT, VT2] },
+    { name: "", portal: { host: "bad" }, sheets: [VT, { junk: true }, OVF] }, // no id/name, bad portal, one bad sheet
+  ] });
+  assert.equal(groups[0].id, "g1");
+  assert.equal(groups[0].loginUrl, "https://connect24.virginiatile.com/login");
+  assert.ok(groups[1].id.startsWith("vg_")); // generated
+  assert.equal(groups[1].portal, null);       // {host:"bad"} has no user → null
+  assert.equal(groups[1].name, "Vendor sign-in"); // no portal to name from
+  assert.deepEqual(groups[1].sheets.map((s) => s.uid), ["1071", "196"]); // junk dropped
+  assert.ok(groups[1].sheets.every((s) => s.sesid === undefined)); // tokens never persist
+});
+
+test("normVendorGroups migrates a legacy flat vendorSheets array", () => {
+  const groups = normVendorGroups({ vendorSheets: [VT, VT2, OVF] });
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0].sheets.map((s) => s.uid), ["1071", "1045"]);
+});
+
+test("normVendorGroups returns [] when there is nothing to remember", () => {
+  assert.deepEqual(normVendorGroups({}), []);
+  assert.deepEqual(normVendorGroups({ vendorGroups: [] }), []);
+});
+
+test("sheetMatchesGroup flags cross-portal sheets; portal-less groups accept all", () => {
+  const vtGroup = { portal: { host: "connect24.virginiatile.com", user: "C00000XX" } };
+  assert.equal(sheetMatchesGroup(VT, vtGroup), true);
+  assert.equal(sheetMatchesGroup(OVF, vtGroup), false); // different portal
+  assert.equal(sheetMatchesGroup(OVF, { portal: null }), true);
+});
+
+test("moveSheetInGroups moves by recordKey, dedups, and no-ops sensibly", () => {
+  const groups = migrateVendorSheets([VT, VT2, OVF]);
+  const [vt, ovfG] = groups;
+  const moved = moveSheetInGroups(groups, VT2, vt.id, ovfG.id);
+  assert.deepEqual(moved.find((g) => g.id === vt.id).sheets.map((s) => s.uid), ["1071"]);
+  assert.deepEqual(moved.find((g) => g.id === ovfG.id).sheets.map((s) => s.uid), ["196", "1045"]);
+  assert.equal(moveSheetInGroups(groups, VT2, vt.id, vt.id), groups); // same group: untouched ref
+  const twice = moveSheetInGroups(moved, VT2, vt.id, ovfG.id); // already moved: no-op
+  assert.equal(twice, moved);
+  assert.equal(groupForSheet(VT2, moved).id, ovfG.id);
+});
+
+test("rememberIntoGroups refreshes known sheets in place and files new ones by account", () => {
+  const groups = migrateVendorSheets([VT]); // one VT group, contains VT (uid 1071)
+  // A fresh capture of VT with a new filename refreshes it in place, no new group.
+  const r1 = rememberIntoGroups(groups, [{ ...VT, filename: "AOT EFT 26 05 20" }]);
+  assert.equal(r1.length, 1);
+  assert.equal(r1[0].sheets.length, 1);
+  assert.equal(r1[0].sheets[0].filename, "AOT EFT 26 05 20");
+  // VT2 (same account, new sheet) joins the existing VT group.
+  assert.deepEqual(rememberIntoGroups(groups, [VT2])[0].sheets.map((s) => s.uid), ["1071", "1045"]);
+  // A brand-new account spawns its own group.
+  const r3 = rememberIntoGroups(groups, [OVF]);
+  assert.equal(r3.length, 2);
+  assert.equal(r3[1].portal.host, "ovf400.ovf.com");
+  // A sheet the user dragged into a foreign group is refreshed THERE, not re-filed.
+  const dragged = [{ id: "solo", name: "Mixed", loginUrl: "", portal: null, sheets: [VT] }];
+  assert.equal(rememberIntoGroups(dragged, [{ ...VT, filename: "x" }]).length, 1);
+});
+
+test("newGroup builds an empty, named group from a portal", () => {
+  const g = newGroup({ host: "connect24.virginiatile.com", user: "C00000XX" });
+  assert.equal(g.name, "Virginia Tile connect24 · C00000XX");
+  assert.deepEqual(g.sheets, []);
+  assert.equal(newGroup().portal, null);
+  assert.equal(newGroup().name, "New sign-in");
 });

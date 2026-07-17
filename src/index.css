@@ -231,6 +231,15 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-theme-switch #star-4{width:15px;top:0;left:15px;animation-delay:1.3s;}
 @keyframes ft-star-twinkle{0%{transform:scale(1)}40%{transform:scale(1.2)}80%{transform:scale(.8)}100%{transform:scale(1)}}
 
+/* Vendor-fetch progress track: a moss sliver sweeping the rail while a sheet is
+   being pulled (the portal builds sheets on demand, so a true byte fraction is
+   often unknowable — an honest indeterminate bar). The determinate variant just
+   sets width inline. */
+.ft-progress{position:relative;overflow:hidden;background:var(--ft-border-soft);border-radius:999px;}
+.ft-progress-fill{height:100%;background:var(--ft-brand);border-radius:999px;transition:width .2s ease;}
+.ft-progress-indeterminate::after{content:"";position:absolute;inset:0;width:40%;background:var(--ft-brand);border-radius:999px;animation:ft-indeterminate 1.1s ease-in-out infinite;}
+@keyframes ft-indeterminate{0%{left:-40%}100%{left:100%}}
+
 /* New-customer button — JkHuger's Uiverse sparkle button reskinned to the kit
    (sparkle/particle layer dropped, pill -> 4px kit corners). Rests as a flat
    action fill (--ft-accent: ink in light, paper in dark); --active on hover

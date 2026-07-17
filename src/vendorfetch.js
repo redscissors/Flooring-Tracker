@@ -137,6 +137,148 @@ export function applySesid(record, sesid) {
   return { ...sheetRecord(record), sesid };
 }
 
+// ---- sign-in groups ------------------------------------------------------
+// Remembered sheets are organized into named groups — one per portal sign-in
+// (dealer account). A group's `portal` {host,user} is NOMINAL: it names the
+// group and flags mismatched sheets, but never authorizes a fetch. A sheet is
+// always fetched with a live session token matching its OWN {host,user}, so a
+// sheet dragged into a mismatched group still refreshes off its own account's
+// fresh link. Groups supersede the flat vendorSheets list (settings.ops.
+// vendorGroups); pre-groups records migrate on first load and are never
+// written back flat.
+
+let _gid = 0;
+function groupId() {
+  _gid += 1;
+  return `vg_${Date.now().toString(36)}${_gid.toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function vendorForHost(host) {
+  for (const [vendor, cfg] of Object.entries(VENDORS)) {
+    if (cfg.hosts.includes(host)) return vendor;
+  }
+  return null;
+}
+
+// A group's display name from its portal: the distributor's own label for that
+// host, suffixed with the dealer account so two accounts on one portal read
+// apart.
+export function groupName(portal) {
+  if (!portal || !portal.host) return "Vendor sign-in";
+  const cfg = VENDORS[vendorForHost(portal.host)];
+  const base = (cfg && (cfg.hostLabels?.[portal.host] || cfg.label)) || portal.host;
+  return portal.user ? `${base} · ${portal.user}` : base;
+}
+
+const normPortal = (p) =>
+  p && typeof p.host === "string" && p.host && typeof p.user === "string" && p.user
+    ? { host: p.host, user: p.user }
+    : null;
+
+export function newGroup(portal = null) {
+  const p = normPortal(portal);
+  return { id: groupId(), name: p ? groupName(p) : "New sign-in", loginUrl: "", portal: p, sheets: [] };
+}
+
+// A sheet belongs in a group whose portal matches its own account. A group
+// with no portal (a hand-made bucket) accepts anything.
+export function sheetMatchesGroup(sheet, group) {
+  const p = group && group.portal;
+  return !p || (sheet.host === p.host && sheet.user === p.user);
+}
+
+export function groupForSheet(sheet, groups) {
+  const k = recordKey(sheet);
+  return (groups || []).find((g) => (g.sheets || []).some((s) => recordKey(s) === k)) || null;
+}
+
+// Move one sheet from group `fromId` to `toId`, keyed by recordKey. Pure:
+// returns the next groups array. Dedups into the target (a re-drop is a no-op),
+// leaves every group's portal untouched — the sheet keeps its own account.
+export function moveSheetInGroups(groups, sheet, fromId, toId) {
+  if (fromId === toId) return groups;
+  const k = recordKey(sheet);
+  const from = (groups || []).find((g) => g.id === fromId);
+  const moving = from && (from.sheets || []).find((s) => recordKey(s) === k);
+  if (!moving) return groups;
+  return groups.map((g) => {
+    if (g.id === fromId) return { ...g, sheets: g.sheets.filter((s) => recordKey(s) !== k) };
+    if (g.id === toId && !g.sheets.some((s) => recordKey(s) === k)) return { ...g, sheets: [...g.sheets, sheetRecord(moving)] };
+    return g;
+  });
+}
+
+// Fold a flat pre-groups vendorSheets array into one group per {host,user}
+// dealer account, in first-seen order.
+export function migrateVendorSheets(flat) {
+  const groups = [];
+  const byKey = new Map();
+  for (const rec of flat || []) {
+    const r = sheetRecord(rec);
+    if (![r.vendor, r.host, r.uid, r.user].every((v) => typeof v === "string" && v)) continue;
+    const key = `${r.host}|${r.user}`;
+    let g = byKey.get(key);
+    if (!g) {
+      g = { id: groupId(), name: groupName({ host: r.host, user: r.user }), loginUrl: "", portal: { host: r.host, user: r.user }, sheets: [] };
+      byKey.set(key, g);
+      groups.push(g);
+    }
+    if (!g.sheets.some((s) => recordKey(s) === recordKey(r))) g.sheets.push(r);
+  }
+  return groups;
+}
+
+const normGroup = (g) => {
+  if (!g || typeof g !== "object") return null;
+  const sheets = Array.isArray(g.sheets)
+    ? g.sheets
+        .filter((r) => r && [r.vendor, r.host, r.uid, r.user].every((v) => typeof v === "string" && v))
+        .map(sheetRecord)
+    : [];
+  const portal = normPortal(g.portal);
+  return {
+    id: typeof g.id === "string" && g.id ? g.id : groupId(),
+    name: typeof g.name === "string" && g.name ? g.name : groupName(portal),
+    loginUrl: typeof g.loginUrl === "string" ? g.loginUrl : "",
+    portal,
+    sheets,
+  };
+};
+
+// Record freshly-fetched sheets back into their groups: a sheet already known
+// (by recordKey, wherever the user filed it) is refreshed in place (fresh
+// filename wins); an unknown sheet joins the group matching its account, or a
+// new group if none exists. Pure — returns the next groups array.
+export function rememberIntoGroups(groups, recs) {
+  const next = (groups || []).map((g) => ({ ...g, sheets: [...(g.sheets || [])] }));
+  for (const raw of recs || []) {
+    const rec = sheetRecord(raw);
+    const k = recordKey(rec);
+    let g = next.find((x) => x.sheets.some((s) => recordKey(s) === k));
+    if (!g) g = next.find((x) => x.portal && x.portal.host === rec.host && x.portal.user === rec.user);
+    if (!g) { g = newGroup({ host: rec.host, user: rec.user }); next.push(g); }
+    const i = g.sheets.findIndex((s) => recordKey(s) === k);
+    if (i >= 0) g.sheets[i] = rec; else g.sheets.push(rec); // in place → order preserved
+  }
+  return next;
+}
+
+// Normalize settings.ops for the groups store: take vendorGroups if present,
+// else migrate a legacy flat vendorSheets array, else nothing. Caps the total
+// remembered sheets defensively (shared jsonb).
+export function normVendorGroups(raw) {
+  let groups;
+  if (Array.isArray(raw?.vendorGroups)) groups = raw.vendorGroups.map(normGroup).filter(Boolean);
+  else if (Array.isArray(raw?.vendorSheets)) groups = migrateVendorSheets(raw.vendorSheets);
+  else return [];
+  let budget = 500;
+  for (const g of groups) {
+    if (g.sheets.length > budget) g.sheets = g.sheets.slice(0, Math.max(0, budget));
+    budget -= g.sheets.length;
+  }
+  return groups;
+}
+
 // Merge a new hand-off into previously stashed entries: same-key sheets are
 // replaced (the new ones carry the fresher session token), the rest kept.
 // Menu-style portals build the download URL in their own code at click time,

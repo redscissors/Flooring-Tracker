@@ -63,7 +63,16 @@ src/
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + URL-fragment hand-off, response
-                    # sniffing; shared by the browser panel and the relay
+                    # sniffing; shared by the browser panel and the relay.
+                    # + sign-in groups (ADR 0020): remembered sheets organized
+                    # into named `settings.ops.vendorGroups` (one per portal
+                    # {host,user}); `normVendorGroups`/`migrateVendorSheets`
+                    # (one-way flat→groups migration, called from catalog.js
+                    # normOps), `moveSheetInGroups`/`sheetMatchesGroup`/
+                    # `rememberIntoGroups` for the VendorFetchPage tab. `portal`
+                    # is nominal (naming + mismatch chip), never authorizes a
+                    # fetch — a sheet's sesid comes from a live link matching its
+                    # OWN {host,user}, so free drag between groups is safe
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature

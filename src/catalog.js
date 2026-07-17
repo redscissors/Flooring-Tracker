@@ -1,8 +1,10 @@
 // Pure, React-free domain logic for FloorTrack: the grout/mortar material math
 // and (incrementally, across issue 002) the shared grout/mortar catalog.
 //
-// Kept import-free so it can be unit-tested with `node --test` (see
-// catalog.test.js). App.jsx imports everything it needs from here.
+// Kept React-free so it can be unit-tested with `node --test` (see
+// catalog.test.js). App.jsx imports everything it needs from here. The one
+// module dependency is the equally pure vendorfetch.js (no React either).
+import { normVendorGroups } from "./vendorfetch.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -684,16 +686,13 @@ export const normOps = (raw) => {
   // when unset/invalid); a positive whole-day count or nothing.
   const sd = Math.round(num(raw?.staleDays));
   const staleDays = sd > 0 ? sd : null;
-  // Vendor sheets remembered by the fetch panel (ADR 0019): stable portal
-  // params only — a session token must never persist in shared settings.
-  const vendorSheets = Array.isArray(raw?.vendorSheets)
-    ? raw.vendorSheets
-        .filter((r) => r && [r.vendor, r.host, r.uid, r.user].every((v) => typeof v === "string" && v))
-        .map(({ vendor, host, uid, user, filename }) => ({ vendor, host, uid, user, filename: typeof filename === "string" ? filename : "" }))
-        .slice(0, 500)
-    : [];
-  if (!lastImport && !lastBackup && staleDays == null && !vendorSheets.length) return undefined;
-  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}), ...(vendorSheets.length ? { vendorSheets } : {}) };
+  // Vendor sheets remembered by the fetch page, organized into sign-in groups
+  // (stable portal params only — a session token must never persist in shared
+  // settings). A pre-groups flat `vendorSheets` array migrates to groups here,
+  // one-way: it's never written back flat.
+  const vendorGroups = normVendorGroups(raw);
+  if (!lastImport && !lastBackup && staleDays == null && !vendorGroups.length) return undefined;
+  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}), ...(vendorGroups.length ? { vendorGroups } : {}) };
 };
 
 // Team-wide tier percentages (spec 2026-07-16): Builder / Sale % off retail,

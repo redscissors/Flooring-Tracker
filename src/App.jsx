@@ -7,7 +7,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { VENDORS, parseVendorLink, entryProblems, entryFileName, entryKey, bookmarkletSource, captureHandoff, clearHandoff, sheetRecord, recordKey, mergeRecords, applySesid } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
@@ -4796,190 +4796,383 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
 // portal price-list links; the Netlify relay fetches each sheet's bytes; the
 // results become a File[] handed to the SAME multi-file drop router a
 // drag-drop uses, so routing/diff/apply are unchanged.
-function VendorFetchPanel({ initialEntries, settings, setSettings, onFiles, onClose, inp, lbl }) {
-  const [entries, setEntries] = useState(initialEntries || []);
-  const [unchecked, setUnchecked] = useState(() => new Set());
-  const [pasted, setPasted] = useState("");
-  const [status, setStatus] = useState({});
-  const [running, setRunning] = useState(false);
-  const [fetched, setFetched] = useState(null); // File[] with failures pending user choice
-  const [copied, setCopied] = useState(false);
+// --- Vendor sheet fetch (ADR 0019, 0020) ------------------------------------
+// The old "Fetch vendor sheets" modal grew into a page (a tab in the Price book
+// library): remembered sheets organized into sign-in groups, each re-fetchable
+// on demand with per-sheet progress. The fetch engine (relay + retries +
+// streamed progress) is factored out so a group's "Re-download all" and a
+// single row's re-download share it.
 
-  // Later bookmark clicks stack more sheets into the open panel.
-  useEffect(() => {
-    if (initialEntries && !running && !fetched) setEntries(initialEntries);
-  }, [initialEntries]); // eslint-disable-line react-hooks/exhaustive-deps
+// Prefer the Supabase Edge Function (minutes-long window — a big sheet the
+// portal builds on demand can outlast a Netlify function's ceiling); fall back
+// to the Netlify relay only when the Edge twin isn't deployed (404) or is
+// unreachable. A 5xx from a live Edge Function is retried in place, never
+// downgraded to the shorter-window relay.
+async function relayVendorFetch(entry, token) {
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  if (base) {
+    try {
+      const r = await fetch(`${base}/functions/v1/vendor-fetch`, { method: "POST", headers: { authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, "content-type": "application/json" }, body: JSON.stringify(entry) });
+      if (r.status !== 404) return r;
+    } catch { /* unreachable — fall back */ }
+  }
+  return fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(entry) });
+}
 
-  const bmSrc = bookmarkletSource(window.location.origin);
-  const vendorLabel = (e) => VENDORS[e.vendor]?.hostLabels?.[e.host] || VENDORS[e.vendor]?.label || e.host;
+// Drain the response, reporting a 0..1 fraction when the portal sends a
+// Content-Length. On-demand sheets are often chunked with none — then the bar
+// stays indeterminate (fraction reported as null).
+async function readSheetBytes(res, onFraction) {
+  const total = Number(res.headers.get("content-length")) || 0;
+  if (!res.body || !res.body.getReader) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) onFraction(Math.min(0.98, received / total));
+  }
+  const out = new Uint8Array(received);
+  let pos = 0;
+  for (const c of chunks) { out.set(c, pos); pos += c.length; }
+  return out;
+}
 
-  // Sheets remembered from earlier fetches (settings.ops.vendorSheets, stable
-  // params only). Any live entry's fresh session code unlocks every remembered
-  // sheet for the same portal + dealer account, so one pasted link (or one
-  // bookmark click) refreshes the lot.
-  const saved = settings?.ops?.vendorSheets || [];
-  const liveSesid = {};
-  for (const e of entries) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
-  const liveKeys = new Set(entries.map((e) => recordKey(e)));
-  const savedRows = saved
-    .filter((r) => liveSesid[`${r.host}|${r.user}`] && !liveKeys.has(recordKey(r)))
-    .map((r) => ({ ...applySesid(r, liveSesid[`${r.host}|${r.user}`]), saved: true }));
-  const rows = [...entries, ...savedRows];
-  const rememberFetched = (recs) => { if (recs.length && setSettings) setSettings({ ops: { ...(settings?.ops || {}), vendorSheets: mergeRecords(saved, recs) } }); };
-  const forgetSaved = (r) => setSettings && setSettings({ ops: { ...(settings?.ops || {}), vendorSheets: saved.filter((s) => recordKey(s) !== recordKey(r)) } });
-
-  const addPasted = () => {
-    const found = pasted.split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
-    if (!found.length) { setPasted(""); return; }
-    setEntries((prev) => {
-      const seen = new Set(prev.map(entryKey));
-      return [...prev, ...found.filter((e) => !seen.has(entryKey(e)))];
-    });
-    setPasted("");
-  };
-
-  const finish = (files) => { clearHandoff(); onFiles(files); onClose(); };
-
-  // Prefer the Supabase Edge Function (minutes-long window — a big sheet the
-  // portal builds on demand can take well over a Netlify function's ceiling);
-  // fall back to the Netlify relay only when the Edge Function isn't deployed
-  // (404) or is unreachable. A 5xx from a live Edge Function is retried in
-  // place, never downgraded to the shorter-window relay.
-  const relay = async (entry, token) => {
-    const base = import.meta.env.VITE_SUPABASE_URL;
-    if (base) {
-      try {
-        const r = await fetch(`${base}/functions/v1/vendor-fetch`, { method: "POST", headers: { authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, "content-type": "application/json" }, body: JSON.stringify(entry) });
-        if (r.status !== 404) return r;
-      } catch { /* unreachable — fall back */ }
-    }
-    return fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(entry) });
-  };
-
-  const run = async () => {
-    setRunning(true);
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    const picked = rows.filter((e) => !unchecked.has(entryKey(e)));
-    const files = [];
-    const ok = [];
-    let failures = 0;
-    for (const e of picked) {
-      const k = entryKey(e);
-      let done = false, msg = "network error";
-      // The portal builds big sheets on demand and the first request can
-      // outlast the relay's window; a re-request usually hits the portal's
-      // just-built cache, so slow/server errors get two automatic retries.
-      for (let t = 1; t <= 3 && !done; t++) {
-        setStatus((s) => ({ ...s, [k]: t === 1 ? "fetching" : `portal is slow — retry ${t - 1} of 2…` }));
-        if (t > 1) await new Promise((r) => setTimeout(r, 2500));
-        try {
-          const res = await relay(e, token);
-          if (res.ok) {
-            files.push(new File([await res.arrayBuffer()], entryFileName(e), { type: "application/vnd.ms-excel" }));
-            ok.push(e); done = true;
-            setStatus((s) => ({ ...s, [k]: "done" }));
-            break;
-          }
-          let err = "";
-          try { err = (await res.json()).error || ""; } catch {}
-          if (err === "session-expired") { msg = "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)"; break; }
-          msg = err === "vendor-timeout"
-            ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
-            : (err || `failed (${res.status})`);
-          if (res.status < 500) break; // only slow/server errors are worth retrying
-        } catch { msg = "network error"; }
+// Fetch one sheet through the relay with the portal's on-demand-build retries.
+// onProgress gets { value, note } while fetching (value null = indeterminate).
+// Resolves to { file } or { error }.
+async function runFetch(entry, token, onProgress) {
+  let msg = "network error";
+  for (let t = 1; t <= 3; t++) {
+    onProgress({ value: null, note: t === 1 ? "" : `portal is slow — retry ${t - 1} of 2…` });
+    if (t > 1) await new Promise((r) => setTimeout(r, 2500));
+    try {
+      const res = await relayVendorFetch(entry, token);
+      if (res.ok) {
+        const bytes = await readSheetBytes(res, (v) => onProgress({ value: v, note: "" }));
+        return { file: new File([bytes], entryFileName(entry), { type: "application/vnd.ms-excel" }) };
       }
-      if (!done) { setStatus((s) => ({ ...s, [k]: msg })); failures++; }
-    }
-    rememberFetched(ok.map(sheetRecord));
-    setRunning(false);
-    if (!failures && files.length) finish(files);
-    else if (files.length) setFetched(files);
-  };
+      let err = "";
+      try { err = (await res.json()).error || ""; } catch {}
+      if (err === "session-expired") return { error: "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" };
+      msg = err === "vendor-timeout"
+        ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
+        : (err || `failed (${res.status})`);
+      if (res.status < 500) return { error: msg }; // only slow/server errors are worth retrying
+    } catch { msg = "network error"; }
+  }
+  return { error: msg };
+}
 
-  const pickedCount = rows.filter((e) => !unchecked.has(entryKey(e))).length;
-
+// The bookmarklet setup steps (drag-to-bookmarks + copy), shared by the empty
+// state and the "Set up one-click fetch" disclosure.
+function VendorBookmarklet() {
+  const bmSrc = bookmarkletSource(window.location.origin);
+  const [copied, setCopied] = useState(false);
   return (
-    <Modal title="Fetch vendor sheets" onClose={onClose}>
-      {rows.length === 0 ? (
-        <>
-          <p className="text-sm text-slate-600">Skip the download-each-sheet chore: a bookmark grabs every price-list link off the vendor portal in one click and brings them here.</p>
-          <ol className="text-sm text-slate-600 list-decimal ml-5 mt-3 space-y-1.5">
-            <li>Drag this button to your bookmarks bar:{" "}
-              <a ref={(el) => { if (el) el.setAttribute("href", bmSrc); }} onClick={(e) => e.preventDefault()} className="inline-block rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 px-2 py-0.5 text-xs font-medium cursor-grab" title="Drag me to the bookmarks bar">⤓ FloorTrack sheets</a>
-              {" "}<button onClick={() => { navigator.clipboard?.writeText(bmSrc).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }} className="text-[11px] text-slate-400 underline hover:text-slate-600">{copied ? "copied" : "or copy the code"}</button>
-              <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
-            </li>
-            <li>Log into the vendor portal (e.g. Virginia Tile connect24) and open its price lists page.</li>
-            <li>Click the bookmark — FloorTrack opens with every sheet listed here, ready to fetch.</li>
-          </ol>
-          <p className="text-[11px] text-slate-400 mt-2">Portal keeps its sheets in a menu that downloads them one at a time? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click the download → Copy link address), and paste it below.</p>
-          <div className="mt-4">
-            <label className={lbl}>…or paste price-list links (one per line)</label>
-            <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={3} placeholder="https://connect24.virginiatile.com/…getPrettyPriceList…" className={inp + " font-mono text-[11px]"} />
-            <div className="flex justify-end mt-2"><button onClick={addPasted} disabled={!pasted.trim()} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add links</button></div>
-          </div>
-          {saved.length > 0 && (
-            <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
-              <div className="text-xs font-medium text-slate-600">{saved.length} remembered sheet{saved.length === 1 ? "" : "s"}</div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Every sheet fetched before is remembered here. One pasted link (or one bookmark click) from the same portal unlocks all of them — its fresh session code is reused for the whole list.</p>
-              <ul className="mt-1.5 space-y-0.5 max-h-32 overflow-y-auto">
-                {saved.map((r) => (
-                  <li key={recordKey(r)} className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="flex-1 truncate">{entryFileName(r)}</span>
-                    <span className="text-slate-300">{vendorLabel(r)}</span>
-                    <button onClick={() => forgetSaved(r)} title="Forget this sheet" className="text-slate-300 hover:text-red-500"><X size={11} /></button>
-                  </li>
-                ))}
-              </ul>
+    <ol className="text-sm text-slate-600 list-decimal ml-5 space-y-1.5">
+      <li>Drag this button to your bookmarks bar:{" "}
+        <a ref={(el) => { if (el) el.setAttribute("href", bmSrc); }} onClick={(e) => e.preventDefault()} className="inline-block rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 px-2 py-0.5 text-xs font-medium cursor-grab" title="Drag me to the bookmarks bar">⤓ FloorTrack sheets</a>
+        {" "}<button onClick={() => { navigator.clipboard?.writeText(bmSrc).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }} className="text-[11px] text-slate-400 underline hover:text-slate-600">{copied ? "copied" : "or copy the code"}</button>
+        <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
+      </li>
+      <li>Log into the vendor portal (e.g. Virginia Tile connect24) and open its price lists page.</li>
+      <li>Click the bookmark — the sheets land here under their sign-in, ready to fetch.</li>
+    </ol>
+  );
+}
+
+function PasteLinks({ onAdd, inp, rows = 2, placeholder }) {
+  const [text, setText] = useState("");
+  const add = () => { if (onAdd(text)) setText(""); };
+  return (
+    <>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={rows} placeholder={placeholder || "https://connect24.virginiatile.com/…getPrettyPriceList…"} className={inp + " font-mono text-[11px]"} />
+      <div className="flex justify-end mt-2"><button onClick={add} disabled={!text.trim()} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add link</button></div>
+    </>
+  );
+}
+
+// One remembered sheet: filename, progress track (indeterminate while the
+// portal builds, determinate when it streams a length), check on done, a drag
+// handle + move menu (free move between sign-ins), and an amber chip when the
+// sheet's own portal account differs from the group it sits in.
+function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, onRedownload, onRemove, onMove, onStartDrag }) {
+  const [menu, setMenu] = useState(false);
+  const others = groups.filter((g) => g.id !== group.id);
+  return (
+    <div data-vendor-sheet={recordKey(sheet)} className="flex items-start gap-2 px-3 py-2">
+      <button onPointerDown={(e) => onStartDrag(e, sheet, group.id)} title="Drag to another sign-in" className="mt-0.5 touch-none cursor-grab text-slate-300 hover:text-slate-500 shrink-0"><Hand size={13} /></button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="truncate">{entryFileName(sheet)}</span>
+          {mismatch && <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 shrink-0" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={9} /> other portal</span>}
+        </div>
+        {prog?.state === "fetching" ? (
+          <>
+            <div className={"ft-progress h-1.5 mt-1.5" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
+              {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
             </div>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="text-xs text-slate-500">{rows.length} price sheet{rows.length === 1 ? "" : "s"} from {vendorLabel(rows[0])}{savedRows.length > 0 ? ` (${savedRows.length} remembered — refreshed with this link's session code)` : ""}. Fetched sheets go through the normal import review — nothing changes without your approval. These links carry your portal session code; it stays in this browser.</p>
-          <div className="mt-3 border border-slate-100 rounded-lg divide-y divide-slate-100 max-h-72 overflow-y-auto">
-            {rows.map((e) => { const k = entryKey(e); const st = status[k]; return (
-              <label key={k} className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
-                <input type="checkbox" checked={!unchecked.has(k)} disabled={running || Boolean(fetched)} onChange={() => setUnchecked((c) => { const n = new Set(c); n.has(k) ? n.delete(k) : n.add(k); return n; })} />
-                <span className="flex-1 truncate">{entryFileName(e)}</span>
-                {e.saved && !st && <span className="text-[10px] text-slate-300">remembered</span>}
-                {st === "fetching" && <span className="text-[11px] text-slate-400">fetching…</span>}
-                {st === "done" && <Check size={14} className="text-emerald-600" />}
-                {st && st !== "fetching" && st !== "done" && <span className="text-[11px] text-red-600 max-w-[14rem] text-right">{st}</span>}
-              </label>
-            ); })}
-          </div>
-          <div className="flex items-center justify-between gap-2 mt-4">
-            <button onClick={() => { clearHandoff(); setEntries([]); setUnchecked(new Set()); setStatus({}); setFetched(null); }} disabled={running} className="text-xs text-slate-400 underline hover:text-slate-600">Clear list</button>
-            {fetched ? (
-              <button onClick={() => finish(fetched)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Import the {fetched.length} that worked</button>
-            ) : (
-              <button onClick={run} disabled={running || pickedCount === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{running ? "Fetching…" : `Fetch ${pickedCount} sheet${pickedCount === 1 ? "" : "s"}`}</button>
+            {prog.note && <div className="text-[10px] text-slate-400 mt-0.5">{prog.note}</div>}
+          </>
+        ) : prog?.state === "done" ? (
+          <div className="ft-progress h-1.5 mt-1.5"><div className="ft-progress-fill" style={{ width: "100%" }} /></div>
+        ) : prog?.state === "error" ? (
+          <div className="text-[11px] text-red-600 mt-0.5">{prog.note}</div>
+        ) : locked ? (
+          <div className="text-[10px] text-slate-400 mt-0.5">remembered — needs a fresh sign-in link to fetch</div>
+        ) : (
+          <div className="text-[10px] text-slate-400 mt-0.5">ready to fetch</div>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {prog?.state === "done" && <Check size={15} className="text-emerald-600" />}
+        {!locked && prog?.state !== "fetching" && <button onClick={() => onRedownload(sheet)} disabled={running} title="Re-download this sheet" className="text-slate-400 hover:text-indigo-600 disabled:opacity-40"><RotateCcw size={13} /></button>}
+        {others.length > 0 && (
+          <div className="relative">
+            <button onClick={() => setMenu((v) => !v)} title="Move to another sign-in" className="text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
+            {menu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                  <div className="px-3 py-1 ft-eyebrow text-[10px] text-slate-400">Move to</div>
+                  {others.map((g) => (
+                    <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); setMenu(false); }} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 truncate">{g.name}</button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
-        </>
+        )}
+        <button onClick={() => onRemove(group.id, sheet)} title="Forget this sheet" className="text-slate-300 hover:text-red-500"><X size={13} /></button>
+      </div>
+    </div>
+  );
+}
+
+// One sign-in: an editable name, an optional portal login URL, "Re-download
+// all", and the sheets it can pull. A pointer-drag drop target (a sheet dragged
+// in lands here, keeping its own account).
+function VendorGroupCard({ group, groups, sheetSesid, progress, running, dragOverId, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onStartDrag, inp }) {
+  const [editName, setEditName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(group.name);
+  const [editUrl, setEditUrl] = useState(false);
+  const [urlDraft, setUrlDraft] = useState(group.loginUrl || "");
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const unlockable = group.sheets.some((s) => sheetSesid(s));
+  const isOver = dragOverId === group.id;
+  const commitName = () => { const n = nameDraft.trim(); if (n && n !== group.name) onPatch(group.id, { name: n }); else setNameDraft(group.name); setEditName(false); };
+  const commitUrl = () => { onPatch(group.id, { loginUrl: urlDraft.trim() }); setEditUrl(false); };
+
+  return (
+    <div data-vendor-group={group.id} className={`rounded-xl border bg-white transition-shadow ${isOver ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}>
+      <div className="flex items-start gap-2 flex-wrap px-4 pt-3.5 pb-3 border-b border-slate-100">
+        <div className="min-w-0 flex-1">
+          {editName ? (
+            <input autoFocus value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onBlur={commitName} onKeyDown={(e) => { if (e.key === "Enter") commitName(); if (e.key === "Escape") { setNameDraft(group.name); setEditName(false); } }} className={inp + " text-sm font-medium"} />
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className="text-[15px] font-medium truncate">{group.name}</h3>
+              <button onClick={() => { setNameDraft(group.name); setEditName(true); }} title="Rename" className="text-slate-300 hover:text-slate-500 shrink-0"><Pencil size={12} /></button>
+            </div>
+          )}
+          {editUrl ? (
+            <input autoFocus value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} onBlur={commitUrl} onKeyDown={(e) => { if (e.key === "Enter") commitUrl(); if (e.key === "Escape") setEditUrl(false); }} placeholder="https://portal-sign-in…" className={inp + " text-[11px] mt-1"} />
+          ) : group.loginUrl ? (
+            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] min-w-0">
+              <a href={group.loginUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:underline truncate"><Link2 size={11} /> Open sign-in</a>
+              <button onClick={() => { setUrlDraft(group.loginUrl); setEditUrl(true); }} title="Edit sign-in link" className="text-slate-300 hover:text-slate-500 shrink-0"><Pencil size={10} /></button>
+            </div>
+          ) : (
+            <button onClick={() => { setUrlDraft(""); setEditUrl(true); }} className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600"><Link2 size={11} /> Add sign-in link</button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => onRedownloadAll(group)} disabled={running || !unlockable} title={unlockable ? "Re-download every sheet in this sign-in" : "Paste a fresh link (or click the bookmark) from this portal to unlock"} className="flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5 font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400"><RotateCcw size={13} /> Re-download all</button>
+          <button onClick={() => setConfirmDel(true)} title="Delete this sign-in group" className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+        </div>
+      </div>
+      {confirmDel && (
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2 text-xs bg-red-50 border-b border-red-100">
+          <span className="flex-1 text-red-600">Delete "{group.name}" and forget its {group.sheets.length} sheet{group.sheets.length === 1 ? "" : "s"}? Saved estimates are unaffected.</span>
+          <button onClick={() => { onDelete(group.id); setConfirmDel(false); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
+          <button onClick={() => setConfirmDel(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-white shrink-0">Cancel</button>
+        </div>
       )}
-    </Modal>
+      {group.sheets.length === 0 ? (
+        <p className="px-4 py-4 text-xs text-slate-400">No sheets yet — paste a link above, or drag one here from another sign-in.</p>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {group.sheets.map((s) => (
+            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onStartDrag={onStartDrag} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function VendorFetchPage({ settings, setSettings, onFiles, vendorPending, inp, lbl }) {
+  const [pending, setPending] = useState(vendorPending || []); // live-session pool (sesids)
+  const [progress, setProgress] = useState({});
+  const [running, setRunning] = useState(false);
+  const [fetchedFiles, setFetchedFiles] = useState(null); // partial-success File[] pending confirm
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [drag, setDrag] = useState(null); // { sheet, fromId, x, y, overId }
+  const dragRef = useRef(null);
+
+  const groups = settings.ops?.vendorGroups || [];
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
+  const writeGroups = (next) => setSettings({ ops: { ...(settings.ops || {}), vendorGroups: next } });
+
+  // Fold a bookmarklet / paste hand-off into both the live-session pool (which
+  // unlocks re-downloads) and the groups (so a freshly captured sheet appears
+  // under its sign-in). Idempotent, so a repeat hand-off is a no-op.
+  useEffect(() => {
+    if (!vendorPending || !vendorPending.length) return;
+    setPending((p) => mergeEntries(p, vendorPending));
+    const next = rememberIntoGroups(groupsRef.current, vendorPending.map(sheetRecord));
+    if (JSON.stringify(next) !== JSON.stringify(groupsRef.current)) writeGroups(next);
+    clearHandoff();
+  }, [vendorPending]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const liveSesid = {};
+  for (const e of pending) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
+  const sheetSesid = (s) => liveSesid[`${s.host}|${s.user}`];
+
+  const parseLinks = (text) => (text || "").split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
+  const addPasted = (text) => {
+    const found = parseLinks(text);
+    if (!found.length) return false;
+    setPending((p) => mergeEntries(p, found));
+    writeGroups(rememberIntoGroups(groups, found.map(sheetRecord)));
+    return true;
+  };
+
+  const patchGroup = (id, patch) => writeGroups(groups.map((g) => g.id === id ? { ...g, ...patch } : g));
+  const delGroup = (id) => writeGroups(groups.filter((g) => g.id !== id));
+  const addGroup = () => writeGroups([...groups, newGroup()]);
+  const removeSheet = (groupId, sheet) => writeGroups(groups.map((g) => g.id === groupId ? { ...g, sheets: g.sheets.filter((s) => recordKey(s) !== recordKey(sheet)) } : g));
+  const moveSheet = (sheet, fromId, toId) => writeGroups(moveSheetInGroups(groupsRef.current, sheet, fromId, toId));
+
+  const run = async (picks) => {
+    const list = (picks || []).filter(Boolean);
+    if (!list.length || running) return;
+    setRunning(true); setFetchedFiles(null);
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const files = [], ok = [];
+    let failures = 0;
+    for (const e of list) {
+      const k = recordKey(e);
+      setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
+      const res = await runFetch(e, token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
+      if (res.file) { files.push(res.file); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
+      else { failures++; setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); }
+    }
+    if (ok.length) writeGroups(rememberIntoGroups(groupsRef.current, ok.map(sheetRecord)));
+    setRunning(false);
+    if (files.length && !failures) onFiles(files);
+    else if (files.length) setFetchedFiles(files);
+  };
+  const redownloadAll = (g) => run(g.sheets.filter((s) => sheetSesid(s)).map((s) => applySesid(s, sheetSesid(s))));
+  const redownloadSheet = (s) => { const ses = sheetSesid(s); if (ses) run([applySesid(s, ses)]); };
+
+  // Pointer-drag a sheet between sign-ins (mirrors the product-row drag: works
+  // on mouse and touch — the handle carries touch-none). A ref keeps the
+  // pointerup handler off stale state.
+  const setDragBoth = (v) => { dragRef.current = v; setDrag(v); };
+  const startDrag = (e, sheet, fromId) => { e.preventDefault(); setDragBoth({ sheet, fromId, x: e.clientX, y: e.clientY, overId: null }); };
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const card = el && el.closest ? el.closest("[data-vendor-group]") : null;
+      setDragBoth({ ...dragRef.current, x: e.clientX, y: e.clientY, overId: card ? card.getAttribute("data-vendor-group") : null });
+    };
+    const up = () => { const d = dragRef.current; if (d && d.overId && d.overId !== d.fromId) moveSheet(d.sheet, d.fromId, d.overId); setDragBoth(null); };
+    const key = (e) => { if (e.key === "Escape") setDragBoth(null); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", key); };
+  }, [!!drag]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="ft-serif text-3xl">Vendor sheets</h2>
+          <p className="text-sm text-slate-500 mt-1 max-w-xl">Pull the latest price lists straight off each distributor portal. Sheets are grouped by sign-in; one fresh link (or a bookmark click) unlocks a whole group's re-download. Fetched sheets go through the normal import review — nothing changes without your approval, and the portal session code stays in this browser.</p>
+        </div>
+        {groups.length > 0 && <button onClick={addGroup} className="shrink-0 flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <label className={lbl + " mb-0"}>Paste a sheet link{groups.length > 0 ? <span className="font-normal normal-case tracking-normal text-slate-400"> — unlocks its sign-in for re-download</span> : null}</label>
+          <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up one-click fetch"}</button>
+        </div>
+        <div className="mt-2"><PasteLinks onAdd={addPasted} inp={inp} /></div>
+        {setupOpen && (
+          <div className="mt-3 border-t border-slate-200 pt-3">
+            <p className="text-xs text-slate-500 mb-2">One bookmark grabs every price-list link off a portal page and drops them here:</p>
+            <VendorBookmarklet />
+            <p className="text-[11px] text-slate-400 mt-2">Portal keeps sheets in a menu that downloads them one at a time? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), and paste it above — repeat per sheet; they stack up under their sign-in.</p>
+          </div>
+        )}
+      </div>
+
+      {fetchedFiles && (
+        <div className="mt-3 flex items-center gap-2 flex-wrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+          <span className="flex-1 text-amber-800">Some sheets couldn't be fetched. Import the {fetchedFiles.length} that worked?</span>
+          <button onClick={() => { const f = fetchedFiles; setFetchedFiles(null); onFiles(f); }} className="rounded-md bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 shrink-0">Import {fetchedFiles.length}</button>
+        </div>
+      )}
+
+      {groups.length === 0 ? (
+        <div className="mt-5 rounded-xl border border-slate-200 p-6 text-center">
+          <Download size={22} className="mx-auto text-slate-300" />
+          <h3 className="mt-2 text-sm font-medium text-slate-600">No sign-ins yet</h3>
+          <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">Set up the one-click bookmark above and click it on a vendor portal, or paste a price-list link. Sheets land here grouped by sign-in, ready to fetch and re-fetch.</p>
+          <button onClick={addGroup} className="mt-3 inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-4">
+          {groups.map((g) => (
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} progress={progress} running={running} dragOverId={drag?.overId} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onStartDrag={startDrag} inp={inp} />
+          ))}
+        </div>
+      )}
+
+      {drag && <div className="fixed z-50 pointer-events-none px-2 py-1 rounded-md bg-slate-800 text-white text-xs shadow-lg" style={{ left: drag.x + 10, top: drag.y + 10 }}>{entryFileName(drag.sheet)}</div>}
+    </div>
   );
 }
 
 function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
-  const [sel, setSel] = useState("stock"); // "stock" | bookId
+  const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
+  useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
+  const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
+  const [sel, setSel] = useState(() => vendorPending ? "vendor" : "stock"); // "stock" | "vendor" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
   const [hideCosts, setHideCosts] = useState(false);
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
-  const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019)
-  const [vfOpen, setVfOpen] = useState(() => Boolean(vendorPending));
   const dropRef = useRef(null);
   // Menu-style portals hand sheets over one bookmark-click at a time; the
-  // bookmarklet reuses this tab, so later hand-offs arrive as hash changes.
+  // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
+  // each one opens the Vendor sheets tab.
   useEffect(() => {
-    const onHash = () => { const p = captureHandoff(); if (p) { setVendorPending(p); setVfOpen(true); } };
+    const onHash = () => { const p = captureHandoff(); if (p) { setVendorPending(p); setSel("vendor"); } };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -5007,8 +5200,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const rowCls = (on) => `w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-left ${on ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`;
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <div className="w-56 shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-3">
+    <div className={"flex-1 flex overflow-hidden " + (isWide ? "flex-row" : "flex-col")}>
+      <div className={isWide ? "w-56 shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-3" : "shrink-0 border-b border-slate-100 overflow-y-auto p-3 space-y-3 max-h-[42vh]"}>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -5021,9 +5214,10 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           <div className="text-[10px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many; each routes to its book</div>
           <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
         </div>
-        <button onClick={() => setVfOpen(true)} className="w-full flex items-center gap-1.5 text-xs rounded-md border border-slate-200 px-2.5 py-2 text-slate-500 hover:bg-slate-50" title="Pull the latest price sheets straight off a vendor portal — one bookmark click instead of downloading each sheet">
-          <Download size={13} className="text-slate-400" /> Fetch from vendor…
-          {vendorPending && <span className="ml-auto rounded-full bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5">{vendorPending.length}</span>}
+        <button onClick={() => setSel("vendor")} className={rowCls(sel === "vendor")} title="Pull the latest price sheets straight off a vendor portal — grouped by sign-in, re-fetchable on demand">
+          <Download size={14} className={sel === "vendor" ? "" : "text-slate-400"} />
+          <span className="flex-1 truncate">Vendor sheets</span>
+          {vendorPending && <span className={`rounded-full text-[10px] px-1.5 py-0.5 ${sel === "vendor" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"}`}>{vendorPending.length}</span>}
         </button>
         <div>
           <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Stock</div>
@@ -5056,7 +5250,10 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         <button onClick={() => setAdding(true)} className="w-full flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-2.5 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New book</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {sel === "vendor" ? (
+          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={setDropped} vendorPending={vendorPending} inp={inp} lbl={lbl} />
+        ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
           <div className="flex items-center gap-2 shrink-0">
@@ -5109,11 +5306,10 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         ) : (
           <p className="text-xs text-slate-400 mt-3">Select a book.</p>
         )}
+        </>)}
       </div>
 
       {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
-
-      {vfOpen && !dropped && <VendorFetchPanel initialEntries={vendorPending} settings={settings} setSettings={setSettings} onFiles={setDropped} onClose={() => setVfOpen(false)} inp={inp} lbl={lbl} />}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>
