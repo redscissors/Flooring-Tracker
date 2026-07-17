@@ -711,12 +711,59 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
   // stay reachable above the keyboard. It stays tall until closed (shrinking
   // on blur would bounce the layout between every field).
   const [tall, setTall] = useState(false);
+  const panelRef = useRef(null);
+  const bodyRef = useRef(null);
+  const drag = useRef(null);
   useEffect(() => { if (!open) setTall(false); }, [open]);
+  // Swipe-down to dismiss. Native listeners because React registers touchmove
+  // as passive, which blocks the preventDefault that keeps the pull from also
+  // scrolling. A pull starting inside the scroll body only grabs the sheet
+  // when the body is already at its top — otherwise the body scrolls normally.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!open || !el) return;
+    const start = (e) => {
+      const t = e.touches[0];
+      const inBody = bodyRef.current?.contains(e.target);
+      drag.current = { y0: t.clientY, x0: t.clientX, t0: e.timeStamp, armed: !inBody || (bodyRef.current?.scrollTop ?? 0) <= 0, on: false, dy: 0 };
+    };
+    const move = (e) => {
+      const d = drag.current;
+      if (!d) return;
+      const t = e.touches[0];
+      const dy = t.clientY - d.y0;
+      if (!d.on) {
+        if (!d.armed || dy < 10 || Math.abs(t.clientX - d.x0) > dy) return;
+        d.on = true;
+      }
+      e.preventDefault();
+      d.dy = Math.max(0, dy);
+      el.style.transition = "none";
+      el.style.transform = `translateY(${d.dy}px)`;
+    };
+    const end = (e) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d?.on) return;
+      el.style.transition = "transform .2s ease-out";
+      if (d.dy > 90 || d.dy / Math.max(1, e.timeStamp - d.t0) > 0.6) {
+        el.style.transform = "translateY(105%)";
+        setTimeout(onClose, 180);
+      } else {
+        el.style.transform = "translateY(0)";
+      }
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, [open, onClose]);
   if (!open) return null;
   return createPortal(
     <div className="fixed inset-0 z-50 print:hidden">
       <div className="ft-sheet-scrim absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="ft-sheet absolute left-0 right-0 bottom-0 flex flex-col"
+      <div ref={panelRef} className="ft-sheet absolute left-0 right-0 bottom-0 flex flex-col"
         onFocusCapture={(e) => { if (e.target.matches?.("input, textarea, select")) setTall(true); }}
         style={{ background: "var(--ft-cream)", height: tall ? "100%" : undefined, maxHeight: tall ? "100%" : "88%", borderRadius: tall ? 0 : "12px 12px 0 0", boxShadow: "0 -8px 40px rgba(28,26,23,.25)" }}>
         <div className="mx-auto mt-2 h-1 w-9 rounded-full shrink-0" style={{ background: "var(--ft-border-strong)" }} />
@@ -725,7 +772,7 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
           {badge}
           <button onClick={onClose} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400"><X size={14} /></button>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3">{children}</div>
+        <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto px-4 pb-3">{children}</div>
         {footer && <div className="flex items-center gap-2 px-4 pt-2.5 border-t border-slate-200 shrink-0" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>{footer}</div>}
       </div>
     </div>,
@@ -4105,11 +4152,13 @@ export default function App({ user, onSignOut }) {
             desktop header buttons. Sits under <main> in the flex column, so
             it never overlaps content and stays locked to the bottom whenever
             a project is open — on the preview tab too, where Area/Product
-            first hop back to the edit view. */}
+            first hop back to the edit view. While a bottom sheet is up the
+            bar slides down out of the way and returns when it closes. */}
         {!isWide && sel && sel._full && (() => {
           const cur = sel.categories.find((a) => a.id === activeAreaId) || sel.categories[0];
+          const sheetUp = projSheet || !!rowSheet;
           return (
-            <div className="ft-noprint flex gap-2 px-3 pt-2.5 ft-rail border-t border-slate-200" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+            <div className={`ft-noprint flex gap-2 px-3 pt-2.5 ft-rail border-t border-slate-200 transition-transform duration-200 ${sheetUp ? "translate-y-full" : ""}`} style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
               <button onClick={() => { setViewTab("edit"); addArea(); }} className="h-[38px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
               <button onClick={() => { setViewTab("edit"); mobileAddProduct(); }} className="h-[38px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
                 <Plus size={14} className="shrink-0" /> Product{cur ? <span className="truncate opacity-75 font-semibold">&nbsp;· {areaLabel(cur, sel.categories.indexOf(cur))}</span> : null}
