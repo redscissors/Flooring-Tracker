@@ -93,6 +93,25 @@ test("serializeSettings persists the waste split, not the legacy scalar", () => 
   assert.deepEqual(normalizeSettings(out).waste, { tile: 7, floor: 13 });
 });
 
+test("ops: a legacy flat vendorSheets blob migrates to vendorGroups and drops the flat list", () => {
+  const legacy = { ops: { vendorSheets: [
+    { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1071", user: "C00000XX", filename: "AOT EFT" },
+    { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1045", user: "C00000XX", filename: "ANA EFT" },
+    { vendor: "dancik", host: "ovf400.ovf.com", uid: "196", user: "OVF00000XX", filename: "OVF LVT" },
+  ] } };
+  const out = serializeSettings(normalizeSettings(legacy));
+  assert.equal("vendorSheets" in out.ops, false);
+  assert.equal(out.ops.vendorGroups.length, 2); // one group per {host,user}
+  assert.deepEqual(out.ops.vendorGroups[0].sheets.map((s) => s.uid), ["1071", "1045"]);
+  // Idempotent: the migrated groups round-trip unchanged.
+  assert.deepEqual(serializeSettings(normalizeSettings(out)).ops.vendorGroups, out.ops.vendorGroups);
+});
+
+test("ops with no vendor sheets stays undefined (no empty vendorGroups key)", () => {
+  const out = serializeSettings(normalizeSettings({ waste: { tile: 7, floor: 13 } }));
+  assert.equal("ops" in out, false);
+});
+
 // --- Slice 02: catalog shape + seed -----------------------------------------
 
 const allGroutNames = (catalog) => catalog.companies.flatMap((c) => c.grouts.map((p) => p.name));
@@ -694,16 +713,17 @@ test("normOps preserves a valid staleDays override and drops an invalid one", ()
   assert.equal(both.ops.lastImport.by, "Dave");
 });
 
-test("normOps keeps remembered vendor sheets but never a session token", () => {
+test("normOps migrates remembered vendor sheets into a group, never a session token", () => {
   const rec = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1071", user: "C00000XX", filename: "AOT EFT 26 02 19" };
   const out = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { vendorSheets: [
     { ...rec, sesid: "MustNotPersist1" },
     { vendor: "dancik", host: "x" }, // missing required fields — dropped
     "junk",
   ] } }));
-  assert.equal(out.ops.vendorSheets.length, 1);
-  assert.deepEqual(out.ops.vendorSheets[0], rec);
-  assert.equal(out.ops.vendorSheets[0].sesid, undefined);
+  assert.equal("vendorSheets" in out.ops, false); // migrated, never written back flat
+  assert.equal(out.ops.vendorGroups.length, 1);
+  assert.deepEqual(out.ops.vendorGroups[0].sheets, [rec]);
+  assert.equal(out.ops.vendorGroups[0].sheets[0].sesid, undefined);
   // an empty list leaves no ops at all
   const none = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { vendorSheets: [] } }));
   assert.equal(none.ops, undefined);
