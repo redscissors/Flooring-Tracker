@@ -58,9 +58,9 @@
 
   /* ---- PROPOSED: materials auto-reflow + separated cost rail ---- */
   .new{container-type:inline-size}
-  .new .body{display:grid;grid-template-columns:1fr;gap:16px;padding:14px 16px}
-  @container (min-width:600px){ .new .body{grid-template-columns:minmax(0,1fr) 240px} }
-  .mats{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 22px;align-content:start}
+  .new .body{display:grid;grid-template-columns:1fr;gap:20px;padding:16px}
+  @container (min-width:768px){ .new .body{grid-template-columns:minmax(0,1fr) 15rem;gap:24px} }
+  .mats{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));column-gap:24px;row-gap:20px;align-content:start}
   .mgroup{break-inside:avoid}
   .costs{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:12px 14px;align-self:start}
   .costs .ch{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep);margin-bottom:8px}
@@ -80,13 +80,14 @@
   <div class="card cur" id="tpl-cur"></div>
 
   <div class="caption">Proposed · fits every width</div>
-  <p class="sub">Same data, rendered at phone / tablet / desktop container widths. Materials flow into as many
-  columns as fit; the cost summary is a distinct panel.</p>
+  <p class="sub">Same data. Below the 768px desktop breakpoint everything stacks (materials reflow, then the
+  Order summary panel underneath); at 768px+ the Order summary becomes a right rail. Materials flow into as
+  many columns as the width allows.</p>
   <div class="frames">
-    <div class="frame"><div class="w">Phone · 360</div><div style="width:336px"><div class="card new" data-new></div></div></div>
-    <div class="frame"><div class="w">Tablet · 720</div><div style="width:680px"><div class="card new" data-new></div></div></div>
+    <div class="frame"><div class="w">Phone · 360 (stacked)</div><div style="width:340px"><div class="card new" data-new></div></div></div>
+    <div class="frame"><div class="w">Desktop · 820 (rail)</div><div style="width:800px"><div class="card new" data-new></div></div></div>
   </div>
-  <div class="frame" style="margin-top:18px"><div class="w">Desktop · 1100</div><div style="width:1076px"><div class="card new" data-new></div></div></div>
+  <div class="frame" style="margin-top:18px"><div class="w">Desktop · 1100 (rail)</div><div style="width:1076px"><div class="card new" data-new></div></div></div>
 </div>
 
 <script>
