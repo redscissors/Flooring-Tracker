@@ -7,7 +7,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
@@ -4600,7 +4600,7 @@ function StaleChip({ days }) {
 // then steps through each file's normal import preview one at a time. Registry
 // files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
 // stock preview. No new write path — each apply is the book's existing one.
-function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -4616,7 +4616,13 @@ function ImportRouter({ files, books, applyBookImport, updateBook, loadBookItems
       try {
         const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
         const fp = computeFingerprint(parsed);
-        const r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
+        let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
+        // A file fetched via "Create price book from this sheet" always lands in
+        // the book we just made for it — the user's explicit intent outranks any
+        // fingerprint match to another book.
+        if (preferTarget && registryBooks.some((b) => b.id === preferTarget)) {
+          r = { ...r, target: preferTarget, reason: "new book from this sheet" };
+        }
         out.push({ file, ...parsed, ...r });
       } catch (x) { out.push({ file, error: "Could not read this file" }); }
     }
@@ -4896,59 +4902,69 @@ function PasteLinks({ onAdd, inp, rows = 2, placeholder }) {
   );
 }
 
-// One remembered sheet: filename, progress track (indeterminate while the
-// portal builds, determinate when it streams a length), check on done, a drag
-// handle + move menu (free move between sign-ins), and an amber chip when the
-// sheet's own portal account differs from the group it sits in.
-function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, onRedownload, onRemove, onMove, onStartDrag }) {
+// One remembered sheet on a single dense row: drag handle · filename · status
+// chips · inline actions. A thin progress track drops in only while fetching.
+// Chips flag a portal-account mismatch and — when the sheet feeds a price book
+// whose last import is past the staleness threshold — an amber "book Nd old"
+// nudge to re-download (the whole row tints amber too). The ⋯ menu creates a
+// price book from the download link, unlinks it, or moves the sheet.
+function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, stale, bookName, onRedownload, onRemove, onMove, onStartDrag, onCreateBook, onUnlinkBook }) {
   const [menu, setMenu] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
+  const fetching = prog?.state === "fetching";
+  const status = prog?.state === "error" ? <span className="text-red-600">{prog.note}</span>
+    : prog?.state === "done" ? <span className="text-emerald-600">done</span>
+    : locked ? "needs a fresh sign-in link"
+    : bookName ? <>→ {bookName}</>
+    : "ready to fetch";
   return (
-    <div data-vendor-sheet={recordKey(sheet)} className="flex items-start gap-2 px-3 py-2">
-      <button onPointerDown={(e) => onStartDrag(e, sheet, group.id)} title="Drag to another sign-in" className="mt-0.5 touch-none cursor-grab text-slate-300 hover:text-slate-500 shrink-0"><Hand size={13} /></button>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="truncate">{entryFileName(sheet)}</span>
-          {mismatch && <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 shrink-0" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={9} /> other portal</span>}
-        </div>
-        {prog?.state === "fetching" ? (
-          <>
-            <div className={"ft-progress h-1.5 mt-1.5" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
-              {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
-            </div>
-            {prog.note && <div className="text-[10px] text-slate-400 mt-0.5">{prog.note}</div>}
-          </>
-        ) : prog?.state === "done" ? (
-          <div className="ft-progress h-1.5 mt-1.5"><div className="ft-progress-fill" style={{ width: "100%" }} /></div>
-        ) : prog?.state === "error" ? (
-          <div className="text-[11px] text-red-600 mt-0.5">{prog.note}</div>
-        ) : locked ? (
-          <div className="text-[10px] text-slate-400 mt-0.5">remembered — needs a fresh sign-in link to fetch</div>
-        ) : (
-          <div className="text-[10px] text-slate-400 mt-0.5">ready to fetch</div>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        {prog?.state === "done" && <Check size={15} className="text-emerald-600" />}
-        {!locked && prog?.state !== "fetching" && <button onClick={() => onRedownload(sheet)} disabled={running} title="Re-download this sheet" className="text-slate-400 hover:text-indigo-600 disabled:opacity-40"><RotateCcw size={13} /></button>}
-        {others.length > 0 && (
+    <div data-vendor-sheet={recordKey(sheet)} className={"px-3 py-1.5 " + (stale?.stale ? "bg-amber-50" : "")}>
+      <div className="flex items-center gap-2">
+        <button onPointerDown={(e) => onStartDrag(e, sheet, group.id)} title="Drag to another sign-in" className="touch-none cursor-grab text-slate-300 hover:text-slate-500 shrink-0"><Hand size={12} /></button>
+        <span className="text-[13px] truncate min-w-0 flex-1" title={entryFileName(sheet)}>{entryFileName(sheet)}</span>
+        {mismatch && <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 shrink-0" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={9} /> other portal</span>}
+        {stale?.stale && <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 shrink-0" title={`${bookName || "Its price book"} was last imported ${stale.days} days ago — re-download this sheet to refresh it.`}><AlertTriangle size={9} /> book {stale.days}d old</span>}
+        <span className="hidden sm:block text-[11px] text-slate-400 truncate max-w-[9rem] shrink-0">{fetching ? null : status}</span>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {prog?.state === "done" && <Check size={14} className="text-emerald-600" />}
+          {!locked && !fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title="Re-download this sheet" className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-40"><RotateCcw size={12} /></button>}
           <div className="relative">
-            <button onClick={() => setMenu((v) => !v)} title="Move to another sign-in" className="text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
+            <button onClick={() => setMenu((v) => !v)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
             {menu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
-                <div className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
-                  <div className="px-3 py-1 ft-eyebrow text-[10px] text-slate-400">Move to</div>
-                  {others.map((g) => (
-                    <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); setMenu(false); }} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 truncate">{g.name}</button>
-                  ))}
+                <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                  {sheet.bookId ? (
+                    <>
+                      <div className="px-3 py-1 text-[11px] text-slate-400 truncate">Feeds <span className="text-slate-600">{bookName || "a deleted book"}</span></div>
+                      <button onClick={() => { onUnlinkBook(sheet); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
+                    </>
+                  ) : (
+                    <button onClick={() => { onCreateBook(sheet); setMenu(false); }} disabled={locked || running} title={locked ? "Paste a fresh link from this portal first" : "Download this sheet and start a new price book from it"} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
+                  )}
+                  {others.length > 0 && (
+                    <>
+                      <div className="my-1 border-t border-slate-100" />
+                      <div className="px-3 py-1 ft-eyebrow text-[10px] text-slate-400">Move to</div>
+                      {others.map((g) => (
+                        <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); setMenu(false); }} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 truncate">{g.name}</button>
+                      ))}
+                    </>
+                  )}
                 </div>
               </>
             )}
           </div>
-        )}
-        <button onClick={() => onRemove(group.id, sheet)} title="Forget this sheet" className="text-slate-300 hover:text-red-500"><X size={13} /></button>
+          <button onClick={() => onRemove(group.id, sheet)} title="Forget this sheet" className="p-0.5 text-slate-300 hover:text-red-500"><X size={12} /></button>
+        </div>
       </div>
+      {fetching && (
+        <div className="pl-5 pr-1 pt-1">
+          <div className={"ft-progress h-1" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
+            {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4956,7 +4972,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
 // One sign-in: an editable name, an optional portal login URL, "Re-download
 // all", and the sheets it can pull. A pointer-drag drop target (a sheet dragged
 // in lands here, keeping its own account).
-function VendorGroupCard({ group, groups, sheetSesid, progress, running, dragOverId, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onStartDrag, inp }) {
+function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, dragOverId, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onStartDrag, onCreateBook, onUnlinkBook, inp }) {
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
   const [editUrl, setEditUrl] = useState(false);
@@ -4970,53 +4986,53 @@ function VendorGroupCard({ group, groups, sheetSesid, progress, running, dragOve
 
   return (
     <div data-vendor-group={group.id} className={`rounded-xl border bg-white transition-shadow ${isOver ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}>
-      <div className="flex items-start gap-2 flex-wrap px-4 pt-3.5 pb-3 border-b border-slate-100">
+      <div className="flex items-center gap-2 flex-wrap px-3 py-2 border-b border-slate-100">
         <div className="min-w-0 flex-1">
           {editName ? (
             <input autoFocus value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onBlur={commitName} onKeyDown={(e) => { if (e.key === "Enter") commitName(); if (e.key === "Escape") { setNameDraft(group.name); setEditName(false); } }} className={inp + " text-sm font-medium"} />
           ) : (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <h3 className="text-[15px] font-medium truncate">{group.name}</h3>
-              <button onClick={() => { setNameDraft(group.name); setEditName(true); }} title="Rename" className="text-slate-300 hover:text-slate-500 shrink-0"><Pencil size={12} /></button>
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-sm font-medium truncate">{group.name}</h3>
+              <button onClick={() => { setNameDraft(group.name); setEditName(true); }} title="Rename" className="text-slate-300 hover:text-slate-500 shrink-0"><Pencil size={11} /></button>
+              {editUrl ? (
+                <input autoFocus value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} onBlur={commitUrl} onKeyDown={(e) => { if (e.key === "Enter") commitUrl(); if (e.key === "Escape") setEditUrl(false); }} placeholder="https://portal-sign-in…" className={inp + " text-[11px] max-w-[16rem]"} />
+              ) : group.loginUrl ? (
+                <span className="inline-flex items-center gap-1 text-[11px] min-w-0 shrink-0">
+                  <a href={group.loginUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:underline"><Link2 size={11} /> Sign in</a>
+                  <button onClick={() => { setUrlDraft(group.loginUrl); setEditUrl(true); }} title="Edit sign-in link" className="text-slate-300 hover:text-slate-500"><Pencil size={10} /></button>
+                </span>
+              ) : (
+                <button onClick={() => { setUrlDraft(""); setEditUrl(true); }} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 shrink-0"><Link2 size={11} /> Add sign-in link</button>
+              )}
             </div>
-          )}
-          {editUrl ? (
-            <input autoFocus value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} onBlur={commitUrl} onKeyDown={(e) => { if (e.key === "Enter") commitUrl(); if (e.key === "Escape") setEditUrl(false); }} placeholder="https://portal-sign-in…" className={inp + " text-[11px] mt-1"} />
-          ) : group.loginUrl ? (
-            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] min-w-0">
-              <a href={group.loginUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:underline truncate"><Link2 size={11} /> Open sign-in</a>
-              <button onClick={() => { setUrlDraft(group.loginUrl); setEditUrl(true); }} title="Edit sign-in link" className="text-slate-300 hover:text-slate-500 shrink-0"><Pencil size={10} /></button>
-            </div>
-          ) : (
-            <button onClick={() => { setUrlDraft(""); setEditUrl(true); }} className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600"><Link2 size={11} /> Add sign-in link</button>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => onRedownloadAll(group)} disabled={running || !unlockable} title={unlockable ? "Re-download every sheet in this sign-in" : "Paste a fresh link (or click the bookmark) from this portal to unlock"} className="flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5 font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400"><RotateCcw size={13} /> Re-download all</button>
-          <button onClick={() => setConfirmDel(true)} title="Delete this sign-in group" className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+          <button onClick={() => onRedownloadAll(group)} disabled={running || !unlockable} title={unlockable ? "Re-download every sheet in this sign-in" : "Paste a fresh link (or click the bookmark) from this portal to unlock"} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400"><RotateCcw size={12} /> Re-download all</button>
+          <button onClick={() => setConfirmDel(true)} title="Delete this sign-in group" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
         </div>
       </div>
       {confirmDel && (
-        <div className="flex items-center gap-2 flex-wrap px-4 py-2 text-xs bg-red-50 border-b border-red-100">
+        <div className="flex items-center gap-2 flex-wrap px-3 py-2 text-xs bg-red-50 border-b border-red-100">
           <span className="flex-1 text-red-600">Delete "{group.name}" and forget its {group.sheets.length} sheet{group.sheets.length === 1 ? "" : "s"}? Saved estimates are unaffected.</span>
           <button onClick={() => { onDelete(group.id); setConfirmDel(false); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete</button>
           <button onClick={() => setConfirmDel(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-white shrink-0">Cancel</button>
         </div>
       )}
       {group.sheets.length === 0 ? (
-        <p className="px-4 py-4 text-xs text-slate-400">No sheets yet — paste a link above, or drag one here from another sign-in.</p>
+        <p className="px-3 py-2.5 text-xs text-slate-400">No sheets yet — paste a link above, or drag one here from another sign-in.</p>
       ) : (
         <div className="divide-y divide-slate-100">
-          {group.sheets.map((s) => (
-            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onStartDrag={onStartDrag} />
-          ))}
+          {group.sheets.map((s) => { const info = sheetInfo(s); return (
+            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onStartDrag={onStartDrag} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
+          ); })}
         </div>
       )}
     </div>
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, onFiles, vendorPending, inp, lbl }) {
+export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook, vendorPending, books, staleDays, addBook, inp, lbl }) {
   const [pending, setPending] = useState(vendorPending || []); // live-session pool (sesids)
   const [progress, setProgress] = useState({});
   const [running, setRunning] = useState(false);
@@ -5044,6 +5060,15 @@ export function VendorFetchPage({ settings, setSettings, onFiles, vendorPending,
   const liveSesid = {};
   for (const e of pending) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
   const sheetSesid = (s) => liveSesid[`${s.host}|${s.user}`];
+
+  // Staleness of the price book a sheet feeds: amber once the linked book's last
+  // import is past the owner-set threshold (the same one the book list uses).
+  const bookById = {};
+  for (const b of books || []) bookById[b.id] = b;
+  const sheetInfo = (s) => {
+    const book = s.bookId ? bookById[s.bookId] : null;
+    return { book, stale: book ? bookStaleness(book.data?.lastImport?.at, staleDays) : null };
+  };
 
   const parseLinks = (text) => (text || "").split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
   const addPasted = (text) => {
@@ -5075,13 +5100,35 @@ export function VendorFetchPage({ settings, setSettings, onFiles, vendorPending,
       if (res.file) { files.push(res.file); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
       else { failures++; setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); }
     }
-    if (ok.length) writeGroups(rememberIntoGroups(groupsRef.current, ok.map(sheetRecord)));
+    if (ok.length) writeGroups(rememberIntoGroups(groupsRef.current, ok.map((e) => ({ ...sheetRecord(e), lastFetched: Date.now() }))));
     setRunning(false);
     if (files.length && !failures) onFiles(files);
     else if (files.length) setFetchedFiles(files);
   };
   const redownloadAll = (g) => run(g.sheets.filter((s) => sheetSesid(s)).map((s) => applySesid(s, sheetSesid(s))));
   const redownloadSheet = (s) => { const ses = sheetSesid(s); if (ses) run([applySesid(s, ses)]); };
+
+  // "Create price book from this sheet": download the one sheet, spin up a new
+  // order book named from it, link the sheet to it (so future re-downloads keep
+  // that book fresh and the stale flag has a book to watch), and hand the file
+  // to the normal import review targeted at the new book.
+  const createBookFromSheet = async (sheet) => {
+    const ses = sheetSesid(sheet);
+    if (!ses || running || !addBook) return;
+    setRunning(true); setFetchedFiles(null);
+    const k = recordKey(sheet);
+    setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
+    const { data } = await supabase.auth.getSession();
+    const res = await runFetch(applySesid(sheet, ses), data.session?.access_token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
+    setRunning(false);
+    if (!res.file) { setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); return; }
+    setProgress((m) => ({ ...m, [k]: { state: "done" } }));
+    const id = await addBook({ kind: "order", name: entryFileName(sheet).replace(/\.xls$/i, "") });
+    let next = rememberIntoGroups(groupsRef.current, [{ ...sheetRecord(sheet), lastFetched: Date.now() }]);
+    writeGroups(setSheetBook(next, sheet, id));
+    (onFilesToBook || onFiles)([res.file], id);
+  };
+  const unlinkSheetBook = (sheet) => writeGroups(setSheetBook(groupsRef.current, sheet, null));
 
   // Pointer-drag a sheet between sign-ins (mirrors the product-row drag: works
   // on mouse and touch — the handle carries touch-none). A ref keeps the
@@ -5105,15 +5152,15 @@ export function VendorFetchPage({ settings, setSettings, onFiles, vendorPending,
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="ft-serif text-3xl">Vendor sheets</h2>
-          <p className="text-sm text-slate-500 mt-1 max-w-xl">Pull the latest price lists straight off each distributor portal. Sheets are grouped by sign-in; one fresh link (or a bookmark click) unlocks a whole group's re-download. Fetched sheets go through the normal import review — nothing changes without your approval, and the portal session code stays in this browser.</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h2 className="ft-serif text-2xl">Vendor sheets</h2>
+          <p className="text-xs text-slate-400 truncate hidden sm:block" title="Pull the latest price lists straight off each distributor portal. One fresh link (or a bookmark click) unlocks a whole sign-in's re-download; fetched sheets go through the normal import review, and the portal session code stays in this browser.">Pull price lists straight off each distributor portal — grouped by sign-in.</p>
         </div>
-        {groups.length > 0 && <button onClick={addGroup} className="shrink-0 flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>}
+        {groups.length > 0 && <button onClick={addGroup} className="shrink-0 flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New sign-in</button>}
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5">
         <div className="flex items-center justify-between gap-2">
           <label className={lbl + " mb-0"}>Paste a sheet link{groups.length > 0 ? <span className="font-normal normal-case tracking-normal text-slate-400"> — unlocks its sign-in for re-download</span> : null}</label>
           <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up one-click fetch"}</button>
@@ -5144,9 +5191,9 @@ export function VendorFetchPage({ settings, setSettings, onFiles, vendorPending,
           <button onClick={addGroup} className="mt-3 inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4">
+        <div className="mt-3 grid grid-cols-1 gap-3">
           {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} progress={progress} running={running} dragOverId={drag?.overId} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onStartDrag={startDrag} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} dragOverId={drag?.overId} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onStartDrag={startDrag} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} inp={inp} />
           ))}
         </div>
       )}
@@ -5176,7 +5223,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  const takeFiles = (list) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped(fs); };
+  const takeFiles = (list, prefer) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped({ files: fs, prefer }); };
 
   const stockBooks = books.filter((b) => b.kind === "stock");
   const orderBooks = books.filter((b) => b.kind === "order");
@@ -5252,7 +5299,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={setDropped} vendorPending={vendorPending} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={(files) => setDropped({ files })} onFilesToBook={(files, prefer) => setDropped({ files, prefer })} vendorPending={vendorPending} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
@@ -5309,7 +5356,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         </>)}
       </div>
 
-      {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>

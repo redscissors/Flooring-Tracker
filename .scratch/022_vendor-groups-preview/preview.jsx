@@ -53,6 +53,14 @@ const VT = "connect24.virginiatile.com", VTU = "C00000XX";
 const OVF = "ovf400.ovf.com", OVFU = "OVF00000XX";
 const sheet = (host, user, uid, filename) => ({ vendor: "dancik", host, uid, user, filename });
 
+const DAY = 86400000;
+// Two linked books: one imported long ago (stale → amber "book Nd old" on its
+// sheet) and one imported recently (linked, no amber). staleDays default = 120.
+const BOOKS0 = [
+  { id: "bk-aot", kind: "order", name: "AOT EFT 26 02 19", active: true, data: { lastImport: { at: Date.now() - 200 * DAY, by: "Dave" } } },
+  { id: "bk-mar", kind: "order", name: "Marazzi EFT 26 01 30", active: true, data: { lastImport: { at: Date.now() - 12 * DAY, by: "Dave" } } },
+];
+
 const SETTINGS0 = {
   ops: {
     vendorGroups: [
@@ -60,9 +68,9 @@ const SETTINGS0 = {
         id: "g-vt", name: "Virginia Tile connect24 · C00000XX", loginUrl: "https://connect24.virginiatile.com/",
         portal: { host: VT, user: VTU },
         sheets: [
-          sheet(VT, VTU, "1071", "AOT EFT 26 02 19"),
-          sheet(VT, VTU, "1045", "ANA EFT 25 06 04"),
-          sheet(VT, VTU, "1088", "Marazzi EFT 26 01 30"),
+          { ...sheet(VT, VTU, "1071", "AOT EFT 26 02 19"), bookId: "bk-aot" },   // linked → STALE book (amber)
+          sheet(VT, VTU, "1045", "ANA EFT 25 06 04"),                            // unlinked
+          { ...sheet(VT, VTU, "1088", "Marazzi EFT 26 01 30"), bookId: "bk-mar" }, // linked → fresh book (no amber)
           // a sheet from a DIFFERENT account, dropped in here → mismatch chip
           sheet(OVF, OVFU, "196", "OVF Tarkett LVT (moved here)"),
         ],
@@ -85,20 +93,23 @@ const SETTINGS0 = {
 // states side by side.
 const VENDOR_PENDING = [{ vendor: "dancik", host: VT, uid: "1071", user: VTU, filename: "AOT EFT 26 02 19", sesid: "PreviewFreshToken1" }];
 
+let _n = 0;
 function Shell() {
   const [settings, setSettings] = useState(SETTINGS0);
+  const [books, setBooks] = useState(BOOKS0);
   const [narrow, setNarrow] = useState(false);
   const setSettingsPatch = (patch) => setSettings((s) => ({ ...s, ...patch }));
+  const addBook = async ({ kind, name }) => { const id = `bk-new-${++_n}`; setBooks((bs) => [...bs, { id, kind, name, active: true, data: {} }]); return id; };
   return (
     <div style={{ minHeight: "100vh", background: "var(--ft-bg, #f6f5f1)" }}>
       <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 bg-white/70 text-xs">
         <strong className="ft-serif text-base">Vendor sheets — preview</strong>
         <button onClick={() => setNarrow((v) => !v)} className="rounded border border-slate-300 px-2 py-1">{narrow ? "▢ Desktop width" : "▯ Phone width"}</button>
-        <span className="text-slate-400">Fake network: sheets stream to 100% then check; “ANA” fails to demo the error + partial-import banner. VT group is unlocked; OVF is locked (needs a fresh link).</span>
+        <span className="text-slate-400">Compact rows. AOT is linked to a 200-day-old book → amber “book 200d old”; Marazzi links to a fresh book (no amber). ⋯ menu creates/unlinks a book. VT unlocked; OVF locked.</span>
       </div>
       <div style={{ maxWidth: narrow ? 390 : "none", margin: narrow ? "0 auto" : 0, borderLeft: narrow ? "1px solid #ddd" : "none", borderRight: narrow ? "1px solid #ddd" : "none" }}>
         <div className="p-4 md:p-6">
-          <VendorFetchPage settings={settings} setSettings={setSettingsPatch} onFiles={(files) => alert(`Would route ${files.length} fetched sheet(s) to the import review.`)} vendorPending={VENDOR_PENDING} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettingsPatch} onFiles={(files) => alert(`Would route ${files.length} fetched sheet(s) to the import review.`)} onFilesToBook={(files, prefer) => alert(`Would route ${files.length} sheet(s) to book ${prefer} in the import review.`)} vendorPending={VENDOR_PENDING} books={books} staleDays={120} addBook={addBook} inp={inp} lbl={lbl} />
         </div>
       </div>
     </div>

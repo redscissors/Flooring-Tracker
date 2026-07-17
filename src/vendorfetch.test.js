@@ -6,6 +6,7 @@ import {
   sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes,
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
+  setSheetBook,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -253,6 +254,35 @@ test("rememberIntoGroups refreshes known sheets in place and files new ones by a
   // A sheet the user dragged into a foreign group is refreshed THERE, not re-filed.
   const dragged = [{ id: "solo", name: "Mixed", loginUrl: "", portal: null, sheets: [VT] }];
   assert.equal(rememberIntoGroups(dragged, [{ ...VT, filename: "x" }]).length, 1);
+});
+
+test("sheetRecord keeps a valid bookId + lastFetched but drops junk", () => {
+  const r = sheetRecord({ ...VT, bookId: "bk1", lastFetched: 123, sesid: "SECRET", junk: 1 });
+  assert.equal(r.bookId, "bk1");
+  assert.equal(r.lastFetched, 123);
+  assert.equal(r.sesid, undefined);
+  assert.equal(r.junk, undefined);
+  const bad = sheetRecord({ ...VT, bookId: 7, lastFetched: "soon" });
+  assert.equal("bookId" in bad, false);
+  assert.equal("lastFetched" in bad, false);
+});
+
+test("rememberIntoGroups preserves a sheet's bookId link across a re-fetch", () => {
+  const groups = [{ id: "g", name: "VT", loginUrl: "", portal: { host: VT.host, user: VT.user }, sheets: [{ ...VT, bookId: "bk1" }] }];
+  // A re-fetch carries base fields + a fresh lastFetched, no bookId — the link must survive.
+  const next = rememberIntoGroups(groups, [{ ...VT, filename: "new name", lastFetched: 999 }]);
+  assert.equal(next[0].sheets[0].bookId, "bk1");
+  assert.equal(next[0].sheets[0].filename, "new name");
+  assert.equal(next[0].sheets[0].lastFetched, 999);
+});
+
+test("setSheetBook links and unlinks the matching sheet only", () => {
+  const groups = [{ id: "g", name: "VT", loginUrl: "", portal: null, sheets: [VT, VT2] }];
+  const linked = setSheetBook(groups, VT, "bk9");
+  assert.equal(linked[0].sheets[0].bookId, "bk9");
+  assert.equal("bookId" in linked[0].sheets[1], false); // VT2 untouched
+  const unlinked = setSheetBook(linked, VT, null);
+  assert.equal("bookId" in unlinked[0].sheets[0], false);
 });
 
 test("newGroup builds an empty, named group from a portal", () => {

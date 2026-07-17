@@ -117,9 +117,17 @@ export function harvestVendorLinks(html, base) {
 // portal + dealer account. Menu-style portals (Dancik's #menu-option nav)
 // never expose bulk links, so this is their only bulk path.
 
+// The remembered shape carries stable portal params plus two optional
+// attributes that survive re-fetch: `bookId` links the sheet to the price book
+// it feeds (set by "Create price book from this sheet"; drives the stale/amber
+// flag), and `lastFetched` stamps the last successful download. Neither is part
+// of recordKey — a sheet keeps its link and history across moves and re-pulls.
 export function sheetRecord(entry) {
-  const { vendor, host, uid, filename, user } = entry || {};
-  return { vendor, host, uid, filename, user };
+  const { vendor, host, uid, filename, user, bookId, lastFetched } = entry || {};
+  const r = { vendor, host, uid, filename, user };
+  if (typeof bookId === "string" && bookId) r.bookId = bookId;
+  if (typeof lastFetched === "number" && lastFetched > 0) r.lastFetched = lastFetched;
+  return r;
 }
 
 export function recordKey(r) {
@@ -208,6 +216,20 @@ export function moveSheetInGroups(groups, sheet, fromId, toId) {
   });
 }
 
+// Link (or, with bookId null, unlink) a sheet to the price book it feeds,
+// keyed by recordKey wherever the user filed it. Pure — returns next groups.
+export function setSheetBook(groups, sheet, bookId) {
+  const k = recordKey(sheet);
+  return (groups || []).map((g) => ({
+    ...g,
+    sheets: (g.sheets || []).map((s) => {
+      if (recordKey(s) !== k) return s;
+      const { bookId: _drop, ...rest } = s;
+      return bookId ? { ...rest, bookId } : rest;
+    }),
+  }));
+}
+
 // Fold a flat pre-groups vendorSheets array into one group per {host,user}
 // dealer account, in first-seen order.
 export function migrateVendorSheets(flat) {
@@ -258,7 +280,9 @@ export function rememberIntoGroups(groups, recs) {
     if (!g) g = next.find((x) => x.portal && x.portal.host === rec.host && x.portal.user === rec.user);
     if (!g) { g = newGroup({ host: rec.host, user: rec.user }); next.push(g); }
     const i = g.sheets.findIndex((s) => recordKey(s) === k);
-    if (i >= 0) g.sheets[i] = rec; else g.sheets.push(rec); // in place → order preserved
+    // Merge, don't replace: a re-fetch (rec = base fields + a fresh
+    // lastFetched) must not drop the sheet's remembered bookId link.
+    if (i >= 0) g.sheets[i] = { ...g.sheets[i], ...rec }; else g.sheets.push(rec); // in place → order preserved
   }
   return next;
 }
