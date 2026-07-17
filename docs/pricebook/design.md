@@ -461,10 +461,13 @@ throwaway-prototype method before building it for real.
    real-world failure of this whole system. Pure predicate `bookStaleness`
    (orderbook.js) is unit-tested.
 4. **Deferred, deliberately:** per-user cost visibility (breaks ADR 0004 —
-   needs its own ADR), automatic vendor-sheet fetching (no server today),
-   fuzzy cross-book product matching (guessing wrong prices jobs wrong), and
+   needs its own ADR), fuzzy cross-book product matching (guessing wrong
+   prices jobs wrong), and
    markup versioning (markups are settings; the drift chip already surfaces
-   the consequence).
+   the consequence). Automatic vendor-sheet fetching, once deferred as "no
+   server today," landed as ADR 0019 (bookmarklet + Netlify relay); only the
+   fully-headless cron variant stays deferred (it would store portal
+   credentials).
 
 **RESOLVED (Q4, 2026-07-12):** one stock workbook today; more pages likely,
 more stock workbooks possible. Handled in §2.1/§2.2: the registry carries

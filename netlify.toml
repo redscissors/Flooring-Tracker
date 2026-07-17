@@ -2,6 +2,9 @@
   command = "npm run build"
   publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+
 # Supabase connection for the build. The publishable/anon key is public by
 # design (it ships in the browser bundle); data is protected by Row-Level
 # Security. Setting them here means GitHub-connected builds work with no extra

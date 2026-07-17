@@ -61,6 +61,9 @@ src/
                     # ADR 0017) mutes that code's chip + import warnings and is
                     # carried across re-imports like the disabled column
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
+  vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
+                    # bookmarklet source + URL-fragment hand-off, response
+                    # sniffing; shared by the browser panel and the relay
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature
@@ -75,6 +78,12 @@ src/
                     # book-list sidebar) routes a mixed drop and reuses each
                     # book's normal import preview.
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
+netlify/
+  functions/
+    vendor-fetch.mjs # server-side price-sheet relay (ADR 0019): JWT-gated,
+                     # fetches a portal sheet from an allowlisted host and
+                     # streams the bytes to the browser. FALLBACK relay — used
+                     # when the Supabase Edge twin isn't deployed / reachable
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies

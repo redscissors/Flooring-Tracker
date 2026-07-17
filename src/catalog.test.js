@@ -694,6 +694,21 @@ test("normOps preserves a valid staleDays override and drops an invalid one", ()
   assert.equal(both.ops.lastImport.by, "Dave");
 });
 
+test("normOps keeps remembered vendor sheets but never a session token", () => {
+  const rec = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1071", user: "C00000XX", filename: "AOT EFT 26 02 19" };
+  const out = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { vendorSheets: [
+    { ...rec, sesid: "MustNotPersist1" },
+    { vendor: "dancik", host: "x" }, // missing required fields — dropped
+    "junk",
+  ] } }));
+  assert.equal(out.ops.vendorSheets.length, 1);
+  assert.deepEqual(out.ops.vendorSheets[0], rec);
+  assert.equal(out.ops.vendorSheets[0].sesid, undefined);
+  // an empty list leaves no ops at all
+  const none = serializeSettings(normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: { vendorSheets: [] } }));
+  assert.equal(none.ops, undefined);
+});
+
 test("garbage ops normalize away instead of persisting", () => {
   for (const bad of ["yes", 7, { lastImport: "yesterday" }, { lastImport: { by: "Dave" } }, { lastImport: { at: "not a time" } }]) {
     const s = normalizeSettings({ waste: { tile: 10, floor: 10 }, ops: bad });
