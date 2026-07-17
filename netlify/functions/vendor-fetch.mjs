@@ -32,9 +32,15 @@ export default async function handler(req) {
 
   let res;
   try {
-    res = await fetch(buildVendorUrl(entry), { redirect: "manual", signal: AbortSignal.timeout(30000) });
-  } catch {
-    return json(502, { error: "could not reach the vendor portal" });
+    // The portal builds big sheets on demand; give it the whole invocation
+    // window minus a beat to answer (Netlify sync functions cap at 10s by
+    // default, 26s when raised in the site's function settings). A timeout is
+    // reported as its own error so the browser knows a retry is worthwhile —
+    // the second request usually hits the portal's just-built cache.
+    res = await fetch(buildVendorUrl(entry), { redirect: "manual", signal: AbortSignal.timeout(25000) });
+  } catch (err) {
+    const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
+    return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });
   }
   // Dancik answers a dead session with a redirect or its login page, not an
   // error status — classify instead of trusting res.ok alone.

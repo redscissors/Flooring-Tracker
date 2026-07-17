@@ -4850,18 +4850,31 @@ function VendorFetchPanel({ initialEntries, settings, setSettings, onFiles, onCl
     let failures = 0;
     for (const e of picked) {
       const k = entryKey(e);
-      setStatus((s) => ({ ...s, [k]: "fetching" }));
-      try {
-        const res = await fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(e) });
-        if (!res.ok) {
-          let msg = `failed (${res.status})`;
-          try { const j = await res.json(); msg = j.error === "session-expired" ? "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" : (j.error || msg); } catch {}
-          setStatus((s) => ({ ...s, [k]: msg })); failures++; continue;
-        }
-        files.push(new File([await res.arrayBuffer()], entryFileName(e), { type: "application/vnd.ms-excel" }));
-        ok.push(e);
-        setStatus((s) => ({ ...s, [k]: "done" }));
-      } catch { setStatus((s) => ({ ...s, [k]: "network error" })); failures++; }
+      let done = false, msg = "network error";
+      // The portal builds big sheets on demand and the first request can
+      // outlast the relay's window; a re-request usually hits the portal's
+      // just-built cache, so slow/server errors get two automatic retries.
+      for (let t = 1; t <= 3 && !done; t++) {
+        setStatus((s) => ({ ...s, [k]: t === 1 ? "fetching" : `portal is slow — retry ${t - 1} of 2…` }));
+        if (t > 1) await new Promise((r) => setTimeout(r, 2500));
+        try {
+          const res = await fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(e) });
+          if (res.ok) {
+            files.push(new File([await res.arrayBuffer()], entryFileName(e), { type: "application/vnd.ms-excel" }));
+            ok.push(e); done = true;
+            setStatus((s) => ({ ...s, [k]: "done" }));
+            break;
+          }
+          let err = "";
+          try { err = (await res.json()).error || ""; } catch {}
+          if (err === "session-expired") { msg = "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)"; break; }
+          msg = err === "vendor-timeout"
+            ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
+            : (err || `failed (${res.status})`);
+          if (res.status < 500) break; // only slow/server errors are worth retrying
+        } catch { msg = "network error"; }
+      }
+      if (!done) { setStatus((s) => ({ ...s, [k]: msg })); failures++; }
     }
     rememberFetched(ok.map(sheetRecord));
     setRunning(false);
