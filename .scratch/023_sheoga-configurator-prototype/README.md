@@ -59,6 +59,15 @@ renders whenever the token scan matches — no RPC involved.)
 All prices in the engine are **distributor cost**; the markup control
 (default 40%) produces the sell price.
 
+**Cartons.** Sheoga flooring sells by full cartons (per shop, 2026-07-17):
+2¼" 22 sf · 3¼" 21 sf · 4¼" 22 sf · 5¼" 20.5 sf · 6¼" 20 sf · 7¼" 23.5 sf ·
+8¼" 21.5 sf. Flooring and stocked-prefinished quantities round up to whole
+cartons (exact value always shown, ADR 0013 math) and the import payload
+carries `cartonSf` so the app row bills every carton. Live Sawn 9¼"/11¼" have
+no carton figure (call Sheoga); herringbone is made-to-order, no carton
+rounding. Descriptions are **size-first** (`5¼" White Oak · Character · …`)
+and the import fills `sizeText`, matching every other product row.
+
 ### Assumptions to confirm before production
 1. Length upcharges (%) apply to the unfinished base incl. no-sap, before flat
    $/sf adders (sheet just says "Add 15%").

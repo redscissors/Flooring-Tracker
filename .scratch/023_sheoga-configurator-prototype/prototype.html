@@ -371,6 +371,7 @@
 const N=null;
 const W7=[2.25,3.25,4.25,5.25,6.25,7.25,8.25];
 const WLBL={2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"',9.25:'9¼"',11.25:'11¼"'};
+const CARTON_SF={2.25:22,3.25:21,4.25:22,5.25:20.5,6.25:20,7.25:23.5,8.25:21.5}; // sf per carton by width; 9¼/11¼ live sawn = call
 
 const UNFIN={ // clear/char = solid; eClear/eChar = engineered; index → W7
  'White Oak':      {clear:[5.65,5.95,6.25,6.65,7.15,7.70,8.40], char:[3.60,3.80,4.05,4.35,4.65,4.95,5.25], eClear:[N,6.00,6.40,6.85,7.30,7.80,8.30], eChar:[N,5.00,5.35,5.70,6.05,6.45,6.90]},
@@ -563,9 +564,10 @@ function calcFloor(f,sf){
  const warn=[];
  if(custom&&!f.sample)warn.push('Custom color — add the $750 color-match sample, or call Sheoga');
  warn.push('Made to order · 5–10% overrun · non-returnable');
- const desc=`${f.sp} · ${gradeName(f)} · ${f.cons==='solid'?'Solid':'Engineered'} ${WLBL[f.w]}`+
+ const size=WLBL[f.w];
+ const rest=`${f.sp} · ${gradeName(f)} · ${f.cons==='solid'?'Solid':'Engineered'}`+
    `${f.noSap?' · No sap':''} · ${tex.name.replace(' (standard)','')} · ${edge.name} · ${len.name.replace(' (standard)','')} lengths · ${finName(f)}`;
- return {desc, name:`Sheoga ${f.sp} ${WLBL[f.w]}`, rows, cost, per:'sf', warn, fees};
+ return {desc:`${size} ${rest}`, size, rest, cartonSf:CARTON_SF[f.w]||null, name:`Sheoga ${size} ${f.sp}`, rows, cost, per:'sf', warn, fees};
 }
 function gradeName(f){return f.sp==='Live Sawn White Oak'?'Live Sawn':(f.grade==='clear'?'Clear':'Character');}
 function finName(f){const x=FINISHES.find(z=>z.id===f.finish);
@@ -577,8 +579,9 @@ function calcStocked(k,sf){
  const it=STOCKED[k.item]; const arr=it[k.grade]; if(!arr)return null;
  const ws=STOCKED_W[k.grade]; const i=ws.indexOf(k.w); const p=(i<0)?N:arr[i]; if(p==N)return null;
  const rows=[[`Stocked prefinished — micro bevel, ${it.sheen}-sheen clear ceramic`,fm(p)+'/sf']];
- const desc=`${it.sp} — ${it.color} · ${k.grade==='clear'?'Clear':'Character'} ${WLBL[k.w]} · Stocked prefinished, ${it.sheen}-sheen`;
- return {desc, name:`Sheoga ${it.sp} ${it.color} ${WLBL[k.w]}`, rows, cost:p, per:'sf', warn:['Stocked item — ships from Sheoga stock'], fee:0};
+ const size=WLBL[k.w];
+ const rest=`${it.sp} — ${it.color} · ${k.grade==='clear'?'Clear':'Character'} · Stocked prefinished, ${it.sheen}-sheen`;
+ return {desc:`${size} ${rest}`, size, rest, cartonSf:CARTON_SF[k.w]||null, name:`Sheoga ${size} ${it.sp} ${it.color}`, rows, cost:p, per:'sf', warn:['Stocked item — ships from Sheoga stock'], fees:[]};
 }
 function calcHB(h,sf){
  const t=HB[h.cons==='solid'?'solid':'eng'][h.sp]; if(!t)return null;
@@ -587,9 +590,10 @@ function calcHB(h,sf){
  const rows=[[`Herringbone — ${h.sp} ${h.cons==='solid'?'solid':'engineered'} ${WLBL[h.w]}, ${HB.bands[h.band]}`,fm(base)+'/sf']];
  let cost=base;
  if(h.chevron){cost+=3.00;rows.push(['Chevron pattern (slip tongue included)','+$3.00/sf']);}
- const desc=`${h.chevron?'Chevron':'Herringbone'} · ${h.sp} · ${h.cons==='solid'?'Solid':'Engineered'} ${WLBL[h.w]} · ${HB.bands[h.band]}`;
- return {desc, name:`Sheoga ${h.chevron?'Chevron':'Herringbone'} ${h.sp}`, rows, cost, per:'sf',
-   warn:['Deposit required · subject to 10% overrun · no returns'], fee:0};
+ const size=WLBL[h.w];
+ const rest=`${h.sp} · ${h.cons==='solid'?'Solid':'Engineered'} ${h.chevron?'Chevron':'Herringbone'} · ${HB.bands[h.band]}`;
+ return {desc:`${size} ${rest}`, size, rest, name:`Sheoga ${size} ${h.chevron?'Chevron':'Herringbone'} ${h.sp}`, rows, cost, per:'sf',
+   warn:['Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding'], fees:[]};
 }
 function ventDims(sz){return sz.split('×').map(x=>x==='2¼'?2.25:parseFloat(x));}
 function calcVent(v){
@@ -764,7 +768,9 @@ function renderBuild(){
  const sell=sellOf(c.cost);
  const isEa=c.per==='ea';const qty=c.qty||1;
  const feesTot=(c.fees||[]).reduce((a,x)=>a+x.amt,0);
- const jobTot=(isEa?sell*qty:sell*S.sf)+feesTot;
+ const ctn=(!isEa&&c.cartonSf)?{sf:c.cartonSf,exact:S.sf/c.cartonSf,n:Math.ceil(S.sf/c.cartonSf)}:null;
+ if(ctn)ctn.billed=+(ctn.n*ctn.sf).toFixed(1);
+ const jobTot=(isEa?sell*qty:sell*(ctn?ctn.billed:S.sf))+feesTot;
  b.innerHTML=`
   <div class="build-h"><span class="tchip">H</span><span class="t">${esc(c.name)}</span>
     <span class="veff">priced from Sheoga sheets · Feb ’25 / Feb ’22</span></div>
@@ -772,13 +778,14 @@ function renderBuild(){
   <div class="desc-sub">↑ this description <b>is</b> the order — Sheoga has no SKUs; it snapshots onto the job line.</div>
   <div class="bd">
     ${c.rows.map(r=>`<div class="bd-row"><span class="lbl">${esc(r[0])}</span><span class="amt">${esc(r[1])}</span></div>`).join('')}
+    ${ctn?`<div class="bd-row"><span class="lbl">Sold by full cartons — ${ctn.sf} sf/carton</span><span class="amt">${ctn.n} ctns · exact ${ctn.exact.toFixed(2)}</span></div>`:''}
     ${c.warn.map(w=>`<div class="bd-row warn"><span class="lbl">⚠ ${esc(w)}</span></div>`).join('')}
   </div>
   <div class="bd-total">
     <div class="cost"><div class="k">our cost</div><div class="v">${fm(c.cost)}${isEa?' ea':'/sf'}</div></div>
     <div class="arrow">→ +${S.markup}% →</div>
     <div class="cost sell"><div class="k">sell</div><div class="v">${fm(sell)}${isEa?' ea':'/sf'}</div></div>
-    <div class="jobtot"><div class="k">${isEa?`× ${qty} pcs`:`× ${S.sf} sq ft`}${feesTot?` + ${fm(feesTot)} fees`:''}</div><div class="v">${'$'+jobTot.toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+    <div class="jobtot"><div class="k">${isEa?`× ${qty} pcs`:ctn?`${ctn.n} ctns × ${ctn.sf} sf = ${ctn.billed} sf`:`× ${S.sf} sq ft`}${feesTot?` + ${fm(feesTot)} fees`:''}</div><div class="v">${'$'+jobTot.toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
   </div>
   <div class="build-act">
     <button class="btn moss" onclick="saveOption()">☆ Save option</button>
@@ -889,22 +896,26 @@ function pickHB(b,w){S.hb.band=b;S.hb.w=w;closeModal();renderAll();}
 function pickVent(sz){S.vent.size=sz;closeModal();renderAll();}
 function openAdd(){
  const c=calc();if(!c)return;const sell=sellOf(c.cost);const isEa=c.per==='ea';
+ const ctn=(!isEa&&c.cartonSf)?{sf:c.cartonSf,exact:S.sf/c.cartonSf,n:Math.ceil(S.sf/c.cartonSf)}:null;
+ if(ctn)ctn.billed=+(ctn.n*ctn.sf).toFixed(1);
  const main=isEa?{type:'hardwood',sku:'',brandColor:`Sheoga — ${c.desc}`,qtyType:'count',qty:c.qty||1,priceSqft:+sell.toFixed(2),note:'Sheoga special order — by description, no SKU'}
-   :{type:'hardwood',sku:'',brandColor:`Sheoga — ${c.desc}`,sizeText:'',qtyType:'sqft',qty:S.sf,priceSqft:+sell.toFixed(2),note:'Sheoga special order — 5-10% overrun, no returns'};
+   :{type:'hardwood',sku:'',sizeText:c.size||'',brandColor:`Sheoga — ${c.rest||c.desc}`,qtyType:'sqft',qty:S.sf,priceSqft:+sell.toFixed(2),...(c.cartonSf?{cartonSf:c.cartonSf}:{}),note:'Sheoga special order — 5-10% overrun, no returns'};
  const lines=[main,...(c.fees||[]).map(x=>({type:'hardwood',sku:'',brandColor:`Sheoga — ${x.label}`,qtyType:'count',qty:1,priceSqft:x.amt,note:'vendor fee — passed through at cost'}))];
+ const mainTot=(isEa?(c.qty||1):ctn?ctn.billed:S.sf)*sell;
  $('modalBox').innerHTML=`
   <div class="modal-h"><span class="t">Add to product line${lines.length>1?'s':''}</span><span class="sub">${lines.length>1?lines.length+' lines land on the job — fees stay visible, never buried in the $/sf':'what lands on the job'}</span>
    <button class="xbtn" style="margin-left:auto" onclick="closeModal()">✕</button></div>
   <div class="modal-b">
    <div class="prev-row"><span class="tchip">H</span>
-    <span class="nm">Sheoga — ${esc(c.desc)}<small>${isEa?`${c.qty||1} pcs × ${fm(sell)}`:`${S.sf} sq ft × ${fm(sell)}/sf`} · special order</small></span>
-    <span class="money"><b>${'$'+((isEa?(c.qty||1):S.sf)*sell).toLocaleString(undefined,{maximumFractionDigits:0})}</b><small>line total</small></span></div>
+    <span class="nm">${c.size?`<b>${esc(c.size)}</b> · `:''}Sheoga — ${esc(c.rest||c.desc)}<small>${isEa?`${c.qty||1} pcs × ${fm(sell)}`:ctn?`${S.sf} sf → ${ctn.n} cartons × ${ctn.sf} sf = ${ctn.billed} sf billed × ${fm(sell)}/sf`:`${S.sf} sq ft × ${fm(sell)}/sf`} · special order</small></span>
+    <span class="money"><b>${'$'+mainTot.toLocaleString(undefined,{maximumFractionDigits:0})}</b><small>line total</small></span></div>
    ${(c.fees||[]).map(x=>`<div class="prev-row" style="border-style:dashed"><span class="tchip" style="background:var(--faint)">$</span>
     <span class="nm">Sheoga — ${esc(x.label)}<small>1 × ${fm(x.amt)} · flat vendor fee, passed through at cost</small></span>
     <span class="money"><b>${fm(x.amt)}</b><small>own line</small></span></div>`).join('')}
    <pre class="payload">${esc(JSON.stringify(lines.length>1?lines:main,null,2))}</pre>
-   <p class="modal-note">In the app this creates a hardwood product row on the selected area — the description snapshots into
-   <b>brandColor</b> (exactly like a price-book pick snapshots SKU + price), the sell price lands in <b>priceSqft</b>, and the configuration
+   <p class="modal-note">In the app this creates a hardwood product row on the selected area — size first in <b>sizeText</b> like every
+   other product, the description in <b>brandColor</b> (exactly like a price-book pick snapshots SKU + price), the sell price in
+   <b>priceSqft</b>, and <b>cartonSf</b> so the row orders whole cartons (ADR 0013 math: exact shown, order rounds up). The configuration
    itself is kept on the row so “Reconfigure” can reopen this popup pre-filled. Nothing reprices later unless you reopen and re-import —
    same snapshot rule as the stock book (ADR 0003).</p>
    <div class="build-act" style="border:none;padding:12px 0 0">
