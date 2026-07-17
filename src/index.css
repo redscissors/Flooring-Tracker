@@ -167,6 +167,12 @@ body {
 input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);opacity:1;}
 .ft-rail{background-color:var(--ft-cream);}
 
+/* App-shell height. 100vh on phones is the LARGE viewport (URL bar hidden), and
+   the shell only scrolls inside <main>, so the browser chrome never collapses —
+   a 100vh root keeps the bottom Area/Product/Print bar permanently cut off
+   behind the toolbar. 100dvh tracks the visible viewport; 100vh is the fallback. */
+.ft-vh{height:100vh;height:100dvh;}
+
 /* Kiln #14a grid cells: borderless inputs/selects that light up a brand focus
    ring inside their cell instead of drawing their own chrome. */
 .ft-cell{width:100%;min-width:0;background:transparent;border:none;padding:6px 8px;font:inherit;color:inherit;outline:none;border-radius:0;}

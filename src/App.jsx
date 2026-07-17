@@ -3091,7 +3091,7 @@ export default function App({ user, onSignOut }) {
   };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
+    <div className="ft-vh bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
@@ -4103,13 +4103,15 @@ export default function App({ user, onSignOut }) {
         {/* Mobile add bar (mobile shell 2026-07-16): + Product follows the
             area in view (activeAreaId); Print wears the tier color like the
             desktop header buttons. Sits under <main> in the flex column, so
-            it never overlaps content. */}
-        {!isWide && sel && sel._full && viewTab === "edit" && (() => {
+            it never overlaps content and stays locked to the bottom whenever
+            a project is open — on the preview tab too, where Area/Product
+            first hop back to the edit view. */}
+        {!isWide && sel && sel._full && (() => {
           const cur = sel.categories.find((a) => a.id === activeAreaId) || sel.categories[0];
           return (
             <div className="ft-noprint flex gap-2 px-3 pt-2.5 ft-rail border-t border-slate-200" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-              <button onClick={addArea} className="h-[38px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
-              <button onClick={mobileAddProduct} className="h-[38px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
+              <button onClick={() => { setViewTab("edit"); addArea(); }} className="h-[38px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
+              <button onClick={() => { setViewTab("edit"); mobileAddProduct(); }} className="h-[38px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
                 <Plus size={14} className="shrink-0" /> Product{cur ? <span className="truncate opacity-75 font-semibold">&nbsp;· {areaLabel(cur, sel.categories.indexOf(cur))}</span> : null}
               </button>
               <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-4 text-[12.5px] font-bold"><Printer size={14} /> Print</button>
