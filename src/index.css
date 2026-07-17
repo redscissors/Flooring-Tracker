@@ -109,13 +109,8 @@ body {
    than the amber drift/freight notices (spec 2026-07-14). */
 .ft-warn-orange{color:#C2410C;}
 .ned-dark .ft-warn-orange{color:#FB923C;}
-/* "the ned" wordmark lockups (pure type). Stacked is primary: "the" in moss
-   sits snug above the "n" (negative margin absorbs the font leading). Inline
-   is for horizontal spaces (print footer). Size via font-size on the root. */
-.ft-wordmark-stacked{display:inline-flex;flex-direction:column;align-items:flex-start;font-family:var(--ft-ui);font-weight:700;font-size:1em;line-height:1;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);}
-.ft-wordmark-stacked .the{font-size:.265em;font-weight:600;letter-spacing:.02em;color:var(--ft-brand);margin:0 0 -.78em .22em;}
-.ft-wordmark-inline{display:inline-flex;align-items:baseline;gap:.06em;font-family:var(--ft-ui);font-weight:700;font-size:1em;line-height:1;letter-spacing:-.02em;text-transform:lowercase;color:var(--ft-logo);}
-.ft-wordmark-inline .the{font-size:.38em;font-weight:600;letter-spacing:-.01em;color:var(--ft-brand);}
+/* The "the ned" wordmark is now the logo-kit SVG lockup (src/NedLogo.jsx),
+   not CSS type — the old .ft-wordmark-* helpers are gone with it. */
 /* Tagline lockup: ink/paper, never accent (kit rule). */
 .ft-tagline{font-family:var(--ft-ui);font-weight:600;text-transform:uppercase;letter-spacing:.3em;color:var(--ft-logo);line-height:1;}
 /* Merged materials box: line separators carry the row's type accent
