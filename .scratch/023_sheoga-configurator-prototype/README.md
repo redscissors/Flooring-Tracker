@@ -6,9 +6,16 @@
 > Production progress: `src/sheoga.js` (data tables + pricing engine +
 > query parser + `lineItems` payload builder, unit-tested in
 > `src/sheoga.test.js`) is implemented; `normP` carries `product.sheoga`.
-> Still to build: the `SheogaConfigurator` popup, the SKU-search pinned row,
-> saved options on the customer / recents per user, and the Settings markup
-> knob (see "Production path" below).
+> The UI is in too: `src/SheogaConfigurator.jsx` (option-board popup), the
+> pinned "Vendor configurators" row in the blank-row search
+> (`GridOmniSearch`), `addSheogaLines` + the row's "Sheoga — reconfigure"
+> chip, and the markup default in Settings → Price book
+> (`settings.pricing.sheogaMarkupPct`). Preview proof: `P1…P7-*.png`,
+> captured from `harness.html` (run `npm run dev`, open
+> `/.scratch/023_sheoga-configurator-prototype/harness.html` — mounts the
+> real components against fake stock, no Supabase).
+> Still to build: saved options on the customer record / per-user recents,
+> and the mobile search-sheet entry (desktop-first for now).
 
 Sheoga Hardwood sells **by description, not SKU** — species × grade × width ×
 solid/engineered, plus texture/scrape, length runs, edge, sap and finishing

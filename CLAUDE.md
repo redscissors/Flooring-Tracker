@@ -72,6 +72,14 @@ src/
                     # as separate at-cost misc lines; `product.sheoga` keeps the
                     # raw config for Reconfigure). A sheet update is a
                     # re-transcription of this one file
+  SheogaConfigurator.jsx  # the configurator popup (prototype A option board):
+                    # mode tabs, option rail with live sell prices on the chips,
+                    # build card (cost -> sell, carton preview, fee lines), full
+                    # price grid. Opened from a row's search (the pinned "Vendor
+                    # configurators" row in GridOmniSearch — "she" is enough) or
+                    # its "Sheoga — reconfigure" chip; Add fills the row via
+                    # addSheogaLines. Markup default: settings.pricing
+                    # .sheogaMarkupPct (Settings -> Price book)
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + URL-fragment hand-off, response
                     # sniffing; shared by the browser panel and the relay.
