@@ -71,3 +71,22 @@ release, so a stored "shopping list" of URLs would drift.
 - Fully hands-off fetching (cron + stored portal credentials) remains
   deliberately out: it would store vendor passwords and break on 2FA. If ever
   wanted, it slots behind the same relay.
+
+## Amendment (2026-07-17): remembered sheets — one link refreshes the lot
+
+Field testing found connect24's own price-list navigation is a **menu of
+`#menu-option/N/N` app-code links**: the download URL exists nowhere in the
+page until a sheet is opened, and opening one triggers a download whose blank
+tab can't run the bookmarklet. Static harvesting is impossible there, and
+per-sheet capture saves nothing over just downloading.
+
+So the panel **remembers every successfully fetched sheet's stable params**
+(`settings.ops.vendorSheets`: vendor/host/uid/user/filename — normOps strips
+any session token before shared settings ever see one; identity is
+`vendor:host:uid:user`, so a re-release's new filename replaces its
+predecessor's). All entries for one portal share one login session, so any
+single fresh link — pasted from the browser's Downloads page, or captured by
+the bookmarklet on page-style portals — donates its `sesid` to every
+remembered sheet for that portal + dealer account. Quarterly VTC updates
+become: open one sheet, paste its link, fetch all. The fetch still relays
+per-sheet and lands in the same review flow.

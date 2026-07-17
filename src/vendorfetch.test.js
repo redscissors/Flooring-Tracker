@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
-  decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries, classifySheetBytes,
+  decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries,
+  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -125,6 +126,26 @@ test("mergeEntries stacks hand-offs, replacing same-sheet entries with the fresh
   assert.deepEqual(mergeEntries([a], [b]), [a, b]); // different sheet appends
   assert.deepEqual(mergeEntries([a, b], [aFresh]), [b, aFresh]); // same sheet: new token wins
   assert.deepEqual(mergeEntries([{ ...a, host: "evil.example.com" }], [b]), [b]); // stale junk dropped
+});
+
+test("remembered sheets: record drops the token, applySesid restores a fetchable entry", () => {
+  const e = parseVendorLink(LINK);
+  const rec = sheetRecord(e);
+  assert.equal(rec.sesid, undefined);
+  assert.deepEqual(Object.keys(rec).sort(), ["filename", "host", "uid", "user", "vendor"]);
+  const back = applySesid(rec, "FreshToken123");
+  assert.equal(entryProblems(back), null);
+  assert.equal(back.sesid, "FreshToken123");
+});
+
+test("mergeRecords replaces same-sheet records (fresh filename wins) and strips tokens", () => {
+  const a = sheetRecord(parseVendorLink(LINK));
+  const b = { ...a, uid: "1045", filename: "ANA EFT 25 06 04" };
+  const aNewRelease = { ...a, filename: "AOT EFT 26 05 20", sesid: "ShouldNotPersist1" };
+  assert.equal(recordKey(aNewRelease), recordKey(a)); // filename is not identity
+  const merged = mergeRecords([a, b], [aNewRelease]);
+  assert.deepEqual(merged.map((r) => r.filename), ["ANA EFT 25 06 04", "AOT EFT 26 05 20"]);
+  assert.ok(merged.every((r) => r.sesid === undefined));
 });
 
 test("classifySheetBytes tells sheets from login bounces", () => {

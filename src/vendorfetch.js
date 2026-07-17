@@ -110,6 +110,33 @@ export function harvestVendorLinks(html, base) {
   return [...out];
 }
 
+// ---- remembered sheets ---------------------------------------------------
+// A fetched sheet's stable params (never the session token) are remembered in
+// shared settings (settings.ops.vendorSheets) so next quarter ONE fresh link
+// from the portal — its sesid — re-fetches every remembered sheet for that
+// portal + dealer account. Menu-style portals (Dancik's #menu-option nav)
+// never expose bulk links, so this is their only bulk path.
+
+export function sheetRecord(entry) {
+  const { vendor, host, uid, filename, user } = entry || {};
+  return { vendor, host, uid, filename, user };
+}
+
+export function recordKey(r) {
+  return `${r.vendor}:${r.host}:${r.uid}:${r.user}`;
+}
+
+// Replace same-sheet records (the new capture carries the current filename),
+// keep the rest.
+export function mergeRecords(prev, next) {
+  const fresh = new Set((next || []).map(recordKey));
+  return [...(prev || []).filter((r) => !fresh.has(recordKey(r))), ...(next || []).map(sheetRecord)];
+}
+
+export function applySesid(record, sesid) {
+  return { ...sheetRecord(record), sesid };
+}
+
 // Merge a new hand-off into previously stashed entries: same-key sheets are
 // replaced (the new ones carry the fresher session token), the rest kept.
 // Menu-style portals build the download URL in their own code at click time,

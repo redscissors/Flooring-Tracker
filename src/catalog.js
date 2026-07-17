@@ -684,8 +684,16 @@ export const normOps = (raw) => {
   // when unset/invalid); a positive whole-day count or nothing.
   const sd = Math.round(num(raw?.staleDays));
   const staleDays = sd > 0 ? sd : null;
-  if (!lastImport && !lastBackup && staleDays == null) return undefined;
-  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}) };
+  // Vendor sheets remembered by the fetch panel (ADR 0019): stable portal
+  // params only — a session token must never persist in shared settings.
+  const vendorSheets = Array.isArray(raw?.vendorSheets)
+    ? raw.vendorSheets
+        .filter((r) => r && [r.vendor, r.host, r.uid, r.user].every((v) => typeof v === "string" && v))
+        .map(({ vendor, host, uid, user, filename }) => ({ vendor, host, uid, user, filename: typeof filename === "string" ? filename : "" }))
+        .slice(0, 500)
+    : [];
+  if (!lastImport && !lastBackup && staleDays == null && !vendorSheets.length) return undefined;
+  return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}), ...(vendorSheets.length ? { vendorSheets } : {}) };
 };
 
 // Team-wide tier percentages (spec 2026-07-16): Builder / Sale % off retail,

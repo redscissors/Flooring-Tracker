@@ -7,7 +7,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { VENDORS, parseVendorLink, entryProblems, entryFileName, entryKey, bookmarkletSource, captureHandoff, clearHandoff } from "./vendorfetch.js";
+import { VENDORS, parseVendorLink, entryProblems, entryFileName, entryKey, bookmarkletSource, captureHandoff, clearHandoff, sheetRecord, recordKey, mergeRecords, applySesid } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
@@ -4796,9 +4796,9 @@ function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
 // portal price-list links; the Netlify relay fetches each sheet's bytes; the
 // results become a File[] handed to the SAME multi-file drop router a
 // drag-drop uses, so routing/diff/apply are unchanged.
-function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
+function VendorFetchPanel({ initialEntries, settings, setSettings, onFiles, onClose, inp, lbl }) {
   const [entries, setEntries] = useState(initialEntries || []);
-  const [checked, setChecked] = useState(() => new Set((initialEntries || []).map(entryKey)));
+  const [unchecked, setUnchecked] = useState(() => new Set());
   const [pasted, setPasted] = useState("");
   const [status, setStatus] = useState({});
   const [running, setRunning] = useState(false);
@@ -4807,20 +4807,33 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
 
   // Later bookmark clicks stack more sheets into the open panel.
   useEffect(() => {
-    if (initialEntries && !running && !fetched) { setEntries(initialEntries); setChecked(new Set(initialEntries.map(entryKey))); }
+    if (initialEntries && !running && !fetched) setEntries(initialEntries);
   }, [initialEntries]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bmSrc = bookmarkletSource(window.location.origin);
   const vendorLabel = (e) => VENDORS[e.vendor]?.hostLabels?.[e.host] || VENDORS[e.vendor]?.label || e.host;
+
+  // Sheets remembered from earlier fetches (settings.ops.vendorSheets, stable
+  // params only). Any live entry's fresh session code unlocks every remembered
+  // sheet for the same portal + dealer account, so one pasted link (or one
+  // bookmark click) refreshes the lot.
+  const saved = settings?.ops?.vendorSheets || [];
+  const liveSesid = {};
+  for (const e of entries) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
+  const liveKeys = new Set(entries.map((e) => recordKey(e)));
+  const savedRows = saved
+    .filter((r) => liveSesid[`${r.host}|${r.user}`] && !liveKeys.has(recordKey(r)))
+    .map((r) => ({ ...applySesid(r, liveSesid[`${r.host}|${r.user}`]), saved: true }));
+  const rows = [...entries, ...savedRows];
+  const rememberFetched = (recs) => { if (recs.length && setSettings) setSettings({ ops: { ...(settings?.ops || {}), vendorSheets: mergeRecords(saved, recs) } }); };
+  const forgetSaved = (r) => setSettings && setSettings({ ops: { ...(settings?.ops || {}), vendorSheets: saved.filter((s) => recordKey(s) !== recordKey(r)) } });
 
   const addPasted = () => {
     const found = pasted.split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
     if (!found.length) { setPasted(""); return; }
     setEntries((prev) => {
       const seen = new Set(prev.map(entryKey));
-      const fresh = found.filter((e) => !seen.has(entryKey(e)));
-      setChecked((c) => new Set([...c, ...fresh.map(entryKey)]));
-      return [...prev, ...fresh];
+      return [...prev, ...found.filter((e) => !seen.has(entryKey(e)))];
     });
     setPasted("");
   };
@@ -4831,8 +4844,9 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
     setRunning(true);
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    const picked = entries.filter((e) => checked.has(entryKey(e)));
+    const picked = rows.filter((e) => !unchecked.has(entryKey(e)));
     const files = [];
+    const ok = [];
     let failures = 0;
     for (const e of picked) {
       const k = entryKey(e);
@@ -4841,23 +4855,25 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
         const res = await fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(e) });
         if (!res.ok) {
           let msg = `failed (${res.status})`;
-          try { const j = await res.json(); msg = j.error === "session-expired" ? "portal session expired — log into the portal and click the bookmark again" : (j.error || msg); } catch {}
+          try { const j = await res.json(); msg = j.error === "session-expired" ? "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" : (j.error || msg); } catch {}
           setStatus((s) => ({ ...s, [k]: msg })); failures++; continue;
         }
         files.push(new File([await res.arrayBuffer()], entryFileName(e), { type: "application/vnd.ms-excel" }));
+        ok.push(e);
         setStatus((s) => ({ ...s, [k]: "done" }));
       } catch { setStatus((s) => ({ ...s, [k]: "network error" })); failures++; }
     }
+    rememberFetched(ok.map(sheetRecord));
     setRunning(false);
     if (!failures && files.length) finish(files);
     else if (files.length) setFetched(files);
   };
 
-  const pickedCount = entries.filter((e) => checked.has(entryKey(e))).length;
+  const pickedCount = rows.filter((e) => !unchecked.has(entryKey(e))).length;
 
   return (
     <Modal title="Fetch vendor sheets" onClose={onClose}>
-      {entries.length === 0 ? (
+      {rows.length === 0 ? (
         <>
           <p className="text-sm text-slate-600">Skip the download-each-sheet chore: a bookmark grabs every price-list link off the vendor portal in one click and brings them here.</p>
           <ol className="text-sm text-slate-600 list-decimal ml-5 mt-3 space-y-1.5">
@@ -4869,21 +4885,37 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
             <li>Log into the vendor portal (e.g. Virginia Tile connect24) and open its price lists page.</li>
             <li>Click the bookmark — FloorTrack opens with every sheet listed here, ready to fetch.</li>
           </ol>
-          <p className="text-[11px] text-slate-400 mt-2">Portal keeps its sheets in a menu that opens them one at a time? Open a sheet, click the bookmark, repeat — each click stacks that sheet into this list.</p>
+          <p className="text-[11px] text-slate-400 mt-2">Portal keeps its sheets in a menu that downloads them one at a time? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click the download → Copy link address), and paste it below.</p>
           <div className="mt-4">
             <label className={lbl}>…or paste price-list links (one per line)</label>
             <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={3} placeholder="https://connect24.virginiatile.com/…getPrettyPriceList…" className={inp + " font-mono text-[11px]"} />
             <div className="flex justify-end mt-2"><button onClick={addPasted} disabled={!pasted.trim()} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add links</button></div>
           </div>
+          {saved.length > 0 && (
+            <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
+              <div className="text-xs font-medium text-slate-600">{saved.length} remembered sheet{saved.length === 1 ? "" : "s"}</div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Every sheet fetched before is remembered here. One pasted link (or one bookmark click) from the same portal unlocks all of them — its fresh session code is reused for the whole list.</p>
+              <ul className="mt-1.5 space-y-0.5 max-h-32 overflow-y-auto">
+                {saved.map((r) => (
+                  <li key={recordKey(r)} className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span className="flex-1 truncate">{entryFileName(r)}</span>
+                    <span className="text-slate-300">{vendorLabel(r)}</span>
+                    <button onClick={() => forgetSaved(r)} title="Forget this sheet" className="text-slate-300 hover:text-red-500"><X size={11} /></button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       ) : (
         <>
-          <p className="text-xs text-slate-500">{entries.length} price sheet{entries.length === 1 ? "" : "s"} from {vendorLabel(entries[0])}. Fetched sheets go through the normal import review — nothing changes without your approval. These links carry your portal session code; it stays in this browser.</p>
+          <p className="text-xs text-slate-500">{rows.length} price sheet{rows.length === 1 ? "" : "s"} from {vendorLabel(rows[0])}{savedRows.length > 0 ? ` (${savedRows.length} remembered — refreshed with this link's session code)` : ""}. Fetched sheets go through the normal import review — nothing changes without your approval. These links carry your portal session code; it stays in this browser.</p>
           <div className="mt-3 border border-slate-100 rounded-lg divide-y divide-slate-100 max-h-72 overflow-y-auto">
-            {entries.map((e) => { const k = entryKey(e); const st = status[k]; return (
+            {rows.map((e) => { const k = entryKey(e); const st = status[k]; return (
               <label key={k} className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
-                <input type="checkbox" checked={checked.has(k)} disabled={running || Boolean(fetched)} onChange={() => setChecked((c) => { const n = new Set(c); n.has(k) ? n.delete(k) : n.add(k); return n; })} />
+                <input type="checkbox" checked={!unchecked.has(k)} disabled={running || Boolean(fetched)} onChange={() => setUnchecked((c) => { const n = new Set(c); n.has(k) ? n.delete(k) : n.add(k); return n; })} />
                 <span className="flex-1 truncate">{entryFileName(e)}</span>
+                {e.saved && !st && <span className="text-[10px] text-slate-300">remembered</span>}
                 {st === "fetching" && <span className="text-[11px] text-slate-400">fetching…</span>}
                 {st === "done" && <Check size={14} className="text-emerald-600" />}
                 {st && st !== "fetching" && st !== "done" && <span className="text-[11px] text-red-600 max-w-[14rem] text-right">{st}</span>}
@@ -4891,7 +4923,7 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
             ); })}
           </div>
           <div className="flex items-center justify-between gap-2 mt-4">
-            <button onClick={() => { clearHandoff(); setEntries([]); setChecked(new Set()); setStatus({}); setFetched(null); }} disabled={running} className="text-xs text-slate-400 underline hover:text-slate-600">Clear list</button>
+            <button onClick={() => { clearHandoff(); setEntries([]); setUnchecked(new Set()); setStatus({}); setFetched(null); }} disabled={running} className="text-xs text-slate-400 underline hover:text-slate-600">Clear list</button>
             {fetched ? (
               <button onClick={() => finish(fetched)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Import the {fetched.length} that worked</button>
             ) : (
@@ -5052,7 +5084,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       {dropped && <ImportRouter files={dropped} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
-      {vfOpen && !dropped && <VendorFetchPanel initialEntries={vendorPending} onFiles={setDropped} onClose={() => setVfOpen(false)} inp={inp} lbl={lbl} />}
+      {vfOpen && !dropped && <VendorFetchPanel initialEntries={vendorPending} settings={settings} setSettings={setSettings} onFiles={setDropped} onClose={() => setVfOpen(false)} inp={inp} lbl={lbl} />}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>
