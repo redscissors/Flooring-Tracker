@@ -25,6 +25,19 @@ test("parseVendorLink reads a connect24 price-list link", () => {
   assert.equal(entryFileName(e), "AOT EFT 26 02 19.xls");
 });
 
+test("parseVendorLink reads an OVF (ovf400) price-list link — second Dancik host", () => {
+  const e = parseVendorLink(
+    "https://ovf400.ovf.com/danciko/dancik-ows/d24/getPrettyPriceList/xls" +
+    "?d24_uid=196&d24_filename=ovf-tarkett-home-lvt&d24_type=X&d24user=OVF00000XX" +
+    "&d24sesid=Ab3dEf9hIjKlMnOpQrSt&filename=ovf-tarkett-home-lvt.xls&content-disposition=inline&rand=374");
+  assert.equal(e.vendor, "dancik");
+  assert.equal(e.host, "ovf400.ovf.com");
+  assert.equal(e.uid, "196");
+  assert.equal(e.filename, "ovf-tarkett-home-lvt");
+  assert.equal(entryProblems(e), null);
+  assert.equal(new URL(buildVendorUrl(e)).hostname, "ovf400.ovf.com");
+});
+
 test("parseVendorLink rejects other hosts, paths, and protocols", () => {
   assert.equal(parseVendorLink(LINK.replace("connect24.virginiatile.com", "evil.example.com")), null);
   assert.equal(parseVendorLink("https://connect24.virginiatile.com/other/path?d24_uid=1"), null);

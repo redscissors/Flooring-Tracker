@@ -15,8 +15,8 @@ export const VENDORS = {
     label: "Dancik portal",
     // Allowlisted portal hosts. Adding a distributor that runs Dancik = one
     // more host here (plus its brand books in the app, which already exist).
-    hosts: ["connect24.virginiatile.com"],
-    hostLabels: { "connect24.virginiatile.com": "Virginia Tile connect24" },
+    hosts: ["connect24.virginiatile.com", "ovf400.ovf.com"],
+    hostLabels: { "connect24.virginiatile.com": "Virginia Tile connect24", "ovf400.ovf.com": "OVF (ovf400)" },
     path: "/danciko/dancik-ows/d24/getPrettyPriceList/xls",
     linkMark: "getPrettyPriceList",
   },
