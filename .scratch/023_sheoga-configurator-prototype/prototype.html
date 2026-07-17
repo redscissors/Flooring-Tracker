@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ned — Sheoga configurator prototypes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+  :root{
+    --paper:#F6F3EC; --card:#FFFFFF; --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A; --band:#E7E3D6; --sand:#EDE9DD; --rowline:#ECE8DC;
+    --line:rgba(28,26,23,.10); --line-strong:rgba(28,26,23,.25); --grid:rgba(28,26,23,.34);
+    --moss-soft:rgba(87,112,58,.13); --tint:#F2F3EC;
+    --hard:#40542A;
+    --ui:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:var(--ui);-webkit-tap-highlight-color:transparent}
+  body{background:#1C1A17;color:#F6F3EC;padding:28px 20px 80px}
+  .intro{max-width:1280px;margin:0 auto 8px}
+  .intro h1{font-size:21px;font-weight:800;letter-spacing:-.01em}
+  .intro h1 span{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:12px;padding:2px 7px;margin-right:8px;vertical-align:3px}
+  .intro p{font-size:13px;color:#A8A29A;margin-top:6px;max-width:860px;line-height:1.55}
+  .proto-label{max-width:1280px;margin:34px auto 10px;display:flex;align-items:baseline;gap:10px}
+  .proto-label h2{font-size:15px;font-weight:800}
+  .proto-label h2 b{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:11px;padding:1px 6px;margin-right:7px;vertical-align:1px}
+  .proto-label span{font-size:12px;color:#A8A29A}
+
+  /* ============ Prototype A: desktop popup ============ */
+  .popwrap{max-width:1280px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px}
+  .popup{background:var(--paper);color:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;height:820px;border:1px solid rgba(0,0,0,.4)}
+  .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--paper)}
+  .pop-head .brand{line-height:1.1}
+  .pop-head .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--moss-deep)}
+  .pop-head .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
+  .pop-head .name small{font-weight:600;color:var(--muted);font-size:12px;margin-left:6px}
+  .xbtn{margin-left:auto;width:30px;height:30px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;flex:none}
+  .modetabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line-strong);background:var(--paper)}
+  .modetab{border:1px solid var(--line);border-bottom:none;background:var(--sand);color:var(--muted);font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:7px 7px 0 0;cursor:pointer}
+  .modetab.on{background:var(--card);color:var(--ink);border-color:var(--line-strong);position:relative}
+  .modetab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--card)}
+  .pop-body{flex:1;display:flex;min-height:0;background:var(--card)}
+
+  /* left rail — options */
+  .rail{flex:0 0 400px;border-right:1px solid var(--line-strong);overflow-y:auto;padding:16px 18px 26px;background:var(--card)}
+  .rail::-webkit-scrollbar{width:0}
+  .sect{margin-bottom:18px}
+  .sect-h{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+  .sect-h .t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+  .sect-h .hint{font-size:10.5px;color:var(--faint);margin-left:auto}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line-strong);background:var(--card);border-radius:7px;padding:6px 10px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;text-align:center;line-height:1.15}
+  .chip small{display:block;font-size:10px;font-weight:600;color:var(--faint);margin-top:2px}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .chip.on small{color:rgba(246,243,236,.72)}
+  .chip.dis{opacity:.32;cursor:not-allowed;text-decoration:line-through}
+  .chip.dis small{text-decoration:none}
+  .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden}
+  .seg button{border:none;background:var(--card);color:var(--muted);font-size:12.5px;font-weight:700;padding:7px 14px;cursor:pointer}
+  .seg button + button{border-left:1px solid var(--line-strong)}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .radio-list{display:flex;flex-direction:column;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}
+  .radio-row{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--card);border:none;cursor:pointer;text-align:left;font-size:12.5px;font-weight:600;color:var(--ink)}
+  .radio-row + .radio-row{border-top:1px solid var(--rowline)}
+  .radio-row .dot{width:14px;height:14px;border-radius:50%;border:1.6px solid var(--line-strong);flex:none;position:relative}
+  .radio-row.on .dot{border-color:var(--moss)}
+  .radio-row.on .dot::after{content:"";position:absolute;inset:2.5px;border-radius:50%;background:var(--moss)}
+  .radio-row .add{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .radio-row.on .add{color:var(--moss-deep)}
+  .radio-row .sub{display:block;font-size:10.5px;font-weight:500;color:var(--faint);margin-top:1px}
+  .tgl{display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--line-strong);border-radius:8px;background:var(--card);cursor:pointer;font-size:12.5px;font-weight:600;width:100%;text-align:left;color:var(--ink)}
+  .tgl + .tgl{margin-top:6px}
+  .tgl .box{width:15px;height:15px;border-radius:4px;border:1.6px solid var(--line-strong);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+  .tgl.on .box{background:var(--moss);border-color:var(--moss)}
+  .tgl .add{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+  .inp{border:1px solid var(--line-strong);border-radius:7px;background:var(--card);color:var(--ink);font-size:13px;font-weight:600;padding:7px 10px;width:110px;font-family:var(--ui)}
+  .inp:focus{outline:2px solid var(--moss);outline-offset:1px;border-color:transparent}
+  .gridlink{border:none;background:none;color:var(--moss-deep);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px;padding:0}
+
+  /* right column — build card, compare, recents */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--paper);overflow-y:auto}
+  .main::-webkit-scrollbar{width:0}
+  .build{margin:16px 18px 0;background:var(--card);border:1px solid var(--grid);border-radius:9px;overflow:hidden;flex:none}
+  .build-h{display:flex;align-items:center;gap:9px;background:var(--band);padding:8px 14px}
+  .build-h .tchip{width:20px;height:20px;border-radius:4px;background:var(--hard);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+  .build-h .t{font-size:13px;font-weight:800;flex:1}
+  .build-h .veff{font-size:10px;color:var(--muted);font-weight:600}
+  .descline{padding:11px 14px 3px;font-size:15.5px;font-weight:700;letter-spacing:-.01em;line-height:1.35}
+  .desc-sub{padding:0 14px 10px;font-size:11.5px;color:var(--muted);font-weight:500}
+  .bd{padding:4px 14px 12px}
+  .bd-row{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:3.5px 0;color:var(--muted);font-weight:500}
+  .bd-row .lbl{flex:1;min-width:0}
+  .bd-row .amt{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+  .bd-row.warn{color:#C2410C;font-weight:600}
+  .bd-row.warn .amt{color:#C2410C}
+  .bd-total{display:flex;align-items:center;gap:14px;border-top:1px solid var(--line-strong);background:var(--sand);padding:10px 14px}
+  .bd-total .cost{line-height:1.1}
+  .bd-total .cost .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .bd-total .cost .v{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+  .bd-total .arrow{color:var(--faint);font-size:13px}
+  .bd-total .sell .v{color:var(--moss-deep);font-size:21px}
+  .bd-total .jobtot{margin-left:auto;text-align:right;line-height:1.1}
+  .bd-total .jobtot .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .bd-total .jobtot .v{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+  .build-act{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--rowline);background:var(--card)}
+  .btn{border-radius:7px;font-size:12.5px;font-weight:700;padding:8px 14px;cursor:pointer;border:1px solid var(--line-strong);background:var(--card);color:var(--ink)}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .btn.primary:active{background:#3A3630}
+  .btn.moss{color:var(--moss-deep);border-color:var(--moss)}
+  .flash{animation:flash .8s ease}
+  @keyframes flash{0%{box-shadow:0 0 0 3px rgba(87,112,58,.55)}100%{box-shadow:0 0 0 3px rgba(87,112,58,0)}}
+
+  .trays{flex:1;min-height:0;display:flex;flex-direction:column;margin:14px 18px 16px;gap:12px}
+  .tray{background:var(--card);border:1px solid var(--line-strong);border-radius:9px;display:flex;flex-direction:column;min-height:0}
+  .tray-h{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--rowline)}
+  .tray-h .t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+  .tray-h .n{font-size:10px;font-weight:800;background:var(--moss-soft);color:var(--moss-deep);border-radius:8px;padding:1px 7px}
+  .tray-h .clr{margin-left:auto;border:none;background:none;color:var(--faint);font-size:10.5px;font-weight:700;cursor:pointer}
+  .tray.saved{flex:1.25;min-height:208px}
+  .tray.recent{flex:1;min-height:110px}
+  .cards{display:flex;gap:10px;padding:10px 12px;overflow-x:auto;align-items:stretch}
+  .cards::-webkit-scrollbar{height:0}
+  .scard{flex:0 0 205px;border:1px solid var(--line-strong);border-radius:8px;background:var(--paper);padding:9px 11px;display:flex;flex-direction:column;position:relative}
+  .scard.best{border-color:var(--moss);box-shadow:0 0 0 1px var(--moss)}
+  .scard .best-tag{position:absolute;top:-8px;right:8px;background:var(--moss);color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:1.5px 6px}
+  .scard .nm{font-size:11px;font-weight:800;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scard .ds{font-size:10.5px;color:var(--muted);line-height:1.4;flex:1;font-weight:500}
+  .scard .pr{margin-top:7px;display:flex;align-items:baseline;gap:6px}
+  .scard .pr b{font-size:15px;font-weight:800;color:var(--moss-deep);font-variant-numeric:tabular-nums}
+  .scard .pr span{font-size:10px;color:var(--faint);font-weight:600}
+  .scard .df{font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;margin-left:auto}
+  .scard .df.up{color:#C2410C}.scard .df.dn{color:var(--moss-deep)}
+  .scard .act{display:flex;gap:6px;margin-top:8px}
+  .scard .act button{flex:1;border:1px solid var(--line-strong);background:var(--card);border-radius:6px;font-size:10.5px;font-weight:700;padding:4.5px 0;cursor:pointer;color:var(--ink)}
+  .scard .act .del{flex:0 0 26px;color:var(--faint)}
+  .empty{padding:16px 14px;font-size:11.5px;color:var(--faint);font-weight:500;line-height:1.5}
+  .rrow{display:flex;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid var(--rowline);cursor:pointer;background:none;border-left:none;border-right:none;border-bottom:none;width:100%;text-align:left}
+  .rrow:first-child{border-top:none}
+  .rrow:hover{background:var(--tint)}
+  .rrow .ds{flex:1;min-width:0;font-size:11.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rrow .when{font-size:9.5px;color:var(--faint);font-weight:600;flex:none}
+  .rrow .pr{font-size:12px;font-weight:800;color:var(--moss-deep);font-variant-numeric:tabular-nums;flex:none}
+  .rlist{overflow-y:auto;min-height:0}
+  .rlist::-webkit-scrollbar{width:0}
+
+  .pop-foot{display:flex;align-items:center;gap:16px;padding:10px 18px;border-top:1px solid var(--line-strong);background:var(--paper)}
+  .foot-f{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:var(--muted)}
+  .foot-f .inp{width:74px;padding:5px 8px;font-size:12.5px}
+  .foot-note{margin-left:auto;font-size:10.5px;color:var(--faint);font-weight:500}
+
+  /* modal (price grid / add-to-line) */
+  .modal-back{position:fixed;inset:0;background:rgba(28,26,23,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal-back.show{display:flex}
+  .modal{background:var(--paper);color:var(--ink);border-radius:10px;max-width:880px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  .modal-h{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line-strong);position:sticky;top:0;background:var(--paper);z-index:2}
+  .modal-h .t{font-size:15px;font-weight:800}
+  .modal-h .sub{font-size:11px;color:var(--muted);font-weight:600}
+  .modal-b{padding:16px 18px 20px}
+  table.pg{border-collapse:collapse;width:100%}
+  .pg th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:6px 8px;text-align:right;border-bottom:1px solid var(--line-strong);background:var(--band)}
+  .pg th:first-child{text-align:left}
+  .pg td{font-size:12px;font-weight:600;padding:0;border-bottom:1px solid var(--rowline);text-align:right;font-variant-numeric:tabular-nums}
+  .pg td:first-child{text-align:left;font-weight:700;padding:7px 8px}
+  .pg td button{border:none;background:none;font:inherit;color:var(--ink);width:100%;padding:7px 8px;cursor:pointer;text-align:right;border-radius:4px}
+  .pg td button:hover{background:var(--moss-soft)}
+  .pg td button.cur{background:var(--ink);color:var(--paper)}
+  .pg td .na{color:var(--faint);padding:7px 8px;display:block}
+  .prev-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--grid);border-radius:8px;padding:10px 13px;margin-bottom:14px}
+  .prev-row .tchip{width:22px;height:22px;border-radius:5px;background:var(--hard);color:#fff;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+  .prev-row .nm{flex:1;min-width:0;font-size:13px;font-weight:700;line-height:1.3}
+  .prev-row .nm small{display:block;font-size:10.5px;color:var(--muted);font-weight:600}
+  .prev-row .money{text-align:right;font-variant-numeric:tabular-nums;line-height:1.2;flex:none}
+  .prev-row .money b{font-size:15px;font-weight:800}
+  .prev-row .money small{display:block;font-size:10px;color:var(--muted);font-weight:600}
+  pre.payload{background:#1C1A17;color:#D8E4C6;font-size:11px;line-height:1.55;border-radius:8px;padding:13px 15px;overflow:auto;font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap}
+  .modal-note{font-size:11px;color:var(--muted);font-weight:500;line-height:1.5;margin:10px 0 0}
+
+  /* ============ Prototype B: phone ============ */
+  .b-wrap{max-width:1280px;margin:0 auto;display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap}
+  .phone{width:377px;height:790px;background:var(--paper);color:var(--ink);border-radius:26px;border:1px solid rgba(246,243,236,.18);overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 22px 60px rgba(0,0,0,.5)}
+  .b-note{flex:1;min-width:280px;max-width:520px;font-size:13px;color:#A8A29A;line-height:1.65;padding-top:8px}
+  .b-note h3{color:#F6F3EC;font-size:14px;font-weight:800;margin:18px 0 6px}
+  .b-note h3:first-child{margin-top:0}
+  .b-note li{margin:0 0 7px 18px}
+  .b-note code{background:rgba(246,243,236,.12);border-radius:4px;padding:1px 5px;font-size:11.5px;font-family:ui-monospace,Menlo,monospace}
+  .ph-top{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex:none}
+  .ph-top .bk{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:14px;font-weight:700}
+  .ph-top .t{line-height:1.05}
+  .ph-top .t .eyebrow{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--moss-deep)}
+  .ph-top .t .n{font-size:15.5px;font-weight:800}
+  .steps{display:flex;gap:4px;padding:9px 14px 0;flex:none}
+  .stp{flex:1;height:3.5px;border-radius:2px;background:var(--rowline)}
+  .stp.done{background:var(--moss)}
+  .stp.cur{background:var(--ink)}
+  .ph-body{flex:1;overflow-y:auto;padding:14px 16px 18px}
+  .ph-body::-webkit-scrollbar{width:0}
+  .ph-q{font-size:17px;font-weight:800;letter-spacing:-.01em;margin-bottom:2px}
+  .ph-hint{font-size:11px;color:var(--faint);font-weight:600;margin-bottom:12px}
+  .bigchips{display:flex;flex-direction:column;gap:7px}
+  .bigchip{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:9px;background:var(--card);padding:11px 13px;cursor:pointer;text-align:left}
+  .bigchip .nm{font-size:14px;font-weight:700;flex:1}
+  .bigchip .nm small{display:block;font-size:10.5px;color:var(--faint);font-weight:600;margin-top:1px}
+  .bigchip .pr{font-size:13px;font-weight:800;color:var(--moss-deep);font-variant-numeric:tabular-nums}
+  .bigchip.on{background:var(--ink);border-color:var(--ink)}
+  .bigchip.on .nm,.bigchip.on .pr{color:var(--paper)}
+  .bigchip.on .nm small{color:rgba(246,243,236,.7)}
+  .bigchip.dis{opacity:.35}
+  .wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .wg{border:1px solid var(--line-strong);border-radius:9px;background:var(--card);padding:10px 6px;text-align:center;cursor:pointer}
+  .wg b{font-size:15px;font-weight:800;display:block}
+  .wg span{font-size:10.5px;color:var(--faint);font-weight:700;font-variant-numeric:tabular-nums}
+  .wg.on{background:var(--ink);border-color:var(--ink)}
+  .wg.on b{color:var(--paper)}.wg.on span{color:rgba(246,243,236,.72)}
+  .wg.dis{opacity:.32}
+  .ph-review .desc{font-size:14.5px;font-weight:700;line-height:1.45;background:var(--card);border:1px solid var(--grid);border-radius:9px;padding:12px 14px}
+  .ph-review .bd-row{font-size:11.5px}
+  .ph-review .lines{background:var(--card);border:1px solid var(--line-strong);border-radius:9px;padding:8px 13px;margin-top:9px}
+  .ph-bar{flex:none;border-top:1px solid var(--line-strong);background:var(--card);padding:10px 14px;display:flex;align-items:center;gap:12px}
+  .ph-bar .money{line-height:1.05}
+  .ph-bar .money .v{font-size:18px;font-weight:800;color:var(--moss-deep);font-variant-numeric:tabular-nums}
+  .ph-bar .money .k{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.11em;color:var(--muted)}
+  .ph-bar .nxt{margin-left:auto;background:var(--ink);color:var(--paper);border:none;border-radius:8px;font-size:13.5px;font-weight:800;padding:11px 22px;cursor:pointer}
+  .ph-bar .nxt:disabled{opacity:.4}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(80px);background:#1C1A17;border:1px solid rgba(246,243,236,.25);color:#F6F3EC;font-size:12.5px;font-weight:700;border-radius:9px;padding:10px 18px;transition:transform .25s ease;z-index:80;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .footnotes{max-width:1280px;margin:40px auto 0;font-size:12px;color:#A8A29A;line-height:1.7}
+  .footnotes h3{color:#F6F3EC;font-size:14px;font-weight:800;margin-bottom:8px}
+  .footnotes li{margin:0 0 6px 18px}
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1><span>ned</span>Sheoga configurator — prototypes</h1>
+  <p>Sheoga sells by <b style="color:#F6F3EC">description, not SKU</b> — species × grade × width × solid/engineered,
+  plus texture, lengths, edges and finishing, and a separate wood-vent &amp; damper program. Both prototypes below run a
+  <b style="color:#F6F3EC">real pricing engine built from the three sheets</b> (Feb 2025 flooring list, Feb 2022 vent list, damper cost sheet).
+  Every control reprices live; Save pins an option for side-by-side comparison while a customer goes back and forth; Recents tracks what you've priced.
+  “Add to product line” shows exactly what would land on the job.</p>
+</div>
+
+<div class="proto-label">
+  <h2><b>A</b>Option board — everything on one card <span style="font-weight:600">(recommended)</span></h2>
+  <span>IKEA-configurator pattern: options left, live build + compare right. No steps to click through — neat, easy, done.</span>
+</div>
+<div class="popwrap">
+  <div class="popup">
+    <div class="pop-head">
+      <div class="brand">
+        <div class="eyebrow">Vendor configurator</div>
+        <div class="name">Sheoga Hardwood <small>bought by description — no SKUs</small></div>
+      </div>
+      <button class="xbtn" title="Close (prototype)">✕</button>
+    </div>
+    <div class="modetabs" id="modetabs"></div>
+    <div class="pop-body">
+      <div class="rail" id="rail"></div>
+      <div class="main">
+        <div class="build" id="build"></div>
+        <div class="trays">
+          <div class="tray saved">
+            <div class="tray-h"><span class="t">Saved options</span><span class="n" id="savedN">0</span>
+              <span style="font-size:10px;color:var(--faint);font-weight:600">— pin options while the customer decides</span>
+              <button class="clr" id="clearSaved">clear</button></div>
+            <div class="cards" id="savedCards"></div>
+          </div>
+          <div class="tray recent">
+            <div class="tray-h"><span class="t">Recently configured</span><button class="clr" id="clearRecent">clear</button></div>
+            <div class="rlist" id="recentList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pop-foot">
+      <label class="foot-f">Markup <input class="inp" id="markup" type="number" value="40" min="0" step="5"> %</label>
+      <label class="foot-f" id="sfwrap">Job size <input class="inp" id="jobsf" type="number" value="1000" min="1" step="50"> sq ft</label>
+      <span class="foot-note">Sheet prices are distributor cost · flooring effective Feb 1 2025 · vents Feb 2022 · custom orders 5–10% overrun, no returns</span>
+    </div>
+  </div>
+</div>
+
+<div class="proto-label" id="entryLabel">
+  <h2><b>E</b>Entry point — opening it from the SKU search field</h2>
+  <span>the box everyone already types in. Type below — the query seeds the configurator.</span>
+</div>
+<div class="popwrap" style="padding:26px 26px 30px">
+  <div style="max-width:820px;margin:0 auto">
+    <div style="background:var(--paper);color:var(--ink);border-radius:10px;border:1px solid rgba(0,0,0,.4);box-shadow:0 20px 60px rgba(0,0,0,.45);padding:14px 16px 18px">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-bottom:8px">Product row — Kitchen · hardwood</div>
+      <div style="display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--grid);border-radius:7px;padding:8px 11px">
+        <span style="width:20px;height:20px;border-radius:4px;background:var(--hard);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">H</span>
+        <span style="font-size:13px;font-weight:600;color:var(--faint);flex:1">Brand / color…</span>
+        <input id="skuq" class="inp" style="width:300px" value="white oak char 5 1/4 engineered" spellcheck="false">
+      </div>
+      <div style="border:1px solid var(--line-strong);border-top:none;border-radius:0 0 8px 8px;background:var(--card);margin:0 11px;overflow:hidden">
+        <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--faint);padding:7px 12px 3px">Price books</div>
+        <div style="display:flex;gap:9px;padding:6px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--rowline)"><b style="color:var(--ink);font-variant-numeric:tabular-nums">5187941</b> 5" White Oak Natural 4mm T&amp;G Eng <span style="margin-left:auto;font-variant-numeric:tabular-nums">$6.99/sf</span></div>
+        <div style="display:flex;gap:9px;padding:6px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--rowline)"><b style="color:var(--ink);font-variant-numeric:tabular-nums">5202230</b> 7½" Euro White Oak Brushed UV Eng <span style="margin-left:auto;font-variant-numeric:tabular-nums">$8.49/sf</span></div>
+        <div id="entryVendor">
+        <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--moss-deep);padding:8px 12px 3px">Vendor configurators</div>
+        <button id="entryRow" style="display:flex;align-items:center;gap:10px;width:100%;border:none;background:var(--tint);padding:9px 12px;cursor:pointer;text-align:left;border-top:1px solid var(--tint-border, var(--rowline));border-bottom:1px solid var(--rowline)">
+          <span style="width:22px;height:22px;border-radius:5px;background:var(--moss);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none">⚙</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;font-weight:800;color:var(--ink)">Sheoga Hardwood — configure by description</span>
+            <span id="entrySub" style="display:block;font-size:11px;color:var(--moss-deep);font-weight:600;margin-top:1px"></span>
+          </span>
+          <span style="color:var(--moss-deep);font-weight:800">→</span>
+        </button>
+        </div>
+        <div id="entrySaved"></div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);font-weight:500;line-height:1.55;margin:12px 11px 0">
+        Sheoga has no SKUs, so it can never match the book search — instead the vendor row is <b>pinned</b> as soon as
+        the query starts spelling the vendor (<b>“she”</b> is enough — try clearing the box and typing it) or hits its
+        trade words (species, widths, “vent”, “herringbone”…), right under the real book matches.
+        The query is parsed (species · grade · width · solid/engineered) and <b>seeds the popup pre-filled</b> — try editing it.
+        Options already saved on this job surface here too, one click back onto the row.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="proto-label">
+  <h2><b>B</b>Guided flow — one decision per screen (phone)</h2>
+  <span>Nike-By-You pattern for the counter/phone. Same engine, flooring line only.</span>
+</div>
+<div class="b-wrap">
+  <div class="phone">
+    <div class="ph-top">
+      <button class="bk" id="phBack">‹</button>
+      <div class="t"><div class="eyebrow">Sheoga configurator</div><div class="n" id="phTitle">Species</div></div>
+    </div>
+    <div class="steps" id="phSteps"></div>
+    <div class="ph-body" id="phBody"></div>
+    <div class="ph-bar">
+      <div class="money"><div class="v" id="phPrice">—</div><div class="k" id="phPriceK">sell / sq ft</div></div>
+      <button class="nxt" id="phNext">Next</button>
+    </div>
+  </div>
+  <div class="b-note">
+    <h3>Why two shapes</h3>
+    <li><b style="color:#F6F3EC">A (board)</b> is for the desk: a salesperson flipping a customer between 5¼" and 6¼", Clear and Character, White Oak and Hickory wants every lever visible with prices <i>on the chips</i> — width chips each carry their live price, so “show me it wider” is one click, and the full species × width grid is one more.</li>
+    <li><b style="color:#F6F3EC">B (guided)</b> is for the phone at the counter or on-site: one decision per screen, big targets, running price pinned to the bottom bar, review screen at the end that saves into the same trays.</li>
+    <h3>What both share</h3>
+    <li>The same data module and pricing engine — one source of truth fed from the three sheets.</li>
+    <li>The <b style="color:#F6F3EC">description is the SKU</b>: every configuration renders a canonical order description (what you read to Sheoga on the phone) and that string is what gets snapshotted onto the job line.</li>
+    <li>Saved options + recents persist in <code>localStorage</code> here; in the app they'd live on the customer record (saved) and per-user (recents).</li>
+  </div>
+</div>
+
+<div class="footnotes">
+  <h3>Pricing-engine assumptions (to confirm with Sheoga / the sheets)</h3>
+  <li>Length upcharges (+5% … +30%) are applied to the unfinished base price incl. no-sap adders, <i>before</i> flat $/sf adders for texture, edge and finishing. The sheet just says “Add 15%” — base is our reading.</li>
+  <li>Prefinished small-order fees (&lt;500 sf +$300, &lt;250 sf +$600) apply whenever a finish is selected; shown amortized into the $/sf at the entered job size.</li>
+  <li>Established-stain adder picks $1.95 or $2.85 automatically from the selected texture (Sawcut / Bandsawn / Aged Brush ⇒ $2.85), per the custom-finishing sheet.</li>
+  <li>“Cubed” vents price as the matching vent size + $10.00; damper add-on = stocking damper price + $5.00 attach; flush-vent frames at $0.40 × (L + 2W) lineal inches.</li>
+  <li>Custom color match ($750 flat) and non-stock prefinished colors are flagged as “call Sheoga” rather than priced.</li>
+</div>
+
+<div class="modal-back" id="modalBack"><div class="modal" id="modalBox"></div></div>
+<div class="toast" id="toast"></div>
+</content>
+</invoke>
+<script>
+/* ============================================================
+   Sheoga data module — transcribed from the three sheets:
+   · Sheoga Pricing (Distributors) eff. 2/1/2025  — flooring
+   · Stocking Vent Prices, Feb 2022               — vents
+   · Damper cost sheet 1/9/2023                   — dampers
+   All numbers are distributor COST per sq ft (flooring) or each (vents).
+   ============================================================ */
+const N=null;
+const W7=[2.25,3.25,4.25,5.25,6.25,7.25,8.25];
+const WLBL={2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"',9.25:'9¼"',11.25:'11¼"'};
+const CARTON_SF={2.25:22,3.25:21,4.25:22,5.25:20.5,6.25:20,7.25:23.5,8.25:21.5}; // sf per carton by width; 9¼/11¼ live sawn = call
+
+const UNFIN={ // clear/char = solid; eClear/eChar = engineered; index → W7
+ 'White Oak':      {clear:[5.65,5.95,6.25,6.65,7.15,7.70,8.40], char:[3.60,3.80,4.05,4.35,4.65,4.95,5.25], eClear:[N,6.00,6.40,6.85,7.30,7.80,8.30], eChar:[N,5.00,5.35,5.70,6.05,6.45,6.90]},
+ 'Red Oak':        {clear:[3.40,3.60,3.80,4.05,4.35,4.65,4.95], char:[3.00,3.15,3.35,3.60,3.80,4.05,4.30], eClear:[N,5.05,5.35,5.70,6.10,6.50,6.90], eChar:[N,4.75,5.05,5.40,5.75,6.10,6.50]},
+ 'Hickory':        {clear:[3.55,3.80,4.00,4.25,4.55,4.85,5.15], char:[3.15,3.35,3.55,3.75,4.00,4.25,4.55], eClear:[N,5.05,5.40,5.75,6.10,6.50,6.95], eChar:[N,4.80,5.10,5.45,5.80,6.20,6.60]},
+ 'Maple':          {clear:[4.25,4.55,4.85,5.15,5.45,5.85,6.25], char:[3.30,3.55,3.75,4.00,4.25,4.55,4.80], eClear:[N,5.35,5.70,6.05,6.45,6.90,7.35], eChar:[N,4.85,5.15,5.50,5.85,6.25,6.70]},
+ 'Cherry':         {clear:[3.45,3.65,3.90,4.15,4.40,4.70,5.00], char:[3.35,3.55,3.80,4.05,4.30,4.60,4.85], eClear:[N,5.00,5.35,5.70,6.05,6.45,6.90], eChar:[N,4.85,5.20,5.50,5.90,6.30,6.70]},
+ 'Walnut':         {clear:[6.90,7.35,7.85,8.35,8.90,9.50,10.15],char:[4.90,5.20,5.55,5.95,6.35,6.75,7.20], eClear:[N,6.90,7.35,7.85,8.40,8.95,9.55], eChar:[N,5.40,5.75,6.10,6.50,6.95,7.40]},
+ 'Beech':          {clear:[3.70,3.90,4.15,4.40,N,N,N],          char:[3.35,3.60,3.80,4.05,N,N,N],          eClear:[N,5.20,5.55,5.90,N,N,N],          eChar:[N,5.00,5.30,5.65,N,N,N]},
+ 'Q/R White Oak':  {clear:[7.45,7.95,8.50,9.05,9.65,10.35,11.05],char:[4.70,5.05,5.35,5.70,6.10,6.50,6.90],eClear:[N,7.35,7.85,8.40,8.95,9.55,10.20],eChar:[N,5.30,5.65,6.05,6.45,6.85,7.35]},
+};
+// Live Sawn White Oak — one grade, its own width run
+const LS={ws:[5.25,6.25,7.25,8.25,9.25,11.25], solid:[3.80,4.15,4.55,4.95,5.40,6.50], eng:[5.25,5.55,5.95,6.35,6.75,N]};
+const SPECIES=Object.keys(UNFIN).concat(['Live Sawn White Oak']);
+
+const TEXTURES=[
+ {id:'smooth',   name:'Smooth (standard)', add:0,    deep:false},
+ {id:'aged',     name:'Aged Brush',        add:1.00, deep:true},
+ {id:'sawcut',   name:'Saw Cut',           add:1.50, deep:true},
+ {id:'bandsawn', name:'Band Sawn',         add:1.50, deep:true},
+ {id:'country',  name:'Country Worn',      add:1.50, deep:false},
+ {id:'vintage',  name:'Vintage Charm',     add:1.50, deep:false},
+ {id:'oldmill',  name:'Old Mill',          add:2.50, deep:false},
+];
+const EDGES=[
+ {id:'square', name:'Square edge',        add:0},
+ {id:'bevel',  name:'Micro bevel',        add:0},
+ {id:'pillow', name:'Hand pillowed',      add:1.00},
+ {id:'vgroove',name:'Custom V-groove',    add:1.50},
+];
+const LENGTHS=[
+ {id:'1-8', name:"1'–8' (standard)", pct:0},
+ {id:'1-10',name:"1'–10'",           pct:5},
+ {id:'2-8', name:"2'–8'",            pct:15},
+ {id:'2-10',name:"2'–10'",           pct:20},
+ {id:'3-8', name:"3'–8'",            pct:25},
+ {id:'3-10',name:"3'–10'",           pct:30},
+];
+const FINISHES=[
+ {id:'unf', name:'Unfinished', sub:'finish on site', add:c=>0},
+ {id:'nat', name:'Prefinished — Natural', sub:'clear ceramic', add:c=>1.65},
+ {id:'est', name:'Prefinished — Established stain', sub:'$1.95 smooth/OM/CW/VC · $2.85 sawcut/bandsawn/aged', add:c=>TEXTURES.find(t=>t.id===c.tex).deep?2.85:1.95},
+ {id:'t1',  name:'Custom color T-1', sub:'to unfinished price', add:c=>3.05},
+ {id:'t2',  name:'Custom color T-2', sub:'to unfinished price', add:c=>3.65},
+ {id:'t3',  name:'Custom color T-3', sub:'to unfinished price', add:c=>3.85},
+];
+
+const STOCKED=[ // solid prefinished; clear widths 2¼–5¼, char widths 2¼–6¼; sheen 30 unless noted
+ {sp:'Cherry',   color:'Natural',       sheen:30, clear:[N,5.30,5.55,5.80],    char:[N,5.25,5.50,5.75,6.00]},
+ {sp:'Maple',    color:'Natural',       sheen:30, clear:[N,6.20,6.50,6.80],    char:[4.95,5.20,5.40,5.65,5.90]},
+ {sp:'Maple',    color:'Frost',         sheen:5,  clear:N,                      char:[N,5.50,5.70,5.95,N]},
+ {sp:'Hickory',  color:'Natural',       sheen:30, clear:[5.20,5.45,5.65,5.90], char:[4.80,5.00,5.20,5.40,5.65]},
+ {sp:'Hickory',  color:'Buckeye',       sheen:30, clear:[N,5.75,5.95,6.20],    char:N},
+ {sp:'Hickory',  color:'Hickory Nut',   sheen:30, clear:N,                      char:[N,5.30,5.50,5.70,5.95]},
+ {sp:'Hickory',  color:'Toasted Acorn', sheen:30, clear:N,                      char:[N,5.30,5.50,5.70,5.95]},
+ {sp:'Red Oak',  color:'Natural',       sheen:30, clear:[5.05,5.25,5.45,5.70], char:[4.65,4.80,5.00,5.25,N]},
+ {sp:'Red Oak',  color:'Toasted Acorn', sheen:30, clear:[N,5.55,5.75,6.00],    char:[N,5.10,5.30,5.55,N]},
+ {sp:'Red Oak',  color:'Nutmeg',        sheen:20, clear:N,                      char:[N,5.10,5.30,5.55,N]},
+ {sp:'Walnut',   color:'Natural',       sheen:30, clear:[N,9.00,9.50,N],       char:[N,6.85,7.20,7.60,8.00]},
+ {sp:'White Oak',color:'Natural',       sheen:30, clear:[N,7.60,7.90,8.30],    char:[5.25,5.45,5.70,6.00,6.30]},
+ {sp:'White Oak',color:'Cattail',       sheen:30, clear:N,                      char:[N,5.75,6.00,6.30,6.60]},
+ {sp:'White Oak',color:'Caramel',       sheen:20, clear:N,                      char:[N,5.75,6.00,6.30,6.60]},
+ {sp:'White Oak',color:'Fresh Cut',     sheen:5,  clear:N,                      char:[N,5.75,6.00,6.30,6.60]},
+ {sp:'Red Oak',  color:'Cattail · Sawcut',            sheen:20, tex:true, clear:N, char:[N,N,7.90,8.10,8.35]},
+ {sp:'Hickory',  color:'Hickory Nut · Vintage Charm', sheen:20, tex:true, clear:N, char:[N,N,7.00,7.20,7.45]},
+];
+const STOCKED_W={clear:[2.25,3.25,4.25,5.25], char:[2.25,3.25,4.25,5.25,6.25]};
+
+const HB={ // herringbone: 4 slat-length bands × widths per species
+ bands:['9"–18" slats','18¼"–28" slats','28¼"–38" slats','38¼"–48" slats'],
+ solid:{
+  'Beech':        {ws:[2.25,3.25,4.25,5.25],           p:[[5.50,5.70,5.95,6.20],[5.85,6.05,6.30,6.55],[6.30,6.50,6.75,7.00],[6.80,7.00,7.25,7.50]]},
+  'Cherry':       {ws:[2.25,3.25,4.25,5.25,6.25],      p:[[5.25,5.45,5.70,5.95,6.20],[5.60,5.80,6.05,6.30,6.55],[6.05,6.25,6.50,6.75,7.00],[6.55,6.75,7.00,7.25,7.50]]},
+  'Maple':        {ws:[2.25,3.25,4.25,5.25,6.25,7.25], p:[[6.05,6.35,6.65,6.95,7.25,7.65],[6.40,6.70,7.00,7.30,7.60,8.00],[6.85,7.15,7.45,7.75,8.05,8.45],[7.35,7.65,7.95,8.25,8.55,8.95]]},
+  'Hickory':      {ws:[2.25,3.25,4.25,5.25,6.25,7.25], p:[[5.35,5.60,5.80,6.05,6.35,6.65],[5.70,5.95,6.15,6.40,6.70,7.00],[6.15,6.40,6.60,6.85,7.15,7.45],[6.65,6.90,7.10,7.35,7.65,7.95]]},
+  'Red Oak':      {ws:[2.25,3.25,4.25,5.25,6.25,7.25], p:[[5.20,5.40,5.60,5.85,6.15,6.45],[5.55,5.75,5.95,6.20,6.50,6.80],[6.00,6.20,6.40,6.65,6.95,7.25],[6.50,6.70,6.90,7.15,7.45,7.75]]},
+  'Walnut':       {ws:[2.25,3.25,4.25,5.25,6.25,7.25], p:[[8.70,9.15,9.65,10.15,10.70,11.30],[9.05,9.50,10.00,10.50,11.05,11.65],[9.50,9.95,10.45,10.95,11.50,12.10],[10.00,10.45,10.95,11.45,12.00,12.60]]},
+  'White Oak':    {ws:[2.25,3.25,4.25,5.25,6.25,7.25], p:[[7.45,7.75,8.05,8.45,8.95,9.50],[7.80,8.10,8.40,8.80,9.30,9.85],[8.25,8.55,8.85,9.25,9.75,10.30],[8.75,9.05,9.35,9.75,10.25,10.80]]},
+  'Q/R White Oak':{ws:[2.25,3.25,4.25,5.25,6.25,7.25], p:[[9.25,9.75,10.30,10.85,11.45,12.15],[9.60,10.10,10.65,11.20,11.80,12.50],[10.05,10.55,11.10,11.65,12.25,12.95],[10.55,11.05,11.60,12.15,12.75,13.45]]},
+ },
+ eng:{
+  'Beech':        {ws:[3.25,4.25,5.25],                p:[[7.00,7.35,7.70],[7.35,7.70,8.05],[7.80,8.15,8.50],[8.30,8.65,9.00]]},
+  'Cherry':       {ws:[3.25,4.25,5.25,6.25],           p:[[6.80,7.15,7.50,7.85],[7.15,7.50,7.85,8.20],[7.60,7.95,8.30,8.65],[8.10,8.45,8.80,9.15]]},
+  'Maple':        {ws:[3.25,4.25,5.25,6.25,7.25],      p:[[7.15,7.50,7.85,8.25,8.70],[7.50,7.85,8.20,8.60,9.05],[7.95,8.30,8.65,9.05,9.50],[8.45,8.80,9.15,9.55,10.00]]},
+  'Hickory':      {ws:[3.25,4.25,5.25,6.25,7.25],      p:[[6.85,7.20,7.55,7.90,8.30],[7.20,7.55,7.90,8.25,8.65],[7.65,8.00,8.35,8.70,9.10],[8.15,8.50,8.85,9.20,9.60]]},
+  'Red Oak':      {ws:[3.25,4.25,5.25,6.25,7.25],      p:[[6.85,7.15,7.50,7.90,8.30],[7.20,7.50,7.85,8.25,8.65],[7.65,7.95,8.30,8.70,9.10],[8.15,8.45,8.80,9.20,9.60]]},
+  'Walnut':       {ws:[3.25,4.25,5.25,6.25,7.25],      p:[[8.70,9.15,9.65,10.15,10.70],[9.05,9.50,10.00,10.50,11.05],[9.50,9.95,10.45,10.95,11.50],[10.00,10.45,10.95,11.45,12.00]]},
+  'White Oak':    {ws:[3.25,4.25,5.25,6.25,7.25],      p:[[7.80,8.20,8.65,9.10,9.60],[8.15,8.55,9.00,9.45,9.95],[8.60,9.00,9.45,9.90,10.40],[9.10,9.50,9.95,10.40,10.90]]},
+  'Q/R White Oak':{ws:[3.25,4.25,5.25,6.25,7.25],      p:[[9.15,9.65,10.20,10.75,11.35],[9.50,10.00,10.55,11.10,11.70],[9.95,10.45,11.00,11.55,12.15],[10.45,10.95,11.50,12.05,12.65]]},
+ }
+};
+
+/* --- Vents: two species price groups --- */
+const VENT_SP={'Cherry':'A','Hickory':'A','Beech':'A','Red Oak':'A','Hard Maple':'B','White Oak':'B','Q/R White Oak':'B','Walnut':'B'};
+// [size, selfRim-A, flush-A, selfRim-B, flush-B]
+const V_STD=[
+ ['2¼×6',21.88,18.13,25.16,20.85],['2¼×8',21.88,18.13,25.16,20.85],['2¼×10',21.88,18.13,25.16,20.85],['2¼×12',21.88,18.13,25.16,20.85],
+ ['2¼×14',25.63,21.25,29.48,24.44],['2¼×16',29.38,25.00,33.79,28.75],['2¼×18',31.25,27.50,35.94,31.63],['2¼×20',36.25,30.63,41.69,35.23],
+ ['4×6',21.88,18.13,25.16,20.85],['4×8',21.88,18.13,25.16,20.85],['4×10',21.88,18.13,25.16,20.85],['4×12',21.88,18.13,25.16,20.85],
+ ['4×14',25.63,21.25,29.48,24.44],['4×16',29.38,25.00,33.79,28.75],['4×18',32.50,27.50,37.38,31.63],['4×20',36.25,27.50,41.69,28.75],
+ ['6×8',21.88,18.13,25.16,20.85],['6×10',21.88,18.13,25.16,20.85],['6×12',23.75,20.00,27.31,23.00],['6×14',36.25,25.00,41.69,28.75],
+ ['6×16',36.25,25.00,41.69,28.75],['6×18',39.38,34.38,45.29,39.54],['6×20',43.13,37.50,49.60,43.13],['6×22',46.88,38.75,53.91,44.56],
+ ['6×24',54.38,46.88,62.54,53.91],['6×26',58.75,50.00,67.56,57.50],['6×28',61.88,47.50,71.16,54.63],['6×30',65.63,56.25,75.48,64.69],['6×32',69.38,59.38,79.79,68.29],
+ ['8×10',36.25,25.00,41.69,28.75],['8×12',36.25,25.00,41.69,28.75],['8×14',41.25,36.88,47.44,42.41],['8×16',46.88,39.38,53.91,45.29],
+ ['8×18',54.38,46.88,62.54,53.91],['8×20',59.38,51.25,68.29,58.94],['8×22',64.38,55.63,74.04,63.98],['8×24',69.38,59.38,79.79,68.29],
+ ['8×26',78.75,68.75,90.56,79.06],['8×28',83.75,72.50,96.31,83.38],['8×30',88.75,76.25,102.06,87.69],['8×32',93.75,80.63,107.81,92.73],
+ ['10×12',43.13,37.50,49.60,43.13],['10×14',53.75,46.25,61.81,53.19],['10×16',59.38,51.25,68.29,58.94],['10×18',65.63,56.25,75.48,64.69],
+ ['10×20',76.25,67.50,87.69,77.63],['10×22',82.50,71.25,94.88,81.94],['10×24',88.75,76.25,102.06,87.69],['10×26',94.38,81.25,108.54,93.44],
+ ['10×28',100.63,86.25,115.73,99.19],['10×30',106.88,91.25,122.91,104.94],['10×32',112.50,96.88,129.38,111.41],
+];
+const V_FRAMED=[ // flush vents with frame: [size, A, B]
+ ['2¼×10',24.38,28.04],['2¼×12',24.38,28.04],['2¼×14',28.75,33.06],['4×10',24.38,28.04],['4×12',25.63,29.48],['4×14',30.63,35.23],
+ ['4×16',34.38,39.54],['6×10',25.63,29.48],['6×12',28.75,33.06],['6×14',30.63,35.23],['6×24',62.50,71.88],['6×30',72.50,83.38],
+];
+const V_CAR=[ // cold air returns: [size, selfRim-A, flush-A, selfRim-B, flush-B]
+ ['8×14',48.13,41.88,55.35,48.16],['8×16',52.50,46.25,60.38,53.19],['8×18',56.88,50.63,65.41,58.23],['8×20',61.25,55.00,70.44,63.25],
+ ['8×22',66.25,60.00,76.19,69.00],['8×24',72.50,66.25,83.38,76.19],['8×26',75.00,68.75,86.25,79.06],['8×28',79.38,73.13,91.29,84.10],
+ ['8×30',81.25,76.25,93.44,87.69],['8×32',85.00,78.75,97.75,90.56],
+ ['10×14',56.25,50.00,64.69,57.50],['10×16',61.25,55.00,70.44,63.25],['10×18',66.88,60.63,76.91,69.73],['10×20',72.50,66.25,83.38,76.19],
+ ['10×22',78.13,71.88,89.85,82.66],['10×24',86.25,80.00,99.19,92.00],['10×26',88.13,81.88,101.35,94.16],['10×28',93.75,87.50,107.81,100.63],
+ ['10×30',97.50,92.50,112.13,106.38],['10×32',103.75,97.50,119.31,112.13],
+ ['12×14',66.25,60.00,76.19,69.00],['12×16',72.50,66.25,83.38,76.19],['12×18',79.38,73.13,91.29,84.10],['12×20',81.25,76.25,93.44,87.69],
+ ['12×22',89.38,83.13,102.79,95.60],['12×24',95.63,89.38,109.98,102.79],['12×26',101.88,95.63,117.16,109.98],['12×28',108.13,101.88,124.35,117.16],
+ ['12×30',114.38,108.13,131.54,124.35],['12×32',116.25,110.00,133.69,126.50],
+];
+const V_3D=[ // [size, A, B]
+ ['4×12',47.50,54.63],['4×14',50.63,58.23],['4×16',53.75,61.81],['4×18',56.88,65.41],['4×20',60.00,69.00],['4×22',61.88,71.16],['4×24',73.75,84.81],['4×32',96.25,110.69],
+];
+const V_CATS=[
+ {id:'std-sr', name:'Self-rimming', list:()=>V_STD,    col:g=>g==='A'?1:3, cubed:true},
+ {id:'std-fl', name:'Flush',        list:()=>V_STD,    col:g=>g==='A'?2:4, cubed:true, frame:true},
+ {id:'framed', name:'Flush w/ frame', list:()=>V_FRAMED, col:g=>g==='A'?1:2},
+ {id:'car-sr', name:'Cold air return · self-rim', list:()=>V_CAR, col:g=>g==='A'?1:3, cubed:true},
+ {id:'car-fl', name:'Cold air return · flush',    list:()=>V_CAR, col:g=>g==='A'?2:4, cubed:true},
+ {id:'d3',     name:'3-Dimensional (baseboard)',  list:()=>V_3D,  col:g=>g==='A'?1:2},
+];
+const V_PREFIN=28.25, V_TEX=8.00, V_CUBED=10.00, DAMPER_ATTACH=5.00;
+const DAMPERS={ // [Sheoga cost, stocking (our cost), builder, retail]
+ '4×10':[16.00,20.00,23.20,25.60],'4×12':[17.50,21.88,25.38,28.00],'4×14':[19.50,24.38,28.28,31.20],
+ '6×10':[17.50,21.88,25.38,28.00],'6×12':[19.50,24.38,28.28,31.20],'6×14':[22.50,28.13,32.63,36.00],'8×12':[21.50,26.88,31.18,34.40],
+};
+
+/* ============ state ============ */
+const LSKEY='sheogaProto1';
+let S={
+ mode:'floor', markup:40, sf:1000,
+ floor:{sp:'White Oak', grade:'char', cons:'solid', w:5.25, tex:'smooth', edge:'square', len:'1-8', noSap:false, finish:'unf', stain:'', sample:false},
+ stocked:{item:11, grade:'char', w:5.25},
+ hb:{sp:'White Oak', cons:'solid', w:4.25, band:1, chevron:false},
+ vent:{sp:'White Oak', cat:'std-fl', size:'4×12', cubed:false, prefin:false, tex:false, damper:false, frame:false, qty:6},
+ damper:{size:'4×10', qty:6},
+ saved:[], recent:[],
+};
+try{const p=JSON.parse(localStorage.getItem(LSKEY)||'{}');
+    if(p.saved)S.saved=p.saved; if(p.recent)S.recent=p.recent; if(p.markup)S.markup=p.markup;}catch(e){}
+
+const $=id=>document.getElementById(id);
+const fm=n=>'$'+n.toFixed(2);
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const sellOf=c=>c*(1+S.markup/100);
+function save(){try{localStorage.setItem(LSKEY,JSON.stringify({saved:S.saved,recent:S.recent,markup:S.markup}))}catch(e){}}
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
+
+/* ============ pricing engine ============ */
+function floorBase(f){ // unfinished $/sf for species/grade/cons/width, or null
+ if(f.sp==='Live Sawn White Oak'){const i=LS.ws.indexOf(f.w); return i<0?N:(f.cons==='solid'?LS.solid:LS.eng)[i];}
+ const t=UNFIN[f.sp]; if(!t)return N; const i=W7.indexOf(f.w); if(i<0)return N;
+ return t[(f.cons==='eng'?(f.grade==='clear'?'eClear':'eChar'):(f.grade==='clear'?'clear':'char'))][i];
+}
+function floorWidths(f){return f.sp==='Live Sawn White Oak'?LS.ws:W7;}
+function calcFloor(f,sf){
+ const base=floorBase(f); if(base==N)return null;
+ const tex=TEXTURES.find(t=>t.id===f.tex), edge=EDGES.find(e=>e.id===f.edge),
+       len=LENGTHS.find(l=>l.id===f.len), fin=FINISHES.find(x=>x.id===f.finish);
+ const sap=f.noSap?(f.sp==='Cherry'?1.00:f.sp==='Walnut'?2.00:0):0;
+ const lenAdd=(base+sap)*len.pct/100, finAdd=fin.add(f);
+ const fee=(f.finish!=='unf')?(sf<250?600:sf<500?300:0):0;
+ const cost=base+sap+lenAdd+tex.add+edge.add+finAdd;
+ const rows=[[`Unfinished base — ${f.sp}, ${gradeName(f)}, ${f.cons==='solid'?'solid':'engineered'} ${WLBL[f.w]}`,fm(base)+'/sf']];
+ if(sap)rows.push(['No-sap upcharge',`+${fm(sap)}/sf`]);
+ if(len.pct)rows.push([`${len.name} lengths (+${len.pct}% of base)`,`+${fm(lenAdd)}/sf`]);
+ if(tex.add)rows.push([`Texture — ${tex.name}`,`+${fm(tex.add)}/sf`]);
+ if(edge.add)rows.push([`Edge — ${edge.name}`,`+${fm(edge.add)}/sf`]);
+ if(finAdd)rows.push([`Finishing — ${fin.name.replace('Prefinished — ','')}`,`+${fm(finAdd)}/sf`]);
+ const fees=[];
+ if(fee)fees.push({label:`Small-order fee — prefinished job under ${sf<250?250:500} sf`,amt:fee});
+ const custom=['t1','t2','t3'].includes(f.finish);
+ if(custom&&f.sample)fees.push({label:'Custom color-match sample — approval bundle shipped',amt:750});
+ fees.forEach(x=>rows.push([`${x.label} → imports as its own line`,`+${fm(x.amt)} flat`]));
+ const warn=[];
+ if(custom&&!f.sample)warn.push('Custom color — add the $750 color-match sample, or call Sheoga');
+ warn.push('Made to order · 5–10% overrun · non-returnable');
+ const size=WLBL[f.w];
+ const rest=`${f.sp} · ${gradeName(f)} · ${f.cons==='solid'?'Solid':'Engineered'}`+
+   `${f.noSap?' · No sap':''} · ${tex.name.replace(' (standard)','')} · ${edge.name} · ${len.name.replace(' (standard)','')} lengths · ${finName(f)}`;
+ return {desc:`${size} ${rest}`, size, rest, cartonSf:CARTON_SF[f.w]||null, name:`Sheoga ${size} ${f.sp}`, rows, cost, per:'sf', warn, fees};
+}
+function gradeName(f){return f.sp==='Live Sawn White Oak'?'Live Sawn':(f.grade==='clear'?'Clear':'Character');}
+function finName(f){const x=FINISHES.find(z=>z.id===f.finish);
+ if(f.finish==='unf')return 'Unfinished';
+ if(f.finish==='est')return `Prefinished ${f.stain||'(pick stain)'} stain`;
+ if(f.finish==='nat')return 'Prefinished Natural';
+ return `${x.name}${f.stain?` “${f.stain}”`:''}`;}
+function calcStocked(k,sf){
+ const it=STOCKED[k.item]; const arr=it[k.grade]; if(!arr)return null;
+ const ws=STOCKED_W[k.grade]; const i=ws.indexOf(k.w); const p=(i<0)?N:arr[i]; if(p==N)return null;
+ const rows=[[`Stocked prefinished — micro bevel, ${it.sheen}-sheen clear ceramic`,fm(p)+'/sf']];
+ const size=WLBL[k.w];
+ const rest=`${it.sp} — ${it.color} · ${k.grade==='clear'?'Clear':'Character'} · Stocked prefinished, ${it.sheen}-sheen`;
+ return {desc:`${size} ${rest}`, size, rest, cartonSf:CARTON_SF[k.w]||null, name:`Sheoga ${size} ${it.sp} ${it.color}`, rows, cost:p, per:'sf', warn:['Stocked item — ships from Sheoga stock'], fees:[]};
+}
+function calcHB(h,sf){
+ const t=HB[h.cons==='solid'?'solid':'eng'][h.sp]; if(!t)return null;
+ const i=t.ws.indexOf(h.w); if(i<0)return null;
+ const base=t.p[h.band][i]; if(base==N)return null;
+ const rows=[[`Herringbone — ${h.sp} ${h.cons==='solid'?'solid':'engineered'} ${WLBL[h.w]}, ${HB.bands[h.band]}`,fm(base)+'/sf']];
+ let cost=base;
+ if(h.chevron){cost+=3.00;rows.push(['Chevron pattern (slip tongue included)','+$3.00/sf']);}
+ const size=WLBL[h.w];
+ const rest=`${h.sp} · ${h.cons==='solid'?'Solid':'Engineered'} ${h.chevron?'Chevron':'Herringbone'} · ${HB.bands[h.band]}`;
+ return {desc:`${size} ${rest}`, size, rest, name:`Sheoga ${size} ${h.chevron?'Chevron':'Herringbone'} ${h.sp}`, rows, cost, per:'sf',
+   warn:['Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding'], fees:[]};
+}
+function ventDims(sz){return sz.split('×').map(x=>x==='2¼'?2.25:parseFloat(x));}
+function calcVent(v){
+ const cat=V_CATS.find(c=>c.id===v.cat); const g=VENT_SP[v.sp]; const row=cat.list().find(r=>r[0]===v.size);
+ if(!row)return null;
+ const base=row[cat.col(g)];
+ const rows=[[`${cat.name} vent ${v.size}" — group ${g} (${v.sp})`,fm(base)+' ea']];
+ let cost=base;
+ if(v.cubed&&cat.cubed){cost+=V_CUBED;rows.push(['Cubed grille','+$10.00']);}
+ if(v.prefin){cost+=V_PREFIN;rows.push(['Prefinished','+$28.25']);}
+ if(v.tex){cost+=V_TEX;rows.push(['Textured','+$8.00']);}
+ if(v.damper&&DAMPERS[v.size]){const d=DAMPERS[v.size][1]+DAMPER_ATTACH;cost+=d;
+   rows.push([`Damper ${v.size} + $5.00 attach`,`+${fm(d)}`]);}
+ if(v.frame&&cat.frame){const[a,b]=ventDims(v.size);const li=Math.max(a,b)+2*Math.min(a,b);const fc=.40*li;cost+=fc;
+   rows.push([`Frame — ${li}" lineal @ $0.40`,`+${fm(fc)}`]);}
+ const desc=`${v.size}" ${cat.name} vent · ${v.sp}${v.cubed&&cat.cubed?' · Cubed':''}${v.prefin?' · Prefinished':''}${v.tex?' · Textured':''}${v.damper&&DAMPERS[v.size]?' · w/ damper':''}${v.frame&&cat.frame?' · w/ frame':''}`;
+ return {desc, name:`Sheoga vent ${v.size}" ${v.sp}`, rows, cost, per:'ea', qty:v.qty,
+   warn:cat.id==='framed'?['Overall size adds 2¾" all around the duct size']:[], fee:0};
+}
+function calcDamper(d){
+ const t=DAMPERS[d.size]; if(!t)return null;
+ const rows=[[`Damper ${d.size}" — stocking price (our cost)`,fm(t[1])+' ea'],
+   ['Sheoga list: builder '+fm(t[2])+' · retail '+fm(t[3]),'']];
+ return {desc:`${d.size}" vent damper (loose)`, name:`Sheoga damper ${d.size}"`, rows, cost:t[1], per:'ea', qty:d.qty,
+   warn:['Attached-to-vent price is damper + $5.00 (use the vent tab)'], fee:0};
+}
+function calc(){
+ if(S.mode==='floor')return calcFloor(S.floor,S.sf);
+ if(S.mode==='stocked')return calcStocked(S.stocked,S.sf);
+ if(S.mode==='hb')return calcHB(S.hb,S.sf);
+ if(S.mode==='vent')return calcVent(S.vent);
+ return calcDamper(S.damper);
+}
+
+/* ============ rendering — prototype A ============ */
+const MODES=[['floor','Unfinished & custom'],['stocked','Stocked prefinished'],['hb','Herringbone'],['vent','Wood vents'],['damper','Dampers']];
+function renderTabs(){
+ $('modetabs').innerHTML=MODES.map(([id,l])=>`<button class="modetab${S.mode===id?' on':''}" data-m="${id}">${l}</button>`).join('');
+ [...$('modetabs').children].forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;renderAll();});
+}
+function chipRow(items,cur,cb,fmtc){ // generic chip list
+ const div=document.createElement('div');div.className='chips';
+ items.forEach(it=>{const b=document.createElement('button');
+  b.className='chip'+(it.id===cur?' on':'')+(it.dis?' dis':'');
+  b.innerHTML=`${esc(it.label)}${it.sub!=null?`<small>${esc(it.sub)}</small>`:''}`;
+  if(!it.dis)b.onclick=()=>cb(it.id); div.appendChild(b);});
+ return div;
+}
+function sect(title,node,hint,extra){
+ const d=document.createElement('div');d.className='sect';
+ d.innerHTML=`<div class="sect-h"><span class="t">${title}</span>${extra||''}${hint?`<span class="hint">${hint}</span>`:''}</div>`;
+ d.appendChild(node);return d;
+}
+function segEl(opts,cur,cb){const d=document.createElement('div');d.className='seg';
+ opts.forEach(o=>{const b=document.createElement('button');b.className=o.id===cur?'on':'';b.textContent=o.label;
+  if(!o.dis)b.onclick=()=>cb(o.id);else b.style.opacity=.4;d.appendChild(b);});return d;}
+function radioList(items,cur,cb){const d=document.createElement('div');d.className='radio-list';
+ items.forEach(it=>{const b=document.createElement('button');b.className='radio-row'+(it.id===cur?' on':'');
+  b.innerHTML=`<span class="dot"></span><span>${esc(it.label)}${it.sub?`<span class="sub">${esc(it.sub)}</span>`:''}</span><span class="add">${it.add||''}</span>`;
+  b.onclick=()=>cb(it.id);d.appendChild(b);});return d;}
+function tglEl(label,on,cb,add){const b=document.createElement('button');b.className='tgl'+(on?' on':'');
+ b.innerHTML=`<span class="box">${on?'✓':''}</span><span>${label}</span><span class="add">${add||''}</span>`;
+ b.onclick=cb;return b;}
+
+function snapFloorWidth(){const f=S.floor,ws=floorWidths(f);
+ if(floorBase(f)==N){const w2=ws.find(w=>floorBase({...f,w})!=N);if(w2)f.w=w2;}}
+function renderRail(){
+ const r=$('rail');r.innerHTML='';
+ if(S.mode==='floor'){
+  const f=S.floor;
+  r.appendChild(sect('Species',chipRow(SPECIES.map(sp=>{
+    const ws=(sp==='Live Sawn White Oak')?LS.ws:W7;
+    let w=f.w; if(floorBase({...f,sp,w})==N)w=ws.find(w2=>floorBase({...f,sp,w:w2})!=N);
+    const c=w!=null?calcFloor({...f,sp,w},S.sf):null;
+    return {id:sp,label:sp,sub:c?fm(sellOf(c.cost))+'/sf'+(w!==f.w?' @'+WLBL[w]:''):'—',dis:!c};
+   }),f.sp,id=>{f.sp=id;snapFloorWidth();renderAll();}),'sell $/sf at current options'));
+  r.appendChild(sect('Grade',f.sp==='Live Sawn White Oak'
+    ?segEl([{id:'ls',label:'Live Sawn (one grade)'}],'ls',()=>{})
+    :segEl([{id:'clear',label:'Clear'},{id:'char',label:'Character'}],f.grade,id=>{f.grade=id;snapFloorWidth();renderAll();})));
+  r.appendChild(sect('Construction',segEl([{id:'solid',label:'Solid ¾"'},{id:'eng',label:'Engineered'}],f.cons,id=>{f.cons=id;snapFloorWidth();renderAll();})));
+  r.appendChild(sect('Width',chipRow(floorWidths(f).map(w=>{
+    const c=calcFloor({...f,w},S.sf);return {id:w,label:WLBL[w],sub:c?fm(sellOf(c.cost))+'/sf':'—',dis:!c};
+   }),f.w,id=>{f.w=+id;renderAll();}),null,
+   `<button class="gridlink" onclick="openGrid()">full price grid →</button>`));
+  r.appendChild(sect('Texture / scrape',radioList(TEXTURES.map(t=>({id:t.id,label:t.name,add:t.add?`+${fm(t.add)}`:'—'})),f.tex,id=>{f.tex=id;renderAll();})));
+  r.appendChild(sect('Edge',radioList(EDGES.map(e=>({id:e.id,label:e.name,add:e.add?`+${fm(e.add)}`:'—'})),f.edge,id=>{f.edge=id;renderAll();})));
+  r.appendChild(sect('Lengths',radioList(LENGTHS.map(l=>({id:l.id,label:l.name,add:l.pct?`+${l.pct}%`:'—'})),f.len,id=>{f.len=id;renderAll();})));
+  if(f.sp==='Cherry'||f.sp==='Walnut'){
+   const d=document.createElement('div');
+   d.appendChild(tglEl(`No sap — ${f.sp}`,f.noSap,()=>{f.noSap=!f.noSap;renderAll();},`+${fm(f.sp==='Cherry'?1:2)}/sf`));
+   r.appendChild(sect('Sap',d));
+  } else f.noSap=false;
+  const finNode=radioList(FINISHES.map(x=>({id:x.id,label:x.name,sub:x.sub,add:x.id==='unf'?'—':`+${fm(x.add(f))}`})),f.finish,id=>{f.finish=id;renderAll();});
+  const finWrap=document.createElement('div');finWrap.appendChild(finNode);
+  if(['est','t1','t2','t3'].includes(f.finish)){
+   const inp=document.createElement('input');inp.className='inp';inp.style.cssText='width:100%;margin-top:7px';
+   inp.placeholder=f.finish==='est'?'Stain color (e.g. Toasted Acorn)':'Custom color name / T-number ref';
+   inp.value=f.stain;inp.oninput=e=>{f.stain=e.target.value;renderBuild();};finWrap.appendChild(inp);
+   if(f.finish!=='est'){const st=tglEl('Color-match sample — approval bundle',f.sample,()=>{f.sample=!f.sample;renderAll();},'+$750 flat');
+    st.style.marginTop='7px';finWrap.appendChild(st);}
+  }
+  r.appendChild(sect('Finishing',finWrap,'small-order fee under 500 sf'));
+ }
+ else if(S.mode==='stocked'){
+  const k=S.stocked,it=STOCKED[k.item];
+  const listNode=radioList(STOCKED.map((x,i)=>({id:i,label:`${x.sp} — ${x.color}`,sub:(x.tex?'textured · ':'')+x.sheen+'-sheen',
+    add:''})),k.item,id=>{k.item=+id;const nit=STOCKED[id];
+      if(!nit[k.grade])k.grade=nit.clear?'clear':'char';
+      const ws=STOCKED_W[k.grade];
+      if(!ws.includes(k.w)||nit[k.grade][ws.indexOf(k.w)]==N)k.w=ws.find(w=>nit[k.grade][ws.indexOf(w)]!=N)??k.w;
+      renderAll();});
+  r.appendChild(sect('Stocked color',listNode,'ships from stock'));
+  r.appendChild(sect('Grade',segEl([{id:'clear',label:'Clear',dis:!it.clear},{id:'char',label:'Character',dis:!it.char}],k.grade,id=>{k.grade=id;
+    const ws=STOCKED_W[id];if(!ws.includes(k.w)||it[id][ws.indexOf(k.w)]==N)k.w=ws.find(w=>it[id][ws.indexOf(w)]!=N)??k.w;renderAll();})));
+  r.appendChild(sect('Width',chipRow(STOCKED_W[k.grade].map(w=>{
+    const c=calcStocked({...k,w},S.sf);return {id:w,label:WLBL[w],sub:c?fm(sellOf(c.cost))+'/sf':'—',dis:!c};
+   }),k.w,id=>{k.w=+id;renderAll();}),null,`<button class="gridlink" onclick="openGrid()">full price grid →</button>`));
+ }
+ else if(S.mode==='hb'){
+  const h=S.hb;
+  const snapHB=()=>{const t=HB[h.cons==='solid'?'solid':'eng'][h.sp];if(!t.ws.includes(h.w))h.w=t.ws[Math.min(2,t.ws.length-1)];};
+  r.appendChild(sect('Species',chipRow(Object.keys(HB.solid).map(sp=>{
+    const t=HB[h.cons==='solid'?'solid':'eng'][sp];const w=t.ws.includes(h.w)?h.w:t.ws[0];
+    const c=calcHB({...h,sp,w},S.sf);return {id:sp,label:sp,sub:c?fm(sellOf(c.cost))+'/sf':'—'};
+   }),h.sp,id=>{h.sp=id;snapHB();renderAll();})));
+  r.appendChild(sect('Construction',segEl([{id:'solid',label:'Solid'},{id:'eng',label:'Engineered'}],h.cons,id=>{h.cons=id;snapHB();renderAll();})));
+  r.appendChild(sect('Width',chipRow(HB[h.cons==='solid'?'solid':'eng'][h.sp].ws.map(w=>{
+    const c=calcHB({...h,w},S.sf);return {id:w,label:WLBL[w],sub:c?fm(sellOf(c.cost))+'/sf':'—',dis:!c};
+   }),h.w,id=>{h.w=+id;renderAll();}),null,`<button class="gridlink" onclick="openGrid()">full price grid →</button>`));
+  r.appendChild(sect('Slat length',radioList(HB.bands.map((b,i)=>{
+    const c=calcHB({...h,band:i},S.sf);return {id:i,label:b,add:c?fm(sellOf(c.cost))+'/sf':'—'};
+   }),h.band,id=>{h.band=+id;renderAll();})));
+  const d=document.createElement('div');
+  d.appendChild(tglEl('Chevron pattern (slip tongue included)',h.chevron,()=>{h.chevron=!h.chevron;renderAll();},'+$3.00/sf'));
+  r.appendChild(sect('Pattern',d));
+ }
+ else if(S.mode==='vent'){
+  const v=S.vent;const cat=V_CATS.find(c=>c.id===v.cat);
+  const snapSize=()=>{const c2=V_CATS.find(c=>c.id===v.cat);if(!c2.list().some(r=>r[0]===v.size))v.size=c2.list()[0][0];};
+  r.appendChild(sect('Species',chipRow(Object.keys(VENT_SP).map(sp=>({id:sp,label:sp,sub:'group '+VENT_SP[sp]})),v.sp,id=>{v.sp=id;renderAll();}),'A: cherry/hickory/beech/red oak'));
+  r.appendChild(sect('Vent type',radioList(V_CATS.map(c=>({id:c.id,label:c.name})),v.cat,id=>{v.cat=id;snapSize();renderAll();})));
+  r.appendChild(sect('Size (duct W × L)',chipRow(cat.list().map(row=>{
+    const c=calcVent({...v,size:row[0]});return {id:row[0],label:row[0]+'"',sub:c?fm(sellOf(c.cost)):'—'};
+   }),v.size,id=>{v.size=id;renderAll();}),'sell, each, with options'));
+  const d=document.createElement('div');
+  if(cat.cubed)d.appendChild(tglEl('Cubed grille',v.cubed,()=>{v.cubed=!v.cubed;renderAll();},'+$10.00'));
+  d.appendChild(tglEl('Prefinished',v.prefin,()=>{v.prefin=!v.prefin;renderAll();},'+$28.25'));
+  d.appendChild(tglEl('Textured',v.tex,()=>{v.tex=!v.tex;renderAll();},'+$8.00'));
+  if(DAMPERS[v.size])d.appendChild(tglEl('Attach damper',v.damper,()=>{v.damper=!v.damper;renderAll();},`+${fm(DAMPERS[v.size][1]+5)}`));
+  if(cat.frame){const[a,b]=ventDims(v.size);const li=Math.max(a,b)+2*Math.min(a,b);
+   d.appendChild(tglEl('Add frame ($0.40 / lineal inch)',v.frame,()=>{v.frame=!v.frame;renderAll();},`+${fm(.4*li)}`));}
+  r.appendChild(sect('Options',d));
+  const q=document.createElement('input');q.className='inp';q.type='number';q.min=1;q.value=v.qty;
+  q.oninput=e=>{v.qty=Math.max(1,+e.target.value||1);renderBuild();};
+  r.appendChild(sect('Quantity',q));
+ }
+ else{ // damper
+  const d=S.damper;
+  r.appendChild(sect('Size',chipRow(Object.keys(DAMPERS).map(sz=>({id:sz,label:sz+'"',sub:fm(sellOf(DAMPERS[sz][1]))})),d.size,id=>{d.size=id;renderAll();}),'sell each at markup'));
+  const q=document.createElement('input');q.className='inp';q.type='number';q.min=1;q.value=d.qty;
+  q.oninput=e=>{d.qty=Math.max(1,+e.target.value||1);renderBuild();};
+  r.appendChild(sect('Quantity',q));
+  const note=document.createElement('div');note.style.cssText='font-size:11px;color:var(--faint);line-height:1.5;font-weight:500';
+  note.textContent='Loose dampers. To price a damper attached to a vent (+$5 attach), use the Wood vents tab.';
+  r.appendChild(sect('Note',note));
+ }
+}
+function renderBuild(){
+ const c=calc();const b=$('build');
+ $('sfwrap').style.display=(S.mode==='vent'||S.mode==='damper')?'none':'flex';
+ if(!c){b.innerHTML='<div class="empty">This combination isn\'t offered — pick an available width.</div>';return;}
+ const sell=sellOf(c.cost);
+ const isEa=c.per==='ea';const qty=c.qty||1;
+ const feesTot=(c.fees||[]).reduce((a,x)=>a+x.amt,0);
+ const ctn=(!isEa&&c.cartonSf)?{sf:c.cartonSf,exact:S.sf/c.cartonSf,n:Math.ceil(S.sf/c.cartonSf)}:null;
+ if(ctn)ctn.billed=+(ctn.n*ctn.sf).toFixed(1);
+ const jobTot=(isEa?sell*qty:sell*(ctn?ctn.billed:S.sf))+feesTot;
+ b.innerHTML=`
+  <div class="build-h"><span class="tchip">H</span><span class="t">${esc(c.name)}</span>
+    <span class="veff">priced from Sheoga sheets · Feb ’25 / Feb ’22</span></div>
+  <div class="descline">${esc(c.desc)}</div>
+  <div class="desc-sub">↑ this description <b>is</b> the order — Sheoga has no SKUs; it snapshots onto the job line.</div>
+  <div class="bd">
+    ${c.rows.map(r=>`<div class="bd-row"><span class="lbl">${esc(r[0])}</span><span class="amt">${esc(r[1])}</span></div>`).join('')}
+    ${ctn?`<div class="bd-row"><span class="lbl">Sold by full cartons — ${ctn.sf} sf/carton</span><span class="amt">${ctn.n} ctns · exact ${ctn.exact.toFixed(2)}</span></div>`:''}
+    ${c.warn.map(w=>`<div class="bd-row warn"><span class="lbl">⚠ ${esc(w)}</span></div>`).join('')}
+  </div>
+  <div class="bd-total">
+    <div class="cost"><div class="k">our cost</div><div class="v">${fm(c.cost)}${isEa?' ea':'/sf'}</div></div>
+    <div class="arrow">→ +${S.markup}% →</div>
+    <div class="cost sell"><div class="k">sell</div><div class="v">${fm(sell)}${isEa?' ea':'/sf'}</div></div>
+    <div class="jobtot"><div class="k">${isEa?`× ${qty} pcs`:ctn?`${ctn.n} ctns × ${ctn.sf} sf = ${ctn.billed} sf`:`× ${S.sf} sq ft`}${feesTot?` + ${fm(feesTot)} fees`:''}</div><div class="v">${'$'+jobTot.toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+  </div>
+  <div class="build-act">
+    <button class="btn moss" onclick="saveOption()">☆ Save option</button>
+    <button class="btn" onclick="openGrid()">Full price grid</button>
+    <button class="btn primary" style="margin-left:auto" onclick="openAdd()">Add to product line →</button>
+  </div>`;
+}
+function renderTrays(){
+ $('savedN').textContent=S.saved.length;
+ const cur=calc();const curSell=cur?sellOf(cur.cost):null;
+ const sc=$('savedCards');
+ if(!S.saved.length){sc.innerHTML='<div class="empty">Nothing pinned yet. ☆ Save option keeps a configuration here so you can flip between choices with the customer — cheapest gets the green ring.</div>';}
+ else{
+  const best=Math.min(...S.saved.map(s=>sellOf(s.cost)));
+  sc.innerHTML=S.saved.map((s,i)=>{
+   const sell=sellOf(s.cost);const isB=sell===best&&S.saved.length>1;
+   const df=(cur&&cur.per===s.per)?sell-curSell:null;
+   return `<div class="scard${isB?' best':''}">${isB?'<span class="best-tag">lowest</span>':''}
+    <div class="nm">${esc(s.name)}</div><div class="ds">${esc(s.desc)}</div>
+    <div class="pr"><b>${fm(sell)}</b><span>${s.per==='ea'?'each':'/sf'}</span>
+      ${df!=null&&Math.abs(df)>.005?`<span class="df ${df>0?'up':'dn'}">${df>0?'+':'−'}${fm(Math.abs(df))} vs current</span>`:''}</div>
+    <div class="act"><button onclick="loadSaved(${i})">Load</button><button class="del" onclick="delSaved(${i})">✕</button></div></div>`;
+  }).join('');
+ }
+ const rl=$('recentList');
+ if(!S.recent.length){rl.innerHTML='<div class="empty">Every configuration you price lands here automatically.</div>';}
+ else rl.innerHTML=S.recent.map((r,i)=>
+   `<button class="rrow" onclick="loadRecent(${i})"><span class="ds">${esc(r.desc)}</span>
+    <span class="pr">${fm(sellOf(r.cost))}${r.per==='ea'?' ea':'/sf'}</span><span class="when">${r.when||''}</span></button>`).join('');
+}
+function snapshot(){const key={floor:'floor',stocked:'stocked',hb:'hb',vent:'vent',damper:'damper'}[S.mode];
+ return JSON.parse(JSON.stringify(S[key]));}
+function saveOption(){const c=calc();if(!c)return;
+ S.saved.unshift({mode:S.mode,cfg:snapshot(),desc:c.desc,name:c.name,cost:c.cost,per:c.per});
+ S.saved=S.saved.slice(0,8);save();renderTrays();toast('Saved — pinned for comparison');}
+function delSaved(i){S.saved.splice(i,1);save();renderTrays();}
+function loadSaved(i){const s=S.saved[i];S.mode=s.mode;S[s.mode]=JSON.parse(JSON.stringify(s.cfg));renderAll();toast('Loaded saved option');}
+function loadRecent(i){const r=S.recent[i];S.mode=r.mode;S[r.mode]=JSON.parse(JSON.stringify(r.cfg));renderAll();}
+let recT=null;
+function touchRecent(){clearTimeout(recT);recT=setTimeout(()=>{
+ const c=calc();if(!c)return;
+ if(S.recent[0]&&S.recent[0].desc===c.desc)return;
+ S.recent=S.recent.filter(r=>r.desc!==c.desc);
+ S.recent.unshift({mode:S.mode,cfg:snapshot(),desc:c.desc,cost:c.cost,per:c.per,
+  when:new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})});
+ S.recent=S.recent.slice(0,10);save();renderTrays();},1400);}
+
+/* --- modals --- */
+function closeModal(){$('modalBack').classList.remove('show');}
+$('modalBack').onclick=e=>{if(e.target===$('modalBack'))closeModal();};
+function openGrid(){
+ const box=$('modalBox');let html='';
+ if(S.mode==='floor'){
+  const f=S.floor;
+  const cols=W7.concat([9.25,11.25]);
+  html=`<div class="modal-h"><span class="t">Full price grid — ${f.grade==='clear'?'Clear':'Character'}, ${f.cons==='solid'?'Solid':'Engineered'}</span>
+    <span class="sub">unfinished base $/sf · click to select</span><button class="xbtn" style="margin-left:auto" onclick="closeModal()">✕</button></div>
+    <div class="modal-b"><table class="pg"><tr><th>Species</th>${cols.map(w=>`<th>${WLBL[w]}</th>`).join('')}</tr>`+
+   SPECIES.map(sp=>{
+    return `<tr><td>${sp}</td>`+cols.map(w=>{
+     const p=floorBase({...f,sp,w});
+     if(p==N)return '<td><span class="na">—</span></td>';
+     const cur=sp===f.sp&&w===f.w;
+     return `<td><button class="${cur?'cur':''}" onclick='pickGrid(${JSON.stringify(sp)},${w})'>${p.toFixed(2)}</button></td>`;
+    }).join('')+'</tr>';
+   }).join('')+'</table></div>';
+ }
+ else if(S.mode==='stocked'){
+  const k=S.stocked;const ws=STOCKED_W.char;
+  html=`<div class="modal-h"><span class="t">Stocked prefinished — full grid</span><span class="sub">$/sf · C = Clear row, Ch = Character row</span>
+    <button class="xbtn" style="margin-left:auto" onclick="closeModal()">✕</button></div>
+    <div class="modal-b"><table class="pg"><tr><th>Color</th><th></th>${ws.map(w=>`<th>${WLBL[w]}</th>`).join('')}</tr>`+
+   STOCKED.map((it,idx)=>['clear','char'].filter(g=>it[g]).map(g=>
+    `<tr><td>${it.sp} — ${it.color}${it.sheen!==30?` <span style="color:var(--faint)">(${it.sheen})</span>`:''}</td><td style="padding:7px 4px;color:var(--faint)">${g==='clear'?'C':'Ch'}</td>`+
+    ws.map(w=>{const wi=STOCKED_W[g].indexOf(w);const p=wi<0?N:it[g][wi];
+     if(p==N)return '<td><span class="na">—</span></td>';
+     const cur=idx===k.item&&g===k.grade&&w===k.w;
+     return `<td><button class="${cur?'cur':''}" onclick="pickStocked(${idx},'${g}',${w})">${p.toFixed(2)}</button></td>`;}).join('')+'</tr>').join('')).join('')+'</table></div>';
+ }
+ else if(S.mode==='hb'){
+  const h=S.hb;const t=HB[h.cons==='solid'?'solid':'eng'][h.sp];
+  html=`<div class="modal-h"><span class="t">Herringbone — ${h.sp}, ${h.cons==='solid'?'Solid':'Engineered'}</span>
+    <span class="sub">$/sf by slat length × width · click to select</span><button class="xbtn" style="margin-left:auto" onclick="closeModal()">✕</button></div>
+    <div class="modal-b"><table class="pg"><tr><th>Slat length</th>${t.ws.map(w=>`<th>${WLBL[w]}</th>`).join('')}</tr>`+
+   HB.bands.map((b,bi)=>`<tr><td>${b}</td>`+t.ws.map((w,wi)=>{
+     const p=t.p[bi][wi];const cur=bi===h.band&&w===h.w;
+     return `<td><button class="${cur?'cur':''}" onclick="pickHB(${bi},${w})">${p.toFixed(2)}</button></td>`;}).join('')+'</tr>').join('')+'</table></div>';
+ }
+ else{ // vents & dampers: show the group table for current selection
+  const v=S.vent;const g=S.mode==='vent'?VENT_SP[v.sp]:'A';const cat=S.mode==='vent'?V_CATS.find(c=>c.id===v.cat):V_CATS[0];
+  html=`<div class="modal-h"><span class="t">${cat.name} vents — group ${g}</span><span class="sub">base cost each · click to select</span>
+    <button class="xbtn" style="margin-left:auto" onclick="closeModal()">✕</button></div>
+    <div class="modal-b"><table class="pg"><tr><th>Size</th><th>Cost</th><th>Size</th><th>Cost</th><th>Size</th><th>Cost</th></tr>`;
+  const rows=cat.list();const per=Math.ceil(rows.length/3);
+  for(let i=0;i<per;i++){html+='<tr>';
+   for(let cix=0;cix<3;cix++){const r=rows[i+cix*per];
+    if(!r){html+='<td></td><td></td>';continue;}
+    const p=r[cat.col(g)];const cur=S.mode==='vent'&&r[0]===v.size;
+    html+=`<td style="padding:7px 8px;font-weight:700;text-align:left">${r[0]}"</td><td><button class="${cur?'cur':''}" onclick="pickVent('${r[0]}')">${p.toFixed(2)}</button></td>`;}
+   html+='</tr>';}
+  html+='</table></div>';
+ }
+ box.innerHTML=html;$('modalBack').classList.add('show');
+}
+function pickGrid(sp,w){S.floor.sp=sp;S.floor.w=w;closeModal();renderAll();}
+function pickStocked(i,g,w){S.stocked={item:i,grade:g,w};closeModal();renderAll();}
+function pickHB(b,w){S.hb.band=b;S.hb.w=w;closeModal();renderAll();}
+function pickVent(sz){S.vent.size=sz;closeModal();renderAll();}
+function openAdd(){
+ const c=calc();if(!c)return;const sell=sellOf(c.cost);const isEa=c.per==='ea';
+ const ctn=(!isEa&&c.cartonSf)?{sf:c.cartonSf,exact:S.sf/c.cartonSf,n:Math.ceil(S.sf/c.cartonSf)}:null;
+ if(ctn)ctn.billed=+(ctn.n*ctn.sf).toFixed(1);
+ const main=isEa?{type:'hardwood',sku:'',brandColor:`Sheoga — ${c.desc}`,qtyType:'count',qty:c.qty||1,priceSqft:+sell.toFixed(2),note:'Sheoga special order — by description, no SKU'}
+   :{type:'hardwood',sku:'',sizeText:c.size||'',brandColor:`Sheoga — ${c.rest||c.desc}`,qtyType:'sqft',qty:S.sf,priceSqft:+sell.toFixed(2),...(c.cartonSf?{cartonSf:c.cartonSf}:{}),note:'Sheoga special order — 5-10% overrun, no returns'};
+ const lines=[main,...(c.fees||[]).map(x=>({type:'hardwood',sku:'',brandColor:`Sheoga — ${x.label}`,qtyType:'count',qty:1,priceSqft:x.amt,note:'vendor fee — passed through at cost'}))];
+ const mainTot=(isEa?(c.qty||1):ctn?ctn.billed:S.sf)*sell;
+ $('modalBox').innerHTML=`
+  <div class="modal-h"><span class="t">Add to product line${lines.length>1?'s':''}</span><span class="sub">${lines.length>1?lines.length+' lines land on the job — fees stay visible, never buried in the $/sf':'what lands on the job'}</span>
+   <button class="xbtn" style="margin-left:auto" onclick="closeModal()">✕</button></div>
+  <div class="modal-b">
+   <div class="prev-row"><span class="tchip">H</span>
+    <span class="nm">${c.size?`<b>${esc(c.size)}</b> · `:''}Sheoga — ${esc(c.rest||c.desc)}<small>${isEa?`${c.qty||1} pcs × ${fm(sell)}`:ctn?`${S.sf} sf → ${ctn.n} cartons × ${ctn.sf} sf = ${ctn.billed} sf billed × ${fm(sell)}/sf`:`${S.sf} sq ft × ${fm(sell)}/sf`} · special order</small></span>
+    <span class="money"><b>${'$'+mainTot.toLocaleString(undefined,{maximumFractionDigits:0})}</b><small>line total</small></span></div>
+   ${(c.fees||[]).map(x=>`<div class="prev-row" style="border-style:dashed"><span class="tchip" style="background:var(--faint)">$</span>
+    <span class="nm">Sheoga — ${esc(x.label)}<small>1 × ${fm(x.amt)} · flat vendor fee, passed through at cost</small></span>
+    <span class="money"><b>${fm(x.amt)}</b><small>own line</small></span></div>`).join('')}
+   <pre class="payload">${esc(JSON.stringify(lines.length>1?lines:main,null,2))}</pre>
+   <p class="modal-note">In the app this creates a hardwood product row on the selected area — size first in <b>sizeText</b> like every
+   other product, the description in <b>brandColor</b> (exactly like a price-book pick snapshots SKU + price), the sell price in
+   <b>priceSqft</b>, and <b>cartonSf</b> so the row orders whole cartons (ADR 0013 math: exact shown, order rounds up). The configuration
+   itself is kept on the row so “Reconfigure” can reopen this popup pre-filled. Nothing reprices later unless you reopen and re-import —
+   same snapshot rule as the stock book (ADR 0003).</p>
+   <div class="build-act" style="border:none;padding:12px 0 0">
+     <button class="btn" onclick="closeModal()">Cancel</button>
+     <button class="btn primary" style="margin-left:auto" onclick="confirmAdd()">Add line ✓</button>
+   </div>
+  </div>`;
+ $('modalBack').classList.add('show');
+}
+function confirmAdd(){saveOptionSilently();closeModal();toast('Product line added (prototype) — configuration kept in Recents');}
+function saveOptionSilently(){const c=calc();if(!c)return;touchRecent();}
+
+function renderAll(){renderTabs();renderRail();renderBuild();renderTrays();touchRecent();}
+$('markup').oninput=e=>{S.markup=Math.max(0,+e.target.value||0);save();renderRail();renderBuild();renderTrays();};
+$('jobsf').oninput=e=>{S.sf=Math.max(1,+e.target.value||1);renderRail();renderBuild();};
+$('clearSaved').onclick=()=>{S.saved=[];save();renderTrays();};
+$('clearRecent').onclick=()=>{S.recent=[];save();renderTrays();};
+renderAll();
+
+/* ============ entry-point mock — SKU search field ============ */
+function parseQuery(q){
+ q=' '+q.toLowerCase().replace(/[",]/g,'')+' ';
+ const out={};
+ if(/\bvent|damper|register\b/.test(q))out.mode=/damper/.test(q)&&!/vent/.test(q)?'damper':'vent';
+ if(/herringbone|chevron/.test(q)){out.mode='hb';out.chevron=/chevron/.test(q);}
+ const SPP=[['live sawn','Live Sawn White Oak'],['q/r','Q/R White Oak'],['qr ','Q/R White Oak'],['quarter','Q/R White Oak'],
+   ['white oak','White Oak'],['wht oak','White Oak'],['red oak','Red Oak'],['hickory','Hickory'],['maple','Maple'],
+   ['cherry','Cherry'],['walnut','Walnut'],['beech','Beech'],[' oak','White Oak']];
+ for(const[k,v]of SPP)if(q.includes(k)){out.sp=v;break;}
+ if(/\bclear\b/.test(q))out.grade='clear'; else if(/\bchar/.test(q))out.grade='char';
+ if(/\beng/.test(q))out.cons='eng'; else if(/\bsolid\b/.test(q))out.cons='solid';
+ const wm=q.match(/(\d{1,2})\s*(?:1\/4|¼|\.25)/);
+ if(wm){const w=+wm[1]+.25;if(WLBL[w])out.w=w;}
+ const tx=TEXTURES.find(t=>t.id!=='smooth'&&q.includes(t.name.toLowerCase().split(' ')[0]));
+ if(tx)out.tex=tx.id;
+ return out;
+}
+function entryDesc(p){
+ if(p.mode==='vent')return 'opens on Wood vents'+(p.sp?` · ${p.sp}`:'');
+ if(p.mode==='damper')return 'opens on Dampers';
+ if(p.mode==='hb')return `opens on Herringbone${p.chevron?' (chevron)':''}${p.sp?` · ${p.sp}`:''}${p.w?` · ${WLBL[p.w]}`:''}`;
+ if(!p.sp&&!p.grade&&!p.cons&&!p.w&&!p.tex)return 'no SKUs — priced by description · opens the configurator';
+ const bits=[p.sp||'…species',p.grade?(p.grade==='clear'?'Clear':'Character'):null,
+   p.cons?(p.cons==='eng'?'Engineered':'Solid'):null,p.w?WLBL[p.w]:null,
+   p.tex?TEXTURES.find(t=>t.id===p.tex).name:null].filter(Boolean);
+ return 'opens pre-filled: '+bits.join(' · ');
+}
+function entryHit(q){
+ const toks=q.toLowerCase().split(/[^a-z¼\/0-9]+/).filter(Boolean);
+ if(toks.some(t=>t.length>=3&&'sheoga'.startsWith(t)))return true; // "she" is enough
+ const p=parseQuery(q);return !!(p.sp||p.mode);
+}
+function renderEntry(){
+ const q=$('skuq').value;
+ const p=parseQuery(q);
+ $('entryVendor').style.display=entryHit(q)?'':'none';
+ $('entrySub').textContent=entryDesc(p);
+ $('entrySaved').innerHTML=(S.saved.length?`<div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--faint);padding:8px 12px 3px">Saved on this job</div>`:'')+
+  S.saved.slice(0,2).map((s,i)=>`<button class="rrow" onclick="loadSaved(${i});jumpToA()"><span class="ds">☆ ${esc(s.desc)}</span><span class="pr">${fm(sellOf(s.cost))}${s.per==='ea'?' ea':'/sf'}</span></button>`).join('');
+}
+function jumpToA(){document.querySelector('.popup').scrollIntoView({behavior:'smooth',block:'center'});
+ const bc=$('build');bc.classList.remove('flash');void bc.offsetWidth;bc.classList.add('flash');}
+$('skuq').oninput=renderEntry;
+$('entryRow').onclick=()=>{
+ const p=parseQuery($('skuq').value);
+ if(p.mode==='vent'){S.mode='vent';if(p.sp&&VENT_SP[p.sp])S.vent.sp=p.sp;}
+ else if(p.mode==='damper')S.mode='damper';
+ else if(p.mode==='hb'){S.mode='hb';if(p.sp&&HB.solid[p.sp])S.hb.sp=p.sp;
+   if(p.cons)S.hb.cons=p.cons;if(p.chevron)S.hb.chevron=true;
+   const t=HB[S.hb.cons==='solid'?'solid':'eng'][S.hb.sp];if(p.w&&t.ws.includes(p.w))S.hb.w=p.w;else if(!t.ws.includes(S.hb.w))S.hb.w=t.ws[0];}
+ else{S.mode='floor';const f=S.floor;
+   if(p.sp)f.sp=p.sp;if(p.grade)f.grade=p.grade;if(p.cons)f.cons=p.cons;if(p.w)f.w=p.w;if(p.tex)f.tex=p.tex;
+   snapFloorWidth();}
+ renderAll();renderEntry();jumpToA();toast('Configurator opened from search — pre-filled');
+};
+const _renderTrays=renderTrays;renderTrays=function(){_renderTrays();renderEntry();};
+renderEntry();
+
+/* ============ prototype B — guided phone flow (flooring) ============ */
+let P={sp:null,cons:null,grade:null,w:null,tex:null,len:null,finish:null,step:0};
+const PSTEPS=['Species','Build','Grade','Width','Texture','Lengths','Finish','Review'];
+function pCfg(){ // fill defaults for unpicked so price can show early
+ return {sp:P.sp||'White Oak',grade:P.grade||'char',cons:P.cons||'solid',w:P.w||5.25,
+   tex:P.tex||'smooth',edge:'square',len:P.len||'1-8',noSap:false,finish:P.finish||'unf',stain:''};
+}
+function pPrice(over){const c=calcFloor({...pCfg(),...(over||{})},1000);return c?sellOf(c.cost):null;}
+function renderPhone(){
+ const steps=$('phSteps');steps.innerHTML=PSTEPS.map((s,i)=>`<div class="stp${i<P.step?' done':i===P.step?' cur':''}"></div>`).join('');
+ $('phTitle').textContent=PSTEPS[P.step];
+ const b=$('phBody');const st=PSTEPS[P.step];
+ const chip=(label,sub,on,cb,dis,pr)=>{const el=document.createElement('button');
+  el.className='bigchip'+(on?' on':'')+(dis?' dis':'');
+  el.innerHTML=`<span class="nm">${esc(label)}${sub?`<small>${esc(sub)}</small>`:''}</span>${pr?`<span class="pr">${pr}</span>`:''}`;
+  if(!dis)el.onclick=cb;return el;};
+ b.innerHTML='';
+ const wrap=document.createElement('div');wrap.className='bigchips';
+ const adv=()=>{setTimeout(()=>{if(P.step<PSTEPS.length-1){P.step++;renderPhone();}},220);};
+ if(st==='Species'){
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">What species?</div><div class="ph-hint">sell $/sf from — character solid, standard spec</div>');
+  SPECIES.forEach(sp=>{const pr=pPrice({sp,w:floorWidths({sp}).find(w=>floorBase({sp,grade:'char',cons:'solid',w})!=N)});
+   wrap.appendChild(chip(sp,sp==='Live Sawn White Oak'?'one grade, to 11¼" wide':null,P.sp===sp,()=>{P.sp=sp;renderPhone();adv();},false,pr?'from '+fm(pr):null));});
+ }
+ else if(st==='Build'){
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">Solid or engineered?</div><div class="ph-hint">engineered starts at 3¼"</div>');
+  [['solid','Solid ¾"','sand-and-finish forever'],['eng','Engineered','wide-plank stable, radiant-ok']].forEach(([id,l,s])=>
+   wrap.appendChild(chip(l,s,P.cons===id,()=>{P.cons=id;renderPhone();adv();},false,fm(pPrice({cons:id})||0))));
+ }
+ else if(st==='Grade'){
+  const ls=P.sp==='Live Sawn White Oak';
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">Which grade?</div><div class="ph-hint">'+(ls?'live sawn comes one way':'clear = uniform · character = knots & color')+'</div>');
+  if(ls){wrap.appendChild(chip('Live Sawn','one grade',true,()=>{P.grade='char';renderPhone();adv();}));}
+  else [['clear','Clear grade'],['char','Character grade']].forEach(([id,l])=>
+   wrap.appendChild(chip(l,null,P.grade===id,()=>{P.grade=id;renderPhone();adv();},false,fm(pPrice({grade:id})||0))));
+ }
+ else if(st==='Width'){
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">How wide?</div><div class="ph-hint">price per sq ft updates as you go</div>');
+  const g=document.createElement('div');g.className='wgrid';
+  floorWidths(pCfg()).forEach(w=>{const pr=pPrice({w});const el=document.createElement('button');
+   el.className='wg'+(P.w===w?' on':'')+(pr?'':' dis');
+   el.innerHTML=`<b>${WLBL[w]}</b><span>${pr?fm(pr):'—'}</span>`;
+   if(pr)el.onclick=()=>{P.w=w;renderPhone();adv();};g.appendChild(el);});
+  b.appendChild(g);renderPhoneBar();return;
+ }
+ else if(st==='Texture'){
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">Texture or scrape?</div><div class="ph-hint">all textures made to order</div>');
+  TEXTURES.forEach(t=>wrap.appendChild(chip(t.name,t.add?`+${fm(t.add)}/sf`:'standard',P.tex===t.id,()=>{P.tex=t.id;renderPhone();adv();},false,fm(pPrice({tex:t.id})||0))));
+ }
+ else if(st==='Lengths'){
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">Length run?</div><div class="ph-hint">longer boards, higher yield cost</div>');
+  LENGTHS.forEach(l=>wrap.appendChild(chip(l.name,l.pct?`+${l.pct}%`:'standard spec',P.len===l.id,()=>{P.len=l.id;renderPhone();adv();},false,fm(pPrice({len:l.id})||0))));
+ }
+ else if(st==='Finish'){
+  b.insertAdjacentHTML('beforeend','<div class="ph-q">Finished how?</div><div class="ph-hint">prefinishing adds the custom-finish sheet</div>');
+  FINISHES.forEach(x=>wrap.appendChild(chip(x.name,x.sub,P.finish===x.id,()=>{P.finish=x.id;renderPhone();adv();},false,fm(pPrice({finish:x.id})||0))));
+ }
+ else{ // Review
+  const c=calcFloor(pCfg(),1000);
+  b.classList.add('ph-review');
+  b.insertAdjacentHTML('beforeend',`<div class="ph-q">Read it back</div><div class="ph-hint">this description is the Sheoga order</div>
+   <div class="desc">${esc(c.desc)}</div>
+   <div class="lines">${c.rows.map(r=>`<div class="bd-row"><span class="lbl">${esc(r[0])}</span><span class="amt">${esc(r[1])}</span></div>`).join('')}</div>
+   <div style="display:flex;gap:8px;margin-top:12px">
+     <button class="btn moss" style="flex:1" onclick="phoneSave()">☆ Save option</button>
+     <button class="btn primary" style="flex:1" onclick="phoneSave();toast('Added to product line (prototype)')">Add to line ✓</button>
+   </div>`);
+  renderPhoneBar();return;
+ }
+ b.appendChild(wrap);renderPhoneBar();
+}
+function renderPhoneBar(){
+ const pr=pPrice();$('phPrice').textContent=pr?fm(pr):'—';
+ const need={Species:'sp',Build:'cons',Grade:'grade',Width:'w',Texture:'tex',Lengths:'len',Finish:'finish'}[PSTEPS[P.step]];
+ const nx=$('phNext');
+ if(PSTEPS[P.step]==='Review'){nx.textContent='Start over';nx.disabled=false;nx.onclick=()=>{P={sp:null,cons:null,grade:null,w:null,tex:null,len:null,finish:null,step:0};renderPhone();};}
+ else{nx.textContent='Next';nx.disabled=need&&!P[need];nx.onclick=()=>{P.step++;renderPhone();};}
+}
+function phoneSave(){
+ const cfg=pCfg();const c=calcFloor(cfg,1000);if(!c)return;
+ S.saved.unshift({mode:'floor',cfg:{...cfg},desc:c.desc,name:c.name,cost:c.cost,per:'sf'});
+ S.saved=S.saved.slice(0,8);save();renderTrays();toast('Saved — see the Saved options tray in prototype A');
+}
+$('phBack').onclick=()=>{if(P.step>0){P.step--;renderPhone();}};
+renderPhone();
+</script>
+</body>
+</html>
