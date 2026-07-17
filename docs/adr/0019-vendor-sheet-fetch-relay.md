@@ -90,3 +90,22 @@ the bookmarklet on page-style portals — donates its `sesid` to every
 remembered sheet for that portal + dealer account. Quarterly VTC updates
 become: open one sheet, paste its link, fetch all. The fetch still relays
 per-sheet and lands in the same review flow.
+
+## Amendment (2026-07-17): Supabase Edge Function for long portal builds
+
+Measured reality: Dancik portals **build** a requested sheet on demand, and
+the largest VTC book took **~103 seconds** to generate — longer than a Netlify
+synchronous function's window under any of its (plan/era-dependent, disputed:
+10 / 26 / 30 / 60s) limits, so no retry schedule reliably beats it.
+
+A **Supabase Edge Function** (`supabase/functions/vendor-fetch/index.ts`) may
+wait minutes on IO, so it becomes the primary relay; the Netlify function
+stays as fallback. The browser (`relay()` in the fetch panel) prefers the Edge
+Function and downgrades to Netlify only on a 404 (not deployed) or an
+unreachable error — a live Edge Function's 5xx is retried in place, never sent
+to the shorter-window relay. The Edge Function is self-contained (its own copy
+of the allowlist/validation/sniffing, kept in sync with `src/vendorfetch.js`)
+so it pastes straight into the dashboard editor, and relies on Supabase's
+"Enforce JWT verification" gateway toggle for auth instead of verifying the
+token in code. Owner deploys it by hand (dashboard, like the `*.sql` files);
+until then the Netlify relay serves every fetch the platform window allows.

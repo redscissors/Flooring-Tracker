@@ -80,9 +80,10 @@ src/
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 netlify/
   functions/
-    vendor-fetch.mjs # the app's ONLY server-side code (ADR 0019): JWT-gated
-                     # relay that fetches a portal price sheet from an
-                     # allowlisted host and streams the bytes to the browser
+    vendor-fetch.mjs # server-side price-sheet relay (ADR 0019): JWT-gated,
+                     # fetches a portal sheet from an allowlisted host and
+                     # streams the bytes to the browser. FALLBACK relay — used
+                     # when the Supabase Edge twin isn't deployed / reachable
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies

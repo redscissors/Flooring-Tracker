@@ -4840,6 +4840,22 @@ function VendorFetchPanel({ initialEntries, settings, setSettings, onFiles, onCl
 
   const finish = (files) => { clearHandoff(); onFiles(files); onClose(); };
 
+  // Prefer the Supabase Edge Function (minutes-long window — a big sheet the
+  // portal builds on demand can take well over a Netlify function's ceiling);
+  // fall back to the Netlify relay only when the Edge Function isn't deployed
+  // (404) or is unreachable. A 5xx from a live Edge Function is retried in
+  // place, never downgraded to the shorter-window relay.
+  const relay = async (entry, token) => {
+    const base = import.meta.env.VITE_SUPABASE_URL;
+    if (base) {
+      try {
+        const r = await fetch(`${base}/functions/v1/vendor-fetch`, { method: "POST", headers: { authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, "content-type": "application/json" }, body: JSON.stringify(entry) });
+        if (r.status !== 404) return r;
+      } catch { /* unreachable — fall back */ }
+    }
+    return fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(entry) });
+  };
+
   const run = async () => {
     setRunning(true);
     const { data } = await supabase.auth.getSession();
@@ -4858,7 +4874,7 @@ function VendorFetchPanel({ initialEntries, settings, setSettings, onFiles, onCl
         setStatus((s) => ({ ...s, [k]: t === 1 ? "fetching" : `portal is slow — retry ${t - 1} of 2…` }));
         if (t > 1) await new Promise((r) => setTimeout(r, 2500));
         try {
-          const res = await fetch("/api/vendor-fetch", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(e) });
+          const res = await relay(e, token);
           if (res.ok) {
             files.push(new File([await res.arrayBuffer()], entryFileName(e), { type: "application/vnd.ms-excel" }));
             ok.push(e); done = true;
