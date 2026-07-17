@@ -15,6 +15,7 @@ import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, ti
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import NedMark from "./NedMark.jsx";
+import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 // Shared file readers for every import path (the shop workbook, a registry
@@ -2483,7 +2484,7 @@ export default function App({ user, onSignOut }) {
             </div>
             <div className="break-inside-avoid flex justify-between items-center mt-5" style={{ borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 10 }}>
               <div className="flex items-center gap-2">
-                <span className="ft-wordmark-inline" style={{ fontSize: 15 }}><span className="the">the</span>ned</span>
+                <NedLogo height={17} />
               </div>
               <div className="text-[9.5px] text-slate-400">Prepared with the ned</div>
             </div>
@@ -2569,7 +2570,7 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="flex-1 min-w-0"><div className="ft-wordmark-stacked" style={{ fontSize: 24 }}><span className="the">the</span>ned</div><div className="ft-eyebrow text-[9.5px] mt-1.5">Selection Manager</div></div>
+            <div className="flex-1 min-w-0"><NedLogo height={27} /><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -2666,8 +2667,8 @@ export default function App({ user, onSignOut }) {
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <div className="ft-wordmark-stacked" style={{ fontSize: "clamp(64px,11vw,128px)" }}><span className="the">the</span>ned</div>
-                <div className="ft-eyebrow mt-4" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
+                <NedLogo style={{ width: "clamp(205px, 28vw, 345px)" }} />
+                <div className="ft-eyebrow mt-3" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
                 <button onClick={() => setNewCust("")} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Plus size={18} className="-ml-1" /> New customer</button>
               </div>
             )

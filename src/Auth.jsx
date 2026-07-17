@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import NedLogo from "./NedLogo.jsx";
 
 export default function Auth() {
   const [mode, setMode] = useState("signin"); // "signin" | "reset"
@@ -42,7 +43,7 @@ export default function Auth() {
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
         <div className="mb-5">
-          <div className="ft-wordmark-stacked" style={{ fontSize: 38 }}><span className="the">the</span>ned</div>
+          <NedLogo height={37} />
           <div className="ft-tagline text-[9px] mt-2">Neat. Easy. Done.</div>
           <div className="ft-eyebrow-accent text-[9px] mt-2.5">{mode === "reset" ? "Set a new password" : "Sign in to continue"}</div>
         </div>

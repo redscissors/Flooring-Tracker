@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import NedLogo from "./NedLogo.jsx";
 
 // Shown when a user arrives via an invite or password-reset link. They are
 // already authenticated by the link; this lets them set a real password so they
@@ -33,7 +34,7 @@ export default function SetPassword({ email, onDone, onCancel }) {
     <div className="h-screen flex items-center justify-center bg-slate-50 p-6" style={{ fontFamily: "var(--ft-ui)" }}>
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6">
         <div className="mb-5">
-          <div className="ft-wordmark-stacked" style={{ fontSize: 32 }}><span className="the">the</span>ned</div>
+          <NedLogo height={31} />
           <div className="font-semibold tracking-tight mt-2.5">Set your password</div>
           <div className="text-xs text-slate-400 -mt-0.5">{email ? email : "Create a password to finish setting up"}</div>
         </div>
