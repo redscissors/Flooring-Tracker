@@ -1,8 +1,10 @@
-// Preview harness for the Vendor sheets page (ADR 0020: the old "Fetch vendor
-// sheets" modal reworked into a Price-book tab with sign-in groups). This is
-// the REAL VendorFetchPage exported from App.jsx, driven by a local fixture
-// settings blob (settings.ops.vendorGroups) with a stubbed network so the
-// progress bars, checks, drag-between-groups, mismatch chip, re-download, and
+// Preview harness for the Vendor sheets page (ADR 0020 sign-in groups; ADR
+// 0021 board layout + selection). This is the REAL VendorFetchPage exported
+// from App.jsx, driven by a local fixture settings blob
+// (settings.ops.vendorGroups) with a stubbed network so the board columns,
+// checkbox selection + batch download bar, always-live buttons (OVF has no
+// live session — its downloads fail with the sign-in note), progress bars,
+// checks, mismatch/stale icons, row ⋯ menu (create book / move / forget), and
 // mobile stacking can be exercised without Supabase or a live portal.
 //
 // The network is stubbed (production code untouched): window.fetch is replaced
@@ -105,7 +107,7 @@ function Shell() {
       <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 bg-white/70 text-xs">
         <strong className="ft-serif text-base">Vendor sheets — preview</strong>
         <button onClick={() => setNarrow((v) => !v)} className="rounded border border-slate-300 px-2 py-1">{narrow ? "▢ Desktop width" : "▯ Phone width"}</button>
-        <span className="text-slate-400">Compact rows. AOT is linked to a 200-day-old book → amber “book 200d old”; Marazzi links to a fresh book (no amber). ⋯ menu creates/unlinks a book. VT unlocked; OVF locked.</span>
+        <span className="text-slate-400">Board columns. Tick rows → batch bar. AOT links to a 200-day-old book → amber icon; ⋯ menu creates/unlinks a book, moves (collapsible), forgets. VT has a live session; OVF downloads fail with the sign-in note.</span>
       </div>
       <div style={{ maxWidth: narrow ? 390 : "none", margin: narrow ? "0 auto" : 0, borderLeft: narrow ? "1px solid #ddd" : "none", borderRight: narrow ? "1px solid #ddd" : "none" }}>
         <div className="p-4 md:p-6">

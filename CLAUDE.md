@@ -72,7 +72,10 @@ src/
                     # `rememberIntoGroups` for the VendorFetchPage tab. `portal`
                     # is nominal (naming + mismatch chip), never authorizes a
                     # fetch — a sheet's sesid comes from a live link matching its
-                    # OWN {host,user}, so free drag between groups is safe
+                    # OWN {host,user}, so freely moving sheets between groups is
+                    # safe. The tab renders groups as board columns with checkbox
+                    # batch download and always-live (never pre-locked) fetch
+                    # buttons; moves happen from a row's ⋯ menu (ADR 0021)
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature

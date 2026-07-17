@@ -24,3 +24,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0018](0018-price-tiers-display-lens.md) | Price tiers are a display lens; retail stays the stored price | Accepted | 2026-07-16 |
 | [0019](0019-vendor-sheet-fetch-relay.md) | Vendor sheet fetch: bookmarklet discovers portal links, a Netlify Function relays the bytes | Accepted | 2026-07-17 |
 | [0020](0020-vendor-sheet-groups.md) | Vendor sheets: remembered sheets organized into sign-in groups, on a Price-book tab | Accepted | 2026-07-17 |
+| [0021](0021-vendor-sheets-board-selection.md) | Vendor sheets: board columns, batch selection, always-live downloads; menu move replaces drag | Accepted | 2026-07-17 |
