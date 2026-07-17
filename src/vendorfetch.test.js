@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
-  decodeHandoff, bookmarkletSource, harvestVendorLinks, classifySheetBytes,
+  decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries, classifySheetBytes,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -113,7 +113,18 @@ test("bookmarkletSource embeds the app origin and stays one line", () => {
   assert.ok(src.startsWith("javascript:"));
   assert.ok(src.includes('"https://floortrack.example.com"'));
   assert.ok(src.includes("getPrettyPriceList"));
+  assert.ok(src.includes('"ftvfetch"')); // named window: repeat clicks reuse one FloorTrack tab
   assert.ok(!src.includes("\n"));
+});
+
+test("mergeEntries stacks hand-offs, replacing same-sheet entries with the fresher token", () => {
+  const a = parseVendorLink(LINK);
+  const b = { ...a, uid: "1045", filename: "ANA EFT 25 06 04" };
+  const aFresh = { ...a, sesid: "NewTokenAfterRelogin1" };
+  assert.deepEqual(mergeEntries([], [a]), [a]);
+  assert.deepEqual(mergeEntries([a], [b]), [a, b]); // different sheet appends
+  assert.deepEqual(mergeEntries([a, b], [aFresh]), [b, aFresh]); // same sheet: new token wins
+  assert.deepEqual(mergeEntries([{ ...a, host: "evil.example.com" }], [b]), [b]); // stale junk dropped
 });
 
 test("classifySheetBytes tells sheets from login bounces", () => {

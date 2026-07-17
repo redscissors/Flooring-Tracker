@@ -110,8 +110,18 @@ export function harvestVendorLinks(html, base) {
   return [...out];
 }
 
+// Merge a new hand-off into previously stashed entries: same-key sheets are
+// replaced (the new ones carry the fresher session token), the rest kept.
+// Menu-style portals build the download URL in their own code at click time,
+// so sheets arrive one bookmark-click at a time — accumulating lets the user
+// stack them up and fetch once.
+export function mergeEntries(prev, next) {
+  const fresh = new Set((next || []).map(entryKey));
+  return [...(prev || []).filter((e) => !fresh.has(entryKey(e)) && !entryProblems(e)), ...(next || [])];
+}
+
 export function bookmarkletSource(origin) {
-  const src = `(()=>{var L=new Set();var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);if(!L.size){alert("No price sheets found on this page. Open the page or menu that lists them and click the bookmark again — or open one sheet and paste its address into FloorTrack's Fetch panel.");return}window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify({v:1,links:Array.from(L)})),"_blank")})()`;
+  const src = `(()=>{var L=new Set();var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);if(!L.size){alert("No price sheets found on this page. Open the page or menu that lists them and click the bookmark again — on menu-style portals, open one sheet first, then click the bookmark; repeat per sheet and they stack up in FloorTrack.");return}var w=window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify({v:1,links:Array.from(L)})),"ftvfetch");if(w)w.focus()})()`;
   return `javascript:${src}`;
 }
 
@@ -146,7 +156,12 @@ export function captureHandoff() {
   const m = /[#&]vfetch=([^&]+)/.exec(window.location.hash || "");
   if (m) {
     const entries = decodeHandoff(decodeURIComponent(m[1]));
-    if (entries) { try { window.sessionStorage.setItem(HANDOFF_KEY, JSON.stringify(entries)); } catch {} }
+    if (entries) {
+      try {
+        const prev = JSON.parse(window.sessionStorage.getItem(HANDOFF_KEY) || "[]");
+        window.sessionStorage.setItem(HANDOFF_KEY, JSON.stringify(mergeEntries(Array.isArray(prev) ? prev : [], entries)));
+      } catch {}
+    }
     try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch {}
   }
   try {

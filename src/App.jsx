@@ -4805,6 +4805,11 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
   const [fetched, setFetched] = useState(null); // File[] with failures pending user choice
   const [copied, setCopied] = useState(false);
 
+  // Later bookmark clicks stack more sheets into the open panel.
+  useEffect(() => {
+    if (initialEntries && !running && !fetched) { setEntries(initialEntries); setChecked(new Set(initialEntries.map(entryKey))); }
+  }, [initialEntries]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const bmSrc = bookmarkletSource(window.location.origin);
   const vendorLabel = (e) => VENDORS[e.vendor]?.hostLabels?.[e.host] || VENDORS[e.vendor]?.label || e.host;
 
@@ -4864,6 +4869,7 @@ function VendorFetchPanel({ initialEntries, onFiles, onClose, inp, lbl }) {
             <li>Log into the vendor portal (e.g. Virginia Tile connect24) and open its price lists page.</li>
             <li>Click the bookmark — FloorTrack opens with every sheet listed here, ready to fetch.</li>
           </ol>
+          <p className="text-[11px] text-slate-400 mt-2">Portal keeps its sheets in a menu that opens them one at a time? Open a sheet, click the bookmark, repeat — each click stacks that sheet into this list.</p>
           <div className="mt-4">
             <label className={lbl}>…or paste price-list links (one per line)</label>
             <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={3} placeholder="https://connect24.virginiatile.com/…getPrettyPriceList…" className={inp + " font-mono text-[11px]"} />
@@ -4906,9 +4912,16 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const [hideCosts, setHideCosts] = useState(false);
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
-  const [vendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019)
+  const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019)
   const [vfOpen, setVfOpen] = useState(() => Boolean(vendorPending));
   const dropRef = useRef(null);
+  // Menu-style portals hand sheets over one bookmark-click at a time; the
+  // bookmarklet reuses this tab, so later hand-offs arrive as hash changes.
+  useEffect(() => {
+    const onHash = () => { const p = captureHandoff(); if (p) { setVendorPending(p); setVfOpen(true); } };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const takeFiles = (list) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped(fs); };
 
   const stockBooks = books.filter((b) => b.kind === "stock");
