@@ -32,12 +32,12 @@ export default async function handler(req) {
 
   let res;
   try {
-    // The portal builds big sheets on demand; give it the whole invocation
-    // window minus a beat to answer (Netlify sync functions cap at 10s by
-    // default, 26s when raised in the site's function settings). A timeout is
-    // reported as its own error so the browser knows a retry is worthwhile —
-    // the second request usually hits the portal's just-built cache.
-    res = await fetch(buildVendorUrl(entry), { redirect: "manual", signal: AbortSignal.timeout(25000) });
+    // The portal builds big sheets on demand, so wait generously. 50s is a
+    // deliberate over-ask: Netlify's sync-function window (plan/era dependent,
+    // 10–60s) is the real ceiling and kills us first when shorter — the
+    // browser sees that as a retriable 5xx, same as our own 504, and the
+    // retry usually hits the portal's just-built cache.
+    res = await fetch(buildVendorUrl(entry), { redirect: "manual", signal: AbortSignal.timeout(50000) });
   } catch (err) {
     const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
     return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });
