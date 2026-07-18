@@ -509,7 +509,6 @@ function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf,
         <span className="text-[9.5px] text-slate-500 font-semibold">{SHEET_NOTE}</span>
       </div>
       <div className="px-3.5 pt-2.5 text-[15px] font-bold leading-snug" data-sheoga-desc>{c.desc}</div>
-      <div className="px-3.5 pb-2 text-[11px] text-slate-500 font-medium">↑ this description <b>is</b> the order — it snapshots onto the job line.</div>
       <div className="px-3.5 pb-3">
         {c.rows.map(([l, a], i) => (
           <div key={i} className="flex items-baseline gap-2 py-[3px] text-xs text-slate-500 font-medium">
@@ -718,14 +717,14 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   return (
     <div className={`print:hidden fixed inset-0 flex items-center justify-center z-[70] ${isWide ? "p-5" : ""}`} style={{ background: "rgba(20,15,10,.55)" }} onClick={onClose}>
-      <div className={`bg-white flex flex-col overflow-hidden ${isWide ? "rounded-xl w-full max-w-5xl h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
+      <div className={`bg-white flex flex-col overflow-hidden ${isWide ? "rounded-xl w-full max-w-[1060px] h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
         onClick={(e) => e.stopPropagation()} data-sheoga-pop>
         {header}
         {tabs}
         {isWide ? (<>
           {/* desktop: options rail + build card side by side */}
           <div className="flex-1 flex min-h-0">
-            <div className="w-[50%] max-w-[468px] shrink-0 border-r border-slate-300 overflow-y-auto p-4">{rail}</div>
+            <div className="w-[50%] max-w-[500px] shrink-0 border-r border-slate-300 overflow-y-auto p-4" style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
               {!c ? (
                 <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
