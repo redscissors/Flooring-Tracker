@@ -91,6 +91,16 @@ body {
      sort tab uses, so the hover stays in the surface family. */
   --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
 
+  /* Semantic hover tints for destructive / warning / confirm buttons. Light
+     keeps the Tailwind *-50/-100 look; dark flips (below) to a dark-appropriate
+     wash of the same hue. The theme only remaps the RESTING color classes, not
+     their hover: variants, so a bare hover:bg-red-50 would otherwise fall
+     through to Tailwind's literal near-white and flash bright in dark mode. */
+  --ft-hover-red:#FEF2F2;
+  --ft-hover-amber:#FFFBEB;
+  --ft-hover-amber-strong:#FEF3C7;
+  --ft-hover-emerald:#ECFDF5;
+
   /* Sidebar sort toggle — the active tab is a quiet moss wash (the kit allows
      moss for active nav states). Resolves per mode since --ft-brand flips. */
   --ft-seg-on-bg:color-mix(in oklab, var(--ft-brand) 16%, transparent);
@@ -152,6 +162,14 @@ body {
 .ring-indigo-200{--tw-ring-color:var(--ft-brand-soft);}
 .ring-indigo-500{--tw-ring-color:var(--ft-brand);}
 .hover\:bg-slate-50:hover{background-color:var(--ft-hover);}
+/* Hover variants of the remapped light backgrounds — without these they fall
+   through to Tailwind's literal white/tints and flash bright in dark mode. */
+.hover\:bg-white:hover{background-color:var(--ft-card);}
+.hover\:bg-slate-100:hover{background-color:var(--ft-fieldbar);}
+.hover\:bg-red-50:hover{background-color:var(--ft-hover-red);}
+.hover\:bg-amber-50:hover{background-color:var(--ft-hover-amber);}
+.hover\:bg-amber-100:hover{background-color:var(--ft-hover-amber-strong);}
+.hover\:bg-emerald-50:hover{background-color:var(--ft-hover-emerald);}
 .ft-seg-on{background-color:var(--ft-seg-on-bg);color:var(--ft-seg-on-text);}
 .ft-seg-off{color:var(--ft-muted);}
 .ft-seg-off:hover{background-color:var(--ft-sand);}
@@ -311,6 +329,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
   --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
   --ft-hover:var(--ft-fieldbar);
+  --ft-hover-red:color-mix(in oklab, #F87171 18%, transparent);
+  --ft-hover-amber:color-mix(in oklab, #FBBF24 16%, transparent);
+  --ft-hover-amber-strong:color-mix(in oklab, #FBBF24 26%, transparent);
+  --ft-hover-emerald:color-mix(in oklab, #6EE7B7 16%, transparent);
   --ft-shadow:rgba(0,0,0,.4);
 }
 @media (prefers-color-scheme: dark){
@@ -327,6 +349,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
     --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
     --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
     --ft-hover:var(--ft-fieldbar);
+    --ft-hover-red:color-mix(in oklab, #F87171 18%, transparent);
+    --ft-hover-amber:color-mix(in oklab, #FBBF24 16%, transparent);
+    --ft-hover-amber-strong:color-mix(in oklab, #FBBF24 26%, transparent);
+    --ft-hover-emerald:color-mix(in oklab, #6EE7B7 16%, transparent);
     --ft-shadow:rgba(0,0,0,.4);
   }
 }
