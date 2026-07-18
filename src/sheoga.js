@@ -149,6 +149,18 @@ export const HERRINGBONE = {
   },
 };
 export const CHEVRON_ADD = 3.00;
+// Herringbone is priced in four slat-length tiers, but a salesperson can enter
+// an exact slat length; it snaps to the tier it falls in (upper bounds 18 / 28
+// / 38 / 48 inches) for pricing and prints the real length on the order.
+export const HB_SLAT_MIN = 9;
+export const HB_SLAT_MAX = 48;
+export const hbBandForLen = (len) => (len <= 18 ? 0 : len <= 28 ? 1 : len <= 38 ? 2 : 3);
+// The exact slat length as a number, or null when none is entered (tier mode).
+export const hbSlatLen = (h) => {
+  if (h == null || h.slatLen == null || h.slatLen === "") return null;
+  const n = Number(h.slatLen);
+  return Number.isFinite(n) ? n : null;
+};
 
 // --- wood vents & dampers -----------------------------------------------------
 // Two species price groups; sizes are duct W × L in inches ('2¼' = 2.25).
@@ -223,7 +235,7 @@ export const MODES = [
 
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
-  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: 1, chevron: false };
+  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: 1, slatLen: "", chevron: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, tex: false, damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
@@ -286,10 +298,13 @@ export function calcFloor(f, sf) {
   const fees = [];
   if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
   const custom = CUSTOM_FINISHES.includes(f.finish);
-  if (custom && f.sample) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
+  const established = f.finish === "est";
+  // A custom color (T-1/T-2/T-3) can't be ordered without an approved match, so
+  // the sample is always charged; on an established stain it's optional (toggle).
+  const sampleOn = custom || (established && f.sample);
+  if (sampleOn) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
   const warn = [];
-  if (custom && !f.sample) warn.push("Custom color — add the $750 color-match sample, or call Sheoga");
   warn.push("Made to order · 5–10% overrun · non-returnable");
   const size = WIDTH_LABEL[f.w];
   // Description = plain spaces, no separators; the size lives in the row's own
@@ -337,19 +352,26 @@ export function calcHerringbone(h) {
   if (!t) return null;
   const i = t.ws.indexOf(h.w);
   if (i < 0) return null;
-  const base = t.p[h.band]?.[i];
+  const len = hbSlatLen(h);
+  const band = len != null ? hbBandForLen(len) : (h.band || 0);
+  const base = t.p[band]?.[i];
   if (base == N) return null;
-  const rows = [[`Herringbone — ${h.sp} ${h.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[h.w]}, ${HERRINGBONE.bands[h.band]}`, fm(base) + "/sf"]];
+  // Exact length prints its own "24\" slats" label; tier mode prints the range.
+  const slatLabel = len != null ? `${h.slatLen}" slats` : HERRINGBONE.bands[band];
+  const rowLabel = len != null ? `${slatLabel} (${HERRINGBONE.bands[band]} tier)` : slatLabel;
+  const rows = [[`Herringbone — ${h.sp} ${h.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[h.w]}, ${rowLabel}`, fm(base) + "/sf"]];
   let cost = base;
   if (h.chevron) {
     cost += CHEVRON_ADD;
     rows.push(["Chevron pattern (slip tongue included)", "+$3.00/sf"]);
   }
   const size = WIDTH_LABEL[h.w];
-  const rest = `${h.sp} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${HERRINGBONE.bands[h.band]}`;
+  const rest = `${h.sp} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${slatLabel}`;
+  const warn = ["Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding"];
+  if (len != null && (len < HB_SLAT_MIN || len > HB_SLAT_MAX)) warn.unshift(`Slat length ${h.slatLen}" is outside the standard ${HB_SLAT_MIN}–${HB_SLAT_MAX}" range — confirm with Sheoga`);
   return {
     desc: `${size} ${rest}`, size, rest, name: `Sheoga ${size} ${h.chevron ? "Chevron" : "Herringbone"} ${h.sp}`, rows, cost, per: "sf",
-    warn: ["Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding"], fees: [],
+    warn, fees: [],
   };
 }
 

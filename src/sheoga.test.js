@@ -134,15 +134,17 @@ test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => 
   assert.deepEqual(unf.fees, []);
 });
 
-test("calcFloor: custom color wants the $750 sample or warns", () => {
-  const warned = calcFloor(floor({ finish: "t2" }), 1000);
-  assert.equal(warned.cost, 4.35 + 3.65);
-  assert.ok(warned.warn.some((w) => w.includes("$750 color-match sample")));
-  assert.deepEqual(warned.fees, []);
-  const sampled = calcFloor(floor({ finish: "t2", sample: true, stain: "ClubHouse Brown" }), 1000);
-  assert.ok(!sampled.warn.some((w) => w.includes("color-match")));
-  assert.deepEqual(sampled.fees, [{ label: "Custom color-match sample — approval bundle shipped", amt: 750 }]);
-  assert.ok(sampled.desc.includes("Custom color T-2 “ClubHouse Brown”"));
+test("calcFloor: custom color always charges the $750 sample; established stain is optional", () => {
+  const SAMPLE = { label: "Custom color-match sample — approval bundle shipped", amt: 750 };
+  // Custom color (T-2): sample is mandatory — charged even without the flag, no "add it" warning.
+  const custom = calcFloor(floor({ finish: "t2", stain: "ClubHouse Brown" }), 1000);
+  assert.equal(custom.cost, 4.35 + 3.65);
+  assert.deepEqual(custom.fees, [SAMPLE]);
+  assert.ok(!custom.warn.some((w) => w.includes("color-match")));
+  assert.ok(custom.desc.includes("Custom color T-2 “ClubHouse Brown”"));
+  // Established stain: sample only when the toggle is on.
+  assert.deepEqual(calcFloor(floor({ finish: "est" }), 1000).fees, []);
+  assert.deepEqual(calcFloor(floor({ finish: "est", sample: true }), 1000).fees, [SAMPLE]);
 });
 
 test("calcFloor: Live Sawn 9¼/11¼ carry no carton figure", () => {
@@ -210,6 +212,25 @@ test("calcHerringbone: width runs differ by construction/species", () => {
   assert.equal(calcHerringbone({ sp: "Beech", cons: "solid", w: 7.25, band: 0, chevron: false }), null);
   assert.equal(calcHerringbone({ sp: "Beech", cons: "eng", w: 2.25, band: 0, chevron: false }), null);
   assert.equal(calcHerringbone({ sp: "Beech", cons: "eng", w: 3.25, band: 3, chevron: false }).cost, 8.30);
+});
+
+test("calcHerringbone: exact slat length snaps to its tier and prints the real length", () => {
+  const base = { sp: "White Oak", cons: "solid", w: 4.25, chevron: false };
+  // 24" lands in the 18¼–28 tier: same price as band 1, but the order reads 24" slats.
+  const c = calcHerringbone({ ...base, band: 0, slatLen: "24" });
+  assert.equal(c.cost, 8.40);
+  assert.equal(c.desc, '4¼" White Oak · Solid Herringbone · 24" slats');
+  assert.ok(c.rows[0][0].includes('24" slats (18¼"–28" slats tier)'));
+  // Tier mapping by upper bound 18 / 28 / 38 / 48.
+  const costFor = (l) => calcHerringbone({ ...base, slatLen: String(l) }).cost;
+  assert.equal(costFor(12), calcHerringbone({ ...base, band: 0 }).cost);
+  assert.equal(costFor(28), calcHerringbone({ ...base, band: 1 }).cost);
+  assert.equal(costFor(38), calcHerringbone({ ...base, band: 2 }).cost);
+  assert.equal(costFor(44), calcHerringbone({ ...base, band: 3 }).cost);
+  // Outside 9–48" still prices (nearest tier) but warns.
+  assert.ok(calcHerringbone({ ...base, slatLen: "60" }).warn.some((w) => w.includes("outside the standard")));
+  // Blank length falls back to the tier index (backward compatible with saved configs).
+  assert.equal(calcHerringbone({ ...base, band: 2, slatLen: "" }).desc, '4¼" White Oak · Solid Herringbone · 28¼"–38" slats');
 });
 
 // --- calcVent / calcDamper ----------------------------------------------------
