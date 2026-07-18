@@ -789,7 +789,7 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
 // search as the grid pickers; tapping a row picks it, the leading checkbox
 // builds a multi-selection (the shift-click stand-in), and a no-match query
 // can be handed to manual entry.
-export function MobileSearchSheet({ stock, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onClose }) {
+export function MobileSearchSheet({ stock, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onVendor, onClose }) {
   const [q, setQ] = useState(initial);
   const [picked, setPicked] = useState([]);
   const inputRef = useRef(null);
@@ -797,6 +797,9 @@ export function MobileSearchSheet({ stock, searchOrder, bookName, initial = "", 
   const { results, total } = useMergedResults(true, stock, q, searchOrder);
   const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const commit = () => { if (picked.length === 1) onPick(picked[0]); else if (picked.length) onPickMany(picked); };
+  // Sheoga has no SKUs, so it never book-matches — pin the same vendor row the
+  // desktop search shows when the query spells the vendor or hits a trade word.
+  const vendor = !!onVendor && sheogaQueryHit(q);
   const noHits = q.trim() && results.length === 0;
   return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col print:hidden" style={{ background: "var(--ft-cream)" }}>
@@ -819,7 +822,17 @@ export function MobileSearchSheet({ stock, searchOrder, bookName, initial = "", 
             </div>
           );
         })}
-        {noHits && (
+        {vendor && (
+          <button onClick={() => onVendor(q)} data-sheoga-entry className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-slate-100 text-left" style={{ background: "var(--ft-tint)" }}>
+            <span className="w-6 h-6 rounded flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-brand)" }}><Settings size={13} /></span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[13px] font-extrabold">Sheoga Hardwood — configure by description</span>
+              <span className="block text-[11.5px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{sheogaQuerySummary(sheogaParseQuery(q))}</span>
+            </span>
+            <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
+          </button>
+        )}
+        {noHits && !vendor && (
           <div className="px-4 py-6 text-center text-sm text-slate-400">
             No price-book match.
             <button onClick={() => onManual(q.trim())} className="mt-3 mx-auto block rounded-md bg-indigo-600 text-white px-4 h-[38px] text-[12.5px] font-bold">Enter "{q.trim()}" by hand</button>
@@ -892,7 +905,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onDelete, onClose, qtyRef }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -1250,6 +1263,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamil
           onPick={(it) => { setSearching(false); onPickStock([it]); }}
           onPickMany={(items) => { setSearching(false); onPickStock(items); }}
           onManual={(t) => { setSearching(false); if (t && !p.brandColor) onPatch({ brandColor: t }); }}
+          onVendor={onOpenSheoga ? (query) => { setSearching(false); onOpenSheoga(query); } : undefined}
           onClose={() => setSearching(false)} />
       )}
     </MobileSheet>
@@ -3741,6 +3755,7 @@ export default function App({ user, onSignOut }) {
                             settings={settings} stock={stock} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
+                            onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
                             onDelete={() => delProduct(a.id, p.id)}
                             onClose={() => setRowSheet(null)}
                             qtyRef={(el) => { if (el) qtyRefs.current[p.id] = el; }} />
@@ -4291,6 +4306,7 @@ export default function App({ user, onSignOut }) {
           <SheogaConfigurator seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
+            ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onClose={() => setSheogaPop(null)} />
         );
@@ -5397,8 +5413,11 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
               Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
             </label>
-            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies over distributor cost — adjustable per configuration in the popup">
-              Sheoga markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
+            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
+              Sheoga flooring markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
+            </label>
+            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
+              Sheoga vents &amp; dampers markup <input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
             </label>
             <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
           </div>

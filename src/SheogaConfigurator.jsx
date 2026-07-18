@@ -9,9 +9,10 @@ import {
   MODES, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
   TEXTURES, EDGES, LENGTHS, FINISHES, NO_SAP, CUSTOM_FINISHES,
-  STOCKED, STOCKED_WIDTHS, HERRINGBONE, CHEVRON_ADD,
+  STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
+  STAIN_COLORS, SHEENS, SHEEN_FEE,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS,
-  DEFAULT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
+  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
 } from "./sheoga.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -97,6 +98,68 @@ const QtyInput = ({ value, onChange }) => (
     className="w-24 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 );
 
+const selectCls = "w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+const textCls = "w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500";
+
+// Labeled dropdown for the compact floor rail (texture / edge / lengths /
+// finishing). Options are { id, label, dis? }.
+function Dropdown({ label, hint, value, options, onChange }) {
+  return (
+    <div>
+      <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">{label}</span>{hint && <span className="text-[9.5px] text-slate-400 font-medium">{hint}</span>}</div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={selectCls}>
+        {options.map((o) => <option key={String(o.id)} value={o.id} disabled={o.dis}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// The "full price grid" trigger — a real button, shared by both rails.
+function GridButton({ onClick }) {
+  return (
+    <button onClick={onClick} className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
+      <Grid3X3 size={13} /> Price grid
+    </button>
+  );
+}
+
+// Stain color: the stocked program's standard colors + a custom entry.
+// cfg carries `stain` (the color) and `stainCustom` (typed-in flag).
+function StainPicker({ cfg, set }) {
+  const sel = cfg.stainCustom ? "__c" : STAIN_COLORS.includes(cfg.stain) ? cfg.stain : "";
+  return (
+    <div>
+      <div className="ft-eyebrow text-[10px] mb-1">Stain color</div>
+      <select value={sel} onChange={(e) => { const v = e.target.value; if (v === "__c") set({ ...cfg, stainCustom: true, stain: "" }); else set({ ...cfg, stainCustom: false, stain: v }); }} className={selectCls}>
+        <option value="">Pick color…</option>
+        {STAIN_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+        <option value="__c">Custom…</option>
+      </select>
+      {cfg.stainCustom && (
+        <input value={cfg.stain} onChange={(e) => set({ ...cfg, stain: e.target.value })} placeholder="Custom color name / T-ref" className={textCls + " mt-1.5"} />
+      )}
+    </div>
+  );
+}
+
+// Sheen: 30/20/15/10/5 + custom. `note` (e.g. the $250 hint) shows beside the
+// label; `warn` renders under the control when a fee applies.
+function SheenPicker({ cfg, set, note, warn }) {
+  return (
+    <div>
+      <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Sheen</span>{note && <span className="text-[9.5px] text-slate-400 font-medium">{note}</span>}</div>
+      <select value={cfg.sheenCustom ? "__c" : cfg.sheen} onChange={(e) => { const v = e.target.value; if (v === "__c") set({ ...cfg, sheenCustom: true }); else set({ ...cfg, sheenCustom: false, sheen: v }); }} className={selectCls}>
+        {SHEENS.map((s) => <option key={s} value={s}>{s}-sheen</option>)}
+        <option value="__c">Custom…</option>
+      </select>
+      {cfg.sheenCustom && (
+        <input type="number" min="0" value={cfg.sheen} onChange={(e) => set({ ...cfg, sheen: e.target.value })} placeholder="e.g. 25" className={textCls + " mt-1.5"} />
+      )}
+      {warn && <div className="mt-1.5 text-[11px] font-bold text-amber-700">⚠ {warn}</div>}
+    </div>
+  );
+}
+
 // --- per-mode option rails ----------------------------------------------------
 
 // A species/grade/construction change can land on a width the new combo doesn't
@@ -110,6 +173,8 @@ const snapFloorW = (f) => {
 function FloorRail({ f, set, sf, markup, onGrid }) {
   const sell = (c) => (c ? fm(sellOf(c.cost, markup)) + "/sf" : "—");
   const custom = CUSTOM_FINISHES.includes(f.finish);
+  const prefin = f.finish !== "unf";
+  const stained = f.finish === "est" || custom;
   return (<>
     <Sect title="Species" hint="sell $/sf at current options">
       <Chips cur={f.sp} onPick={(sp) => set(snapFloorW({ ...f, sp }))}
@@ -119,57 +184,65 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
           return { id: sp, label: sp, sub: c ? sell(c) + (probe.w !== f.w ? " @" + WIDTH_LABEL[probe.w] : "") : "—", dis: !c };
         })} />
     </Sect>
-    <Sect title="Grade">
-      {f.sp === LIVE_SAWN_SP
-        ? <Seg opts={[{ id: "ls", label: "Live Sawn (one grade)" }]} cur="ls" onPick={() => {}} />
-        : <Seg opts={[{ id: "clear", label: "Clear" }, { id: "char", label: "Character" }]} cur={f.grade} onPick={(grade) => set(snapFloorW({ ...f, grade }))} />}
-    </Sect>
-    <Sect title="Construction">
-      <Seg opts={[{ id: "solid", label: 'Solid ¾"' }, { id: "eng", label: "Engineered" }]} cur={f.cons} onPick={(cons) => set(snapFloorW({ ...f, cons }))} />
-    </Sect>
-    <Sect title="Width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full price grid →</button>}>
+    {/* Construction (left) + Grade, with the price grid pushed to the right */}
+    <div className="mb-4 flex items-end gap-4 flex-wrap">
+      <div>
+        <div className="ft-eyebrow text-[10px] mb-1.5">Construction</div>
+        <Seg opts={[{ id: "solid", label: "Solid" }, { id: "eng", label: "Eng." }]} cur={f.cons} onPick={(cons) => set(snapFloorW({ ...f, cons }))} />
+      </div>
+      <div>
+        <div className="ft-eyebrow text-[10px] mb-1.5">Grade</div>
+        {f.sp === LIVE_SAWN_SP
+          ? <Seg opts={[{ id: "ls", label: "Live Sawn" }]} cur="ls" onPick={() => {}} />
+          : <Seg opts={[{ id: "clear", label: "Clear" }, { id: "char", label: "Char." }]} cur={f.grade} onPick={(grade) => set(snapFloorW({ ...f, grade }))} />}
+      </div>
+      <div className="ml-auto self-end"><GridButton onClick={onGrid} /></div>
+    </div>
+    <Sect title="Width">
       <Chips cur={f.w} onPick={(w) => set({ ...f, w: +w })}
         items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })} />
     </Sect>
-    <Sect title="Texture / scrape">
-      <RadioList cur={f.tex} onPick={(tex) => set({ ...f, tex })}
-        items={TEXTURES.map((t) => ({ id: t.id, label: t.name, add: t.add ? `+${fm(t.add)}` : "—" }))} />
-    </Sect>
-    <Sect title="Edge">
-      <RadioList cur={f.edge} onPick={(edge) => set({ ...f, edge })}
-        items={EDGES.map((e) => ({ id: e.id, label: e.name, add: e.add ? `+${fm(e.add)}` : "—" }))} />
-    </Sect>
-    <Sect title="Lengths">
-      <RadioList cur={f.len} onPick={(len) => set({ ...f, len })}
-        items={LENGTHS.map((l) => ({ id: l.id, label: l.name, add: l.pct ? `+${l.pct}%` : "—" }))} />
-    </Sect>
+    {/* Minor options as a 2×2 grid of dropdowns: Texture · Finishing / Lengths · Edge */}
+    <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
+      <Dropdown label="Texture / scrape" value={f.tex} onChange={(tex) => set({ ...f, tex })}
+        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(t.add)}` : "") }))} />
+      <Dropdown label="Finishing" hint="fee under 500 sf" value={f.finish} onChange={(finish) => set({ ...f, finish })}
+        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(x.add(f))}`) }))} />
+      <Dropdown label="Lengths" value={f.len} onChange={(len) => set({ ...f, len })}
+        options={LENGTHS.map((l) => ({ id: l.id, label: l.name.replace(" (standard)", "") + (l.pct ? `  +${l.pct}%` : "") }))} />
+      <Dropdown label="Edge" value={f.edge} onChange={(edge) => set({ ...f, edge })}
+        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(e.add)}` : "") }))} />
+    </div>
+    {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
+        free on this custom/floor tab — no fee, it's made to order regardless. */}
+    {prefin && (
+      <div className="mb-4 rounded-lg border border-dashed p-3" style={{ borderColor: "var(--ft-tint-border)", background: "var(--ft-tint)" }}>
+        <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
+          {stained && <StainPicker cfg={f} set={set} />}
+          <SheenPicker cfg={f} set={set} note="· included, no charge" />
+        </div>
+      </div>
+    )}
     {NO_SAP[f.sp] != null && (
       <Sect title="Sap">
         <Toggle label={`No sap — ${f.sp}`} on={f.noSap} onClick={() => set({ ...f, noSap: !f.noSap })} add={`+${fm(NO_SAP[f.sp])}/sf`} />
       </Sect>
     )}
-    <Sect title="Finishing" hint="small-order fee under 500 sf">
-      <RadioList cur={f.finish} onPick={(finish) => set({ ...f, finish })}
-        items={FINISHES.map((x) => ({ id: x.id, label: x.name, sub: x.sub, add: x.id === "unf" ? "—" : `+${fm(x.add(f))}` }))} />
-      {["est", ...CUSTOM_FINISHES].includes(f.finish) && (
-        <input value={f.stain} onChange={(e) => set({ ...f, stain: e.target.value })}
-          placeholder={f.finish === "est" ? "Stain color (e.g. Toasted Acorn)" : "Custom color name / T-number ref"}
-          className="mt-1.5 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      )}
-      {custom && (
-        <div className="mt-1.5">
-          <Toggle label="Color-match sample — approval bundle" on={f.sample} onClick={() => set({ ...f, sample: !f.sample })} add="+$750 flat" />
-        </div>
-      )}
-    </Sect>
+    {custom && (
+      <Sect title="Custom color sample">
+        <Toggle label="Color-match sample — approval bundle" on={f.sample} onClick={() => set({ ...f, sample: !f.sample })} add="+$750 flat" />
+      </Sect>
+    )}
   </>);
 }
 
 function StockedRail({ k, set, sf, markup, onGrid }) {
-  const it = STOCKED.find((x) => x.sp === k.sp && x.color === k.color) || STOCKED[0];
-  // Picking a color/grade the current width doesn't come in snaps the width.
+  const it = stockedItem(k) || STOCKED[0];
+  const species = [...new Set(STOCKED.map((x) => x.sp))];
+  const colorsFor = (sp) => STOCKED.filter((x) => x.sp === sp);
+  // Picking a species/color/grade the current width doesn't come in snaps it.
   const snap = (next) => {
-    const nit = STOCKED.find((x) => x.sp === next.sp && x.color === next.color);
+    const nit = stockedItem(next);
     if (!nit) return next;
     if (!nit[next.grade]) next = { ...next, grade: nit.clear ? "clear" : "char" };
     const ws = STOCKED_WIDTHS[next.grade];
@@ -179,18 +252,36 @@ function StockedRail({ k, set, sf, markup, onGrid }) {
     }
     return next;
   };
+  // Changing species/color resets the sheen to that product's standard.
+  const pickSpecies = (sp) => { const c = colorsFor(sp)[0]; set(snap({ ...k, sp, color: c.color, sheen: String(c.sheen), sheenCustom: false })); };
+  const pickColor = (color) => { const nit = STOCKED.find((x) => x.sp === k.sp && x.color === color); set(snap({ ...k, color, sheen: String(nit.sheen), sheenCustom: false })); };
+  const std = it.sheen;
+  const curSheen = k.sheenCustom ? k.sheen : (k.sheen ?? String(std));
+  const changed = k.sheenCustom ? (k.sheen !== "" && Number(k.sheen) !== std) : (Number(k.sheen ?? std) !== std);
   return (<>
-    <Sect title="Stocked color" hint="ships from stock">
-      <RadioList cur={`${k.sp}|${k.color}`} onPick={(id) => { const [sp, color] = id.split("|"); set(snap({ ...k, sp, color })); }}
-        items={STOCKED.map((x) => ({ id: `${x.sp}|${x.color}`, label: `${x.sp} — ${x.color}`, sub: (x.tex ? "textured · " : "") + x.sheen + "-sheen" }))} />
+    <Sect title="Species" hint="ships from stock">
+      <Chips cur={k.sp} onPick={pickSpecies} items={species.map((sp) => ({ id: sp, label: sp }))} />
     </Sect>
-    <Sect title="Grade">
-      <Seg cur={k.grade} onPick={(grade) => set(snap({ ...k, grade }))}
-        opts={[{ id: "clear", label: "Clear", dis: !it.clear }, { id: "char", label: "Character", dis: !it.char }]} />
+    <Sect title="Color" hint={`${colorsFor(k.sp).length} in ${k.sp}`}>
+      <Chips cur={k.color} onPick={pickColor}
+        items={colorsFor(k.sp).map((x) => ({ id: x.color, label: x.color.replace(/ · /g, " "), sub: (x.tex ? "textured · " : "") + x.sheen + "-sheen" }))} />
     </Sect>
-    <Sect title="Width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full price grid →</button>}>
+    {/* Grade centered, with the price grid button beside it */}
+    <div className="mb-4">
+      <div className="ft-eyebrow text-[10px] mb-1.5 text-center">Grade</div>
+      <div className="flex items-center justify-center gap-3">
+        <Seg cur={k.grade} onPick={(grade) => set(snap({ ...k, grade }))}
+          opts={[{ id: "clear", label: "Clear", dis: !it.clear }, { id: "char", label: "Character", dis: !it.char }]} />
+        <GridButton onClick={onGrid} />
+      </div>
+    </div>
+    <Sect title="Width">
       <Chips cur={k.w} onPick={(w) => set({ ...k, w: +w })}
         items={STOCKED_WIDTHS[k.grade].map((w) => { const c = calcStocked({ ...k, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })} />
+    </Sect>
+    <Sect title="Sheen">
+      <SheenPicker cfg={k} set={set} note={`standard ${std} · +$${SHEEN_FEE} if changed`}
+        warn={changed ? `Non-standard sheen (${curSheen} vs ${std}) — adds a $${SHEEN_FEE} flat line at cost.` : null} />
     </Sect>
   </>);
 }
@@ -389,15 +480,21 @@ const Fragment2 = ({ children }) => <>{children}</>;
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, onAdd, onClose }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, onAdd, onClose }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
     if (seed?.mode && seed?.cfg) base[seed.mode] = { ...base[seed.mode], ...seed.cfg };
     return base;
   });
+  // Flooring and vents/dampers carry separate markups (Settings → Price book).
+  // The footer's markup box edits whichever applies to the active tab.
   const [markup, setMarkup] = useState(markupDefault ?? DEFAULT_MARKUP);
-  const [sf, setSf] = useState(initialSf > 0 ? initialSf : 1000);
+  const [ventMarkup, setVentMarkup] = useState(ventMarkupDefault ?? DEFAULT_VENT_MARKUP);
+  const ventMode = mode === "vent" || mode === "damper";
+  const activeMarkup = ventMode ? ventMarkup : markup;
+  const setActiveMarkup = ventMode ? setVentMarkup : setMarkup;
+  const [sf, setSf] = useState(initialSf > 0 ? initialSf : 1);
   const [grid, setGrid] = useState(false);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else onClose(); } };
@@ -409,13 +506,13 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, onA
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
   const snap = { mode, cfg };
   const c = useMemo(() => calcConfig(snap, sf), [mode, cfg, sf]);
-  const sell = c ? sellOf(c.cost, markup) : 0;
+  const sell = c ? sellOf(c.cost, activeMarkup) : 0;
   const isEa = c?.per === "ea";
   const qty = c?.qty || 1;
   const ctn = c && !isEa ? cartonize(sf, c.cartonSf) : null;
   const feesTot = (c?.fees || []).reduce((a, x) => a + x.amt, 0);
   const jobTot = c ? (isEa ? sell * qty : sell * (ctn ? ctn.billedSf : sf)) + feesTot : 0;
-  const add = () => { if (c) onAdd(lineItems(snap, { sf, markupPct: markup }), snap); };
+  const add = () => { if (c) onAdd(lineItems(snap, { sf, markupPct: activeMarkup }), snap); };
 
   const sfMode = !isEa && mode !== "vent" && mode !== "damper";
   return (
@@ -441,11 +538,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, onA
         {/* body */}
         <div className="flex-1 flex min-h-0">
           <div className="w-[46%] max-w-[420px] shrink-0 border-r border-slate-300 overflow-y-auto p-4">
-            {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={markup} onGrid={() => setGrid(true)} />}
-            {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={markup} onGrid={() => setGrid(true)} />}
-            {mode === "hb" && <HbRail h={cfg} set={set} markup={markup} onGrid={() => setGrid(true)} />}
-            {mode === "vent" && <VentRail v={cfg} set={set} markup={markup} onGrid={() => setGrid(true)} />}
-            {mode === "damper" && <DamperRail d={cfg} set={set} markup={markup} />}
+            {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+            {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+            {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+            {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+            {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}
           </div>
           {/* build card */}
           <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
@@ -476,7 +573,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, onA
                 </div>
                 <div className="flex items-center gap-4 px-3.5 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-sand)" }}>
                   <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">our cost</div><div className="text-base font-extrabold tabular-nums">{fm(c.cost)}{isEa ? " ea" : "/sf"}</div></div>
-                  <div className="text-xs text-slate-400">→ +{markup}% →</div>
+                  <div className="text-xs text-slate-400">→ +{activeMarkup}% →</div>
                   <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">sell</div><div className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}{isEa ? " ea" : "/sf"}</div></div>
                   <div className="ml-auto text-right leading-tight">
                     <div className="ft-eyebrow text-[8.5px]">{isEa ? `× ${qty} pcs` : ctn ? `${ctn.cartons} ctns × ${ctn.sf} sf = ${ctn.billedSf} sf` : `× ${sf} sq ft`}{feesTot ? ` + ${fm(feesTot)} fees` : ""}</div>
@@ -506,7 +603,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, onA
         {/* footer */}
         <div className="flex items-center gap-5 px-4 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-cream)" }}>
           <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-            Markup <input type="number" min="0" step="5" value={markup} onChange={(e) => setMarkup(Math.max(0, Number(e.target.value) || 0))}
+            {ventMode ? "Vent markup" : "Markup"} <input type="number" min="0" step="5" value={activeMarkup} onChange={(e) => setActiveMarkup(Math.max(0, Number(e.target.value) || 0))}
               className="w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-markup /> %
           </label>
           {sfMode && (

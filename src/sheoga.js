@@ -20,6 +20,9 @@ const fm = (n) => "$" + n.toFixed(2);
 
 export const SHEET_NOTE = "priced from Sheoga sheets · Feb ’25 / Feb ’22";
 export const DEFAULT_MARKUP = 40;
+// Wood vents & dampers carry their own markup (Settings → Price book), separate
+// from flooring's — the shop marks grilles up more than material.
+export const DEFAULT_VENT_MARKUP = 50;
 
 // --- widths & cartons ---------------------------------------------------------
 
@@ -83,6 +86,14 @@ export const FINISHES = [
 export const NO_SAP = { Cherry: 1.00, Walnut: 2.00 };
 export const SAMPLE_FEE = 750;
 export const CUSTOM_FINISHES = ["t1", "t2", "t3"];
+
+// Prefinished stain-color picks (the stocked program's standard colors) + a
+// custom entry, and the sheen scale. Sheen is descriptive on the custom/floor
+// tab (free); on the STOCKED tab, moving a product off its standard sheen adds
+// a flat SHEEN_FEE line (made-to-order setup).
+export const STAIN_COLORS = ["Natural", "Cattail", "Caramel", "Fresh Cut", "Toasted Acorn", "Nutmeg", "Buckeye", "Hickory Nut", "Frost"];
+export const SHEENS = ["30", "20", "15", "10", "5"];
+export const SHEEN_FEE = 250;
 
 // --- stocked prefinished ------------------------------------------------------
 // Solid, micro bevel; clear widths 2¼–5¼, char widths 2¼–6¼ (STOCKED_WIDTHS).
@@ -211,11 +222,11 @@ export const MODES = [
 ];
 
 export function defaultConfig(mode) {
-  if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25 };
+  if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
   if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: 1, chevron: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, tex: false, damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
-  return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", sample: false };
+  return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
 }
 
 // --- pricing engine -----------------------------------------------------------
@@ -281,9 +292,18 @@ export function calcFloor(f, sf) {
   if (custom && !f.sample) warn.push("Custom color — add the $750 color-match sample, or call Sheoga");
   warn.push("Made to order · 5–10% overrun · non-returnable");
   const size = WIDTH_LABEL[f.w];
-  const rest =
-    `${f.sp} · ${gradeName(f)} · ${f.cons === "solid" ? "Solid" : "Engineered"}` +
-    `${f.noSap && sap ? " · No sap" : ""} · ${tex.name.replace(" (standard)", "")} · ${edge.name} · ${len.name.replace(" (standard)", "")} lengths · ${finishName(f)}`;
+  // Description = plain spaces, no separators; the size lives in the row's own
+  // size field so it's left out of `rest`. Only non-standard specs appear:
+  // Smooth texture, Square edge and 1'–8' lengths are the defaults, so they're
+  // omitted; length shows only when it's not the standard run. Prefinished
+  // finishes carry the sheen (free on this custom/floor tab).
+  const parts = [f.sp, gradeName(f), f.cons === "solid" ? "Solid" : "Engineered"];
+  if (f.noSap && sap) parts.push("No sap");
+  if (tex.id !== "smooth") parts.push(tex.name.replace(" (standard)", ""));
+  if (edge.id !== "square") parts.push(edge.name);
+  if (len.pct) parts.push(len.name.replace(" (standard)", "") + " lengths");
+  if (f.finish !== "unf") parts.push(`${finishName(f)} ${f.sheen || "30"} sheen`);
+  const rest = parts.join(" ");
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
 }
 
@@ -297,10 +317,19 @@ export function calcStocked(k) {
   const i = ws.indexOf(k.w);
   const p = i < 0 ? N : arr[i];
   if (p == N) return null;
-  const rows = [[`Stocked prefinished — micro bevel, ${it.sheen}-sheen clear ceramic`, fm(p) + "/sf"]];
+  const std = it.sheen;
+  const sheen = k.sheen != null && k.sheen !== "" ? String(k.sheen) : String(std);
+  const changed = Number(sheen) !== std;
+  const rows = [[`Stocked prefinished — micro bevel, ${sheen}-sheen clear ceramic`, fm(p) + "/sf"]];
+  // Off-standard sheen turns a stock item into a made-to-order run: a flat
+  // $250 line at cost (never folded into the $/sf), like the other fees.
+  const fees = changed ? [{ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE }] : [];
+  fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
   const size = WIDTH_LABEL[k.w];
-  const rest = `${it.sp} — ${it.color} · ${k.grade === "clear" ? "Clear" : "Character"} · Stocked prefinished, ${it.sheen}-sheen`;
-  return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: p, per: "sf", warn: ["Stocked item — ships from Sheoga stock"], fees: [] };
+  const color = it.color.replace(/ · /g, " ");
+  const rest = `${it.sp} ${color} ${k.grade === "clear" ? "Clear" : "Character"} Stocked prefinished ${sheen} sheen`;
+  const warn = changed ? ["Non-standard sheen — made to order, not a stock item"] : ["Stocked item — ships from Sheoga stock"];
+  return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: p, per: "sf", warn, fees };
 }
 
 export function calcHerringbone(h) {

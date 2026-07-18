@@ -700,7 +700,7 @@ export const normOps = (raw) => {
 const pct100 = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : dflt; };
 // Markup can legitimately exceed 100% — its own clamp, not pct100.
 const pctMarkup = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(500, Math.max(0, n)) : dflt; };
-export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40) });
+export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { waste, catalog, pricing, ops } is persisted.
