@@ -72,14 +72,25 @@ src/
                     # as separate at-cost misc lines; `product.sheoga` keeps the
                     # raw config for Reconfigure). A sheet update is a
                     # re-transcription of this one file
-  SheogaConfigurator.jsx  # the configurator popup (prototype A option board):
-                    # mode tabs, option rail with live sell prices on the chips,
-                    # build card (cost -> sell, carton preview, fee lines), full
-                    # price grid. Opened from a row's search (the pinned "Vendor
-                    # configurators" row in GridOmniSearch — "she" is enough) or
-                    # its "Sheoga — reconfigure" chip; Add fills the row via
-                    # addSheogaLines. Markup default: settings.pricing
-                    # .sheogaMarkupPct (Settings -> Price book)
+  SheogaConfigurator.jsx  # the configurator popup: mode tabs, an option rail,
+                    # a build card (cost -> sell, carton preview, fee lines), and
+                    # the full price grid (a button on the Grade row). The floor
+                    # rail is compact — Species/Width chips, Construction+Grade
+                    # paired, and Texture/Finishing/Lengths/Edge as dropdowns;
+                    # prefinished finishes reveal Stain-color + Sheen pickers
+                    # (each with a Custom… entry). Stocked tab is species -> color
+                    # -> grade -> width -> sheen, and an off-standard sheen there
+                    # adds a $250 flat fee line (free on the custom/floor tab).
+                    # Opened from a row's search (the pinned "Vendor configurators"
+                    # row in GridOmniSearch or MobileSearchSheet — "she" is enough)
+                    # or its "Sheoga — reconfigure" chip; Add fills the row via
+                    # addSheogaLines. Job size starts at 1. Two markups: flooring
+                    # settings.pricing.sheogaMarkupPct (40%), vents & dampers
+                    # .sheogaVentMarkupPct (50%) — both Settings -> Price book.
+                    # Responsive (useIsWide, 768px): desktop is the two-pane
+                    # rail+BuildCard; on mobile the options fill the screen with a
+                    # pinned price bar that pulls up a swipe-down MobileBuildSheet
+                    # (BuildCard + Add). BuildCard is the shared cost->sell card
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + URL-fragment hand-off, response
                     # sniffing; shared by the browser panel and the relay.

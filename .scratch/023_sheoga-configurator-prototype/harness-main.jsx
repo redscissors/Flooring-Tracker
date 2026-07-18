@@ -7,7 +7,7 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "/src/index.css";
-import { GridOmniSearch } from "/src/App.jsx";
+import { GridOmniSearch, MobileSearchSheet } from "/src/App.jsx";
 import SheogaConfigurator from "/src/SheogaConfigurator.jsx";
 import { normStockItem } from "/src/stock.js";
 import { seedFromQuery } from "/src/sheoga.js";
@@ -21,6 +21,7 @@ function Harness() {
   const [q, setQ] = useState("");
   const [pop, setPop] = useState(null); // { seed }
   const [added, setAdded] = useState(null); // lines from the last Add
+  const [mobileSearch, setMobileSearch] = useState(false); // MobileSearchSheet demo
   return (
     <div className="min-h-screen p-8" style={{ background: "var(--ft-cream)" }}>
       <div className="max-w-3xl mx-auto">
@@ -43,6 +44,7 @@ function Harness() {
           <button onClick={() => setPop({ seed: null })} className="rounded-md bg-indigo-600 text-white px-3 py-1.5 text-xs font-bold">Open configurator</button>
           <button onClick={() => setPop({ seed: seedFromQuery("walnut vent") })} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Open on vents</button>
           <button onClick={() => setPop({ seed: seedFromQuery("chevron red oak") })} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Open on herringbone</button>
+          <button onClick={() => setMobileSearch(true)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Open mobile search</button>
         </div>
 
         {added && (
@@ -62,9 +64,15 @@ function Harness() {
       </div>
 
       {pop && (
-        <SheogaConfigurator seed={pop.seed} initialSf={0} markupDefault={40}
+        <SheogaConfigurator seed={pop.seed} initialSf={0} markupDefault={40} ventMarkupDefault={50}
           onAdd={(lines) => { setAdded(lines); setPop(null); }}
           onClose={() => setPop(null)} />
+      )}
+      {mobileSearch && (
+        <MobileSearchSheet stock={FAKE_STOCK} searchOrder={null} bookName="Stock" initial=""
+          onPick={() => setMobileSearch(false)} onPickMany={() => setMobileSearch(false)} onManual={() => setMobileSearch(false)}
+          onVendor={(query) => { setMobileSearch(false); setPop({ seed: seedFromQuery(query) }); }}
+          onClose={() => setMobileSearch(false)} />
       )}
     </div>
   );

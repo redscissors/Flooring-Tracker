@@ -6,7 +6,7 @@ import {
   VENT_GROUP, VENT_STD, VENT_FRAMED, VENT_CAR, VENT_3D, VENT_CATS, DAMPERS,
   MODES, defaultConfig, floorWidths, floorBase, gradeName, finishName,
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
-  DEFAULT_MARKUP, sellOf, cartonize, lineItems,
+  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
 } from "./sheoga.js";
 
@@ -86,7 +86,9 @@ test("calcFloor: standard-spec cost is the bare base", () => {
   assert.equal(c.per, "sf");
   assert.equal(c.cartonSf, 20.5);
   assert.equal(c.size, '5¼"');
-  assert.equal(c.desc, '5¼" White Oak · Character · Solid · Smooth · Square edge · 1\'–8\' lengths · Unfinished');
+  // Plain spaces; standard texture/edge/length and the "Unfinished" label are
+  // all defaults and omitted — the size lives in c.size, not the description.
+  assert.equal(c.desc, '5¼" White Oak Character Solid');
   assert.equal(c.name, 'Sheoga 5¼" White Oak');
   assert.deepEqual(c.fees, []);
   assert.deepEqual(c.warn, ["Made to order · 5–10% overrun · non-returnable"]);
@@ -146,8 +148,17 @@ test("calcFloor: custom color wants the $750 sample or warns", () => {
 test("calcFloor: Live Sawn 9¼/11¼ carry no carton figure", () => {
   const c = calcFloor(floor({ sp: LIVE_SAWN_SP, w: 11.25 }), 1000);
   assert.equal(c.cartonSf, null);
-  assert.ok(c.desc.startsWith('11¼" Live Sawn White Oak · Live Sawn'));
+  assert.ok(c.desc.startsWith('11¼" Live Sawn White Oak Live Sawn'));
   assert.equal(calcFloor(floor({ sp: "Beech", w: 6.25 }), 1000), null);
+});
+
+test("calcFloor: length shows only when non-standard; sheen rides prefinished", () => {
+  assert.ok(!calcFloor(floor(), 1000).desc.includes("lengths")); // standard 1'–8' omitted
+  assert.ok(calcFloor(floor({ len: "2-8" }), 1000).desc.includes("2'–8' lengths"));
+  // default sheen 30 on a prefinished finish, and it changes with the config
+  assert.ok(calcFloor(floor({ finish: "nat" }), 1000).desc.endsWith("Prefinished Natural 30 sheen"));
+  assert.ok(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).desc.endsWith("Natural 5 sheen"));
+  assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).fees, []); // floor sheen is free
 });
 
 // --- calcStocked --------------------------------------------------------------
@@ -156,9 +167,21 @@ test("calcStocked looks up by species + color, not table position", () => {
   const c = calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 5.25 });
   assert.equal(c.cost, 6.00);
   assert.equal(c.cartonSf, 20.5);
-  assert.equal(c.desc, '5¼" White Oak — Natural · Character · Stocked prefinished, 30-sheen');
+  assert.equal(c.desc, '5¼" White Oak Natural Character Stocked prefinished 30 sheen');
   assert.deepEqual(c.warn, ["Stocked item — ships from Sheoga stock"]);
   assert.equal(stockedItem({ sp: "White Oak", color: "Natural" }).sheen, 30);
+});
+
+test("calcStocked: off-standard sheen adds a flat $250 fee line, stays at cost", () => {
+  const base = { sp: "White Oak", color: "Natural", grade: "char", w: 5.25 }; // standard 30
+  assert.deepEqual(calcStocked({ ...base, sheen: "30" }).fees, []);
+  const off = calcStocked({ ...base, sheen: "5" });
+  assert.equal(off.cost, 6.00); // fee never folds into $/sf
+  assert.deepEqual(off.fees, [{ label: "Non-standard sheen — 5-sheen (standard 30)", amt: 250 }]);
+  assert.ok(off.desc.endsWith("Stocked prefinished 5 sheen"));
+  assert.ok(off.warn[0].includes("made to order"));
+  // a product whose standard is 20 (White Oak Caramel) doesn't charge at 20
+  assert.deepEqual(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }).fees, []);
 });
 
 test("calcStocked: missing grade/width/color combos are null", () => {
@@ -253,6 +276,7 @@ test("calcConfig dispatches on mode; defaults are priceable", () => {
 
 test("sellOf applies the markup, rounded to cents; default 40%", () => {
   assert.equal(DEFAULT_MARKUP, 40);
+  assert.equal(DEFAULT_VENT_MARKUP, 50); // vents & dampers mark up more than flooring
   assert.equal(sellOf(4.35, 40), 6.09);
   assert.equal(sellOf(4.35), 6.09);
   assert.equal(sellOf(10, 0), 10);
@@ -274,7 +298,7 @@ test("lineItems: sq-ft build → one hardwood row, size-first, carton-aware", ()
   assert.equal(main.qtyType, "sqft");
   assert.equal(main.qty, "600");
   assert.equal(main.sizeText, '5¼"');
-  assert.ok(main.brandColor.startsWith("Sheoga — White Oak · Character · Solid"));
+  assert.ok(main.brandColor.startsWith("Sheoga — White Oak Character Solid"));
   assert.ok(!main.brandColor.includes('5¼"')); // size lives in sizeText, not the name
   assert.equal(main.priceSqft, "6.09");
   assert.equal(main.costSqft, "4.35");

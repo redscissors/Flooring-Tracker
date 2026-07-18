@@ -1,0 +1,324 @@
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --text:#1C1A17;
+    --brand:#57703A; --deep:#40542A; --line:rgba(28,26,23,.34);
+    --tint:color-mix(in oklab, var(--brand) 6%, var(--card));
+    --tint-border:color-mix(in oklab, var(--brand) 35%, rgba(28,26,23,.18));
+    --muted:color-mix(in oklab, var(--text) 55%, transparent);
+    --soft:color-mix(in oklab, var(--text) 42%, transparent);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --cream:#1a1c17; --card:#232620; --sand:#2b2f26; --text:#ECEAE2;
+      --line:rgba(236,234,226,.28); --brand:#8faa63; --deep:#a9c081;
+      --muted:color-mix(in oklab, var(--text) 55%, transparent); --soft:color-mix(in oklab, var(--text) 40%, transparent); }
+  }
+  :root[data-theme="dark"]{ --cream:#1a1c17; --card:#232620; --sand:#2b2f26; --text:#ECEAE2;
+    --line:rgba(236,234,226,.28); --brand:#8faa63; --deep:#a9c081;
+    --muted:color-mix(in oklab, var(--text) 55%, transparent); --soft:color-mix(in oklab, var(--text) 40%, transparent); }
+  :root[data-theme="light"]{ --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --text:#1C1A17;
+    --brand:#57703A; --deep:#40542A; --line:rgba(28,26,23,.34);
+    --muted:color-mix(in oklab, var(--text) 55%, transparent); --soft:color-mix(in oklab, var(--text) 42%, transparent); }
+
+  *{ box-sizing:border-box; }
+  body{ margin:0; }
+  .wrap{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    background:var(--cream); color:var(--text); padding:20px; min-height:100vh; line-height:1.4; }
+  .page-head{ max-width:1000px; margin:0 auto 18px; }
+  .eyebrow{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.16em; color:var(--deep); }
+  h1{ font-size:22px; font-weight:800; margin:2px 0 4px; letter-spacing:-.01em; }
+  .sub{ font-size:13px; color:var(--muted); font-weight:500; max-width:72ch; }
+
+  .cols{ max-width:1000px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:820px){ .cols{ grid-template-columns:1fr; } }
+
+  .panel{ background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .panel-head{ display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--sand); border-bottom:1px solid var(--line); }
+  .badge{ width:18px; height:18px; border-radius:5px; background:var(--brand); color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .panel-title{ font-size:12.5px; font-weight:800; }
+  .tag{ margin-left:auto; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; }
+  .tag.before{ color:#b5883a; }
+  .tag.after{ color:var(--deep); }
+  .body{ padding:14px; }
+
+  .sect{ margin-bottom:13px; }
+  .sect:last-child{ margin-bottom:0; }
+  .sect-lbl{ display:flex; align-items:baseline; gap:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.13em; color:var(--deep); margin-bottom:6px; }
+  .hint{ margin-left:auto; font-size:10px; color:var(--soft); text-transform:none; letter-spacing:0; font-weight:500; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ border:1px solid var(--line); background:var(--card); border-radius:7px; padding:5px 8px; font-size:11px; font-weight:700; cursor:pointer; text-align:center; line-height:1.15; color:var(--text); }
+  .chip[aria-pressed="true"]{ background:var(--text); border-color:var(--text); color:var(--card); }
+
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .seg button{ padding:6px 12px; font-size:11.5px; font-weight:700; border:0; border-left:1px solid var(--line); background:var(--card); color:var(--muted); cursor:pointer; }
+  .seg button:first-child{ border-left:0; }
+  .seg button[aria-pressed="true"]{ background:var(--text); color:var(--card); }
+
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .field-lbl{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--deep); margin-bottom:4px; }
+  select.dd,input.ti{ width:100%; appearance:none; border:1px solid var(--line); border-radius:7px; background:var(--card); padding:7px 9px; font-size:11.5px; font-weight:700; color:var(--text); cursor:pointer; }
+  select.dd{ padding-right:26px; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%2340542A' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>"); background-repeat:no-repeat; background-position:right 9px center; }
+  input.ti{ cursor:text; font-weight:600; }
+  input.ti::placeholder{ color:var(--soft); font-weight:500; }
+
+  .radiolist{ border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .radiolist .r{ display:flex; align-items:center; gap:9px; padding:7px 10px; font-size:11.5px; font-weight:600; border-top:1px solid color-mix(in oklab, var(--line) 45%, transparent); background:var(--card); }
+  .radiolist .r:first-child{ border-top:0; }
+  .radiolist .dot{ width:13px; height:13px; border-radius:50%; border:2px solid var(--soft); position:relative; flex:none; }
+  .radiolist .r.on .dot{ border-color:var(--brand); }
+  .radiolist .r.on .dot::after{ content:""; position:absolute; inset:2px; border-radius:50%; background:var(--brand); }
+  .radiolist .add{ margin-left:auto; font-size:10.5px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .radiolist .r.on .add{ color:var(--deep); }
+
+  .grid-btn{ margin-left:auto; display:inline-flex; align-items:center; gap:5px; border:1px solid var(--tint-border); background:var(--tint); color:var(--deep); border-radius:7px; padding:4px 9px; font-size:10.5px; font-weight:800; cursor:pointer; text-transform:none; letter-spacing:0; }
+  .grid-btn svg{ width:12px; height:12px; }
+
+  .finishwrap{ margin-top:10px; border:1px dashed var(--tint-border); background:var(--tint); border-radius:9px; padding:10px; }
+  .finishwrap .field-lbl{ color:var(--deep); }
+
+  .toggle{ display:flex; align-items:center; gap:9px; width:100%; border:1px solid var(--line); background:var(--card); border-radius:8px; padding:7px 10px; font-size:11.5px; font-weight:600; margin-top:10px; cursor:pointer; text-align:left; color:var(--text); }
+  .toggle .box{ width:15px; height:15px; border-radius:4px; border:2px solid var(--soft); flex:none; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:900; }
+  .toggle.on .box{ background:var(--brand); border-color:var(--brand); }
+  .toggle .add{ margin-left:auto; font-size:10.5px; font-weight:700; color:var(--muted); }
+
+  .note{ font-size:10.5px; color:var(--soft); font-weight:500; margin:10px 2px 0; line-height:1.5; }
+  .orderline{ max-width:1000px; margin:16px auto 0; background:var(--card); border:1px solid var(--tint-border); border-left:3px solid var(--brand); border-radius:9px; padding:11px 14px; }
+  .orderline .k{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.13em; color:var(--deep); }
+  .orderline .txt{ font-size:14px; font-weight:800; margin-top:3px; }
+  .orderline .old{ font-size:11.5px; color:var(--soft); text-decoration:line-through; margin-top:4px; }
+
+  .callouts{ max-width:1000px; margin:18px auto 0; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:820px){ .callouts{ grid-template-columns:1fr; } }
+  .callout{ background:var(--tint); border:1px solid var(--tint-border); border-radius:10px; padding:13px 15px; }
+  .callout h3{ font-size:12px; font-weight:800; margin:0 0 7px; }
+  .callout ul{ margin:0; padding-left:16px; font-size:12px; }
+  .callout li{ margin-bottom:5px; }
+  .k{ font-weight:700; color:var(--deep); }
+  .divider{ max-width:1000px; margin:26px auto 12px; display:flex; align-items:center; gap:10px; }
+  .divider .l{ flex:1; height:1px; background:var(--line); }
+  .divider span{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); }
+</style>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="eyebrow">Sheoga configurator · selection area — v2</div>
+    <h1>Dropdowns, refined</h1>
+    <p class="sub">The chosen dropdowns layout with your tweaks: Finishing &amp; Edge swapped, Construction nudged left, the price grid as a button — plus stain-color and sheen pickers that appear when you choose a prefinished finish, and a cleaner spaces-only order line. Everything's live; try picking <b>Established stain</b> or a <b>Custom color</b> in the Finishing dropdown.</p>
+  </div>
+
+  <div class="divider"><span>Unfinished &amp; custom tab</span><div class="l"></div></div>
+  <div class="cols">
+    <div class="panel">
+      <div class="panel-head"><span class="badge">H</span><span class="panel-title">Today</span><span class="tag before">9 stacked sections</span></div>
+      <div class="body" id="floorBefore"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="badge">H</span><span class="panel-title">Refined dropdowns</span><span class="tag after">with your v2 changes</span></div>
+      <div class="body" id="floorAfter"></div>
+    </div>
+  </div>
+  <div class="orderline" id="orderline"></div>
+
+  <div class="divider"><span>Stocked prefinished tab</span><div class="l"></div></div>
+  <div class="cols">
+    <div class="panel">
+      <div class="panel-head"><span class="badge">H</span><span class="panel-title">Today</span><span class="tag before">one 17-row list</span></div>
+      <div class="body" id="stockBefore"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="badge">H</span><span class="panel-title">Species → color → size</span><span class="tag after">like the Unfinished tab</span></div>
+      <div class="body" id="stockAfter"></div>
+    </div>
+  </div>
+
+  <div class="callouts">
+    <div class="callout">
+      <h3>Layout changes in this version</h3>
+      <ul>
+        <li>2×2 grid order is <span class="k">Texture · Finishing</span> / <span class="k">Lengths · Edge</span>.</li>
+        <li><span class="k">Construction</span> left, Grade beside it, and the <span class="k">price-grid button</span> right-aligned on that same row (Unfinished).</li>
+        <li>Stocked tab: <span class="k">Grade centered</span> with the grid button beside it.</li>
+        <li>Order line joins with plain spaces — no dots.</li>
+      </ul>
+    </div>
+    <div class="callout">
+      <h3>Sheen &amp; stain rules</h3>
+      <ul>
+        <li>Prefinished finishes reveal a <span class="k">Sheen</span> dropdown (30 / 20 / 15 / 10 / 5 + Custom…). Established &amp; custom colors also get a <span class="k">Stain color</span> dropdown + Custom….</li>
+        <li>Sheen on the <span class="k">Unfinished tab is always free</span> — it's a made-to-order spec.</li>
+        <li>On the <span class="k">Stocked tab only</span>, moving a product off its standard sheen adds a <span class="k">$250 flat line</span>. Standards: 30 default; 20 for Nutmeg, Caramel, Cattail·Sawcut, Vintage-Charm Hickory Nut; 5 for Fresh Cut &amp; Frost.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=(s,el=document)=>el.querySelector(s);
+const el=(t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
+
+const SPECIES=["White Oak","Red Oak","Hickory","Maple","Cherry","Walnut","Beech","Q/R White Oak","Live Sawn White Oak"];
+const WLBL={2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"'};
+const WIDTHS=[2.25,3.25,4.25,5.25,6.25,7.25,8.25];
+const TEX=[["Smooth","—"],["Aged Brush","+$1.00"],["Saw Cut","+$1.50"],["Band Sawn","+$1.50"],["Country Worn","+$1.50"],["Vintage Charm","+$1.50"],["Old Mill","+$2.50"]];
+const EDGE=[["Square edge","—"],["Micro bevel","—"],["Hand pillowed","+$1.00"],["Custom V-groove","+$1.50"]];
+const LEN=[["1'–8'","—"],["1'–10'","+5%"],["2'–8'","+15%"],["2'–10'","+20%"],["3'–8'","+25%"],["3'–10'","+30%"]];
+const FIN=[["Unfinished","—"],["Prefinished — Natural","+$1.65"],["Prefinished — Established stain","+$1.95"],["Custom color T-1","+$3.05"],["Custom color T-2","+$3.65"],["Custom color T-3","+$3.85"]];
+const STAIN_COLORS=["Natural","Cattail","Caramel","Fresh Cut","Toasted Acorn","Nutmeg","Buckeye","Hickory Nut","Frost"];
+const SHEENS=["30","20","15","10","5"];
+// [color, standard sheen]
+const STOCK={ "White Oak":[["Natural",30],["Cattail",30],["Caramel",20],["Fresh Cut",5]],
+  "Red Oak":[["Natural",30],["Toasted Acorn",30],["Nutmeg",20],["Cattail · Sawcut",20]],
+  "Hickory":[["Natural",30],["Buckeye",30],["Hickory Nut",30],["Toasted Acorn",30],["Hickory Nut · Vintage Charm",20]],
+  "Maple":[["Natural",30],["Frost",5]], "Cherry":[["Natural",30]], "Walnut":[["Natural",30]] };
+const stockSheen=(sp,color)=>{const r=(STOCK[sp]||[]).find(x=>x[0]===color);return r?r[1]:30;};
+
+function sect(title,extra){const s=el("div","sect");const l=el("div","sect-lbl");l.appendChild(el("span",null,title));if(extra)l.appendChild(extra);s.appendChild(l);return s;}
+function gridLinkText(){const a=el("span");a.style.cssText="margin-left:auto;font-size:10.5px;font-weight:700;color:var(--brand);text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-transform:none;letter-spacing:0;";a.textContent="full price grid →";a.onclick=()=>alert("(prototype) full price grid");return a;}
+function gridBtn(){const b=el("button","grid-btn");b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg> Price grid`;b.onclick=()=>alert("(prototype) full price grid");return b;}
+function chipRow(items,cur,onPick){const w=el("div","chips");items.forEach(it=>{const b=el("button","chip");b.setAttribute("aria-pressed",it.id===cur);b.textContent=it.label;b.onclick=()=>onPick(it.id);w.appendChild(b);});return w;}
+function seg(opts,cur,onPick){const w=el("div","seg");opts.forEach(o=>{const b=el("button",null,o.label);b.setAttribute("aria-pressed",o.id===cur);b.onclick=()=>onPick(o.id);w.appendChild(b);});return w;}
+function radiolist(items,cur,onPick){const w=el("div","radiolist");items.forEach((it,i)=>{const r=el("div","r"+(i===cur?" on":""));r.innerHTML=`<span class="dot"></span><span style="flex:1">${it[0]}</span><span class="add">${it[1]}</span>`;r.onclick=()=>onPick(i);w.appendChild(r);});return w;}
+function dropdown(label,items,cur,onPick){const wrap=el("div");wrap.appendChild(el("div","field-lbl",label));const s=el("select","dd");items.forEach((it,i)=>{const o=el("option",null,it[0]+(it[1]&&it[1]!=="—"?"  "+it[1]:""));o.value=i;if(i===cur)o.selected=true;s.appendChild(o);});s.onchange=e=>onPick(+e.target.value);wrap.appendChild(s);return wrap;}
+// dropdown of plain strings + a trailing "Custom…" that reveals a text/number input
+function pickerCustom(label,opts,val,isCustom,customVal,onPick,onCustom,inputType,ph){
+  const wrap=el("div");wrap.appendChild(el("div","field-lbl",label));
+  const s=el("select","dd");
+  opts.forEach(o=>{const op=el("option",null,o);op.value=o;if(!isCustom&&o===val)op.selected=true;s.appendChild(op);});
+  const cu=el("option",null,"Custom…");cu.value="__c";if(isCustom)cu.selected=true;s.appendChild(cu);
+  s.onchange=e=>onPick(e.target.value);
+  wrap.appendChild(s);
+  if(isCustom){const inp=el("input","ti");inp.type=inputType||"text";inp.placeholder=ph||"Type value";inp.value=customVal||"";inp.style.marginTop="6px";inp.oninput=e=>onCustom(e.target.value);wrap.appendChild(inp);}
+  return wrap;
+}
+
+// ---------- FLOOR BEFORE ----------
+function renderFloorBefore(){
+  const st={sp:"White Oak",grade:"char",cons:"solid",w:5.25,tex:0,edge:0,len:0,fin:0};
+  const root=$("#floorBefore"); const draw=()=>{ root.innerHTML="";
+    const sp=sect("Species");sp.appendChild(chipRow(SPECIES.map(s=>({id:s,label:s})),st.sp,v=>{st.sp=v;draw();}));root.appendChild(sp);
+    const g=sect("Grade");g.appendChild(seg([{id:"clear",label:"Clear"},{id:"char",label:"Character"}],st.grade,v=>{st.grade=v;draw();}));root.appendChild(g);
+    const c=sect("Construction");c.appendChild(seg([{id:"solid",label:'Solid ¾"'},{id:"eng",label:"Engineered"}],st.cons,v=>{st.cons=v;draw();}));root.appendChild(c);
+    const w=sect("Width",gridLinkText());w.appendChild(chipRow(WIDTHS.map(x=>({id:x,label:WLBL[x]})),st.w,v=>{st.w=v;draw();}));root.appendChild(w);
+    const tx=sect("Texture / scrape");tx.appendChild(radiolist(TEX,st.tex,v=>{st.tex=v;draw();}));root.appendChild(tx);
+    const ed=sect("Edge");ed.appendChild(radiolist(EDGE,st.edge,v=>{st.edge=v;draw();}));root.appendChild(ed);
+    const ln=sect("Lengths");ln.appendChild(radiolist(LEN,st.len,v=>{st.len=v;draw();}));root.appendChild(ln);
+    const fn=sect("Finishing");fn.appendChild(radiolist(FIN,st.fin,v=>{st.fin=v;draw();}));root.appendChild(fn);
+    root.appendChild(el("p","note","Full-width blocks; a text-link grid; no stain-color or sheen picker anywhere."));
+  }; draw();
+}
+
+// ---------- FLOOR AFTER (refined dropdowns) ----------
+const AST={sp:"White Oak",grade:"char",cons:"solid",w:5.25,tex:0,edge:0,len:0,fin:0,sap:false,
+  stain:"Toasted Acorn",stainCustom:false,stainVal:"", sheen:"30",sheenCustom:false,sheenVal:""};
+function renderFloorAfter(){
+  const st=AST; const root=$("#floorAfter"); const draw=()=>{ root.innerHTML="";
+    const sp=sect("Species");sp.appendChild(chipRow(SPECIES.map(s=>({id:s,label:s})),st.sp,v=>{st.sp=v;draw();}));root.appendChild(sp);
+    // Construction (left) + Grade + price-grid button (right) on one row
+    const ps=el("div","sect");const flex=el("div");flex.style.cssText="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;";
+    const cw=el("div");cw.appendChild(el("div","field-lbl","Construction"));cw.appendChild(seg([{id:"solid",label:"Solid"},{id:"eng",label:"Eng."}],st.cons,v=>{st.cons=v;draw();}));
+    const gw=el("div");gw.appendChild(el("div","field-lbl","Grade"));gw.appendChild(seg([{id:"clear",label:"Clear"},{id:"char",label:"Char."}],st.grade,v=>{st.grade=v;draw();}));
+    const gb=gridBtn();gb.style.marginLeft="auto";
+    flex.appendChild(cw);flex.appendChild(gw);flex.appendChild(gb);ps.appendChild(flex);root.appendChild(ps);
+    // Width chips only
+    const w=sect("Width");w.appendChild(chipRow(WIDTHS.map(x=>({id:x,label:WLBL[x]})),st.w,v=>{st.w=v;draw();}));root.appendChild(w);
+    // 2x2 dropdowns: Texture | Finishing / Lengths | Edge
+    const dl=el("div","sect");const dg=el("div","two");dg.style.rowGap="12px";
+    dg.appendChild(dropdown("Texture / scrape",TEX,st.tex,v=>{st.tex=v;draw();}));
+    dg.appendChild(dropdown("Finishing",FIN,st.fin,v=>{st.fin=v;draw();}));
+    dg.appendChild(dropdown("Lengths",LEN,st.len,v=>{st.len=v;draw();}));
+    dg.appendChild(dropdown("Edge",EDGE,st.edge,v=>{st.edge=v;draw();}));
+    dl.appendChild(dg);root.appendChild(dl);
+    // Conditional finish spec
+    const prefin=st.fin!==0;                 // any prefinished finish → sheen
+    const stained=st.fin===2||st.fin>=3;     // established stain or custom → stain color
+    if(prefin){
+      const fw=el("div","finishwrap");
+      const grid=el("div","two");
+      if(stained){
+        grid.appendChild(pickerCustom("Stain color",STAIN_COLORS,st.stain,st.stainCustom,st.stainVal,
+          v=>{if(v==="__c"){st.stainCustom=true;}else{st.stainCustom=false;st.stain=v;}draw();},
+          v=>{st.stainVal=v;syncOrder();}, "text","e.g. Toasted Acorn"));
+      }
+      grid.appendChild(pickerCustom("Sheen  · included (no charge on custom floor)",SHEENS,st.sheen,st.sheenCustom,st.sheenVal,
+        v=>{if(v==="__c"){st.sheenCustom=true;}else{st.sheenCustom=false;st.sheen=v;}draw();},
+        v=>{st.sheenVal=v;syncOrder();}, "number","e.g. 25"));
+      if(!stained) grid.style.gridTemplateColumns="1fr";
+      fw.appendChild(grid);
+      root.appendChild(fw);
+    }
+    const t=el("button","toggle"+(st.sap?" on":""));t.innerHTML=`<span class="box">${st.sap?"✓":""}</span><span style="flex:1">No sap — White Oak</span><span class="add">+$1.00/sf</span>`;t.onclick=()=>{st.sap=!st.sap;draw();};
+    root.appendChild(t);
+    syncOrder();
+  }; draw();
+}
+
+// ---------- order-line preview (spaces, no dots) ----------
+function syncOrder(){
+  const st=AST;
+  const size=WLBL[st.w];                          // → lands in the row's SIZE field
+  const grade=st.grade==="clear"?"Clear":"Character";
+  const cons=st.cons==="solid"?"Solid":"Engineered";
+  const parts=[st.sp,grade,cons];                 // description = everything EXCEPT the size
+  if(st.tex!==0) parts.push(TEX[st.tex][0]);
+  if(st.edge!==0) parts.push(EDGE[st.edge][0]);
+  if(st.len!==0) parts.push(LEN[st.len][0]+" lengths");   // only when NOT the standard 1'–8'
+  if(st.fin!==0){
+    if(st.fin===1) parts.push("Prefinished Natural");
+    else if(st.fin===2){const col=st.stainCustom?(st.stainVal||"(color)"):st.stain; parts.push("Prefinished "+col+" stain");}
+    else {const col=st.stainCustom?(st.stainVal||"(color)"):st.stain; parts.push(FIN[st.fin][0]+" "+col);}
+    const sh=st.sheenCustom?(st.sheenVal||"(n)"):st.sheen; parts.push(sh+" sheen");
+  }
+  const desc=parts.join(" ");
+  const lenNote=st.len===0?" · length omitted (standard 1'–8')":"";
+  const box=$("#orderline");
+  box.innerHTML=`<div class="k">How it lands on the product row</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:5px;align-items:baseline">
+      <div><span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--soft)">Size field</span><div class="txt" style="margin:0">${size}</div></div>
+      <div style="flex:1;min-width:220px"><span style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--soft)">Product / description</span><div class="txt" style="margin:0">Sheoga — ${desc}</div></div>
+    </div>
+    <div class="old" style="text-decoration:none">Plain spaces, no dots${lenNote}.</div>`;
+}
+
+// ---------- STOCK BEFORE ----------
+function renderStockBefore(){
+  const rows=[]; Object.entries(STOCK).forEach(([sp,cs])=>cs.forEach(c=>rows.push(sp+" — "+c[0])));
+  const st={i:11}; const root=$("#stockBefore"); const draw=()=>{ root.innerHTML="";
+    const s=sect("Stocked color");const w=el("div","radiolist");
+    rows.forEach((r,i)=>{const rr=el("div","r"+(i===st.i?" on":""));rr.innerHTML=`<span class="dot"></span><span style="flex:1">${r}</span><span class="add">30-sheen</span>`;rr.onclick=()=>{st.i=i;draw();};w.appendChild(rr);});
+    s.appendChild(w);root.appendChild(s);
+    const g=sect("Grade");g.appendChild(seg([{id:"clear",label:"Clear"},{id:"char",label:"Character"}],"char",()=>{}));root.appendChild(g);
+    const wd=sect("Width",gridLinkText());wd.appendChild(chipRow(WIDTHS.slice(0,5).map(x=>({id:x,label:WLBL[x]})),5.25,()=>{}));root.appendChild(wd);
+    root.appendChild(el("p","note","All 17 combos in one scrolling list."));
+  }; draw();
+}
+
+// ---------- STOCK AFTER ----------
+function renderStockAfter(){
+  const st={sp:"White Oak",color:"Natural",grade:"char",w:5.25,sheen:"30",sheenCustom:false,sheenVal:""};
+  const root=$("#stockAfter"); const draw=()=>{ root.innerHTML="";
+    const sps=Object.keys(STOCK);
+    const sp=sect("Species");sp.appendChild(chipRow(sps.map(s=>({id:s,label:s})),st.sp,v=>{st.sp=v;st.color=STOCK[v][0][0];st.sheen=String(stockSheen(v,st.color));st.sheenCustom=false;draw();}));root.appendChild(sp);
+    const cs=STOCK[st.sp];
+    const col=sect("Color",el("span","hint",cs.length+" in "+st.sp));
+    col.appendChild(chipRow(cs.map(c=>({id:c[0],label:c[0]})),st.color,v=>{st.color=v;st.sheen=String(stockSheen(st.sp,v));st.sheenCustom=false;draw();}));root.appendChild(col);
+    // Grade centered + price-grid button beside it, on one row
+    const gr=el("div","sect");const flex=el("div");flex.style.cssText="display:flex;align-items:center;justify-content:center;gap:12px;";
+    flex.appendChild(seg([{id:"clear",label:"Clear"},{id:"char",label:"Character"}],st.grade,v=>{st.grade=v;draw();}));
+    flex.appendChild(gridBtn());gr.appendChild(flex);root.appendChild(gr);
+    const wd=sect("Width");wd.appendChild(chipRow(WIDTHS.slice(0,5).map(x=>({id:x,label:WLBL[x]})),st.w,v=>{st.w=v;draw();}));root.appendChild(wd);
+    // Sheen picker — standard per product; changing it adds a $250 flat fee
+    const std=stockSheen(st.sp,st.color);
+    const cur=st.sheenCustom?st.sheenVal:st.sheen;
+    const changed=st.sheenCustom?(st.sheenVal!==""&&+st.sheenVal!==std):(+st.sheen!==std);
+    const fw=el("div","finishwrap");
+    fw.appendChild(pickerCustom(`Sheen  · standard ${std}, +$250 if changed`,SHEENS,st.sheen,st.sheenCustom,st.sheenVal,
+      v=>{if(v==="__c"){st.sheenCustom=true;}else{st.sheenCustom=false;st.sheen=v;}draw();},
+      v=>{st.sheenVal=v;draw();}, "number","e.g. 25"));
+    if(changed){const f=el("div");f.style.cssText="margin-top:8px;font-size:11px;font-weight:700;color:#b5883a;";f.textContent=`⚠ Non-standard sheen (${cur} vs ${std}) — adds a $250 flat line at cost.`;fw.appendChild(f);}
+    root.appendChild(fw);
+    root.appendChild(el("p","note","Species → colors → grade (grid button beside) → width → sheen. Off-standard sheen bills $250."));
+  }; draw();
+}
+
+renderFloorBefore(); renderFloorAfter(); renderStockBefore(); renderStockAfter();
+</script>
