@@ -6,7 +6,7 @@ import {
   sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes,
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
-  setSheetBook,
+  setSheetBook, normSession, decodeHandoffSession, poolSession,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -119,6 +119,51 @@ test("bookmarkletSource embeds the app origin and stays one line", () => {
   assert.ok(src.includes("getPrettyPriceList"));
   assert.ok(src.includes('"ftvfetch"')); // named window: repeat clicks reuse one FloorTrack tab
   assert.ok(!src.includes("\n"));
+});
+
+test("bookmarkletSource also grabs the bare session token off the portal", () => {
+  const src = bookmarkletSource("https://floortrack.example.com");
+  assert.ok(src.includes("localStorage")); // reads the portal's own storage
+  assert.ok(src.includes("d24sesid"));
+  assert.ok(src.includes("d24user"));
+  assert.ok(src.includes("payload.session")); // and ships it in the hand-off
+});
+
+test("normSession validates an allowlisted host + token, user optional", () => {
+  assert.deepEqual(normSession({ host: "connect24.virginiatile.com", user: "C00000XX", sesid: "0rG8CPrTweBjbuKBgPvI" }),
+    { vendor: "dancik", host: "connect24.virginiatile.com", user: "C00000XX", sesid: "0rG8CPrTweBjbuKBgPvI" });
+  // user is optional (menu portals may not expose it)
+  assert.deepEqual(normSession({ host: "connect24.virginiatile.com", sesid: "AbcDef123" }),
+    { vendor: "dancik", host: "connect24.virginiatile.com", user: "", sesid: "AbcDef123" });
+  assert.equal(normSession({ host: "evil.example.com", sesid: "AbcDef123" }), null); // host not allowlisted
+  assert.equal(normSession({ host: "connect24.virginiatile.com", sesid: "a/../b" }), null); // bad token
+  assert.equal(normSession({ host: "connect24.virginiatile.com", user: "bad user!", sesid: "Abc" }), null); // bad user
+  assert.equal(normSession(null), null);
+  assert.equal(normSession({}), null);
+});
+
+test("decodeHandoffSession pulls a session out of the bookmarklet payload", () => {
+  const raw = btoa(JSON.stringify({ v: 1, links: [], session: { host: "connect24.virginiatile.com", user: "C00000XX", sesid: "Tok123" } }));
+  assert.deepEqual(decodeHandoffSession(raw), { vendor: "dancik", host: "connect24.virginiatile.com", user: "C00000XX", sesid: "Tok123" });
+  assert.equal(decodeHandoffSession(btoa(JSON.stringify({ v: 1, links: [LINK] }))), null); // no session field
+  assert.equal(decodeHandoffSession(btoa(JSON.stringify({ v: 2, session: { host: "connect24.virginiatile.com", sesid: "x" } }))), null);
+  assert.equal(decodeHandoffSession("!!!"), null);
+});
+
+test("poolSession keys a known account, fans an unknown one across remembered accounts", () => {
+  const S = { host: "connect24.virginiatile.com", user: "C00000XX", sesid: "FreshTok1" };
+  // Known account: one pooled entry keyed host|user.
+  assert.deepEqual(poolSession([], S, []), [{ vendor: "dancik", host: S.host, user: "C00000XX", sesid: "FreshTok1" }]);
+  // A fresh token upserts (replaces) the same account's stale one.
+  const stale = [{ vendor: "dancik", host: S.host, user: "C00000XX", sesid: "OldTok0" }];
+  assert.deepEqual(poolSession(stale, S, []), [{ vendor: "dancik", host: S.host, user: "C00000XX", sesid: "FreshTok1" }]);
+  // Unknown user: fan the token out to every remembered account on that host.
+  const groups = migrateVendorSheets([VT, VT2]); // C00000XX on connect24
+  const fanned = poolSession([], { host: S.host, sesid: "FreshTok1" }, groups);
+  assert.deepEqual(fanned.map((e) => e.user), ["C00000XX"]);
+  assert.equal(fanned[0].sesid, "FreshTok1");
+  // Unknown user, nothing remembered on that host: nothing to unlock.
+  assert.deepEqual(poolSession([], { host: S.host, sesid: "FreshTok1" }, []), []);
 });
 
 test("mergeEntries stacks hand-offs, replacing same-sheet entries with the fresher token", () => {

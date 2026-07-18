@@ -109,3 +109,35 @@ so it pastes straight into the dashboard editor, and relies on Supabase's
 "Enforce JWT verification" gateway toggle for auth instead of verifying the
 token in code. Owner deploys it by hand (dashboard, like the `*.sql` files);
 until then the Netlify relay serves every fetch the platform window allows.
+
+## Amendment (2026-07-18): the bookmarklet grabs the bare session, not just links
+
+Field reality on connect24 (a menu-style portal): the harvest step from the
+original decision finds **zero** `getPrettyPriceList` links — the download URL
+doesn't exist in the page until a sheet is opened — so the bookmarklet only
+ever hit its "nothing found" dead end there. The remembered-sheets amendment
+solved the *bulk* problem but still required pasting one fresh link per quarter
+to donate a `sesid`.
+
+The token turns out to be reachable without a link: connect24 keeps its live
+session in the portal's own **`localStorage`** (`d24sesid`, and `d24user` for
+the dealer account) — no cookie, readable by page JS. So the bookmarklet now
+also grabs that bare session (storage first, page-HTML regex as fallback) and
+ships it in the same `#vfetch` fragment as an optional `session:{host,user,
+sesid}`. FloorTrack validates it exactly like a link's fields (`normSession` —
+allowlisted host, token/user shape) and folds it into the live-session pool
+**without remembering any sheet** (`poolSession`; a known account keys one
+entry, an unknown one fans the token across that host's remembered accounts).
+One bookmark click on any signed-in portal page unlocks every saved sheet for
+that sign-in.
+
+This also decouples the paste box: "Unlock downloads" pools a pasted link's
+`sesid` only (temp), while "Add to board" keeps the old remember-the-sheet
+behavior for bootstrapping a portal by hand. No sheet is ever saved as a
+side effect of unlocking. Session tokens still live only in this browser tab
+(component state + `sessionStorage` hand-off) and never reach shared settings
+or a server log — unchanged from the original decision.
+
+Boundary unchanged: the relay still never accepts a raw URL and still requires
+a Supabase JWT; grabbing the token client-side only removes the manual paste,
+it does not widen what the server will fetch.

@@ -7,7 +7,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
@@ -5092,8 +5092,8 @@ function VendorBookmarklet() {
         {" "}<button onClick={() => { navigator.clipboard?.writeText(bmSrc).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }} className="text-[11px] text-slate-400 underline hover:text-slate-600">{copied ? "copied" : "or copy the code"}</button>
         <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
       </li>
-      <li>Log into the vendor portal (e.g. Virginia Tile connect24) and open its price lists page.</li>
-      <li>Click the bookmark — the sheets land here under their sign-in, ready to fetch.</li>
+      <li>Log into the vendor portal (e.g. Virginia Tile connect24) — any page works once you're signed in.</li>
+      <li>Click the bookmark — it grabs your sign-in and unlocks every saved sheet here, ready to download. (On portals that list their sheets as links, it grabs those too.)</li>
     </ol>
   );
 }
@@ -5267,8 +5267,10 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook, vendorPending, books, staleDays, addBook, inp, lbl }) {
-  const [pending, setPending] = useState(vendorPending || []); // live-session pool (sesids)
+export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, inp, lbl }) {
+  const [pending, setPending] = useState(vendorPending || []); // live-session pool (sesids) from full links
+  const [sessions, setSessions] = useState([]); // bare bookmarklet sessions (host|user -> sesid), unlock only
+  const [sessionNote, setSessionNote] = useState(null); // "sign-in captured" banner after a bookmarklet grab
   const [progress, setProgress] = useState({});
   const [running, setRunning] = useState(false);
   const [fetchedFiles, setFetchedFiles] = useState(null); // partial-success File[] pending confirm
@@ -5291,8 +5293,20 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     clearHandoff();
   }, [vendorPending]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fold a bookmarklet's bare session grab into the unlock pool without ever
+  // remembering a sheet (the whole point of grabbing the token instead of a
+  // link). Report how many saved sheets it just unlocked, then clear the hand-off.
+  useEffect(() => {
+    if (!vendorSession) return;
+    setSessions((prev) => poolSession(prev, vendorSession, groupsRef.current));
+    const unlocked = groupsRef.current.reduce((n, g) => n + g.sheets.filter((s) => s.host === vendorSession.host && (!vendorSession.user || s.user === vendorSession.user)).length, 0);
+    setSessionNote({ unlocked });
+    onSessionUsed && onSessionUsed();
+  }, [vendorSession]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const liveSesid = {};
   for (const e of pending) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
+  for (const s of sessions) { liveSesid[`${s.host}|${s.user}`] = s.sesid; } // a fresh bookmarklet grab outranks stale link tokens
   const sheetSesid = (s) => liveSesid[`${s.host}|${s.user}`];
 
   // Staleness of the price book a sheet feeds: amber once the linked book's last
@@ -5406,12 +5420,22 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
         <div className="mt-2"><PasteLinks onUnlock={unlockPasted} onAdd={addPasted} inp={inp} /></div>
         {setupOpen && (
           <div className="mt-3 border-t border-slate-200 pt-3">
-            <p className="text-xs text-slate-500 mb-2">One bookmark grabs every price-list link off a portal page and drops them here:</p>
+            <p className="text-xs text-slate-500 mb-2">One bookmark grabs your portal sign-in and unlocks every saved sheet here for download:</p>
             <VendorBookmarklet />
-            <p className="text-[11px] text-slate-400 mt-2">Portal keeps sheets in a menu that downloads them one at a time? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), and paste it above — repeat per sheet; they stack up under their sign-in.</p>
+            <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), and paste it above with “Add to board” to save it.</p>
           </div>
         )}
       </div>
+
+      {sessionNote && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
+          <Check size={14} className="text-emerald-600 shrink-0" />
+          <span className="flex-1 text-emerald-800">{sessionNote.unlocked
+            ? `Sign-in captured from the bookmark — ${sessionNote.unlocked} saved ${sessionNote.unlocked === 1 ? "sheet is" : "sheets are"} ready to download.`
+            : "Sign-in captured, but there are no saved sheets for it yet — paste a sheet link with “Add to board” to start one."}</span>
+          <button onClick={() => setSessionNote(null)} title="Dismiss" className="p-0.5 text-emerald-600 hover:text-emerald-800 shrink-0"><X size={13} /></button>
+        </div>
+      )}
 
       {fetchedFiles && (
         <div className="mt-3 flex items-center gap-2 flex-wrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
@@ -5451,7 +5475,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
-  const [sel, setSel] = useState(() => vendorPending ? "vendor" : "stock"); // "stock" | "vendor" | bookId
+  const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
+  const [sel, setSel] = useState(() => (vendorPending || vendorSession) ? "vendor" : "stock"); // "stock" | "vendor" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
@@ -5463,7 +5488,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
   // each one opens the Vendor sheets tab.
   useEffect(() => {
-    const onHash = () => { const p = captureHandoff(); if (p) { setVendorPending(p); setSel("vendor"); } };
+    const onHash = () => { const p = captureHandoff(); const s = captureHandoffSession(); if (p) setVendorPending(p); if (s) setVendorSession(s); if (p || s) setSel("vendor"); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -5543,7 +5568,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={(files) => setDropped({ files })} onFilesToBook={(files, prefer) => setDropped({ files, prefer })} vendorPending={vendorPending} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={(files) => setDropped({ files })} onFilesToBook={(files, prefer) => setDropped({ files, prefer })} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>

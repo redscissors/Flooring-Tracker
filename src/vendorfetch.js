@@ -313,8 +313,17 @@ export function mergeEntries(prev, next) {
   return [...(prev || []).filter((e) => !fresh.has(entryKey(e)) && !entryProblems(e)), ...(next || [])];
 }
 
+// The bookmarklet does two things on the portal page, logged in as the user:
+// (1) harvest any getPrettyPriceList links present (page-style portals), and
+// (2) grab the live session token itself — `d24sesid`/`d24user` off the portal's
+// own storage (or, failing that, anywhere in the page HTML). Menu-style portals
+// (Dancik's #menu-option nav) expose no download links until a sheet is opened,
+// so the bare session is what unlocks their remembered sheets: FloorTrack pools
+// it and every saved sheet for that sign-in becomes fetchable. Both are handed
+// back base64'd in the URL *fragment* — fragments never reach a server or its
+// logs, which matters because the token authorizes downloads.
 export function bookmarkletSource(origin) {
-  const src = `(()=>{var L=new Set();var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);if(!L.size){alert("No price sheets found on this page. Open the page or menu that lists them and click the bookmark again — on menu-style portals, open one sheet first, then click the bookmark; repeat per sheet and they stack up in FloorTrack.");return}var w=window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify({v:1,links:Array.from(L)})),"ftvfetch");if(w)w.focus()})()`;
+  const src = `(()=>{var L=new Set();var H="";var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";H+=h;(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);var gv=function(n){try{return localStorage.getItem(n)||sessionStorage.getItem(n)}catch(e){return null}};var sid=gv("d24sesid");var usr=gv("d24user");if(!sid){var ms=H.match(/d24sesid=([A-Za-z0-9]{1,64})/);if(ms)sid=ms[1]}if(!usr){var mu=H.match(/d24user=([A-Za-z0-9]{1,24})/);if(mu)usr=mu[1]}var S=sid?{host:location.hostname,user:usr||"",sesid:sid}:null;if(!L.size&&!S){alert("Couldn't find your vendor sign-in on this page. Make sure you're logged into the portal, then click the bookmark again.");return}var payload={v:1,links:Array.from(L)};if(S)payload.session=S;var w=window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify(payload)),"ftvfetch");if(w)w.focus()})()`;
   return `javascript:${src}`;
 }
 
@@ -338,7 +347,49 @@ export function decodeHandoff(raw) {
   }
 }
 
+// A bare portal session grabbed by the bookmarklet: host + live token, and the
+// dealer account when the page exposed it. Validated exactly like a full entry's
+// fields (allowlisted host, token/user shape), user optional. Never persisted to
+// shared settings — it lives only in this browser's session pool.
+export function normSession(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const host = String(raw.host || "");
+  const user = String(raw.user || "");
+  const sesid = String(raw.sesid || "");
+  const vendor = vendorForHost(host);
+  if (!vendor) return null;
+  if (!DANCIK_RULES.sesid.test(sesid)) return null;
+  if (user && !DANCIK_RULES.user.test(user)) return null;
+  return { vendor, host, user, sesid };
+}
+
+export function decodeHandoffSession(raw) {
+  try {
+    const payload = JSON.parse(atob(String(raw)));
+    if (payload?.v !== 1) return null;
+    return normSession(payload.session);
+  } catch {
+    return null;
+  }
+}
+
+// Fold a bookmarklet session into the live-session pool (host|user -> sesid).
+// A known dealer account keys one entry; when the page didn't expose the user,
+// fan the token out to every remembered account on that host so their sheets
+// unlock. Upserts by host|user, so a fresh click's token always wins.
+export function poolSession(sessions, session, groups) {
+  const s = normSession(session);
+  if (!s) return sessions || [];
+  const users = s.user
+    ? [s.user]
+    : [...new Set((groups || []).flatMap((g) => (g.sheets || []).filter((sh) => sh.host === s.host).map((sh) => sh.user)))];
+  const add = users.map((u) => ({ vendor: s.vendor, host: s.host, user: u, sesid: s.sesid }));
+  const keep = (sessions || []).filter((e) => !add.some((a) => a.host === e.host && a.user === e.user));
+  return [...keep, ...add];
+}
+
 const HANDOFF_KEY = "ft-vendor-fetch-handoff";
+const HANDOFF_SESSION_KEY = "ft-vendor-fetch-session";
 
 // Browser-only. Moves a #vfetch= fragment into sessionStorage (so it survives
 // sign-in and settings navigation) and strips it from the address bar — the
@@ -348,13 +399,16 @@ export function captureHandoff() {
   if (typeof window === "undefined") return null;
   const m = /[#&]vfetch=([^&]+)/.exec(window.location.hash || "");
   if (m) {
-    const entries = decodeHandoff(decodeURIComponent(m[1]));
+    const raw = decodeURIComponent(m[1]);
+    const entries = decodeHandoff(raw);
     if (entries) {
       try {
         const prev = JSON.parse(window.sessionStorage.getItem(HANDOFF_KEY) || "[]");
         window.sessionStorage.setItem(HANDOFF_KEY, JSON.stringify(mergeEntries(Array.isArray(prev) ? prev : [], entries)));
       } catch {}
     }
+    const session = decodeHandoffSession(raw);
+    if (session) { try { window.sessionStorage.setItem(HANDOFF_SESSION_KEY, JSON.stringify(session)); } catch {} }
     try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch {}
   }
   try {
@@ -366,9 +420,26 @@ export function captureHandoff() {
   }
 }
 
+// The bare bookmarklet session, read from where captureHandoff stashed it (so it
+// survives a FloorTrack sign-in / navigation between the click and the fold).
+export function captureHandoffSession() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(HANDOFF_SESSION_KEY);
+    return raw ? normSession(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function clearHandoff() {
   if (typeof window === "undefined") return;
   try { window.sessionStorage.removeItem(HANDOFF_KEY); } catch {}
+}
+
+export function clearHandoffSession() {
+  if (typeof window === "undefined") return;
+  try { window.sessionStorage.removeItem(HANDOFF_SESSION_KEY); } catch {}
 }
 
 // ---- response sniffing ---------------------------------------------------
