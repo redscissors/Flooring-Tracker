@@ -91,6 +91,16 @@ body {
      sort tab uses, so the hover stays in the surface family. */
   --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);
 
+  /* Semantic hover tints for destructive / warning / confirm buttons. Light
+     keeps the Tailwind *-50/-100 look; dark flips (below) to a dark-appropriate
+     wash of the same hue. The theme only remaps the RESTING color classes, not
+     their hover: variants, so a bare hover:bg-red-50 would otherwise fall
+     through to Tailwind's literal near-white and flash bright in dark mode. */
+  --ft-hover-red:#FEF2F2;
+  --ft-hover-amber:#FFFBEB;
+  --ft-hover-amber-strong:#FEF3C7;
+  --ft-hover-emerald:#ECFDF5;
+
   /* Sidebar sort toggle — the active tab is a quiet moss wash (the kit allows
      moss for active nav states). Resolves per mode since --ft-brand flips. */
   --ft-seg-on-bg:color-mix(in oklab, var(--ft-brand) 16%, transparent);
@@ -151,19 +161,34 @@ body {
 .border-indigo-300{border-color:var(--ft-tint-border);}
 .ring-indigo-200{--tw-ring-color:var(--ft-brand-soft);}
 .ring-indigo-500{--tw-ring-color:var(--ft-brand);}
-.hover\:bg-slate-50:hover{background-color:var(--ft-hover);}
+/* Hover/focus VARIANT overrides carry a leading :root so they outrank Tailwind
+   on specificity, not source order. Tailwind emits its hover:/focus: utilities
+   in a block AFTER this file's rules, so an equal-specificity override loses the
+   source-order tie and the literal Tailwind color wins — which is why a plain
+   .hover\:bg-slate-50:hover override never actually applied (rows hovered to
+   literal #f8fafc: invisible in light, a bright flash that swallowed the text in
+   dark). :root ( .foo:hover ) = (0,3,0) beats Tailwind's (0,2,0) regardless of
+   order. The resting-class overrides above don't need this — Tailwind emits base
+   utilities BEFORE this file, so their source-order override already wins. */
+:root .hover\:bg-slate-50:hover{background-color:var(--ft-hover);}
+:root .hover\:bg-white:hover{background-color:var(--ft-card);}
+:root .hover\:bg-slate-100:hover{background-color:var(--ft-fieldbar);}
+:root .hover\:bg-red-50:hover{background-color:var(--ft-hover-red);}
+:root .hover\:bg-amber-50:hover{background-color:var(--ft-hover-amber);}
+:root .hover\:bg-amber-100:hover{background-color:var(--ft-hover-amber-strong);}
+:root .hover\:bg-emerald-50:hover{background-color:var(--ft-hover-emerald);}
 .ft-seg-on{background-color:var(--ft-seg-on-bg);color:var(--ft-seg-on-text);}
 .ft-seg-off{color:var(--ft-muted);}
 .ft-seg-off:hover{background-color:var(--ft-sand);}
 /* Sidebar list labels (customer & project names) read in the wordmark tone
    (ink in light, paper in dark) so the list matches the "ned" logo. */
 .ft-item-name{color:var(--ft-logo);}
-.hover\:bg-indigo-700:hover{background-color:var(--ft-accent-press);}
-.hover\:text-indigo-700:hover{color:var(--ft-brand);}
-.hover\:border-slate-200:hover{border-color:var(--ft-border);}
-.hover\:text-slate-600:hover{color:color-mix(in oklab, var(--ft-text) 60%, var(--ft-muted));}
-.focus\:ring-indigo-500:focus{--tw-ring-color:var(--ft-brand);}
-.placeholder\:text-slate-300::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);}
+:root .hover\:bg-indigo-700:hover{background-color:var(--ft-accent-press);}
+:root .hover\:text-indigo-700:hover{color:var(--ft-brand);}
+:root .hover\:border-slate-200:hover{border-color:var(--ft-border);}
+:root .hover\:text-slate-600:hover{color:color-mix(in oklab, var(--ft-text) 60%, var(--ft-muted));}
+:root .focus\:ring-indigo-500:focus{--tw-ring-color:var(--ft-brand);}
+:root .placeholder\:text-slate-300::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);}
 input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);opacity:1;}
 .ft-rail{background-color:var(--ft-cream);}
 
@@ -311,6 +336,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
   --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
   --ft-hover:var(--ft-fieldbar);
+  --ft-hover-red:color-mix(in oklab, #F87171 18%, transparent);
+  --ft-hover-amber:color-mix(in oklab, #FBBF24 16%, transparent);
+  --ft-hover-amber-strong:color-mix(in oklab, #FBBF24 26%, transparent);
+  --ft-hover-emerald:color-mix(in oklab, #6EE7B7 16%, transparent);
   --ft-shadow:rgba(0,0,0,.4);
 }
 @media (prefers-color-scheme: dark){
@@ -327,6 +356,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
     --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
     --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
     --ft-hover:var(--ft-fieldbar);
+    --ft-hover-red:color-mix(in oklab, #F87171 18%, transparent);
+    --ft-hover-amber:color-mix(in oklab, #FBBF24 16%, transparent);
+    --ft-hover-amber-strong:color-mix(in oklab, #FBBF24 26%, transparent);
+    --ft-hover-emerald:color-mix(in oklab, #6EE7B7 16%, transparent);
     --ft-shadow:rgba(0,0,0,.4);
   }
 }
