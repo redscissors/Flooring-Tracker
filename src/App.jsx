@@ -15,6 +15,8 @@ import { OrderEntryPanel } from "./orderentry.jsx";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
+import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed } from "./sheoga.js";
+import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -547,7 +549,7 @@ const newBuilder = (name = "") => ({ id: uid(), name });
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
 // (or 0), which silently blocks the grout calc — mortar doesn't need either,
 // so grout alone showed "—". Default them like a fresh row.
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
+const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", sheoga: p.sheoga ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.
 const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
@@ -1443,7 +1445,7 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
 // price book by SKU or product words. Picking a match fills the whole row
 // (like the SKU/product cells do); shift-click adds several as their own rows;
 // Enter with no match — or a double-click — hands the row to manual entry.
-function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, searchOrder, bookName, inputRef }) {
+export function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
@@ -1481,10 +1483,16 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
       onAbandon?.(); close();
     }, 120);
   };
+  // Sheoga has no SKUs, so it can never be a book match — a query that starts
+  // spelling the vendor ("she" is enough) or hits its trade words pins a
+  // "Vendor configurators" row under the real matches (issue 023).
+  const vendor = !!onVendor && sheogaQueryHit(query);
+  const goVendor = () => { committedRef.current = true; onVendor(query); close(); };
   const commitFromKey = () => {
     if (picked.length) commit();
     else if (results[hi]) pick(results[hi]);
     else if (results.length) pick(results[0]);
+    else if (vendor) goVendor();
     else if (query.trim()) goManual();
   };
   const onKey = (e) => {
@@ -1507,7 +1515,7 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
-      {open && pos && (results.length > 0 || picked.length > 0 || noHits) && createPortal(
+      {open && pos && (results.length > 0 || picked.length > 0 || noHits || vendor) && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
           className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           {results.length > 0 && (
@@ -1523,6 +1531,20 @@ function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, o
                   </div>
                 );
               })}
+            </div>
+          )}
+          {vendor && (
+            <div className="shrink-0 border-t border-slate-100">
+              <div className="ft-eyebrow text-[9px] px-2.5 pt-1.5" style={{ color: "var(--ft-brand-deep)" }}>Vendor configurators</div>
+              <button onMouseDown={(e) => { e.preventDefault(); goVendor(); }} data-sheoga-entry
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left hover:bg-slate-50" style={{ background: "var(--ft-tint)" }}>
+                <span className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-brand)" }}><Settings size={12} /></span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-xs font-extrabold">Sheoga Hardwood — configure by description</span>
+                  <span className="block text-[11px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{sheogaQuerySummary(sheogaParseQuery(query))}</span>
+                </span>
+                <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
+              </button>
             </div>
           )}
           <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
@@ -1699,6 +1721,9 @@ export default function App({ user, onSignOut }) {
   // Neither is persisted — a blank row simply re-opens as search on reload.
   const [manualRows, setManualRows] = useState({});
   const [omniQ, setOmniQ] = useState({});
+  // Sheoga vendor configurator popup (issue 023), tied to the product row it
+  // was opened from: { aid, pid, seed } — seed is the { mode, cfg } it opens on.
+  const [sheogaPop, setSheogaPop] = useState(null);
   // Appearance: "system" | "light" | "dark", per-device (localStorage, not
   // Supabase). index.html applies the saved class pre-paint; this keeps <html>
   // in sync when the user changes it. "system" clears both classes and lets the
@@ -2574,6 +2599,20 @@ export default function App({ user, onSignOut }) {
     const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
       { ...p, ...patchFor(expanded[0], p) },
       ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...patchFor(it, np) }; }),
+    ]);
+    updArea(aid, { products });
+  };
+  // Sheoga configurator add (issue 023): the main line fills the row the popup
+  // was opened from and each vendor-fee line lands as its own new row after it,
+  // mirroring addStockProducts. Payloads come from sheoga.js lineItems() —
+  // snapshot rule, nothing reprices later.
+  const addSheogaLines = (aid, pid, lines) => {
+    if (!lines.length) return;
+    const a = sel.categories.find((x) => x.id === aid);
+    if (!a || !a.products.some((p) => p.id === pid)) return;
+    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
+      { ...p, ...lines[0] },
+      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
     ]);
     updArea(aid, { products });
   };
@@ -3659,9 +3698,16 @@ export default function App({ user, onSignOut }) {
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
                         const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
                         // Drift / retired-SKU / base-variant chips render under the row on
-                        // both layouts, so the block is built once.
-                        const driftBlock = (drift || oDrift || p.freightFlag || stockRetired || baseAlt) ? (
+                        // both layouts, so the block is built once. A Sheoga row's chip
+                        // reopens the configurator pre-filled from its saved configuration.
+                        const driftBlock = (drift || oDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
+                            {p.sheoga && (
+                              <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
+                                className="rounded-full border px-2 py-0.5 font-medium hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>
+                                Sheoga — reconfigure
+                              </button>
+                            )}
                             {drift && (<>
                               <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                               <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
@@ -3734,6 +3780,7 @@ export default function App({ user, onSignOut }) {
                                   onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
                                   onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
                                   onManual={() => goManual()} onAbandon={clearOmni}
+                                  onVendor={(q) => { clearOmni(); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(q) }); }}
                                   searchOrder={searchOrder} bookName={bookName}
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
@@ -4232,6 +4279,22 @@ export default function App({ user, onSignOut }) {
           <TeamTodos todos={todos} onAdd={addTodo} onToggle={toggleTodo} onDelete={delTodo} onReorder={reorderTodos} onClearDone={clearDoneTodos} inp={inp} />
         </Modal>
       )}
+
+      {/* Sheoga vendor configurator (issue 023) — opened from a row's search
+          ("she" pins the vendor row) or its "Sheoga — reconfigure" chip. Job
+          size seeds from the row's typed footage; markup default from Settings
+          → Price book. Add snapshots lineItems() onto the row (ADR 0003). */}
+      {sheogaPop && sel && (() => {
+        const row = sel.categories.find((x) => x.id === sheogaPop.aid)?.products.find((x) => x.id === sheogaPop.pid);
+        if (!row) { return null; }
+        return (
+          <SheogaConfigurator seed={sheogaPop.seed}
+            initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
+            markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
+            onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
+            onClose={() => setSheogaPop(null)} />
+        );
+      })()}
 
       {showOrderCopy && sel && sel._full && (() => {
         // Order entry reads RETAIL on every tier except Employee, which carries
@@ -5333,6 +5396,9 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             </label>
             <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
               Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+            </label>
+            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies over distributor cost — adjustable per configuration in the popup">
+              Sheoga markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
             </label>
             <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
           </div>

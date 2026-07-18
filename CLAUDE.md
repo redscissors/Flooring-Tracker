@@ -61,6 +61,25 @@ src/
                     # ADR 0017) mutes that code's chip + import warnings and is
                     # carried across re-imports like the disabled column
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
+  sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
+                    # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
+                    # sheet tables (flooring Feb '25, vents Feb '22, dampers
+                    # 1/9/23 — all distributor cost) + pure pricing for the five
+                    # programs (unfinished/custom, stocked prefinished,
+                    # herringbone, vents, dampers), `parseQuery`/`queryHit`/
+                    # `seedFromQuery` for the SKU-search pinned entry row, and
+                    # `lineItems` (configuration -> product-row payloads; fees
+                    # as separate at-cost misc lines; `product.sheoga` keeps the
+                    # raw config for Reconfigure). A sheet update is a
+                    # re-transcription of this one file
+  SheogaConfigurator.jsx  # the configurator popup (prototype A option board):
+                    # mode tabs, option rail with live sell prices on the chips,
+                    # build card (cost -> sell, carton preview, fee lines), full
+                    # price grid. Opened from a row's search (the pinned "Vendor
+                    # configurators" row in GridOmniSearch — "she" is enough) or
+                    # its "Sheoga — reconfigure" chip; Add fills the row via
+                    # addSheogaLines. Markup default: settings.pricing
+                    # .sheogaMarkupPct (Settings -> Price book)
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + URL-fragment hand-off, response
                     # sniffing; shared by the browser panel and the relay.
@@ -175,7 +194,13 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // lines and tubes × caulkPrice joins the estimate totals (rows
            // without a snapshot price cost $0, as before).
            underlay:{checked,product,manual,install},
-           attached:{ [categoryId]: {checked,product,manual} } }
+           attached:{ [categoryId]: {checked,product,manual} },
+           sheoga: { mode, cfg } | null }
+           // sheoga = the raw Sheoga-configurator configuration (issue 023)
+           // snapshotted onto a row added from the configurator, so
+           // "Reconfigure" reopens the popup pre-filled (src/sheoga.js
+           // calcConfig/lineItems). Display/reopen attribute only — the row's
+           // price stays the ADR 0003 snapshot; nothing reprices from it.
            // attached = add-on material categories (ADR 0016, PR 3): one entry
            // per custom category, keyed by the category id, resolved by NAME at
            // calc time (mortar convention, no snapshot). getAttached does the
