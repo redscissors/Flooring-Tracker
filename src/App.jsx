@@ -15,7 +15,7 @@ import { OrderEntryPanel } from "./orderentry.jsx";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
-import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed } from "./sheoga.js";
+import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed, normBasketEntry, multiWidthLineItems } from "./sheoga.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
@@ -549,7 +549,7 @@ const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, product
 // opts.seedArea opens the draft with one area whose blank adder row IS the
 // product search, so a Quick Price lands straight in "grab a price". See
 // docs/adr/0022-quick-price-draft-lifecycle.md.
-const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick });
+const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, sheogaBasket: [] });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -563,7 +563,7 @@ const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type
 // no `attached` — they normalize to {} and stay valid.
 const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing) });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
 // real column. personData is what gets written back to the jsonb.
@@ -4631,6 +4631,10 @@ export default function App({ user, onSignOut }) {
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
             ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
+            basket={sel.sheogaBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { sheogaBasket: next })}
+            areaName={sel.categories.find((x) => x.id === sheogaPop.aid)?.name || "this area"}
+            onMove={(lines) => addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines)}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onClose={() => setSheogaPop(null)} />
         );
