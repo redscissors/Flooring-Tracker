@@ -3445,12 +3445,12 @@ export default function App({ user, onSignOut }) {
             <MoreHorizontal size={13} />
           </button>
         </div>
-        {isOpen && (
+        {acc(isOpen, (
           <div className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-slate-200 pl-1.5">
             {shown.map((p) => renderProjRow(p))}
             <button onClick={() => addProject(c.id)} className="w-full flex items-center gap-1 px-2 py-1 text-[11.5px] text-slate-400 hover:text-indigo-600"><Plus size={12} /> New project</button>
           </div>
-        )}
+        ))}
       </div>
     );
   };
