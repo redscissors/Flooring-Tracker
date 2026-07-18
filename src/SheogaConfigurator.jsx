@@ -14,7 +14,7 @@ import {
   STAIN_COLORS, SHEENS, SHEEN_FEE,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
-  redistributeShares, multiWidthBuild, multiWidthLineItems,
+  redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -592,6 +592,65 @@ function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf,
   );
 }
 
+// --- multi-width build card ---------------------------------------------------
+// Same cost -> sell shape as BuildCard, one row per selected width instead of
+// one product. Shares are editable inline; sf/line/bundle total recompute live
+// off multiWidthBuild. Setup fees (small-order, sample, non-standard sheen)
+// pool to a single shared line instead of repeating per width.
+function MultiWidthCard({ base, widths, shares, sf, markup, onShare, onAddBasket, onMove, showActions = true }) {
+  const wlist = widths.map((w) => ({ w, share: shares[w] ?? 0 }));
+  const b = useMemo(() => multiWidthBuild(base, wlist, sf), [base, JSON.stringify(wlist), sf]);
+  const ok = b.lines.filter((l) => l.ok);
+  const linesTot = ok.reduce((a, l) => a + Math.round(sellOf(l.cost, markup) * l.sf), 0);
+  const feesTot = b.fees.reduce((a, x) => a + x.amt, 0);
+  const total = linesTot + feesTot;
+  return (
+    <div className="rounded-lg border overflow-hidden bg-white" style={{ borderColor: "var(--ft-grid-line)" }}>
+      <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: "var(--ft-sand)" }}>
+        <span className="w-5 h-5 rounded text-[10px] font-extrabold text-white flex items-center justify-center" style={{ background: "var(--ft-brand-deep)" }}>H</span>
+        <span className="text-[13px] font-extrabold flex-1">Multi-width — {base.cfg.sp} floor</span>
+      </div>
+      <div className="px-3.5 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 flex">
+        <span className="w-11">Width</span><span className="w-16">Share</span><span className="w-16">Sq ft</span><span className="w-14">Sell</span><span className="ml-auto">Line</span>
+      </div>
+      <div className="px-3.5">
+        {b.lines.map((l) => (
+          <div key={l.w} className={`flex items-center gap-2 py-1.5 border-t border-slate-100 ${l.ok ? "" : "opacity-40"}`}>
+            <span className="w-11 font-extrabold text-[13px]">{WIDTH_LABEL[l.w]}</span>
+            <span className="inline-flex items-center rounded-md border border-slate-300 overflow-hidden bg-white">
+              <input type="number" min="0" max="100" value={shares[l.w] ?? 0} onChange={(e) => onShare(l.w, e.target.value)}
+                className="w-11 px-1.5 py-1 text-xs font-bold text-right focus:outline-none" /><span className="px-1.5 text-[11px] font-bold text-slate-400">%</span>
+            </span>
+            <span className="w-16 text-[11px] font-semibold text-slate-500">{l.ok ? `${l.sf} sf` : "n/a"}</span>
+            <span className="w-14 text-[11px] font-semibold text-slate-400">{l.ok ? fm(sellOf(l.cost, markup)) : "—"}</span>
+            <span className="ml-auto font-extrabold tabular-nums text-[13px]">{l.ok ? fmInt(Math.round(sellOf(l.cost, markup) * l.sf)) : "—"}</span>
+          </div>
+        ))}
+      </div>
+      {b.fees.length > 0 && (
+        <div className="px-3.5 py-2 border-t border-dashed border-slate-300">
+          {b.fees.map((x, i) => (
+            <div key={i} className="flex items-baseline gap-2 py-[2px] text-[11.5px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>
+              <span className="flex-1">{x.label} — one line, shared across widths</span><span className="tabular-nums">+{fmInt(x.amt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-4 px-3.5 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-sand)" }}>
+        <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">{ok.length} width lines</div><div className="text-base font-extrabold tabular-nums">{fmInt(linesTot)}</div></div>
+        <div className="text-xs text-slate-400">+ pooled fees →</div>
+        <div className="ml-auto text-right leading-tight"><div className="ft-eyebrow text-[8.5px]">bundle total · {sf} sq ft</div><div className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }}>{fmInt(total)}</div></div>
+      </div>
+      {showActions && (
+        <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
+          <button onClick={onAddBasket} disabled={!ok.length} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={13} /> Add bundle to basket</button>
+          <button onClick={onMove} disabled={!ok.length} className="ml-auto rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5"><Plus size={13} /> Add {ok.length} lines to product line</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- mobile pull-up build sheet -----------------------------------------------
 // The phone's price detail: a bottom sheet that slides up over the options and
 // swipes back down (same gesture as the app's MobileSheet). Anchored to the
@@ -663,7 +722,7 @@ function useIsWide() {
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, onAdd, onClose }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onAdd, onClose }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
@@ -681,6 +740,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
   const [sheetUp, setSheetUp] = useState(false); // mobile: pull-up build sheet
+  const [basketOpen, setBasketOpen] = useState(false); // minimal for now — Task 10 builds the drawer around it
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else onClose(); } };
     window.addEventListener("keydown", onKey);
@@ -713,6 +773,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const feesTot = (c?.fees || []).reduce((a, x) => a + x.amt, 0);
   const jobTot = c ? (isEa ? sell * qty : sell * (ctn ? ctn.billedSf : sf)) + feesTot : 0;
   const add = () => { if (c) onAdd(lineItems(snap, { sf, markupPct: activeMarkup }), snap); };
+  const addBundleToBasket = () => {
+    const entry = { id: undefined, kind: "bundle", addedAt: Date.now(), markupPct: activeMarkup, base: { mode, cfg: JSON.parse(JSON.stringify(cfg)) }, widths: mwWidths.map((w) => ({ w, share: mwShares[w] ?? 0 })), sf };
+    onBasketChange([...(basket || []), normBasketEntry(entry)].filter(Boolean));
+    setBasketOpen(true);
+  };
+  const moveBundleToLine = () => { onMove(multiWidthLineItems({ mode, cfg }, mwWidths.map((w) => ({ w, share: mwShares[w] ?? 0 })), sf, activeMarkup)); onClose(); };
 
   const sfMode = !isEa && mode !== "vent" && mode !== "damper";
 
@@ -784,11 +850,14 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
           <div className="flex-1 flex min-h-0">
             <div className="w-[50%] max-w-[500px] shrink-0 border-r border-slate-300 overflow-y-auto p-4" style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
-              {!c ? (
+              {multi && multiOk ? (
+                <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} markup={activeMarkup} onShare={setShare}
+                  onAddBasket={addBundleToBasket} onMove={moveBundleToLine} />
+              ) : (!c ? (
                 <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
               ) : (
                 <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} />
-              )}
+              ))}
               {priceNote}
             </div>
           </div>
@@ -800,7 +869,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         </>) : (<>
           {/* mobile: options fill the screen; price bar pinned; sheet pulls up */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-6">{rail}</div>
-          <button type="button" onClick={() => c && setSheetUp(true)} disabled={!c}
+          <button type="button" onClick={() => (c || (multi && multiOk)) && setSheetUp(true)} disabled={!c && !(multi && multiOk)}
             className="shrink-0 text-left border-t border-slate-300 px-4 pt-2 pb-3" style={{ background: "var(--ft-card)", boxShadow: "0 -6px 24px rgba(28,26,23,.10)" }} data-sheoga-pricebar>
             <div className="mx-auto mb-2 h-1.5 w-10 rounded-full" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.2))" }} />
             {!c ? (
@@ -819,12 +888,18 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               </div>
             )}
           </button>
-          <MobileBuildSheet open={sheetUp && !!c} onClose={() => setSheetUp(false)}
-            footer={c && (<>
+          <MobileBuildSheet open={sheetUp && (!!c || (multi && multiOk))} onClose={() => setSheetUp(false)}
+            footer={(multi && multiOk) ? (<>
+              <button onClick={addBundleToBasket} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Plus size={14} /> Basket</button>
+              <button onClick={moveBundleToLine} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }}><Plus size={15} /> Add lines</button>
+            </>) : c && (<>
               <button onClick={() => setGrid(true)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Grid3X3 size={14} /> Grid</button>
               <button onClick={add} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }} data-sheoga-add><Plus size={15} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
             </>)}>
-            {c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />}
+            {multi && multiOk ? (
+              <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} markup={activeMarkup} onShare={setShare}
+                onAddBasket={addBundleToBasket} onMove={moveBundleToLine} showActions={false} />
+            ) : (c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />)}
             <div className="flex items-center gap-5 px-1 pt-3">{markupInput}{sfInput}</div>
             {priceNote}
           </MobileBuildSheet>
