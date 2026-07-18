@@ -844,7 +844,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const toggleBasketSel = (id) => setBasketSel((s) => ({ ...s, [id]: !s[id] }));
   const selectAllBasket = () => { const all = (basket || []).every((b) => basketSel[b.id]); const next = {}; (basket || []).forEach((b) => { next[b.id] = !all; }); setBasketSel(next); };
   const removeBasketEntry = (id) => onBasketChange((basket || []).filter((b) => b.id !== id));
-  const moveBasketEntries = (entries) => { entries.forEach((e) => onMove(basketEntryView(e).lines())); onBasketChange((basket || []).filter((b) => !entries.includes(b))); setBasketSel({}); };
+  const moveBasketEntries = (entries) => {
+    const lines = entries.flatMap((e) => basketEntryView(e).lines());
+    if (lines.length) onMove(lines);
+    onBasketChange((basket || []).filter((b) => !entries.includes(b)));
+    setBasketSel({});
+  };
   const moveSelectedBasket = () => moveBasketEntries((basket || []).filter((b) => basketSel[b.id]));
   const moveAllBasket = () => moveBasketEntries([...(basket || [])]);
 
