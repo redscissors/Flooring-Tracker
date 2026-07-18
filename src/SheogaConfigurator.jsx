@@ -124,21 +124,13 @@ function GridButton({ onClick }) {
   );
 }
 
-// Stain color: EITHER a standard program color (dropdown) OR custom — its own
-// mode with just a manual color field and no dropdown options. cfg carries
-// `stain` (the color) and `stainCustom` (custom mode).
-function StainPicker({ cfg, set }) {
-  const custom = !!cfg.stainCustom;
-  const segCls = (on) => `px-2.5 py-1 text-[11px] font-bold border-l first:border-l-0 border-slate-300 ${on ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`;
+// Stain color — the mode follows the Finishing selection, not a toggle. An
+// established stain shows the program's standard colors (dropdown); a custom-
+// color finish (T-1/T-2/T-3) shows a free-typed color only, no dropdown.
+function StainPicker({ cfg, set, custom }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="ft-eyebrow text-[10px]">Stain color</span>
-        <div className="ml-auto inline-flex rounded-md border border-slate-300 overflow-hidden">
-          <button type="button" onClick={() => set({ ...cfg, stainCustom: false, stain: "" })} className={segCls(!custom)}>Standard</button>
-          <button type="button" onClick={() => set({ ...cfg, stainCustom: true, stain: "" })} className={segCls(custom)}>Custom</button>
-        </div>
-      </div>
+      <div className="ft-eyebrow text-[10px] mb-1">Stain color</div>
       {custom ? (
         <input value={cfg.stain} onChange={(e) => set({ ...cfg, stain: e.target.value })} placeholder="Custom color name (optional)" className={textCls} />
       ) : (
@@ -227,7 +219,7 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
     {prefin && (
       <div className="mb-3 rounded-lg border-2 p-3" style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)" }}>
         <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
-          {stained && <StainPicker cfg={f} set={set} />}
+          {stained && <StainPicker cfg={f} set={set} custom={custom} />}
           <SheenPicker cfg={f} set={set} note="· included, no charge" />
         </div>
       </div>
