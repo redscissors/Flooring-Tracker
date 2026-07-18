@@ -3,8 +3,8 @@
 // steps. All pricing comes from src/sheoga.js — this file is presentation only.
 // "Add to product line" hands the lineItems() payloads back to the caller; the
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
-import { useEffect, useMemo, useState } from "react";
-import { X, Grid3X3, Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
 import {
   MODES, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
@@ -478,6 +478,131 @@ function GridModal({ mode, cfg, onPick, onClose }) {
 // React.Fragment that tolerates a key prop list in the vent grid loops.
 const Fragment2 = ({ children }) => <>{children}</>;
 
+// --- shared build card --------------------------------------------------------
+// The cost -> sell breakdown, shown in the desktop right pane and inside the
+// mobile pull-up sheet. `showActions` keeps the grid/Add buttons on desktop;
+// the mobile sheet renders those in its own pinned footer instead.
+function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf, onGrid, onAdd, showActions = true }) {
+  return (
+    <div className="rounded-lg border overflow-hidden bg-white" style={{ borderColor: "var(--ft-grid-line)" }}>
+      <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: "var(--ft-sand)" }}>
+        <span className="w-5 h-5 rounded text-[10px] font-extrabold text-white flex items-center justify-center" style={{ background: "var(--ft-brand-deep)" }}>H</span>
+        <span className="text-[13px] font-extrabold flex-1">{c.name}</span>
+        <span className="text-[9.5px] text-slate-500 font-semibold">{SHEET_NOTE}</span>
+      </div>
+      <div className="px-3.5 pt-2.5 text-[15px] font-bold leading-snug" data-sheoga-desc>{c.desc}</div>
+      <div className="px-3.5 pb-2 text-[11px] text-slate-500 font-medium">↑ this description <b>is</b> the order — it snapshots onto the job line.</div>
+      <div className="px-3.5 pb-3">
+        {c.rows.map(([l, a], i) => (
+          <div key={i} className="flex items-baseline gap-2 py-[3px] text-xs text-slate-500 font-medium">
+            <span className="flex-1 min-w-0">{l}</span><span className="tabular-nums font-semibold text-slate-800">{a}</span>
+          </div>
+        ))}
+        {ctn && (
+          <div className="flex items-baseline gap-2 py-[3px] text-xs text-slate-500 font-medium">
+            <span className="flex-1">Sold by full cartons — {ctn.sf} sf/carton</span>
+            <span className="tabular-nums font-semibold text-slate-800">{ctn.cartons} ctns · exact {ctn.exact.toFixed(2)}</span>
+          </div>
+        )}
+        {c.warn.map((w, i) => <div key={i} className="py-[3px] text-xs font-semibold text-amber-700">⚠ {w}</div>)}
+      </div>
+      <div className="flex items-center gap-4 px-3.5 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-sand)" }}>
+        <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">our cost</div><div className="text-base font-extrabold tabular-nums">{fm(c.cost)}{isEa ? " ea" : "/sf"}</div></div>
+        <div className="text-xs text-slate-400">→ +{activeMarkup}% →</div>
+        <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">sell</div><div className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}{isEa ? " ea" : "/sf"}</div></div>
+        <div className="ml-auto text-right leading-tight">
+          <div className="ft-eyebrow text-[8.5px]">{isEa ? `× ${qty} pcs` : ctn ? `${ctn.cartons} ctns × ${ctn.sf} sf = ${ctn.billedSf} sf` : `× ${sf} sq ft`}{feesTot ? ` + ${fm(feesTot)} fees` : ""}</div>
+          <div className="text-base font-extrabold tabular-nums">{fmInt(jobTot)}</div>
+        </div>
+      </div>
+      {(c.fees || []).length > 0 && (
+        <div className="px-3.5 py-2 border-t border-dashed border-slate-300">
+          {c.fees.map((x, i) => (
+            <div key={i} className="flex items-baseline gap-2 py-[2px] text-[11px] text-slate-500 font-medium">
+              <span className="flex-1">{x.label} — imports as its own line, at cost</span><span className="tabular-nums font-semibold">{fm(x.amt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {showActions && (
+        <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
+          <button onClick={onGrid} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Grid3X3 size={13} /> Full price grid</button>
+          <button onClick={onAdd} className="ml-auto rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5" data-sheoga-add><Plus size={13} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- mobile pull-up build sheet -----------------------------------------------
+// The phone's price detail: a bottom sheet that slides up over the options and
+// swipes back down (same gesture as the app's MobileSheet). Anchored to the
+// configurator panel (absolute), so it never escapes the popup. Always mounted
+// so the transform animates both ways.
+function MobileBuildSheet({ open, onClose, children, footer }) {
+  const panelRef = useRef(null);
+  const bodyRef = useRef(null);
+  const drag = useRef(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!open || !el) return;
+    const start = (e) => {
+      const t = e.touches[0];
+      const inBody = bodyRef.current?.contains(e.target);
+      drag.current = { y0: t.clientY, x0: t.clientX, t0: e.timeStamp, armed: !inBody || (bodyRef.current?.scrollTop ?? 0) <= 0, on: false, dy: 0 };
+    };
+    const move = (e) => {
+      const d = drag.current;
+      if (!d) return;
+      const t = e.touches[0];
+      const dy = t.clientY - d.y0;
+      if (!d.on) { if (!d.armed || dy < 10 || Math.abs(t.clientX - d.x0) > dy) return; d.on = true; }
+      e.preventDefault();
+      d.dy = Math.max(0, dy);
+      el.style.transition = "none";
+      el.style.transform = `translateY(${d.dy}px)`;
+    };
+    const end = (e) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d?.on) return;
+      el.style.transition = "transform .22s ease-out";
+      if (d.dy > 90 || d.dy / Math.max(1, e.timeStamp - d.t0) > 0.6) { el.style.transform = "translateY(105%)"; setTimeout(onClose, 170); }
+      else { el.style.transform = "translateY(0)"; }
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, [open, onClose]);
+  return (
+    <div className={`absolute inset-0 z-[60] ${open ? "" : "pointer-events-none"}`}>
+      <div className="absolute inset-0 bg-black/40 transition-opacity duration-200" style={{ opacity: open ? 1 : 0 }} onClick={onClose} />
+      <div ref={panelRef} className="absolute left-0 right-0 bottom-0 flex flex-col rounded-t-2xl"
+        style={{ background: "var(--ft-cream)", maxHeight: "88%", boxShadow: "0 -8px 40px rgba(28,26,23,.28)", transform: open ? "translateY(0)" : "translateY(105%)", transition: "transform .26s cubic-bezier(.32,.72,0,1)" }}>
+        <div className="mx-auto mt-2 h-1.5 w-10 rounded-full shrink-0" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.25))" }} onClick={onClose} />
+        <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-2 pb-3">{children}</div>
+        {footer && <div className="shrink-0 flex gap-2 px-3 pt-2.5 border-t border-slate-200" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Matches the app's 768px breakpoint; self-contained so the harness works too.
+function useIsWide() {
+  const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on);
+    return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); };
+  }, []);
+  return wide;
+}
+
 // --- the popup ----------------------------------------------------------------
 
 export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, onAdd, onClose }) {
@@ -496,11 +621,13 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const setActiveMarkup = ventMode ? setVentMarkup : setMarkup;
   const [sf, setSf] = useState(initialSf > 0 ? initialSf : 1);
   const [grid, setGrid] = useState(false);
+  const isWide = useIsWide();
+  const [sheetUp, setSheetUp] = useState(false); // mobile: pull-up build sheet
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else onClose(); } };
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else onClose(); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, grid]);
+  }, [onClose, grid, sheetUp]);
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
@@ -515,105 +642,118 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const add = () => { if (c) onAdd(lineItems(snap, { sf, markupPct: activeMarkup }), snap); };
 
   const sfMode = !isEa && mode !== "vent" && mode !== "damper";
+
+  const rail = (
+    <>
+      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}
+    </>
+  );
+  const markupInput = (
+    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+      {ventMode ? "Vent markup" : "Markup"} <input type="number" min="0" step="5" value={activeMarkup} onChange={(e) => setActiveMarkup(Math.max(0, Number(e.target.value) || 0))}
+        className="w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-markup /> %
+    </label>
+  );
+  const sfInput = sfMode && (
+    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+      Job size <input type="number" min="1" step={isWide ? "50" : "10"} value={sf} onChange={(e) => setSf(Math.max(1, Number(e.target.value) || 1))}
+        className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-sf /> sq ft
+    </label>
+  );
+  const priceNote = (
+    <p className="mt-3 text-[10.5px] text-slate-400 font-medium leading-relaxed">
+      Sheet prices are distributor cost · flooring effective Feb 1 2025 · vents Feb 2022 · custom orders 5–10% overrun, no returns.
+    </p>
+  );
+
+  const header = (
+    <div className="flex items-center gap-3 px-4 pt-3">
+      <div className="leading-tight">
+        <div className="ft-eyebrow text-[9px]">Vendor configurator</div>
+        <div className="text-lg font-extrabold">Sheoga Hardwood <span className="text-xs font-semibold text-slate-500 ml-1.5">bought by description — no SKUs</span></div>
+      </div>
+      <button onClick={onClose} className="ml-auto w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>
+    </div>
+  );
+  // Desktop tabs sit on the content border; the phone scrolls them as pills.
+  const tabs = (
+    <div className={isWide ? "flex gap-0.5 px-4 pt-2.5 border-b border-slate-300" : "flex gap-1.5 px-4 pt-2 pb-2.5 overflow-x-auto border-b border-slate-200"}>
+      {MODES.map((m) => (
+        isWide ? (
+          <button key={m.id} onClick={() => setMode(m.id)}
+            className={`px-3.5 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px ${mode === m.id ? "bg-white border-slate-300 text-slate-900 relative z-10" : "bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-700"}`}>
+            {m.label}
+          </button>
+        ) : (
+          <button key={m.id} onClick={() => setMode(m.id)}
+            className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-full border whitespace-nowrap ${mode === m.id ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-300 text-slate-500"}`}>
+            {m.label}
+          </button>
+        )
+      ))}
+    </div>
+  );
+
   return (
-    <div className="print:hidden fixed inset-0 flex items-center justify-center p-2 md:p-5 z-[70]" style={{ background: "rgba(20,15,10,.55)" }} onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-5xl h-[min(820px,94vh)] flex flex-col overflow-hidden border border-slate-300 shadow-2xl" onClick={(e) => e.stopPropagation()} data-sheoga-pop>
-        {/* header */}
-        <div className="flex items-center gap-3 px-4 pt-3">
-          <div className="leading-tight">
-            <div className="ft-eyebrow text-[9px]">Vendor configurator</div>
-            <div className="text-lg font-extrabold">Sheoga Hardwood <span className="text-xs font-semibold text-slate-500 ml-1.5">bought by description — no SKUs</span></div>
+    <div className={`print:hidden fixed inset-0 flex items-center justify-center z-[70] ${isWide ? "p-5" : ""}`} style={{ background: "rgba(20,15,10,.55)" }} onClick={onClose}>
+      <div className={`bg-white flex flex-col overflow-hidden ${isWide ? "rounded-xl w-full max-w-5xl h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
+        onClick={(e) => e.stopPropagation()} data-sheoga-pop>
+        {header}
+        {tabs}
+        {isWide ? (<>
+          {/* desktop: options rail + build card side by side */}
+          <div className="flex-1 flex min-h-0">
+            <div className="w-[46%] max-w-[420px] shrink-0 border-r border-slate-300 overflow-y-auto p-4">{rail}</div>
+            <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
+              {!c ? (
+                <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
+              ) : (
+                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} />
+              )}
+              {priceNote}
+            </div>
           </div>
-          <button onClick={onClose} className="ml-auto w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>
-        </div>
-        {/* mode tabs */}
-        <div className="flex gap-0.5 px-4 pt-2.5 border-b border-slate-300">
-          {MODES.map((m) => (
-            <button key={m.id} onClick={() => setMode(m.id)}
-              className={`px-3.5 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px ${mode === m.id ? "bg-white border-slate-300 text-slate-900 relative z-10" : "bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-700"}`}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-        {/* body */}
-        <div className="flex-1 flex min-h-0">
-          <div className="w-[46%] max-w-[420px] shrink-0 border-r border-slate-300 overflow-y-auto p-4">
-            {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
-            {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
-            {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
-            {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
-            {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}
+          <div className="flex items-center gap-5 px-4 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-cream)" }}>
+            {markupInput}
+            {sfInput}
+            <span className="ml-auto text-[10.5px] text-slate-400 font-medium">The description is the order — read it to Sheoga, or reconfigure from the row later.</span>
           </div>
-          {/* build card */}
-          <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
+        </>) : (<>
+          {/* mobile: options fill the screen; price bar pinned; sheet pulls up */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-6">{rail}</div>
+          <button type="button" onClick={() => c && setSheetUp(true)} disabled={!c}
+            className="shrink-0 text-left border-t border-slate-300 px-4 pt-2 pb-3" style={{ background: "var(--ft-card)", boxShadow: "0 -6px 24px rgba(28,26,23,.10)" }} data-sheoga-pricebar>
+            <div className="mx-auto mb-2 h-1.5 w-10 rounded-full" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.2))" }} />
             {!c ? (
-              <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
+              <div className="text-center text-xs font-semibold text-slate-400 py-1">Pick an available option to see the price</div>
             ) : (
-              <div className="rounded-lg border overflow-hidden bg-white" style={{ borderColor: "var(--ft-grid-line)" }}>
-                <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: "var(--ft-sand)" }}>
-                  <span className="w-5 h-5 rounded text-[10px] font-extrabold text-white flex items-center justify-center" style={{ background: "var(--ft-brand-deep)" }}>H</span>
-                  <span className="text-[13px] font-extrabold flex-1">{c.name}</span>
-                  <span className="text-[9.5px] text-slate-500 font-semibold">{SHEET_NOTE}</span>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-extrabold truncate">{c.rest || c.desc}</div>
+                  <div className="text-[10.5px] text-slate-500 font-semibold">{c.size ? c.size + " · " : ""}{isEa ? `${qty} pcs` : ctn ? `${ctn.cartons} cartons · ${ctn.billedSf} sf` : `${sf} sf`}</div>
                 </div>
-                <div className="px-3.5 pt-2.5 text-[15px] font-bold leading-snug" data-sheoga-desc>{c.desc}</div>
-                <div className="px-3.5 pb-2 text-[11px] text-slate-500 font-medium">↑ this description <b>is</b> the order — it snapshots onto the job line.</div>
-                <div className="px-3.5 pb-3">
-                  {c.rows.map(([l, a], i) => (
-                    <div key={i} className="flex items-baseline gap-2 py-[3px] text-xs text-slate-500 font-medium">
-                      <span className="flex-1 min-w-0">{l}</span><span className="tabular-nums font-semibold text-slate-800">{a}</span>
-                    </div>
-                  ))}
-                  {ctn && (
-                    <div className="flex items-baseline gap-2 py-[3px] text-xs text-slate-500 font-medium">
-                      <span className="flex-1">Sold by full cartons — {ctn.sf} sf/carton</span>
-                      <span className="tabular-nums font-semibold text-slate-800">{ctn.cartons} ctns · exact {ctn.exact.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {c.warn.map((w, i) => <div key={i} className="py-[3px] text-xs font-semibold text-amber-700">⚠ {w}</div>)}
+                <div className="text-right leading-none">
+                  <div className="text-lg font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-1">{isEa ? "ea · sell" : "/sf · sell"}</div>
                 </div>
-                <div className="flex items-center gap-4 px-3.5 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-sand)" }}>
-                  <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">our cost</div><div className="text-base font-extrabold tabular-nums">{fm(c.cost)}{isEa ? " ea" : "/sf"}</div></div>
-                  <div className="text-xs text-slate-400">→ +{activeMarkup}% →</div>
-                  <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">sell</div><div className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}{isEa ? " ea" : "/sf"}</div></div>
-                  <div className="ml-auto text-right leading-tight">
-                    <div className="ft-eyebrow text-[8.5px]">{isEa ? `× ${qty} pcs` : ctn ? `${ctn.cartons} ctns × ${ctn.sf} sf = ${ctn.billedSf} sf` : `× ${sf} sq ft`}{feesTot ? ` + ${fm(feesTot)} fees` : ""}</div>
-                    <div className="text-base font-extrabold tabular-nums">{fmInt(jobTot)}</div>
-                  </div>
-                </div>
-                {(c.fees || []).length > 0 && (
-                  <div className="px-3.5 py-2 border-t border-dashed border-slate-300">
-                    {c.fees.map((x, i) => (
-                      <div key={i} className="flex items-baseline gap-2 py-[2px] text-[11px] text-slate-500 font-medium">
-                        <span className="flex-1">{x.label} — imports as its own line, at cost</span><span className="tabular-nums font-semibold">{fm(x.amt)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
-                  <button onClick={() => setGrid(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Grid3X3 size={13} /> Full price grid</button>
-                  <button onClick={add} className="ml-auto rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5" data-sheoga-add><Plus size={13} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
-                </div>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-text)" }}><ChevronUp size={16} /></div>
               </div>
             )}
-            <p className="mt-3 text-[10.5px] text-slate-400 font-medium leading-relaxed">
-              Sheet prices are distributor cost · flooring effective Feb 1 2025 · vents Feb 2022 · custom orders 5–10% overrun, no returns.
-            </p>
-          </div>
-        </div>
-        {/* footer */}
-        <div className="flex items-center gap-5 px-4 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-cream)" }}>
-          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-            {ventMode ? "Vent markup" : "Markup"} <input type="number" min="0" step="5" value={activeMarkup} onChange={(e) => setActiveMarkup(Math.max(0, Number(e.target.value) || 0))}
-              className="w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-markup /> %
-          </label>
-          {sfMode && (
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-              Job size <input type="number" min="1" step="50" value={sf} onChange={(e) => setSf(Math.max(1, Number(e.target.value) || 1))}
-                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-sf /> sq ft
-            </label>
-          )}
-          <span className="ml-auto text-[10.5px] text-slate-400 font-medium">The description is the order — read it to Sheoga, or reconfigure from the row later.</span>
-        </div>
+          </button>
+          <MobileBuildSheet open={sheetUp && !!c} onClose={() => setSheetUp(false)}
+            footer={c && (<>
+              <button onClick={() => setGrid(true)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Grid3X3 size={14} /> Grid</button>
+              <button onClick={add} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }} data-sheoga-add><Plus size={15} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
+            </>)}>
+            {c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />}
+            <div className="flex items-center gap-5 px-1 pt-3">{markupInput}{sfInput}</div>
+            {priceNote}
+          </MobileBuildSheet>
+        </>)}
       </div>
       {grid && <GridModal mode={mode} cfg={cfg} onClose={() => setGrid(false)} onPick={(patch) => { set({ ...cfg, ...patch }); setGrid(false); }} />}
     </div>

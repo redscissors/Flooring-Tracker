@@ -1,0 +1,302 @@
+<meta charset="utf-8">
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --text:#1C1A17;
+    --brand:#57703A; --deep:#40542A; --line:rgba(28,26,23,.34);
+    --tint:color-mix(in oklab, var(--brand) 6%, var(--card));
+    --tint-border:color-mix(in oklab, var(--brand) 35%, rgba(28,26,23,.18));
+    --muted:color-mix(in oklab, var(--text) 55%, transparent);
+    --soft:color-mix(in oklab, var(--text) 42%, transparent);
+    --border-strong:color-mix(in oklab, var(--text) 22%, transparent);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --cream:#1a1c17; --card:#232620; --sand:#2b2f26; --text:#ECEAE2;
+      --line:rgba(236,234,226,.28); --brand:#8faa63; --deep:#a9c081;
+      --muted:color-mix(in oklab, var(--text) 55%, transparent); --soft:color-mix(in oklab, var(--text) 40%, transparent);
+      --border-strong:color-mix(in oklab, var(--text) 30%, transparent); }
+  }
+  :root[data-theme="dark"]{ --cream:#1a1c17; --card:#232620; --sand:#2b2f26; --text:#ECEAE2;
+    --line:rgba(236,234,226,.28); --brand:#8faa63; --deep:#a9c081;
+    --muted:color-mix(in oklab, var(--text) 55%, transparent); --soft:color-mix(in oklab, var(--text) 40%, transparent);
+    --border-strong:color-mix(in oklab, var(--text) 30%, transparent); }
+  :root[data-theme="light"]{ --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --text:#1C1A17;
+    --line:rgba(28,26,23,.34); --brand:#57703A; --deep:#40542A;
+    --muted:color-mix(in oklab, var(--text) 55%, transparent); --soft:color-mix(in oklab, var(--text) 42%, transparent);
+    --border-strong:color-mix(in oklab, var(--text) 22%, transparent); }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; background:#0c0d0b; }
+  .stage{ min-height:100vh; display:flex; flex-direction:column; align-items:center; gap:12px; padding:18px 12px 40px; }
+  .cap{ color:#cfcabb; font-size:12.5px; text-align:center; max-width:380px; line-height:1.5; }
+  .cap b{ color:#fff; }
+  .cap .eyebrow{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.16em; color:var(--brand); display:block; margin-bottom:2px; }
+
+  /* phone frame */
+  .phone{ width:390px; height:770px; max-width:96vw; background:var(--cream); color:var(--text); border-radius:34px;
+    border:10px solid #000; box-shadow:0 20px 60px rgba(0,0,0,.5); overflow:hidden; position:relative; }
+  .screen{ position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* fixed header + mode tabs */
+  .hd{ padding:10px 14px 0; background:var(--cream); z-index:5; }
+  .hd-row{ display:flex; align-items:center; gap:8px; }
+  .eyebrow{ font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.16em; color:var(--deep); }
+  .h-title{ font-size:16px; font-weight:800; }
+  .x{ margin-left:auto; width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--card); color:var(--muted); font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .tabs{ display:flex; gap:6px; overflow-x:auto; padding:10px 0 9px; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tab{ flex:none; padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:var(--card); font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .tab[aria-pressed="true"]{ background:var(--text); border-color:var(--text); color:var(--card); }
+
+  /* scrolling options */
+  .opts{ flex:1; min-height:0; overflow-y:auto; padding:4px 14px 120px; }
+  .sect{ margin-bottom:14px; }
+  .lbl{ display:flex; align-items:baseline; gap:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.13em; color:var(--deep); margin-bottom:7px; }
+  .lbl .hint{ margin-left:auto; font-size:10px; color:var(--soft); text-transform:none; letter-spacing:0; font-weight:500; }
+  .chips{ display:flex; flex-wrap:wrap; gap:7px; }
+  .chip{ border:1px solid var(--line); background:var(--card); border-radius:9px; padding:9px 12px; font-size:12.5px; font-weight:700; color:var(--text); }
+  .chip[aria-pressed="true"]{ background:var(--text); border-color:var(--text); color:var(--card); }
+  .row2{ display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; }
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .seg button{ padding:9px 15px; font-size:12.5px; font-weight:700; border:0; border-left:1px solid var(--line); background:var(--card); color:var(--muted); }
+  .seg button:first-child{ border-left:0; }
+  .seg button[aria-pressed="true"]{ background:var(--text); color:var(--card); }
+  .field-lbl{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--deep); margin-bottom:5px; }
+  .grid-btn{ margin-left:auto; align-self:flex-end; display:inline-flex; align-items:center; gap:5px; border:1px solid var(--tint-border); background:var(--tint); color:var(--deep); border-radius:9px; padding:8px 12px; font-size:12px; font-weight:800; }
+  select.dd{ width:100%; appearance:none; border:1px solid var(--line); background:var(--card)
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%2340542A' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>")
+      no-repeat right 11px center; border-radius:9px; padding:10px 28px 10px 11px; font-size:12.5px; font-weight:700; color:var(--text); }
+  .ddgrid{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+  .finishwrap{ margin-top:11px; border:1px dashed var(--tint-border); background:var(--tint); border-radius:10px; padding:11px; display:grid; gap:11px; }
+
+  /* collapsed price bar — locked to the bottom */
+  .pricebar{ position:absolute; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line);
+    box-shadow:0 -6px 24px rgba(28,26,23,.14); padding:8px 16px 14px; z-index:20; }
+  .grab{ width:38px; height:5px; border-radius:3px; background:var(--border-strong); margin:0 auto 8px; }
+  .pb-row{ display:flex; align-items:center; gap:12px; }
+  .pb-desc{ flex:1; min-width:0; }
+  .pb-desc .d1{ font-size:12.5px; font-weight:800; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pb-desc .d2{ font-size:10.5px; color:var(--soft); font-weight:600; margin-top:2px; }
+  .pb-price{ text-align:right; }
+  .pb-price .p1{ font-size:19px; font-weight:900; color:var(--deep); line-height:1; }
+  .pb-price .p2{ font-size:9.5px; color:var(--soft); font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+  .pb-up{ width:30px; height:30px; border-radius:9px; background:var(--text); color:var(--card); font-size:15px; display:flex; align-items:center; justify-content:center; }
+
+  /* expanded sheet */
+  .scrim{ position:absolute; inset:0; background:rgba(28,26,23,.42); opacity:0; pointer-events:none; transition:opacity .22s; z-index:25; }
+  .sheet{ position:absolute; left:0; right:0; bottom:0; max-height:82%; background:var(--cream); border-radius:16px 16px 0 0;
+    box-shadow:0 -10px 44px rgba(28,26,23,.3); transform:translateY(105%); transition:transform .26s cubic-bezier(.32,.72,0,1); z-index:30; display:flex; flex-direction:column; }
+  .screen.open .sheet{ transform:translateY(0); }
+  .screen.open .scrim{ opacity:1; pointer-events:auto; }
+  .sheet-body{ overflow-y:auto; padding:2px 16px 8px; }
+  .card{ border:1px solid var(--tint-border); border-radius:12px; overflow:hidden; background:var(--card); margin-top:6px; }
+  .card-hd{ display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--sand); }
+  .card-hd .bdg{ width:20px; height:20px; border-radius:5px; background:var(--deep); color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .desc{ padding:10px 12px 4px; font-size:15px; font-weight:800; line-height:1.3; }
+  .descnote{ padding:0 12px 8px; font-size:10.5px; color:var(--soft); font-weight:500; }
+  .brk{ padding:0 12px 8px; }
+  .brk .r{ display:flex; gap:8px; padding:3px 0; font-size:12px; color:var(--muted); font-weight:600; }
+  .brk .r span:first-child{ flex:1; }
+  .brk .r b{ color:var(--text); font-variant-numeric:tabular-nums; }
+  .price-strip{ display:flex; align-items:center; gap:12px; padding:11px 12px; border-top:1px solid var(--line); background:var(--sand); }
+  .price-strip .cost .k, .price-strip .sell .k{ font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--soft); }
+  .price-strip .cost .v{ font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .price-strip .sell .v{ font-size:20px; font-weight:900; color:var(--deep); font-variant-numeric:tabular-nums; }
+  .price-strip .arrow{ font-size:11px; color:var(--soft); font-weight:700; }
+  .price-strip .tot{ margin-left:auto; text-align:right; }
+  .price-strip .tot .k{ font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); }
+  .price-strip .tot .v{ font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .inputs{ display:flex; gap:16px; padding:12px 2px 4px; }
+  .inputs label{ font-size:11px; font-weight:800; color:var(--muted); display:flex; align-items:center; gap:7px; }
+  .inputs input{ width:66px; border:1px solid var(--line); border-radius:8px; padding:7px; text-align:center; font-size:14px; font-weight:700; background:var(--card); color:var(--text); }
+  .sheet-foot{ display:flex; gap:10px; padding:10px 16px; border-top:1px solid var(--line);
+    padding-bottom:14px; }
+  .btn-ghost{ border:1px solid var(--line); background:var(--card); border-radius:10px; padding:11px 14px; font-size:12.5px; font-weight:800; color:var(--muted); }
+  .btn-add{ flex:1; background:var(--brand); color:#fff; border:0; border-radius:10px; padding:12px; font-size:13.5px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:7px; }
+</style>
+
+<div class="stage">
+  <div class="cap"><span class="eyebrow">Sheoga configurator · mobile</span>
+    <b>Tap the price bar</b> (or the ⌃) at the bottom to slide up the full build sheet — carton, price breakdown, and Add. Tap the scrim, the handle, or the chevron to swipe it back down and keep editing. Options stay along the top.</div>
+
+  <div class="phone">
+    <div class="screen" id="screen">
+      <div class="hd">
+        <div class="hd-row">
+          <div style="line-height:1.15">
+            <div class="eyebrow">Vendor configurator</div>
+            <div class="h-title">Sheoga Hardwood</div>
+          </div>
+          <div class="x">✕</div>
+        </div>
+        <div class="tabs" id="tabs"></div>
+      </div>
+
+      <div class="opts" id="opts"></div>
+
+      <!-- collapsed price bar -->
+      <div class="pricebar" id="pricebar">
+        <div class="grab"></div>
+        <div class="pb-row">
+          <div class="pb-desc">
+            <div class="d1" id="pbDesc">White Oak Character Solid</div>
+            <div class="d2" id="pbSize">5¼" · 49 cartons · 1004.5 sf</div>
+          </div>
+          <div class="pb-price">
+            <div class="p1" id="pbSell">$6.09</div>
+            <div class="p2">/sf · sell</div>
+          </div>
+          <div class="pb-up">⌃</div>
+        </div>
+      </div>
+
+      <!-- expanded sheet -->
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheet">
+        <div class="grab" id="sheetGrab" style="margin-top:9px"></div>
+        <div class="sheet-body">
+          <div class="card">
+            <div class="card-hd"><span class="bdg">H</span><span style="font-size:12.5px;font-weight:800;flex:1" id="shName">Sheoga 5¼" White Oak</span></div>
+            <div class="desc" id="shDesc">5¼" White Oak Character Solid</div>
+            <div class="descnote">↑ this description is the order — it snapshots onto the job line.</div>
+            <div class="brk" id="shBrk"></div>
+            <div class="price-strip">
+              <div class="cost"><div class="k">our cost</div><div class="v" id="shCost">$4.35</div></div>
+              <div class="arrow" id="shArrow">→ +40% →</div>
+              <div class="sell"><div class="k">sell</div><div class="v" id="shSell">$6.09/sf</div></div>
+              <div class="tot"><div class="k" id="shTotK">49 ctns · 1004.5 sf</div><div class="v" id="shTot">$6,117</div></div>
+            </div>
+          </div>
+          <div class="inputs">
+            <label>Markup <input id="inMarkup" type="number" value="40"> %</label>
+            <label>Job size <input id="inSf" type="number" value="1"> sf</label>
+          </div>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn-ghost" id="gridBtn">Price grid</button>
+          <button class="btn-add">＋ Add to product line</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap" style="opacity:.75">The collapsed bar is “pretty basic” — pick + price. Everything heavier (cartons, cost→sell, fees, Add) lives in the sheet you pull up.</div>
+</div>
+
+<script>
+const $=(s)=>document.querySelector(s);
+const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+
+const MODES=[["floor","Unfinished & custom"],["stocked","Stocked prefinished"],["hb","Herringbone"],["vent","Wood vents"],["damper","Dampers"]];
+const SPECIES=["White Oak","Red Oak","Hickory","Maple","Cherry","Walnut","Beech"];
+const WLBL={2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"'};
+const WIDTHS=[2.25,3.25,4.25,5.25,6.25,7.25,8.25];
+const CARTON={2.25:22,3.25:21,4.25:22,5.25:20.5,6.25:20,7.25:23.5,8.25:21.5};
+const TEX=[["smooth","Smooth",0],["aged","Aged Brush",1],["sawcut","Saw Cut",1.5],["oldmill","Old Mill",2.5]];
+const FIN=[["unf","Unfinished",0],["nat","Prefinished — Natural",1.65],["est","Prefinished — Established stain",1.95],["t1","Custom color T-1",3.05]];
+const LEN=[["1-8","1'–8'",0],["1-10","1'–10'",5],["2-8","2'–8'",15],["3-8","3'–8'",25]];
+const EDGE=[["square","Square edge",0],["bevel","Micro bevel",0],["pillow","Hand pillowed",1]];
+const STAINS=["Natural","Cattail","Caramel","Fresh Cut","Toasted Acorn","Nutmeg"];
+// rough base $/sf per species at 5¼ char, +.30 per width step — enough to feel real
+const BASE={"White Oak":4.35,"Red Oak":3.60,"Hickory":3.75,"Maple":4.00,"Cherry":4.05,"Walnut":5.95,"Beech":3.80};
+
+const st={mode:"floor",sp:"White Oak",cons:"solid",grade:"char",w:5.25,tex:0,fin:0,len:0,edge:0,stain:"Toasted Acorn",sheen:"30",markup:40,sf:1};
+
+function baseCost(){
+  const step=(WIDTHS.indexOf(st.w)-3)*0.30;
+  let c=(BASE[st.sp]||4)+step;
+  c+=TEX[st.tex][2]; c+=FIN[st.fin][2]; c+=EDGE[st.edge][2];
+  c*= (1+LEN[st.len][2]/100);
+  return Math.round(c*100)/100;
+}
+function descParts(){
+  const p=[st.sp, st.grade==="clear"?"Clear":"Character", st.cons==="solid"?"Solid":"Engineered"];
+  if(st.tex!==0) p.push(TEX[st.tex][1]);
+  if(st.edge!==0) p.push(EDGE[st.edge][1]);
+  if(st.len!==0) p.push(LEN[st.len][1]+" lengths");
+  if(st.fin!==0){
+    if(st.fin===1) p.push("Prefinished Natural");
+    else if(st.fin===2) p.push("Prefinished "+st.stain+" stain");
+    else p.push(FIN[st.fin][1]+" "+st.stain);
+    p.push(st.sheen+" sheen");
+  }
+  return p;
+}
+function render(){
+  // tabs
+  const tabs=$("#tabs"); tabs.innerHTML="";
+  MODES.forEach(([id,label])=>{const b=el("button","tab",label);b.setAttribute("aria-pressed",id===st.mode);b.onclick=()=>{st.mode=id;render();};tabs.appendChild(b);});
+  // options (floor tab only, for the demo)
+  const o=$("#opts"); o.innerHTML="";
+  const sect=(title,hintNode)=>{const s=el("div","sect");const l=el("div","lbl");l.appendChild(el("span",null,title));if(hintNode)l.appendChild(hintNode);s.appendChild(l);return s;};
+  const chips=(items,cur,pick)=>{const w=el("div","chips");items.forEach(it=>{const b=el("button","chip",it.label);b.setAttribute("aria-pressed",it.id===cur);b.onclick=()=>{pick(it.id);};w.appendChild(b);});return w;};
+  const seg=(opts,cur,pick)=>{const w=el("div","seg");opts.forEach(x=>{const b=el("button",null,x[1]);b.setAttribute("aria-pressed",x[0]===cur);b.onclick=()=>pick(x[0]);w.appendChild(b);});return w;};
+  const dd=(label,items,cur,pick)=>{const wrap=el("div");wrap.appendChild(el("div","field-lbl",label));const s=el("select","dd");items.forEach((it,i)=>{const op=el("option",null,it[1]+(it[2]?"  +$"+it[2].toFixed(2):""));op.value=i;if(i===cur)op.selected=true;s.appendChild(op);});s.onchange=e=>pick(+e.target.value);wrap.appendChild(s);return wrap;};
+
+  if(st.mode==="floor"){
+    const sp=sect("Species");sp.appendChild(chips(SPECIES.map(s=>({id:s,label:s})),st.sp,v=>{st.sp=v;render();}));o.appendChild(sp);
+    // construction + grade + grid button
+    const r=el("div","sect");const flex=el("div","row2");
+    const cw=el("div");cw.appendChild(el("div","field-lbl","Construction"));cw.appendChild(seg([["solid","Solid"],["eng","Eng."]],st.cons,v=>{st.cons=v;render();}));
+    const gw=el("div");gw.appendChild(el("div","field-lbl","Grade"));gw.appendChild(seg([["clear","Clear"],["char","Char."]],st.grade,v=>{st.grade=v;render();}));
+    const gb=el("button","grid-btn","▦ Price grid");
+    flex.appendChild(cw);flex.appendChild(gw);flex.appendChild(gb);r.appendChild(flex);o.appendChild(r);
+    const w=sect("Width");w.appendChild(chips(WIDTHS.map(x=>({id:x,label:WLBL[x]})),st.w,v=>{st.w=v;render();}));o.appendChild(w);
+    const dl=el("div","sect");const dg=el("div","ddgrid");
+    dg.appendChild(dd("Texture / scrape",TEX,st.tex,v=>{st.tex=v;render();}));
+    dg.appendChild(dd("Finishing",FIN,st.fin,v=>{st.fin=v;render();}));
+    dg.appendChild(dd("Lengths",LEN.map(x=>[x[0],x[1],0]).map((x,i)=>[x[0],x[1]+(LEN[i][2]?"  +"+LEN[i][2]+"%":"")]),st.len,v=>{st.len=v;render();}));
+    dg.appendChild(dd("Edge",EDGE,st.edge,v=>{st.edge=v;render();}));
+    dl.appendChild(dg);o.appendChild(dl);
+    if(st.fin!==0){
+      const fw=el("div","finishwrap");
+      if(st.fin>=2){const sc=el("div");sc.appendChild(el("div","field-lbl","Stain color"));const s=el("select","dd");STAINS.forEach(c=>{const op=el("option",null,c);if(c===st.stain)op.selected=true;s.appendChild(op);});s.onchange=e=>{st.stain=e.target.value;render();};sc.appendChild(s);fw.appendChild(sc);}
+      const sh=el("div");sh.appendChild(el("div","field-lbl","Sheen · included"));const ss=el("select","dd");["30","20","15","10","5"].forEach(v=>{const op=el("option",null,v+"-sheen");if(v===st.sheen)op.selected=true;ss.appendChild(op);});ss.onchange=e=>{st.sheen=e.target.value;render();};sh.appendChild(ss);fw.appendChild(sh);
+      if(st.fin>=2) fw.style.gridTemplateColumns="1fr 1fr"; else fw.style.gridTemplateColumns="1fr";
+      o.appendChild(fw);
+    }
+    o.appendChild(el("div",null,"<div style='font-size:11px;color:var(--soft);font-weight:500;line-height:1.5;padding:2px'>Scroll — the options stack here; the price stays pinned below and pulls up for the full breakdown.</div>"));
+  } else {
+    o.appendChild(el("div",null,"<div style='padding:30px 6px;color:var(--soft);font-size:13px;font-weight:600'>("+MODES.find(m=>m[0]===st.mode)[1]+" options would stack here — same pattern: chips &amp; dropdowns up top, price pinned below.)</div>"));
+  }
+  updatePrice();
+}
+function updatePrice(){
+  const cost=baseCost();
+  const sell=Math.round(cost*(1+st.markup/100)*100)/100;
+  const csf=CARTON[st.w]||20;
+  const exact=st.sf/csf, ctns=Math.ceil(exact), billed=Math.round(ctns*csf*10)/10;
+  const parts=descParts();
+  const size=WLBL[st.w];
+  // collapsed bar
+  $("#pbDesc").textContent=parts.join(" ");
+  $("#pbSize").textContent=`${size} · ${ctns} cartons · ${billed} sf`;
+  $("#pbSell").textContent="$"+sell.toFixed(2);
+  // sheet
+  $("#shName").textContent=`Sheoga ${size} ${st.sp}`;
+  $("#shDesc").textContent=`${size} ${parts.join(" ")}`;
+  $("#shCost").textContent="$"+cost.toFixed(2);
+  $("#shArrow").textContent=`→ +${st.markup}% →`;
+  $("#shSell").textContent="$"+sell.toFixed(2)+"/sf";
+  $("#shTotK").textContent=`${ctns} ctns × ${csf} sf = ${billed} sf`;
+  $("#shTot").textContent="$"+Math.round(sell*billed).toLocaleString();
+  const brk=$("#shBrk");brk.innerHTML="";
+  const row=(l,v)=>{const r=el("div","r");r.appendChild(el("span",null,l));r.appendChild(el("b",null,v));return r;};
+  brk.appendChild(row(`Unfinished base — ${st.sp}, ${st.grade==="clear"?"Clear":"Character"}, ${st.cons==="solid"?"solid":"eng"} ${size}`,"$"+((BASE[st.sp]||4)+(WIDTHS.indexOf(st.w)-3)*0.30).toFixed(2)+"/sf"));
+  if(st.tex!==0) brk.appendChild(row("Texture — "+TEX[st.tex][1],"+$"+TEX[st.tex][2].toFixed(2)));
+  if(st.fin!==0) brk.appendChild(row("Finishing — "+FIN[st.fin][1].replace("Prefinished — ",""),"+$"+FIN[st.fin][2].toFixed(2)));
+  if(st.len!==0) brk.appendChild(row(LEN[st.len][1]+" lengths (+"+LEN[st.len][2]+"%)","+%"));
+  brk.appendChild(row(`Sold by full cartons — ${csf} sf/carton`,`${ctns} ctns · exact ${exact.toFixed(2)}`));
+}
+
+// expand / collapse
+const screen=$("#screen");
+const open=()=>screen.classList.add("open");
+const close=()=>screen.classList.remove("open");
+$("#pricebar").onclick=open;
+$("#scrim").onclick=close;
+$("#sheetGrab").onclick=close;
+$("#inMarkup").oninput=(e)=>{st.markup=Math.max(0,+e.target.value||0);updatePrice();};
+$("#inSf").oninput=(e)=>{st.sf=Math.max(1,+e.target.value||1);updatePrice();};
+
+render();
+</script>

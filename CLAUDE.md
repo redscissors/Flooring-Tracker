@@ -86,7 +86,11 @@ src/
                     # or its "Sheoga — reconfigure" chip; Add fills the row via
                     # addSheogaLines. Job size starts at 1. Two markups: flooring
                     # settings.pricing.sheogaMarkupPct (40%), vents & dampers
-                    # .sheogaVentMarkupPct (50%) — both Settings -> Price book
+                    # .sheogaVentMarkupPct (50%) — both Settings -> Price book.
+                    # Responsive (useIsWide, 768px): desktop is the two-pane
+                    # rail+BuildCard; on mobile the options fill the screen with a
+                    # pinned price bar that pulls up a swipe-down MobileBuildSheet
+                    # (BuildCard + Add). BuildCard is the shared cost->sell card
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + URL-fragment hand-off, response
                     # sniffing; shared by the browser panel and the relay.
