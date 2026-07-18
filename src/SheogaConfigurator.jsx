@@ -10,6 +10,7 @@ import {
   floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
   TEXTURES, EDGES, LENGTHS, FINISHES, NO_SAP, CUSTOM_FINISHES,
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
+  HB_SLAT_MIN, HB_SLAT_MAX, hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
@@ -303,6 +304,9 @@ function HbRail({ h, set, markup, onGrid }) {
     return t.ws.includes(next.w) ? next : { ...next, w: t.ws[Math.min(2, t.ws.length - 1)] };
   };
   const table = HERRINGBONE[h.cons === "solid" ? "solid" : "eng"][h.sp];
+  const len = hbSlatLen(h);
+  const curBand = len != null ? hbBandForLen(len) : (h.band || 0);
+  const setLen = (v) => set({ ...h, slatLen: v, ...(v !== "" && Number.isFinite(Number(v)) ? { band: hbBandForLen(Number(v)) } : {}) });
   return (<>
     <Sect title="Species">
       <Chips cur={h.sp} onPick={(sp) => set(snap({ ...h, sp }))}
@@ -319,9 +323,19 @@ function HbRail({ h, set, markup, onGrid }) {
       <Chips cur={h.w} onPick={(w) => set({ ...h, w: +w })}
         items={table.ws.map((w) => { const c = calcHerringbone({ ...h, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })} />
     </Sect>
-    <Sect title="Slat length">
-      <RadioList cur={h.band} onPick={(band) => set({ ...h, band: +band })}
-        items={HERRINGBONE.bands.map((b, i) => { const c = calcHerringbone({ ...h, band: i }); return { id: i, label: b, add: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
+    <Sect title="Slat length" hint="pick a tier or type an exact length">
+      <RadioList cur={curBand} onPick={(band) => set({ ...h, band: +band, slatLen: "" })}
+        items={HERRINGBONE.bands.map((b, i) => { const c = calcHerringbone({ ...h, band: i, slatLen: "" }); return { id: i, label: b, add: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
+      <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2">
+        <span className="ft-eyebrow text-[10px]">Exact length</span>
+        <input type="number" min={HB_SLAT_MIN} max={HB_SLAT_MAX} step="0.25" value={h.slatLen ?? ""} placeholder="e.g. 24"
+          onChange={(e) => setLen(e.target.value)}
+          className="w-20 rounded-md border border-slate-300 px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <span className="text-xs font-semibold text-slate-500">in</span>
+        {len != null
+          ? <span className="ml-auto text-[11px] font-bold text-slate-500">→ {HERRINGBONE.bands[curBand]} tier</span>
+          : <span className="ml-auto text-[11px] font-medium text-slate-400">blank = use the tier above</span>}
+      </div>
     </Sect>
     <Sect title="Pattern">
       <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />

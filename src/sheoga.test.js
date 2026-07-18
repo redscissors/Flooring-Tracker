@@ -214,6 +214,25 @@ test("calcHerringbone: width runs differ by construction/species", () => {
   assert.equal(calcHerringbone({ sp: "Beech", cons: "eng", w: 3.25, band: 3, chevron: false }).cost, 8.30);
 });
 
+test("calcHerringbone: exact slat length snaps to its tier and prints the real length", () => {
+  const base = { sp: "White Oak", cons: "solid", w: 4.25, chevron: false };
+  // 24" lands in the 18¼–28 tier: same price as band 1, but the order reads 24" slats.
+  const c = calcHerringbone({ ...base, band: 0, slatLen: "24" });
+  assert.equal(c.cost, 8.40);
+  assert.equal(c.desc, '4¼" White Oak · Solid Herringbone · 24" slats');
+  assert.ok(c.rows[0][0].includes('24" slats (18¼"–28" slats tier)'));
+  // Tier mapping by upper bound 18 / 28 / 38 / 48.
+  const costFor = (l) => calcHerringbone({ ...base, slatLen: String(l) }).cost;
+  assert.equal(costFor(12), calcHerringbone({ ...base, band: 0 }).cost);
+  assert.equal(costFor(28), calcHerringbone({ ...base, band: 1 }).cost);
+  assert.equal(costFor(38), calcHerringbone({ ...base, band: 2 }).cost);
+  assert.equal(costFor(44), calcHerringbone({ ...base, band: 3 }).cost);
+  // Outside 9–48" still prices (nearest tier) but warns.
+  assert.ok(calcHerringbone({ ...base, slatLen: "60" }).warn.some((w) => w.includes("outside the standard")));
+  // Blank length falls back to the tier index (backward compatible with saved configs).
+  assert.equal(calcHerringbone({ ...base, band: 2, slatLen: "" }).desc, '4¼" White Oak · Solid Herringbone · 28¼"–38" slats');
+});
+
 // --- calcVent / calcDamper ----------------------------------------------------
 
 test("calcVent prices by category column and species group", () => {
