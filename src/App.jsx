@@ -1616,6 +1616,10 @@ const lightRow = (r) => ({
 const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
 const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
 const AUTO_KEEP = 5;
+// Unpromoted quick-price drafts self-delete this many days after their last
+// edit (ADR 0022). Age is measured from updatedAt, not createdAt, so a draft
+// someone is still refining is never swept out from under them.
+const QUICK_SWEEP_DAYS = 30;
 // Price-book import versions kept per book (pinned rows are never pruned).
 const BOOK_VERSION_KEEP = 3;
 // Reserved pricebook_versions.book_id for the shop workbook (its items live in
@@ -1689,6 +1693,10 @@ export default function App({ user, onSignOut }) {
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
   const [custModal, setCustModal] = useState(null); // customer id whose details box is open
+  // "File under customer" (promote) flow: project id being filed, plus the
+  // customer search/create term. null when the modal is closed (ADR 0022).
+  const [promoteId, setPromoteId] = useState(null);
+  const [promoteQ, setPromoteQ] = useState("");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
@@ -1878,7 +1886,17 @@ export default function App({ user, onSignOut }) {
         }
 
         const [projects, people, builders] = await Promise.all([loadProjects(), loadPeople(), loadBuilders()]);
-        setData({ projects, people, builders, settings });
+        // Client-side 30-day sweep (ADR 0022): an unpromoted quick draft
+        // (quick + still customer-less) untouched for QUICK_SWEEP_DAYS is
+        // discarded on load. Best-effort deletes — a missed one just retries
+        // next load; any orphaned attachment blobs are acceptable for throwaway
+        // drafts. Swept rows are dropped from state so they never render.
+        const sweepMs = QUICK_SWEEP_DAYS * 86400000;
+        const now = Date.now();
+        const swept = projects.filter((p) => p.quick && p.customerId == null && now - (p.updatedAt || p.createdAt || now) > sweepMs);
+        const kept = swept.length ? projects.filter((p) => !swept.some((s) => s.id === p.id)) : projects;
+        setData({ projects: kept, people, builders, settings });
+        for (const p of swept) supabase.from("projects").delete().eq("id", p.id).then(() => {}, () => {});
         // Best-effort: installs that haven't run supabase/stock.sql yet just
         // don't get the SKU picker.
         try { setStock(await loadStock()); } catch (x) { }
@@ -2436,6 +2454,41 @@ export default function App({ user, onSignOut }) {
   const linkProject = (id, customerId) => {
     setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId: customerId || null, updatedAt: Date.now() } : c) }));
     (async () => { try { const { error } = await supabase.from("projects").update({ customer_id: customerId || null }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+  // Promote a quick-price draft (or any unassigned job) into a normal job under
+  // a customer (ADR 0022): set the customer_id column AND clear the quick flag
+  // in the data blob in one write, so the pair never races (linkProject and
+  // updateProject each own only their own field). custData needs the FULL
+  // record — guard on _full so a light row is never serialized (that would wipe
+  // its categories); promotion is only ever offered on the open project, which
+  // is always full.
+  const promoteProject = (id, customerId) => {
+    const cur = data.projects.find((c) => c.id === id);
+    if (!cur || !customerId) return;
+    setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId, quick: false, updatedAt: Date.now() } : c) }));
+    (async () => {
+      try {
+        const upd = cur._full ? { customer_id: customerId, data: custData({ ...cur, customerId, quick: false }) } : { customer_id: customerId };
+        const { error } = await supabase.from("projects").update(upd).eq("id", id);
+        if (error) throw error; flashSaved();
+      } catch (e) { ping("Save failed — check connection"); }
+    })();
+    setSelCustId(customerId);
+    setPromoteId(null); setPromoteQ("");
+  };
+  // Create a customer and file the draft under it. The customer INSERT is
+  // awaited before promoteProject's customer_id UPDATE so the FK
+  // (projects.customer_id -> customers.id) is always satisfied — same ordering
+  // as addBuilderFor. Optimistic add up front so the name shows instantly.
+  const promoteToNewCustomer = async (id, name) => {
+    const c = { ...newPerson(String(name || "").trim()), updatedAt: Date.now() };
+    if (!c.name) return;
+    setData((prev) => ({ ...prev, people: [c, ...prev.people] }));
+    try {
+      const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: null, data: personData(c), created_at: new Date(c.createdAt).toISOString() });
+      if (error) throw error;
+    } catch (x) { ping("Save failed — export a backup"); return; }
+    promoteProject(id, c.id);
   };
 
   // --- Customers (people): the person/account that owns projects (ADR 0005). ---
@@ -3388,7 +3441,10 @@ export default function App({ user, onSignOut }) {
                               {bn && <div className="text-xs text-slate-500 mt-0.5 truncate flex items-center gap-1"><Building2 size={11} className="shrink-0 text-slate-400" /> {bn}</div>}
                             </>
                           ) : (
-                            <div className="text-amber-600 text-sm font-semibold" style={{ lineHeight: 1.6 }}>Unassigned job</div>
+                            <button onClick={() => { setPromoteId(sel.id); setPromoteQ(""); }} title="File this job under a customer" className="flex items-center gap-2 text-amber-600 hover:text-amber-700 transition" style={{ lineHeight: 1.6 }}>
+                              <span className="text-sm font-semibold">{sel.quick ? "Quick price" : "Unassigned"}</span>
+                              <span className="text-[10.5px] font-semibold rounded border border-amber-300 px-1.5 py-0.5">File under customer ▾</span>
+                            </button>
                           )}
                         </div>
                         <div className="min-w-0 relative" style={midPad}>
@@ -3488,9 +3544,9 @@ export default function App({ user, onSignOut }) {
                   <>
                     <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
                     <div className="ft-noprint flex gap-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: "none" }}>
-                      <button onClick={() => cust && setCustModal(cust.id)} className={tile}>
+                      <button onClick={() => cust ? setCustModal(cust.id) : (setPromoteId(sel.id), setPromoteQ(""))} className={tile}>
                         <div className={tLbl}>Customer</div>
-                        <div className={tVal + (cust ? "" : " text-amber-600")}>{cust ? `${cust.name || "Customer"} ▾` : "Unassigned"}</div>
+                        <div className={tVal + (cust ? "" : " text-amber-600")}>{cust ? `${cust.name || "Customer"} ▾` : "File ▾"}</div>
                       </button>
                       <div className={tile}><div className={tLbl}>Floor</div><div className={tVal + " ft-mono"}>{sf1(totalSf)} SF</div></div>
                       <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Print</div><div className={tVal}>{sel.printPricing === "unit" ? "Unit $" : sel.printPricing === "none" ? "No $" : "All $"}</div></button>
@@ -4394,6 +4450,45 @@ export default function App({ user, onSignOut }) {
               <button onClick={() => { setCustModal(null); setConfirm({ kind: "person", id: c.id }); }} className="flex items-center gap-1.5 text-[13px] text-slate-400 hover:text-red-500"><Trash2 size={14} /> Delete customer</button>
               <button onClick={() => setCustModal(null)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Done</button>
             </div>
+          </Modal>
+        );
+      })()}
+
+      {promoteId !== null && (() => {
+        const proj = data.projects.find((p) => p.id === promoteId);
+        if (!proj) return null;
+        const term = promoteQ.trim();
+        const tl = term.toLowerCase();
+        const list = (term ? data.people.filter((c) => [c.name, c.phone, c.email, c.address].some((f) => (f || "").toLowerCase().includes(tl))) : sortPeople(data.people)).slice(0, 40);
+        const m = matchName(data.people, term);
+        const exact = m && m.kind === "exact";
+        const close = () => { setPromoteId(null); setPromoteQ(""); };
+        return (
+          <Modal onClose={close} title="File under customer">
+            <p className="text-sm text-slate-500 mb-3">Filing <b>{proj.name || "this quote"}</b> under a customer turns it into a normal job{proj.quick ? " — it leaves Quick Prices and starts keeping versions" : ""}.</p>
+            <input autoFocus value={promoteQ} onChange={(e) => setPromoteQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") close(); if (e.key === "Enter" && term && !exact) promoteToNewCustomer(promoteId, term); }}
+              placeholder="Search customers, or type a new name…" className={inp} />
+            {list.length > 0 && (
+              <div className="mt-3 rounded-md border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                {list.map((c) => {
+                  const n = projectsOf(c.id).length;
+                  return (
+                    <button key={c.id} onClick={() => promoteProject(promoteId, c.id)} className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50">
+                      <span className="ft-item-name text-sm font-medium truncate flex-1">{c.name || "Unnamed customer"}</span>
+                      <span className="text-[11px] text-slate-400 shrink-0">{n} project{n === 1 ? "" : "s"}</span>
+                      <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {term && !exact && (
+              <button onClick={() => promoteToNewCustomer(promoteId, term)} className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 text-white px-3 py-2 text-sm font-semibold hover:bg-indigo-700"><Plus size={14} /> Create “{term}” &amp; file here</button>
+            )}
+            {term && m && !exact && <div className="mt-2 text-[12px] text-slate-400 px-1">Did you mean <b>{m.item.name}</b>? Pick it above to avoid a duplicate.</div>}
+            {!term && list.length === 0 && <div className="mt-3 text-sm text-slate-400 rounded-md border border-dashed border-slate-200 px-3 py-2.5">No customers yet — type a name above to create one.</div>}
+            <div className="flex justify-end mt-4"><button onClick={close} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button></div>
           </Modal>
         );
       })()}
