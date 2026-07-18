@@ -444,6 +444,40 @@ export function calcConfig(snap, sf) {
   return null;
 }
 
+// A multi-width floor: one build per width sharing every other option, the job
+// size split by share (∝ width by default), and the per-build setup fees pooled
+// to ONCE per bundle. Per-width `lines` carry no fees; `fees` are the pooled set.
+export function multiWidthBuild(base, widths, sf) {
+  const stocked = base.mode === "stocked";
+  const sum = widths.reduce((a, x) => a + (x.share || 0), 0) || 1;
+  const lines = widths.map((x) => {
+    const cfg = { ...base.cfg, w: x.w };
+    const c = stocked ? calcStocked(cfg) : calcFloor(cfg, Math.round((sf * (x.share || 0)) / sum));
+    return {
+      w: x.w, share: x.share || 0, sf: Math.round((sf * (x.share || 0)) / sum),
+      cost: c ? c.cost : null, size: c ? c.size : null, rest: c ? c.rest : null,
+      cartonSf: c ? c.cartonSf : null, ok: !!c,
+    };
+  });
+  const diff = sf - lines.reduce((a, l) => a + l.sf, 0);
+  if (lines.length) {
+    let bi = 0; lines.forEach((l, i) => { if (l.sf > lines[bi].sf) bi = i; });
+    lines[bi].sf += diff;
+  }
+  const fees = [];
+  if (stocked) {
+    const it = stockedItem(base.cfg);
+    const std = it ? it.sheen : null;
+    const sheen = base.cfg.sheen != null && base.cfg.sheen !== "" ? String(base.cfg.sheen) : String(std);
+    if (std != null && Number(sheen) !== std) fees.push({ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE });
+  } else {
+    const f = base.cfg;
+    if (f.finish !== "unf") { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+    if (CUSTOM_FINISHES.includes(f.finish) || (f.finish === "est" && f.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
+  }
+  return { lines, fees, sf };
+}
+
 // Sell $/unit from distributor cost — same rounding as every other price.
 export const sellOf = (cost, markupPct) => round2(cost * (1 + (markupPct ?? DEFAULT_MARKUP) / 100));
 

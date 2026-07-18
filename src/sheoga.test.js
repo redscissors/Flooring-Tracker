@@ -8,7 +8,7 @@ import {
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
-  redistributeShares,
+  redistributeShares, multiWidthBuild, CUSTOM_FINISHES, SAMPLE_FEE, SHEEN_FEE,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -457,4 +457,32 @@ test("redistributeShares: four widths still sum to 100", () => {
   const s = redistributeShares([3.25, 4.25, 5.25, 6.25]);
   assert.equal(Object.values(s).reduce((a, b) => a + b, 0), 100);
   assert.deepEqual(s, { 3.25: 17, 4.25: 22, 5.25: 28, 6.25: 33 });
+});
+
+// --- multiWidthBuild ---------------------------------------------------------
+
+const mwFloor = (over = {}) => ({ mode: "floor", cfg: { ...defaultConfig("floor"), sp: "White Oak", grade: "char", cons: "solid", ...over } });
+const shares = (ws) => ws.map((w) => ({ w, share: 1 }));
+
+test("multiWidthBuild floor: per-width sf splits and reconciles to the exact total", () => {
+  const b = multiWidthBuild(mwFloor(), [{ w: 3.25, share: 25 }, { w: 4.25, share: 33 }, { w: 5.25, share: 42 }], 420);
+  assert.equal(b.lines.length, 3);
+  assert.equal(b.lines.reduce((a, l) => a + l.sf, 0), 420);
+  assert.ok(b.lines.every((l) => l.cost > 0 && l.ok));
+});
+
+test("multiWidthBuild floor: unfinished has no fees; small-order fee pools once on total sf", () => {
+  const unf = multiWidthBuild(mwFloor({ finish: "unf" }), shares([3.25, 4.25, 5.25]), 300);
+  assert.deepEqual(unf.fees, []);
+  const small = multiWidthBuild(mwFloor({ finish: "est" }), shares([3.25, 4.25, 5.25]), 300);
+  assert.equal(small.fees.filter((f) => /Small-order/.test(f.label)).length, 1);
+  assert.equal(small.fees.find((f) => /Small-order/.test(f.label)).amt, 300);
+  const big = multiWidthBuild(mwFloor({ finish: "est" }), shares([3.25, 4.25, 5.25]), 600);
+  assert.equal(big.fees.filter((f) => /Small-order/.test(f.label)).length, 0);
+});
+
+test("multiWidthBuild floor: custom color sample charged once for the bundle", () => {
+  const b = multiWidthBuild(mwFloor({ finish: "t1" }), shares([3.25, 4.25, 5.25]), 600);
+  assert.equal(b.fees.filter((f) => /sample/i.test(f.label)).length, 1);
+  assert.equal(b.fees.find((f) => /sample/i.test(f.label)).amt, 750);
 });
