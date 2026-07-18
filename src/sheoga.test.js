@@ -486,3 +486,25 @@ test("multiWidthBuild floor: custom color sample charged once for the bundle", (
   assert.equal(b.fees.filter((f) => /sample/i.test(f.label)).length, 1);
   assert.equal(b.fees.find((f) => /sample/i.test(f.label)).amt, 750);
 });
+
+const mwStocked = (over = {}) => ({ mode: "stocked", cfg: { sp: "Cherry", color: "Natural", grade: "char", sheen: "30", sheenCustom: false, ...over } });
+
+test("multiWidthBuild stocked: no small-order fee; standard sheen has no fee", () => {
+  const b = multiWidthBuild(mwStocked(), [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
+  assert.equal(b.lines.reduce((a, l) => a + l.sf, 0), 200);
+  assert.deepEqual(b.fees, []);
+});
+
+test("multiWidthBuild stocked: off-standard sheen pools once at $250", () => {
+  const b = multiWidthBuild(mwStocked({ sheen: "5" }), [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
+  assert.equal(b.fees.length, 1);
+  assert.match(b.fees[0].label, /sheen/i);
+  assert.equal(b.fees[0].amt, 250);
+});
+
+test("multiWidthBuild stocked: a width the product doesn't ship is flagged ok:false", () => {
+  // Cherry Natural char has null at 2¼" (index 0)
+  const b = multiWidthBuild(mwStocked(), [{ w: 2.25, share: 50 }, { w: 4.25, share: 50 }], 200);
+  assert.equal(b.lines.find((l) => l.w === 2.25).ok, false);
+  assert.equal(b.lines.find((l) => l.w === 4.25).ok, true);
+});
