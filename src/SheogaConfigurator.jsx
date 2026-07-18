@@ -541,7 +541,7 @@ const Fragment2 = ({ children }) => <>{children}</>;
 // The cost -> sell breakdown, shown in the desktop right pane and inside the
 // mobile pull-up sheet. `showActions` keeps the grid/Add buttons on desktop;
 // the mobile sheet renders those in its own pinned footer instead.
-function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf, onGrid, onAdd, showActions = true }) {
+function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf, onGrid, onAdd, onAddBasket, showActions = true }) {
   return (
     <div className="rounded-lg border overflow-hidden bg-white" style={{ borderColor: "var(--ft-grid-line)" }}>
       <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: "var(--ft-sand)" }}>
@@ -585,7 +585,8 @@ function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf,
       {showActions && (
         <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
           <button onClick={onGrid} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Grid3X3 size={13} /> Full price grid</button>
-          <button onClick={onAdd} className="ml-auto rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5" data-sheoga-add><Plus size={13} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
+          <button onClick={onAddBasket} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={13} /> Add to basket</button>
+          <button onClick={onAdd} className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5" data-sheoga-add><Plus size={13} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
         </div>
       )}
     </div>
@@ -720,9 +721,65 @@ function useIsWide() {
   return wide;
 }
 
+// --- shopping basket -----------------------------------------------------------
+// A basket entry snapshots a single build or a multi-width bundle so it can sit
+// alongside other configurations before any of them commit to a product line.
+// basketEntryView derives the same cost -> sell numbers BuildCard/MultiWidthCard
+// show live, plus a `lines()` thunk that yields the lineItems() payload for Move.
+function basketEntryView(entry) {
+  if (entry.kind === "bundle") {
+    const b = multiWidthBuild(entry.base, entry.widths, entry.sf);
+    const ok = b.lines.filter((l) => l.ok);
+    const linesTot = ok.reduce((a, l) => a + Math.round(sellOf(l.cost, entry.markupPct) * l.sf), 0);
+    const feesTot = b.fees.reduce((a, x) => a + x.amt, 0);
+    return { title: `${entry.base.cfg.sp} — multi-width (${ok.length} widths)`, meta: `${entry.sf} sf total · one job`, price: linesTot + feesTot,
+      subs: ok.map((l) => ({ label: `${WIDTH_LABEL[l.w]} · ${l.sf} sf`, amt: Math.round(sellOf(l.cost, entry.markupPct) * l.sf) })),
+      fees: b.fees.map((x) => ({ label: x.label, amt: x.amt })), lines: () => multiWidthLineItems(entry.base, entry.widths, entry.sf, entry.markupPct) };
+  }
+  const c = calcConfig(entry.snap, entry.sf);
+  const isEa = c && c.per === "ea";
+  const price = c ? Math.round(sellOf(c.cost, entry.markupPct) * (isEa ? (c.qty || 1) : entry.sf)) : 0;
+  return { title: `${c ? (c.size ? c.size + " " : "") + (c.rest || c.desc) : "build"}`, meta: isEa ? `${c?.qty || 1} pcs` : `${entry.sf} sf`, price, subs: [], fees: [], lines: () => lineItems(entry.snap, { sf: entry.sf, markupPct: entry.markupPct }) };
+}
+
+function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onMoveAll, areaName, onClose, isWide }) {
+  const n = basket.length, selCount = basket.filter((b) => sel[b.id]).length;
+  return (
+    <div className="flex flex-col h-full">
+      {!isWide && <div className="mx-auto mt-2 h-1.5 w-10 rounded-full shrink-0" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.25))" }} onClick={onClose} />}
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200">
+        <span className="text-sm font-extrabold">Basket</span>
+        <span className="text-[11px] text-slate-400 font-semibold">{n} item{n === 1 ? "" : "s"} · saved with this job</span>
+        <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-600"><X size={16} /></button>
+      </div>
+      <div className="flex-1 overflow-auto p-3">
+        {n === 0 ? <div className="text-center text-xs font-semibold text-slate-400 py-10">Basket is empty. Build a config and "Add to basket".</div> :
+          basket.map((entry) => { const v = basketEntryView(entry); const on = !!sel[entry.id]; return (
+            <div key={entry.id} className={`flex gap-2.5 items-start rounded-lg border p-2.5 mb-2 ${on ? "border-[color:var(--ft-brand)]" : "border-slate-200"}`}>
+              <button onClick={() => onToggle(entry.id)} className={`w-[18px] h-[18px] mt-0.5 rounded-[5px] border flex items-center justify-center text-[11px] font-black text-white shrink-0 ${on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)]" : "border-slate-300"}`}>{on ? "✓" : ""}</button>
+              <div className="flex-1 min-w-0">
+                {entry.kind === "bundle" && <span className="inline-block text-[9px] font-extrabold uppercase tracking-wide text-[color:var(--ft-brand-deep)] mb-1">Multi-width bundle</span>}
+                <div className="text-[13px] font-bold leading-tight">{v.title}</div>
+                <div className="text-[11px] text-slate-500 font-semibold">{v.meta}</div>
+                {v.subs.map((s, i) => <div key={i} className="flex text-[11px] text-slate-500 font-semibold pt-0.5"><span>{s.label}</span><span className="ml-auto font-bold text-slate-700">{fmInt(s.amt)}</span></div>)}
+                {v.fees.map((s, i) => <div key={i} className="flex text-[11px] font-semibold pt-0.5" style={{ color: "var(--ft-brand-deep)" }}><span>{s.label}</span><span className="ml-auto">+{fmInt(s.amt)}</span></div>)}
+              </div>
+              <div className="flex flex-col items-end gap-1.5"><span className="font-extrabold tabular-nums text-[13px]">{fmInt(v.price)}</span><button onClick={() => onRemove(entry.id)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button></div>
+            </div>); })}
+        {n > 0 && <div className="text-center pt-1"><button onClick={onSelectAll} className="text-[11px] font-bold underline underline-offset-2" style={{ color: "var(--ft-brand-deep)" }}>{selCount === n ? "Clear selection" : "Select all"}</button></div>}
+      </div>
+      <div className="flex items-center gap-2 px-3 py-3 border-t border-slate-200">
+        <span className="text-[11px] text-slate-500 font-semibold">{selCount} selected → <b>{areaName}</b></span>
+        <button disabled={!n} onClick={onMoveAll} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold disabled:opacity-40">Move all</button>
+        <button disabled={!selCount} onClick={onMove} className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold disabled:opacity-40">Move {selCount} → {areaName}</button>
+      </div>
+    </div>
+  );
+}
+
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onAdd, onClose }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onAdd, onClose, areaName }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
@@ -740,12 +797,13 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
   const [sheetUp, setSheetUp] = useState(false); // mobile: pull-up build sheet
-  const [basketOpen, setBasketOpen] = useState(false); // minimal for now — Task 10 builds the drawer around it
+  const [basketOpen, setBasketOpen] = useState(false);
+  const [basketSel, setBasketSel] = useState({}); // basket entry id -> selected
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else onClose(); } };
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, grid, sheetUp]);
+  }, [onClose, grid, sheetUp, basketOpen]);
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
@@ -779,6 +837,16 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     setBasketOpen(true);
   };
   const moveBundleToLine = () => { onMove(multiWidthLineItems({ mode, cfg }, mwWidths.map((w) => ({ w, share: mwShares[w] ?? 0 })), sf, activeMarkup)); onClose(); };
+  const addSingleToBasket = () => {
+    const entry = normBasketEntry({ kind: "single", addedAt: Date.now(), markupPct: activeMarkup, snap: { mode, cfg: JSON.parse(JSON.stringify(cfg)) }, sf });
+    if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); }
+  };
+  const toggleBasketSel = (id) => setBasketSel((s) => ({ ...s, [id]: !s[id] }));
+  const selectAllBasket = () => { const all = (basket || []).every((b) => basketSel[b.id]); const next = {}; (basket || []).forEach((b) => { next[b.id] = !all; }); setBasketSel(next); };
+  const removeBasketEntry = (id) => onBasketChange((basket || []).filter((b) => b.id !== id));
+  const moveBasketEntries = (entries) => { entries.forEach((e) => onMove(basketEntryView(e).lines())); onBasketChange((basket || []).filter((b) => !entries.includes(b))); setBasketSel({}); };
+  const moveSelectedBasket = () => moveBasketEntries((basket || []).filter((b) => basketSel[b.id]));
+  const moveAllBasket = () => moveBasketEntries([...(basket || [])]);
 
   const sfMode = !isEa && mode !== "vent" && mode !== "damper";
 
@@ -817,7 +885,10 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         <div className="ft-eyebrow text-[9px]">Vendor configurator</div>
         <div className="text-lg font-extrabold">Sheoga Hardwood <span className="text-xs font-semibold text-slate-500 ml-1.5">bought by description — no SKUs</span></div>
       </div>
-      <button onClick={onClose} className="ml-auto w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>
+      <button onClick={() => setBasketOpen(true)} className="relative ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50">
+        🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
+      </button>
+      <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>
     </div>
   );
   // Desktop tabs sit on the content border; the phone scrolls them as pills.
@@ -841,7 +912,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   return (
     <div className={`print:hidden fixed inset-0 flex items-center justify-center z-[70] ${isWide ? "p-5" : ""}`} style={{ background: "rgba(20,15,10,.55)" }} onClick={onClose}>
-      <div className={`bg-white flex flex-col overflow-hidden ${isWide ? "rounded-xl w-full max-w-[1060px] h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
+      <div className={`bg-white flex flex-col overflow-hidden ${isWide ? "relative rounded-xl w-full max-w-[1060px] h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
         onClick={(e) => e.stopPropagation()} data-sheoga-pop>
         {header}
         {tabs}
@@ -856,7 +927,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               ) : (!c ? (
                 <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
               ) : (
-                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} />
+                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
               ))}
               {priceNote}
             </div>
@@ -894,6 +965,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               <button onClick={moveBundleToLine} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }}><Plus size={15} /> Add lines</button>
             </>) : c && (<>
               <button onClick={() => setGrid(true)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Grid3X3 size={14} /> Grid</button>
+              <button onClick={addSingleToBasket} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Plus size={14} /> Basket</button>
               <button onClick={add} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }} data-sheoga-add><Plus size={15} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
             </>)}>
             {multi && multiOk ? (
@@ -904,6 +976,17 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
             {priceNote}
           </MobileBuildSheet>
         </>)}
+        {isWide && (<>
+          <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
+          <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} onClose={() => setBasketOpen(false)} isWide />
+          </div>
+        </>)}
+        {!isWide && (
+          <MobileBuildSheet open={basketOpen} onClose={() => setBasketOpen(false)}>
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} onClose={() => setBasketOpen(false)} isWide={false} />
+          </MobileBuildSheet>
+        )}
       </div>
       {grid && <GridModal mode={mode} cfg={cfg} onClose={() => setGrid(false)} onPick={(patch) => { set({ ...cfg, ...patch }); setGrid(false); }} />}
     </div>
