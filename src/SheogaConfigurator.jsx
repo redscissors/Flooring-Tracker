@@ -202,16 +202,17 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
       <Chips cur={f.w} onPick={(w) => set({ ...f, w: +w })}
         items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })} />
     </Sect>
-    {/* Minor options as a 2×2 grid of dropdowns: Texture · Finishing / Lengths · Edge */}
+    {/* Minor options as a 2×2 grid of dropdowns: Texture · Finishing / Lengths · Edge.
+        The +$ adders show retail (marked up), matching the sell-price chips above. */}
     <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={f.tex} onChange={(tex) => set({ ...f, tex })}
-        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(t.add)}` : "") }))} />
+        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
       <Dropdown label="Finishing" hint="fee under 500 sf" value={f.finish} onChange={(finish) => set({ ...f, finish })}
-        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(x.add(f))}`) }))} />
+        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(f), markup))}`) }))} />
       <Dropdown label="Lengths" value={f.len} onChange={(len) => set({ ...f, len })}
         options={LENGTHS.map((l) => ({ id: l.id, label: l.name.replace(" (standard)", "") + (l.pct ? `  +${l.pct}%` : "") }))} />
       <Dropdown label="Edge" value={f.edge} onChange={(edge) => set({ ...f, edge })}
-        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(e.add)}` : "") }))} />
+        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(sellOf(e.add, markup))}` : "") }))} />
     </div>
     {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
         free on this custom/floor tab — no fee, it's made to order regardless. */}
@@ -225,7 +226,7 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
     )}
     {NO_SAP[f.sp] != null && (
       <Sect title="Sap">
-        <Toggle label={`No sap — ${f.sp}`} on={f.noSap} onClick={() => set({ ...f, noSap: !f.noSap })} add={`+${fm(NO_SAP[f.sp])}/sf`} />
+        <Toggle label={`No sap — ${f.sp}`} on={f.noSap} onClick={() => set({ ...f, noSap: !f.noSap })} add={`+${fm(sellOf(NO_SAP[f.sp], markup))}/sf`} />
       </Sect>
     )}
     {custom && (
@@ -313,7 +314,7 @@ function HbRail({ h, set, markup, onGrid }) {
         items={HERRINGBONE.bands.map((b, i) => { const c = calcHerringbone({ ...h, band: i }); return { id: i, label: b, add: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
     </Sect>
     <Sect title="Pattern">
-      <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(CHEVRON_ADD)}/sf`} />
+      <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />
     </Sect>
   </>);
 }
@@ -338,11 +339,11 @@ function VentRail({ v, set, markup, onGrid }) {
         items={cat.list().map((row) => { const c = calcVent({ ...v, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(sellOf(c.cost, markup)) : "—" }; })} />
     </Sect>
     <Sect title="Options">
-      {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(VENT_CUBED)}`} />}
-      <Toggle label="Prefinished" on={v.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(VENT_PREFIN)}`} />
-      <Toggle label="Textured" on={v.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(VENT_TEX)}`} />
-      {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(DAMPERS[v.size][1] + DAMPER_ATTACH)}`} />}
-      {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(0.4 * frameLineal(v.size))}`} />}
+      {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(sellOf(VENT_CUBED, markup))}`} />}
+      <Toggle label="Prefinished" on={v.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(sellOf(VENT_PREFIN, markup))}`} />
+      <Toggle label="Textured" on={v.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(sellOf(VENT_TEX, markup))}`} />
+      {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(sellOf(DAMPERS[v.size][1] + DAMPER_ATTACH, markup))}`} />}
+      {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(sellOf(0.4 * frameLineal(v.size), markup))}`} />}
     </Sect>
     <Sect title="Quantity"><QtyInput value={v.qty} onChange={(qty) => set({ ...v, qty })} /></Sect>
   </>);
