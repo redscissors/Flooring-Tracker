@@ -134,15 +134,17 @@ test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => 
   assert.deepEqual(unf.fees, []);
 });
 
-test("calcFloor: custom color wants the $750 sample or warns", () => {
-  const warned = calcFloor(floor({ finish: "t2" }), 1000);
-  assert.equal(warned.cost, 4.35 + 3.65);
-  assert.ok(warned.warn.some((w) => w.includes("$750 color-match sample")));
-  assert.deepEqual(warned.fees, []);
-  const sampled = calcFloor(floor({ finish: "t2", sample: true, stain: "ClubHouse Brown" }), 1000);
-  assert.ok(!sampled.warn.some((w) => w.includes("color-match")));
-  assert.deepEqual(sampled.fees, [{ label: "Custom color-match sample — approval bundle shipped", amt: 750 }]);
-  assert.ok(sampled.desc.includes("Custom color T-2 “ClubHouse Brown”"));
+test("calcFloor: custom color always charges the $750 sample; established stain is optional", () => {
+  const SAMPLE = { label: "Custom color-match sample — approval bundle shipped", amt: 750 };
+  // Custom color (T-2): sample is mandatory — charged even without the flag, no "add it" warning.
+  const custom = calcFloor(floor({ finish: "t2", stain: "ClubHouse Brown" }), 1000);
+  assert.equal(custom.cost, 4.35 + 3.65);
+  assert.deepEqual(custom.fees, [SAMPLE]);
+  assert.ok(!custom.warn.some((w) => w.includes("color-match")));
+  assert.ok(custom.desc.includes("Custom color T-2 “ClubHouse Brown”"));
+  // Established stain: sample only when the toggle is on.
+  assert.deepEqual(calcFloor(floor({ finish: "est" }), 1000).fees, []);
+  assert.deepEqual(calcFloor(floor({ finish: "est", sample: true }), 1000).fees, [SAMPLE]);
 });
 
 test("calcFloor: Live Sawn 9¼/11¼ carry no carton figure", () => {

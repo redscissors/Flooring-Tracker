@@ -173,8 +173,9 @@ const snapFloorW = (f) => {
 function FloorRail({ f, set, sf, markup, onGrid }) {
   const sell = (c) => (c ? fm(sellOf(c.cost, markup)) + "/sf" : "—");
   const custom = CUSTOM_FINISHES.includes(f.finish);
+  const established = f.finish === "est";
   const prefin = f.finish !== "unf";
-  const stained = f.finish === "est" || custom;
+  const stained = established || custom;
   return (<>
     <Sect title="Species" hint="sell $/sf at current options">
       <Chips cur={f.sp} onPick={(sp) => set(snapFloorW({ ...f, sp }))}
@@ -231,7 +232,16 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
     )}
     {custom && (
       <Sect title="Custom color sample">
-        <Toggle label="Color-match sample — approval bundle" on={f.sample} onClick={() => set({ ...f, sample: !f.sample })} add="+$750 flat" />
+        <div className="w-full flex items-center gap-2.5 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800">
+          <span className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-extrabold text-white shrink-0 bg-indigo-600">✓</span>
+          <span className="flex-1">Color-match sample — required for custom colors</span>
+          <span className="text-[11.5px] font-bold text-slate-500 tabular-nums">+$750 flat</span>
+        </div>
+      </Sect>
+    )}
+    {established && (
+      <Sect title="Color-match sample">
+        <Toggle label="Color-match sample — approval bundle (optional)" on={f.sample} onClick={() => set({ ...f, sample: !f.sample })} add="+$750 flat" />
       </Sect>
     )}
   </>);

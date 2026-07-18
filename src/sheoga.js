@@ -286,10 +286,13 @@ export function calcFloor(f, sf) {
   const fees = [];
   if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
   const custom = CUSTOM_FINISHES.includes(f.finish);
-  if (custom && f.sample) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
+  const established = f.finish === "est";
+  // A custom color (T-1/T-2/T-3) can't be ordered without an approved match, so
+  // the sample is always charged; on an established stain it's optional (toggle).
+  const sampleOn = custom || (established && f.sample);
+  if (sampleOn) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
   const warn = [];
-  if (custom && !f.sample) warn.push("Custom color — add the $750 color-match sample, or call Sheoga");
   warn.push("Made to order · 5–10% overrun · non-returnable");
   const size = WIDTH_LABEL[f.w];
   // Description = plain spaces, no separators; the size lives in the row's own
