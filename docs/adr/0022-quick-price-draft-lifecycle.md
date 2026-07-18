@@ -62,15 +62,28 @@ person, degrading empty customer fields to a dash.
   is a real, autosaved row, leaving never loses it — it stays in the Quick
   Prices folder.
 
-- **Promotion (later PR) is via `linkProject` + clearing the flag.** Filing a
-  quick price under a customer reuses the one existing writer of
-  `projects.customer_id` (`linkProject`) plus an `updateProject(id, { quick:
-  false })`. The draft becomes an ordinary job and thereafter auto-versions
-  normally.
+- **Promotion (PR2) is via a single write.** Filing a quick price under a
+  customer sets the `projects.customer_id` column *and* clears the flag by
+  writing `quick: false` back into the data blob (`custData` keeps `quick` in
+  `...rest`). Both fields move in one `UPDATE` (`promoteProject`) rather than a
+  `linkProject` + `updateProject` pair, because those two writers own different
+  fields (column vs. blob) and would race on the in-memory record — the second
+  optimistic `setData` reads a stale copy and reverts the first. The write only
+  serializes the blob when the record is `_full`, so a light sidebar row is
+  never flattened. The draft becomes an ordinary job and thereafter
+  auto-versions normally. Entry is the header's amber "File under customer"
+  affordance (desktop) / "File ▾" Customer tile (mobile), reachable on any
+  customer-less job; the picker searches existing customers or creates a new one
+  in place.
 
-- **The 30-day sweep (later PR) is client-side.** Unpromoted drafts older than
-  30 days delete on app load through `delProject`. No cron, no server, no
-  agent-initiated Supabase writes — it is app code the owner deploys.
+- **The 30-day sweep (PR2) is client-side.** On app load, any draft still
+  `quick` + `customerId === null` and untouched for 30 days is deleted and
+  dropped from state. Age is measured from `updatedAt` (last edit), not
+  `createdAt`, so a draft someone is still actively refining is never swept out
+  from under them. No cron, no server, no agent-initiated Supabase writes — it
+  is app code the owner deploys. Deletes are best-effort (a missed one retries
+  next load); an unpromoted draft's attachment blobs, if any, are left in
+  Storage, which is acceptable for a throwaway quote.
 
 ## Consequences
 
