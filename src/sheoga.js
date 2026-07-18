@@ -162,6 +162,17 @@ export const hbSlatLen = (h) => {
   return Number.isFinite(n) ? n : null;
 };
 
+// Default multi-width split: each width's share ∝ its plank width (wider plank →
+// bigger share, i.e. the 3-4-5 repeating look with equal plank counts). Whole
+// percentages; the rounding remainder lands on the widest width so it sums to 100.
+export function redistributeShares(widthVals) {
+  const sum = widthVals.reduce((a, w) => a + w, 0) || 1;
+  const out = {}; let acc = 0;
+  widthVals.forEach((w) => { out[w] = Math.round((w / sum) * 100); acc += out[w]; });
+  if (widthVals.length) { const big = [...widthVals].sort((a, b) => b - a)[0]; out[big] += 100 - acc; }
+  return out;
+}
+
 // --- wood vents & dampers -----------------------------------------------------
 // Two species price groups; sizes are duct W × L in inches ('2¼' = 2.25).
 

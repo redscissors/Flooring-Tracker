@@ -8,6 +8,7 @@ import {
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
+  redistributeShares,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -443,4 +444,17 @@ test("established-stain FINISHES entry keys off texture depth", () => {
   assert.equal(est.add({ tex: "oldmill" }), 1.95);
   assert.equal(est.add({ tex: "bandsawn" }), 2.85);
   assert.equal(TEXTURES.find((t) => t.id === "aged").deep, true);
+});
+
+test("redistributeShares: proportional to plank width, sums to 100, wider gets more", () => {
+  const s = redistributeShares([3.25, 4.25, 5.25]);
+  assert.equal(s[3.25] + s[4.25] + s[5.25], 100);
+  assert.ok(s[5.25] > s[4.25] && s[4.25] > s[3.25]);
+  assert.deepEqual(s, { 3.25: 25, 4.25: 33, 5.25: 42 });
+});
+
+test("redistributeShares: four widths still sum to 100", () => {
+  const s = redistributeShares([3.25, 4.25, 5.25, 6.25]);
+  assert.equal(Object.values(s).reduce((a, b) => a + b, 0), 100);
+  assert.deepEqual(s, { 3.25: 17, 4.25: 22, 5.25: 28, 6.25: 33 });
 });
