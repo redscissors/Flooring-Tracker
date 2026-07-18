@@ -192,6 +192,15 @@ body {
 input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text) 42%, transparent);opacity:1;}
 .ft-rail{background-color:var(--ft-cream);}
 
+/* Sidebar folder accordion (customer column). A CSS grid animates its own
+   height between 0fr and 1fr — a smooth open/close with no JS measuring, and
+   it composes when folders nest (a bucket opening inside the Customers folder).
+   Fast but not instant; honours reduced-motion. */
+.ft-acc{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s cubic-bezier(.32,.72,0,1);}
+.ft-acc[data-open="true"]{grid-template-rows:1fr;}
+.ft-acc-in{overflow:hidden;min-height:0;}
+@media (prefers-reduced-motion: reduce){.ft-acc{transition:none;}}
+
 /* App-shell height. 100vh on phones is the LARGE viewport (URL bar hidden), and
    the shell only scrolls inside <main>, so the browser chrome never collapses —
    a 100vh root keeps the bottom Area/Product/Print bar permanently cut off

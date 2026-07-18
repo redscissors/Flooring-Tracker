@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
@@ -1694,6 +1694,12 @@ export default function App({ user, onSignOut }) {
   const [selCustId, setSelCustId] = useState(null);
   // Which customers are expanded in the sidebar tree.
   const [openCust, setOpenCust] = useState({});
+  // Sidebar folder state: the "Customers" library folder, each age bucket
+  // inside it, and the merged "Estimates & drafts" folder. All start collapsed
+  // so only the pinned recents show until the user opens a folder.
+  const [openLib, setOpenLib] = useState(false);
+  const [openBuckets, setOpenBuckets] = useState({});
+  const [openDrafts, setOpenDrafts] = useState(false);
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
   const [custModal, setCustModal] = useState(null); // customer id whose details box is open
@@ -3388,6 +3394,18 @@ export default function App({ user, onSignOut }) {
   const quickPrices = unassignedAll.filter((p) => p.quick);
   const unassigned = unassignedAll.filter((p) => !p.quick);
 
+  // Customer column layout (customer-column-redesign): with more than a rail's
+  // worth of customers, pin the 5 most-recent up top and tuck the full list
+  // into a "Customers" folder that opens into age buckets. Small lists and any
+  // active search fall back to a flat, fully-visible list.
+  const showFolders = !q && data.people.length > 5;
+  const recents = showFolders ? [...data.people].sort((a, b) => personActivity(b) - personActivity(a)).slice(0, 5) : [];
+  const DAY = 86400000, nowMs = Date.now();
+  const BUCKETS = [["month", "This month", 31], ["quarter", "Last 3 months", 92], ["year", "This year", 366], ["older", "Older", Infinity]];
+  const bucketKey = (c) => { const age = (nowMs - personActivity(c)) / DAY; return (BUCKETS.find(([, , max]) => age <= max) || BUCKETS[BUCKETS.length - 1])[0]; };
+  const bucketMembers = {};
+  if (showFolders) data.people.forEach((c) => { (bucketMembers[bucketKey(c)] ||= []).push(c); });
+
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "ft-eyebrow text-[10px] mb-1 block";
@@ -3436,6 +3454,18 @@ export default function App({ user, onSignOut }) {
       </div>
     );
   };
+  // Smooth-height accordion body + a folder header row (Customers / age bucket /
+  // Estimates), sharing the sidebar's row styling.
+  const acc = (open, children) => (<div className="ft-acc" data-open={open ? "true" : "false"}><div className="ft-acc-in">{children}</div></div>);
+  const folderRow = (open, onClick, icon, label, count, tiny) => (
+    <button onClick={onClick} title={open ? "Collapse" : "Expand"} className="w-full rounded-md flex items-center gap-1.5 py-1.5 pl-1.5 pr-2 border border-transparent hover:bg-slate-50 text-left">
+      <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+      {icon}
+      <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1">{label}</span>
+      {tiny && <span className="text-[8.5px] text-slate-400 whitespace-nowrap">{tiny}</span>}
+      <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{count}</span>
+    </button>
+  );
 
   return (
     <div className="ft-vh bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
@@ -3478,19 +3508,56 @@ export default function App({ user, onSignOut }) {
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
             {q && peopleList.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
-            {peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
-            {peopleList.map((c) => renderPersonRow(c))}
-            {quickPrices.length > 0 && (<>
-              <div className="mt-3 mb-1 px-2.5 flex items-center justify-between gap-2">
-                <span className="ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</span>
-                <span className="text-[8.5px] text-slate-400 whitespace-nowrap">clears in 30d</span>
+
+            {/* Long list: pinned recents + the Customers folder of age buckets */}
+            {showFolders && (<>
+              <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Recent</div>
+              {recents.map((c) => renderPersonRow(c))}
+              <div className="mt-2">
+                {folderRow(openLib, () => setOpenLib((o) => !o), <Folder size={14} className="text-indigo-500 shrink-0" />, "Customers", data.people.length)}
+                {acc(openLib, (
+                  <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">
+                    {BUCKETS.map(([key, label]) => {
+                      const members = sortPeople(bucketMembers[key] || []);
+                      if (!members.length) return null;
+                      const bopen = !!openBuckets[key];
+                      return (
+                        <div key={key} className="mb-0.5">
+                          {folderRow(bopen, () => setOpenBuckets((s) => ({ ...s, [key]: !s[key] })), <Clock size={13} className="text-slate-400 shrink-0" />, label, members.length)}
+                          {acc(bopen, <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">{members.map((c) => renderPersonRow(c))}</div>)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-              {quickPrices.map((p) => renderProjRow(p))}
             </>)}
-            {unassigned.length > 0 && (<>
-              <div className="mt-3 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
-              {unassigned.map((p) => renderProjRow(p))}
-            </>)}
+
+            {/* Small list or active search: flat, fully-visible customer list */}
+            {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
+            {!showFolders && peopleList.map((c) => renderPersonRow(c))}
+
+            {/* Quick Prices + Unassigned jobs, merged into one folder (open on search) */}
+            {(quickPrices.length + unassigned.length) > 0 && (
+              <div className="mt-2">
+                {folderRow(openDrafts || !!q, () => setOpenDrafts((o) => !o), <Clock size={14} className="text-indigo-500 shrink-0" />, "Estimates & drafts", quickPrices.length + unassigned.length)}
+                {acc(openDrafts || !!q, (
+                  <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">
+                    {quickPrices.length > 0 && (<>
+                      <div className="mt-1 mb-1 px-2.5 flex items-center justify-between gap-2">
+                        <span className="ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</span>
+                        <span className="text-[8.5px] text-slate-400 whitespace-nowrap">clears in 30d</span>
+                      </div>
+                      {quickPrices.map((p) => renderProjRow(p))}
+                    </>)}
+                    {unassigned.length > 0 && (<>
+                      <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
+                      {unassigned.map((p) => renderProjRow(p))}
+                    </>)}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="p-2.5 border-t border-slate-100">
             <div className="flex mb-2">
