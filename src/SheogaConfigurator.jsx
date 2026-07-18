@@ -779,7 +779,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onAdd, onClose, areaName }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
@@ -816,11 +816,23 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [mwShares, setMwShares] = useState(() => redistributeShares([3.25, 4.25, 5.25]));
   const multiOk = mode === "floor" || mode === "stocked"; // multi-width only on width-run tabs
   useEffect(() => { if (!multiOk && multi) setMulti(false); }, [mode, multiOk, multi]);
-  const availWidths = mode === "stocked" ? STOCKED_WIDTHS[cfg.grade] || [] : floorWidths(cfg);
+  const widthShips = (w) => (mode === "stocked" ? !!calcStocked({ ...cfg, w }) : floorBase({ ...cfg, w }) != null);
+  const availWidths = (mode === "stocked" ? (STOCKED_WIDTHS[cfg.grade] || []) : floorWidths(cfg)).filter(widthShips);
   const setMwSet = (nextWidths) => { const ws = [...new Set(nextWidths)].sort((a, b) => a - b); setMwWidths(ws); setMwShares(redistributeShares(ws)); };
   const toggleMwWidth = (w) => { if (mwWidths.includes(w)) { if (mwWidths.length > 2) setMwSet(mwWidths.filter((x) => x !== w)); } else setMwSet([...mwWidths, w]); };
   const stepMw = (d) => { if (d > 0) { const addW = availWidths.find((w) => !mwWidths.includes(w)); if (addW != null) setMwSet([...mwWidths, addW]); } else if (mwWidths.length > 2) setMwSet(mwWidths.slice(0, -1)); };
   const setShare = (w, v) => setMwShares((s) => ({ ...s, [w]: Math.max(0, Math.round(Number(v) || 0)) }));
+  // When the width RUN changes (species/grade/construction/tab), drop widths the
+  // new product doesn't ship and top back up to ≥2, re-deriving the split — so a
+  // multi-width bundle never carries dead, unpriced widths.
+  useEffect(() => {
+    if (!multi || !multiOk) return;
+    let next = mwWidths.filter((w) => availWidths.includes(w));
+    for (const w of availWidths) { if (next.length >= 2) break; if (!next.includes(w)) next.push(w); }
+    next = [...new Set(next)].sort((a, b) => a - b);
+    if (next.length !== mwWidths.length || next.some((w, i) => w !== mwWidths[i])) { setMwWidths(next); setMwShares(redistributeShares(next)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multi, multiOk, mode, cfg.sp, cfg.grade, cfg.cons]);
 
   const snap = { mode, cfg };
   const c = useMemo(() => calcConfig(snap, sf), [mode, cfg, sf]);
@@ -846,8 +858,8 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const removeBasketEntry = (id) => onBasketChange((basket || []).filter((b) => b.id !== id));
   const moveBasketEntries = (entries) => {
     const lines = entries.flatMap((e) => basketEntryView(e).lines());
-    if (lines.length) onMove(lines);
-    onBasketChange((basket || []).filter((b) => !entries.includes(b)));
+    const nextBasket = (basket || []).filter((b) => !entries.includes(b));
+    onMoveEntries(lines, nextBasket);
     setBasketSel({});
   };
   const moveSelectedBasket = () => moveBasketEntries((basket || []).filter((b) => basketSel[b.id]));

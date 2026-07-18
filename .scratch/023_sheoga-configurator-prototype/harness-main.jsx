@@ -68,6 +68,7 @@ function Harness() {
         <SheogaConfigurator seed={pop.seed} initialSf={0} markupDefault={40} ventMarkupDefault={50}
           basket={basket} onBasketChange={setBasket} areaName="Kitchen"
           onMove={(lines) => setAdded(lines)}
+          onMoveEntries={(lines, next) => { setAdded(lines); setBasket(next); }}
           onAdd={(lines) => { setAdded(lines); setPop(null); }}
           onClose={() => setPop(null)} />
       )}

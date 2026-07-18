@@ -460,10 +460,8 @@ export function multiWidthBuild(base, widths, sf) {
     };
   });
   const diff = sf - lines.reduce((a, l) => a + l.sf, 0);
-  if (lines.length) {
-    let bi = 0; lines.forEach((l, i) => { if (l.sf > lines[bi].sf) bi = i; });
-    lines[bi].sf += diff;
-  }
+  const okIdx = lines.map((l, i) => (l.ok ? i : -1)).filter((i) => i >= 0);
+  if (okIdx.length) { let bi = okIdx[0]; for (const i of okIdx) if (lines[i].sf > lines[bi].sf) bi = i; lines[bi].sf += diff; }
   const fees = [];
   if (stocked) {
     const it = stockedItem(base.cfg);
@@ -637,7 +635,7 @@ const bkId = () => "bk" + Math.random().toString(36).slice(2, 9);
 // can't crash the drawer. Called by App.jsx normC over sheogaBasket.
 export function normBasketEntry(e) {
   if (!e || typeof e !== "object") return null;
-  const head = { id: e.id || bkId(), addedAt: e.addedAt || Date.now(), markupPct: Number(e.markupPct) || DEFAULT_MARKUP };
+  const head = { id: e.id || bkId(), addedAt: e.addedAt || Date.now(), markupPct: Number.isFinite(Number(e.markupPct)) ? Number(e.markupPct) : DEFAULT_MARKUP };
   if (e.kind === "bundle") {
     if (!e.base || !e.base.cfg) return null;
     const widths = (Array.isArray(e.widths) ? e.widths : [])

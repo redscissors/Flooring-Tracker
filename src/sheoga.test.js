@@ -510,6 +510,16 @@ test("multiWidthBuild stocked: a width the product doesn't ship is flagged ok:fa
   assert.equal(b.lines.find((l) => l.w === 4.25).ok, true);
 });
 
+test("multiWidthBuild: remainder lands on the largest shippable line, never a dropped one", () => {
+  // stocked Cherry Natural char: 2¼" (index 0) is null → unshippable
+  const b = multiWidthBuild(mwStocked(), [{ w: 2.25, share: 50 }, { w: 3.25, share: 25 }, { w: 4.25, share: 25 }], 201);
+  const dropped = b.lines.find((l) => l.w === 2.25);
+  assert.equal(dropped.ok, false);
+  assert.equal(b.lines.filter((l) => l.ok).reduce((a, l) => a + l.sf, 0) + dropped.sf, 201);
+  // the shippable lines alone should carry all the reconciled area they can; the dropped line keeps only its raw share
+  assert.ok(b.lines.filter((l) => l.ok).reduce((a, l) => a + l.sf, 0) >= 100);
+});
+
 // --- multiWidthLineItems -----------------------------------------------------
 
 test("multiWidthLineItems: N width rows + pooled fee rows, correct shapes", () => {
@@ -537,4 +547,9 @@ test("normBasketEntry: valid single/bundle pass; junk drops to null", () => {
   assert.equal(normBasketEntry({ kind: "bundle", base: null, widths: [] }), null);
   assert.equal(normBasketEntry({ kind: "single" }), null);
   assert.equal(normBasketEntry(null), null);
+});
+
+test("normBasketEntry: a 0% markup entry is preserved, not coerced to default", () => {
+  const s = normBasketEntry({ kind: "single", markupPct: 0, snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
+  assert.equal(s.markupPct, 0);
 });

@@ -2700,6 +2700,11 @@ export default function App({ user, onSignOut }) {
     ]);
     updArea(aid, { products });
   };
+  // Append moved Sheoga lines as new product rows at the end of an area — used
+  // by basket "Move", which must apply lines AND clear the basket in ONE
+  // updateProject (two calls would clobber via the non-functional setter).
+  const appendSheogaLines = (categories, aid, lines) => categories.map((a) =>
+    a.id === aid ? { ...a, products: [...a.products, ...lines.map((patch) => ({ ...newProduct(), ...patch }))] } : a);
   // Sheoga configurator add (issue 023): the main line fills the row the popup
   // was opened from and each vendor-fee line lands as its own new row after it,
   // mirroring addStockProducts. Payloads come from sheoga.js lineItems() —
@@ -4635,6 +4640,7 @@ export default function App({ user, onSignOut }) {
             onBasketChange={(next) => updateProject(sel.id, { sheogaBasket: next })}
             areaName={sel.categories.find((x) => x.id === sheogaPop.aid)?.name || "this area"}
             onMove={(lines) => addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines)}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onClose={() => setSheogaPop(null)} />
         );
