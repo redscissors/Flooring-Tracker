@@ -478,6 +478,26 @@ export function multiWidthBuild(base, widths, sf) {
   return { lines, fees, sf };
 }
 
+// Multi-width → row payloads: a hardwood row per shippable width + pooled fee
+// misc rows. Same shape as lineItems() so addSheogaLines consumes it unchanged.
+export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP) {
+  const b = multiWidthBuild(base, widths, sf);
+  const rows = b.lines.filter((l) => l.ok).map((l) => ({
+    type: "hardwood", sku: "", sizeText: l.size || "", brandColor: `Sheoga — ${l.rest}`,
+    qtyType: "sqft", qty: l.sf > 0 ? String(l.sf) : "",
+    priceSqft: String(sellOf(l.cost, markupPct)), costSqft: String(round2(l.cost)), markupPct: String(markupPct),
+    ...(l.cartonSf ? { cartonSf: String(l.cartonSf) } : {}),
+    note: "Sheoga multi-width — one floor in mixed widths",
+    sheoga: { mode: base.mode, cfg: JSON.parse(JSON.stringify({ ...base.cfg, w: l.w })), multiWidth: true },
+  }));
+  const fees = b.fees.map((x) => ({
+    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
+    priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
+    note: "Sheoga vendor fee — passed through at cost (shared across the multi-width set)",
+  }));
+  return [...rows, ...fees];
+}
+
 // Sell $/unit from distributor cost — same rounding as every other price.
 export const sellOf = (cost, markupPct) => round2(cost * (1 + (markupPct ?? DEFAULT_MARKUP) / 100));
 

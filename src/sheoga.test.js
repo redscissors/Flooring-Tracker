@@ -8,7 +8,7 @@ import {
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
-  redistributeShares, multiWidthBuild, CUSTOM_FINISHES, SAMPLE_FEE, SHEEN_FEE,
+  redistributeShares, multiWidthBuild, multiWidthLineItems, CUSTOM_FINISHES, SAMPLE_FEE, SHEEN_FEE,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -507,4 +507,23 @@ test("multiWidthBuild stocked: a width the product doesn't ship is flagged ok:fa
   const b = multiWidthBuild(mwStocked(), [{ w: 2.25, share: 50 }, { w: 4.25, share: 50 }], 200);
   assert.equal(b.lines.find((l) => l.w === 2.25).ok, false);
   assert.equal(b.lines.find((l) => l.w === 4.25).ok, true);
+});
+
+// --- multiWidthLineItems -----------------------------------------------------
+
+test("multiWidthLineItems: N width rows + pooled fee rows, correct shapes", () => {
+  const rows = multiWidthLineItems(mwFloor({ finish: "t1" }), [{ w: 3.25, share: 25 }, { w: 4.25, share: 33 }, { w: 5.25, share: 42 }], 300, 40);
+  const hardwood = rows.filter((r) => r.type === "hardwood");
+  const misc = rows.filter((r) => r.type === "misc");
+  assert.equal(hardwood.length, 3);
+  assert.ok(hardwood.every((r) => r.qtyType === "sqft" && r.sheoga.multiWidth === true));
+  assert.equal(hardwood.reduce((a, r) => a + Number(r.qty), 0), 300);
+  // t1 custom under 300 sf → small-order ($300) + custom sample ($750) = 2 fee rows
+  assert.equal(misc.length, 2);
+  assert.ok(misc.every((r) => r.markupPct === "0" && r.priceSqft === r.costSqft));
+});
+
+test("multiWidthLineItems: unshippable widths are dropped, not zero-priced", () => {
+  const rows = multiWidthLineItems(mwStocked(), [{ w: 2.25, share: 50 }, { w: 4.25, share: 50 }], 200, 40);
+  assert.equal(rows.filter((r) => r.type === "hardwood").length, 1);
 });
