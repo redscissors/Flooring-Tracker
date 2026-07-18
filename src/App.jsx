@@ -5098,13 +5098,32 @@ function VendorBookmarklet() {
   );
 }
 
-function PasteLinks({ onAdd, inp, rows = 2, placeholder }) {
+// The paste box does two independent things, split across two buttons.
+// "Unlock downloads" (primary) donates the link's live session token to the
+// pool so every remembered sheet for that sign-in becomes fetchable — the
+// pasted sheet is NOT saved to the board (the temp path: one link, download the
+// lot, save nothing). "Add to board" also remembers the pasted sheet, needed to
+// bootstrap menu-style portals where pasting is the only way to register one.
+function PasteLinks({ onUnlock, onAdd, inp, rows = 2, placeholder }) {
   const [text, setText] = useState("");
-  const add = () => { if (onAdd(text)) setText(""); };
+  const [note, setNote] = useState(null);
+  const unlock = () => { const r = onUnlock(text); if (r) { setText(""); setNote(r); } };
+  const add = () => { if (onAdd(text)) { setText(""); setNote(null); } };
   return (
     <>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={rows} placeholder={placeholder || "https://connect24.virginiatile.com/…getPrettyPriceList…"} className={inp + " font-mono text-[11px]"} />
-      <div className="flex justify-end mt-2"><button onClick={add} disabled={!text.trim()} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add link</button></div>
+      <textarea value={text} onChange={(e) => { setText(e.target.value); if (note) setNote(null); }} rows={rows} placeholder={placeholder || "https://connect24.virginiatile.com/…getPrettyPriceList…"} className={inp + " font-mono text-[11px]"} />
+      <div className="flex items-center justify-end gap-2 mt-2">
+        <button onClick={add} disabled={!text.trim()} title="Also save this sheet to the board" className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add to board</button>
+        <button onClick={unlock} disabled={!text.trim()} title="Grab this sign-in's session to unlock its downloads — the sheet isn't saved" className="text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">Unlock downloads</button>
+      </div>
+      {note && (
+        <div className={"mt-2 flex items-start gap-1.5 text-xs " + (note.unlocked ? "text-emerald-700" : "text-slate-500")}>
+          <Check size={13} className="mt-0.5 shrink-0 text-emerald-600" />
+          <span>{note.unlocked
+            ? `Sign-in captured — ${note.unlocked} saved ${note.unlocked === 1 ? "sheet is" : "sheets are"} ready to download below.`
+            : "Sign-in captured, but no saved sheets match it yet — use “Add to board” to keep this sheet."}</span>
+        </div>
+      )}
     </>
   );
 }
@@ -5286,6 +5305,16 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   };
 
   const parseLinks = (text) => (text || "").split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
+  // Temp unlock: pool the pasted link's live session token so every remembered
+  // sheet for its sign-in becomes fetchable, without saving the pasted sheet.
+  const unlockPasted = (text) => {
+    const found = parseLinks(text);
+    if (!found.length) return null;
+    setPending((p) => mergeEntries(p, found));
+    const portals = new Set(found.map((e) => `${e.host}|${e.user}`));
+    const unlocked = groups.reduce((n, g) => n + g.sheets.filter((s) => portals.has(`${s.host}|${s.user}`)).length, 0);
+    return { unlocked };
+  };
   const addPasted = (text) => {
     const found = parseLinks(text);
     if (!found.length) return false;
@@ -5371,10 +5400,10 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
 
       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5">
         <div className="flex items-center justify-between gap-2">
-          <label className={lbl + " mb-0"}>Paste a sheet link{groups.length > 0 ? <span className="font-normal normal-case tracking-normal text-slate-400"> — unlocks its sign-in for re-download</span> : null}</label>
+          <label className={lbl + " mb-0"}>Paste a sheet link{groups.length > 0 ? <span className="font-normal normal-case tracking-normal text-slate-400"> — unlocks this sign-in's downloads; the sheet isn't saved</span> : null}</label>
           <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up one-click fetch"}</button>
         </div>
-        <div className="mt-2"><PasteLinks onAdd={addPasted} inp={inp} /></div>
+        <div className="mt-2"><PasteLinks onUnlock={unlockPasted} onAdd={addPasted} inp={inp} /></div>
         {setupOpen && (
           <div className="mt-3 border-t border-slate-200 pt-3">
             <p className="text-xs text-slate-500 mb-2">One bookmark grabs every price-list link off a portal page and drops them here:</p>
