@@ -29,9 +29,12 @@ Goals:
 - Small UI cleanups: a slightly wider option rail that doesn't reflow when a scrollbar appears,
   and removal of the "this description is the order" helper line.
 
+Multi-width is supported on **both** floor programs where widths are a real choice: the
+**unfinished & custom** tab and the **stocked prefinished** tab.
+
 Non-goals (YAGNI): fee-pooling across *unrelated* basket items (only a multi-width bundle pools);
-multi-width on the stocked / herringbone / vent tabs (floor tab only for v1); editing a basket
-entry in place (remove + rebuild instead).
+multi-width on the herringbone / vent tabs (no meaningful width run there); editing a basket entry
+in place (remove + rebuild instead).
 
 ---
 
@@ -43,9 +46,9 @@ entry in place (remove + rebuild instead).
 | Split adjustability | Salesperson can override any width's share; **changing the set of widths re-derives all shares** to the proportional default. Manual edits persist until the width set changes. |
 | Basket lifespan | **Persists with the job** (survives closing/reopening the configurator). |
 | Basket storage | On the customer record's existing jsonb (`data.sheogaBasket`) — **no Supabase schema change**. |
-| Custom-color charge (multi-width) | **Charged once** per bundle, not per width. |
-| Small-order fee (multi-width) | **Charged once**, computed on the bundle's **total** sq ft. |
-| Multi-width entry point | A **"Multi" chip in the Width row** of the floor tab. |
+| Pooled fee — floor tab | **Custom-color charge once** per bundle (not per width) + a **single small-order fee** computed on the bundle's **total** sq ft. |
+| Pooled fee — stocked tab | Off-standard **sheen fee ($250) charged once** per bundle. Stocked has no small-order fee. |
+| Multi-width entry point | A **"Multi" chip in the Width row**, on **both** the unfinished & custom tab and the stocked prefinished tab. |
 | Commit actions | Both remain: **Add to basket** *and* **Add to product line** (direct). The basket is additive, not the only path. |
 | Basket panel placement | **Slide-out drawer from the right** on desktop; **bottom sheet** on mobile (reuses the existing `MobileBuildSheet` gesture infra). |
 | Move target | The **Area the configurator was opened from** (shown on the Move button, e.g. "Move 2 → Kitchen"). |
@@ -87,21 +90,34 @@ BasketEntry =
 New pure functions; all existing single-build math is unchanged.
 
 - `redistributeShares(widths) → { [w]: share }` — proportional-to-width default; wider plank gets
-  the larger share; result reads as whole percentages summing to 100.
-- `multiWidthBuild(base, widths, sf) → { lines, fees, cost, sell, total, ... }` where:
-  - `lines` = one per width; each is a floor build at that width for `sf_i = round(sf * share_i / Σ share)`
-    (rounding reconciled on the largest line so the parts sum to `sf`), **without** per-line fees.
-  - `fees` (pooled, each imports as its own at-cost misc line, matching current fee behavior):
-    - **Custom-color sample** — `SAMPLE_FEE` once, if `base.finish` is a custom color (T-1/T-2/T-3).
-    - **Small-order fee** — computed once on **total** `sf` (`<250 → 600`, `<500 → 300`, else `0`).
+  the larger share; result reads as whole percentages summing to 100. Mode-independent (both tabs).
+- `multiWidthBuild(base, widths, sf) → { lines, fees, cost, sell, total, ... }`. Works for both
+  `base.mode === "floor"` (unfinished & custom) and `base.mode === "stocked"`:
+  - `lines` = one per width; each is a per-width build (`calcFloor` or `calcStocked`) at that width
+    for `sf_i = round(sf * share_i / Σ share)` (rounding reconciled on the largest line so the parts
+    sum to `sf`), **without** per-line fees.
+  - `fees` (pooled — each imports as its own at-cost misc line, matching current fee behavior):
+    - **floor:** **Custom-color sample** (`SAMPLE_FEE`, once, if `base.finish` is a custom color
+      T-1/T-2/T-3) **and** a **small-order fee** computed once on **total** `sf`
+      (`<250 → 600`, `<500 → 300`, else `0`).
+    - **stocked:** **off-standard sheen fee** (`SHEEN_FEE = 250`, once, if the chosen sheen differs
+      from the product's standard). No small-order fee.
   - `total` = Σ line totals (sell × sf_i) + Σ pooled fees.
 - `multiWidthLineItems(base, widths, sf, markupPct) → LinePayload[]` — the row payloads the caller
   hands back: N product rows (one per width, each carrying its own `sf`/`priceSqft`/`costSqft`/
   `sizeText`) + the pooled fee lines as `misc` rows. Shape matches today's `lineItems` output so
   `addSheogaLines` consumes them unchanged.
 
-The existing per-build `calcFloor` fee logic is factored so single builds keep their current
-per-build fees and only bundles pool — no behavior change for non-multi builds.
+The pooled-fee rule is the general principle in both modes: a flat **per-build setup fee** (custom
+sample, small-order, off-standard sheen) applies **once per job**, so a bundle charges it once
+instead of once per width. The existing per-build `calcFloor` / `calcStocked` fee logic is factored
+so single builds keep their current per-build fees and only bundles pool — no behavior change for
+non-multi builds.
+
+Width availability differs by tab: the floor tab offers the full `WIDTHS` run for the species; the
+stocked tab offers only `STOCKED_WIDTHS[grade]` filtered to the widths that specific product/color
+actually comes in (a null price → unavailable), so the multi-select disables widths the product
+doesn't ship, exactly as the single-build stocked width chips do today.
 
 ---
 
@@ -117,19 +133,21 @@ per-build fees and only bundles pool — no behavior change for non-multi builds
 - Delete the `↑ this description is the order — it snapshots onto the job line.` line under the
   build-card description.
 
-### 5.3 Multi-width mode (floor tab only)
-- A dashed moss-green **"◨ Multi" chip** at the end of the Width row.
+### 5.3 Multi-width mode (unfinished & custom + stocked prefinished tabs)
+- A dashed moss-green **"◨ Multi" chip** at the end of the Width row on both tabs.
 - Toggling it on:
   - Width chips become **multi-select** (checkboxes); a **"How many widths?" − / + stepper** appears
-    (min 2). Adding/removing a width (chip or stepper) calls `redistributeShares`.
+    (min 2). Adding/removing a width (chip or stepper) calls `redistributeShares`. On the stocked
+    tab only the widths the product/color actually ships are selectable.
   - The right pane switches to the **multi-width card**: a header, one **row per width** showing an
     editable **% field** (weight), the derived **sq ft**, the per-width **sell $/sf**, and the
-    **line total**; then the **pooled fee lines** (custom-color once, small-order once on total);
-    then the **bundle total**; then **Add bundle to basket** / **Add N lines to product line**.
+    **line total**; then the **pooled fee lines** (floor: custom-color once + small-order once on
+    total; stocked: off-standard sheen once); then the **bundle total**; then **Add bundle to
+    basket** / **Add N lines to product line**.
   - Editing a % updates that width's `share` and live-recomputes sq ft, line totals, pooled fees,
     and the bundle total.
-- Shared options (species/grade/texture/finish/stain/sheen/lengths/edge) apply to every width —
-  it's one floor in mixed widths.
+- Shared options apply to every width — it's one floor in mixed widths. Floor tab shares
+  species/grade/texture/finish/stain/sheen/lengths/edge; stocked tab shares species/color/grade/sheen.
 
 ### 5.4 Basket
 - **Basket button with count badge** in the header (near close).
@@ -174,9 +192,11 @@ without preview proof, changes land via PR, and no live Supabase mutation is per
 ## 7. Testing
 
 - **Unit (`src/sheoga.test.js`):** `redistributeShares` (proportional, sums to 100, wider > narrower);
-  bundle sq-ft split reconciles to the exact total; small-order fee flips at 250/500 on **total** sf;
-  custom-color sample charged once; `multiWidthLineItems` returns N product rows + pooled misc lines
-  in the existing payload shape.
+  bundle sq-ft split reconciles to the exact total; **floor** small-order fee flips at 250/500 on
+  **total** sf and custom-color sample is charged once; **stocked** off-standard sheen fee is charged
+  once per bundle and no small-order fee is applied; stocked width availability filters to shipped
+  widths; `multiWidthLineItems` returns N product rows + pooled misc lines in the existing payload
+  shape for both modes.
 - **Normalization:** `normC` yields `sheogaBasket: []` for legacy records; `normBasketEntry` coerces
   bad fields and drops junk.
 - **Preview proof:** production-harness screenshots of single-build, multi-width (with dynamic
@@ -187,5 +207,4 @@ without preview proof, changes land via PR, and no live Supabase mutation is per
 ## 8. Open follow-ups (not in this scope)
 
 - Fee pooling across separate (non-bundle) basket items destined for one job.
-- Multi-width on the stocked-prefinished tab.
 - Editing a basket entry in place.
