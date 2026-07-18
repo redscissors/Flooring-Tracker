@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
@@ -540,7 +540,12 @@ const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, product
 // never read live again — projects are team-shared, so without the snapshot a
 // teammate opening the job would print THEIR name on the estimate. Editable
 // only through the header's salesperson popover.
-const newProject = (customerId = null, name = "New Project") => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full" });
+// opts.quick marks a customer-less quick-price draft (lives in the sidebar's
+// Quick Prices folder, self-clears after 30 days, cleared to false on promote).
+// opts.seedArea opens the draft with one area whose blank adder row IS the
+// product search, so a Quick Price lands straight in "grab a price". See
+// docs/adr/0022-quick-price-draft-lifecycle.md.
+const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -554,7 +559,7 @@ const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type
 // no `attached` — they normalize to {} and stay valid.
 const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing) });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing) });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
 // real column. personData is what gets written back to the jsonb.
@@ -1595,13 +1600,15 @@ function gridEnterNav(e, addRow) {
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
-const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email";
+const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick";
 const lightRow = (r) => ({
   id: r.id,
   customerId: r.customer_id ?? null,
   createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
   updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
+  // ->> projects the jsonb boolean out as text "true"/"false" (or null).
+  quick: r.quick === true || r.quick === "true",
   _full: false,
 });
 // Version metadata as held in memory — snapshots stay on the server until a
@@ -2394,15 +2401,29 @@ export default function App({ user, onSignOut }) {
     (async () => { try { const { error } = await supabase.from("projects").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
 
-  const addProject = (customerId = null, name = "New Project") => {
-    const c = { ...newProject(customerId, name), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+  const addProject = (customerId = null, name = "New Project", opts = {}) => {
+    const c = { ...newProject(customerId, name, opts), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
-    setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false); setFocusName(true);
+    setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false);
+    // Quick prices land straight in product search (the seeded area's blank
+    // adder row); named projects focus the name field as before.
+    if (opts.quick) setFocusProd(c.categories[0]?.products[0]?.id); else setFocusName(true);
     (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
     return c;
   };
+  const startQuickPrice = () => addProject(null, "Quick price", { quick: true, seedArea: true });
   const pickProject = (id) => { const p = data.projects.find((c) => c.id === id); setSelId(id); if (p) setSelCustId(p.customerId || null); setSidebarOpen(false); loadDetail(id); };
+  // Return to the landing screen from anywhere (the ned logo / mobile mark).
+  // The open project is a real, autosaved row, so leaving never loses it — it
+  // just deselects. The one exception: an untouched quick-price draft (all
+  // rows still blank) is worthless, so discard it rather than let it linger the
+  // 30 days until the sweep. Only ever deletes a `quick` + fully-blank draft.
+  const goHome = () => {
+    const cur = sel;
+    setSelId(null); setSelCustId(null);
+    if (cur && cur._full && cur.quick && cur.categories.every((a) => (a.products || []).every(rowBlank))) delProject(cur.id);
+  };
   const delProject = async (id) => {
     const cust = data.projects.find((c) => c.id === id);
     if (cust) { for (const m of (cust.attachments || [])) { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(id, m.id)]); } catch (x) { } } }
@@ -2784,6 +2805,8 @@ export default function App({ user, onSignOut }) {
     const c = dataRef.current.projects.find((x) => x.id === id);
     const base = baselineRef.current;
     if (!c || !c._full || !base || base.id !== id) return;
+    // Quick-price drafts are throwaway until promoted — don't spawn version rows.
+    if (c.quick) return;
     const json = catSig(c.categories);
     if (json === base.json) return;
     const label = "Auto — " + new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -3140,7 +3163,9 @@ export default function App({ user, onSignOut }) {
   const personActivity = (c) => Math.max(c.updatedAt || 0, 0, ...projectsOf(c.id).map((p) => p.updatedAt || 0));
   const sortPeople = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : personActivity(b) - personActivity(a));
   const peopleList = sortPeople(q ? data.people.filter(matchPerson) : data.people);
-  const unassigned = data.projects.filter((p) => !p.customerId && (!q || matchProj(p)));
+  const unassignedAll = data.projects.filter((p) => !p.customerId && (!q || matchProj(p)));
+  const quickPrices = unassignedAll.filter((p) => p.quick);
+  const unassigned = unassignedAll.filter((p) => !p.quick);
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
@@ -3198,7 +3223,7 @@ export default function App({ user, onSignOut }) {
         {!isWide && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <NedMark size={28} />
+            <button onClick={goHome} title="Home" className="shrink-0 hover:opacity-70 transition"><NedMark size={28} /></button>
             <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : ""}</span>
             {sel && sel._full && (<>
               <button onClick={() => setProjSheet(true)} className="shrink-0 text-right" style={{ lineHeight: 1.15 }}>
@@ -3215,7 +3240,7 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="flex-1 min-w-0"><NedLogo height={27} /><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
+            <div className="flex-1 min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
@@ -3230,10 +3255,17 @@ export default function App({ user, onSignOut }) {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
-            {data.people.length === 0 && unassigned.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
-            {q && peopleList.length === 0 && unassigned.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
+            {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
+            {q && peopleList.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
             {peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
             {peopleList.map((c) => renderPersonRow(c))}
+            {quickPrices.length > 0 && (<>
+              <div className="mt-3 mb-1 px-2.5 flex items-center justify-between gap-2">
+                <span className="ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</span>
+                <span className="text-[8.5px] text-slate-400 whitespace-nowrap">clears in 30d</span>
+              </div>
+              {quickPrices.map((p) => renderProjRow(p))}
+            </>)}
             {unassigned.length > 0 && (<>
               <div className="mt-3 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
               {unassigned.map((p) => renderProjRow(p))}
@@ -3315,6 +3347,7 @@ export default function App({ user, onSignOut }) {
                 <NedLogo style={{ width: "clamp(205px, 28vw, 345px)" }} />
                 <div className="ft-eyebrow mt-3" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
                 <button onClick={() => setNewCust("")} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Plus size={18} className="-ml-1" /> New customer</button>
+                <button onClick={startQuickPrice} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700 transition"><Zap size={15} /> Quick Price</button>
               </div>
             )
           ) : !sel._full ? (
