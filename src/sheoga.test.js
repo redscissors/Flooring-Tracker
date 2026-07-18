@@ -9,6 +9,7 @@ import {
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
   redistributeShares, multiWidthBuild, multiWidthLineItems, CUSTOM_FINISHES, SAMPLE_FEE, SHEEN_FEE,
+  normBasketEntry,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -526,4 +527,14 @@ test("multiWidthLineItems: N width rows + pooled fee rows, correct shapes", () =
 test("multiWidthLineItems: unshippable widths are dropped, not zero-priced", () => {
   const rows = multiWidthLineItems(mwStocked(), [{ w: 2.25, share: 50 }, { w: 4.25, share: 50 }], 200, 40);
   assert.equal(rows.filter((r) => r.type === "hardwood").length, 1);
+});
+
+test("normBasketEntry: valid single/bundle pass; junk drops to null", () => {
+  const s = normBasketEntry({ kind: "single", snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
+  assert.equal(s.kind, "single"); assert.ok(s.id && s.markupPct);
+  const b = normBasketEntry({ kind: "bundle", base: { mode: "floor", cfg: { sp: "White Oak" } }, widths: [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], sf: 200 });
+  assert.equal(b.kind, "bundle"); assert.equal(b.widths.length, 2);
+  assert.equal(normBasketEntry({ kind: "bundle", base: null, widths: [] }), null);
+  assert.equal(normBasketEntry({ kind: "single" }), null);
+  assert.equal(normBasketEntry(null), null);
 });

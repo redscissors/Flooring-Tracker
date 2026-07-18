@@ -628,3 +628,24 @@ export function seedFromQuery(q) {
   }
   return { mode: "floor", cfg };
 }
+
+// --- basket persistence normalizer -----------------------------------------------
+
+const bkId = () => "bk" + Math.random().toString(36).slice(2, 9);
+
+// Normalize one persisted basket entry; returns null for junk so a bad record
+// can't crash the drawer. Called by App.jsx normC over sheogaBasket.
+export function normBasketEntry(e) {
+  if (!e || typeof e !== "object") return null;
+  const head = { id: e.id || bkId(), addedAt: e.addedAt || Date.now(), markupPct: Number(e.markupPct) || DEFAULT_MARKUP };
+  if (e.kind === "bundle") {
+    if (!e.base || !e.base.cfg) return null;
+    const widths = (Array.isArray(e.widths) ? e.widths : [])
+      .filter((w) => w && Number.isFinite(+w.w))
+      .map((w) => ({ w: +w.w, share: Number(w.share) || 0 }));
+    if (widths.length < 2) return null;
+    return { ...head, kind: "bundle", base: { mode: e.base.mode === "stocked" ? "stocked" : "floor", cfg: e.base.cfg }, widths, sf: Number(e.sf) || 0 };
+  }
+  if (!e.snap || !e.snap.cfg) return null;
+  return { ...head, kind: "single", snap: { mode: e.snap.mode || "floor", cfg: e.snap.cfg }, sf: Number(e.sf) || 0 };
+}
