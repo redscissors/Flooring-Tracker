@@ -14,6 +14,7 @@ import {
   STAIN_COLORS, SHEENS, SHEEN_FEE,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
+  redistributeShares, multiWidthBuild, multiWidthLineItems,
 } from "./sheoga.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -46,6 +47,44 @@ function Chips({ items, cur, onPick }) {
       ))}
     </div>
   );
+}
+
+// Width row: single-select chips (unchanged behavior) that can flip into
+// multi-select checkboxes + a job-size-split stepper via the Multi chip.
+function WidthRow({ items, cur, multi, selected, onPick, onToggle, onMultiToggle, onStep, count }) {
+  return (<>
+    <div className="flex flex-wrap gap-1.5 items-start">
+      {items.map((it) => {
+        const on = multi ? selected.includes(it.id) : it.id === cur;
+        return (
+          <button key={it.id} disabled={it.dis} onClick={() => (multi ? onToggle(it.id) : onPick(it.id))}
+            className={`relative rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center ${multi ? "pl-6" : ""} ${on ? "bg-slate-900 border-slate-900 text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"} ${it.dis ? "opacity-30 cursor-not-allowed line-through" : ""}`}>
+            {multi && <span className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-[3px] border ${on ? "bg-white/90 border-white/90 text-slate-900" : "border-slate-300"} flex items-center justify-center text-[8px] font-black`}>{on ? "✓" : ""}</span>}
+            {it.label}{it.sub != null && !multi && <span className={`block text-[10px] font-semibold ${on ? "text-white/70" : "text-slate-400"}`}>{it.sub}</span>}
+          </button>);
+      })}
+      <button onClick={onMultiToggle}
+        className={`rounded-md border px-2.5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5 ${multi ? "text-white" : "text-[color:var(--ft-brand-deep)]"}`}
+        style={multi ? { background: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : { borderColor: "var(--ft-brand)", borderStyle: "dashed" }}>
+        ◨ Multi{multi ? " ✓" : ""}
+      </button>
+    </div>
+    {multi && (
+      <div className="mt-2.5 rounded-lg p-3" style={{ border: "1px solid var(--ft-tint-border)", background: "var(--ft-tint)" }}>
+        <div className="flex items-center gap-2.5">
+          <span className="ft-eyebrow text-[10px]">Multi-width</span>
+          <span className="text-[11px] font-semibold text-slate-500">How many widths?</span>
+          <div className="inline-flex rounded-md border border-slate-300 overflow-hidden bg-white">
+            <button onClick={() => onStep(-1)} className="w-7 h-7 text-base font-bold">−</button>
+            <span className="w-8 text-center font-bold text-[13px] leading-7">{count}</span>
+            <button onClick={() => onStep(1)} className="w-7 h-7 text-base font-bold">+</button>
+          </div>
+          <span className="ml-auto text-[10.5px] text-slate-400 font-medium">split ∝ width · editable →</span>
+        </div>
+        <div className="mt-1.5 text-[11px] text-slate-500 font-medium">Tick the widths above; job size splits proportionally to plank width. Adjust each share on the right.</div>
+      </div>
+    )}
+  </>);
 }
 
 function Seg({ opts, cur, onPick }) {
@@ -171,7 +210,7 @@ const snapFloorW = (f) => {
   return w != null ? { ...f, w } : f;
 };
 
-function FloorRail({ f, set, sf, markup, onGrid }) {
+function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep }) {
   const sell = (c) => (c ? fm(sellOf(c.cost, markup)) + "/sf" : "—");
   const custom = CUSTOM_FINISHES.includes(f.finish);
   const established = f.finish === "est";
@@ -201,8 +240,9 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
       <div className="ml-auto self-end"><GridButton onClick={onGrid} /></div>
     </div>
     <Sect title="Width">
-      <Chips cur={f.w} onPick={(w) => set({ ...f, w: +w })}
-        items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })} />
+      <WidthRow items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })}
+        cur={f.w} multi={multi} selected={mwWidths} count={mwWidths.length}
+        onPick={(w) => set({ ...f, w: +w })} onToggle={onMwWidth} onMultiToggle={onMultiToggle} onStep={onStep} />
     </Sect>
     {/* Texture + Finishing on one row. When a prefinished finish is chosen its
         stain/sheen detail drops in right below — green-outlined to tie it to
@@ -252,7 +292,7 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
   </>);
 }
 
-function StockedRail({ k, set, sf, markup, onGrid }) {
+function StockedRail({ k, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep }) {
   const it = stockedItem(k) || STOCKED[0];
   const species = [...new Set(STOCKED.map((x) => x.sp))];
   const colorsFor = (sp) => STOCKED.filter((x) => x.sp === sp);
@@ -292,8 +332,9 @@ function StockedRail({ k, set, sf, markup, onGrid }) {
       </div>
     </div>
     <Sect title="Width">
-      <Chips cur={k.w} onPick={(w) => set({ ...k, w: +w })}
-        items={STOCKED_WIDTHS[k.grade].map((w) => { const c = calcStocked({ ...k, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })} />
+      <WidthRow items={STOCKED_WIDTHS[k.grade].map((w) => { const c = calcStocked({ ...k, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })}
+        cur={k.w} multi={multi} selected={mwWidths} count={mwWidths.length}
+        onPick={(w) => set({ ...k, w: +w })} onToggle={onMwWidth} onMultiToggle={onMultiToggle} onStep={onStep} />
     </Sect>
     <Sect title="Sheen">
       <SheenPicker cfg={k} set={set} note={`standard ${std} · +$${SHEEN_FEE} if changed`}
@@ -648,6 +689,21 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
+
+  // Multi-width entry (floor + stocked only): a job split across several plank
+  // widths, sharing every other option. Lifted here so Task 9's MultiWidthCard
+  // and both rails can read/write the same state.
+  const [multi, setMulti] = useState(false);
+  const [mwWidths, setMwWidths] = useState([3.25, 4.25, 5.25]);
+  const [mwShares, setMwShares] = useState(() => redistributeShares([3.25, 4.25, 5.25]));
+  const multiOk = mode === "floor" || mode === "stocked"; // multi-width only on width-run tabs
+  useEffect(() => { if (!multiOk && multi) setMulti(false); }, [mode, multiOk, multi]);
+  const availWidths = mode === "stocked" ? STOCKED_WIDTHS[cfg.grade] || [] : floorWidths(cfg);
+  const setMwSet = (nextWidths) => { const ws = [...new Set(nextWidths)].sort((a, b) => a - b); setMwWidths(ws); setMwShares(redistributeShares(ws)); };
+  const toggleMwWidth = (w) => { if (mwWidths.includes(w)) { if (mwWidths.length > 2) setMwSet(mwWidths.filter((x) => x !== w)); } else setMwSet([...mwWidths, w]); };
+  const stepMw = (d) => { if (d > 0) { const addW = availWidths.find((w) => !mwWidths.includes(w)); if (addW != null) setMwSet([...mwWidths, addW]); } else if (mwWidths.length > 2) setMwSet(mwWidths.slice(0, -1)); };
+  const setShare = (w, v) => setMwShares((s) => ({ ...s, [w]: Math.max(0, Math.round(Number(v) || 0)) }));
+
   const snap = { mode, cfg };
   const c = useMemo(() => calcConfig(snap, sf), [mode, cfg, sf]);
   const sell = c ? sellOf(c.cost, activeMarkup) : 0;
@@ -662,8 +718,10 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const rail = (
     <>
-      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
-      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
+        multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
+      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
+        multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
       {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
       {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}
