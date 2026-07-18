@@ -293,16 +293,16 @@ export function calcFloor(f, sf) {
   warn.push("Made to order · 5–10% overrun · non-returnable");
   const size = WIDTH_LABEL[f.w];
   // Description = plain spaces, no separators; the size lives in the row's own
-  // size field so it's left out of `rest`. Only non-standard specs appear:
-  // Smooth texture, Square edge and 1'–8' lengths are the defaults, so they're
-  // omitted; length shows only when it's not the standard run. Prefinished
-  // finishes carry the sheen (free on this custom/floor tab).
+  // size field so it's left out of `rest`. Standard texture (Smooth), edge
+  // (Square) and lengths (1'–8') are the defaults, so they're omitted; length
+  // shows only when it's not the standard run. The finish is always stated —
+  // "Unfinished" for the base, otherwise the prefinished name + its sheen.
   const parts = [f.sp, gradeName(f), f.cons === "solid" ? "Solid" : "Engineered"];
   if (f.noSap && sap) parts.push("No sap");
   if (tex.id !== "smooth") parts.push(tex.name.replace(" (standard)", ""));
   if (edge.id !== "square") parts.push(edge.name);
   if (len.pct) parts.push(len.name.replace(" (standard)", "") + " lengths");
-  if (f.finish !== "unf") parts.push(`${finishName(f)} ${f.sheen || "30"} sheen`);
+  parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${f.sheen || "30"} sheen`);
   const rest = parts.join(" ");
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
 }

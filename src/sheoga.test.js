@@ -86,9 +86,9 @@ test("calcFloor: standard-spec cost is the bare base", () => {
   assert.equal(c.per, "sf");
   assert.equal(c.cartonSf, 20.5);
   assert.equal(c.size, '5¼"');
-  // Plain spaces; standard texture/edge/length and the "Unfinished" label are
-  // all defaults and omitted — the size lives in c.size, not the description.
-  assert.equal(c.desc, '5¼" White Oak Character Solid');
+  // Plain spaces; standard texture/edge/length are defaults and omitted, but the
+  // finish is always stated. The size lives in c.size, not the description.
+  assert.equal(c.desc, '5¼" White Oak Character Solid Unfinished');
   assert.equal(c.name, 'Sheoga 5¼" White Oak');
   assert.deepEqual(c.fees, []);
   assert.deepEqual(c.warn, ["Made to order · 5–10% overrun · non-returnable"]);
