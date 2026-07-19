@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { LABEL_FIELDS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize } from "./labels.js";
+import { LABEL_FIELDS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
 import { searchStock } from "./stock.js";
+import keimLogo from "./assets/keim-logo-ink.png";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
@@ -14,7 +15,9 @@ function LabelCard({ label, scale = 1 }) {
   return (
     <div style={{ width: label.w * px * scale, height: label.h * px * scale }}>
       <div style={{ width: `${label.w}in`, height: `${label.h}in`, transform: `scale(${scale})`, transformOrigin: "top left", background: "#1A1A1A", color: "#fff", borderRadius: 3, padding: "0.12in", fontFamily: "'Inter',sans-serif", display: "flex", flexDirection: "column", boxSizing: "border-box", overflow: "hidden" }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 11, textTransform: "uppercase", letterSpacing: ".3em" }}>{label.header || "Keim"}</div>
+        {isKeimHeader(label.header)
+          ? <img src={keimLogo} alt="Keim" style={{ height: 14, width: "auto", alignSelf: "flex-start", filter: "brightness(0) invert(1)" }} />
+          : <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 11, textTransform: "uppercase", letterSpacing: ".3em" }}>{label.header}</div>}
         <div style={{ borderTop: "1px solid rgba(255,255,255,.2)", margin: "6px 0 2px" }} />
         {label.lines.filter((l) => l.show).map((l) => {
           const v = label.fields?.[l.key] || "";
@@ -121,12 +124,16 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
     if (!list.length) return;
     const w = window.open("", "_blank");
     if (!w) return;
+    // Absolute URL: the popup is about:blank, so the Vite asset path won't resolve relatively.
+    const logoSrc = new URL(keimLogo, window.location.href).href;
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Labels</title>
       <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
       <style>@page{margin:0.3in;size:letter}body{margin:0;display:flex;flex-wrap:wrap;gap:0.15in}body>div{break-inside:avoid}</style></head>
-      <body>${list.map(labelCardHTML).join("")}</body></html>`);
+      <body>${list.map((l) => labelCardHTML(l, { logoSrc })).join("")}</body></html>`);
     w.document.close();
-    setTimeout(() => { w.focus(); w.print(); }, 400);
+    const imgs = Array.from(w.document.images).filter((im) => !im.complete);
+    Promise.all(imgs.map((im) => new Promise((res) => { im.onload = im.onerror = res; })))
+      .then(() => setTimeout(() => { w.focus(); w.print(); }, 400));
   };
 
   const previewLabel = { ...draft, id: "preview" };
@@ -184,6 +191,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               <label className="block mb-4">
                 <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Header</div>
                 <input value={draft.header} onChange={(e) => patchDraft({ header: e.target.value })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" placeholder="Keim" />
+                <div className="text-[10px] text-slate-400 mt-0.5">“Keim” (or blank) shows the Keim logo; anything else prints as text.</div>
               </label>
               <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Fill from stock book</div>
               <SkuLookup stock={stock} onPick={fillFrom} onBulk={bulkFrom} />
