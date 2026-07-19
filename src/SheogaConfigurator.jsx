@@ -779,7 +779,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
@@ -905,7 +905,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
       <button onClick={() => setBasketOpen(true)} className="relative ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50">
         🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
       </button>
-      <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>
+      {!embedded && <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>}
     </div>
   );
   // Desktop tabs sit on the content border; the phone scrolls them as pills.
@@ -928,9 +928,14 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   );
 
   return (
-    <div className={`print:hidden fixed inset-0 flex items-center justify-center z-[70] ${isWide ? "p-5" : ""}`} style={{ background: "rgba(20,15,10,.55)" }} onClick={onClose}>
-      <div className={`bg-white flex flex-col overflow-hidden ${isWide ? "relative rounded-xl w-full max-w-[1060px] h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
-        onClick={(e) => e.stopPropagation()} data-sheoga-pop>
+    <div className={embedded
+        ? "relative flex-1 min-h-0 flex flex-col"
+        : `print:hidden fixed inset-0 flex items-center justify-center z-[70] ${isWide ? "p-5" : ""}`}
+      style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
+      <div className={`bg-white flex flex-col overflow-hidden ${embedded
+          ? "relative flex-1 min-h-0 w-full"
+          : isWide ? "relative rounded-xl w-full max-w-[1060px] h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
+        onClick={embedded ? undefined : (e) => e.stopPropagation()} data-sheoga-pop>
         {header}
         {tabs}
         {isWide ? (<>
