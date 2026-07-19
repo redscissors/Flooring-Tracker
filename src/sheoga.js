@@ -162,6 +162,17 @@ export const hbSlatLen = (h) => {
   return Number.isFinite(n) ? n : null;
 };
 
+// Default multi-width split: each width's share ∝ its plank width (wider plank →
+// bigger share, i.e. the 3-4-5 repeating look with equal plank counts). Whole
+// percentages; the rounding remainder lands on the widest width so it sums to 100.
+export function redistributeShares(widthVals) {
+  const sum = widthVals.reduce((a, w) => a + w, 0) || 1;
+  const out = {}; let acc = 0;
+  widthVals.forEach((w) => { out[w] = Math.round((w / sum) * 100); acc += out[w]; });
+  if (widthVals.length) { const big = [...widthVals].sort((a, b) => b - a)[0]; out[big] += 100 - acc; }
+  return out;
+}
+
 // --- wood vents & dampers -----------------------------------------------------
 // Two species price groups; sizes are duct W × L in inches ('2¼' = 2.25).
 
@@ -433,6 +444,58 @@ export function calcConfig(snap, sf) {
   return null;
 }
 
+// A multi-width floor: one build per width sharing every other option, the job
+// size split by share (∝ width by default), and the per-build setup fees pooled
+// to ONCE per bundle. Per-width `lines` carry no fees; `fees` are the pooled set.
+export function multiWidthBuild(base, widths, sf) {
+  const stocked = base.mode === "stocked";
+  const sum = widths.reduce((a, x) => a + (x.share || 0), 0) || 1;
+  const lines = widths.map((x) => {
+    const cfg = { ...base.cfg, w: x.w };
+    const c = stocked ? calcStocked(cfg) : calcFloor(cfg, Math.round((sf * (x.share || 0)) / sum));
+    return {
+      w: x.w, share: x.share || 0, sf: Math.round((sf * (x.share || 0)) / sum),
+      cost: c ? c.cost : null, size: c ? c.size : null, rest: c ? c.rest : null,
+      cartonSf: c ? c.cartonSf : null, ok: !!c,
+    };
+  });
+  const diff = sf - lines.reduce((a, l) => a + l.sf, 0);
+  const okIdx = lines.map((l, i) => (l.ok ? i : -1)).filter((i) => i >= 0);
+  if (okIdx.length) { let bi = okIdx[0]; for (const i of okIdx) if (lines[i].sf > lines[bi].sf) bi = i; lines[bi].sf += diff; }
+  const fees = [];
+  if (stocked) {
+    const it = stockedItem(base.cfg);
+    const std = it ? it.sheen : null;
+    const sheen = base.cfg.sheen != null && base.cfg.sheen !== "" ? String(base.cfg.sheen) : String(std);
+    if (std != null && Number(sheen) !== std) fees.push({ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE });
+  } else {
+    const f = base.cfg;
+    if (f.finish !== "unf") { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+    if (CUSTOM_FINISHES.includes(f.finish) || (f.finish === "est" && f.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
+  }
+  return { lines, fees, sf };
+}
+
+// Multi-width → row payloads: a hardwood row per shippable width + pooled fee
+// misc rows. Same shape as lineItems() so addSheogaLines consumes it unchanged.
+export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP) {
+  const b = multiWidthBuild(base, widths, sf);
+  const rows = b.lines.filter((l) => l.ok).map((l) => ({
+    type: "hardwood", sku: "", sizeText: l.size || "", brandColor: `Sheoga — ${l.rest}`,
+    qtyType: "sqft", qty: l.sf > 0 ? String(l.sf) : "",
+    priceSqft: String(sellOf(l.cost, markupPct)), costSqft: String(round2(l.cost)), markupPct: String(markupPct),
+    ...(l.cartonSf ? { cartonSf: String(l.cartonSf) } : {}),
+    note: "Sheoga multi-width — one floor in mixed widths",
+    sheoga: { mode: base.mode, cfg: JSON.parse(JSON.stringify({ ...base.cfg, w: l.w })), multiWidth: true },
+  }));
+  const fees = b.fees.map((x) => ({
+    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
+    priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
+    note: "Sheoga vendor fee — passed through at cost (shared across the multi-width set)",
+  }));
+  return [...rows, ...fees];
+}
+
 // Sell $/unit from distributor cost — same rounding as every other price.
 export const sellOf = (cost, markupPct) => round2(cost * (1 + (markupPct ?? DEFAULT_MARKUP) / 100));
 
@@ -562,4 +625,25 @@ export function seedFromQuery(q) {
     if (w2 != null) cfg.w = w2;
   }
   return { mode: "floor", cfg };
+}
+
+// --- basket persistence normalizer -----------------------------------------------
+
+const bkId = () => "bk" + Math.random().toString(36).slice(2, 9);
+
+// Normalize one persisted basket entry; returns null for junk so a bad record
+// can't crash the drawer. Called by App.jsx normC over sheogaBasket.
+export function normBasketEntry(e) {
+  if (!e || typeof e !== "object") return null;
+  const head = { id: e.id || bkId(), addedAt: e.addedAt || Date.now(), markupPct: Number.isFinite(Number(e.markupPct)) ? Number(e.markupPct) : DEFAULT_MARKUP };
+  if (e.kind === "bundle") {
+    if (!e.base || !e.base.cfg) return null;
+    const widths = (Array.isArray(e.widths) ? e.widths : [])
+      .filter((w) => w && Number.isFinite(+w.w))
+      .map((w) => ({ w: +w.w, share: Number(w.share) || 0 }));
+    if (widths.length < 2) return null;
+    return { ...head, kind: "bundle", base: { mode: e.base.mode === "stocked" ? "stocked" : "floor", cfg: e.base.cfg }, widths, sf: Number(e.sf) || 0 };
+  }
+  if (!e.snap || !e.snap.cfg) return null;
+  return { ...head, kind: "single", snap: { mode: e.snap.mode || "floor", cfg: e.snap.cfg }, sf: Number(e.sf) || 0 };
 }

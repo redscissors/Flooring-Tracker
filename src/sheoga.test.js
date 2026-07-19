@@ -8,6 +8,8 @@ import {
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
+  redistributeShares, multiWidthBuild, multiWidthLineItems, CUSTOM_FINISHES, SAMPLE_FEE, SHEEN_FEE,
+  normBasketEntry,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -443,4 +445,111 @@ test("established-stain FINISHES entry keys off texture depth", () => {
   assert.equal(est.add({ tex: "oldmill" }), 1.95);
   assert.equal(est.add({ tex: "bandsawn" }), 2.85);
   assert.equal(TEXTURES.find((t) => t.id === "aged").deep, true);
+});
+
+test("redistributeShares: proportional to plank width, sums to 100, wider gets more", () => {
+  const s = redistributeShares([3.25, 4.25, 5.25]);
+  assert.equal(s[3.25] + s[4.25] + s[5.25], 100);
+  assert.ok(s[5.25] > s[4.25] && s[4.25] > s[3.25]);
+  assert.deepEqual(s, { 3.25: 25, 4.25: 33, 5.25: 42 });
+});
+
+test("redistributeShares: four widths still sum to 100", () => {
+  const s = redistributeShares([3.25, 4.25, 5.25, 6.25]);
+  assert.equal(Object.values(s).reduce((a, b) => a + b, 0), 100);
+  assert.deepEqual(s, { 3.25: 17, 4.25: 22, 5.25: 28, 6.25: 33 });
+});
+
+// --- multiWidthBuild ---------------------------------------------------------
+
+const mwFloor = (over = {}) => ({ mode: "floor", cfg: { ...defaultConfig("floor"), sp: "White Oak", grade: "char", cons: "solid", ...over } });
+const shares = (ws) => ws.map((w) => ({ w, share: 1 }));
+
+test("multiWidthBuild floor: per-width sf splits and reconciles to the exact total", () => {
+  const b = multiWidthBuild(mwFloor(), [{ w: 3.25, share: 25 }, { w: 4.25, share: 33 }, { w: 5.25, share: 42 }], 420);
+  assert.equal(b.lines.length, 3);
+  assert.equal(b.lines.reduce((a, l) => a + l.sf, 0), 420);
+  assert.ok(b.lines.every((l) => l.cost > 0 && l.ok));
+});
+
+test("multiWidthBuild floor: unfinished has no fees; small-order fee pools once on total sf", () => {
+  const unf = multiWidthBuild(mwFloor({ finish: "unf" }), shares([3.25, 4.25, 5.25]), 300);
+  assert.deepEqual(unf.fees, []);
+  const small = multiWidthBuild(mwFloor({ finish: "est" }), shares([3.25, 4.25, 5.25]), 300);
+  assert.equal(small.fees.filter((f) => /Small-order/.test(f.label)).length, 1);
+  assert.equal(small.fees.find((f) => /Small-order/.test(f.label)).amt, 300);
+  const big = multiWidthBuild(mwFloor({ finish: "est" }), shares([3.25, 4.25, 5.25]), 600);
+  assert.equal(big.fees.filter((f) => /Small-order/.test(f.label)).length, 0);
+});
+
+test("multiWidthBuild floor: custom color sample charged once for the bundle", () => {
+  const b = multiWidthBuild(mwFloor({ finish: "t1" }), shares([3.25, 4.25, 5.25]), 600);
+  assert.equal(b.fees.filter((f) => /sample/i.test(f.label)).length, 1);
+  assert.equal(b.fees.find((f) => /sample/i.test(f.label)).amt, 750);
+});
+
+const mwStocked = (over = {}) => ({ mode: "stocked", cfg: { sp: "Cherry", color: "Natural", grade: "char", sheen: "30", sheenCustom: false, ...over } });
+
+test("multiWidthBuild stocked: no small-order fee; standard sheen has no fee", () => {
+  const b = multiWidthBuild(mwStocked(), [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
+  assert.equal(b.lines.reduce((a, l) => a + l.sf, 0), 200);
+  assert.deepEqual(b.fees, []);
+});
+
+test("multiWidthBuild stocked: off-standard sheen pools once at $250", () => {
+  const b = multiWidthBuild(mwStocked({ sheen: "5" }), [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
+  assert.equal(b.fees.length, 1);
+  assert.match(b.fees[0].label, /sheen/i);
+  assert.equal(b.fees[0].amt, 250);
+});
+
+test("multiWidthBuild stocked: a width the product doesn't ship is flagged ok:false", () => {
+  // Cherry Natural char has null at 2¼" (index 0)
+  const b = multiWidthBuild(mwStocked(), [{ w: 2.25, share: 50 }, { w: 4.25, share: 50 }], 200);
+  assert.equal(b.lines.find((l) => l.w === 2.25).ok, false);
+  assert.equal(b.lines.find((l) => l.w === 4.25).ok, true);
+});
+
+test("multiWidthBuild: remainder lands on the largest shippable line, never a dropped one", () => {
+  // stocked Cherry Natural char: 2¼" (index 0) is null → unshippable
+  const b = multiWidthBuild(mwStocked(), [{ w: 2.25, share: 50 }, { w: 3.25, share: 25 }, { w: 4.25, share: 25 }], 201);
+  const dropped = b.lines.find((l) => l.w === 2.25);
+  assert.equal(dropped.ok, false);
+  assert.equal(b.lines.filter((l) => l.ok).reduce((a, l) => a + l.sf, 0) + dropped.sf, 201);
+  // the shippable lines alone should carry all the reconciled area they can; the dropped line keeps only its raw share
+  assert.ok(b.lines.filter((l) => l.ok).reduce((a, l) => a + l.sf, 0) >= 100);
+});
+
+// --- multiWidthLineItems -----------------------------------------------------
+
+test("multiWidthLineItems: N width rows + pooled fee rows, correct shapes", () => {
+  const rows = multiWidthLineItems(mwFloor({ finish: "t1" }), [{ w: 3.25, share: 25 }, { w: 4.25, share: 33 }, { w: 5.25, share: 42 }], 300, 40);
+  const hardwood = rows.filter((r) => r.type === "hardwood");
+  const misc = rows.filter((r) => r.type === "misc");
+  assert.equal(hardwood.length, 3);
+  assert.ok(hardwood.every((r) => r.qtyType === "sqft" && r.sheoga.multiWidth === true));
+  assert.equal(hardwood.reduce((a, r) => a + Number(r.qty), 0), 300);
+  // t1 custom under 300 sf → small-order ($300) + custom sample ($750) = 2 fee rows
+  assert.equal(misc.length, 2);
+  assert.ok(misc.every((r) => r.markupPct === "0" && r.priceSqft === r.costSqft));
+});
+
+test("multiWidthLineItems: unshippable widths are dropped, not zero-priced", () => {
+  const rows = multiWidthLineItems(mwStocked(), [{ w: 2.25, share: 50 }, { w: 4.25, share: 50 }], 200, 40);
+  assert.equal(rows.filter((r) => r.type === "hardwood").length, 1);
+});
+
+test("normBasketEntry: valid single/bundle pass; junk drops to null", () => {
+  const s = normBasketEntry({ kind: "single", snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
+  assert.equal(s.kind, "single"); assert.ok(s.id && s.markupPct);
+  const b = normBasketEntry({ kind: "bundle", base: { mode: "floor", cfg: { sp: "White Oak" } }, widths: [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], sf: 200 });
+  assert.equal(b.kind, "bundle"); assert.equal(b.widths.length, 2);
+  assert.equal(normBasketEntry({ kind: "bundle", base: null, widths: [] }), null);
+  assert.equal(normBasketEntry({ kind: "single" }), null);
+  assert.equal(normBasketEntry(null), null);
+});
+
+test("normBasketEntry: a 0% markup entry is preserved, not coerced to default", () => {
+  const s = normBasketEntry({ kind: "single", markupPct: 0, snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
+  assert.equal(s.markupPct, 0);
 });

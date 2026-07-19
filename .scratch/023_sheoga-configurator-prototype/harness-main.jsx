@@ -22,6 +22,7 @@ function Harness() {
   const [pop, setPop] = useState(null); // { seed }
   const [added, setAdded] = useState(null); // lines from the last Add
   const [mobileSearch, setMobileSearch] = useState(false); // MobileSearchSheet demo
+  const [basket, setBasket] = useState([]);
   return (
     <div className="min-h-screen p-8" style={{ background: "var(--ft-cream)" }}>
       <div className="max-w-3xl mx-auto">
@@ -65,6 +66,9 @@ function Harness() {
 
       {pop && (
         <SheogaConfigurator seed={pop.seed} initialSf={0} markupDefault={40} ventMarkupDefault={50}
+          basket={basket} onBasketChange={setBasket} areaName="Kitchen"
+          onMove={(lines) => setAdded(lines)}
+          onMoveEntries={(lines, next) => { setAdded(lines); setBasket(next); }}
           onAdd={(lines) => { setAdded(lines); setPop(null); }}
           onClose={() => setPop(null)} />
       )}

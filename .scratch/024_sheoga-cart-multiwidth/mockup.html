@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sheoga — basket + multi-width mockup</title>
+<style>
+  :root{
+    --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-sand:#EDE9DD;
+    --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+    --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+    --ft-grid-line:rgba(28,26,23,.34);
+    --ft-brand:#57703A; --ft-brand-deep:#40542A;
+    --ft-tint:#eef1e8; --ft-tint-border:rgba(87,112,58,.35);
+    --ft-amber:#8a5a12;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Manrope",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ft-text);background:#0f0c0a;}
+  .toolbar{position:fixed;top:0;left:0;right:0;height:44px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#1c1a17;color:#f6f3ec;z-index:200;font-size:12px;font-weight:700}
+  .toolbar .seg{display:inline-flex;border:1px solid #4a453d;border-radius:8px;overflow:hidden}
+  .toolbar .seg button{background:#26231f;color:#c9c4ba;border:0;padding:5px 12px;font-weight:800;font-size:12px;cursor:pointer}
+  .toolbar .seg button.on{background:#f6f3ec;color:#1c1a17}
+  .toolbar .hint{color:#a8a29a;font-weight:600}
+  .stage{position:fixed;inset:44px 0 0 0;display:flex;align-items:center;justify-content:center;background:rgba(20,15,10,.55);padding:16px}
+
+  /* popup */
+  .pop{position:relative;background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden}
+  .pop.desktop{width:1060px;height:min(760px,88vh)}
+  .pop.mobile{width:390px;height:min(780px,92vh);border-radius:18px}
+  .eyebrow{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ft-brand-deep)}
+  .eyebrow.grey{color:var(--ft-faint)}
+  .head{display:flex;align-items:center;gap:12px;padding:12px 16px 8px}
+  .head h1{margin:0;font-size:18px;font-weight:800}
+  .head .sub{font-size:11px;color:var(--ft-muted);font-weight:600;margin-left:6px}
+  .xbtn{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .basketbtn{position:relative;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:9px;padding:6px 11px;font-weight:800;font-size:12px;cursor:pointer;color:var(--ft-text)}
+  .basketbtn .badge{background:var(--ft-brand);color:#fff;border-radius:999px;min-width:18px;height:18px;padding:0 5px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .tabs{display:flex;gap:3px;padding:6px 16px 0;border-bottom:1px solid var(--ft-grid-line)}
+  .tabs.mob{overflow-x:auto;padding-bottom:8px;border-bottom:1px solid var(--ft-border)}
+  .tab{padding:8px 13px;font-size:12px;font-weight:800;border:1px solid transparent;border-bottom:0;border-radius:9px 9px 0 0;background:transparent;color:var(--ft-muted);cursor:pointer;white-space:nowrap}
+  .tab.on{background:var(--ft-card);border-color:var(--ft-grid-line);color:var(--ft-text);position:relative;z-index:2;margin-bottom:-1px}
+  .tabs.mob .tab{border:1px solid var(--ft-border-strong);border-radius:999px;background:var(--ft-card)}
+  .tabs.mob .tab.on{background:#1c1a17;color:#fff;border-color:#1c1a17}
+
+  .body{flex:1;display:flex;min-height:0}
+  .pop.mobile .body{flex-direction:column}
+  .rail{width:500px;flex:none;border-right:1px solid var(--ft-grid-line);overflow:auto;scrollbar-gutter:stable;padding:16px}
+  .pop.mobile .rail{width:auto;flex:1;border-right:0}
+  .pane{flex:1;min-width:0;overflow:auto;padding:16px;background:var(--ft-cream)}
+  .pop.mobile .pane{display:none}
+
+  .sect{margin-bottom:16px}
+  .sect .lbl{display:flex;align-items:baseline;gap:8px;margin-bottom:7px}
+  .sect .lbl .hint{margin-left:auto;font-size:10.5px;color:var(--ft-faint);font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;line-height:1.15;text-align:center;cursor:pointer;color:var(--ft-text)}
+  .chip .s{display:block;font-size:10px;font-weight:700;color:var(--ft-faint)}
+  .chip.on{background:#1c1a17;border-color:#1c1a17;color:#fff}
+  .chip.on .s{color:rgba(255,255,255,.7)}
+  .chip.multi{border-style:dashed;border-color:var(--ft-brand);color:var(--ft-brand-deep);display:inline-flex;align-items:center;gap:5px}
+  .chip.multi.on{background:var(--ft-brand);border-style:solid;border-color:var(--ft-brand);color:#fff}
+  .chip.pick{position:relative;padding-left:24px}
+  .chip.pick::before{content:"";position:absolute;left:8px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:3px;border:1.5px solid var(--ft-border-strong)}
+  .chip.pick.sel::before{background:var(--ft-brand);border-color:var(--ft-brand);content:"✓";color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center}
+
+  .row2{display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  .seg2{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden}
+  .seg2 button{border:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-muted);padding:7px 13px;font-weight:800;font-size:12px;cursor:pointer}
+  .seg2 button:first-child{border-left:0}
+  .seg2 button.on{background:#1c1a17;color:#fff}
+  .gridbtn{margin-left:auto;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;color:var(--ft-text)}
+  .drop{width:100%;border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:8px 10px;font-size:12px;font-weight:800;color:var(--ft-text)}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+
+  /* multi-width inline panel */
+  .mwpanel{margin-top:9px;border:1px solid var(--ft-tint-border);background:var(--ft-tint);border-radius:10px;padding:11px}
+  .mwpanel .top{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:var(--ft-card)}
+  .stepper button{border:0;background:var(--ft-card);width:28px;height:28px;font-size:15px;font-weight:800;cursor:pointer;color:var(--ft-text)}
+  .stepper .n{width:30px;text-align:center;font-weight:800;font-size:13px}
+
+  /* build card / right pane */
+  .card{border:1px solid var(--ft-grid-line);border-radius:11px;overflow:hidden;background:var(--ft-card)}
+  .card .cap{display:flex;align-items:center;gap:8px;padding:9px 13px;background:var(--ft-sand)}
+  .hbadge{width:20px;height:20px;border-radius:5px;background:var(--ft-brand-deep);color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center}
+  .card .cap .t{font-size:13px;font-weight:800;flex:1}
+  .card .cap .note{font-size:9.5px;color:var(--ft-muted);font-weight:700}
+  .desc{padding:10px 13px 3px;font-size:15px;font-weight:800;line-height:1.25}
+  .lines{padding:4px 13px 10px}
+  .ln{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:12px;color:var(--ft-muted);font-weight:600}
+  .ln .a{margin-left:auto;font-weight:800;color:var(--ft-text);font-variant-numeric:tabular-nums}
+  .mwline{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--ft-border)}
+  .mwline .wchip{width:38px;font-weight:900;font-size:13px}
+  .pctwrap{display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);overflow:hidden}
+  .pctwrap input{width:42px;border:0;padding:5px 4px 5px 7px;font-size:12px;font-weight:800;text-align:right;font-family:inherit;color:var(--ft-text);background:transparent}
+  .pctwrap input:focus{outline:none}
+  .pctwrap .pc{padding:0 6px 0 1px;font-size:11px;font-weight:800;color:var(--ft-faint)}
+  .mwline .sf{font-size:11px;color:var(--ft-muted);font-weight:700;width:64px}
+  .mwline .rate{font-size:11px;color:var(--ft-faint);font-weight:700;width:60px}
+  .mwline .tot{margin-left:auto;font-weight:900;font-variant-numeric:tabular-nums;font-size:13px}
+  .fees{border-top:1px dashed var(--ft-grid-line);padding:8px 13px}
+  .fee{display:flex;align-items:baseline;gap:8px;padding:2px 0;font-size:11.5px;color:var(--ft-muted);font-weight:700}
+  .fee .a{margin-left:auto;font-weight:800;color:var(--ft-text);font-variant-numeric:tabular-nums}
+  .fee.pool{color:var(--ft-brand-deep)}
+  .totbar{display:flex;align-items:center;gap:12px;padding:11px 13px;border-top:1px solid var(--ft-grid-line);background:var(--ft-sand)}
+  .totbar .k{font-size:8.5px}
+  .totbar .cost{font-size:16px;font-weight:900}
+  .totbar .arrow{font-size:11px;color:var(--ft-faint)}
+  .totbar .sell{font-size:20px;font-weight:900;color:var(--ft-brand-deep)}
+  .totbar .big{margin-left:auto;text-align:right}
+  .totbar .big .v{font-size:16px;font-weight:900}
+  .cardacts{display:flex;gap:8px;padding:10px 13px;border-top:1px solid var(--ft-border)}
+  .btn{border-radius:8px;padding:8px 13px;font-size:12px;font-weight:800;cursor:pointer;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);display:inline-flex;align-items:center;gap:6px}
+  .btn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff;margin-left:auto}
+  .btn.ink{background:#1c1a17;border-color:#1c1a17;color:#fff}
+  .pricenote{margin-top:12px;font-size:10.5px;color:var(--ft-faint);font-weight:600;line-height:1.5}
+
+  .footbar{display:flex;align-items:center;gap:18px;padding:9px 16px;border-top:1px solid var(--ft-grid-line);background:var(--ft-cream)}
+  .footbar label{font-size:12px;font-weight:800;color:var(--ft-muted);display:inline-flex;align-items:center;gap:6px}
+  .footbar input{width:64px;border:1px solid var(--ft-border-strong);border-radius:7px;padding:5px 6px;text-align:center;font-weight:800;font-family:inherit;font-size:13px}
+  .footbar .sp{margin-left:auto;font-size:10.5px;color:var(--ft-faint);font-weight:600}
+
+  /* mobile price bar */
+  .pricebar{display:none;flex:none;border-top:1px solid var(--ft-grid-line);background:var(--ft-card);padding:8px 14px 12px;box-shadow:0 -6px 24px rgba(28,26,23,.10);cursor:pointer}
+  .pop.mobile .pricebar{display:block}
+  .pricebar .grab{width:40px;height:5px;border-radius:999px;background:var(--ft-border-strong);margin:2px auto 8px}
+  .pricebar .rowb{display:flex;align-items:center;gap:12px}
+  .pricebar .l{flex:1;min-width:0}
+  .pricebar .l .d{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pricebar .l .m{font-size:10.5px;color:var(--ft-muted);font-weight:700}
+  .pricebar .p{font-size:18px;font-weight:900;color:var(--ft-brand-deep)}
+  .pricebar .up{width:34px;height:34px;border-radius:9px;background:#1c1a17;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px}
+
+  /* basket drawer */
+  .scrim{position:absolute;inset:0;background:rgba(20,15,10,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{position:absolute;z-index:50;background:var(--ft-card);display:flex;flex-direction:column;box-shadow:-12px 0 48px rgba(0,0,0,.22);transition:transform .28s cubic-bezier(.32,.72,0,1)}
+  .pop.desktop .drawer{top:0;right:0;bottom:0;width:400px;transform:translateX(100%);border-left:1px solid var(--ft-border-strong)}
+  .pop.desktop .drawer.on{transform:translateX(0)}
+  .pop.mobile .drawer{left:0;right:0;bottom:0;max-height:86%;border-radius:18px 18px 0 0;transform:translateY(100%);box-shadow:0 -12px 48px rgba(0,0,0,.28)}
+  .pop.mobile .drawer.on{transform:translateY(0)}
+  .drawer .dhead{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--ft-border)}
+  .drawer .dhead .t{font-size:15px;font-weight:900}
+  .drawer .dhead .c{font-size:11px;color:var(--ft-muted);font-weight:700}
+  .drawer .grab{width:40px;height:5px;border-radius:999px;background:var(--ft-border-strong);margin:8px auto 0}
+  .dbody{flex:1;overflow:auto;padding:12px 13px}
+  .bitem{border:1px solid var(--ft-border);border-radius:10px;padding:10px 11px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start;background:var(--ft-card)}
+  .bitem.sel{border-color:var(--ft-brand);box-shadow:0 0 0 1px var(--ft-brand) inset}
+  .cbox{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--ft-border-strong);flex:none;margin-top:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff}
+  .cbox.on{background:var(--ft-brand);border-color:var(--ft-brand)}
+  .bmain{flex:1;min-width:0}
+  .btag{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-brand-deep);background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:5px;padding:1px 6px;margin-bottom:4px}
+  .bmain .title{font-size:13px;font-weight:800;line-height:1.25}
+  .bmain .meta{font-size:11px;color:var(--ft-muted);font-weight:700;margin-top:2px}
+  .subln{font-size:11px;color:var(--ft-muted);font-weight:700;display:flex;gap:8px;padding:2px 0 0 2px}
+  .subln .a{margin-left:auto;font-weight:800;color:var(--ft-text)}
+  .bprice{font-weight:900;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rm{border:0;background:transparent;color:var(--ft-faint);cursor:pointer;font-size:15px;line-height:1;padding:2px}
+  .dfoot{border-top:1px solid var(--ft-border);padding:11px 13px;display:flex;gap:8px;align-items:center}
+  .dfoot .selcount{font-size:11px;color:var(--ft-muted);font-weight:700}
+  .empty{text-align:center;color:var(--ft-faint);font-weight:700;font-size:12px;padding:30px 10px}
+  .lnk{background:transparent;border:0;color:var(--ft-brand-deep);font-weight:800;font-size:11px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>Sheoga configurator — basket + multi-width mockup</span>
+  <div class="seg" id="devseg">
+    <button data-dev="desktop" class="on">Desktop</button>
+    <button data-dev="mobile">Mobile</button>
+  </div>
+  <span class="hint" id="th">Click <b>Multi</b> in the Width row · open the <b>Basket</b> top-right · edit the % fields</span>
+</div>
+<div class="stage" id="stage"></div>
+
+<script>
+const WIDTHS = [
+  {w:2.25,label:'2¼"',base:3.60},{w:3.25,label:'3¼"',base:3.80},{w:4.25,label:'4¼"',base:4.05},
+  {w:5.25,label:'5¼"',base:4.35},{w:6.25,label:'6¼"',base:4.65},{w:7.25,label:'7¼"',base:4.95},{w:8.25,label:'8¼"',base:5.25}
+];
+const MARKUP=40, FIN_ADD=3.05, CUSTOM_FEE=750; // custom color T-1
+const sellOf=(cost)=>Math.round(cost*(1+MARKUP/100)*100)/100;
+const money=n=>'$'+n.toLocaleString(undefined,{maximumFractionDigits:0});
+const money2=n=>'$'+n.toFixed(2);
+const wById=w=>WIDTHS.find(x=>x.w===w);
+const sellFor=w=>sellOf(wById(w).base+FIN_ADD);
+const smallFee=sf=>sf<250?600:sf<500?300:0;
+
+let S={
+  dev:'desktop', multi:false, basketOpen:false, sheetUp:false,
+  sf:420,
+  mw:[3.25,4.25,5.25],           // selected multi widths
+  pct:{3.25:25,4.25:33,5.25:42}, // editable percentages
+  singleW:5.25,
+  basket:[
+    {id:'b1',kind:'single',title:'5¼" White Oak Character Solid',meta:'Unfinished · Established Fresh Cut · 30 sheen · 300 sf',price:1608,sel:true},
+    {id:'b2',kind:'bundle',title:'White Oak Character Solid — multi-width (custom T-1)',meta:'3 widths · 420 sf total · one custom charge',sel:true,
+      subs:[{w:'3¼"',sf:107,tot:1027},{w:'4¼"',sf:140,tot:1392},{w:'5¼"',sf:173,tot:1791}],
+      fees:[{l:'Custom-color sample (shared)',a:750},{l:'Small-order fee — under 500 sf',a:300}], price:5260}
+  ]
+};
+
+// Reset every selected width's share to the width-proportional default
+// (wider plank → bigger share). Called whenever the set of widths changes.
+function redistribute(){
+  const sum=S.mw.reduce((a,w)=>a+wById(w).w,0)||1;
+  let acc=0; const ps={};
+  S.mw.forEach(w=>{ps[w]=Math.round(wById(w).w/sum*100);acc+=ps[w];});
+  if(S.mw.length){const big=[...S.mw].sort((a,b)=>wById(b).w-wById(a).w)[0];ps[big]+=100-acc;}
+  S.pct=ps;
+}
+function mwCompute(){
+  const sum=S.mw.reduce((a,w)=>a+S.pct[w],0)||1;
+  let acc=0; const lines=S.mw.map((w,i)=>{
+    const share=S.pct[w]/sum;
+    let sf=Math.round(S.sf*share); acc+=sf;
+    return {w,pct:S.pct[w],sf,rate:sellFor(w)};
+  });
+  // reconcile rounding on the largest line
+  const diff=S.sf-lines.reduce((a,l)=>a+l.sf,0);
+  if(lines.length){ lines.sort((a,b)=>b.sf-a.sf); lines[0].sf+=diff; lines.sort((a,b)=>a.w-b.w); }
+  lines.forEach(l=>l.tot=Math.round(l.sf*l.rate));
+  const linesTot=lines.reduce((a,l)=>a+l.tot,0);
+  const small=smallFee(S.sf);
+  const total=linesTot+CUSTOM_FEE+small;
+  return {lines,small,total,linesTot};
+}
+
+function railHTML(){
+  const species=['White Oak','Red Oak','Hickory','Maple','Cherry','Walnut','Beech','Q/R White Oak','Live Sawn White Oak'];
+  const widthChips=WIDTHS.map(x=>{
+    if(S.multi){
+      const sel=S.mw.includes(x.w);
+      return `<button class="chip pick ${sel?'sel':''}" data-mw="${x.w}">${x.label}</button>`;
+    }
+    const on=x.w===S.singleW;
+    return `<button class="chip ${on?'on':''}" data-w="${x.w}">${x.label}<span class="s">${money2(sellFor(x.w))}/sf</span></button>`;
+  }).join('');
+  const mwPanel=S.multi?`
+    <div class="mwpanel">
+      <div class="top">
+        <span class="eyebrow">Multi-width</span>
+        <span style="font-size:11px;color:var(--ft-muted);font-weight:700">How many widths?</span>
+        <div class="stepper">
+          <button data-step="-1">−</button><span class="n">${S.mw.length}</span><button data-step="1">+</button>
+        </div>
+        <span style="font-size:10.5px;color:var(--ft-faint);font-weight:600;margin-left:auto">split by width · editable →</span>
+      </div>
+      <div style="font-size:11px;color:var(--ft-muted);font-weight:700">Tick the widths above. Job size splits proportionally to plank width; adjust each share on the right.</div>
+    </div>`:'';
+  return `
+  <div class="sect"><div class="lbl"><span class="eyebrow">Species</span><span class="hint">sell $/sf at current options</span></div>
+    <div class="chips">${species.map((s,i)=>`<button class="chip ${i===0?'on':''}">${s}</button>`).join('')}</div></div>
+  <div class="row2">
+    <div><div class="eyebrow" style="margin-bottom:6px">Construction</div>
+      <div class="seg2"><button class="on">Solid</button><button>Eng.</button></div></div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Grade</div>
+      <div class="seg2"><button>Clear</button><button class="on">Char.</button></div></div>
+    <button class="gridbtn">▦ Price grid</button>
+  </div>
+  <div class="sect"><div class="lbl"><span class="eyebrow">Width</span>${S.multi?'<span class="hint">multi-width — pick your sizes</span>':''}</div>
+    <div class="chips">${widthChips}
+      <button class="chip multi ${S.multi?'on':''}" id="multichip">◨ Multi${S.multi?' ✓':''}</button>
+    </div>
+    ${mwPanel}
+  </div>
+  <div class="twocol">
+    <div><div class="eyebrow" style="margin-bottom:5px">Texture / scrape</div><div class="drop">Smooth ▾</div></div>
+    <div><div class="eyebrow" style="margin-bottom:5px">Finishing</div><div class="drop">Custom color T-1 ▾</div></div>
+  </div>
+  <div style="border:2px solid var(--ft-brand);background:var(--ft-tint);border-radius:10px;padding:11px;margin-bottom:16px">
+    <div class="twocol" style="margin:0">
+      <div><div class="eyebrow" style="margin-bottom:5px">Stain color</div><div class="drop" style="background:#fff">Custom color name…</div></div>
+      <div><div class="eyebrow" style="margin-bottom:5px">Sheen</div><div class="drop">30-sheen ▾</div></div>
+    </div>
+  </div>
+  <div class="twocol">
+    <div><div class="eyebrow" style="margin-bottom:5px">Lengths</div><div class="drop">1'–8' ▾</div></div>
+    <div><div class="eyebrow" style="margin-bottom:5px">Edge</div><div class="drop">Square edge ▾</div></div>
+  </div>`;
+}
+
+function singleCardHTML(){
+  const rate=sellFor(S.singleW), sf=S.sf, tot=Math.round(rate*sf), cost=wById(S.singleW).base+FIN_ADD, small=smallFee(sf);
+  return `<div class="card">
+    <div class="cap"><span class="hbadge">H</span><span class="t">Sheoga ${wById(S.singleW).label} White Oak</span><span class="note">from Sheoga sheets</span></div>
+    <div class="desc">${wById(S.singleW).label} White Oak Character Solid Custom color T-1 30 sheen</div>
+    <div class="lines">
+      <div class="ln"><span>Unfinished base + custom finish</span><span class="a">${money2(cost)}/sf</span></div>
+      ${small?`<div class="ln"><span>Small-order fee — under 500 sf</span><span class="a">+${money(small)} flat</span></div>`:''}
+    </div>
+    <div class="totbar">
+      <div><div class="eyebrow k">our cost</div><div class="cost">${money2(cost)}/sf</div></div>
+      <div class="arrow">→ +${MARKUP}% →</div>
+      <div><div class="eyebrow k">sell</div><div class="sell">${money2(rate)}/sf</div></div>
+      <div class="big"><div class="eyebrow k">× ${sf} sq ft${small?' + fee':''}</div><div class="v">${money(tot+small)}</div></div>
+    </div>
+    <div class="cardacts">
+      <button class="btn">▦ Price grid</button>
+      <button class="btn ink" data-add="single">＋ Add to basket</button>
+      <button class="btn primary" data-move="single">Add to product line →</button>
+    </div>
+  </div>`;
+}
+
+function multiCardHTML(){
+  const c=mwCompute();
+  const rows=c.lines.map(l=>`
+    <div class="mwline">
+      <span class="wchip">${wById(l.w).label}</span>
+      <span class="pctwrap"><input type="number" min="1" max="100" value="${l.pct}" data-pct="${l.w}"><span class="pc">%</span></span>
+      <span class="sf" id="sf-${l.w}">${l.sf} sf</span>
+      <span class="rate">${money2(l.rate)}/sf</span>
+      <span class="tot" id="tot-${l.w}">${money(l.tot)}</span>
+    </div>`).join('');
+  return `<div class="card">
+    <div class="cap"><span class="hbadge">H</span><span class="t">Multi-width — White Oak Character Solid</span><span class="note">custom color T-1</span></div>
+    <div class="desc" style="font-size:13px">White Oak Character Solid · Custom T-1 · ${S.mw.map(w=>wById(w).label).join(' + ')}</div>
+    <div class="lines" style="padding-top:2px">
+      <div style="display:flex;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ft-faint);padding:2px 0 4px"><span style="width:46px">Width</span><span style="width:60px">Share</span><span style="width:64px">Sq ft</span><span style="width:60px">Sell</span><span style="margin-left:auto">Line</span></div>
+      ${rows}
+    </div>
+    <div class="fees">
+      <div class="fee pool"><span>Custom-color sample — 1× shared across widths</span><span class="a">+${money(CUSTOM_FEE)}</span></div>
+      <div class="fee pool"><span>Small-order fee — ${S.sf<500?(S.sf<250?'under 250':'under 500')+' sf total':'none (≥ 500 sf total)'}</span><span class="a" id="smallfee">${c.small?'+'+money(c.small):'—'}</span></div>
+    </div>
+    <div class="totbar">
+      <div><div class="eyebrow k">${S.mw.length} width lines</div><div class="cost" id="linestot">${money(c.linesTot)}</div></div>
+      <div class="arrow">+ pooled fees →</div>
+      <div class="big"><div class="eyebrow k">bundle total · ${S.sf} sq ft</div><div class="v" id="bundletot" style="font-size:20px;color:var(--ft-brand-deep)">${money(c.total)}</div></div>
+    </div>
+    <div class="cardacts">
+      <button class="btn">▦ Price grid</button>
+      <button class="btn ink" data-add="bundle">＋ Add bundle to basket</button>
+      <button class="btn primary" data-move="bundle">Add ${S.mw.length} lines to product line →</button>
+    </div>
+  </div>`;
+}
+
+function basketHTML(){
+  const n=S.basket.length, sel=S.basket.filter(b=>b.sel).length;
+  const items=n?S.basket.map(b=>`
+    <div class="bitem ${b.sel?'sel':''}">
+      <div class="cbox ${b.sel?'on':''}" data-sel="${b.id}">${b.sel?'✓':''}</div>
+      <div class="bmain">
+        ${b.kind==='bundle'?'<span class="btag">Multi-width bundle</span>':''}
+        <div class="title">${b.title}</div>
+        <div class="meta">${b.meta}</div>
+        ${b.kind==='bundle'?b.subs.map(s=>`<div class="subln"><span>${s.w} · ${s.sf} sf</span><span class="a">${money(s.tot)}</span></div>`).join('')
+          +b.fees.map(f=>`<div class="subln" style="color:var(--ft-brand-deep)"><span>${f.l}</span><span class="a">+${money(f.a)}</span></div>`).join(''):''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:end;gap:6px">
+        <span class="bprice">${money(b.price)}</span>
+        <button class="rm" data-rm="${b.id}" title="Remove">✕</button>
+      </div>
+    </div>`).join(''):'<div class="empty">Basket is empty.<br>Build a config and “Add to basket”.</div>';
+  return `
+  <div class="grab" style="${S.dev==='mobile'?'':'display:none'}"></div>
+  <div class="dhead"><span class="t">Basket</span><span class="c">${n} item${n===1?'':'s'} · saved with this job</span>
+    <button class="xbtn" data-closebasket style="margin-left:auto">✕</button></div>
+  <div class="dbody">${items}
+    ${n?`<div style="text-align:center;margin-top:2px"><button class="lnk" id="selall">${sel===n?'Clear selection':'Select all'}</button></div>`:''}
+  </div>
+  <div class="dfoot">
+    <span class="selcount">${sel} selected → <b>Kitchen</b></span>
+    <button class="btn" ${sel?'':'disabled'} style="margin-left:auto">Move all</button>
+    <button class="btn primary" ${sel?'':'disabled'} style="margin-left:0">Move ${sel} → Kitchen</button>
+  </div>`;
+}
+
+function render(){
+  const badge=S.basket.length;
+  const tabsCls=S.dev==='mobile'?'tabs mob':'tabs';
+  const paneInner=S.multi?multiCardHTML():singleCardHTML();
+  const stage=document.getElementById('stage');
+  stage.innerHTML=`
+  <div class="pop ${S.dev}">
+    <div class="head">
+      <div><div class="eyebrow grey">Vendor configurator</div><h1>Sheoga Hardwood<span class="sub">bought by description — no SKUs</span></h1></div>
+      <button class="basketbtn" id="openbasket">🧺 Basket ${badge?`<span class="badge">${badge}</span>`:''}</button>
+      <button class="xbtn">✕</button>
+    </div>
+    <div class="${tabsCls}">
+      <button class="tab on">Unfinished &amp; custom</button><button class="tab">Stocked prefinished</button>
+      <button class="tab">Herringbone</button><button class="tab">Wood vents</button><button class="tab">Dampers</button>
+    </div>
+    <div class="body">
+      <div class="rail">${railHTML()}</div>
+      <div class="pane">${paneInner}<div class="pricenote">Sheet prices are distributor cost · custom orders 5–10% overrun, no returns.</div></div>
+    </div>
+    <div class="pricebar" data-sheet><div class="grab"></div>
+      <div class="rowb"><div class="l"><div class="d">${S.multi?'Multi-width — 3 widths':wById(S.singleW).label+' White Oak Character'}</div>
+        <div class="m">${S.multi?S.sf+' sf · bundle':S.sf+' sf'}</div></div>
+        <div class="p">${S.multi?money(mwCompute().total):money2(sellFor(S.singleW))}</div>
+        <div class="up">︿</div></div>
+    </div>
+    <div class="footbar">
+      <label>Markup <input type="number" value="40"> %</label>
+      <label>Job size <input type="number" value="${S.sf}" id="jobsize"> sq ft</label>
+      <span class="sp">The description is the order — read it to Sheoga, or reconfigure from the row later.</span>
+    </div>
+    <div class="scrim ${S.basketOpen||S.sheetUp?'on':''}" data-scrim></div>
+    <div class="drawer ${S.basketOpen?'on':''}">${basketHTML()}</div>
+    ${S.dev==='mobile'?`<div class="drawer sheet ${S.sheetUp?'on':''}" style="max-height:82%">
+      <div class="grab"></div>
+      <div class="dhead"><span class="t">Price breakdown</span><button class="xbtn" data-closesheet style="margin-left:auto">✕</button></div>
+      <div class="dbody">${paneInner}</div></div>`:''}
+  </div>`;
+  wire();
+}
+
+function wire(){
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  document.getElementById('multichip').onclick=()=>{S.multi=!S.multi;render();};
+  const ob=document.getElementById('openbasket'); if(ob)ob.onclick=()=>{S.basketOpen=true;render();};
+  $$('[data-closebasket]').forEach(b=>b.onclick=()=>{S.basketOpen=false;render();});
+  const sc=$('[data-scrim]'); if(sc)sc.onclick=()=>{S.basketOpen=false;S.sheetUp=false;render();};
+  const sb=$('[data-sheet]'); if(sb)sb.onclick=()=>{S.sheetUp=true;render();};
+  $$('[data-closesheet]').forEach(b=>b.onclick=()=>{S.sheetUp=false;render();});
+  $$('[data-w]').forEach(b=>b.onclick=()=>{S.singleW=+b.dataset.w;render();});
+  $$('[data-mw]').forEach(b=>b.onclick=()=>{const w=+b.dataset.mw;const i=S.mw.indexOf(w);
+    if(i>=0){if(S.mw.length>2)S.mw.splice(i,1);}else{S.mw.push(w);S.mw.sort((a,b)=>a-b);}
+    redistribute();render();});
+  $$('[data-step]').forEach(b=>b.onclick=()=>{const d=+b.dataset.step;
+    if(d>0){const avail=WIDTHS.map(x=>x.w).filter(w=>!S.mw.includes(w)); if(avail.length){S.mw.push(avail[0]);S.mw.sort((a,b)=>a-b);}}
+    else if(S.mw.length>2){S.mw.pop();}
+    redistribute();render();});
+  $$('[data-pct]').forEach(inp=>inp.oninput=()=>{const w=+inp.dataset.pct;S.pct[w]=Math.max(0,+inp.value||0);liveMulti();});
+  const js=document.getElementById('jobsize'); if(js)js.oninput=()=>{S.sf=Math.max(1,+js.value||1);liveMulti();updateSheet();};
+  $$('[data-sel]').forEach(c=>c.onclick=()=>{const b=S.basket.find(x=>x.id===c.dataset.sel);b.sel=!b.sel;render();});
+  $$('[data-rm]').forEach(x=>x.onclick=()=>{S.basket=S.basket.filter(b=>b.id!==x.dataset.rm);render();});
+  const sa=document.getElementById('selall'); if(sa)sa.onclick=()=>{const all=S.basket.every(b=>b.sel);S.basket.forEach(b=>b.sel=!all);render();};
+  $$('[data-add]').forEach(b=>b.onclick=()=>{addToBasket(b.dataset.add);});
+  $$('[data-move]').forEach(b=>b.onclick=()=>{flash('Moved to product line (Kitchen) →');});
+  document.querySelectorAll('#devseg button').forEach(b=>b.onclick=()=>{S.dev=b.dataset.dev;S.basketOpen=false;S.sheetUp=false;
+    document.querySelectorAll('#devseg button').forEach(x=>x.classList.toggle('on',x===b));render();});
+}
+function liveMulti(){ if(!S.multi)return; const c=mwCompute();
+  c.lines.forEach(l=>{const sf=document.getElementById('sf-'+l.w),t=document.getElementById('tot-'+l.w);if(sf)sf.textContent=l.sf+' sf';if(t)t.textContent=money(l.tot);});
+  const lt=document.getElementById('linestot'),bt=document.getElementById('bundletot'),sf2=document.getElementById('smallfee');
+  if(lt)lt.textContent=money(c.linesTot); if(bt)bt.textContent=money(c.total);
+  if(sf2)sf2.textContent=c.small?'+'+money(c.small):'—';
+}
+function updateSheet(){}
+function addToBasket(kind){
+  if(kind==='single'){S.basket.push({id:'b'+Date.now(),kind:'single',title:wById(S.singleW).label+' White Oak Character Solid',meta:'Custom T-1 · '+S.sf+' sf',price:Math.round(sellFor(S.singleW)*S.sf),sel:true});}
+  else{const c=mwCompute();S.basket.push({id:'b'+Date.now(),kind:'bundle',title:'White Oak Character Solid — multi-width (custom T-1)',meta:S.mw.length+' widths · '+S.sf+' sf total · one custom charge',sel:true,
+    subs:c.lines.map(l=>({w:wById(l.w).label,sf:l.sf,tot:l.tot})),fees:[{l:'Custom-color sample (shared)',a:CUSTOM_FEE},{l:'Small-order fee',a:c.small}].filter(f=>f.a),price:c.total});}
+  S.basketOpen=true;render();
+}
+function flash(msg){const d=document.createElement('div');d.textContent=msg;
+  d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#40542A;color:#fff;padding:10px 18px;border-radius:10px;font-weight:800;font-size:13px;z-index:500;box-shadow:0 8px 30px rgba(0,0,0,.3)';
+  document.body.appendChild(d);setTimeout(()=>d.remove(),1600);}
+redistribute();render();
+</script>
+</body>
+</html>
