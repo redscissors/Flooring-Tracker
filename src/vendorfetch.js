@@ -81,7 +81,10 @@ export function buildVendorUrl(entry) {
 
 export function entryFileName(entry) {
   const base = String(entry.filename || "price list").trim();
-  return /\.xls$/i.test(base) ? base : `${base}.xls`;
+  // Portals name most sheets without an extension, and they're nearly all .xls —
+  // but not all (Mannington's list and Mirage's product chart are PDFs), so an
+  // extension the file already carries is left alone rather than suffixed.
+  return /\.(xls[xmb]?|pdf|csv)$/i.test(base) ? base : `${base}.xls`;
 }
 
 export function entryKey(entry) {
@@ -427,15 +430,21 @@ export function pendingForSheet(pending, sheet) {
   return (pending || []).find((p) => recordKey(p.sheet) === k) || null;
 }
 
-// The sheet feeding a book, with its group — for the book page's source-sheet
-// strip and the library's linked/in-house split.
-export function sheetForBook(groups, bookId) {
-  if (!bookId) return null;
+// The sheets feeding a book, each with its group — for the book page's
+// source-sheet strip and the library's linked/in-house split.
+//
+// A book may be fed by several sheets: `bookId` is a plain field on the sheet
+// and is deliberately not part of recordKey, so nothing stops (say) a vendor's
+// flooring, trim and product-chart files all pointing at one book. This used to
+// return only the first match, which silently hid the rest — the book page
+// showed one feed and "Refresh" re-pulled only that one.
+export function sheetsForBook(groups, bookId) {
+  if (!bookId) return [];
+  const out = [];
   for (const g of groups || []) {
-    const sheet = (g.sheets || []).find((s) => s.bookId === bookId);
-    if (sheet) return { group: g, sheet };
+    for (const sheet of g.sheets || []) if (sheet.bookId === bookId) out.push({ group: g, sheet });
   }
-  return null;
+  return out;
 }
 
 const HANDOFF_KEY = "ft-vendor-fetch-handoff";
