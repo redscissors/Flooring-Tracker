@@ -5,7 +5,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { SourceSheetStrip, VendorBookRow } from "./App.jsx";
+import { SourceSheetStrip, VendorBookRow, GateGap } from "./App.jsx";
+import { sourceSlot, mergeSources, missingSources } from "./dropimport.js";
 
 const sheet = (uid, filename, opts = {}) => ({
   vendor: "dancik", host: "connect24.virginiatile.com", uid, filename, user: "KEIM",
@@ -47,10 +48,10 @@ function Preview() {
   return (
     <div className="min-h-screen bg-slate-50 p-8 text-slate-800">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-lg font-semibold mb-1">A book fed by several sheets</h1>
+        <h1 className="text-lg font-semibold mb-1">A book fed by several files</h1>
         <p className="text-xs text-slate-500 mb-6">
-          Before this change <code>sheetForBook</code> returned only the first match: the strip showed one
-          file, Refresh re-pulled only that one, and the board repeated the book once per sheet.
+          Preview harness for the multi-file price-book work (ADR 0025). Renders the real
+          components against fake props — nothing here touches Supabase.
         </p>
 
         <label className="flex items-center gap-2 text-xs mb-6">
@@ -61,6 +62,12 @@ function Preview() {
         <Case title="Book page — source-sheet strip (4 sheets)" note="Each sheet gets its own Refresh/Review; the header acts on all of them.">
           <SourceSheetStrip sources={mirage} pendingSources={pendingSources} stale={fresh}
             lastImportAt={book.data.lastImport.at} pendingOf={pendingOf} liveOf={() => true}
+            onRefresh={noop} onReview={noop} />
+        </Case>
+
+        <Case title="Book page — a stale book (amber)" note="The amber surface stays light in dark mode, so its text has to state an amber ink rather than inherit.">
+          <SourceSheetStrip sources={single} pendingSources={[]} stale={{ stale: true, days: 91 }}
+            lastImportAt={hallmark.data.lastImport.at} pendingOf={() => null} liveOf={() => false}
             onRefresh={noop} onReview={noop} />
         </Case>
 
@@ -76,8 +83,51 @@ function Preview() {
             <VendorBookRow {...rowProps} sheet={single[0].sheet} book={hallmark} />
           </div>
         </Case>
+
+        <GateCase />
       </div>
     </div>
+  );
+}
+
+// The completeness gate (ADR 0025), driven by the real manifest helpers rather
+// than hand-written props, so what renders is what an import would actually see.
+const slots = {
+  hardwood: sourceSlot({ recordKey: "dancik:ovf:101:KEIM", name: "OVF-Mirage-Hardwood.xls" }),
+  tower: sourceSlot({ recordKey: "dancik:ovf:102:KEIM", name: "OVF-Mirage-Value-Tower.xls" }),
+  trim: sourceSlot({ recordKey: "dancik:ovf:103:KEIM", name: "OVF-Mirage-Trim.xls" }),
+  chart: sourceSlot({ fingerprint: { format: "mirage-chart" }, name: "Mirage_Product_Chart.pdf" }),
+};
+const manifest = mergeSources([], Object.values(slots), Date.parse("2026-04-01"));
+const mirageBook = { id: "bkMirage", name: "Mirage (OVF)", data: { sources: manifest } };
+
+function GateCase() {
+  const [have, setHave] = React.useState(["hardwood", "tower", "trim"]);
+  const present = have.map((k) => slots[k]);
+  const missing = missingSources(manifest, present);
+  const toggle = (k) => setHave((h) => (h.includes(k) ? h.filter((x) => x !== k) : [...h, k]));
+  return (
+    <section className="mb-8">
+      <h2 className="text-sm font-semibold mb-1">Import routing — completeness gate</h2>
+      <p className="text-xs text-slate-500 mb-2">
+        Three of Mirage's four files fetch from the portal; the Product Chart is supplied by hand.
+        The gate names what is short and takes it on the spot. Filenames are never the match key —
+        slots key on recordKey (fetched) or content fingerprint (manual).
+      </p>
+      <div className="flex flex-wrap gap-3 mb-2 text-[11px]">
+        {Object.keys(slots).map((k) => (
+          <label key={k} className="flex items-center gap-1.5">
+            <input type="checkbox" checked={have.includes(k)} onChange={() => toggle(k)} />
+            {slots[k].label}
+          </label>
+        ))}
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        {missing.length === 0
+          ? <p className="text-xs text-slate-500 py-2">All four present — no gate. This is also what a one-file book always sees.</p>
+          : <GateGap book={mirageBook} have={present.length} total={manifest.length} missing={missing} onAdd={() => {}} />}
+      </div>
+    </section>
   );
 }
 

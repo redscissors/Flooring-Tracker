@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook } from "./dropimport.js";
+import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources } from "./dropimport.js";
 
 const stockSheets = [{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }];
 const vtcSheets = [{ name: "EFT", rows: [
@@ -183,4 +183,61 @@ test("bundleByBook groups stock files too, though the stock path still applies p
   const steps = bundleByBook([dropRow("shop.xlsx", "stock"), dropRow("x.xls", "bkA"), dropRow("shop2.xlsx", "stock")]);
   assert.deepEqual(steps.map((s) => s.row.target), ["stock", "stock", "bkA"]);
   assert.deepEqual(steps.map((s) => s.bundle.total), [2, 2, 1]);
+});
+
+// --- the book's source manifest (ADR 0025) -----------------------------------
+
+const fp = (format, headerSig = "", titleSig = "") => ({ format, headerSig, titleSig });
+
+test("a fetched sheet's slot survives the vendor re-dating its filename", () => {
+  const feb = sourceSlot({ recordKey: "dancik:vt.com:1044:C000001", name: "AOT EFT 26 02 19" });
+  const may = sourceSlot({ recordKey: "dancik:vt.com:1044:C000001", name: "AOT EFT 26 05 20" });
+  assert.equal(feb.id, may.id);            // same slot across releases
+  assert.equal(feb.kind, "fetch");
+  // The manifest keeps one slot and takes the newer filename as its label.
+  const manifest = mergeSources(mergeSources([], [feb], 1), [may], 2);
+  assert.equal(manifest.length, 1);
+  assert.equal(manifest[0].label, "AOT EFT 26 05 20");
+  assert.equal(manifest[0].lastSeen, 2);
+  assert.deepEqual(missingSources(manifest, [may]), []);
+});
+
+test("a hand-supplied file matches on content, not on its dated name", () => {
+  const q1 = sourceSlot({ fingerprint: fp("mirage-chart"), name: "Mirage_Product_Chart_2026-02.pdf" });
+  const q2 = sourceSlot({ fingerprint: fp("mirage-chart"), name: "Mirage_Product_Chart_2026-07.pdf" });
+  assert.equal(q1.id, q2.id);
+  assert.equal(q1.kind, "manual");
+  // A different file kind is a different slot, even from the same vendor.
+  const trim = sourceSlot({ fingerprint: fp("ovf-hallmark", "sku|price") });
+  assert.notEqual(q1.id, trim.id);
+});
+
+test("missingSources names what a partial import is short of", () => {
+  const hardwood = sourceSlot({ recordKey: "d:h:1:U", name: "OVF-Mirage-Hardwood.xls" });
+  const trim = sourceSlot({ recordKey: "d:h:2:U", name: "OVF-Mirage-Trim.xls" });
+  const chart = sourceSlot({ fingerprint: fp("mirage-chart"), name: "Mirage_Product_Chart.pdf" });
+  const manifest = mergeSources([], [hardwood, trim, chart], 1);
+  const missing = missingSources(manifest, [hardwood, trim]);
+  assert.deepEqual(missing.map((s) => s.label), ["Mirage_Product_Chart.pdf"]);
+  assert.equal(missing[0].kind, "manual"); // the gate can say "added by hand"
+});
+
+test("a one-file book never has anything missing, and a new file just joins", () => {
+  const only = sourceSlot({ recordKey: "d:h:9:U", name: "hallmark.xls" });
+  const manifest = mergeSources([], [only], 1);
+  assert.deepEqual(missingSources(manifest, [only]), []);
+  // A book that gains a second file keeps both from then on.
+  const extra = sourceSlot({ fingerprint: fp("generic", "a|b"), name: "addendum.xlsx" });
+  const grown = mergeSources(manifest, [extra], 2);
+  assert.deepEqual(grown.map((s) => s.label), ["hallmark.xls", "addendum.xlsx"]);
+  assert.deepEqual(missingSources(grown, [only]).map((s) => s.label), ["addendum.xlsx"]);
+});
+
+test("mergeSources never forgets a slot that this import lacked", () => {
+  const a = sourceSlot({ recordKey: "d:h:1:U", name: "a.xls" });
+  const b = sourceSlot({ recordKey: "d:h:2:U", name: "b.xls" });
+  const manifest = mergeSources([], [a, b], 1);
+  const afterPartial = mergeSources(manifest, [a], 2);
+  assert.deepEqual(afterPartial.map((s) => s.label), ["a.xls", "b.xls"]); // b survives
+  assert.equal(afterPartial.find((s) => s.label === "b.xls").lastSeen, 1); // and keeps its age
 });

@@ -7,7 +7,7 @@ import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
-import { computeFingerprint, fileFormat, routeFile, bundleByBook } from "./dropimport.js";
+import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
@@ -2197,6 +2197,7 @@ export default function App({ user, onSignOut }) {
     // Remember what this file looks like so the drop router (PR C) matches the
     // next drop of the same vendor sheet to this book.
     if (opts.fingerprint?.format) dataPatch.importFingerprint = opts.fingerprint;
+    if (opts.sources?.length) dataPatch.sources = opts.sources;
     await updateBook(bookId, { dataPatch });
     await snapshotBookVersion(bookId, appliedFromDiff(diff), bookItemData);
   };
@@ -5148,7 +5149,44 @@ function StaleChip({ days }) {
 // then steps through each file's normal import preview one at a time. Registry
 // files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
 // stock preview. No new write path — each apply is the book's existing one.
-function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+// One book's completeness gap at the routing step (ADR 0025): what it is short
+// of, a place to drop it, and what happens if you go ahead without it. Exported
+// for the preview harness.
+export function GateGap({ book, have, total, missing, onAdd, inp }) {
+  const [over, setOver] = useState(false);
+  const pick = useRef(null);
+  return (
+    // amber-50 is one of the few surfaces the dark theme leaves light, while
+    // slate text is remapped to near-white — so everything in here states an
+    // amber ink explicitly rather than inheriting, or it vanishes in dark mode.
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <span className="text-[12.5px] font-medium text-amber-900">{book.name || "Untitled"} — {have} of {total} files ready</span>
+        <span className="text-[10.5px] text-amber-700">go ahead without them and their rows retire</span>
+      </div>
+      <div className="mt-1.5 space-y-0.5">
+        {missing.map((s) => (
+          <div key={s.id} className="text-[11.5px] text-amber-900 truncate">
+            Missing: <span className="font-medium">{s.label || "a file"}</span>
+            <span className="text-amber-700/80"> · {s.kind === "manual" ? "added by hand" : "fetched from the portal"}</span>
+          </div>
+        ))}
+      </div>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => { e.preventDefault(); setOver(false); onAdd(e.dataTransfer?.files); }}
+        onClick={() => pick.current?.click()}
+        className={"mt-2 cursor-pointer rounded-md border border-dashed px-3 py-2 text-center text-[11px] " + (over ? "border-amber-500 bg-amber-100 text-amber-800" : "border-amber-300 text-amber-700 hover:bg-amber-100/60")}
+      >
+        Drop the missing file here, or click to choose
+        <input ref={pick} type="file" multiple accept=".xlsx,.xls,.pdf" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
+      </div>
+    </div>
+  );
+}
+
+function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -5157,27 +5195,47 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
 
   // Read + route every file once, fault-isolated: a file that won't parse gets an
   // error row and is skipped; the rest still route.
+  const readRow = async (file) => {
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+    try {
+      const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
+      const fp = computeFingerprint(parsed);
+      let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
+      // Explicit intent outranks any fingerprint match to another book:
+      // preferTarget = "Create price book from this sheet"; targets = files
+      // fetched for a known linked book (review-when-ready pool).
+      const forced = (preferTarget && registryBooks.some((b) => b.id === preferTarget)) ? preferTarget
+        : (targets && targets.get(file));
+      if (forced && registryBooks.some((b) => b.id === forced)) {
+        r = { ...r, target: forced, reason: forced === preferTarget ? "new book from this sheet" : "fetched for this book" };
+      }
+      // Which of the book's source slots this file fills (ADR 0025): a fetched
+      // sheet by its recordKey, a hand-supplied file by its content fingerprint
+      // — never by filename, which vendors re-date between releases.
+      const slot = sourceSlot({ recordKey: sourceKeys?.get(file), fingerprint: fp, name: file.name });
+      return { file, ...parsed, ...r, slot };
+    } catch (x) { return { file, error: "Could not read this file" }; }
+  };
+
   useEffect(() => { let ok = true; (async () => {
     const out = [];
-    for (const file of files) {
-      const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
-      try {
-        const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
-        const fp = computeFingerprint(parsed);
-        let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
-        // Explicit intent outranks any fingerprint match to another book:
-        // preferTarget = "Create price book from this sheet"; targets = files
-        // fetched for a known linked book (review-when-ready pool).
-        const forced = (preferTarget && registryBooks.some((b) => b.id === preferTarget)) ? preferTarget
-          : (targets && targets.get(file));
-        if (forced && registryBooks.some((b) => b.id === forced)) {
-          r = { ...r, target: forced, reason: forced === preferTarget ? "new book from this sheet" : "fetched for this book" };
-        }
-        out.push({ file, ...parsed, ...r });
-      } catch (x) { out.push({ file, error: "Could not read this file" }); }
-    }
+    for (const file of files) out.push(await readRow(file));
     if (ok) setRows(out);
   })(); return () => { ok = false; }; }, []);
+
+  // Files added at the completeness gate — read and routed the same way, then
+  // appended, so a gap can be filled without restarting the drop. `to` forces the
+  // book whose gate asked for it.
+  const addFiles = async (list, to) => {
+    const picked = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name));
+    if (!picked.length) return;
+    const added = [];
+    for (const f of picked) {
+      const r = await readRow(f);
+      added.push(r.error ? r : { ...r, target: to, reason: "added here to complete this book" });
+    }
+    setRows((rs) => [...(rs || []), ...added]);
+  };
 
   const setTarget = (i, target) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, target } : r)));
   const flat = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip");
@@ -5198,17 +5256,28 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
   useEffect(() => {
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
-    const { row, bundle, files } = runnable[qi];
+    const { row, bundle, files, rows: steprows } = runnable[qi];
     if (bundle.index === 0) setCarry([]); // first file of a book's bundle
     if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
-    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, bundle, files, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
+    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, bundle, files, rows: steprows, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
     return () => { ok = false; };
   }, [phase, qi]);
 
   if (phase === "route") {
     const bookOpts = [["skip", "Skip this file"], ["stock", "Shop workbook (stock)"], ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
+    // Completeness check (ADR 0025). A book that has been fed several files before
+    // says so in its manifest, so an import that is short of one can name it —
+    // and either take it here, or go ahead knowing the absent file's rows retire.
+    // Books fed by a single file have a one-slot manifest and never appear.
+    const gaps = (rows || []).length ? registryBooks.flatMap((b) => {
+      const mine = (rows || []).filter((r) => !r.error && r.target === b.id);
+      const manifest = b.data?.sources || [];
+      if (!mine.length || manifest.length < 2) return [];
+      const missing = missingSources(manifest, mine.map((r) => r.slot));
+      return missing.length ? [{ book: b, have: mine.length, total: manifest.length, missing }] : [];
+    }) : [];
     return (
       <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
         <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
@@ -5234,9 +5303,17 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
               ))}
             </div>
           )}
+          {gaps.map(({ book, have, total, missing }) => (
+            <GateGap key={book.id} book={book} have={have} total={total} missing={missing} onAdd={(list) => addFiles(list, book.id)} inp={inp} />
+          ))}
+
           <div className="flex justify-between items-center pt-4">
             <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-            <button onClick={() => { setQi(0); setPhase("run"); }} disabled={!runnable.length} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Review {runnable.length} file{runnable.length === 1 ? "" : "s"} →</button>
+            <button onClick={() => { setQi(0); setPhase("run"); }} disabled={!runnable.length} className={"text-sm rounded-lg text-white px-4 py-2 disabled:opacity-50 " + (gaps.length ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700")}>
+              {gaps.length
+                ? `Review anyway — ${gaps.reduce((n, g) => n + g.missing.length, 0)} file${gaps.reduce((n, g) => n + g.missing.length, 0) === 1 ? "" : "s"} short →`
+                : `Review ${runnable.length} file${runnable.length === 1 ? "" : "s"} →`}
+            </button>
           </div>
         </div>
       </div>
@@ -5273,7 +5350,11 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
         // nothing is written until the whole bundle has been through.
         if (active.bundle.index < active.bundle.total - 1) { setCarry(bundleItems); advance(); return; }
         try {
-          await applyBookImport(active.book.id, diff, opts);
+          // Record what this book was made of, so a later import can tell when a
+          // file is missing (ADR 0025). Slots are never dropped — absence is the
+          // thing the completeness gate exists to report.
+          const sources = mergeSources(active.book.data?.sources, active.rows.map((r) => r.slot).filter(Boolean));
+          await applyBookImport(active.book.id, diff, { ...opts, sources });
           for (const f of active.files) onFileDone && onFileDone(f, true);
         } catch (x) { for (const f of active.files) onFileDone && onFileDone(f, false); /* error surfaced by applyBookImport */ }
         advance();
@@ -6107,10 +6188,11 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   // clears the pool and re-fetching is cheap.
   const [pendingReviews, setPendingReviews] = useState([]);
   const poolFetched = (adds) => setPendingReviews((prev) => (adds || []).reduce((acc, a) => poolPendingReview(acc, a), prev));
-  const reviewOne = (p) => setDropped({ files: [p.file], prefer: p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : undefined });
+  const reviewOne = (p) => setDropped({ files: [p.file], prefer: p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : undefined, sourceKeys: new Map([[p.file, recordKey(p.sheet)]]) });
   const reviewAll = () => setDropped({
     files: pendingReviews.map((p) => p.file),
     targets: new Map(pendingReviews.filter((p) => p.sheet.bookId).map((p) => [p.file, p.sheet.bookId])),
+    sourceKeys: new Map(pendingReviews.map((p) => [p.file, recordKey(p.sheet)])),
   });
   // Applied files leave the pool; a wizard closed with "X" (= later) stays.
   const fileDone = (file, applied) => { if (applied) setPendingReviews((prev) => prev.filter((p) => p.file !== file)); };
@@ -6272,7 +6354,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
       {pendingReviews.length > 0 && !dropped && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
@@ -6400,8 +6482,11 @@ export function SourceSheetStrip({ sources, pendingSources, stale: st, lastImpor
             <div key={recordKey(sheet)} className="flex items-center gap-2.5 flex-wrap px-3 py-2">
               <FileText size={15} className={st.stale ? "text-amber-500 shrink-0" : "text-slate-400 shrink-0"} />
               <div className="min-w-0 flex-1">
-                <div className="text-[12.5px] font-medium truncate">{entryFileName(sheet)}</div>
-                <div className="text-[10.5px] text-slate-400 truncate">
+                {/* The stale surface (amber-50) is left light by the dark theme while
+                    slate inks are remapped to near-white, so a stale row must state an
+                    amber ink or its filename and dates disappear. */}
+                <div className={"text-[12.5px] font-medium truncate " + (st.stale ? "text-amber-900" : "")}>{entryFileName(sheet)}</div>
+                <div className={"text-[10.5px] truncate " + (st.stale ? "text-amber-700" : "text-slate-400")}>
                   from {group.name}
                   {sheet.lastFetched ? ` · fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : ""}
                   {lastImportAt ? ` · imported ${new Date(lastImportAt).toLocaleDateString()}` : ""}

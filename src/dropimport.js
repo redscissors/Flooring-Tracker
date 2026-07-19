@@ -136,5 +136,49 @@ export function bundleByBook(rows) {
       row,
       bundle: { index, total: g.rows.length },
       files: g.rows.map((r) => r.file),
+      rows: g.rows,
     })));
+}
+
+// ---- the book's source manifest (ADR 0025) ---------------------------------
+// What files a book is made of. Recorded by use — importing a bundle stamps each
+// file it contained as a slot — so nothing has to be configured up front, and a
+// book fed by one file has a one-slot manifest that never surfaces.
+//
+// A slot is matched by HOW THE FILE WAS OBTAINED, never by its name. Vendors date
+// their filenames and those dates move between releases ("AOT EFT 26 02 19" ->
+// "AOT EFT 26 05 20"), so a name match would read every new release as a missing
+// file. Fetched sheets match on recordKey (vendor:host:uid:user, which excludes
+// the filename by design); hand-supplied files match on their content
+// fingerprint, the same signal routeFile already uses. `label` is the filename as
+// last seen — display only, refreshed on every match.
+export function sourceSlot({ recordKey, fingerprint, name } = {}) {
+  const fp = fingerprint || {};
+  const label = String(name || "").trim();
+  if (recordKey) return { id: `fetch:${recordKey}`, kind: "fetch", label, recordKey };
+  const f = { format: fp.format || "generic", headerSig: fp.headerSig || "", titleSig: fp.titleSig || "" };
+  return { id: `manual:${f.format}:${f.headerSig}:${f.titleSig}`, kind: "manual", label, fingerprint: f };
+}
+
+// The book's manifest after an import that contained `slots`: known slots refresh
+// their label and lastSeen, unknown ones are appended in the order they arrived.
+// Never drops a slot — a file absent from this import is the whole point of the
+// completeness gate, and silently forgetting it would defeat that.
+export function mergeSources(prev, slots, at = Date.now()) {
+  const out = (prev || []).map((s) => ({ ...s }));
+  for (const slot of slots || []) {
+    if (!slot?.id) continue;
+    const hit = out.find((s) => s.id === slot.id);
+    if (hit) { hit.label = slot.label || hit.label; hit.lastSeen = at; }
+    else out.push({ ...slot, lastSeen: at });
+  }
+  return out;
+}
+
+// Slots the book expects that this import does not have. Empty for a one-slot
+// book, and empty whenever every known slot is present — the gate only appears
+// when something the book has been fed before is absent.
+export function missingSources(manifest, slots) {
+  const have = new Set((slots || []).map((s) => s?.id).filter(Boolean));
+  return (manifest || []).filter((s) => s?.id && !have.has(s.id));
 }
