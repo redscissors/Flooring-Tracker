@@ -10,7 +10,7 @@ import {
   floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
   TEXTURES, EDGES, LENGTHS, FINISHES, NO_SAP, CUSTOM_FINISHES,
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
-  HB_SLAT_MIN, HB_SLAT_MAX, hbBandForLen, hbSlatLen,
+  hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
@@ -124,20 +124,20 @@ function GridButton({ onClick }) {
   );
 }
 
-// Stain color: the stocked program's standard colors + a custom entry.
-// cfg carries `stain` (the color) and `stainCustom` (typed-in flag).
-function StainPicker({ cfg, set }) {
-  const sel = cfg.stainCustom ? "__c" : STAIN_COLORS.includes(cfg.stain) ? cfg.stain : "";
+// Stain color — the mode follows the Finishing selection, not a toggle. An
+// established stain shows the program's standard colors (dropdown); a custom-
+// color finish (T-1/T-2/T-3) shows a free-typed color only, no dropdown.
+function StainPicker({ cfg, set, custom }) {
   return (
     <div>
       <div className="ft-eyebrow text-[10px] mb-1">Stain color</div>
-      <select value={sel} onChange={(e) => { const v = e.target.value; if (v === "__c") set({ ...cfg, stainCustom: true, stain: "" }); else set({ ...cfg, stainCustom: false, stain: v }); }} className={selectCls}>
-        <option value="">Pick color…</option>
-        {STAIN_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
-        <option value="__c">Custom…</option>
-      </select>
-      {cfg.stainCustom && (
-        <input value={cfg.stain} onChange={(e) => set({ ...cfg, stain: e.target.value })} placeholder="Custom color name / T-ref" className={textCls + " mt-1.5"} />
+      {custom ? (
+        <input value={cfg.stain} onChange={(e) => set({ ...cfg, stain: e.target.value })} placeholder="Custom color name (optional)" className={textCls} />
+      ) : (
+        <select value={STAIN_COLORS.includes(cfg.stain) ? cfg.stain : ""} onChange={(e) => set({ ...cfg, stain: e.target.value })} className={selectCls}>
+          <option value="">Pick color…</option>
+          {STAIN_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
       )}
     </div>
   );
@@ -204,28 +204,32 @@ function FloorRail({ f, set, sf, markup, onGrid }) {
       <Chips cur={f.w} onPick={(w) => set({ ...f, w: +w })}
         items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })} />
     </Sect>
-    {/* Minor options as a 2×2 grid of dropdowns: Texture · Finishing / Lengths · Edge.
-        The +$ adders show retail (marked up), matching the sell-price chips above. */}
-    <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
+    {/* Texture + Finishing on one row. When a prefinished finish is chosen its
+        stain/sheen detail drops in right below — green-outlined to tie it to
+        the Finishing control — pushing Lengths/Edge down. The +$ adders show
+        retail (marked up), matching the sell-price chips above. */}
+    <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={f.tex} onChange={(tex) => set({ ...f, tex })}
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
       <Dropdown label="Finishing" hint="fee under 500 sf" value={f.finish} onChange={(finish) => set({ ...f, finish })}
         options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(f), markup))}`) }))} />
+    </div>
+    {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
+        free on this custom/floor tab — no fee, it's made to order regardless. */}
+    {prefin && (
+      <div className="mb-3 rounded-lg border-2 p-3" style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)" }}>
+        <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
+          {stained && <StainPicker cfg={f} set={set} custom={custom} />}
+          <SheenPicker cfg={f} set={set} note="· included, no charge" />
+        </div>
+      </div>
+    )}
+    <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Lengths" value={f.len} onChange={(len) => set({ ...f, len })}
         options={LENGTHS.map((l) => ({ id: l.id, label: l.name.replace(" (standard)", "") + (l.pct ? `  +${l.pct}%` : "") }))} />
       <Dropdown label="Edge" value={f.edge} onChange={(edge) => set({ ...f, edge })}
         options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(sellOf(e.add, markup))}` : "") }))} />
     </div>
-    {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
-        free on this custom/floor tab — no fee, it's made to order regardless. */}
-    {prefin && (
-      <div className="mb-4 rounded-lg border border-dashed p-3" style={{ borderColor: "var(--ft-tint-border)", background: "var(--ft-tint)" }}>
-        <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
-          {stained && <StainPicker cfg={f} set={set} />}
-          <SheenPicker cfg={f} set={set} note="· included, no charge" />
-        </div>
-      </div>
-    )}
     {NO_SAP[f.sp] != null && (
       <Sect title="Sap">
         <Toggle label={`No sap — ${f.sp}`} on={f.noSap} onClick={() => set({ ...f, noSap: !f.noSap })} add={`+${fm(sellOf(NO_SAP[f.sp], markup))}/sf`} />
@@ -306,7 +310,6 @@ function HbRail({ h, set, markup, onGrid }) {
   const table = HERRINGBONE[h.cons === "solid" ? "solid" : "eng"][h.sp];
   const len = hbSlatLen(h);
   const curBand = len != null ? hbBandForLen(len) : (h.band || 0);
-  const setLen = (v) => set({ ...h, slatLen: v, ...(v !== "" && Number.isFinite(Number(v)) ? { band: hbBandForLen(Number(v)) } : {}) });
   return (<>
     <Sect title="Species">
       <Chips cur={h.sp} onPick={(sp) => set(snap({ ...h, sp }))}
@@ -323,19 +326,9 @@ function HbRail({ h, set, markup, onGrid }) {
       <Chips cur={h.w} onPick={(w) => set({ ...h, w: +w })}
         items={table.ws.map((w) => { const c = calcHerringbone({ ...h, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })} />
     </Sect>
-    <Sect title="Slat length" hint="pick a tier or type an exact length">
-      <RadioList cur={curBand} onPick={(band) => set({ ...h, band: +band, slatLen: "" })}
-        items={HERRINGBONE.bands.map((b, i) => { const c = calcHerringbone({ ...h, band: i, slatLen: "" }); return { id: i, label: b, add: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
-      <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2">
-        <span className="ft-eyebrow text-[10px]">Exact length</span>
-        <input type="number" min={HB_SLAT_MIN} max={HB_SLAT_MAX} step="0.25" value={h.slatLen ?? ""} placeholder="e.g. 24"
-          onChange={(e) => setLen(e.target.value)}
-          className="w-20 rounded-md border border-slate-300 px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        <span className="text-xs font-semibold text-slate-500">in</span>
-        {len != null
-          ? <span className="ml-auto text-[11px] font-bold text-slate-500">→ {HERRINGBONE.bands[curBand]} tier</span>
-          : <span className="ml-auto text-[11px] font-medium text-slate-400">blank = use the tier above</span>}
-      </div>
+    <Sect title="Slat length" hint="made-to-order tiers — sell $/sf">
+      <Chips cur={curBand} onPick={(band) => set({ ...h, band: +band, slatLen: "" })}
+        items={HERRINGBONE.bands.map((b, i) => { const c = calcHerringbone({ ...h, band: i, slatLen: "" }); return { id: i, label: b, sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
     </Sect>
     <Sect title="Pattern">
       <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />
@@ -732,7 +725,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         {isWide ? (<>
           {/* desktop: options rail + build card side by side */}
           <div className="flex-1 flex min-h-0">
-            <div className="w-[46%] max-w-[420px] shrink-0 border-r border-slate-300 overflow-y-auto p-4">{rail}</div>
+            <div className="w-[50%] max-w-[468px] shrink-0 border-r border-slate-300 overflow-y-auto p-4">{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
               {!c ? (
                 <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
