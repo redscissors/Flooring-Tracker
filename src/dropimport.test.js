@@ -241,3 +241,21 @@ test("mergeSources never forgets a slot that this import lacked", () => {
   assert.deepEqual(afterPartial.map((s) => s.label), ["a.xls", "b.xls"]); // b survives
   assert.equal(afterPartial.find((s) => s.label === "b.xls").lastSeen, 1); // and keeps its age
 });
+
+test("each Mirage file gets its own tag, so the chart PDF is not just 'generic'", () => {
+  const chartPages = [[{ str: "PRODUCT CHART", x: 282, y: 20, w: 60 }, { str: "TruBalance", x: 329, y: 60, w: 44 }]];
+  assert.equal(fileFormat({ pages: chartPages, isPdf: true }), "mirage-chart");
+  assert.equal(fileFormat({ sheets: [{ name: "MIR trim", rows: [
+    ["USA DISTRIBUTORS - MOLDINGS & STAIR COMPONENTS PRICE LIST"], ['3/4" (TruBalance, Classic)'],
+  ] }] }), "mirage-trim");
+  assert.equal(fileFormat({ sheets: [{ name: "Mirage", rows: [
+    ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"], ["Specie", "Grades", 'TruBalance 3/4"'],
+  ] }] }), "mirage-flooring");
+  // The three tags route to three different books rather than colliding.
+  const books = [
+    { id: "chart", data: { importFingerprint: { format: "mirage-chart" } } },
+    { id: "trim", data: { importFingerprint: { format: "mirage-trim" } } },
+  ];
+  assert.equal(routeFile({ format: "mirage-chart", headerSig: "" }, books).target, "chart");
+  assert.equal(routeFile({ format: "mirage-trim", headerSig: "" }, books).target, "trim");
+});
