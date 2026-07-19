@@ -238,7 +238,8 @@ export function stockPatch(item, product) {
     // unit (No Broken = CT) doesn't change the price basis; it rounds the
     // ordered count up to whole cartons of PC/CT via cartonPc, the piece-count
     // twin of cartonSf.
-    patch.brandColor = [label(item), item.size].filter(Boolean).join(" — ");
+    patch.brandColor = label(item);
+    if (item.size) patch.sizeText = str(item.size); // its own Size field, not glued to the name
     if (item.price != null) patch.priceSqft = String(item.price);
     if (isCartonUnit(orderUnitOf(item)) && item.pcPerUnit > 0) {
       patch.cartonPc = String(item.pcPerUnit);

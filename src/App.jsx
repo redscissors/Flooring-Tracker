@@ -1042,19 +1042,17 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamil
           )}
         </div>
       </div>
-      <div className={`grid ${p.type === "misc" ? "grid-cols-2" : "grid-cols-3"} gap-2 mt-2.5`}>
-        {p.type !== "misc" && (
-          <div>
-            <label className={fl}>{p.type === "tile" ? "Size · L×W×thk" : p.type === "hardwood" ? "Plank width" : "Size"}</label>
-            <div className="ft-field flex items-center h-[38px] rounded-md border border-slate-200 px-1" style={{ fontSize: 13, fontWeight: 600 }}>
-              {p.type === "tile" ? (
-                <GridSizeInput p={p} onCommit={onPatch} />
-              ) : (
-                <input value={p.sizeText} onChange={(e) => onPatch({ sizeText: e.target.value })} className="ft-cell" placeholder={p.type === "hardwood" ? "Width" : "Size"} />
-              )}
-            </div>
+      <div className="grid grid-cols-3 gap-2 mt-2.5">
+        <div>
+          <label className={fl}>{p.type === "tile" ? "Size · L×W×thk" : p.type === "hardwood" ? "Plank width" : "Size"}</label>
+          <div className="ft-field flex items-center h-[38px] rounded-md border border-slate-200 px-1" style={{ fontSize: 13, fontWeight: 600 }}>
+            {p.type === "tile" ? (
+              <GridSizeInput p={p} onCommit={onPatch} />
+            ) : (
+              <input value={p.sizeText} onChange={(e) => onPatch({ sizeText: e.target.value })} className="ft-cell" placeholder={p.type === "hardwood" ? "Width" : "Size"} />
+            )}
           </div>
-        )}
+        </div>
         <div>
           <label className={fl}>{p.type === "misc" ? "Pieces / carton" : "Coverage"}</label>
           {p.type !== "misc" && p.qtyType === "sqft" ? (
@@ -4139,10 +4137,8 @@ export default function App({ user, onSignOut }) {
                                 <span className="w-1 shrink-0" />
                                 {p.type === "tile" ? (
                                   <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
-                                ) : p.type === "misc" ? (
-                                  <span className="px-1" style={{ color: "var(--ft-faint)" }}>Misc</span>
                                 ) : (
-                                  <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                  <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : p.type === "misc" ? "Size (opt.)" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 )}
                               </div>
                               <div style={gridCell}>

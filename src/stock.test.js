@@ -192,7 +192,8 @@ test("an accessory (no per-sqft price) fills as a Miscellaneous line with its fl
   const patch = stockPatch(it, {});
   assert.equal(patch.type, "misc");
   assert.equal(patch.priceSqft, "30.99");
-  assert.match(patch.brandColor, /Red Oak — Self Rim — 2¼ x 12"/);
+  assert.equal(patch.brandColor, "Red Oak — Self Rim"); // size lands in its own field, not the name
+  assert.equal(patch.sizeText, '2¼ x 12"');
 });
 
 test("an unpriced trim SKU still links and describes, leaving price empty", () => {
