@@ -5899,8 +5899,6 @@ function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp, l
 
   return (
     <div>
-      <h2 className="ft-serif text-2xl">Vendor sheets</h2>
-
       {sessionNote && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
           <Check size={14} className="text-emerald-600 shrink-0" />
@@ -5984,7 +5982,7 @@ function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
         <Hand size={13} /> Paste sign-in
       </button>
       {open && (
-        <div className="absolute right-0 mt-1 w-80 z-30 rounded-xl border border-slate-200 bg-white shadow-xl p-3">
+        <div className="absolute right-0 mt-1 w-80 max-w-[calc(100vw-2rem)] z-30 rounded-xl border border-slate-200 bg-white shadow-xl p-3">
           <div className="flex items-center justify-between gap-2">
             <label className={lbl + " mb-0"}>Add a sign-in</label>
             <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
@@ -6030,7 +6028,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const dropRef = useRef(null);
   // Menu-style portals hand sheets over one bookmark-click at a time; the
   // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
-  // each one opens the Vendor sheets tab.
+  // each one opens the price book library.
   useEffect(() => {
     const onHash = () => { const p = captureHandoff(); const s = captureHandoffSession(); if (p) setVendorPending(p); if (s) setVendorSession(s); if (p || s) setSel("library"); };
     window.addEventListener("hashchange", onHash);
