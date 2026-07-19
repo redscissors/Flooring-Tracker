@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { LABEL_FIELDS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML } from "./labels.js";
+import { LABEL_FIELDS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize } from "./labels.js";
 import { searchStock } from "./stock.js";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -69,17 +69,15 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const [draft, setDraft] = useState(() => newDraftFromPreset(first));
   const [editingId, setEditingId] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
-  const [setSearch, setSetSearch] = useState("");
+  const [listSearch, setListSearch] = useState("");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
-
-  const perSheet = perLetterSheet(draft);
 
   // ── draft editing ──
   const patchDraft = (p) => setDraft((d) => ({ ...d, ...p }));
   const setField = (k, v) => setDraft((d) => ({ ...d, fields: { ...d.fields, [k]: v } }));
   const setLine = (key, p) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, ...p } : l) }));
-  const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, size: Math.min(40, Math.max(6, l.size + dir)) } : l) }));
+  const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, size: clampSize(l.size + dir) } : l) }));
   const moveLine = (idx, dir) => setDraft((d) => {
     const lines = [...d.lines]; const j = idx + dir;
     if (j < 0 || j >= lines.length) return d;
@@ -107,14 +105,14 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
 
   // ── set: filter + sort ──
   const view = useMemo(() => {
-    const q = setSearch.trim().toLowerCase();
+    const q = listSearch.trim().toLowerCase();
     let out = labels.filter((l) => sizeFilter === "all" || l.presetId === sizeFilter);
     if (q) out = out.filter((l) => [l.fields.name, l.fields.sku, l.fields.grout].join(" ").toLowerCase().includes(q));
     out = [...out].sort(sortBy === "az"
       ? (a, b) => (a.fields.name || "").localeCompare(b.fields.name || "")
       : (a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return out;
-  }, [labels, setSearch, sizeFilter, sortBy]);
+  }, [labels, listSearch, sizeFilter, sortBy]);
 
   const toggleSel = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const selectedLabels = labels.filter((l) => selected.has(l.id));
@@ -234,7 +232,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 <div className="text-[13px] font-bold">Label Set ({labels.length})</div>
                 <div className="relative flex-1 min-w-[140px]">
                   <Search size={13} className="absolute left-2 top-2 text-slate-400" />
-                  <input value={setSearch} onChange={(e) => setSetSearch(e.target.value)} placeholder="Search name / SKU / grout" className="w-full border border-slate-200 rounded-md pl-7 pr-2 py-1 text-xs" />
+                  <input value={listSearch} onChange={(e) => setListSearch(e.target.value)} placeholder="Search name / SKU / grout" className="w-full border border-slate-200 rounded-md pl-7 pr-2 py-1 text-xs" />
                 </div>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="border border-slate-200 rounded-md px-2 py-1 text-xs">
                   <option value="recent">Recent</option><option value="az">A–Z</option>

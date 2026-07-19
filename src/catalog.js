@@ -704,7 +704,7 @@ const pctMarkup = (v, dflt) => { const n = parseFloat(v); return Number.isFinite
 export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
-// maps the math reads. Only { waste, catalog, pricing, ops } is persisted.
+// maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
 // Apps hub configuration. Currently just the Label Generator's size presets:
 // built-ins are code-defined and always seeded; only customs are persisted.
