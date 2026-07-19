@@ -1,12 +1,15 @@
-// Parser for Ohio Valley Flooring (OVF) banded vendor price lists (issue 025).
+// Parser for Ohio Valley Flooring (OVF) vendor price lists (issue 025).
 //
-// OVF ships each vendor as an .xls whose product sheet is a banded grid, not a
-// flat table: a collection banner, some construction/coverage prose, a header
-// row, a shared price row, then color rows carrying one floor SKU plus a strip
-// of trim SKUs. The generic mapped importer (src/pricebook.js parseMapped) reads
-// one flat header row + one item per row, so it can't express "price lives in a
-// header row" or "one row fans out to a floor + its trims". Like Mannington
-// (ADR 0012) this is the sanctioned dedicated-parser exception (ADR 0009 §4).
+// OVF ships each vendor as an .xls whose product sheet the generic mapped
+// importer (src/pricebook.js parseMapped) can't read. The flooring lists are a
+// banded grid, not a flat table: a collection banner, some construction/coverage
+// prose, a header row, a shared price row, then color rows carrying one floor
+// SKU plus a strip of trim SKUs — parseMapped can't express "price lives in a
+// header row" or "one row fans out to a floor + its trims". The sundries lists
+// are a stack of category sections whose repeated header rows and fused
+// "$price / U/M" cells parseMapped equally can't handle (see the sundries block
+// below). Like Mannington (ADR 0012) these are the sanctioned dedicated-parser
+// exceptions (ADR 0009 §4): each layout gets a small parse function here.
 //
 // Each OVF book is banded the same way — banner → prose → header → price row →
 // item rows — but the column semantics differ per vendor, so each vendor gets a
@@ -406,15 +409,121 @@ export function findTarkettSheet(sheets) {
 }
 export const isTarkettLvt = (sheets) => !!findTarkettSheet(sheets);
 
-// The one entry the import flow calls: recognize an OVF banded workbook among a
-// file's parsed sheets and flatten it to the canonical { name, rows, mapping,
-// warnings } the wizard consumes (the xlsx twin of the isManningtonCartons ?
-// parseManningtonPages : parsePdfPages fork). Null when the file is not an OVF
-// banded book, so the caller falls through to the generic mapped path.
+// --- OVF sundries / accessories section-table (Sika, DriTac, …) --------------
+//
+// OVF's adhesive/sundry books aren't banded like the flooring lists: the sheet
+// is a STACK of category sections, each a repeated header row
+// ("<CATEGORY> | Size | …Coverage | Weight | Item # | Price") followed by its
+// product rows — one product per row: name, pack size, a coverage note, weight,
+// the Item # SKU, and a single fused "$PRICE / U/M" cell. The generic mapped
+// wizard can't read this: it recognizes neither "Item #" nor "Price" as columns,
+// finds no header at all, and even hand-mapped it would map that one price cell
+// to cost OR unit (never both) and drop the per-section category. Flattened here
+// to the same canonical { name, rows, mapping } the other OVF parsers emit, with
+// the price/unit split and the section title carried onto every row.
+//
+// Item # / Price sit at fixed indices 4 / 5 in every section header. A data
+// row's SKU is a SIK/DRI-style code (letters + digits, an optional hyphen);
+// "varies" grouts and the "Item #" header text carry no digit, so the SKU gate
+// skips them (honest — a color-varies grout has no orderable SKU) as it does the
+// account line, the "STOCKING ITEMS" banner, contact cells, and the footer note.
+const SKU_COL = 4, PRICE_COL = 5;
+const isSundryHeader = (row) => /^item\s*#?$/i.test(str(row[SKU_COL])) && /^price$/i.test(str(row[PRICE_COL]));
+const SUNDRY_SKU = /^(?=.*\d)[A-Za-z0-9-]{3,20}$/;
+
+// "$131.39 / EA" → { cost: 131.39, unit: "EA" }; "N/A / EA" → { cost: null,
+// unit: "EA" }. The unit is the token after the FINAL slash (so "N/A" stays
+// intact on its own slash); everything before it is the price.
+function splitPriceUnit(cell) {
+  const s = str(cell);
+  const i = s.lastIndexOf("/");
+  if (i < 0) return { cost: num(s), unit: "" };
+  const unit = s.slice(i + 1).trim().toUpperCase();
+  return { cost: num(s.slice(0, i)), unit: /^[A-Za-z]{1,4}$/.test(unit) ? unit : "" };
+}
+
+// ALL-CAPS category titles read better title-cased ("RESILIENT FLOORING
+// ADHESIVE" → "Resilient Flooring Adhesive"); a title already carrying lowercase
+// ("SikaTILE - GROUT") is left alone so its intentional casing survives. Source
+// typos ("COMERCIAL", "CARTIDGE") are kept — the sheet is the source of truth.
+const sectionName = (s) => { const v = str(s); return v && !/[a-z]/.test(v) ? titleCase(v) : v; };
+
+export function parseSundries(rows, name = "OVF sundries price list") {
+  const items = [];
+  const warnings = [];
+  let section = "";
+
+  for (let r = 0; r < (rows?.length || 0); r++) {
+    const row = rows[r] || [];
+    if (isSundryHeader(row)) { section = sectionName(row[0]); continue; }
+    const sku = str(row[SKU_COL]);
+    if (!SUNDRY_SKU.test(sku)) continue; // honesty guarantee — see block header
+    const { cost, unit } = splitPriceUnit(row[PRICE_COL]);
+    // The coverage cell is prose ("1,000 per pail", "21 SF @ 1/4\"") — a note,
+    // never the numeric coverage field, which would read "1000" and misprice.
+    const cov = str(row[2]);
+    items.push({
+      sku,
+      name: str(row[0]),
+      section,
+      size: str(row[1]),
+      cost, unit,
+      note: /^(na|n\/a)$/i.test(cov) ? "" : cov,
+    });
+  }
+
+  const CANON = ["Item #", "Name", "Section", "Size", "Cost", "U/M", "Note"];
+  const out = [CANON.slice()];
+  for (const it of items) {
+    out.push([it.sku, it.name, it.section, it.size, it.cost != null ? String(it.cost) : "", it.unit, it.note]);
+  }
+
+  if (!items.length) warnings.push("No OVF sundry rows were recognized — is this the section-table adhesive/accessory price sheet?");
+  return { name, rows: out, mapping: { ...SUNDRIES_MAPPING }, warnings, meta: { items: items.length } };
+}
+
+// Passthrough mapping: cost and unit are already separated, and the category
+// rides `section` (a markup-group axis) — never `productLine`, which would front
+// every product name with "Resilient Flooring Adhesive …". Type is left blank:
+// these are sundries, not floors.
+export const SUNDRIES_MAPPING = {
+  columns: { 0: "sku", 1: "description", 2: "section", 3: "size", 4: "cost", 5: "unit", 6: "note" },
+  headerRow: 0,
+  skuPattern: SUNDRY_SKU.source,
+  defaultType: "",
+  groupBy: "section",
+};
+
+// The sheet that looks like an OVF sundries list — the "Prepared especially for
+// KEIM" account line plus at least one section header carrying "Item #" and
+// "Price". The banded Hallmark/Tarkett sheets carry the KEIM line too but never
+// this header, and they are matched first in parseOvf, so this is the fallthrough.
+export function findSundriesSheet(sheets) {
+  for (const s of sheets || []) {
+    let keim = false, header = false;
+    for (const row of (s?.rows || []).slice(0, 40)) {
+      if (/^Prepared especially/i.test(str(row?.[0]))) keim = true;
+      if (isSundryHeader(row || [])) header = true;
+    }
+    if (keim && header) return s;
+  }
+  return null;
+}
+export const isOvfSundries = (sheets) => !!findSundriesSheet(sheets);
+
+// The one entry the import flow calls: recognize an OVF workbook among a file's
+// parsed sheets and flatten it to the canonical { name, rows, mapping, warnings }
+// the wizard consumes (the xlsx twin of the isManningtonCartons ?
+// parseManningtonPages : parsePdfPages fork). The banded flooring lists
+// (Hallmark, Tarkett) are matched first; the sundries section-table is the
+// fallthrough. Null when the file is not an OVF book, so the caller falls
+// through to the generic mapped path.
 export function parseOvf(sheets, name) {
   const hall = findHallmarkSheet(sheets);
   if (hall) return parseHallmark(hall.rows, name || "Hallmark price list");
   const tk = findTarkettSheet(sheets);
   if (tk) return parseTarkett(tk.rows, name || "Tarkett price list");
+  const sundry = findSundriesSheet(sheets);
+  if (sundry) return parseSundries(sundry.rows, name || "OVF sundries price list");
   return null;
 }

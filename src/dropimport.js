@@ -5,17 +5,19 @@
 
 import { detectVtcEft, detectStockWorkbook, parseMapped } from "./pricebook.js";
 import { isManningtonCartons } from "./manningtonbook.js";
-import { isHallmarkWood, isTarkettLvt } from "./ovfbook.js";
+import { isHallmarkWood, isTarkettLvt, isOvfSundries } from "./ovfbook.js";
 
 // The strongest format tag we can read straight off the file. Priority follows
-// the spec: stock signature → VTC EFT → OVF banded books → Mannington PDF →
-// generic.
+// the spec: stock signature → VTC EFT → OVF books → Mannington PDF → generic.
+// The OVF banded flooring lists are tested before the sundries section-table,
+// mirroring parseOvf's own routing order.
 export function fileFormat({ sheets, pages, isPdf }) {
   if (isPdf) return isManningtonCartons(pages || []) ? "mannington" : "generic";
   if (detectStockWorkbook(sheets || [])) return "stock";
   if (detectVtcEft(sheets || [])) return "vtc-eft";
   if (isHallmarkWood(sheets || [])) return "ovf-hallmark";
   if (isTarkettLvt(sheets || [])) return "ovf-tarkett";
+  if (isOvfSundries(sheets || [])) return "ovf-sundries";
   return "generic";
 }
 
@@ -67,7 +69,7 @@ export function mappingMatchesFile(mapping, sheets) {
   catch { return false; }
 }
 
-const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT" };
+const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries" };
 const labelFor = (format, b, title) =>
   format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} → ${b?.name || "book"}`
     : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} → ${b?.name || "book"}`
