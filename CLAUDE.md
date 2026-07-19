@@ -92,8 +92,11 @@ src/
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
                     # (BuildCard + Add). BuildCard is the shared cost->sell card
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
-                    # bookmarklet source + URL-fragment hand-off, response
-                    # sniffing; shared by the browser panel and the relay.
+                    # bookmarklet source + clipboard hand-off (copies a marked
+                    # base64 payload — HANDOFF_MARK/stripHandoffMark — that the
+                    # "Paste sign-in" button folds in via decodeHandoff; the old
+                    # #vfetch URL-fragment reader stays as a legacy fallback),
+                    # response sniffing; shared by the browser panel and relay.
                     # + sign-in groups (ADR 0020): remembered sheets organized
                     # into named `settings.ops.vendorGroups` (one per portal
                     # {host,user}); `normVendorGroups`/`migrateVendorSheets`

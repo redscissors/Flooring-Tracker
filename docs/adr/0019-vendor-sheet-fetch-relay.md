@@ -141,3 +141,30 @@ or a server log — unchanged from the original decision.
 Boundary unchanged: the relay still never accepts a raw URL and still requires
 a Supabase JWT; grabbing the token client-side only removes the manual paste,
 it does not widen what the server will fetch.
+
+## Amendment (2026-07-18): clipboard hand-off instead of opening a tab
+
+The original decision handed the payload over by **opening FloorTrack** at a
+`#vfetch=` fragment (`window.open(origin + "/#vfetch=…", "ftvfetch")`). The named
+window was meant to reuse one tab, but in practice — a separately-opened
+FloorTrack tab isn't named `ftvfetch`, and a closed tab can't be reused — clicks
+kept spawning new tabs. The owner asked for "no new tabs."
+
+So the bookmarklet now **copies** the payload to the clipboard instead of opening
+anything: the same base64 `{v:1,links,session}` blob, prefixed with a recognizable
+mark (`HANDOFF_MARK = "FTSHEETS:"`), via `navigator.clipboard.writeText` with a
+textarea+`execCommand` fallback and a `prompt()` last resort. In FloorTrack a
+**"Paste sign-in"** button reads the clipboard (`navigator.clipboard.readText`,
+falling back to a manual paste box when a browser blocks the read) and folds the
+blob in through the same `decodeHandoff` / `decodeHandoffSession` path the
+fragment used — so the receiver is unchanged and the token still only ever lives
+in this browser, never a URL, server, or log. One tab, forever.
+
+The privacy/relay boundary is untouched: the clipboard is local, the blob is the
+same shape, the relay still takes only structured params behind a JWT. The
+`#vfetch` fragment reader (`captureHandoff` + the `hashchange` listener) is kept
+as a harmless fallback so a bookmark a user dragged before this change still
+works until they re-drag the new one; the setup UI now hands out only the
+clipboard bookmarklet. Companion UI in the same change: the paste card shrank to
+a compact box, and a sheet whose sign-in is live now shows an emerald "ready"
+glow on its download button (`.ft-live`) until it's fetched (then the ✓).
