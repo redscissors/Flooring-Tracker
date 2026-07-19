@@ -2073,8 +2073,8 @@ export default function App({ user, onSignOut }) {
       setStock(await loadStock());
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
-    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
-    onDone?.(true);
+      onDone?.(true);
+    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); onDone?.(false); }
   };
 
   // Roll the shop workbook back to a version snapshot: replay it through the
