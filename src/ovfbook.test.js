@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseHallmark, isHallmarkWood, parseTarkett, isTarkettLvt, parseOvf } from "./ovfbook.js";
+import { parseHallmark, isHallmarkWood, parseTarkett, isTarkettLvt, parseSundries, isOvfSundries, parseOvf } from "./ovfbook.js";
 
 // A compact slice of the real OVF Hallmark sheet exercising every quirk: the
 // NEW/OLD header layout, a shared species price row, trim fan-out, a collection
@@ -143,9 +143,85 @@ test("parseOvf routes a workbook to its parser and skips a hidden reference tab"
   assert.equal(res.name, "ovf-tarkett-home-lvt");
   assert.equal(res.meta.flooring, 4);
   assert.equal(parseOvf([{ name: "Hallmark", rows: HALLMARK }]).meta.flooring, 4);
-  // A flat OVF sheet (Sika/Stauf carry the KEIM line but no banded grid) is NOT
-  // claimed — it belongs to the generic mapped wizard.
-  assert.equal(parseOvf([{ name: "DriTac", rows: [["Prepared especially for KEIM LUMBER CO"], ["Adhesive", "Size", "SF", "W", "Item #", "Price"]] }]), null);
+  // An OVF sundries section-table (Sika/DriTac) IS now claimed — by parseSundries,
+  // the fallthrough after the banded flooring parsers.
+  assert.equal(parseOvf([{ name: "DriTac", rows: SUNDRIES }]).meta.items, 4);
+});
+
+// --- OVF sundries section-table ----------------------------------------------
+
+// A compact slice of the real OVF Sika/DriTac sheet exercising: the account
+// line, the "STOCKING ITEMS" banner, two category sections with repeated
+// headers, an ALL-CAPS section title (title-cased) vs a mixed-case one (kept),
+// a priced EA row and a priced CT row, an "N/A" price (cost blank, unit kept),
+// a "varies" grout with no orderable SKU (dropped), a hyphenated DRI SKU, a
+// coverage prose cell folded to a note, an "NA" coverage dropped, and a footer.
+const SUNDRIES = [
+  ["", "", "", "", "", "800-955-7224"],
+  ["Prepared especially for KEIM LUMBER CO           @(70) (035360)"],
+  ["STOCKING ITEMS"],
+  [" RESILIENT FLOORING ADHESIVE", "Size", "SF Coverage", "Weight", "Item #", "Price"],
+  ["Sika 5800 Tough Bond Pressure", "1 GA", "600-1,000 per pail", "10 LB", "SIK877918", " $30.89 / EA "],
+  ["Sika 5900 MegaBond", "1 GA", "1,000 per pail", "10 LB", "SIK831394", " N/A / EA "],
+  ["DriTac 8100", "16 oz Bottle", "NA", "15.8", "DRI8100-1", " $19.09 / EA "],
+  [" SikaTILE - GROUT", "Size", "SF Coverage", "Weight", "Item #", "Price"],
+  ["SikaTile 825 Epoxy Grout", "2 GAL Pail", "14 - 57 SF 1/4\"", "30 LB", "varies", " $133.49 / EA "],
+  ["Sika Construction Adhesive Cartridges", "12 cartridges/CT", "12 LF per cartridge", "13 LB", "SIK106403", " $96.12 / CT "],
+  ["EFFECTIVE 03/02/26: A minumum order fee will apply to all orders below $1,000.", "", "", "", "", ""],
+];
+const sBySku = (res, sku) => res.rows.find((r) => r[0] === sku);
+
+test("detects the OVF sundries sheet, disjoint from the banded detectors", () => {
+  assert.equal(isOvfSundries([{ name: "DriTac", rows: SUNDRIES }]), true);
+  assert.equal(isOvfSundries([{ name: "Hallmark", rows: HALLMARK }]), false);
+  assert.equal(isOvfSundries([{ name: "Tarkett LVT", rows: TARKETT }]), false);
+  assert.equal(isHallmarkWood([{ name: "DriTac", rows: SUNDRIES }]), false);
+});
+
+test("emits one item per SKU row, skipping headers, banner, 'varies' and footer", () => {
+  const res = parseSundries(SUNDRIES);
+  // SIK877918, SIK831394, DRI8100-1, SIK106403 — the "varies" grout is dropped.
+  assert.equal(res.meta.items, 4);
+  assert.equal(res.rows.length, 5); // header + 4 items
+});
+
+test("splits the fused '$price / U/M' cell into cost and unit", () => {
+  const res = parseSundries(SUNDRIES);
+  const bond = sBySku(res, "SIK877918");
+  assert.equal(bond[4], "30.89"); // Cost
+  assert.equal(bond[5], "EA");    // U/M
+  const cart = sBySku(res, "SIK106403");
+  assert.equal(cart[4], "96.12");
+  assert.equal(cart[5], "CT");
+});
+
+test("an N/A price keeps the unit but leaves cost blank (honest, not dropped)", () => {
+  const mega = sBySku(parseSundries(SUNDRIES), "SIK831394");
+  assert.equal(mega[4], ""); // cost blank
+  assert.equal(mega[5], "EA");
+});
+
+test("the category rides Section (title-cased from CAPS, mixed case kept)", () => {
+  const res = parseSundries(SUNDRIES);
+  assert.equal(sBySku(res, "SIK877918")[2], "Resilient Flooring Adhesive");
+  assert.equal(sBySku(res, "SIK106403")[2], "SikaTILE - GROUT");
+  assert.equal(res.mapping.groupBy, "section");
+});
+
+test("coverage prose folds to a note; a bare 'NA' coverage is dropped", () => {
+  const res = parseSundries(SUNDRIES);
+  assert.equal(sBySku(res, "SIK877918")[6], "600-1,000 per pail");
+  assert.equal(sBySku(res, "DRI8100-1")[6], ""); // "NA" → blank note
+});
+
+test("a hyphenated DRI SKU is accepted", () => {
+  assert.ok(sBySku(parseSundries(SUNDRIES), "DRI8100-1"));
+});
+
+test("an empty sheet warns instead of throwing", () => {
+  const res = parseSundries([["Prepared especially for KEIM"], ["nothing here"]]);
+  assert.equal(res.meta.items, 0);
+  assert.match(res.warnings[0], /No OVF sundry rows/);
 });
 
 test("each size block binds its own coverage; the collection is shared", () => {

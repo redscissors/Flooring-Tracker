@@ -6809,9 +6809,9 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
       }
       const parsed = preSheets || (await readXlsxSheets(file));
       setFmt(fileFormat({ sheets: parsed }));
-      // An OVF banded workbook (Hallmark wood / Tarkett LVT, issue 025) can't be
-      // column-mapped raw — its dedicated parser flattens the grid to one
-      // canonical sheet, exactly like Mannington's PDF above.
+      // An OVF workbook (banded Hallmark wood / Tarkett LVT, or a sundries
+      // section-table, issue 025) can't be column-mapped raw — its dedicated
+      // parser flattens it to one canonical sheet, like Mannington's PDF above.
       const ovf = parseOvf(parsed, (file?.name || book.name || "book").replace(/\.xlsx?$/i, ""));
       if (ovf) {
         setSheets([{ name: ovf.name, rows: ovf.rows }]);

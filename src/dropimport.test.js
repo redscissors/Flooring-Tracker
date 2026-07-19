@@ -35,14 +35,27 @@ const tarkettSheets = [{ name: "Tarkett LVT", rows: [
   ["Endless Maple Bourbon", "270311021", "335013221"],
 ] }];
 
-test("fileFormat: OVF banded books get their own tags; flat OVF sheets stay generic", () => {
+const sundriesSheets = [{ name: "DriTac", rows: [
+  ["Prepared especially for KEIM LUMBER CO"],
+  [" RESILIENT FLOORING ADHESIVE", "Size", "SF Coverage", "Weight", "Item #", "Price"],
+  ["Sika 5900", "1 GA", "1,000 per pail", "10 LB", "SIK831394", " $30.89 / EA "],
+] }];
+
+test("fileFormat: each OVF layout gets its own tag", () => {
   assert.equal(fileFormat({ sheets: hallmarkSheets }), "ovf-hallmark");
   assert.equal(fileFormat({ sheets: tarkettSheets }), "ovf-tarkett");
-  assert.equal(fileFormat({ sheets: [{ name: "DriTac", rows: [
+  assert.equal(fileFormat({ sheets: sundriesSheets }), "ovf-sundries");
+  // A sheet with the OVF account line but no section header is still generic.
+  assert.equal(fileFormat({ sheets: [{ name: "X", rows: [
     ["Prepared especially for KEIM LUMBER CO"],
-    ["Adhesive", "Size", "SF Coverage", "Weight", "Item #", "Price"],
-    ["Sika 5900", "1 GA", "1,000", "10 LB", "SIK831394", "$30.89 / EA"],
+    ["Adhesive", "Size", "Coverage", "Weight", "Code", "Cost"],
   ] }] }), "generic");
+});
+
+test("routeFile: an OVF sundries book routes by its stamped format tag", () => {
+  const sun = { id: "sun", name: "OVF Sika", data: { importFingerprint: { format: "ovf-sundries" } } };
+  const hall = { id: "hall", name: "Hallmark Wood", data: { importFingerprint: { format: "ovf-hallmark" } } };
+  assert.equal(routeFile({ format: "ovf-sundries", headerSig: "", sheets: sundriesSheets }, [sun, hall]).target, "sun");
 });
 
 test("routeFile: an OVF book routes by its stamped format tag", () => {
