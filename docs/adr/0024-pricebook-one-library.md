@@ -72,7 +72,10 @@ vendor board at all.
 - The pending pool is **session-state only** — a `File`'s bytes can't go in
   `jsonb`, so a page reload silently clears it. Accepted: refetching is cheap
   (seconds against a live portal session), and nothing was ever committed, so
-  there's no data to lose, only a re-click.
+  there's no data to lose, only a re-click. Leaving the Price book Settings
+  section clears it too (and the pasted live-session tokens), since
+  `PriceBookLibrary` — which owns the pool — unmounts when you switch
+  sections; same trade-off, no data loss, refetching is cheap.
 - `ImportRouter` gained two capabilities to support both directions of this
   decision: forced per-file `targets` (a `File` → bookId map, same precedence
   tier as the existing `preferTarget`) so a pooled review always lands on the

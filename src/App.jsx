@@ -5886,7 +5886,7 @@ function useVendorFetch({ settings, setSettings, books, vendorPending, vendorSes
   return { groups, writeGroups, sheetSesid, sheetInfo, progress, running, run, createBookFromSheet, unlinkSheetBook, patchGroup, delGroup, addGroup, removeSheet, moveSheet, pasteSignIn, unlockPasted, addPasted, sessionNote, setSessionNote };
 }
 
-function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp, lbl }) {
+function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp }) {
   const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
   const { groups, sheetSesid, sheetInfo, progress, running, sessionNote, setSessionNote } = vf;
   const clearKeys = (keys) => setSelSheets((prev) => { const n = new Set(prev); for (const k of keys || []) n.delete(k); return n; });
@@ -6120,7 +6120,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
       )}
 
       {sel === "library" ? (
-        <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} lbl={lbl} />
+        <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : sel === "stock" ? (
         <>{backBtn}
           <div className="mt-3">
@@ -6142,7 +6142,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           </div>
         </>
       ) : selBook ? (
-        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetForBook(vf.groups, selBook.id)} sourcePending={sourcePendingFor(selBook.id)} sourceLive={sourceLiveFor(selBook.id)} onRefreshSheet={(s) => vf.run([s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetForBook(vf.groups, selBook.id)} sourcePending={sourcePendingFor(selBook.id)} sourceLive={sourceLiveFor(selBook.id)} onRefreshSheet={(s) => vf.run([s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
