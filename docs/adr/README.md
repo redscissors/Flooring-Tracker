@@ -26,3 +26,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0020](0020-vendor-sheet-groups.md) | Vendor sheets: remembered sheets organized into sign-in groups, on a Price-book tab | Accepted | 2026-07-17 |
 | [0021](0021-vendor-sheets-board-selection.md) | Vendor sheets: board columns, batch selection, always-live downloads; menu move replaces drag | Accepted | 2026-07-17 |
 | [0022](0022-quick-price-draft-lifecycle.md) | Quick Price: a customer-less draft Project (`quick` flag, no SQL), lands in search, promotes via `linkProject`, self-clears in 30 days | Accepted | 2026-07-18 |
+| [0023](0023-apps-hub-label-generator.md) | Apps hub Label Generator: labels in a new shared table, size presets in shared settings, structured savable presets over a free-drag designer | Accepted | 2026-07-19 |

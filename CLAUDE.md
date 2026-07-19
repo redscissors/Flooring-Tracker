@@ -119,6 +119,12 @@ src/
                     # matches. The Price book library's drop area (top of the
                     # book-list sidebar) routes a mixed drop and reuses each
                     # book's normal import preview.
+  labels.js         # Label Generator pure logic (Apps hub): LABEL_FIELDS,
+                    # built-in size presets, preset/label normalization,
+                    # stock->field mapping, per-letter-sheet math, print HTML
+  AppsWorkspace.jsx # the Apps hub overlay (SettingsWorkspace-style shell) +
+                    # the Label Generator UI (preset strip, SKU fill, preview,
+                    # label set, print)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 netlify/
   functions/
@@ -131,6 +137,7 @@ supabase/
   storage.sql       # run once: attachments bucket + storage policies
   stock.sql         # run once: stock_items table + RLS (stock price book)
   todos.sql         # run once: todos table + RLS (team issue / to-do list)
+  labels.sql        # run once: labels table + RLS (Apps hub label set)
   pricebooks.sql    # run once: price book registry + items + versions tables
                     # + RLS (ADR 0009; docs/pricebook/design.md)
   pricebook-search.sql  # run once after pricebooks.sql: pg_trgm + generated
