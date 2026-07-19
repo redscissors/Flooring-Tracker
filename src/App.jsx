@@ -2024,19 +2024,21 @@ export default function App({ user, onSignOut }) {
   // an import would change — nothing is written until the preview is applied.
   // Read + preview a shop-workbook file. onDone (from the multi-file drop router)
   // fires whether the preview opens, is empty, or errors, and is carried on the
-  // preview so its Apply/Cancel can advance the router's queue.
+  // preview so its Apply/Cancel can advance the router's queue. onDone is called
+  // with `applied` — true only after a successful Apply, false on cancel / empty /
+  // read-error — so the router knows whether the file was really imported.
   const importStockFile = async (file, onDone) => {
     if (!file) return;
     setImporting(true);
     try {
       const sheets = await readXlsxSheets(file);
       const { items, warnings } = parsePriceBook(sheets);
-      if (!items.length) { ping("No stock items found in that file"); onDone?.(); }
+      if (!items.length) { ping("No stock items found in that file"); onDone?.(false); }
       else {
         const parsed = items.map((it) => ({ ...it, active: true }));
         setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed), onDone });
       }
-    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(); }
+    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(false); }
     setImporting(false);
   };
   const importPriceBook = (e) => { const f = e.target.files?.[0]; e.target.value = ""; importStockFile(f); };
@@ -2072,7 +2074,7 @@ export default function App({ user, onSignOut }) {
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
     } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
-    onDone?.();
+    onDone?.(true);
   };
 
   // Roll the shop workbook back to a version snapshot: replay it through the
@@ -4805,8 +4807,8 @@ export default function App({ user, onSignOut }) {
         const total = diff.added.length + diff.changed.length + diff.missing.length;
         const money2 = (n) => (n == null ? "—" : money(n));
         const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
-        // Cancelling still advances the drop router's queue (onDone), same as Apply.
-        const closePreview = () => { setImportPreview(null); onDone?.(); };
+        // Cancelling still advances the drop router's queue, but reports applied=false so a pooled file isn't dropped as if imported.
+        const closePreview = () => { setImportPreview(null); onDone?.(false); };
         return (
           <Modal onClose={closePreview} title="Import price book">
             <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
@@ -5156,7 +5158,7 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
     const row = runnable[qi];
-    if (row.target === "stock") { setActive(null); importStockFile(row.file, () => { onFileDone && onFileDone(row.file, true); advance(); }); return; }
+    if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
     loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
