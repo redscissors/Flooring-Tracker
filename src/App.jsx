@@ -10,6 +10,7 @@ import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
+import { parseOvf } from "./ovfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
@@ -6499,6 +6500,16 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
       }
       const parsed = preSheets || (await readXlsxSheets(file));
       setFmt(fileFormat({ sheets: parsed }));
+      // An OVF banded workbook (Hallmark wood / Tarkett LVT, issue 025) can't be
+      // column-mapped raw — its dedicated parser flattens the grid to one
+      // canonical sheet, exactly like Mannington's PDF above.
+      const ovf = parseOvf(parsed, (file?.name || book.name || "book").replace(/\.xlsx?$/i, ""));
+      if (ovf) {
+        setSheets([{ name: ovf.name, rows: ovf.rows }]);
+        applyDetected({ sheet: ovf.name, ...ovf.mapping });
+        setReading(false);
+        return;
+      }
       setSheets(parsed);
       // A saved mapping wins; else recognize the VTC "EFT" template (fills the
       // whole mapping in one step); else pick the best data sheet by header
