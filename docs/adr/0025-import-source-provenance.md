@@ -148,6 +148,26 @@ The book page gains "Add a file", which drops a file into the book's manifest an
 opens the same bundle review. This is how a manual slot is first created, and how
 a book picks up a file that did not exist when it was set up.
 
+Without it the manifest cannot bootstrap, which the owner hit in practice
+(2026-07-19): slots are only recorded by importing, and the one file that must be
+supplied by hand — Mirage's product chart — could never be imported on its own,
+because a whole-book import of it would retire everything the other three files
+supplied. So the gate could never learn the chart existed, and could never ask
+for it. "Add" is the way in: the file's rows join the book, **nothing retires**,
+and the slot is registered so every later import knows to expect it.
+
+Adding a file the book already knows is almost certainly meant as a replacement,
+so that case says so and points at Import… rather than quietly refreshing and
+leaving dropped rows behind.
+
+**Targeted replace is deliberately not built.** "Replace just this one file"
+needs the book to know which rows came from which file — per-item provenance,
+which this ADR rejected. A light version (one slot id per item, read only for
+that action) would be enough, but the owner chose to ship "Add" alone and see
+whether targeted replace is wanted (2026-07-19). Whole-book replacement stays
+where it already works: the book page's existing Import…, and the library board's
+drop area.
+
 **7. A parser may consume several files, and must be able to tell them apart.**
 
 `parseMirage(payloads)` follows the existing `parseOvf` / `parsePdfPages`

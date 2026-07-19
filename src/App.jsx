@@ -6570,8 +6570,16 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
     catch (x) { /* surfaced by applyBookImport */ }
   };
   const onApply = async (diff, opts) => {
-    try { await applyBookImport(book.id, diff, opts); setWizard(false); reload(); setVSeq((s) => s + 1); }
-    catch (x) { /* surfaced by applyBookImport */ }
+    try {
+      // Adding a file registers it as one of the book's sources, so the next
+      // import knows to ask for it (ADR 0025). A file only reachable by hand —
+      // Mirage's product chart — can never get into the manifest any other way,
+      // since slots are recorded from imports and a whole-book import of it
+      // would retire everything the other files supplied.
+      const sources = opts.slot ? mergeSources(book.data?.sources, [opts.slot]) : undefined;
+      await applyBookImport(book.id, diff, sources ? { ...opts, sources } : opts);
+      setWizard(false); reload(); setVSeq((s) => s + 1);
+    } catch (x) { /* surfaced by applyBookImport */ }
   };
 
   // Persist a hand-edit and merge the stamped result back into the open list
@@ -6635,7 +6643,8 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
       <SourceSheetStrip sources={sources} pendingSources={pendingSources} stale={st} lastImportAt={li?.at} pendingOf={sourcePendingOf} liveOf={sourceLiveOf} onRefresh={onRefreshSheet} onReview={onReviewSheet} />
 
       <div className="flex items-center gap-2 mt-3">
-        <button onClick={() => setWizard(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>
+        <button onClick={() => setWizard("replace")} title="Import a file as this book's full contents — anything missing from it retires" className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>
+        <button onClick={() => setWizard("add")} title="Add another file to this book — its rows join, nothing retires" className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Plus size={14} /> Add a file…</button>
         <span className="text-xs text-slate-400">
           {items == null ? "Loading items…" : `${activeItems.length} active item${activeItems.length === 1 ? "" : "s"}`}
           {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
@@ -6783,7 +6792,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
 
       {editItem && <BookItemEditModal item={editItem} isOrder={isOrder} onClose={() => setEditItem(null)} onSave={saveItemEdit} inp={inp} lbl={lbl} />}
 
-      {wizard && <BookImportWizard book={book} existingItems={items || []} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {wizard && <BookImportWizard book={book} existingItems={items || []} addMode={wizard === "add"} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
     </div>
   );
 }
@@ -6930,7 +6939,29 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
 // too), set the SKU pattern and a status-flag legend, watch the parse preview
 // live, then apply the diff. The mapping is saved on the book so re-imports are
 // one click. The parse is entirely client-side; nothing writes until Apply.
-function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null }) {
+// What "Add a file" is about to do. Adding a file the book already knows is
+// almost certainly meant as a replacement, so that case says so and points at
+// Import… rather than quietly refreshing and leaving dropped rows behind.
+// The amber surface stays light under the dark theme while slate inks are
+// remapped to near-white, so it states an amber ink instead of inheriting.
+// Exported for the preview harness.
+export function AddFileNotice({ knownSlot }) {
+  return (
+    <div className={"mb-2 rounded-lg border px-3 py-2 text-[11.5px] " + (knownSlot ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-500")}>
+      {knownSlot ? (
+        <>
+          <span className="font-medium">This file is already one of this book's sources</span> — last seen as “{knownSlot.label}”.
+          Adding it refreshes the rows it contains but retires nothing, so anything dropped from the file stays in the book.
+          To make it the book's full contents instead, close this and use <span className="font-medium">Import…</span>.
+        </>
+      ) : (
+        <>Adding a file to this book: its rows join the existing ones and <span className="font-medium">nothing is retired</span>. The book will remember it, so a later import can tell when it's missing.</>
+      )}
+    </div>
+  );
+}
+
+function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null, addMode = false }) {
   const saved = book.data?.mapping || null;
   const [sheets, setSheets] = useState(null); // [{ name, rows }]
   const [sheetName, setSheetName] = useState(saved?.sheet || "");
@@ -6942,6 +6973,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const [defaultType, setDefaultType] = useState(saved?.defaultType || "");
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
+  const [srcName, setSrcName] = useState(""); // the chosen file name — a source slot label
   const [fmt, setFmt] = useState("generic"); // detected file format, stamped as the book's import fingerprint
   const [ignored, setIgnored] = useState(() => new Set());   // SKUs the user chose to ignore (→ disabled)
   const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
@@ -6960,6 +6992,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // detected format for the book's import fingerprint.
   const ingest = async ({ file, sheets: preSheets, pages: prePages, isPdf }) => {
     setReading(true); setErr("");
+    if (file?.name) setSrcName(file.name);
     try {
       // Text-PDF vendor price lists: pdfbook aligns every page's own header onto
       // one canonical sheet, then we apply its suggested mapping. Mannington's
@@ -7051,7 +7084,8 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // the bundle has produced so far, not just this file — otherwise each file
   // would read the previous file's rows as "missing" and retire them. A later
   // file wins a SKU collision, so the sheets are layered in the order routed.
-  const bundleItems = carryItems.length ? [...new Map([...carryItems, ...items].map((it) => [it.sku, it])).values()] : items;
+  const carried = addMode ? existingItems : carryItems;
+  const bundleItems = carried.length ? [...new Map([...carried, ...items].map((it) => [it.sku, it])).values()] : items;
   const diff = sheet ? diffBookItems(existingItems, bundleItems) : { added: [], changed: [], missing: [], unchanged: [] };
   const editedOverwritten = sheet ? editedInDiff(existingItems, bundleItems) : [];
   const flagCol = Object.entries(columns).find(([, f]) => f === "flag")?.[0];
@@ -7088,6 +7122,11 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // next drop of the same vendor sheet (format tag + header signature + the EFT
   // brand-title line, which is what tells Virginia Tile's sibling files apart).
   const fingerprint = sheet ? (({ headerSig, titleSig }) => ({ format: fmt, headerSig, titleSig }))(computeFingerprint({ sheets: sheets || [] })) : null;
+  // Adding a file names it as one of the book's sources. Matched on content, not
+  // filename — re-adding next quarter's re-dated copy is the same slot, not a new
+  // one (ADR 0025).
+  const addSlot = addMode && sheet ? sourceSlot({ fingerprint, name: srcName }) : null;
+  const knownSlot = addSlot ? (book.data?.sources || []).find((s) => s.id === addSlot.id) : null;
   const importCount = diff.added.length + diff.changed.length + diff.missing.length;
   // Disabling SKUs is a valid apply even when the re-import is otherwise a no-op
   // (identical book → every row unchanged) — so the button also opens on pending
@@ -7097,6 +7136,8 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const lastOfBundle = !bundle || bundle.index >= bundle.total - 1;
   const applyLabel = !lastOfBundle
     ? `Next file — ${bundle.index + 2} of ${bundle.total}`
+    : addMode
+    ? `Add — ${diff.added.length} new · ${diff.changed.length} updated`
     : importCount === 0 && disableSkus.length
     ? `Apply — ${disableSkus.length} disabled`
     : `Apply — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retiring${disableSkus.length ? ` · ${disableSkus.length} disabled` : ""}`;
@@ -7106,6 +7147,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
       <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3"><h3 className="ft-serif text-2xl">Import — {book.name || "book"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
         {stepNote}
+        {addMode && <AddFileNotice knownSlot={knownSlot} />}
 
         {!sheets ? (
           <div className="py-8 text-center">
@@ -7294,7 +7336,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede, fingerprint }, bundleItems); }} disabled={lastOfBundle && importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot }, bundleItems); }} disabled={lastOfBundle && importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>
