@@ -6254,7 +6254,7 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePending, sourceLive, onRefreshSheet, onReviewSheet }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
@@ -6374,6 +6374,26 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
           </span>
           <button onClick={() => { delBook(book.id); onDeleted?.(); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete book</button>
           <button onClick={() => setConfirmDel(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+        </div>
+      )}
+
+      {source && (
+        <div className={`mt-3 flex items-center gap-2.5 flex-wrap rounded-lg border px-3 py-2 max-w-xl ${st.stale ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50/60"}`}>
+          <FileText size={15} className={st.stale ? "text-amber-500 shrink-0" : "text-slate-400 shrink-0"} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-medium truncate">{entryFileName(source.sheet)}</div>
+            <div className="text-[10.5px] text-slate-400 truncate">
+              from {source.group.name}
+              {source.sheet.lastFetched ? ` · fetched ${new Date(source.sheet.lastFetched).toLocaleDateString()}` : ""}
+              {li?.at ? ` · imported ${new Date(li.at).toLocaleDateString()}` : ""}
+              {st.stale ? ` · ${st.days} days ago — stale` : ""}
+            </div>
+          </div>
+          {sourcePending ? (
+            <button onClick={() => onReviewSheet(sourcePending)} className="shrink-0 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-indigo-700">Review changes</button>
+          ) : (
+            <button onClick={() => onRefreshSheet(source.sheet)} title={sourceLive ? "Ready — fetch the latest sheet, then review at your pace" : "Fetch the latest sheet (needs a live sign-in — the board says how to unlock)"} className={"shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-white " + (sourceLive ? "ft-live" : "text-slate-600")}><RotateCcw size={12} /> Refresh</button>
+          )}
         </div>
       )}
 
