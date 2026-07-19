@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
 import { LABEL_FIELDS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
 import { searchStock } from "./stock.js";
+import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -67,7 +68,29 @@ function SkuLookup({ stock, onPick, onBulk }) {
   );
 }
 
-export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset }) {
+export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga }) {
+  const [app, setApp] = useState("labels");
+  // Sheoga (Apps hub): the basket stages locally — nothing touches a real
+  // project until the salesperson picks a destination. A commit request parks
+  // its lines in `pending` and raises the destination prompt when an order is
+  // open (accidental wrong-order guard); with nothing open there's no ambiguity,
+  // so it goes straight to a new quick price. pendingRef lets onClose ignore the
+  // popup's own auto-close (SheogaConfigurator closes itself after a bundle
+  // move) so a pending choice never unmounts the configurator and loses the build.
+  const [sheogaBasket, setSheogaBasket] = useState([]);
+  const [pending, setPendingState] = useState(null);
+  const pendingRef = useRef(null);
+  const setPending = (v) => { pendingRef.current = v; setPendingState(v); };
+  const requestCommit = (lines, nextBasket) => {
+    if (!lines || !lines.length) return;
+    if (sheoga?.currentName) setPending({ lines, nextBasket });
+    else commitTo("new", lines, nextBasket);
+  };
+  const commitTo = (where, lines, nextBasket) => {
+    if (where === "current") sheoga.addToCurrent(lines); else sheoga.addToNew(lines);
+    setSheogaBasket(nextBasket || []);
+    setPending(null);
+  };
   const first = presets[0] || normPreset({ id: "sample-tag" });
   const [draft, setDraft] = useState(() => newDraftFromPreset(first));
   const [editingId, setEditingId] = useState(null);
@@ -148,7 +171,8 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
           </div>
           <nav className="px-2 space-y-0.5">
-            <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm bg-indigo-600 text-white">Label Generator</div>
+            <button onClick={() => setApp("labels")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "labels" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Label Generator</button>
+            {sheoga && <button onClick={() => setApp("sheoga")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "sheoga" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Sheoga configurator</button>}
             <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-400">More coming soon</div>
           </nav>
           <div className="mt-auto p-4 text-[11px] text-slate-400 border-t border-slate-100">A home for shop tools.</div>
@@ -286,6 +310,38 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
           </div>
         </div>
       </div>
+      {app === "sheoga" && sheoga && (
+        <SheogaConfigurator
+          markupDefault={sheoga.markupDefault}
+          ventMarkupDefault={sheoga.ventMarkupDefault}
+          basket={sheogaBasket}
+          onBasketChange={setSheogaBasket}
+          areaName={sheoga.currentName || "a new quick price"}
+          onAdd={(lines) => requestCommit(lines, null)}
+          onMove={(lines) => requestCommit(lines, null)}
+          onMoveEntries={(lines, nextBasket) => requestCommit(lines, nextBasket)}
+          onClose={() => { if (!pendingRef.current) setApp("labels"); }}
+        />
+      )}
+      {pending && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,15,10,.5)" }} onClick={(e) => { e.stopPropagation(); setPending(null); }}>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="ft-serif text-xl mb-1">Add to which project?</h3>
+            <p className="text-sm text-slate-500 mb-4">{pending.lines.length} product line{pending.lines.length > 1 ? "s" : ""} ready to place.</p>
+            <div className="space-y-2">
+              <button onClick={() => commitTo("current", pending.lines, pending.nextBasket)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
+                <div className="text-sm font-semibold text-slate-800">Current project</div>
+                <div className="text-xs text-slate-500 truncate">{sheoga.currentName}</div>
+              </button>
+              <button onClick={() => commitTo("new", pending.lines, pending.nextBasket)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
+                <div className="text-sm font-semibold text-slate-800">New quick price</div>
+                <div className="text-xs text-slate-500">Start a fresh unnamed order</div>
+              </button>
+            </div>
+            <button onClick={() => setPending(null)} className="mt-4 text-sm text-slate-500 hover:text-slate-700">Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

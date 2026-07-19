@@ -2727,6 +2727,31 @@ export default function App({ user, onSignOut }) {
     ]);
     updArea(aid, { products });
   };
+  // Sheoga opened from the Apps hub has no row/project context. Its lines drop
+  // into the first area of whichever project the salesperson picks in the
+  // Apps-hub destination prompt (filling a blank adder row if there is one, else
+  // appending). A blank adder row is the trailing empty row every area carries.
+  const applySheogaToFirstArea = (categories, lines) => {
+    const cats = categories.length ? categories : [newArea()];
+    return cats.map((cat, i) => {
+      if (i !== 0) return cat;
+      const blank = cat.products.find(rowBlank);
+      if (blank) return { ...cat, products: cat.products.flatMap((p) => p.id !== blank.id ? [p] : [{ ...p, ...lines[0] }, ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch }))]) };
+      return { ...cat, products: [...cat.products, ...lines.map((patch) => ({ ...newProduct(), ...patch }))] };
+    });
+  };
+  // "New quick price" from that prompt: build the unnamed draft with the lines
+  // already in it and insert ONCE — applying the lines via updateProject after
+  // creation would hit the stale-`data` closure and silently drop them.
+  const createQuickWithSheoga = (lines) => {
+    const c = { ...newProject(null, "Quick price", { quick: true, seedArea: true }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+    c.categories = applySheogaToFirstArea(c.categories, lines);
+    setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
+    baselineRef.current = { id: c.id, json: catSig(c.categories) };
+    setSelId(c.id); setSelCustId(null); setSidebarOpen(false);
+    (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: null, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    return c;
+  };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
     const p = sel.categories.find((x) => x.id === fromAid)?.products.find((x) => x.id === pid);
@@ -4677,6 +4702,13 @@ export default function App({ user, onSignOut }) {
           onUpdateLabel={updateLabel}
           onDeleteLabel={delLabel}
           onSavePreset={saveLabelPreset}
+          sheoga={{
+            markupDefault: normPricing(settings.pricing).sheogaMarkupPct,
+            ventMarkupDefault: normPricing(settings.pricing).sheogaVentMarkupPct,
+            currentName: sel?._full ? (sel.name || "Untitled project") : null,
+            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
+            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
+          }}
         />
       )}
 
