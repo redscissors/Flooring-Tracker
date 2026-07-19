@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Price books — one library (C refined)</title>
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --band:#E7E3D6;
+    --border:rgba(28,26,23,.10); --border-strong:rgba(28,26,23,.25);
+    --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A;
+    --tint:color-mix(in oklab, #57703A 6%, #fff);
+    --tint-border:color-mix(in oklab, #57703A 35%, rgba(28,26,23,.10));
+    --live:#059669; --live-ring:color-mix(in oklab,#10B981 42%,transparent);
+    --live-glow:color-mix(in oklab,#10B981 30%,transparent);
+    --live-glow-b:color-mix(in oklab,#10B981 50%,transparent);
+    --amber:#B45309; --amber-bg:#FEF3C7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--cream);color:var(--ink);font-family:Manrope,ui-sans-serif,system-ui,sans-serif;padding:18px 20px 90px}
+  h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .sub{font-size:12px;color:var(--faint);margin:2px 0 14px;max-width:660px;line-height:1.5}
+  svg{display:block}
+  .ibtn{border:0;background:none;cursor:pointer;color:var(--faint);padding:3px;border-radius:6px;line-height:0;display:inline-flex}
+  .ibtn:hover{color:var(--ink);background:rgba(28,26,23,.05)}
+  .live{color:var(--live)!important;border-radius:6px;animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 1px var(--live-ring),0 0 5px var(--live-glow)}50%{box-shadow:0 0 0 1px var(--live-ring),0 0 11px var(--live-glow-b)}}
+
+  /* app frame: sidebar stub + workspace, like the real Settings modal */
+  .frame{border:1px solid var(--border);border-radius:16px;background:var(--card);overflow:hidden;display:flex;min-height:600px;box-shadow:0 10px 30px rgba(28,26,23,.08)}
+  .nav{width:172px;shrink:0;border-right:1px solid var(--border);padding:12px 8px;background:color-mix(in oklab,var(--ink) 2%,var(--card));flex-shrink:0}
+  .nav .item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:7px 10px;border-radius:8px;cursor:pointer}
+  .nav .item.on{background:var(--ink);color:var(--cream);font-weight:600}
+  .nav .item:not(.on):hover{background:rgba(28,26,23,.05)}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+  /* library top bar */
+  .cbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .cbar h2{font-size:18px;font-weight:600;letter-spacing:-.01em}
+  .cbar .hint{font-size:11px;color:var(--faint);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .btn{border:1px solid var(--border-strong);border-radius:8px;padding:5.5px 11px;font-size:12px;font-weight:600;color:var(--muted);background:var(--card);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{background:rgba(28,26,23,.04);color:var(--ink)}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .dropzone{border-bottom:1px dashed var(--border-strong);padding:7px 16px;font-size:11px;color:var(--faint);display:flex;align-items:center;gap:8px;background:color-mix(in oklab,var(--ink) 1.5%,var(--card))}
+  .dropzone u{color:var(--moss);cursor:pointer;font-weight:600}
+
+  .cmain{flex:1;padding:14px;background:var(--cream);overflow:auto}
+  .board{display:grid;gap:14px;align-items:start;grid-template-columns:repeat(auto-fill,minmax(252px,1fr))}
+  .col{background:var(--card);border:1px solid var(--border);border-radius:13px}
+  .colhead{padding:9px 11px 7px;border-bottom:1px solid var(--border)}
+  .colhead .row1{display:flex;align-items:center;gap:6px}
+  .colhead h3{font-size:13px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .colhead .sub2{display:flex;gap:8px;font-size:10.5px;color:var(--faint);margin-top:2px;align-items:center;min-width:0}
+  .colhead .signin{color:var(--moss);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+  .inhouse .colhead{background:var(--band);border-radius:12px 12px 0 0}
+
+  .blist{display:flex;flex-direction:column}
+  .brow2{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(28,26,23,.06);cursor:pointer}
+  .brow2:last-child{border-bottom:0;border-radius:0 0 12px 12px}
+  .brow2:hover{background:var(--tint)}
+  .brow2 input{width:12px;height:12px;accent-color:var(--moss);flex-shrink:0}
+  .brow2 .mid{flex:1;min-width:0}
+  .brow2 .bname{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brow2 .bsub{font-size:10px;color:var(--faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brow2.loose .bname{font-weight:500;color:var(--muted);font-size:11.5px}
+  .chip{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;background:var(--sand);color:var(--muted);border-radius:99px;padding:2px 7px;white-space:nowrap;flex-shrink:0}
+  .chip.amber{background:var(--amber-bg);color:var(--amber)}
+  .newcol{border:1px dashed var(--border-strong);border-radius:13px;display:flex;align-items:center;justify-content:center;min-height:88px;color:var(--faint);font-size:12px;cursor:pointer;background:none}
+  .newcol:hover{background:rgba(28,26,23,.03)}
+
+  /* paste popover */
+  .pop{position:absolute;top:46px;right:14px;z-index:30;width:330px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 34px rgba(28,26,23,.16);padding:12px}
+  .pop h4{font-size:12px;font-weight:700}
+  .pop p{font-size:11px;color:var(--faint);line-height:1.5;margin:4px 0 8px}
+  .pop input{width:100%;border:1px solid var(--border-strong);border-radius:8px;padding:7px 9px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink)}
+  .pop .foot{display:flex;justify-content:space-between;align-items:center;margin-top:9px}
+  .pop .setup{font-size:11px;color:var(--moss);font-weight:600;cursor:pointer}
+
+  /* ---- book detail ---- */
+  .detail{flex:1;background:var(--cream);overflow:auto;padding:16px 20px}
+  .back{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border:0;background:none;padding:4px 6px;border-radius:7px;margin-left:-6px}
+  .back:hover{background:rgba(28,26,23,.05);color:var(--ink)}
+  .dhead{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .dhead h2{font-size:24px;font-weight:600;letter-spacing:-.01em}
+  .dmeta{font-size:11.5px;color:var(--faint);margin-top:3px}
+  .srcstrip{margin-top:14px;border:1px solid var(--tint-border);background:var(--tint);border-radius:11px;padding:9px 12px;display:flex;align-items:center;gap:10px;max-width:640px;flex-wrap:wrap}
+  .srcstrip .fico{color:var(--moss);flex-shrink:0}
+  .srcstrip .mid{flex:1;min-width:180px}
+  .srcstrip .fn{font-size:12.5px;font-weight:700}
+  .srcstrip .fsub{font-size:10.5px;color:var(--muted);margin-top:1px}
+  .srcstrip .fsub a{color:var(--moss);font-weight:600;text-decoration:none}
+  .refresh{border:1px solid var(--border-strong);background:var(--card);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink)}
+  .srcstrip.stale-strip{border-color:#FCD34D;background:#FFFBEB}
+  .stalenote{font-size:10.5px;color:var(--amber);width:100%;padding-left:26px}
+  .importstrip{margin-top:14px;border:1px dashed var(--border-strong);border-radius:11px;padding:9px 12px;font-size:11.5px;color:var(--faint);max-width:640px}
+  .importstrip u{color:var(--moss);font-weight:600;cursor:pointer}
+
+  .tablecard{margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;max-width:820px}
+  .tbar{display:flex;gap:8px;padding:9px 11px;border-bottom:1px solid var(--border);align-items:center}
+  .tbar input{flex:1;border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);padding:7px 11px;border-bottom:1px solid var(--border);font-weight:700}
+  td{padding:7px 11px;border-bottom:1px solid rgba(28,26,23,.05);color:var(--muted)}
+  td.sku{font-weight:600;color:var(--ink);white-space:nowrap}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  th.num{text-align:right}
+  tr:hover td{background:var(--tint)}
+
+  /* pending-review flow */
+  .revpill{border:0;background:var(--moss);color:#fff;border-radius:99px;padding:3.5px 10px;font-size:10.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;white-space:nowrap}
+  .revpill:hover{background:var(--moss-deep)}
+  .brow2.ready{background:var(--tint)}
+  .fetchbar{height:3px;border-radius:99px;background:rgba(28,26,23,.08);overflow:hidden;flex:0 0 56px}
+  .fetchbar i{display:block;height:100%;width:40%;background:var(--moss);border-radius:99px;animation:slide 1s linear infinite}
+  @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+  .ok{color:var(--live);flex-shrink:0}
+  .revbar{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--card);border:1px solid var(--tint-border);box-shadow:0 8px 24px rgba(28,26,23,.18);border-radius:12px;padding:7px 8px 7px 14px;display:flex;align-items:center;gap:10px;font-size:12.5px;z-index:50}
+  .revbar .go{background:var(--moss);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
+  .revbar .go:hover{background:var(--moss-deep)}
+  .overlay{position:fixed;inset:0;background:rgba(28,26,23,.35);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px}
+  .rmodal{background:var(--card);border-radius:14px;box-shadow:0 20px 50px rgba(28,26,23,.3);width:440px;max-width:100%;padding:16px}
+  .rmodal h3{font-size:16px;font-weight:700}
+  .rmodal .rsub{font-size:11px;color:var(--faint);margin-top:2px}
+  .rmodal .diff{margin:12px 0;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:12px}
+  .rmodal .diff>div{display:flex;justify-content:space-between;padding:7px 11px;border-bottom:1px solid rgba(28,26,23,.05);color:var(--muted)}
+  .rmodal .diff>div:last-child{border-bottom:0}
+  .rmodal .diff b{font-variant-numeric:tabular-nums;color:var(--ink)}
+  .rmodal .foot{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+  .rmodal .count{font-size:11px;color:var(--faint);margin-right:auto}
+
+  /* toast + batch */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--cream);font-size:12.5px;padding:9px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .18s;white-space:nowrap;z-index:60}
+  #toast.show{opacity:1}
+  .batch{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);box-shadow:0 8px 24px rgba(28,26,23,.14);border-radius:12px;padding:7px 8px 7px 14px;display:flex;align-items:center;gap:10px;font-size:12.5px;z-index:50}
+  .batch .go{background:var(--ink);color:var(--cream);border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .note{font-size:11px;color:var(--faint);margin-top:12px;max-width:660px;line-height:1.55}
+  .note b{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<h1>Price books — one library (C, refined)</h1>
+<p class="sub">The sidebar book-list is gone: "Price book" in Settings opens this board. Click any book to go inside — a portal-fed book carries its <b>source sheet strip</b> at the top; in-house books get a plain import strip. <b>New in this round — review at your own pace:</b> hitting refresh only downloads. The row shows a little progress bar, flashes a ✓, then the control becomes a moss <b>Review</b> pill with the change count — click it whenever you're ready. When several books are waiting, a floating <b>Review all</b> bar walks you through them one after another. Try it: hit the column download on Virginia Tile, or check a few boxes and "Refresh selected".</p>
+
+<div class="frame">
+  <div class="nav">
+    <div class="item">General</div>
+    <div class="item on">Price book</div>
+    <div class="item">Materials &amp; add-ons</div>
+    <div class="item">Backup &amp; restore</div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<p class="note"><b>What replaced what:</b> the old sidebar's Stock / Special-order lists → the board columns · the "Vendor sheets" tab → gone (its board absorbed the books) · the sheet row's refresh → the row/strip refresh · "Feeds &lt;book&gt;" ⋯ item → unnecessary (the sheet lives in the book) · drop-zone → the strip under the top bar · bookmarklet setup + paste → the "Paste sign-in" popover. Batch refresh: check rows across columns, the bar appears. <b>Download and review are separate steps:</b> refresh (row, column, or batch) only fetches; each book then waits with a Review pill, and the floating bar's "Review all" chains the pending reviews back-to-back. "Later" keeps a book waiting — nothing is applied until you say so.</p>
+
+<div id="toast"></div>
+<div class="batch" id="batch" style="display:none"><b id="batch-n">0</b>&nbsp;selected<button class="go" onclick="refreshSelected()">Refresh selected</button><button class="ibtn" onclick="clearSel()">✕</button></div>
+<div id="extra"></div>
+
+<script>
+const I = {
+  book:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  db:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+  dl:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  rot13:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+  dots:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>',
+  link:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+  plus:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  file:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  back:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+  check:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+};
+
+const state = { screen:"board", pop:false, sel:new Set(), created:false };
+
+const groups = [
+  { id:"vt", name:"Virginia Tile — j.smith", live:true, books:[
+      { id:"vtc", name:"Virginia Tile Core", items:412, fetched:"3d ago", sheet:"VTC_Core_Pricelist.xls" },
+      { id:"ana", name:"Anatolia Tile", items:388, fetched:"41d ago", stale:41, sheet:"Anatolia_Pricelist.xls" },
+    ], loose:[ { sheet:"MSI_Pricelist.xls" } ] },
+  { id:"man", name:"Mannington — shop", live:false, books:[
+      { id:"mann", name:"Mannington", items:265, fetched:"12d ago", sheet:"Mannington_CartonsDetail.xls" },
+    ], loose:[] },
+  { id:"em", name:"Emser — counter", live:false, books:[
+      { id:"emser", name:"Emser Tile", items:1204, fetched:"63d ago", stale:63, sheet:"Emser_FullBook.pdf" },
+    ], loose:[ { sheet:"Emser_Trims.pdf" } ] },
+];
+const inhouse = [
+  { id:"shop", name:"Shop workbook", items:1842, fetched:"imported 6d ago", kind:"stock" },
+  { id:"sheoga", name:"Sheoga Hardwood", items:74, fetched:"hand-kept", kind:"order" },
+];
+const sampleRows = [
+  ["UF917","Frontier 6×24 Saddle","SF","2.18","3.49"],
+  ["UF918","Frontier 6×24 Buckskin","SF","2.18","3.49"],
+  ["AN201","Bella Cittá 12×24 Grigio","SF","3.02","4.79"],
+  ["AN207-T","Bella Cittá Bullnose 3×24","EA","4.11","6.59"],
+  ["UF3300","Frontier Mosaic 2×2","SH","8.60","13.75"],
+];
+
+function findBook(id){
+  for(const g of groups) for(const b of g.books) if(b.id===id) return {book:b, group:g};
+  for(const b of inhouse) if(b.id===id) return {book:b, group:null};
+  return null;
+}
+
+const fakeDiff = {
+  vtc:{up:9,down:2,add:4,gone:1}, ana:{up:23,down:1,add:6,gone:3},
+  mann:{up:7,down:0,add:2,gone:0}, emser:{up:41,down:5,add:12,gone:8},
+  msi:{up:0,down:0,add:212,gone:0},
+};
+const diffTotal = (id)=>{ const d=fakeDiff[id]||{up:5,down:1,add:2,gone:1}; return d.up+d.down+d.add+d.gone; };
+
+// b.pend: undefined -> 'fetching' -> 'done' (brief ✓) -> 'ready' (review pill) -> undefined after review
+function refreshBook(id){
+  const hit=findBook(id); if(!hit||!hit.group) return;
+  const b=hit.book;
+  if(b.pend) return;
+  b.pend='fetching'; render();
+  setTimeout(()=>{ b.pend='done'; render();
+    setTimeout(()=>{ b.pend='ready'; render(); }, 650);
+  }, 900 + (id.length*137)%700);
+}
+function refreshGroup(gid){
+  const g=groups.find(x=>x.id===gid); if(!g) return;
+  g.books.forEach((b,i)=>setTimeout(()=>refreshBook(b.id), i*350));
+  if(g.loose.length) toast(g.loose.length+" loose sheet(s) download too — they route by fingerprint");
+}
+function refreshSelected(){
+  let i=0;
+  for(const id of state.sel){ if(findBook(id)?.group) setTimeout(()=>refreshBook(id), (i++)*350); }
+  clearSel();
+}
+function pendingIds(){
+  const out=[];
+  for(const g of groups) for(const b of g.books) if(b.pend==='ready') out.push(b.id);
+  return out;
+}
+function openReview(id){ state.review={queue:[id], i:0}; render(); }
+function reviewAll(){ const q=pendingIds(); if(q.length){ state.review={queue:q, i:0}; render(); } }
+function reviewStep(apply){
+  const r=state.review; if(!r) return;
+  const b=findBook(r.queue[r.i]).book;
+  if(apply){ const d=fakeDiff[b.id]||{add:0,gone:0}; b.items=(b.items||0)+d.add-d.gone; b.fetched="just now"; b.stale=null; b.pend=null; }
+  r.i++;
+  while(r.i<r.queue.length && findBook(r.queue[r.i]).book.pend!=='ready') r.i++;
+  if(r.i>=r.queue.length) state.review=null;
+  render();
+}
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2100); }
+function toggleSel(key,ev){ ev.stopPropagation(); state.sel.has(key)?state.sel.delete(key):state.sel.add(key); renderBatch(); }
+function clearSel(){ state.sel=new Set(); document.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false); renderBatch(); }
+function renderBatch(){ const b=document.getElementById('batch'); b.style.display=state.sel.size?'flex':'none'; document.getElementById('batch-n').textContent=state.sel.size; }
+function go(screen){ state.screen=screen; state.pop=false; render(); }
+function togglePop(){ state.pop=!state.pop; render(); }
+function createLoose(gid, sheet){ state.created=true; const g=groups.find(x=>x.id===gid); g.loose=g.loose.filter(l=>l.sheet!==sheet); g.books.push({id:"msi", name:sheet.replace(/_/g," ").replace(/\.(xls|pdf)$/i,""), items:0, fetched:"just now", sheet, pend:"ready"}); toast("Sheet downloaded → new book created — review it when ready"); render(); }
+
+function bookRow(b, g){
+  const ctrl =
+    b.pend==='fetching' ? `<span class="fetchbar" title="Downloading ${b.sheet}…"><i></i></span>`
+    : b.pend==='done' ? `<span class="ok" title="Downloaded">${I.check}</span>`
+    : b.pend==='ready' ? `<button class="revpill" title="Downloaded — review the changes when you're ready" onclick="event.stopPropagation();openReview('${b.id}')">Review · ${diffTotal(b.id)}</button>`
+    : `<button class="ibtn ${g.live?'live':''}" title="Re-fetch this book's sheet — review when you're ready" onclick="event.stopPropagation();refreshBook('${b.id}')">${I.rot13}</button>`;
+  return `<div class="brow2 ${b.pend==='ready'?'ready':''}" onclick="go('${b.id}')">
+    <input type="checkbox" ${state.sel.has(b.id)?'checked':''} title="Select for batch refresh" onclick="toggleSel('${b.id}',event)"/>
+    <span style="color:var(--moss);flex-shrink:0">${I.book}</span>
+    <div class="mid"><div class="bname">${b.name}</div>
+      <div class="bsub">${b.pend==='fetching'?'downloading '+b.sheet+'…':b.pend==='ready'?'downloaded — changes waiting':(b.items?b.items.toLocaleString()+" items · ":"")+"fetched "+b.fetched}</div></div>
+    ${b.stale&&!b.pend?`<span class="chip amber" title="Imported ${b.stale} days ago — refresh to update">${b.stale}d</span>`:''}
+    ${ctrl}
+    <button class="ibtn" title="Open · view source sheet · move sign-in · unlink · delete…" onclick="event.stopPropagation();toast('⋯ — Open · Source sheet · Move to another sign-in · Unlink sheet · Delete book…')">${I.dots}</button>
+  </div>`;
+}
+function looseRow(l, g){
+  return `<div class="brow2 loose">
+    <input type="checkbox" onclick="toggleSel('${l.sheet}',event)"/>
+    <span style="color:var(--faint);flex-shrink:0">${I.dl}</span>
+    <div class="mid"><div class="bname" title="${l.sheet}">${l.sheet}</div>
+      <div class="bsub">sheet only — no book yet</div></div>
+    <button class="ibtn" title="Create price book from this sheet" onclick="event.stopPropagation();createLoose('${g.id}','${l.sheet}')">${I.plus}</button>
+    <button class="ibtn ${g.live?'live':''}" title="Download once (routes by fingerprint)" onclick="event.stopPropagation();toast('Fetching ${l.sheet}…')">${I.rot13}</button>
+    <button class="ibtn" title="Move · forget…" onclick="event.stopPropagation();toast('⋯ — Move to another sign-in · Forget this sheet')">${I.dots}</button>
+  </div>`;
+}
+
+function boardHTML(){
+  const ih = inhouse.map(b=>`<div class="brow2" onclick="go('${b.id}')">
+      <span style="color:var(--muted);flex-shrink:0">${b.kind==='stock'?I.db:I.book}</span>
+      <div class="mid"><div class="bname">${b.name}</div>
+        <div class="bsub">${b.items.toLocaleString()} items · ${b.fetched}</div></div>
+      ${b.id==='shop'?'':''}
+      <button class="ibtn" title="Import a file into this book" onclick="event.stopPropagation();toast('Browse / drop a file for ${b.name}')">${I.dl}</button>
+      <button class="ibtn" title="Book options" onclick="event.stopPropagation()">${I.dots}</button>
+    </div>`).join('');
+  const cols = groups.map(g=>{
+    const n=g.books.length;
+    return `<div class="col">
+      <div class="colhead">
+        <div class="row1"><h3 title="${g.name}">${g.name}</h3>
+          <button class="ibtn ${g.live?'live':''}" style="color:var(--moss)" title="${g.live?'Ready — download every book in this sign-in (review after, at your pace)':'Download every book in this sign-in'}" onclick="event.stopPropagation();refreshGroup('${g.id}')">${I.dl}</button>
+          <button class="ibtn" title="Rename · sign-in link · delete…" onclick="toast('⋯ — Rename sign-in · Edit sign-in link · Delete sign-in…')">${I.dots}</button></div>
+        <div class="sub2"><a class="signin" href="#" onclick="return false">${I.link} Sign in</a><span>${n} book${n===1?'':'s'}${g.loose.length?` · ${g.loose.length} loose`:''}</span></div>
+      </div>
+      <div class="blist">${g.books.map(b=>bookRow(b,g)).join('')}${g.loose.map(l=>looseRow(l,g)).join('')}</div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="cbar" style="position:relative">
+      <h2>Price books</h2>
+      <span class="hint">Every book in one place — grouped by portal sign-in · stale after 30 days</span>
+      <button class="btn" onclick="togglePop()">Paste sign-in</button>
+      <button class="btn" onclick="toast('New book (blank) or New sign-in column')">${I.plus} New</button>
+      ${state.pop?`<div class="pop">
+        <h4>Paste a sign-in</h4>
+        <p>Click the bookmark on a vendor portal, then paste here — unlocks every saved book for that sign-in. A price-list link works too.</p>
+        <input placeholder="Paste from the bookmark, or a sheet link…" autofocus />
+        <div class="foot"><span class="setup" onclick="toast('Expands the one-time bookmarklet setup (drag to bookmarks bar)')">Set up the bookmark</span>
+        <button class="btn primary" onclick="togglePop();toast('Sign-in captured — 2 books ready to refresh')">Add</button></div>
+      </div>`:''}
+    </div>
+    <div class="dropzone">${I.dl} Drop vendor sheets or the shop workbook anywhere on this page — each file routes to its book · <u>browse…</u></div>
+    <div class="cmain"><div class="board">
+      <div class="col inhouse"><div class="colhead"><div class="row1"><h3>In-house</h3><button class="ibtn" title="New in-house book" onclick="toast('New blank book in this column')">${I.plus}</button></div>
+        <div class="sub2"><span>no portal — imported by hand</span></div></div><div class="blist">${ih}</div></div>
+      ${cols}
+      <button class="newcol" onclick="toast('New sign-in column — name it, add its portal link')">＋ New sign-in</button>
+    </div></div>`;
+}
+
+function detailHTML(id){
+  const hit=findBook(id); if(!hit) return '';
+  const {book:b, group:g}=hit;
+  const kind = g? "Special order" : (b.kind==='stock'?"Stock":"Special order");
+  let strip;
+  if(g){
+    strip = `<div class="srcstrip ${b.stale?'stale-strip':''}">
+      <span class="fico">${I.file}</span>
+      <div class="mid"><div class="fn">${b.sheet}</div>
+        <div class="fsub">from <a href="#" onclick="return false">${g.name}</a> · fetched ${b.fetched} · goes through import review</div></div>
+      ${b.pend==='ready'
+        ? `<button class="refresh" style="background:var(--moss);border-color:var(--moss);color:#fff" onclick="openReview('${b.id}')">Review changes · ${diffTotal(b.id)}</button>`
+        : b.pend ? `<span class="fetchbar" style="flex-basis:90px" title="Downloading…"><i></i></span>`
+        : `<button class="refresh ${g.live?'live':''}" onclick="refreshBook('${b.id}')">${I.rot13} Refresh</button>`}
+      <button class="ibtn" title="Re-map columns · unlink sheet · move sign-in" onclick="toast('⋯ — Re-map columns · Unlink sheet · Move to another sign-in')">${I.dots}</button>
+      ${b.stale?`<div class="stalenote">Last import was ${b.stale} days ago — past the 30-day threshold.</div>`:''}
+    </div>`;
+  } else {
+    strip = `<div class="importstrip">${b.kind==='stock'
+      ? "Drop the shop workbook here (or anywhere on the library) to re-import — diff preview first, retired SKUs marked inactive, never deleted. <u>browse…</u>"
+      : "Hand-kept book — no portal sheet. Prices update from the Sheoga configurator's transcribed tables. <u>Import a file…</u>"}</div>`;
+  }
+  return `<div class="detail">
+    <button class="back" onclick="go('board')">${I.back} All price books</button>
+    <div class="dhead"><h2>${b.name}</h2><span class="chip">${kind}</span>
+      <button class="ibtn" title="Rename · markup · disable · delete…" onclick="toast('⋯ — Rename · Markup · Versions · Disable · Delete…')">${I.dots}</button></div>
+    <div class="dmeta">${(b.items||412).toLocaleString()} items · markup 38% → sell · versions kept on every import</div>
+    ${strip}
+    <div class="tablecard">
+      <div class="tbar"><input placeholder="Search this book — sku, words, sizes…" /><button class="btn">Filters</button></div>
+      <table>
+        <thead><tr><th>SKU</th><th>Description</th><th>Unit</th><th class="num">Cost</th><th class="num">Sell</th></tr></thead>
+        <tbody>${sampleRows.map(r=>`<tr><td class="sku">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="num">$${r[3]}</td><td class="num">$${r[4]}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function extraHTML(){
+  const pend=pendingIds();
+  let html='';
+  if(pend.length && !state.review){
+    html+=`<div class="revbar"><b>${pend.length}</b>&nbsp;book${pend.length===1?' is':'s are'} ready to review
+      <button class="go" onclick="reviewAll()">Review all</button>
+      <span style="font-size:11px;color:var(--faint)">or click a row's Review pill</span></div>`;
+  }
+  if(state.review){
+    const r=state.review, b=findBook(r.queue[r.i]).book, d=fakeDiff[b.id]||{up:5,down:1,add:2,gone:1};
+    const left=r.queue.filter((id,i)=>i>=r.i && findBook(id).book.pend==='ready').length;
+    html+=`<div class="overlay" onclick="if(event.target===this)reviewStep(false)">
+      <div class="rmodal">
+        <h3>Import review — ${b.name}</h3>
+        <div class="rsub">${b.sheet} · downloaded just now · same review as today, just on your schedule</div>
+        <div class="diff">
+          <div><span>Price changes</span><b>↑ ${d.up} &nbsp; ↓ ${d.down}</b></div>
+          <div><span>New items</span><b>+ ${d.add}</b></div>
+          <div><span>Retired (marked inactive, never deleted)</span><b>${d.gone}</b></div>
+          <div><span>Flags to look at</span><b>${d.up>20?2:0}</b></div>
+        </div>
+        <div class="foot">
+          <span class="count">${r.queue.length>1?`${r.i+1} of ${r.queue.length}`:''}${left>1?` · ${left-1} more after this`:''}</span>
+          <button class="btn" onclick="reviewStep(false)">Later</button>
+          <button class="btn primary" onclick="reviewStep(true)">Apply changes</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return html;
+}
+function render(){
+  document.getElementById('main').innerHTML = state.screen==='board' ? boardHTML() : detailHTML(state.screen);
+  document.getElementById('extra').innerHTML = extraHTML();
+}
+render();
+</script>
+</body>
+</html>

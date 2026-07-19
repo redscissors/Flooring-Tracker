@@ -101,6 +101,13 @@ body {
   --ft-hover-amber-strong:#FEF3C7;
   --ft-hover-emerald:#ECFDF5;
 
+  /* "Ready to download" glow (.ft-live) — emerald go-signal, distinct from the
+     moss accent. Flips lighter in dark mode. */
+  --ft-live-fg:#059669;
+  --ft-live-ring:color-mix(in oklab, #10B981 42%, transparent);
+  --ft-live-glow:color-mix(in oklab, #10B981 30%, transparent);
+  --ft-live-glow-strong:color-mix(in oklab, #10B981 50%, transparent);
+
   /* Sidebar sort toggle — the active tab is a quiet moss wash (the kit allows
      moss for active nav states). Resolves per mode since --ft-brand flips. */
   --ft-seg-on-bg:color-mix(in oklab, var(--ft-brand) 16%, transparent);
@@ -274,6 +281,18 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-progress-indeterminate::after{content:"";position:absolute;inset:0;width:40%;background:var(--ft-brand);border-radius:999px;animation:ft-indeterminate 1.1s ease-in-out infinite;}
 @keyframes ft-indeterminate{0%{left:-40%}100%{left:100%}}
 
+/* "Ready to download" glow: a sheet whose sign-in is live gets an emerald
+   download button with a soft, slow pulse — a go signal that says "these are
+   fetchable right now". Emerald (not the moss accent) so it reads as a distinct
+   status. Kept low-intensity and slow so a board of ready sheets doesn't buzz. */
+.ft-live{color:var(--ft-live-fg);border-radius:6px;animation:ft-live-pulse 2.4s ease-in-out infinite;}
+.ft-live:hover{color:var(--ft-live-fg);}
+@keyframes ft-live-pulse{
+  0%,100%{box-shadow:0 0 0 1px var(--ft-live-ring),0 0 5px var(--ft-live-glow);}
+  50%{box-shadow:0 0 0 1px var(--ft-live-ring),0 0 11px var(--ft-live-glow-strong);}
+}
+@media (prefers-reduced-motion: reduce){.ft-live{animation:none;box-shadow:0 0 0 1px var(--ft-live-ring),0 0 6px var(--ft-live-glow);}}
+
 /* New-customer button — JkHuger's Uiverse sparkle button reskinned to the kit
    (sparkle/particle layer dropped, pill -> 4px kit corners). Rests as a flat
    action fill (--ft-accent: ink in light, paper in dark); --active on hover
@@ -349,6 +368,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   --ft-hover-amber:color-mix(in oklab, #FBBF24 16%, transparent);
   --ft-hover-amber-strong:color-mix(in oklab, #FBBF24 26%, transparent);
   --ft-hover-emerald:color-mix(in oklab, #6EE7B7 16%, transparent);
+  --ft-live-fg:#34D399;
+  --ft-live-ring:color-mix(in oklab, #34D399 50%, transparent);
+  --ft-live-glow:color-mix(in oklab, #34D399 32%, transparent);
+  --ft-live-glow-strong:color-mix(in oklab, #34D399 55%, transparent);
   --ft-shadow:rgba(0,0,0,.4);
 }
 @media (prefers-color-scheme: dark){
@@ -369,6 +392,10 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
     --ft-hover-amber:color-mix(in oklab, #FBBF24 16%, transparent);
     --ft-hover-amber-strong:color-mix(in oklab, #FBBF24 26%, transparent);
     --ft-hover-emerald:color-mix(in oklab, #6EE7B7 16%, transparent);
+    --ft-live-fg:#34D399;
+    --ft-live-ring:color-mix(in oklab, #34D399 50%, transparent);
+    --ft-live-glow:color-mix(in oklab, #34D399 32%, transparent);
+    --ft-live-glow-strong:color-mix(in oklab, #34D399 55%, transparent);
     --ft-shadow:rgba(0,0,0,.4);
   }
 }

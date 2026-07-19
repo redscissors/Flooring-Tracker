@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>OVF banded books — import preview (issue 025)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --ink:#1f2421; --paper:#faf9f6; --mute:#8a8f8a; --line:#e4e2dc; --moss:#5f7a5a; --moss-soft:#eef1ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:28px 32px 60px; background:var(--paper); color:var(--ink);
+         font:14px/1.45 Manrope, system-ui, sans-serif; }
+  h1 { font-size:19px; margin:0 0 2px; }
+  .sub { color:var(--mute); font-size:12px; margin-bottom:24px; }
+  .book { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:26px; }
+  .book h2 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .chip { display:inline-block; font-size:10.5px; font-weight:600; letter-spacing:.02em; padding:2px 8px;
+          border-radius:999px; background:var(--moss-soft); color:var(--moss); border:1px solid #d8dfd2; }
+  .chip.gray { background:#f2f1ee; color:var(--mute); border-color:var(--line); }
+  .kv { display:flex; gap:22px; flex-wrap:wrap; font-size:12px; color:var(--mute); margin-bottom:12px; }
+  .kv b { color:var(--ink); font-weight:600; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th { text-align:left; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute);
+       border-bottom:1px solid var(--line); padding:5px 8px; white-space:nowrap; }
+  td { border-bottom:1px solid #f0efeb; padding:5px 8px; vertical-align:top; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sku { font-weight:600; white-space:nowrap; }
+  .trimtag { font-size:10px; color:var(--moss); border:1px solid #d8dfd2; background:var(--moss-soft);
+             padding:0 5px; border-radius:4px; margin-left:6px; }
+  .warn { font-size:11.5px; color:#8a6d3b; background:#fdf6ec; border:1px solid #f0e2c8; border-radius:6px;
+          padding:6px 10px; margin:10px 0 0; }
+  .demo { margin-top:14px; padding:12px 14px; background:var(--moss-soft); border:1px solid #d8dfd2; border-radius:8px; }
+  .demo label { font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--moss); }
+  .demo input { display:block; margin:6px 0 10px; width:280px; padding:6px 9px; font:inherit;
+                border:1px solid var(--line); border-radius:6px; }
+  .hit { padding:4px 6px; font-size:12px; border-bottom:1px solid #e2e6dd; display:flex; gap:8px; align-items:baseline; }
+  .hit .p { margin-left:auto; font-variant-numeric:tabular-nums; color:var(--mute); }
+  .route { font-size:12px; margin:0 0 12px; color:var(--mute); }
+  .route b { color:var(--ink); }
+  .foot { color:var(--mute); font-size:11px; margin-top:18px; }
+</style>
+</head>
+<body>
+<h1>OVF banded books — import wizard feed <span class="chip">issue 025 preview</span></h1>
+<div class="sub">Live run of the REAL modules (<code>src/ovfbook.js</code> → <code>src/pricebook.js parseMapped</code> → <code>src/dropimport.js routeFile</code>) on the REAL vendor files' data — the exact path the wizard executes on upload. Nothing here touches Supabase.</div>
+<div id="root">Running parsers…</div>
+
+<script type="module" src="./preview.js"></script>
+</body>
+</html>

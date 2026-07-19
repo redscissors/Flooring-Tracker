@@ -92,20 +92,35 @@ src/
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
                     # (BuildCard + Add). BuildCard is the shared cost->sell card
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
-                    # bookmarklet source + URL-fragment hand-off, response
-                    # sniffing; shared by the browser panel and the relay.
+                    # bookmarklet source + clipboard hand-off (copies a marked
+                    # base64 payload — HANDOFF_MARK/stripHandoffMark — that the
+                    # "Paste sign-in" button folds in via decodeHandoff; the old
+                    # #vfetch URL-fragment reader stays as a legacy fallback),
+                    # response sniffing; shared by the browser panel and relay.
                     # + sign-in groups (ADR 0020): remembered sheets organized
                     # into named `settings.ops.vendorGroups` (one per portal
                     # {host,user}); `normVendorGroups`/`migrateVendorSheets`
                     # (one-way flat→groups migration, called from catalog.js
                     # normOps), `moveSheetInGroups`/`sheetMatchesGroup`/
-                    # `rememberIntoGroups` for the VendorFetchPage tab. `portal`
+                    # `rememberIntoGroups` for the library board's sign-in
+                    # columns. `portal`
                     # is nominal (naming + mismatch chip), never authorizes a
                     # fetch — a sheet's sesid comes from a live link matching its
                     # OWN {host,user}, so freely moving sheets between groups is
-                    # safe. The tab renders groups as board columns with checkbox
+                    # safe. Groups render as board columns with checkbox
                     # batch download and always-live (never pre-locked) fetch
-                    # buttons; moves happen from a row's ⋯ menu (ADR 0021)
+                    # buttons; moves happen from a row's ⋯ menu (ADR 0021 —
+                    # board layout, batch selection, always-live downloads;
+                    # its old standalone "Vendor sheets" tab is retired, see
+                    # the library board below)
+                    # + review-when-ready pending pool (ADR 0024):
+                    # poolPendingReview/removePendingReview/pendingForSheet —
+                    # fetched Files park session-side until reviewed.
+                    # + the library board (ADR 0024): renders each sign-in as
+                    # a column of book rows beside an In-house column; a
+                    # linked sheet lives inside its book (source-sheet strip
+                    # on the book page), and the separate Vendor sheets tab +
+                    # the price-book sidebar list are retired
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature
@@ -117,8 +132,14 @@ src/
                     # book's saved mapping that parses the file. A book stamps
                     # `data.importFingerprint` on import so the next drop
                     # matches. The Price book library's drop area (top of the
-                    # book-list sidebar) routes a mixed drop and reuses each
-                    # book's normal import preview.
+                    # board page, ADR 0024) routes a mixed drop and reuses
+                    # each book's normal import preview.
+  labels.js         # Label Generator pure logic (Apps hub): LABEL_FIELDS,
+                    # built-in size presets, preset/label normalization,
+                    # stock->field mapping, per-letter-sheet math, print HTML
+  AppsWorkspace.jsx # the Apps hub overlay (SettingsWorkspace-style shell) +
+                    # the Label Generator UI (preset strip, SKU fill, preview,
+                    # label set, print)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 netlify/
   functions/
@@ -131,6 +152,7 @@ supabase/
   storage.sql       # run once: attachments bucket + storage policies
   stock.sql         # run once: stock_items table + RLS (stock price book)
   todos.sql         # run once: todos table + RLS (team issue / to-do list)
+  labels.sql        # run once: labels table + RLS (Apps hub label set)
   pricebooks.sql    # run once: price book registry + items + versions tables
                     # + RLS (ADR 0009; docs/pricebook/design.md)
   pricebook-search.sql  # run once after pricebooks.sql: pg_trgm + generated

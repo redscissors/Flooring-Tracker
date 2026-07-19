@@ -5,13 +5,17 @@
 
 import { detectVtcEft, detectStockWorkbook, parseMapped } from "./pricebook.js";
 import { isManningtonCartons } from "./manningtonbook.js";
+import { isHallmarkWood, isTarkettLvt } from "./ovfbook.js";
 
 // The strongest format tag we can read straight off the file. Priority follows
-// the spec: stock signature → VTC EFT → Mannington PDF → generic.
+// the spec: stock signature → VTC EFT → OVF banded books → Mannington PDF →
+// generic.
 export function fileFormat({ sheets, pages, isPdf }) {
   if (isPdf) return isManningtonCartons(pages || []) ? "mannington" : "generic";
   if (detectStockWorkbook(sheets || [])) return "stock";
   if (detectVtcEft(sheets || [])) return "vtc-eft";
+  if (isHallmarkWood(sheets || [])) return "ovf-hallmark";
+  if (isTarkettLvt(sheets || [])) return "ovf-tarkett";
   return "generic";
 }
 
@@ -63,13 +67,14 @@ export function mappingMatchesFile(mapping, sheets) {
   catch { return false; }
 }
 
+const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT" };
 const labelFor = (format, b, title) =>
   format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} → ${b?.name || "book"}`
-    : format === "mannington" ? `Mannington cartons → ${b?.name || "book"}`
+    : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} → ${b?.name || "book"}`
       : `Matches ${b?.name || "book"}'s saved layout`;
 const reasonFor = (format, title) =>
   format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} — pick which book`
-    : format === "mannington" ? "Mannington cartons — pick which book"
+    : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} — pick which book`
       : "Unrecognized layout — pick a book";
 
 // Route one parsed file to a target book. Stock is deterministic; registry

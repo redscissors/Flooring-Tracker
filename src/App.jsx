@@ -1,15 +1,17 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
+import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
+import { parseOvf } from "./ovfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
@@ -17,6 +19,7 @@ import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed, normBasketEntry, multiWidthLineItems } from "./sheoga.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
+import { AppsWorkspace } from "./AppsWorkspace.jsx";
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -1725,6 +1728,10 @@ export default function App({ user, onSignOut }) {
   // sidebar badge and refreshed every time the list is opened.
   const [todos, setTodos] = useState([]);
   const [showTodos, setShowTodos] = useState(false);
+  // Apps → Label Generator: saved showroom labels, shared team-wide (issue
+  // label-generator-integration). Own table, loaded once on mount.
+  const [labels, setLabels] = useState([]);
+  const [showApps, setShowApps] = useState(false);
   // Price book library (ADR 0009): registry books beyond the stock workbook.
   // Metadata is loaded up front for the Settings list; a book's items load
   // lazily when it's opened (a vendor book is ~10x the stock book). Empty
@@ -1911,6 +1918,9 @@ export default function App({ user, onSignOut }) {
         // Best-effort: installs that haven't run supabase/todos.sql yet just
         // don't get the team to-do list.
         try { setTodos(await loadTodos()); } catch (x) { }
+        // Best-effort: installs that haven't run supabase/labels.sql yet just
+        // don't get the label generator's saved list.
+        try { setLabels(await loadLabels()); } catch (x) { }
         // Best-effort: installs that haven't run supabase/pricebooks.sql yet
         // just don't get the price book library (registry affordances hide).
         try { setBooks(await loadBooks()); } catch (x) { }
@@ -2014,19 +2024,21 @@ export default function App({ user, onSignOut }) {
   // an import would change — nothing is written until the preview is applied.
   // Read + preview a shop-workbook file. onDone (from the multi-file drop router)
   // fires whether the preview opens, is empty, or errors, and is carried on the
-  // preview so its Apply/Cancel can advance the router's queue.
+  // preview so its Apply/Cancel can advance the router's queue. onDone is called
+  // with `applied` — true only after a successful Apply, false on cancel / empty /
+  // read-error — so the router knows whether the file was really imported.
   const importStockFile = async (file, onDone) => {
     if (!file) return;
     setImporting(true);
     try {
       const sheets = await readXlsxSheets(file);
       const { items, warnings } = parsePriceBook(sheets);
-      if (!items.length) { ping("No stock items found in that file"); onDone?.(); }
+      if (!items.length) { ping("No stock items found in that file"); onDone?.(false); }
       else {
         const parsed = items.map((it) => ({ ...it, active: true }));
         setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed), onDone });
       }
-    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(); }
+    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(false); }
     setImporting(false);
   };
   const importPriceBook = (e) => { const f = e.target.files?.[0]; e.target.value = ""; importStockFile(f); };
@@ -2061,8 +2073,8 @@ export default function App({ user, onSignOut }) {
       setStock(await loadStock());
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
-    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
-    onDone?.();
+      onDone?.(true);
+    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); onDone?.(false); }
   };
 
   // Roll the shop workbook back to a version snapshot: replay it through the
@@ -2717,6 +2729,31 @@ export default function App({ user, onSignOut }) {
     ]);
     updArea(aid, { products });
   };
+  // Sheoga opened from the Apps hub has no row/project context. Its lines drop
+  // into the first area of whichever project the salesperson picks in the
+  // Apps-hub destination prompt (filling a blank adder row if there is one, else
+  // appending). A blank adder row is the trailing empty row every area carries.
+  const applySheogaToFirstArea = (categories, lines) => {
+    const cats = categories.length ? categories : [newArea()];
+    return cats.map((cat, i) => {
+      if (i !== 0) return cat;
+      const blank = cat.products.find(rowBlank);
+      if (blank) return { ...cat, products: cat.products.flatMap((p) => p.id !== blank.id ? [p] : [{ ...p, ...lines[0] }, ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch }))]) };
+      return { ...cat, products: [...cat.products, ...lines.map((patch) => ({ ...newProduct(), ...patch }))] };
+    });
+  };
+  // "New quick price" from that prompt: build the unnamed draft with the lines
+  // already in it and insert ONCE — applying the lines via updateProject after
+  // creation would hit the stale-`data` closure and silently drop them.
+  const createQuickWithSheoga = (lines) => {
+    const c = { ...newProject(null, "Quick price", { quick: true, seedArea: true }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+    c.categories = applySheogaToFirstArea(c.categories, lines);
+    setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
+    baselineRef.current = { id: c.id, json: catSig(c.categories) };
+    setSelId(c.id); setSelCustId(null); setSidebarOpen(false);
+    (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: null, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    return c;
+  };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
     const p = sel.categories.find((x) => x.id === fromAid)?.products.find((x) => x.id === pid);
@@ -2950,6 +2987,45 @@ export default function App({ user, onSignOut }) {
     setTodos(next);
     const rows = next.filter((t) => pos.has(t.id)).map((t) => ({ id: t.id, position: t.position, data: todoData(t) }));
     (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+
+  // Labels write path (Apps → Label Generator). Mirrors the todos helpers but
+  // pages with fetchAllRows since the shared set can exceed the 1000-row cap.
+  const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
+  const loadLabels = async () => {
+    const rows = await fetchAllRows(() => supabase.from("labels").select("id, position, data").order("position"));
+    return rows.map((r) => normLabel({ id: r.id, position: r.position ?? 0, ...(r.data || {}) }));
+  };
+  const openApps = () => { setShowApps(true); setSidebarOpen(false); loadLabels().then(setLabels).catch(() => { }); };
+  const nextPos = () => (labels.length ? Math.max(...labels.map((l) => l.position)) + 1 : 0);
+  const addLabel = (draft) => {
+    const l = normLabel({ ...draft, id: uid(), position: nextPos(), createdBy: profile.name || user.email || "", createdAt: Date.now() });
+    setLabels((prev) => [...prev, l]);
+    (async () => { try { const { error } = await supabase.from("labels").insert({ id: l.id, position: l.position, data: labelData(l) }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/labels.sql?"); } })();
+    return l;
+  };
+  const addLabelsBulk = (drafts) => {
+    let pos = nextPos();
+    const made = drafts.map((d) => normLabel({ ...d, id: uid(), position: pos++, createdBy: profile.name || user.email || "", createdAt: Date.now() }));
+    setLabels((prev) => [...prev, ...made]);
+    (async () => { try { const { error } = await supabase.from("labels").insert(made.map((l) => ({ id: l.id, position: l.position, data: labelData(l) }))); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/labels.sql?"); } })();
+  };
+  const updateLabel = (id, patch) => {
+    const next = labels.map((l) => l.id === id ? normLabel({ ...l, ...patch }) : l);
+    setLabels(next);
+    const l = next.find((x) => x.id === id);
+    (async () => { try { const { error } = await supabase.from("labels").update({ position: l.position, data: labelData(l) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+  const delLabel = (id) => {
+    setLabels((prev) => prev.filter((l) => l.id !== id));
+    (async () => { try { const { error } = await supabase.from("labels").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
+  };
+  // Custom size presets live in shared settings; setSettings persists them
+  // (serializeSettings keeps only non-built-in presets).
+  const saveLabelPreset = (preset) => {
+    const cur = settings.apps?.labels?.presets || [];
+    const presets = [...cur.filter((p) => p.id !== preset.id), preset];
+    setSettings({ ...settings, apps: { ...settings.apps, labels: { presets } } });
   };
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
@@ -3565,6 +3641,9 @@ export default function App({ user, onSignOut }) {
           <div className="p-2.5 border-t border-slate-100">
             <div className="flex mb-2">
               <ThemeSwitch theme={theme} setTheme={setTheme} />
+            </div>
+            <div className="flex mb-2">
+              <button onClick={openApps} title="Apps — shop tools" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><LayoutGrid size={15} /> Apps</button>
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
@@ -4614,6 +4693,27 @@ export default function App({ user, onSignOut }) {
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />
       )}
 
+      {showApps && (
+        <AppsWorkspace
+          onClose={() => setShowApps(false)}
+          stock={stock}
+          labels={labels}
+          presets={settings.apps?.labels?.presets || []}
+          onAddLabel={addLabel}
+          onAddLabelsBulk={addLabelsBulk}
+          onUpdateLabel={updateLabel}
+          onDeleteLabel={delLabel}
+          onSavePreset={saveLabelPreset}
+          sheoga={{
+            markupDefault: normPricing(settings.pricing).sheogaMarkupPct,
+            ventMarkupDefault: normPricing(settings.pricing).sheogaVentMarkupPct,
+            currentName: sel?._full ? (sel.name || "Untitled project") : null,
+            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
+            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
+          }}
+        />
+      )}
+
       {showTodos && (
         <Modal onClose={() => setShowTodos(false)} title="Issues & To-Do">
           <TeamTodos todos={todos} onAdd={addTodo} onToggle={toggleTodo} onDelete={delTodo} onReorder={reorderTodos} onClearDone={clearDoneTodos} inp={inp} />
@@ -4739,8 +4839,8 @@ export default function App({ user, onSignOut }) {
         const total = diff.added.length + diff.changed.length + diff.missing.length;
         const money2 = (n) => (n == null ? "—" : money(n));
         const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
-        // Cancelling still advances the drop router's queue (onDone), same as Apply.
-        const closePreview = () => { setImportPreview(null); onDone?.(); };
+        // Cancelling still advances the drop router's queue, but reports applied=false so a pooled file isn't dropped as if imported.
+        const closePreview = () => { setImportPreview(null); onDone?.(false); };
         return (
           <Modal onClose={closePreview} title="Import price book">
             <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
@@ -5048,7 +5148,7 @@ function StaleChip({ days }) {
 // then steps through each file's normal import preview one at a time. Registry
 // files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
 // stock preview. No new write path — each apply is the book's existing one.
-function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -5065,11 +5165,13 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
         const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
         const fp = computeFingerprint(parsed);
         let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
-        // A file fetched via "Create price book from this sheet" always lands in
-        // the book we just made for it — the user's explicit intent outranks any
-        // fingerprint match to another book.
-        if (preferTarget && registryBooks.some((b) => b.id === preferTarget)) {
-          r = { ...r, target: preferTarget, reason: "new book from this sheet" };
+        // Explicit intent outranks any fingerprint match to another book:
+        // preferTarget = "Create price book from this sheet"; targets = files
+        // fetched for a known linked book (review-when-ready pool).
+        const forced = (preferTarget && registryBooks.some((b) => b.id === preferTarget)) ? preferTarget
+          : (targets && targets.get(file));
+        if (forced && registryBooks.some((b) => b.id === forced)) {
+          r = { ...r, target: forced, reason: forced === preferTarget ? "new book from this sheet" : "fetched for this book" };
         }
         out.push({ file, ...parsed, ...r });
       } catch (x) { out.push({ file, error: "Could not read this file" }); }
@@ -5088,7 +5190,7 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
     const row = runnable[qi];
-    if (row.target === "stock") { setActive(null); importStockFile(row.file, advance); return; }
+    if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
     loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
@@ -5140,8 +5242,8 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
       key={active.book.id + qi}
       book={active.book} existingItems={active.items}
       preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
-      onClose={advance}
-      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } advance(); }}
+      onClose={() => { onFileDone && onFileDone(active.row.file, false); advance(); }}
+      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); onFileDone && onFileDone(active.row.file, true); } catch (x) { onFileDone && onFileDone(active.row.file, false); /* error surfaced by applyBookImport */ } advance(); }}
       saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
       types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
     />
@@ -5324,7 +5426,7 @@ async function runFetch(entry, token, onProgress) {
 // The bookmarklet setup steps (drag-to-bookmarks + copy), shared by the empty
 // state and the "Set up one-click fetch" disclosure.
 function VendorBookmarklet() {
-  const bmSrc = bookmarkletSource(window.location.origin);
+  const bmSrc = bookmarkletSource();
   const [copied, setCopied] = useState(false);
   return (
     <ol className="text-sm text-slate-600 list-decimal ml-5 space-y-1.5">
@@ -5334,38 +5436,146 @@ function VendorBookmarklet() {
         <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
       </li>
       <li>Log into the vendor portal (e.g. Virginia Tile connect24) — any page works once you're signed in.</li>
-      <li>Click the bookmark — it grabs your sign-in and unlocks every saved sheet here, ready to download. (On portals that list their sheets as links, it grabs those too.)</li>
+      <li>Click the bookmark — it copies your sign-in to the clipboard (no new tab). Come back here and hit <span className="font-medium text-slate-600">Paste sign-in</span> to unlock every saved sheet, ready to download. (On portals that list their sheets as links, it grabs those too.)</li>
     </ol>
   );
 }
 
-// The paste box does two independent things, split across two buttons.
-// "Unlock downloads" (primary) donates the link's live session token to the
-// pool so every remembered sheet for that sign-in becomes fetchable — the
-// pasted sheet is NOT saved to the board (the temp path: one link, download the
-// lot, save nothing). "Add to board" also remembers the pasted sheet, needed to
-// bootstrap menu-style portals where pasting is the only way to register one.
-function PasteLinks({ onUnlock, onAdd, inp, rows = 2, placeholder }) {
+// The neat little sign-in box. The primary path is one button: click the
+// bookmark on the portal (it copies your sign-in to the clipboard), come back
+// here, hit "Paste sign-in". It reads the clipboard, folds the sign-in in, and
+// every saved sheet for that portal lights up green, ready to download.
+// A collapsed "paste a link instead" reveals the manual textarea fallback —
+// needed to bootstrap menu-style portals (Downloads-page copy) and unchanged in
+// behaviour: "Unlock" donates the link's session without saving the sheet,
+// "Add to board" also remembers it. Both the button and the fallback accept a
+// copied sign-in blob OR a plain price-list URL.
+function SignInPaste({ onPasteSession, onUnlock, onAdd, inp }) {
+  const [manual, setManual] = useState(false);
   const [text, setText] = useState("");
-  const [note, setNote] = useState(null);
-  const unlock = () => { const r = onUnlock(text); if (r) { setText(""); setNote(r); } };
-  const add = () => { if (onAdd(text)) { setText(""); setNote(null); } };
+  const [note, setNote] = useState(null); // { unlocked } on success | { err } otherwise
+  const [busy, setBusy] = useState(false);
+  const BAD = "That doesn't look like a FloorTrack sign-in or a price-list link.";
+
+  const pasteFromClipboard = async () => {
+    setBusy(true);
+    let clip = "";
+    try { clip = await navigator.clipboard.readText(); } catch {}
+    setBusy(false);
+    if (clip) { const r = onPasteSession(clip); if (r) { setNote(r); setManual(false); return; } }
+    setManual(true);
+    setNote({ err: clip
+      ? "That clipboard text isn't a FloorTrack sign-in — click the bookmark on the portal first, or paste a sheet link below."
+      : "Couldn't read the clipboard. Paste the copied text (or a sheet link) below, then Unlock." });
+  };
+  const unlock = () => { const r = onPasteSession(text) || onUnlock(text); if (r) { setText(""); setNote(r); } else setNote({ err: BAD }); };
+  const add = () => { const r = onPasteSession(text); if (r) { setText(""); setNote(r); return; } if (onAdd(text)) { setText(""); setNote(null); } else setNote({ err: BAD }); };
+
   return (
     <>
-      <textarea value={text} onChange={(e) => { setText(e.target.value); if (note) setNote(null); }} rows={rows} placeholder={placeholder || "https://connect24.virginiatile.com/…getPrettyPriceList…"} className={inp + " font-mono text-[11px]"} />
-      <div className="flex items-center justify-end gap-2 mt-2">
-        <button onClick={add} disabled={!text.trim()} title="Also save this sheet to the board" className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add to board</button>
-        <button onClick={unlock} disabled={!text.trim()} title="Grab this sign-in's session to unlock its downloads — the sheet isn't saved" className="text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">Unlock downloads</button>
+      <div className="flex items-center gap-2">
+        <button onClick={pasteFromClipboard} disabled={busy} title="Reads the sign-in the bookmark copied to your clipboard" className="flex items-center gap-1.5 text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">
+          <ClipboardList size={14} /> Paste sign-in
+        </button>
+        <button onClick={() => { setManual((v) => !v); setNote(null); }} className="text-[11px] text-slate-400 hover:text-slate-600 underline shrink-0">{manual ? "hide link box" : "paste a link instead"}</button>
       </div>
-      {note && (
-        <div className={"mt-2 flex items-start gap-1.5 text-xs " + (note.unlocked ? "text-emerald-700" : "text-slate-500")}>
-          <Check size={13} className="mt-0.5 shrink-0 text-emerald-600" />
-          <span>{note.unlocked
-            ? `Sign-in captured — ${note.unlocked} saved ${note.unlocked === 1 ? "sheet is" : "sheets are"} ready to download below.`
-            : "Sign-in captured, but no saved sheets match it yet — use “Add to board” to keep this sheet."}</span>
+      {manual && (
+        <div className="mt-2">
+          <textarea value={text} onChange={(e) => { setText(e.target.value); if (note) setNote(null); }} rows={2} placeholder="https://connect24.virginiatile.com/…getPrettyPriceList…" className={inp + " font-mono text-[11px]"} />
+          <div className="flex items-center justify-end gap-2 mt-2">
+            <button onClick={add} disabled={!text.trim()} title="Also save this sheet to the board" className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add to board</button>
+            <button onClick={unlock} disabled={!text.trim()} title="Unlock this sign-in's downloads — the sheet isn't saved" className="text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">Unlock downloads</button>
+          </div>
         </div>
       )}
+      {note && (
+        note.err ? (
+          <div className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+            <span>{note.err}</span>
+          </div>
+        ) : (
+          <div className={"mt-2 flex items-start gap-1.5 text-xs " + (note.unlocked ? "text-emerald-700" : "text-slate-500")}>
+            <Check size={13} className="mt-0.5 shrink-0 text-emerald-600" />
+            <span>{note.unlocked
+              ? `Sign-in captured — ${note.unlocked} saved ${note.unlocked === 1 ? "sheet is" : "sheets are"} ready to download below.`
+              : "Sign-in captured, but no saved sheets match it yet — use “paste a link instead” → “Add to board” to keep one."}</span>
+          </div>
+        )
+      )}
     </>
+  );
+}
+
+// A linked sheet presents as its BOOK (ADR 0024): name + meta up front, the
+// filename demoted to the ⋯ menu. Row click opens the book; the refresh
+// control fetches the sheet and parks it for review (the pill).
+function VendorBookRow({ sheet, book, group, groups, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onUnlinkBook, onOpenBook }) {
+  const [menu, setMenu] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const others = groups.filter((g) => g.id !== group.id);
+  const fetching = prog?.state === "fetching";
+  const openMenu = (v) => { setMenu(v); if (!v) setMoveOpen(false); };
+  const meta = pending ? "downloaded — changes waiting"
+    : fetching ? `downloading ${entryFileName(sheet)}…`
+    : `${book.data?.lastImport?.skus ? `${book.data.lastImport.skus} items · ` : ""}${sheet.lastFetched ? `fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : "not fetched yet"}`;
+  return (
+    <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : pending ? "bg-indigo-50/40" : stale?.stale ? "bg-amber-50" : "")}>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" checked={checked} onChange={onToggle} className="shrink-0" title="Select for batch download" />
+        <BookOpen size={14} className="text-slate-400 shrink-0" />
+        <button onClick={() => onOpenBook(book.id)} className="min-w-0 flex-1 text-left" title={`${book.name || "Untitled"} — open this price book (source sheet: ${entryFileName(sheet)})`}>
+          <div className="text-[12.5px] font-medium truncate">{book.name || "Untitled"}</div>
+          <div className="text-[10px] text-slate-400 truncate">{meta}</div>
+        </button>
+        {mismatch && <span className="shrink-0 leading-none" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={12} className="text-amber-500" /></span>}
+        {stale?.stale && !pending && <span className="shrink-0 leading-none" title={`Last imported ${stale.days} days ago — refresh to update.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
+        {prog?.state === "done" && !pending && <Check size={13} className="text-emerald-600 shrink-0" />}
+        {prog?.state === "error" && <AlertTriangle size={12} className="text-red-500 shrink-0" />}
+        {pending && !fetching && (
+          <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open this book's import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
+        )}
+        {!fetching && !pending && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Refresh this book's sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — refresh this book's sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
+        <div className="relative shrink-0">
+          <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
+          {menu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => openMenu(false)} />
+              <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                <div className="px-3 py-1 text-[11px] text-slate-400 truncate" title={entryFileName(sheet)}>Source sheet: <span className="text-slate-600">{entryFileName(sheet)}</span></div>
+                <button onClick={() => { onOpenBook(book.id); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><BookOpen size={13} className="text-slate-400" /> Open price book</button>
+                <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
+                {others.length > 0 && (
+                  <>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button onClick={() => setMoveOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
+                      <ChevronRight size={13} className={"text-slate-400 transition-transform " + (moveOpen ? "rotate-90" : "")} /> Move to another sign-in
+                    </button>
+                    {moveOpen && (
+                      <div className="max-h-40 overflow-y-auto bg-slate-50">
+                        {others.map((g) => (
+                          <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">{g.name}</button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="my-1 border-t border-slate-100" />
+                <button onClick={() => { onRemove(group.id, sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><X size={13} /> Forget this sheet</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      {fetching && (
+        <div className="pl-6 pr-1 pt-1">
+          <div className={"ft-progress h-1" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
+            {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
+          </div>
+        </div>
+      )}
+      {prog?.state === "error" && <div className="pl-6 pt-0.5 text-[10px] text-red-600" title={prog.note}>{prog.note}</div>}
+    </div>
   );
 }
 
@@ -5376,40 +5586,25 @@ function PasteLinks({ onUnlock, onAdd, inp, rows = 2, placeholder }) {
 // icons flag a portal-account mismatch and a stale linked book (row tints amber
 // too). The ⋯ menu creates/unlinks a price book, moves the sheet to another
 // sign-in (collapsible list), or forgets it.
-function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onLinkBook, onUnlinkBook }) {
+function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onUnlinkBook, pending, onReview }) {
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
-  const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
-  const bookList = (
-    <div className="max-h-40 overflow-y-auto bg-slate-50">
-      {(books || []).length === 0 ? (
-        <div className="pl-8 pr-3 py-1.5 text-[12px] text-slate-400">No price books yet</div>
-      ) : (books || []).map((b) => (
-        <button key={b.id} disabled={b.id === sheet.bookId} onClick={() => { onLinkBook(sheet, b.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent truncate">{b.name || "Untitled"}</button>
-      ))}
-    </div>
-  );
-  const linkItem = (label) => (
-    <>
-      <button onClick={() => setLinkOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
-        <ChevronRight size={13} className={"text-slate-400 transition-transform " + (linkOpen ? "rotate-90" : "")} /> {label}
-      </button>
-      {linkOpen && bookList}
-    </>
-  );
+  const openMenu = (v) => { setMenu(v); if (!v) setMoveOpen(false); };
   return (
     <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : stale?.stale ? "bg-amber-50" : "")}>
       <div className="flex items-center gap-2">
         <input type="checkbox" checked={checked} onChange={onToggle} className="shrink-0" title="Select for batch download" />
         <button onClick={onToggle} className="text-[12.5px] truncate min-w-0 flex-1 text-left" title={entryFileName(sheet) + (bookName ? ` — feeds ${bookName}` : "")}>{entryFileName(sheet)}</button>
         {mismatch && <span className="shrink-0 leading-none" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={12} className="text-amber-500" /></span>}
-        {stale?.stale && <span className="shrink-0 leading-none" title={`${bookName || "Its price book"} was last imported ${stale.days} days ago — re-download this sheet to refresh it.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
-        {prog?.state === "done" && <Check size={13} className="text-emerald-600 shrink-0" />}
+        {stale?.stale && !pending && <span className="shrink-0 leading-none" title={`${bookName || "Its price book"} was last imported ${stale.days} days ago — re-download this sheet to refresh it.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
+        {prog?.state === "done" && !pending && <Check size={13} className="text-emerald-600 shrink-0" />}
         {prog?.state === "error" && <AlertTriangle size={12} className="text-red-500 shrink-0" />}
-        {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Download this sheet"} className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-40 shrink-0"><RotateCcw size={12} /></button>}
+        {pending && !fetching && (
+          <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open its import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
+        )}
+        {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — download this sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
         <div className="relative shrink-0">
           <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
           {menu && (
@@ -5419,14 +5614,10 @@ function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, r
                 {sheet.bookId ? (
                   <>
                     <div className="px-3 py-1 text-[11px] text-slate-400 truncate">Feeds <span className="text-slate-600">{bookName || "a deleted book"}</span></div>
-                    {linkItem("Link to a different book")}
                     <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
                   </>
                 ) : (
-                  <>
-                    <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
-                    {linkItem("Link to an existing price book…")}
-                  </>
+                  <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
                 )}
                 {others.length > 0 && (
                   <>
@@ -5466,7 +5657,7 @@ function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, r
 // rename / sign-in link / delete, then single-line sheet rows. Sheets move
 // between sign-ins from a row's ⋯ menu (the pointer-drag went away with the
 // board layout — ADR 0021).
-function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onLinkBook, onUnlinkBook, inp }) {
+function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, onOpenBook, pendingFor, onReview, inp }) {
   const [menu, setMenu] = useState(false);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -5476,6 +5667,7 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
 
   const commitName = () => { const n = nameDraft.trim(); if (n && n !== group.name) onPatch(group.id, { name: n }); else setNameDraft(group.name); setEditName(false); };
   const commitUrl = () => { onPatch(group.id, { loginUrl: urlDraft.trim() }); setEditUrl(false); };
+  const groupLive = group.sheets.length > 0 && group.sheets.some((s) => sheetSesid(s));
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -5486,7 +5678,7 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
           ) : (
             <h3 className="text-[13px] font-semibold truncate flex-1 min-w-0" title={group.name}>{group.name}</h3>
           )}
-          <button onClick={() => onRedownloadAll(group)} disabled={running || group.sheets.length === 0} title="Download every sheet in this sign-in" className="p-1 text-indigo-600 hover:text-indigo-700 disabled:opacity-40 shrink-0"><Download size={14} /></button>
+          <button onClick={() => onRedownloadAll(group)} disabled={running || group.sheets.length === 0} title={groupLive ? "Ready — download every sheet in this sign-in" : "Download every sheet in this sign-in"} className={"p-1 disabled:opacity-40 shrink-0 " + (groupLive ? "ft-live" : "text-indigo-600 hover:text-indigo-700")}><Download size={14} /></button>
           <div className="relative shrink-0">
             <button onClick={() => setMenu((v) => !v)} title="Sign-in options" className="p-1 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
             {menu && (
@@ -5519,27 +5711,34 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
       )}
       {group.sheets.length === 0 ? (
         <p className="px-2.5 py-2 text-[11px] text-slate-400">No sheets yet — paste a link above, or move one here from a row's ⋯ menu.</p>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {group.sheets.map((s) => { const info = sheetInfo(s); return (
-            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} books={books} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onLinkBook={onLinkBook} onUnlinkBook={onUnlinkBook} />
-          ); })}
-        </div>
-      )}
+      ) : (() => {
+        const linked = group.sheets.filter((s) => sheetInfo(s).book);
+        const loose = group.sheets.filter((s) => !sheetInfo(s).book);
+        const rowProps = (s) => ({ sheet: s, group, groups, prog: progress[recordKey(s)], locked: !sheetSesid(s), mismatch: !sheetMatchesGroup(s, group), running, pending: pendingFor(s), checked: selected.has(recordKey(s)), onToggle: () => onToggleSheet(s), onRedownload: onRedownloadSheet, onReview, onRemove: onRemoveSheet, onMove: onMoveSheet });
+        return (
+          <div className="divide-y divide-slate-100">
+            {linked.map((s) => { const info = sheetInfo(s); return (
+              <VendorBookRow key={recordKey(s)} {...rowProps(s)} book={info.book} stale={info.stale} onUnlinkBook={onUnlinkBook} onOpenBook={onOpenBook} />
+            ); })}
+            {loose.length > 0 && linked.length > 0 && <div className="px-2.5 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">Loose sheets</div>}
+            {loose.map((s) => { const info = sheetInfo(s); return (
+              <VendorSheetRow key={recordKey(s)} {...rowProps(s)} stale={info.stale} bookName={null} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
+            ); })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, inp, lbl }) {
-  const [pending, setPending] = useState(vendorPending || []); // live-session pool (sesids) from full links
+function useVendorFetch({ settings, setSettings, books, vendorPending, vendorSession, onSessionUsed, onPool, addBook }) {
+  const [sesidPool, setSesidPool] = useState(vendorPending || []); // live-session pool (sesids) from full links
   const [sessions, setSessions] = useState([]); // bare bookmarklet sessions (host|user -> sesid), unlock only
   const [sessionNote, setSessionNote] = useState(null); // "sign-in captured" banner after a bookmarklet grab
   const [progress, setProgress] = useState({});
   const [running, setRunning] = useState(false);
-  const [fetchedFiles, setFetchedFiles] = useState(null); // partial-success File[] pending confirm
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
 
+  const staleDays = settings.ops?.staleDays || DEFAULT_STALE_DAYS;
   const groups = settings.ops?.vendorGroups || [];
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
@@ -5550,7 +5749,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   // under its sign-in). Idempotent, so a repeat hand-off is a no-op.
   useEffect(() => {
     if (!vendorPending || !vendorPending.length) return;
-    setPending((p) => mergeEntries(p, vendorPending));
+    setSesidPool((p) => mergeEntries(p, vendorPending));
     const next = rememberIntoGroups(groupsRef.current, vendorPending.map(sheetRecord));
     if (JSON.stringify(next) !== JSON.stringify(groupsRef.current)) writeGroups(next);
     clearHandoff();
@@ -5568,7 +5767,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   }, [vendorSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const liveSesid = {};
-  for (const e of pending) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
+  for (const e of sesidPool) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
   for (const s of sessions) { liveSesid[`${s.host}|${s.user}`] = s.sesid; } // a fresh bookmarklet grab outranks stale link tokens
   const sheetSesid = (s) => liveSesid[`${s.host}|${s.user}`];
 
@@ -5582,12 +5781,36 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   };
 
   const parseLinks = (text) => (text || "").split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
+
+  // The clipboard sign-in blob the bookmarklet copies (marked base64 of
+  // {v:1,links,session}). Fold its session into the unlock pool AND remember any
+  // links it carried, then report how many saved sheets are now live. Returns
+  // null when the text isn't a sign-in blob, so the caller can fall back to
+  // treating it as a plain price-list URL.
+  const pasteSignIn = (text) => {
+    const raw = stripHandoffMark(text);
+    const links = decodeHandoff(raw) || [];
+    const session = decodeHandoffSession(raw);
+    if (!links.length && !session) return null;
+    if (session) setSessions((prev) => poolSession(prev, session, groupsRef.current));
+    if (links.length) setSesidPool((p) => mergeEntries(p, links));
+    const nextGroups = links.length ? rememberIntoGroups(groupsRef.current, links.map(sheetRecord)) : groupsRef.current;
+    if (nextGroups !== groupsRef.current && JSON.stringify(nextGroups) !== JSON.stringify(groupsRef.current)) writeGroups(nextGroups);
+    const portals = new Set(links.map((e) => `${e.host}|${e.user}`));
+    if (session) {
+      if (session.user) portals.add(`${session.host}|${session.user}`);
+      else for (const g of nextGroups) for (const s of g.sheets) if (s.host === session.host) portals.add(`${s.host}|${s.user}`);
+    }
+    const unlocked = nextGroups.reduce((n, g) => n + g.sheets.filter((s) => portals.has(`${s.host}|${s.user}`)).length, 0);
+    return { unlocked };
+  };
+
   // Temp unlock: pool the pasted link's live session token so every remembered
   // sheet for its sign-in becomes fetchable, without saving the pasted sheet.
   const unlockPasted = (text) => {
     const found = parseLinks(text);
     if (!found.length) return null;
-    setPending((p) => mergeEntries(p, found));
+    setSesidPool((p) => mergeEntries(p, found));
     const portals = new Set(found.map((e) => `${e.host}|${e.user}`));
     const unlocked = groups.reduce((n, g) => n + g.sheets.filter((s) => portals.has(`${s.host}|${s.user}`)).length, 0);
     return { unlocked };
@@ -5595,7 +5818,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   const addPasted = (text) => {
     const found = parseLinks(text);
     if (!found.length) return false;
-    setPending((p) => mergeEntries(p, found));
+    setSesidPool((p) => mergeEntries(p, found));
     writeGroups(rememberIntoGroups(groups, found.map(sheetRecord)));
     return true;
   };
@@ -5603,9 +5826,8 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   const patchGroup = (id, patch) => writeGroups(groups.map((g) => g.id === id ? { ...g, ...patch } : g));
   const delGroup = (id) => writeGroups(groups.filter((g) => g.id !== id));
   const addGroup = () => writeGroups([...groups, newGroup()]);
-  const removeSheet = (groupId, sheet) => { writeGroups(groups.map((g) => g.id === groupId ? { ...g, sheets: g.sheets.filter((s) => recordKey(s) !== recordKey(sheet)) } : g)); setSelSheets((prev) => { const n = new Set(prev); n.delete(recordKey(sheet)); return n; }); };
+  const removeSheet = (groupId, sheet) => writeGroups(groups.map((g) => g.id === groupId ? { ...g, sheets: g.sheets.filter((s) => recordKey(s) !== recordKey(sheet)) } : g));
   const moveSheet = (sheet, fromId, toId) => writeGroups(moveSheetInGroups(groupsRef.current, sheet, fromId, toId));
-  const toggleSheet = (sheet) => setSelSheets((prev) => { const n = new Set(prev); const k = recordKey(sheet); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   // Downloads are never pre-locked (ADR 0021): run() takes plain sheet records
   // and resolves each one's live session itself — a sheet whose portal has no
@@ -5615,10 +5837,10 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   const run = async (picks) => {
     const list = (picks || []).filter(Boolean);
     if (!list.length || running) return;
-    setRunning(true); setFetchedFiles(null);
+    setRunning(true);
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    const files = [], ok = [];
+    const fetched = [], ok = [];
     let failures = 0;
     for (const s of list) {
       const k = recordKey(s);
@@ -5627,20 +5849,16 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
       const e = applySesid(s, ses);
       setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
       const res = await runFetch(e, token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
-      if (res.file) { files.push(res.file); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
+      if (res.file) { fetched.push({ sheet: sheetRecord(e), file: res.file }); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
       else { failures++; setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); }
     }
     if (ok.length) {
       writeGroups(rememberIntoGroups(groupsRef.current, ok.map((e) => ({ ...sheetRecord(e), lastFetched: Date.now() }))));
-      setSelSheets((prev) => { const n = new Set(prev); for (const e of ok) n.delete(recordKey(e)); return n; });
     }
     setRunning(false);
-    if (files.length && !failures) onFiles(files);
-    else if (files.length) setFetchedFiles(files);
+    if (fetched.length) onPool(fetched);
+    return ok.map((e) => recordKey(e));
   };
-  const redownloadAll = (g) => run(g.sheets);
-  const redownloadSheet = (s) => run([s]);
-  const downloadSelected = () => run(groups.flatMap((g) => g.sheets.filter((s) => selSheets.has(recordKey(s)))));
 
   // "Create price book from this sheet": download the one sheet, spin up a new
   // order book named from it, link the sheet to it (so future re-downloads keep
@@ -5651,7 +5869,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     const k = recordKey(sheet);
     const ses = sheetSesid(sheet);
     if (!ses) { setProgress((m) => ({ ...m, [k]: { state: "error", note: NO_SESSION } })); return; }
-    setRunning(true); setFetchedFiles(null);
+    setRunning(true);
     setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
     const { data } = await supabase.auth.getSession();
     const res = await runFetch(applySesid(sheet, ses), data.session?.access_token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
@@ -5661,39 +5879,26 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     const id = await addBook({ kind: "order", name: entryFileName(sheet).replace(/\.xls$/i, "") });
     let next = rememberIntoGroups(groupsRef.current, [{ ...sheetRecord(sheet), lastFetched: Date.now() }]);
     writeGroups(setSheetBook(next, sheet, id));
-    (onFilesToBook || onFiles)([res.file], id);
+    onPool([{ sheet: { ...sheetRecord(sheet), bookId: id }, file: res.file }]);
   };
   const unlinkSheetBook = (sheet) => writeGroups(setSheetBook(groupsRef.current, sheet, null));
-  // Point a sheet at a book that already exists (the "merge" path): the sheet
-  // starts feeding that book, so re-downloads keep it fresh and the stale flag
-  // has a book to watch — without spinning up a duplicate book.
-  const linkSheetBook = (sheet, bookId) => writeGroups(setSheetBook(groupsRef.current, sheet, bookId));
+
+  return { groups, writeGroups, sheetSesid, sheetInfo, progress, running, run, createBookFromSheet, unlinkSheetBook, patchGroup, delGroup, addGroup, removeSheet, moveSheet, pasteSignIn, unlockPasted, addPasted, sessionNote, setSessionNote };
+}
+
+function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp }) {
+  const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
+  const { groups, sheetSesid, sheetInfo, progress, running, sessionNote, setSessionNote } = vf;
+  const clearKeys = (keys) => setSelSheets((prev) => { const n = new Set(prev); for (const k of keys || []) n.delete(k); return n; });
+  const runAnd = async (picks) => clearKeys(await vf.run(picks));
+  const toggleSheet = (sheet) => setSelSheets((prev) => { const n = new Set(prev); const k = recordKey(sheet); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const removeSheet = (groupId, sheet) => { vf.removeSheet(groupId, sheet); setSelSheets((prev) => { const n = new Set(prev); n.delete(recordKey(sheet)); return n; }); };
+  const redownloadAll = (g) => runAnd(g.sheets);
+  const redownloadSheet = (s) => runAnd([s]);
+  const downloadSelected = () => runAnd(groups.flatMap((g) => g.sheets.filter((s) => selSheets.has(recordKey(s)))));
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <h2 className="ft-serif text-2xl">Vendor sheets</h2>
-          <p className="text-xs text-slate-400 truncate hidden sm:block" title="Pull the latest price lists straight off each distributor portal. One fresh link (or a bookmark click) unlocks a whole sign-in's re-download; fetched sheets go through the normal import review, and the portal session code stays in this browser.">Pull price lists straight off each distributor portal — grouped by sign-in.</p>
-        </div>
-        {groups.length > 0 && <button onClick={addGroup} className="shrink-0 flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New sign-in</button>}
-      </div>
-
-      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <label className={lbl + " mb-0"}>Paste a sheet link{groups.length > 0 ? <span className="font-normal normal-case tracking-normal text-slate-400"> — unlocks this sign-in's downloads; the sheet isn't saved</span> : null}</label>
-          <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up one-click fetch"}</button>
-        </div>
-        <div className="mt-2"><PasteLinks onUnlock={unlockPasted} onAdd={addPasted} inp={inp} /></div>
-        {setupOpen && (
-          <div className="mt-3 border-t border-slate-200 pt-3">
-            <p className="text-xs text-slate-500 mb-2">One bookmark grabs your portal sign-in and unlocks every saved sheet here for download:</p>
-            <VendorBookmarklet />
-            <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), and paste it above with “Add to board” to save it.</p>
-          </div>
-        )}
-      </div>
-
       {sessionNote && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
           <Check size={14} className="text-emerald-600 shrink-0" />
@@ -5704,31 +5909,24 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
         </div>
       )}
 
-      {fetchedFiles && (
-        <div className="mt-3 flex items-center gap-2 flex-wrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-          <span className="flex-1 text-amber-800">Some sheets couldn't be fetched. Import the {fetchedFiles.length} that worked?</span>
-          <button onClick={() => { const f = fetchedFiles; setFetchedFiles(null); onFiles(f); }} className="rounded-md bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 shrink-0">Import {fetchedFiles.length}</button>
-        </div>
-      )}
-
-      {groups.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-slate-200 p-6 text-center">
-          <Download size={22} className="mx-auto text-slate-300" />
-          <h3 className="mt-2 text-sm font-medium text-slate-600">No sign-ins yet</h3>
-          <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">Set up the one-click bookmark above and click it on a vendor portal, or paste a price-list link. Sheets land here grouped by sign-in, ready to fetch and re-fetch.</p>
-          <button onClick={addGroup} className="mt-3 inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
-        </div>
-      ) : (
-        <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
-          {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} books={books} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onLinkBook={linkSheetBook} onUnlinkBook={unlinkSheetBook} inp={inp} />
-          ))}
-        </div>
-      )}
+      <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+        {leadColumn}
+        {groups.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 p-6 text-center">
+            <Download size={22} className="mx-auto text-slate-300" />
+            <h3 className="mt-2 text-sm font-medium text-slate-600">No sign-ins yet</h3>
+            <p className="mt-1 text-xs text-slate-400">Paste a portal sign-in above and click the bookmark on a vendor portal, or paste a price-list link. Sheets land here grouped by sign-in, ready to fetch and re-fetch.</p>
+          </div>
+        ) : (
+          groups.map((g) => (
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={vf.patchGroup} onDelete={vf.delGroup} onRemoveSheet={removeSheet} onMoveSheet={vf.moveSheet} onCreateBook={vf.createBookFromSheet} onUnlinkBook={vf.unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
+          ))
+        )}
+        <button onClick={vf.addGroup} className="rounded-xl border border-dashed border-slate-300 min-h-[5.5rem] flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
+      </div>
 
       {selSheets.size > 0 && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
+        <div className={`fixed ${pending.length ? "bottom-[4.25rem]" : "bottom-5"} left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2`}>
           <span className="text-sm font-semibold whitespace-nowrap">{selSheets.size} selected</span>
           <button onClick={downloadSelected} disabled={running} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">Download selected</button>
           <button onClick={() => setSelSheets(new Set())} title="Clear selection" className="p-1.5 text-slate-400 hover:text-slate-600"><X size={14} /></button>
@@ -5738,31 +5936,107 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   );
 }
 
+// Books with no portal sheet — the shop workbook plus hand-kept/unlinked
+// registry books. First column of the library board (ADR 0024).
+function InHouseColumn({ books, groups, stockCount, stockStale, bookStale, onOpen }) {
+  const linkedIds = new Set();
+  for (const g of groups) for (const s of g.sheets || []) if (s.bookId) linkedIds.add(s.bookId);
+  const inHouse = books.filter((b) => !linkedIds.has(b.id));
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="px-2.5 py-2 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+        <h3 className="text-[13px] font-semibold">In-house</h3>
+        <div className="text-[11px] text-slate-400 mt-0.5">no portal — imported by hand</div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        <button onClick={() => onOpen("stock")} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
+          <BookOpen size={14} className="text-slate-400 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12.5px] font-medium truncate">Shop workbook</span>
+            <span className="block text-[10px] text-slate-400">{stockCount || "—"} items</span>
+          </span>
+          {stockStale.stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${stockStale.days} days ago`} />}
+        </button>
+        {inHouse.map((b) => (
+          <button key={b.id} onClick={() => onOpen(b.id)} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
+            <Database size={14} className="text-slate-400 shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px] font-medium truncate">{b.name || "Untitled"}</span>
+              <span className="block text-[10px] text-slate-400">{b.kind === "stock" ? "stock" : "special order"}{b.active ? "" : " · off"}</span>
+            </span>
+            {bookStale(b).stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// "Paste sign-in" popover: the add-a-sign-in box (paste row + bookmark setup)
+// tucked behind a header button so the board stays the focus (ADR 0024).
+function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((v) => !v)} className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${open ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+        <Hand size={13} /> Paste sign-in
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-80 max-w-[calc(100vw-2rem)] z-30 rounded-xl border border-slate-200 bg-white shadow-xl p-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className={lbl + " mb-0"}>Add a sign-in</label>
+            <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Click the bookmark on a vendor portal, then paste it here — no new tab.</p>
+          <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
+          {setupOpen && (
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download:</p>
+              <VendorBookmarklet />
+              <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
-  const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
-  useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
-  const [sel, setSel] = useState(() => (vendorPending || vendorSession) ? "vendor" : "stock"); // "stock" | "vendor" | bookId
+  const [sel, setSel] = useState("library"); // "library" | "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
   const [hideCosts, setHideCosts] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false); // "Set up bookmark" toggle inside PasteSignInPopover
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
+  // Review-when-ready (mockup 2026-07-19): fetched sheets park here instead of
+  // opening import review. Session-only — File bytes can't persist, a reload
+  // clears the pool and re-fetching is cheap.
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const poolFetched = (adds) => setPendingReviews((prev) => (adds || []).reduce((acc, a) => poolPendingReview(acc, a), prev));
+  const reviewOne = (p) => setDropped({ files: [p.file], prefer: p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : undefined });
+  const reviewAll = () => setDropped({
+    files: pendingReviews.map((p) => p.file),
+    targets: new Map(pendingReviews.filter((p) => p.sheet.bookId).map((p) => [p.file, p.sheet.bookId])),
+  });
+  // Applied files leave the pool; a wizard closed with "X" (= later) stays.
+  const fileDone = (file, applied) => { if (applied) setPendingReviews((prev) => prev.filter((p) => p.file !== file)); };
   const dropRef = useRef(null);
   // Menu-style portals hand sheets over one bookmark-click at a time; the
   // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
-  // each one opens the Vendor sheets tab.
+  // each one opens the price book library.
   useEffect(() => {
-    const onHash = () => { const p = captureHandoff(); const s = captureHandoffSession(); if (p) setVendorPending(p); if (s) setVendorSession(s); if (p || s) setSel("vendor"); };
+    const onHash = () => { const p = captureHandoff(); const s = captureHandoffSession(); if (p) setVendorPending(p); if (s) setVendorSession(s); if (p || s) setSel("library"); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const takeFiles = (list, prefer) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped({ files: fs, prefer }); };
+  const vf = useVendorFetch({ settings, setSettings, books, vendorPending, vendorSession, onSessionUsed: () => { setVendorSession(null); clearHandoffSession(); }, onPool: poolFetched, addBook });
 
-  const stockBooks = books.filter((b) => b.kind === "stock");
-  const orderBooks = books.filter((b) => b.kind === "order");
   const selBook = sel === "stock" ? null : books.find((b) => b.id === sel);
   const stockCount = stock.filter((s) => s.active).length;
 
@@ -5780,99 +6054,75 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
     setAdding(false); setNewName(""); setSel(id);
   };
 
-  const rowCls = (on) => `w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-left ${on ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`;
+  const backBtn = (
+    <button onClick={() => setSel("library")} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 -ml-1 mb-2">
+      <ChevronRight size={13} className="rotate-180" /> All price books
+    </button>
+  );
+  const sourcePendingFor = (bookId) => { const hit = sheetForBook(vf.groups, bookId); return hit ? pendingForSheet(pendingReviews, hit.sheet) : null; };
+  const sourceLiveFor = (bookId) => { const hit = sheetForBook(vf.groups, bookId); return !!(hit && vf.sheetSesid(hit.sheet)); };
+  const inHouseCol = <InHouseColumn books={books} groups={vf.groups} stockCount={stockCount} stockStale={stockStale} bookStale={bookStale} onOpen={setSel} />;
 
   return (
-    <div className={"flex-1 flex overflow-hidden " + (isWide ? "flex-row" : "flex-col")}>
-      <div className={isWide ? "w-56 shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-3" : "shrink-0 border-b border-slate-100 overflow-y-auto p-3 space-y-3 max-h-[42vh]"}>
+    <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h2 className="ft-serif text-3xl">Price books</h2>
+          <p className="text-xs text-slate-400 truncate hidden sm:block">Every book in one place — grouped by portal sign-in.</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500" title="Books not re-imported within this many days get an amber ‘stale’ flag. Vendors re-issue cost lists roughly quarterly.">
+            Flag stale after
+            <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className={inp + " w-16 text-center"} />
+            days
+          </label>
+          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+            {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
+          </button>
+          <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
+          <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New book</button>
+        </div>
+      </div>
+
+      {/* Team-wide tier percentages (spec 2026-07-16). A project picks its
+          tier on the job header; these set what Builder/Sale mean. */}
+      {(() => { const pcts = normPricing(settings.pricing); const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } }); return (
+        <div className="mt-3 flex items-center gap-4 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
+          <span className="ft-eyebrow text-[10px]">Pricing tiers</span>
+          <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
+            Builder <input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+          </label>
+          <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
+            Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+          </label>
+          <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
+            Sheoga flooring markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
+          </label>
+          <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
+            Sheoga vents &amp; dampers markup <input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
+          </label>
+          <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
+        </div>
+      ); })()}
+
+      {sel === "library" && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
           onClick={() => dropRef.current?.click()}
-          className={`rounded-lg border-2 border-dashed px-2 py-3 text-center text-xs cursor-pointer ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+          className={`mt-3 rounded-lg border border-dashed px-3 py-2 text-xs cursor-pointer flex items-center gap-2 ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-400 hover:bg-slate-50"}`}
         >
-          <Upload size={15} className="mx-auto mb-1 text-slate-400" />
-          Drop vendor sheets or the shop workbook — <span className="underline text-indigo-600">browse…</span>
-          <div className="text-[10px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many; each routes to its book</div>
+          <Upload size={14} className="shrink-0" />
+          <span>Drop vendor sheets or the shop workbook — each file routes to its book · <span className="underline text-indigo-600">browse…</span></span>
           <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
         </div>
-        <button onClick={() => setSel("vendor")} className={rowCls(sel === "vendor")} title="Pull the latest price sheets straight off a vendor portal — grouped by sign-in, re-fetchable on demand">
-          <Download size={14} className={sel === "vendor" ? "" : "text-slate-400"} />
-          <span className="flex-1 truncate">Vendor sheets</span>
-          {vendorPending && <span className={`rounded-full text-[10px] px-1.5 py-0.5 ${sel === "vendor" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"}`}>{vendorPending.length}</span>}
-        </button>
-        <div>
-          <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Stock</div>
-          <button onClick={() => setSel("stock")} className={rowCls(sel === "stock")}>
-            <BookOpen size={14} className={sel === "stock" ? "" : "text-slate-400"} />
-            <span className="flex-1 truncate">Shop workbook</span>
-            {stockStale.stale && <AlertTriangle size={12} className={sel === "stock" ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${stockStale.days} days ago`} />}
-            <span className={`text-[10px] ${sel === "stock" ? "text-white/70" : "text-slate-400"}`}>{stockCount || "—"}</span>
-          </button>
-          {stockBooks.map((b) => (
-            <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
-              <BookOpen size={14} className={sel === b.id ? "" : "text-slate-400"} />
-              <span className="flex-1 truncate">{b.name || "Untitled"}</span>
-              {bookStale(b).stale && <AlertTriangle size={12} className={sel === b.id ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
-            </button>
-          ))}
-        </div>
-        <div>
-          <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Special order</div>
-          {orderBooks.length === 0 && <div className="text-[11px] text-slate-400 px-1 py-1">None yet</div>}
-          {orderBooks.map((b) => (
-            <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
-              <Database size={14} className={sel === b.id ? "" : "text-slate-400"} />
-              <span className="flex-1 truncate">{b.name || "Untitled"}</span>
-              {bookStale(b).stale && <AlertTriangle size={12} className={sel === b.id ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
-              {!b.active && <span className={`text-[10px] ${sel === b.id ? "text-white/70" : "text-slate-400"}`}>off</span>}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => setAdding(true)} className="w-full flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-2.5 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New book</button>
-      </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
-        {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={(files) => setDropped({ files })} onFilesToBook={(files, prefer) => setDropped({ files, prefer })} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
-        ) : (<>
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="ft-serif text-3xl">Price book</h2>
-          <div className="flex items-center gap-2 shrink-0">
-            <label className="flex items-center gap-1.5 text-xs text-slate-500" title="Books not re-imported within this many days get an amber ‘stale’ flag in the list. Vendors re-issue cost lists roughly quarterly.">
-              Flag stale after
-              <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className={inp + " w-16 text-center"} />
-              days
-            </label>
-            <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-              {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
-            </button>
-          </div>
-        </div>
-
-        {/* Team-wide tier percentages (spec 2026-07-16). A project picks its
-            tier on the job header; these set what Builder/Sale mean. */}
-        {(() => { const pcts = normPricing(settings.pricing); const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } }); return (
-          <div className="mt-3 flex items-center gap-4 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
-            <span className="ft-eyebrow text-[10px]">Pricing tiers</span>
-            <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
-              Builder <input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
-            </label>
-            <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
-              Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
-            </label>
-            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
-              Sheoga flooring markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
-            </label>
-            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
-              Sheoga vents &amp; dampers markup <input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
-            </label>
-            <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
-          </div>
-        ); })()}
-
-        {sel === "stock" ? (
+      {sel === "library" ? (
+        <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
+      ) : sel === "stock" ? (
+        <>{backBtn}
           <div className="mt-3">
             <p className="text-xs text-slate-400 max-w-xl">
               {stockCount > 0
@@ -5890,15 +6140,22 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
             {stockCount > 0 && <StockItems stock={stock} setStockItemsDisabled={setStockItemsDisabled} inp={inp} typeLabels={typeLabels} />}
           </div>
-        ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
-        ) : (
-          <p className="text-xs text-slate-400 mt-3">Select a book.</p>
-        )}
-        </>)}
-      </div>
+        </>
+      ) : selBook ? (
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetForBook(vf.groups, selBook.id)} sourcePending={sourcePendingFor(selBook.id)} sourceLive={sourceLiveFor(selBook.id)} onRefreshSheet={(s) => vf.run([s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+      ) : (
+        <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
+      )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+
+      {pendingReviews.length > 0 && !dropped && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
+          <span className="text-sm font-semibold whitespace-nowrap">{pendingReviews.length} downloaded — ready to review</span>
+          <button onClick={reviewAll} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 whitespace-nowrap">Review all</button>
+          <button onClick={() => setPendingReviews([])} title="Discard the downloaded files without reviewing" className="p-1.5 text-slate-400 hover:text-slate-600"><X size={14} /></button>
+        </div>
+      )}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>
@@ -5995,7 +6252,7 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels }) {
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePending, sourceLive, onRefreshSheet, onReviewSheet }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
@@ -6115,6 +6372,26 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
           </span>
           <button onClick={() => { delBook(book.id); onDeleted?.(); }} className="rounded-md bg-red-600 text-white px-2.5 py-1 font-medium hover:bg-red-700 shrink-0">Delete book</button>
           <button onClick={() => setConfirmDel(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
+        </div>
+      )}
+
+      {source && (
+        <div className={`mt-3 flex items-center gap-2.5 flex-wrap rounded-lg border px-3 py-2 max-w-xl ${st.stale ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50/60"}`}>
+          <FileText size={15} className={st.stale ? "text-amber-500 shrink-0" : "text-slate-400 shrink-0"} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-medium truncate">{entryFileName(source.sheet)}</div>
+            <div className="text-[10.5px] text-slate-400 truncate">
+              from {source.group.name}
+              {source.sheet.lastFetched ? ` · fetched ${new Date(source.sheet.lastFetched).toLocaleDateString()}` : ""}
+              {li?.at ? ` · imported ${new Date(li.at).toLocaleDateString()}` : ""}
+              {st.stale ? ` · ${st.days} days ago — stale` : ""}
+            </div>
+          </div>
+          {sourcePending ? (
+            <button onClick={() => onReviewSheet(sourcePending)} className="shrink-0 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-indigo-700">Review changes</button>
+          ) : (
+            <button onClick={() => onRefreshSheet(source.sheet)} title={sourceLive ? "Ready — fetch the latest sheet, then review at your pace" : "Fetch the latest sheet (needs a live sign-in — the board says how to unlock)"} className={"shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-white " + (sourceLive ? "ft-live" : "text-slate-600")}><RotateCcw size={12} /> Refresh</button>
+          )}
         </div>
       )}
 
@@ -6463,6 +6740,16 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
       }
       const parsed = preSheets || (await readXlsxSheets(file));
       setFmt(fileFormat({ sheets: parsed }));
+      // An OVF banded workbook (Hallmark wood / Tarkett LVT, issue 025) can't be
+      // column-mapped raw — its dedicated parser flattens the grid to one
+      // canonical sheet, exactly like Mannington's PDF above.
+      const ovf = parseOvf(parsed, (file?.name || book.name || "book").replace(/\.xlsx?$/i, ""));
+      if (ovf) {
+        setSheets([{ name: ovf.name, rows: ovf.rows }]);
+        applyDetected({ sheet: ovf.name, ...ovf.mapping });
+        setReading(false);
+        return;
+      }
       setSheets(parsed);
       // A saved mapping wins; else recognize the VTC "EFT" template (fills the
       // whole mapping in one step); else pick the best data sheet by header

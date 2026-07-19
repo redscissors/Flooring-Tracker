@@ -7,6 +7,8 @@ import {
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
+  HANDOFF_MARK, stripHandoffMark,
+  poolPendingReview, removePendingReview, pendingForSheet, sheetForBook,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -112,21 +114,31 @@ test("harvestVendorLinks dedupes and survives junk", () => {
   assert.deepEqual(harvestVendorLinks(null, "https://connect24.virginiatile.com/"), []);
 });
 
-test("bookmarkletSource embeds the app origin and stays one line", () => {
-  const src = bookmarkletSource("https://floortrack.example.com");
+test("bookmarkletSource copies a marked payload to the clipboard, one line", () => {
+  const src = bookmarkletSource();
   assert.ok(src.startsWith("javascript:"));
-  assert.ok(src.includes('"https://floortrack.example.com"'));
   assert.ok(src.includes("getPrettyPriceList"));
-  assert.ok(src.includes('"ftvfetch"')); // named window: repeat clicks reuse one FloorTrack tab
+  assert.ok(src.includes("clipboard")); // copies rather than opening a tab
+  assert.ok(src.includes("writeText"));
+  assert.ok(src.includes(JSON.stringify(HANDOFF_MARK))); // marked so paste can recognize it
+  assert.ok(!src.includes("window.open")); // the tab-opening path is gone
   assert.ok(!src.includes("\n"));
 });
 
 test("bookmarkletSource also grabs the bare session token off the portal", () => {
-  const src = bookmarkletSource("https://floortrack.example.com");
+  const src = bookmarkletSource();
   assert.ok(src.includes("localStorage")); // reads the portal's own storage
   assert.ok(src.includes("d24sesid"));
   assert.ok(src.includes("d24user"));
-  assert.ok(src.includes("payload.session")); // and ships it in the hand-off
+  assert.ok(src.includes("payload.session")); // and ships it in the copied blob
+});
+
+test("stripHandoffMark unwraps a marked clipboard blob, leaves plain text alone", () => {
+  const raw = btoa(JSON.stringify({ v: 1, links: [LINK] }));
+  assert.equal(stripHandoffMark(HANDOFF_MARK + raw), raw);
+  assert.equal(stripHandoffMark("  " + HANDOFF_MARK + raw + "  "), raw); // trims first
+  assert.equal(stripHandoffMark(LINK), LINK); // a plain URL passes through
+  assert.deepEqual(decodeHandoff(stripHandoffMark(HANDOFF_MARK + raw)).length, 1);
 });
 
 test("normSession validates an allowlisted host + token, user optional", () => {
@@ -336,4 +348,38 @@ test("newGroup builds an empty, named group from a portal", () => {
   assert.deepEqual(g.sheets, []);
   assert.equal(newGroup().portal, null);
   assert.equal(newGroup().name, "New sign-in");
+});
+
+test("pending-review pool keys by recordKey and replaces on re-pool", () => {
+  const sheetA = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1071", filename: "AOT EFT", user: "C00000XX", bookId: "bk1" };
+  const sheetB = { ...sheetA, uid: "2088", filename: "MSI EFT", bookId: undefined };
+  const f1 = { name: "a.xls" }, f2 = { name: "a2.xls" }, f3 = { name: "b.xls" };
+
+  let pool = poolPendingReview([], { sheet: sheetA, file: f1, at: 111 });
+  pool = poolPendingReview(pool, { sheet: sheetB, file: f3, at: 222 });
+  assert.equal(pool.length, 2);
+  assert.equal(pool[0].file, f1);
+  assert.equal(pool[0].sheet.bookId, "bk1"); // bookId survives sheetRecord
+  assert.equal(pool[0].at, 111);
+
+  // Re-fetching the same sheet replaces the parked file (and keeps one entry).
+  pool = poolPendingReview(pool, { sheet: sheetA, file: f2, at: 333 });
+  assert.equal(pool.length, 2);
+  assert.equal(pendingForSheet(pool, sheetA).file, f2);
+  assert.equal(pendingForSheet(pool, sheetA).at, 333);
+
+  pool = removePendingReview(pool, sheetA);
+  assert.equal(pool.length, 1);
+  assert.equal(pendingForSheet(pool, sheetA), null);
+  assert.equal(pendingForSheet(pool, sheetB).file, f3);
+});
+
+test("sheetForBook finds a linked sheet and its group", () => {
+  const s1 = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1", filename: "A", user: "U1", bookId: "bkA" };
+  const s2 = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "2", filename: "B", user: "U1" };
+  const groups = [{ id: "g1", name: "G", loginUrl: "", portal: null, sheets: [s2, s1] }];
+  assert.equal(sheetForBook(groups, "bkA").sheet.uid, "1");
+  assert.equal(sheetForBook(groups, "bkA").group.id, "g1");
+  assert.equal(sheetForBook(groups, "bkNope"), null);
+  assert.equal(sheetForBook([], "bkA"), null);
 });
