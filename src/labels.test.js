@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   LABEL_FIELDS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
   normPreset, normLabelPresets, customLabelPresets, normLabel, newDraftFromPreset,
+  perLetterSheet, sheetsForLabels,
 } from "./labels.js";
 
 // --- presets ------------------------------------------------------------------
@@ -66,4 +67,23 @@ test("newDraftFromPreset clones the preset layout and blanks the fields", () => 
   // mutating the draft's lines must not touch the built-in
   d.lines[0].show = false;
   assert.notEqual(BUILTIN_PRESETS[0].lines[0].show, false);
+});
+
+// --- sheet math ---------------------------------------------------------------
+
+test("perLetterSheet matches the cut-apart letter layout", () => {
+  assert.equal(perLetterSheet({ w: 1.5, h: 2.5 }), 12); // Sample Tag
+  assert.equal(perLetterSheet({ w: 3, h: 4 }), 4);      // Spec Card
+});
+
+test("perLetterSheet is 0 for a label too big for a sheet", () => {
+  assert.equal(perLetterSheet({ w: 12, h: 12 }), 0);
+});
+
+test("sheetsForLabels sums fractional coverage across mixed sizes", () => {
+  const tag = { w: 1.5, h: 2.5 }, card = { w: 3, h: 4 };
+  assert.equal(sheetsForLabels([tag, tag, tag]), 1);            // 3/12 -> 1
+  assert.equal(sheetsForLabels(Array(13).fill(tag)), 2);        // 13/12 -> 2
+  assert.equal(sheetsForLabels([card, card, card, card, card]), 2); // 5/4 -> 2
+  assert.equal(sheetsForLabels([]), 0);
 });

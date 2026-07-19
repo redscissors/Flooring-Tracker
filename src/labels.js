@@ -117,3 +117,25 @@ export const newDraftFromPreset = (preset) => ({
 // Local id generator (crypto.randomUUID isn't available under `node --test`
 // without a global; Math.random is fine for element ids).
 function uid() { return "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+
+// Cut-apart print geometry. Must match the print layout in AppsWorkspace:
+// letter sheet, 0.3" page margin, 0.15" gutter, upright labels (no rotation) —
+// so the "≈N per sheet" count equals what actually prints.
+const SHEET_W = 8.5, SHEET_H = 11, MARGIN = 0.3, GAP = 0.15;
+
+export const perLetterSheet = ({ w, h }) => {
+  if (!(w > 0) || !(h > 0)) return 0;
+  const usableW = SHEET_W - 2 * MARGIN, usableH = SHEET_H - 2 * MARGIN;
+  const cols = Math.floor((usableW + GAP) / (w + GAP));
+  const rows = Math.floor((usableH + GAP) / (h + GAP));
+  return Math.max(0, cols) * Math.max(0, rows);
+};
+
+export const sheetsForLabels = (labels) => {
+  let sheets = 0;
+  for (const l of labels || []) {
+    const per = perLetterSheet(l);
+    sheets += per > 0 ? 1 / per : 1;
+  }
+  return Math.ceil(sheets);
+};
