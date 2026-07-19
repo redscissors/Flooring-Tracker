@@ -62,6 +62,26 @@ test("trims fan out priced per piece and stamped with the parent floor", () => {
   assert.equal(sn[7], "EA");
   assert.match(sn[1], /Stair Nose/);
   assert.match(sn[1], /fits AV75OBALC/);
+  assert.equal(sn[11], "AV75OBALC"); // and structured, for the reverse lookup
+});
+
+// One molding serving more than six colors. The parent list used to be sliced to
+// six inside the description, so the rest became unfindable — the link is now a
+// column, uncapped, and the searchable note matches it.
+const SHARED = [
+  ["Prepared especially for KEIM LUMBER CO           @(70) (035360)"],
+  ["Alta Vista Collection"],
+  ["16.7 SF/CT ~ 55 CT/PA ~ 60 LB/CT"],
+  ["SPECIES / COLOR", "ITEM #", "", "STAIR NOSING 82\""],
+  ["EUROPEAN WHITE OAK", "$7.29", "", "$111.49"],
+  ...["A", "B", "C", "D", "E", "F", "G"].map((c) => [`Color ${c}`, `AV75O${c}C`, "", "AV75OSHARED"]),
+];
+
+test("a molding shared by more than six floors keeps every parent", () => {
+  const sn = parseHallmark(SHARED).rows.find((r) => r[0] === "AV75OSHARED");
+  const parents = ["AV75OAC", "AV75OBC", "AV75OCC", "AV75ODC", "AV75OEC", "AV75OFC", "AV75OGC"];
+  assert.deepEqual(sn[11].split(" "), parents);
+  assert.match(sn[1], /AV75OGC/); // the seventh parent stays searchable too
 });
 
 test("a collection name containing a construction keyword still starts a collection", () => {

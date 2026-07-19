@@ -184,18 +184,18 @@ export function parseHallmark(rows, name = "Hallmark price list") {
     }
   }
 
-  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand"];
+  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
   const out = [CANON.slice()];
   for (const f of flooring) {
     const note = [f.oldSku && `old #${f.oldSku}`, f.dropped && "dropped"].filter(Boolean).join(" · ");
     out.push([f.sku, f.name, f.collection, f.color, note, f.coverage != null ? String(f.coverage) : "",
-      f.cost != null ? String(f.cost) : "", "SF", f.type, "", BRAND]);
+      f.cost != null ? String(f.cost) : "", "SF", f.type, "", BRAND, ""]);
   }
   for (const t of trims.values()) {
-    const fits = [...t.fits];
+    const fits = [...t.fits].sort();
     const parent = [...t.names][0] || "";
-    const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.slice(0, 6).join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND]);
+    const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
+    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, fits.join(" ")]);
   }
 
   if (!flooring.length) warnings.push("No Hallmark product rows were recognized — is this the OVF Hallmark price sheet?");
@@ -206,7 +206,7 @@ export function parseHallmark(rows, name = "Hallmark price list") {
 // a straight column→field assignment (like Mannington's CANON_MAPPING). Floor
 // and trim codes are alphanumeric with a digit and may carry a hyphen.
 export const HALLMARK_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "note", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "note", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand", 11: "fits" },
   headerRow: 0,
   skuPattern: "^(?=.*\\d)[A-Za-z0-9-]{3,24}$",
   defaultType: "",
@@ -362,20 +362,20 @@ export function parseTarkett(rows, name = "Tarkett price list") {
     }
   }
 
-  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand"];
+  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
   const out = [CANON.slice()];
   for (const f of flooring) {
     out.push([f.sku, f.name, f.collection, "", f.size, f.coverage != null ? String(f.coverage) : "",
-      f.cost != null ? String(f.cost) : "", "SF", "vinyl", "", TK_BRAND]);
+      f.cost != null ? String(f.cost) : "", "SF", "vinyl", "", TK_BRAND, ""]);
   }
   for (const a of accessories) {
-    out.push([a.sku, a.name, a.collection, "", "", "", a.cost != null ? String(a.cost) : "", a.unit, "", "", TK_BRAND]);
+    out.push([a.sku, a.name, a.collection, "", "", "", a.cost != null ? String(a.cost) : "", a.unit, "", "", TK_BRAND, ""]);
   }
   for (const t of trims.values()) {
-    const fits = [...t.fits];
+    const fits = [...t.fits].sort();
     const parent = [...t.names][0] || "";
-    const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.slice(0, 6).join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", TK_BRAND]);
+    const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
+    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", TK_BRAND, fits.join(" ")]);
   }
 
   if (!flooring.length) warnings.push("No Tarkett product rows were recognized — is this the OVF Tarkett LVT price sheet?");
@@ -385,7 +385,7 @@ export function parseTarkett(rows, name = "Tarkett price list") {
 // Passthrough mapping, same column plan as Hallmark except col 4 is a real size
 // ("7\" x 60\"") rather than a note. Item codes are bare digit runs.
 export const TARKETT_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand", 11: "fits" },
   headerRow: 0,
   skuPattern: "^\\d{6,12}$",
   defaultType: "",

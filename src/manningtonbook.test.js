@@ -111,6 +111,7 @@ test("a trim shared by two colors is one product listing both parent codes", () 
   const shared = items.filter((i) => i.sku === "384469");
   assert.equal(shared.length, 1, "deduped to a single trim product");
   assert.match(shared[0].description, /fits APX020 APX040/); // both parents, searchable
+  assert.deepEqual(shared[0].fits, ["APX020", "APX040"]);    // and joinable, not just text
   assert.equal(meta.trims, 5); // 384421,384445,384430,384454 + shared 384469
 });
 
