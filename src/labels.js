@@ -168,14 +168,23 @@ export const stockToLabelFields = (item) => {
 
 export const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// The default "Keim" header renders as the logo wordmark; any other typed
+// header stays plain text.
+export const isKeimHeader = (h) => str(h || "Keim").toLowerCase() === "keim";
+
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
 
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
 
 // One card as a standalone HTML string (used by the print window). Kept as a
 // string — not React — so printing runs in a clean popup free of app CSS.
-export const labelCardHTML = (label) => {
+// `logoSrc` is passed in (not imported) so this module stays asset-free and
+// unit-testable; without it the header always falls back to text.
+export const labelCardHTML = (label, { logoSrc } = {}) => {
   const val = (k) => escapeHtml(label.fields?.[k] || "");
+  const header = logoSrc && isKeimHeader(label.header)
+    ? `<img src="${escapeHtml(logoSrc)}" alt="Keim" style="height:14px;width:auto;align-self:flex-start;filter:brightness(0) invert(1);">`
+    : `<div style="font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#fff;">${escapeHtml(label.header || "Keim")}</div>`;
   const body = (label.lines || []).filter((l) => l.show).map((l) => {
     if (l.key === "name") return `<div style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
     if (l.key === "surface") return `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>`;
@@ -183,7 +192,7 @@ export const labelCardHTML = (label) => {
     return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}">${val(l.key) || "—"}</div></div>`;
   }).join("");
   return `<div style="width:${label.w}in;height:${label.h}in;background:#1A1A1A;color:#fff;border-radius:3px;padding:.12in;font-family:'Inter',sans-serif;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
-    <div style="font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#fff;">${escapeHtml(label.header || "Keim")}</div>
+    ${header}
     <div style="border-top:1px solid rgba(255,255,255,.2);margin:6px 0 2px;"></div>
     ${body}
   </div>`;
