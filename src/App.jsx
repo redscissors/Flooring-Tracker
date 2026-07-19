@@ -5211,7 +5211,7 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
       book={active.book} existingItems={active.items}
       preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
       onClose={() => { onFileDone && onFileDone(active.row.file, false); advance(); }}
-      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } onFileDone && onFileDone(active.row.file, true); advance(); }}
+      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); onFileDone && onFileDone(active.row.file, true); } catch (x) { onFileDone && onFileDone(active.row.file, false); /* error surfaced by applyBookImport */ } advance(); }}
       saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
       types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
     />
