@@ -5731,15 +5731,14 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, pending, onPool, onReview, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, onOpenBook, inp, lbl }) {
+function useVendorFetch({ settings, setSettings, books, vendorPending, vendorSession, onSessionUsed, onPool, addBook }) {
   const [sesidPool, setSesidPool] = useState(vendorPending || []); // live-session pool (sesids) from full links
   const [sessions, setSessions] = useState([]); // bare bookmarklet sessions (host|user -> sesid), unlock only
   const [sessionNote, setSessionNote] = useState(null); // "sign-in captured" banner after a bookmarklet grab
   const [progress, setProgress] = useState({});
   const [running, setRunning] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
 
+  const staleDays = settings.ops?.staleDays || DEFAULT_STALE_DAYS;
   const groups = settings.ops?.vendorGroups || [];
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
@@ -5827,9 +5826,8 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
   const patchGroup = (id, patch) => writeGroups(groups.map((g) => g.id === id ? { ...g, ...patch } : g));
   const delGroup = (id) => writeGroups(groups.filter((g) => g.id !== id));
   const addGroup = () => writeGroups([...groups, newGroup()]);
-  const removeSheet = (groupId, sheet) => { writeGroups(groups.map((g) => g.id === groupId ? { ...g, sheets: g.sheets.filter((s) => recordKey(s) !== recordKey(sheet)) } : g)); setSelSheets((prev) => { const n = new Set(prev); n.delete(recordKey(sheet)); return n; }); };
+  const removeSheet = (groupId, sheet) => writeGroups(groups.map((g) => g.id === groupId ? { ...g, sheets: g.sheets.filter((s) => recordKey(s) !== recordKey(sheet)) } : g));
   const moveSheet = (sheet, fromId, toId) => writeGroups(moveSheetInGroups(groupsRef.current, sheet, fromId, toId));
-  const toggleSheet = (sheet) => setSelSheets((prev) => { const n = new Set(prev); const k = recordKey(sheet); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   // Downloads are never pre-locked (ADR 0021): run() takes plain sheet records
   // and resolves each one's live session itself — a sheet whose portal has no
@@ -5856,14 +5854,11 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
     }
     if (ok.length) {
       writeGroups(rememberIntoGroups(groupsRef.current, ok.map((e) => ({ ...sheetRecord(e), lastFetched: Date.now() }))));
-      setSelSheets((prev) => { const n = new Set(prev); for (const e of ok) n.delete(recordKey(e)); return n; });
     }
     setRunning(false);
     if (fetched.length) onPool(fetched);
+    return ok.map((e) => recordKey(e));
   };
-  const redownloadAll = (g) => run(g.sheets);
-  const redownloadSheet = (s) => run([s]);
-  const downloadSelected = () => run(groups.flatMap((g) => g.sheets.filter((s) => selSheets.has(recordKey(s)))));
 
   // "Create price book from this sheet": download the one sheet, spin up a new
   // order book named from it, link the sheet to it (so future re-downloads keep
@@ -5888,6 +5883,21 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
   };
   const unlinkSheetBook = (sheet) => writeGroups(setSheetBook(groupsRef.current, sheet, null));
 
+  return { groups, writeGroups, sheetSesid, sheetInfo, progress, running, run, createBookFromSheet, unlinkSheetBook, patchGroup, delGroup, addGroup, removeSheet, moveSheet, pasteSignIn, unlockPasted, addPasted, sessionNote, setSessionNote };
+}
+
+function VendorFetchPage({ vf, pending, onReview, onOpenBook, inp, lbl }) {
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
+  const { groups, sheetSesid, sheetInfo, progress, running, sessionNote, setSessionNote } = vf;
+  const clearKeys = (keys) => setSelSheets((prev) => { const n = new Set(prev); for (const k of keys || []) n.delete(k); return n; });
+  const runAnd = async (picks) => clearKeys(await vf.run(picks));
+  const toggleSheet = (sheet) => setSelSheets((prev) => { const n = new Set(prev); const k = recordKey(sheet); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const removeSheet = (groupId, sheet) => { vf.removeSheet(groupId, sheet); setSelSheets((prev) => { const n = new Set(prev); n.delete(recordKey(sheet)); return n; }); };
+  const redownloadAll = (g) => runAnd(g.sheets);
+  const redownloadSheet = (s) => runAnd([s]);
+  const downloadSelected = () => runAnd(groups.flatMap((g) => g.sheets.filter((s) => selSheets.has(recordKey(s)))));
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -5895,7 +5905,7 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
           <h2 className="ft-serif text-2xl">Vendor sheets</h2>
           <p className="text-xs text-slate-400 truncate hidden sm:block" title="Pull the latest price lists straight off each distributor portal. One fresh link (or a bookmark click) unlocks a whole sign-in's re-download; fetched sheets go through the normal import review, and the portal session code stays in this browser.">Pull price lists straight off each distributor portal — grouped by sign-in.</p>
         </div>
-        {groups.length > 0 && <button onClick={addGroup} className="shrink-0 flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New sign-in</button>}
+        {groups.length > 0 && <button onClick={vf.addGroup} className="shrink-0 flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New sign-in</button>}
       </div>
 
       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 max-w-md">
@@ -5904,7 +5914,7 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
           <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
         </div>
         <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Click the bookmark on a vendor portal, then paste it here — no new tab.</p>
-        <SignInPaste onPasteSession={pasteSignIn} onUnlock={unlockPasted} onAdd={addPasted} inp={inp} />
+        <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
         {setupOpen && (
           <div className="mt-3 border-t border-slate-200 pt-3">
             <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download:</p>
@@ -5929,12 +5939,12 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
           <Download size={22} className="mx-auto text-slate-300" />
           <h3 className="mt-2 text-sm font-medium text-slate-600">No sign-ins yet</h3>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">Set up the one-click bookmark above and click it on a vendor portal, or paste a price-list link. Sheets land here grouped by sign-in, ready to fetch and re-fetch.</p>
-          <button onClick={addGroup} className="mt-3 inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
+          <button onClick={vf.addGroup} className="mt-3 inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
         </div>
       ) : (
         <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={vf.patchGroup} onDelete={vf.delGroup} onRemoveSheet={removeSheet} onMoveSheet={vf.moveSheet} onCreateBook={vf.createBookFromSheet} onUnlinkBook={vf.unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
           ))}
         </div>
       )}
@@ -5984,6 +5994,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const takeFiles = (list, prefer) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped({ files: fs, prefer }); };
+  const vf = useVendorFetch({ settings, setSettings, books, vendorPending, vendorSession, onSessionUsed: () => { setVendorSession(null); clearHandoffSession(); }, onPool: poolFetched, addBook });
 
   const stockBooks = books.filter((b) => b.kind === "stock");
   const orderBooks = books.filter((b) => b.kind === "order");
@@ -6059,7 +6070,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} onOpenBook={setSel} inp={inp} lbl={lbl} />
+          <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
