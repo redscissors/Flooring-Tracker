@@ -5507,15 +5507,39 @@ function SignInPaste({ onPasteSession, onUnlock, onAdd, inp }) {
   );
 }
 
+// A collapsible ⋯-menu section that points a sheet at a price book that
+// already exists (the "merge" path — the sheet then presents as that book's
+// row). Shared by the loose-sheet and linked-book rows. Excludes the book the
+// sheet already feeds.
+function bookLinkMenu({ books, sheet, onLinkBook, onDone, open, setOpen, label }) {
+  return (
+    <>
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
+        <ChevronRight size={13} className={"text-slate-400 transition-transform " + (open ? "rotate-90" : "")} /> {label}
+      </button>
+      {open && (
+        <div className="max-h-40 overflow-y-auto bg-slate-50">
+          {(books || []).length === 0 ? (
+            <div className="pl-8 pr-3 py-1.5 text-[12px] text-slate-400">No price books yet</div>
+          ) : (books || []).map((b) => (
+            <button key={b.id} disabled={b.id === sheet.bookId} onClick={() => { onLinkBook(sheet, b.id); onDone(); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent truncate">{b.name || "Untitled"}</button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 // A linked sheet presents as its BOOK (ADR 0024): name + meta up front, the
 // filename demoted to the ⋯ menu. Row click opens the book; the refresh
 // control fetches the sheet and parks it for review (the pill).
-function VendorBookRow({ sheet, book, group, groups, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onUnlinkBook, onOpenBook }) {
+function VendorBookRow({ sheet, book, group, groups, books, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onLinkBook, onUnlinkBook, onOpenBook }) {
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
-  const openMenu = (v) => { setMenu(v); if (!v) setMoveOpen(false); };
+  const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
   const meta = pending ? "downloaded — changes waiting"
     : fetching ? `downloading ${entryFileName(sheet)}…`
     : `${book.data?.lastImport?.skus ? `${book.data.lastImport.skus} items · ` : ""}${sheet.lastFetched ? `fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : "not fetched yet"}`;
@@ -5545,6 +5569,7 @@ function VendorBookRow({ sheet, book, group, groups, prog, locked, mismatch, run
                 <div className="px-3 py-1 text-[11px] text-slate-400 truncate" title={entryFileName(sheet)}>Source sheet: <span className="text-slate-600">{entryFileName(sheet)}</span></div>
                 <button onClick={() => { onOpenBook(book.id); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><BookOpen size={13} className="text-slate-400" /> Open price book</button>
                 <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
+                {bookLinkMenu({ books, sheet, onLinkBook, onDone: () => openMenu(false), open: linkOpen, setOpen: setLinkOpen, label: "Link to a different book" })}
                 {others.length > 0 && (
                   <>
                     <div className="my-1 border-t border-slate-100" />
@@ -5586,12 +5611,14 @@ function VendorBookRow({ sheet, book, group, groups, prog, locked, mismatch, run
 // icons flag a portal-account mismatch and a stale linked book (row tints amber
 // too). The ⋯ menu creates/unlinks a price book, moves the sheet to another
 // sign-in (collapsible list), or forgets it.
-function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onUnlinkBook, pending, onReview }) {
+function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onLinkBook, onUnlinkBook, pending, onReview }) {
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
-  const openMenu = (v) => { setMenu(v); if (!v) setMoveOpen(false); };
+  const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
+  const linkItem = bookLinkMenu({ books, sheet, onLinkBook, onDone: () => openMenu(false), open: linkOpen, setOpen: setLinkOpen, label: "Link to an existing price book…" });
   return (
     <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : stale?.stale ? "bg-amber-50" : "")}>
       <div className="flex items-center gap-2">
@@ -5617,7 +5644,10 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
                     <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
                   </>
                 ) : (
-                  <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
+                  <>
+                    <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
+                    {linkItem}
+                  </>
                 )}
                 {others.length > 0 && (
                   <>
@@ -5657,7 +5687,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
 // rename / sign-in link / delete, then single-line sheet rows. Sheets move
 // between sign-ins from a row's ⋯ menu (the pointer-drag went away with the
 // board layout — ADR 0021).
-function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, onOpenBook, pendingFor, onReview, inp }) {
+function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onLinkBook, onUnlinkBook, onOpenBook, pendingFor, onReview, inp }) {
   const [menu, setMenu] = useState(false);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -5714,7 +5744,7 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
       ) : (() => {
         const linked = group.sheets.filter((s) => sheetInfo(s).book);
         const loose = group.sheets.filter((s) => !sheetInfo(s).book);
-        const rowProps = (s) => ({ sheet: s, group, groups, prog: progress[recordKey(s)], locked: !sheetSesid(s), mismatch: !sheetMatchesGroup(s, group), running, pending: pendingFor(s), checked: selected.has(recordKey(s)), onToggle: () => onToggleSheet(s), onRedownload: onRedownloadSheet, onReview, onRemove: onRemoveSheet, onMove: onMoveSheet });
+        const rowProps = (s) => ({ sheet: s, group, groups, books, prog: progress[recordKey(s)], locked: !sheetSesid(s), mismatch: !sheetMatchesGroup(s, group), running, pending: pendingFor(s), checked: selected.has(recordKey(s)), onToggle: () => onToggleSheet(s), onRedownload: onRedownloadSheet, onReview, onRemove: onRemoveSheet, onMove: onMoveSheet, onLinkBook });
         return (
           <div className="divide-y divide-slate-100">
             {linked.map((s) => { const info = sheetInfo(s); return (
@@ -5882,11 +5912,15 @@ function useVendorFetch({ settings, setSettings, books, vendorPending, vendorSes
     onPool([{ sheet: { ...sheetRecord(sheet), bookId: id }, file: res.file }]);
   };
   const unlinkSheetBook = (sheet) => writeGroups(setSheetBook(groupsRef.current, sheet, null));
+  // Point a sheet at a book that already exists (the "merge" path): the sheet
+  // starts feeding that book, so it presents as that book's row and re-downloads
+  // keep it fresh — no duplicate book minted. Same write path as unlink.
+  const linkSheetBook = (sheet, bookId) => writeGroups(setSheetBook(groupsRef.current, sheet, bookId));
 
-  return { groups, writeGroups, sheetSesid, sheetInfo, progress, running, run, createBookFromSheet, unlinkSheetBook, patchGroup, delGroup, addGroup, removeSheet, moveSheet, pasteSignIn, unlockPasted, addPasted, sessionNote, setSessionNote };
+  return { groups, writeGroups, sheetSesid, sheetInfo, progress, running, run, createBookFromSheet, linkSheetBook, unlinkSheetBook, patchGroup, delGroup, addGroup, removeSheet, moveSheet, pasteSignIn, unlockPasted, addPasted, sessionNote, setSessionNote };
 }
 
-function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp }) {
+function VendorFetchPage({ vf, books, pending, onReview, onOpenBook, leadColumn, inp }) {
   const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
   const { groups, sheetSesid, sheetInfo, progress, running, sessionNote, setSessionNote } = vf;
   const clearKeys = (keys) => setSelSheets((prev) => { const n = new Set(prev); for (const k of keys || []) n.delete(k); return n; });
@@ -5919,7 +5953,7 @@ function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp })
           </div>
         ) : (
           groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={vf.patchGroup} onDelete={vf.delGroup} onRemoveSheet={removeSheet} onMoveSheet={vf.moveSheet} onCreateBook={vf.createBookFromSheet} onUnlinkBook={vf.unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} books={books} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={vf.patchGroup} onDelete={vf.delGroup} onRemoveSheet={removeSheet} onMoveSheet={vf.moveSheet} onCreateBook={vf.createBookFromSheet} onLinkBook={vf.linkSheetBook} onUnlinkBook={vf.unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
           ))
         )}
         <button onClick={vf.addGroup} className="rounded-xl border border-dashed border-slate-300 min-h-[5.5rem] flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
@@ -6120,7 +6154,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
       )}
 
       {sel === "library" ? (
-        <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
+        <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : sel === "stock" ? (
         <>{backBtn}
           <div className="mt-3">
