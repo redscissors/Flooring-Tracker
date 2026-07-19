@@ -97,9 +97,9 @@ const cellIn = (items, lo, hi) => items.filter((i) => i.x >= lo && i.x < hi).sor
 // The parser has already resolved each row, so the mapping is a straight
 // column→field assignment (like pdfbook's CANON_MAPPING). Color Code and Catalog
 // # are both alphanumeric with a digit, so the SKU pattern accepts either.
-const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand"];
+const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
 const CANON_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand", 11: "fits" },
   headerRow: 0,
   skuPattern: "^(?=.*\\d)[A-Za-z0-9]{3,14}$",
   defaultType: "",
@@ -231,16 +231,16 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
       f.sfPerUnit != null ? String(f.sfPerUnit) : "", f.cost != null ? String(f.cost) : "", f.unit, f.type, "", f.brand]);
   }
   // Trim rows: SKU = catalog #, priced per piece (EA), no flooring type (a misc /
-  // transition line). The parent color code(s) ride in the description ("… —
-  // Quarter Round · fits APX020 FXR240"), which feeds search_text so a floor-code
-  // search surfaces the trim in the picker, and the "fits" note tells the
-  // salesperson which floors the molding matches.
+  // transition line). The parent color code(s) go out twice: as the structured
+  // `fits` column, which is the real link the app queries, and in the description
+  // ("… — Quarter Round · fits APX020 FXR240"), which feeds search_text so a
+  // floor-code search surfaces the trim in the picker without an SQL change.
   for (const t of trims.values()) {
-    const codes = [...t.codes];
+    const codes = [...t.codes].sort();
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, codes.length && `· fits ${codes.join(" ")}`]
       .filter(Boolean).join(" ");
-    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND]);
+    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, codes.join(" ")]);
   }
 
   if (!dataRows) warnings.push("No Mannington product rows were recognized — is this the Cartons Detail price list?");

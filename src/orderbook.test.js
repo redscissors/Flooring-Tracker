@@ -5,13 +5,44 @@ import {
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
-  flagReviewed, flagReviewBySku,
+  flagReviewed, flagReviewBySku, trimsForFloor,
 } from "./orderbook.js";
 
 const DAY = 86400000;
 
 // A normalized order item, overridable per field.
 const oi = (over = {}) => normOrderItem({ sku: "ABC12345", cost: 10, unit: "SF", ...over });
+
+// --- floor ↔ trim link (ADR 0012 amendment) ----------------------------------
+
+test("fits normalizes from the parser's string or a round-tripped array", () => {
+  assert.deepEqual(oi({ fits: "APX040 APX020" }).fits, ["APX020", "APX040"]); // sorted
+  assert.deepEqual(oi({ fits: ["APX020", "APX020", " "] }).fits, ["APX020"]); // deduped, blanks dropped
+  assert.deepEqual(oi({}).fits, []);
+});
+
+test("re-importing an unchanged trim doesn't churn the diff on its fits array", () => {
+  const prev = oi({ sku: "384469", trim: true, fits: "APX020 APX040" });
+  const same = oi({ sku: "384469", trim: true, fits: "APX040 APX020" });
+  assert.equal(diffBookItems([prev], [same]).changed.length, 0);
+  const grew = oi({ sku: "384469", trim: true, fits: "APX020 APX040 APX060" });
+  assert.deepEqual(diffBookItems([prev], [grew]).changed[0].fields, ["fits"]);
+});
+
+test("trimsForFloor answers the reverse direction, exactly", () => {
+  const items = [
+    oi({ sku: "384421", trim: true, fits: "APX020" }),
+    oi({ sku: "384469", trim: true, fits: "APX020 APX040" }),
+    oi({ sku: "384999", trim: true, fits: "APX040" }),
+    oi({ sku: "384888", trim: true, fits: "APX020", disabled: true }),
+    oi({ sku: "384777", trim: true, fits: "APX020", active: false }),
+    oi({ sku: "APX020", trim: false, type: "vinyl" }),   // the floor itself
+  ];
+  assert.deepEqual(trimsForFloor(items, "APX020").map((i) => i.sku), ["384421", "384469"]);
+  // A neighbouring code shares no trims — the fuzzy description search can't say that.
+  assert.deepEqual(trimsForFloor(items, "APX02").map((i) => i.sku), []);
+  assert.deepEqual(trimsForFloor(items, "").map((i) => i.sku), []);
+});
 
 // --- normalization -----------------------------------------------------------
 

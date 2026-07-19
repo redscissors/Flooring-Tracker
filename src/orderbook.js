@@ -37,6 +37,15 @@ const normFlagReview = (v) => {
   return Object.keys(out).length ? out : null;
 };
 
+// Parent floor SKUs for a trim. Accepts either the array the DB round-trips or
+// the space-separated string a parser's "Fits" column emits. Sorted and deduped
+// so a re-import of the same sheet never shows a spurious diff.
+const normFits = (v) => {
+  const list = Array.isArray(v) ? v : str(v).split(/\s+/);
+  const out = [...new Set(list.map(str).filter(Boolean))].sort();
+  return out.length ? out : [];
+};
+
 // --- the canonical order-item shape ------------------------------------------
 
 // One place both the mapped parser (pricebook.js parseMapped) and the DB-row
@@ -81,6 +90,13 @@ export function normOrderItem(f = {}) {
     // vendor-declared trim (Mannington's Kind column) or a non-trim. Provenance
     // for the wizard's review list and the book table's flag chips.
     trimSignal: str(f.trimSignal),
+    // The floor SKUs this trim belongs to (ADR 0012 amendment). The vendor sheets
+    // state this outright — Hallmark and Tarkett per color, Mannington per row —
+    // so it is a real relation, not a guess. Kept structured (and uncapped; it
+    // used to be truncated to six parents inside the description) so a floor can
+    // enumerate its own trims, which prose in `description` could never support.
+    // The description still carries a "· fits …" note for search_text.
+    fits: normFits(f.fits),
     // Order items store COST, never a selling price — price/priceSqft are
     // derived at display via the book's markup (pricedItem), never persisted.
     price: null,
@@ -114,6 +130,16 @@ export function normOrderItem(f = {}) {
 
 // The review verdict on one flag code, or null.
 export const flagReviewed = (item, code) => item?.flagReview?.[code]?.state || null;
+
+// The trims that name this floor as a parent — the reverse of item.fits, and the
+// direction the picker actually needs ("show me this floor's moldings"). Exact
+// SKU containment, so unlike the fuzzy description search it can't drift onto a
+// neighbouring floor's trims. Hidden and retired rows stay out.
+export const trimsForFloor = (items, floorSku) => {
+  const sku = str(floorSku);
+  if (!sku) return [];
+  return (items || []).filter((it) => it.trim && it.active !== false && !it.disabled && (it.fits || []).includes(sku));
+};
 
 // sku → flagReview for the rows that carry one. The wizard builds this from the
 // book's existing items and hands it to parseMapped, so a reviewed problem
@@ -307,7 +333,14 @@ export function orderFloorFirst(results, query) {
 
 // The item fields whose change makes a re-import a "changed" row. Order books
 // track cost (not sell) plus the vendor attributes a re-issue can move.
-const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "fits", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+
+// Field equality for the diff. `fits` is an array, so identity comparison would
+// mark every trim changed on every re-import; compare by value instead.
+const sameField = (a, b) => {
+  if (Array.isArray(a) || Array.isArray(b)) return (a || []).join(" ") === (b || []).join(" ");
+  return (a ?? null) === (b ?? null);
+};
 
 // Compare freshly parsed items against the book's current rows — same contract
 // as diffStock: added / changed / missing (marked inactive on apply, never
@@ -320,7 +353,7 @@ export function diffBookItems(existing, parsed) {
     seen.add(it.sku);
     const prev = bySku.get(it.sku);
     if (!prev) { added.push(it); continue; }
-    const fields = BOOK_FIELDS.filter((f) => (prev[f] ?? null) !== (it[f] ?? null));
+    const fields = BOOK_FIELDS.filter((f) => !sameField(prev[f], it[f]));
     if (fields.length || !prev.active) changed.push({ item: it, prev, fields });
     else unchanged.push(it);
   }
