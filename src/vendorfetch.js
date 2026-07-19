@@ -403,6 +403,30 @@ export function poolSession(sessions, session, groups) {
   return [...keep, ...add];
 }
 
+// ---- pending reviews (review-when-ready) ---------------------------------
+// A fetched sheet parks its File here instead of opening import review — the
+// user reviews at their own pace (one pill at a time, or "Review all").
+// Session-state only: File bytes can't persist, so a reload clears the pool
+// and the user just re-fetches. Keyed by recordKey; a re-fetch replaces the
+// parked file.
+export function poolPendingReview(prev, add) {
+  const k = recordKey(add.sheet);
+  return [
+    ...(prev || []).filter((p) => recordKey(p.sheet) !== k),
+    { sheet: sheetRecord(add.sheet), file: add.file, at: add.at ?? Date.now() },
+  ];
+}
+
+export function removePendingReview(prev, sheet) {
+  const k = recordKey(sheet);
+  return (prev || []).filter((p) => recordKey(p.sheet) !== k);
+}
+
+export function pendingForSheet(pending, sheet) {
+  const k = recordKey(sheet);
+  return (pending || []).find((p) => recordKey(p.sheet) === k) || null;
+}
+
 const HANDOFF_KEY = "ft-vendor-fetch-handoff";
 const HANDOFF_SESSION_KEY = "ft-vendor-fetch-session";
 
