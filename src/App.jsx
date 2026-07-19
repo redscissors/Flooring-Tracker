@@ -8,7 +8,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetForBook } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
@@ -5533,22 +5533,24 @@ function bookLinkMenu({ books, sheet, onLinkBook, onDone, open, setOpen, label }
 // A linked sheet presents as its BOOK (ADR 0024): name + meta up front, the
 // filename demoted to the ⋯ menu. Row click opens the book; the refresh
 // control fetches the sheet and parks it for review (the pill).
-function VendorBookRow({ sheet, book, group, groups, books, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onLinkBook, onUnlinkBook, onOpenBook }) {
+export function VendorBookRow({ sheet, siblings = [], book, group, groups, books, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onLinkBook, onUnlinkBook, onOpenBook }) {
+  const feeds = [sheet, ...siblings];
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
   const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
+  const feedNote = siblings.length ? `${feeds.length} sheets · ` : "";
   const meta = pending ? "downloaded — changes waiting"
     : fetching ? `downloading ${entryFileName(sheet)}…`
-    : `${book.data?.lastImport?.skus ? `${book.data.lastImport.skus} items · ` : ""}${sheet.lastFetched ? `fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : "not fetched yet"}`;
+    : `${feedNote}${book.data?.lastImport?.skus ? `${book.data.lastImport.skus} items · ` : ""}${sheet.lastFetched ? `fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : "not fetched yet"}`;
   return (
     <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : pending ? "bg-indigo-50/40" : stale?.stale ? "bg-amber-50" : "")}>
       <div className="flex items-center gap-2">
         <input type="checkbox" checked={checked} onChange={onToggle} className="shrink-0" title="Select for batch download" />
         <BookOpen size={14} className="text-slate-400 shrink-0" />
-        <button onClick={() => onOpenBook(book.id)} className="min-w-0 flex-1 text-left" title={`${book.name || "Untitled"} — open this price book (source sheet: ${entryFileName(sheet)})`}>
+        <button onClick={() => onOpenBook(book.id)} className="min-w-0 flex-1 text-left" title={`${book.name || "Untitled"} — open this price book (source sheet${feeds.length > 1 ? "s" : ""}: ${feeds.map(entryFileName).join(", ")})`}>
           <div className="text-[12.5px] font-medium truncate">{book.name || "Untitled"}</div>
           <div className="text-[10px] text-slate-400 truncate">{meta}</div>
         </button>
@@ -5566,7 +5568,10 @@ function VendorBookRow({ sheet, book, group, groups, books, prog, locked, mismat
             <>
               <div className="fixed inset-0 z-10" onClick={() => openMenu(false)} />
               <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
-                <div className="px-3 py-1 text-[11px] text-slate-400 truncate" title={entryFileName(sheet)}>Source sheet: <span className="text-slate-600">{entryFileName(sheet)}</span></div>
+                <div className="px-3 py-1 text-[11px] text-slate-400">
+                  Source sheet{feeds.length > 1 ? "s" : ""}:
+                  {feeds.map((f) => <div key={recordKey(f)} className="text-slate-600 truncate" title={entryFileName(f)}>{entryFileName(f)}</div>)}
+                </div>
                 <button onClick={() => { onOpenBook(book.id); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><BookOpen size={13} className="text-slate-400" /> Open price book</button>
                 <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
                 {bookLinkMenu({ books, sheet, onLinkBook, onDone: () => openMenu(false), open: linkOpen, setOpen: setLinkOpen, label: "Link to a different book" })}
@@ -5744,12 +5749,28 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
       ) : (() => {
         const linked = group.sheets.filter((s) => sheetInfo(s).book);
         const loose = group.sheets.filter((s) => !sheetInfo(s).book);
+        // One row per BOOK, not per sheet: a book fed by several sheets (Mirage's
+        // flooring + trim + product chart) would otherwise repeat down the column
+        // once per file. The row reports the extra sheets and acts on all of them.
+        const byBook = [];
+        for (const s of linked) {
+          const info = sheetInfo(s);
+          const hit = byBook.find((b) => b.book?.id === info.book?.id);
+          if (hit) hit.sheets.push(s); else byBook.push({ book: info.book, stale: info.stale, sheets: [s] });
+        }
         const rowProps = (s) => ({ sheet: s, group, groups, books, prog: progress[recordKey(s)], locked: !sheetSesid(s), mismatch: !sheetMatchesGroup(s, group), running, pending: pendingFor(s), checked: selected.has(recordKey(s)), onToggle: () => onToggleSheet(s), onRedownload: onRedownloadSheet, onReview, onRemove: onRemoveSheet, onMove: onMoveSheet, onLinkBook });
         return (
           <div className="divide-y divide-slate-100">
-            {linked.map((s) => { const info = sheetInfo(s); return (
-              <VendorBookRow key={recordKey(s)} {...rowProps(s)} book={info.book} stale={info.stale} onUnlinkBook={onUnlinkBook} onOpenBook={onOpenBook} />
-            ); })}
+            {byBook.map(({ book, stale, sheets }) => {
+              const all = sheets.every((s) => selected.has(recordKey(s)));
+              return (
+                <VendorBookRow key={book?.id || recordKey(sheets[0])} {...rowProps(sheets[0])} siblings={sheets.slice(1)} book={book} stale={stale}
+                  checked={all}
+                  onToggle={() => sheets.forEach((s) => { if (selected.has(recordKey(s)) === all) onToggleSheet(s); })}
+                  onRedownload={() => sheets.forEach((s) => onRedownloadSheet(s))}
+                  onUnlinkBook={onUnlinkBook} onOpenBook={onOpenBook} />
+              );
+            })}
             {loose.length > 0 && linked.length > 0 && <div className="px-2.5 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">Loose sheets</div>}
             {loose.map((s) => { const info = sheetInfo(s); return (
               <VendorSheetRow key={recordKey(s)} {...rowProps(s)} stale={info.stale} bookName={null} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
@@ -6093,8 +6114,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
       <ChevronRight size={13} className="rotate-180" /> All price books
     </button>
   );
-  const sourcePendingFor = (bookId) => { const hit = sheetForBook(vf.groups, bookId); return hit ? pendingForSheet(pendingReviews, hit.sheet) : null; };
-  const sourceLiveFor = (bookId) => { const hit = sheetForBook(vf.groups, bookId); return !!(hit && vf.sheetSesid(hit.sheet)); };
+  const sourcePendingOf = (sheet) => pendingForSheet(pendingReviews, sheet);
+  const sourceLiveOf = (sheet) => !!vf.sheetSesid(sheet);
   const inHouseCol = <InHouseColumn books={books} groups={vf.groups} stockCount={stockCount} stockStale={stockStale} bookStale={bookStale} onOpen={setSel} />;
 
   return (
@@ -6212,7 +6233,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
           </div>
         </>
       ) : selBook ? (
-        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetForBook(vf.groups, selBook.id)} sourcePending={sourcePendingFor(selBook.id)} sourceLive={sourceLiveFor(selBook.id)} onRefreshSheet={(s) => vf.run([s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
@@ -6322,7 +6343,51 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePending, sourceLive, onRefreshSheet, onReviewSheet }) {
+// The sheets feeding this book. A book may have several (a vendor that splits
+// its list across flooring / trim / product-chart files), so this renders one
+// row per sheet with its own Refresh or Review action, plus a header that acts
+// on all of them. Exported for the preview harness.
+export function SourceSheetStrip({ sources, pendingSources, stale: st, lastImportAt, pendingOf, liveOf, onRefresh, onReview }) {
+  if (!sources?.length) return null;
+  return (
+    <div className={`mt-3 max-w-xl rounded-lg border ${st.stale ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50/60"}`}>
+      {sources.length > 1 && (
+        <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{sources.length} source sheets</span>
+          {pendingSources.length > 0
+            ? <span className="text-[10.5px] text-indigo-600 font-medium">{pendingSources.length} of {sources.length} ready to review</span>
+            : <button onClick={() => onRefresh(sources.map((s) => s.sheet))} className={"flex items-center gap-1.5 text-[11px] font-medium " + (sources.some((s) => liveOf(s.sheet)) ? "ft-live" : "text-slate-500")}><RotateCcw size={11} /> Refresh all</button>}
+        </div>
+      )}
+      <div className="divide-y divide-slate-200/70">
+        {sources.map(({ group, sheet }) => {
+          const pending = pendingOf(sheet), live = liveOf(sheet);
+          return (
+            <div key={recordKey(sheet)} className="flex items-center gap-2.5 flex-wrap px-3 py-2">
+              <FileText size={15} className={st.stale ? "text-amber-500 shrink-0" : "text-slate-400 shrink-0"} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[12.5px] font-medium truncate">{entryFileName(sheet)}</div>
+                <div className="text-[10.5px] text-slate-400 truncate">
+                  from {group.name}
+                  {sheet.lastFetched ? ` · fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : ""}
+                  {lastImportAt ? ` · imported ${new Date(lastImportAt).toLocaleDateString()}` : ""}
+                  {st.stale ? ` · ${st.days} days ago — stale` : ""}
+                </div>
+              </div>
+              {pending ? (
+                <button onClick={() => onReview(pending)} className="shrink-0 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-indigo-700">Review changes</button>
+              ) : (
+                <button onClick={() => onRefresh(sheet)} title={live ? "Ready — fetch the latest sheet, then review at your pace" : "Fetch the latest sheet (needs a live sign-in — the board says how to unlock)"} className={"shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-white " + (live ? "ft-live" : "text-slate-600")}><RotateCcw size={12} /> Refresh</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
@@ -6343,6 +6408,9 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const markups = book.data?.markups || null;
   const li = book.data?.lastImport;
   const st = bookStaleness(li?.at, staleDays);
+  // A book may be fed by several sheets (flooring + trim + product chart…).
+  const sources = source || [];
+  const pendingSources = sources.filter(({ sheet }) => sourcePendingOf(sheet));
   const isOrder = book.kind === "order";
   const cost = (n) => (hideCosts ? "•••" : n == null ? "—" : money(n));
   const activeItems = (items || []).filter((it) => it.active);
@@ -6445,25 +6513,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
         </div>
       )}
 
-      {source && (
-        <div className={`mt-3 flex items-center gap-2.5 flex-wrap rounded-lg border px-3 py-2 max-w-xl ${st.stale ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50/60"}`}>
-          <FileText size={15} className={st.stale ? "text-amber-500 shrink-0" : "text-slate-400 shrink-0"} />
-          <div className="min-w-0 flex-1">
-            <div className="text-[12.5px] font-medium truncate">{entryFileName(source.sheet)}</div>
-            <div className="text-[10.5px] text-slate-400 truncate">
-              from {source.group.name}
-              {source.sheet.lastFetched ? ` · fetched ${new Date(source.sheet.lastFetched).toLocaleDateString()}` : ""}
-              {li?.at ? ` · imported ${new Date(li.at).toLocaleDateString()}` : ""}
-              {st.stale ? ` · ${st.days} days ago — stale` : ""}
-            </div>
-          </div>
-          {sourcePending ? (
-            <button onClick={() => onReviewSheet(sourcePending)} className="shrink-0 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-indigo-700">Review changes</button>
-          ) : (
-            <button onClick={() => onRefreshSheet(source.sheet)} title={sourceLive ? "Ready — fetch the latest sheet, then review at your pace" : "Fetch the latest sheet (needs a live sign-in — the board says how to unlock)"} className={"shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-white " + (sourceLive ? "ft-live" : "text-slate-600")}><RotateCcw size={12} /> Refresh</button>
-          )}
-        </div>
-      )}
+      <SourceSheetStrip sources={sources} pendingSources={pendingSources} stale={st} lastImportAt={li?.at} pendingOf={sourcePendingOf} liveOf={sourceLiveOf} onRefresh={onRefreshSheet} onReview={onReviewSheet} />
 
       <div className="flex items-center gap-2 mt-3">
         <button onClick={() => setWizard(true)} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>
