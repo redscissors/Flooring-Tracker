@@ -109,6 +109,9 @@ src/
                     # safe. The tab renders groups as board columns with checkbox
                     # batch download and always-live (never pre-locked) fetch
                     # buttons; moves happen from a row's ⋯ menu (ADR 0021)
+                    # + review-when-ready pending pool (ADR 0024):
+                    # poolPendingReview/removePendingReview/pendingForSheet —
+                    # fetched Files park session-side until reviewed
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature

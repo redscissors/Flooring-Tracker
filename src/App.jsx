@@ -8,7 +8,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
@@ -2024,19 +2024,21 @@ export default function App({ user, onSignOut }) {
   // an import would change — nothing is written until the preview is applied.
   // Read + preview a shop-workbook file. onDone (from the multi-file drop router)
   // fires whether the preview opens, is empty, or errors, and is carried on the
-  // preview so its Apply/Cancel can advance the router's queue.
+  // preview so its Apply/Cancel can advance the router's queue. onDone is called
+  // with `applied` — true only after a successful Apply, false on cancel / empty /
+  // read-error — so the router knows whether the file was really imported.
   const importStockFile = async (file, onDone) => {
     if (!file) return;
     setImporting(true);
     try {
       const sheets = await readXlsxSheets(file);
       const { items, warnings } = parsePriceBook(sheets);
-      if (!items.length) { ping("No stock items found in that file"); onDone?.(); }
+      if (!items.length) { ping("No stock items found in that file"); onDone?.(false); }
       else {
         const parsed = items.map((it) => ({ ...it, active: true }));
         setImportPreview({ parsed, diff: diffStock(stock, parsed), warnings, sync: syncCatalogPrices(settings.catalog, parsed), onDone });
       }
-    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(); }
+    } catch (x) { ping("Could not read that file — is it the price book .xlsx?"); onDone?.(false); }
     setImporting(false);
   };
   const importPriceBook = (e) => { const f = e.target.files?.[0]; e.target.value = ""; importStockFile(f); };
@@ -2071,8 +2073,8 @@ export default function App({ user, onSignOut }) {
       setStock(await loadStock());
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
-    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); }
-    onDone?.();
+      onDone?.(true);
+    } catch (x) { ping("Import failed — has supabase/stock.sql been run?"); onDone?.(false); }
   };
 
   // Roll the shop workbook back to a version snapshot: replay it through the
@@ -4837,8 +4839,8 @@ export default function App({ user, onSignOut }) {
         const total = diff.added.length + diff.changed.length + diff.missing.length;
         const money2 = (n) => (n == null ? "—" : money(n));
         const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
-        // Cancelling still advances the drop router's queue (onDone), same as Apply.
-        const closePreview = () => { setImportPreview(null); onDone?.(); };
+        // Cancelling still advances the drop router's queue, but reports applied=false so a pooled file isn't dropped as if imported.
+        const closePreview = () => { setImportPreview(null); onDone?.(false); };
         return (
           <Modal onClose={closePreview} title="Import price book">
             <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
@@ -5146,7 +5148,7 @@ function StaleChip({ days }) {
 // then steps through each file's normal import preview one at a time. Registry
 // files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
 // stock preview. No new write path — each apply is the book's existing one.
-function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -5163,11 +5165,13 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
         const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
         const fp = computeFingerprint(parsed);
         let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
-        // A file fetched via "Create price book from this sheet" always lands in
-        // the book we just made for it — the user's explicit intent outranks any
-        // fingerprint match to another book.
-        if (preferTarget && registryBooks.some((b) => b.id === preferTarget)) {
-          r = { ...r, target: preferTarget, reason: "new book from this sheet" };
+        // Explicit intent outranks any fingerprint match to another book:
+        // preferTarget = "Create price book from this sheet"; targets = files
+        // fetched for a known linked book (review-when-ready pool).
+        const forced = (preferTarget && registryBooks.some((b) => b.id === preferTarget)) ? preferTarget
+          : (targets && targets.get(file));
+        if (forced && registryBooks.some((b) => b.id === forced)) {
+          r = { ...r, target: forced, reason: forced === preferTarget ? "new book from this sheet" : "fetched for this book" };
         }
         out.push({ file, ...parsed, ...r });
       } catch (x) { out.push({ file, error: "Could not read this file" }); }
@@ -5186,7 +5190,7 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
     const row = runnable[qi];
-    if (row.target === "stock") { setActive(null); importStockFile(row.file, advance); return; }
+    if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
     loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
@@ -5238,8 +5242,8 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
       key={active.book.id + qi}
       book={active.book} existingItems={active.items}
       preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
-      onClose={advance}
-      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } advance(); }}
+      onClose={() => { onFileDone && onFileDone(active.row.file, false); advance(); }}
+      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); onFileDone && onFileDone(active.row.file, true); } catch (x) { onFileDone && onFileDone(active.row.file, false); /* error surfaced by applyBookImport */ } advance(); }}
       saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
       types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
     />
@@ -5510,7 +5514,7 @@ function SignInPaste({ onPasteSession, onUnlock, onAdd, inp }) {
 // icons flag a portal-account mismatch and a stale linked book (row tints amber
 // too). The ⋯ menu creates/unlinks a price book, moves the sheet to another
 // sign-in (collapsible list), or forgets it.
-function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onUnlinkBook }) {
+function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onUnlinkBook, pending, onReview }) {
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
@@ -5522,9 +5526,12 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
         <input type="checkbox" checked={checked} onChange={onToggle} className="shrink-0" title="Select for batch download" />
         <button onClick={onToggle} className="text-[12.5px] truncate min-w-0 flex-1 text-left" title={entryFileName(sheet) + (bookName ? ` — feeds ${bookName}` : "")}>{entryFileName(sheet)}</button>
         {mismatch && <span className="shrink-0 leading-none" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={12} className="text-amber-500" /></span>}
-        {stale?.stale && <span className="shrink-0 leading-none" title={`${bookName || "Its price book"} was last imported ${stale.days} days ago — re-download this sheet to refresh it.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
-        {prog?.state === "done" && <Check size={13} className="text-emerald-600 shrink-0" />}
+        {stale?.stale && !pending && <span className="shrink-0 leading-none" title={`${bookName || "Its price book"} was last imported ${stale.days} days ago — re-download this sheet to refresh it.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
+        {prog?.state === "done" && !pending && <Check size={13} className="text-emerald-600 shrink-0" />}
         {prog?.state === "error" && <AlertTriangle size={12} className="text-red-500 shrink-0" />}
+        {pending && !fetching && (
+          <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open its import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
+        )}
         {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — download this sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
         <div className="relative shrink-0">
           <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
@@ -5578,7 +5585,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
 // rename / sign-in link / delete, then single-line sheet rows. Sheets move
 // between sign-ins from a row's ⋯ menu (the pointer-drag went away with the
 // board layout — ADR 0021).
-function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, inp }) {
+function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, pendingFor, onReview, inp }) {
   const [menu, setMenu] = useState(false);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -5635,7 +5642,7 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
       ) : (
         <div className="divide-y divide-slate-100">
           {group.sheets.map((s) => { const info = sheetInfo(s); return (
-            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
+            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} pending={pendingFor(s)} onReview={onReview} />
           ); })}
         </div>
       )}
@@ -5643,13 +5650,12 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, inp, lbl }) {
-  const [pending, setPending] = useState(vendorPending || []); // live-session pool (sesids) from full links
+export function VendorFetchPage({ settings, setSettings, pending, onPool, onReview, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, inp, lbl }) {
+  const [sesidPool, setSesidPool] = useState(vendorPending || []); // live-session pool (sesids) from full links
   const [sessions, setSessions] = useState([]); // bare bookmarklet sessions (host|user -> sesid), unlock only
   const [sessionNote, setSessionNote] = useState(null); // "sign-in captured" banner after a bookmarklet grab
   const [progress, setProgress] = useState({});
   const [running, setRunning] = useState(false);
-  const [fetchedFiles, setFetchedFiles] = useState(null); // partial-success File[] pending confirm
   const [setupOpen, setSetupOpen] = useState(false);
   const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
 
@@ -5663,7 +5669,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   // under its sign-in). Idempotent, so a repeat hand-off is a no-op.
   useEffect(() => {
     if (!vendorPending || !vendorPending.length) return;
-    setPending((p) => mergeEntries(p, vendorPending));
+    setSesidPool((p) => mergeEntries(p, vendorPending));
     const next = rememberIntoGroups(groupsRef.current, vendorPending.map(sheetRecord));
     if (JSON.stringify(next) !== JSON.stringify(groupsRef.current)) writeGroups(next);
     clearHandoff();
@@ -5681,7 +5687,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   }, [vendorSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const liveSesid = {};
-  for (const e of pending) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
+  for (const e of sesidPool) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
   for (const s of sessions) { liveSesid[`${s.host}|${s.user}`] = s.sesid; } // a fresh bookmarklet grab outranks stale link tokens
   const sheetSesid = (s) => liveSesid[`${s.host}|${s.user}`];
 
@@ -5707,7 +5713,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     const session = decodeHandoffSession(raw);
     if (!links.length && !session) return null;
     if (session) setSessions((prev) => poolSession(prev, session, groupsRef.current));
-    if (links.length) setPending((p) => mergeEntries(p, links));
+    if (links.length) setSesidPool((p) => mergeEntries(p, links));
     const nextGroups = links.length ? rememberIntoGroups(groupsRef.current, links.map(sheetRecord)) : groupsRef.current;
     if (nextGroups !== groupsRef.current && JSON.stringify(nextGroups) !== JSON.stringify(groupsRef.current)) writeGroups(nextGroups);
     const portals = new Set(links.map((e) => `${e.host}|${e.user}`));
@@ -5724,7 +5730,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   const unlockPasted = (text) => {
     const found = parseLinks(text);
     if (!found.length) return null;
-    setPending((p) => mergeEntries(p, found));
+    setSesidPool((p) => mergeEntries(p, found));
     const portals = new Set(found.map((e) => `${e.host}|${e.user}`));
     const unlocked = groups.reduce((n, g) => n + g.sheets.filter((s) => portals.has(`${s.host}|${s.user}`)).length, 0);
     return { unlocked };
@@ -5732,7 +5738,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   const addPasted = (text) => {
     const found = parseLinks(text);
     if (!found.length) return false;
-    setPending((p) => mergeEntries(p, found));
+    setSesidPool((p) => mergeEntries(p, found));
     writeGroups(rememberIntoGroups(groups, found.map(sheetRecord)));
     return true;
   };
@@ -5752,10 +5758,10 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   const run = async (picks) => {
     const list = (picks || []).filter(Boolean);
     if (!list.length || running) return;
-    setRunning(true); setFetchedFiles(null);
+    setRunning(true);
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    const files = [], ok = [];
+    const fetched = [], ok = [];
     let failures = 0;
     for (const s of list) {
       const k = recordKey(s);
@@ -5764,7 +5770,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
       const e = applySesid(s, ses);
       setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
       const res = await runFetch(e, token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
-      if (res.file) { files.push(res.file); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
+      if (res.file) { fetched.push({ sheet: sheetRecord(e), file: res.file }); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
       else { failures++; setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); }
     }
     if (ok.length) {
@@ -5772,8 +5778,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
       setSelSheets((prev) => { const n = new Set(prev); for (const e of ok) n.delete(recordKey(e)); return n; });
     }
     setRunning(false);
-    if (files.length && !failures) onFiles(files);
-    else if (files.length) setFetchedFiles(files);
+    if (fetched.length) onPool(fetched);
   };
   const redownloadAll = (g) => run(g.sheets);
   const redownloadSheet = (s) => run([s]);
@@ -5788,7 +5793,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     const k = recordKey(sheet);
     const ses = sheetSesid(sheet);
     if (!ses) { setProgress((m) => ({ ...m, [k]: { state: "error", note: NO_SESSION } })); return; }
-    setRunning(true); setFetchedFiles(null);
+    setRunning(true);
     setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
     const { data } = await supabase.auth.getSession();
     const res = await runFetch(applySesid(sheet, ses), data.session?.access_token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
@@ -5798,7 +5803,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     const id = await addBook({ kind: "order", name: entryFileName(sheet).replace(/\.xls$/i, "") });
     let next = rememberIntoGroups(groupsRef.current, [{ ...sheetRecord(sheet), lastFetched: Date.now() }]);
     writeGroups(setSheetBook(next, sheet, id));
-    (onFilesToBook || onFiles)([res.file], id);
+    onPool([{ sheet: { ...sheetRecord(sheet), bookId: id }, file: res.file }]);
   };
   const unlinkSheetBook = (sheet) => writeGroups(setSheetBook(groupsRef.current, sheet, null));
 
@@ -5838,14 +5843,6 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
         </div>
       )}
 
-      {fetchedFiles && (
-        <div className="mt-3 flex items-center gap-2 flex-wrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-          <span className="flex-1 text-amber-800">Some sheets couldn't be fetched. Import the {fetchedFiles.length} that worked?</span>
-          <button onClick={() => { const f = fetchedFiles; setFetchedFiles(null); onFiles(f); }} className="rounded-md bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 shrink-0">Import {fetchedFiles.length}</button>
-        </div>
-      )}
-
       {groups.length === 0 ? (
         <div className="mt-5 rounded-xl border border-slate-200 p-6 text-center">
           <Download size={22} className="mx-auto text-slate-300" />
@@ -5856,13 +5853,13 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
       ) : (
         <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
           ))}
         </div>
       )}
 
       {selSheets.size > 0 && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
+        <div className={`fixed ${pending.length ? "bottom-[4.25rem]" : "bottom-5"} left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2`}>
           <span className="text-sm font-semibold whitespace-nowrap">{selSheets.size} selected</span>
           <button onClick={downloadSelected} disabled={running} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">Download selected</button>
           <button onClick={() => setSelSheets(new Set())} title="Clear selection" className="p-1.5 text-slate-400 hover:text-slate-600"><X size={14} /></button>
@@ -5884,6 +5881,18 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const [hideCosts, setHideCosts] = useState(false);
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
+  // Review-when-ready (mockup 2026-07-19): fetched sheets park here instead of
+  // opening import review. Session-only — File bytes can't persist, a reload
+  // clears the pool and re-fetching is cheap.
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const poolFetched = (adds) => setPendingReviews((prev) => (adds || []).reduce((acc, a) => poolPendingReview(acc, a), prev));
+  const reviewOne = (p) => setDropped({ files: [p.file], prefer: p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : undefined });
+  const reviewAll = () => setDropped({
+    files: pendingReviews.map((p) => p.file),
+    targets: new Map(pendingReviews.filter((p) => p.sheet.bookId).map((p) => [p.file, p.sheet.bookId])),
+  });
+  // Applied files leave the pool; a wizard closed with "X" (= later) stays.
+  const fileDone = (file, applied) => { if (applied) setPendingReviews((prev) => prev.filter((p) => p.file !== file)); };
   const dropRef = useRef(null);
   // Menu-style portals hand sheets over one bookmark-click at a time; the
   // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
@@ -5969,7 +5978,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={(files) => setDropped({ files })} onFilesToBook={(files, prefer) => setDropped({ files, prefer })} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
@@ -6032,7 +6041,15 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         </>)}
       </div>
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+
+      {pendingReviews.length > 0 && !dropped && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
+          <span className="text-sm font-semibold whitespace-nowrap">{pendingReviews.length} downloaded — ready to review</span>
+          <button onClick={reviewAll} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 whitespace-nowrap">Review all</button>
+          <button onClick={() => setPendingReviews([])} title="Discard the downloaded files without reviewing" className="p-1.5 text-slate-400 hover:text-slate-600"><X size={14} /></button>
+        </div>
+      )}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>

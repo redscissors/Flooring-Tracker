@@ -8,6 +8,7 @@ import {
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
   HANDOFF_MARK, stripHandoffMark,
+  poolPendingReview, removePendingReview, pendingForSheet,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -347,4 +348,28 @@ test("newGroup builds an empty, named group from a portal", () => {
   assert.deepEqual(g.sheets, []);
   assert.equal(newGroup().portal, null);
   assert.equal(newGroup().name, "New sign-in");
+});
+
+test("pending-review pool keys by recordKey and replaces on re-pool", () => {
+  const sheetA = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1071", filename: "AOT EFT", user: "C00000XX", bookId: "bk1" };
+  const sheetB = { ...sheetA, uid: "2088", filename: "MSI EFT", bookId: undefined };
+  const f1 = { name: "a.xls" }, f2 = { name: "a2.xls" }, f3 = { name: "b.xls" };
+
+  let pool = poolPendingReview([], { sheet: sheetA, file: f1, at: 111 });
+  pool = poolPendingReview(pool, { sheet: sheetB, file: f3, at: 222 });
+  assert.equal(pool.length, 2);
+  assert.equal(pool[0].file, f1);
+  assert.equal(pool[0].sheet.bookId, "bk1"); // bookId survives sheetRecord
+  assert.equal(pool[0].at, 111);
+
+  // Re-fetching the same sheet replaces the parked file (and keeps one entry).
+  pool = poolPendingReview(pool, { sheet: sheetA, file: f2, at: 333 });
+  assert.equal(pool.length, 2);
+  assert.equal(pendingForSheet(pool, sheetA).file, f2);
+  assert.equal(pendingForSheet(pool, sheetA).at, 333);
+
+  pool = removePendingReview(pool, sheetA);
+  assert.equal(pool.length, 1);
+  assert.equal(pendingForSheet(pool, sheetA), null);
+  assert.equal(pendingForSheet(pool, sheetB).file, f3);
 });
