@@ -5681,7 +5681,7 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
     const session = decodeHandoffSession(raw);
     if (!links.length && !session) return null;
     if (session) setSessions((prev) => poolSession(prev, session, groupsRef.current));
-    if (links.length) setPending((p) => mergeEntries(p, links));
+    if (links.length) setSesidPool((p) => mergeEntries(p, links));
     const nextGroups = links.length ? rememberIntoGroups(groupsRef.current, links.map(sheetRecord)) : groupsRef.current;
     if (nextGroups !== groupsRef.current && JSON.stringify(nextGroups) !== JSON.stringify(groupsRef.current)) writeGroups(nextGroups);
     const portals = new Set(links.map((e) => `${e.host}|${e.user}`));
