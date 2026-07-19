@@ -427,6 +427,17 @@ export function pendingForSheet(pending, sheet) {
   return (pending || []).find((p) => recordKey(p.sheet) === k) || null;
 }
 
+// The sheet feeding a book, with its group — for the book page's source-sheet
+// strip and the library's linked/in-house split.
+export function sheetForBook(groups, bookId) {
+  if (!bookId) return null;
+  for (const g of groups || []) {
+    const sheet = (g.sheets || []).find((s) => s.bookId === bookId);
+    if (sheet) return { group: g, sheet };
+  }
+  return null;
+}
+
 const HANDOFF_KEY = "ft-vendor-fetch-handoff";
 const HANDOFF_SESSION_KEY = "ft-vendor-fetch-session";
 

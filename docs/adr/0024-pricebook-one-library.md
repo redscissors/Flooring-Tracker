@@ -46,7 +46,7 @@ portal-less registry book — sit in a new In-house column alongside the
 sign-in columns, so every book has exactly one home regardless of how it's
 fed. *Ships in PR 2 (book-first rows) and PR 3 (the sidebar/tab retirement,
 the In-house column, and the `useVendorFetch` hook that lets `BookDetail`
-drive its own refresh) — not yet built as of this ADR.*
+drive its own refresh) — implemented across PRs 1-3 (this stack).*
 
 **(2) Review-when-ready.** Fetching only downloads. A successful fetch parks
 its `File` in a session-only pending pool keyed by `recordKey(sheet)` — a
@@ -63,7 +63,7 @@ review") offers "Review all," which chains every parked file through
 sheet" reads as a single action to the user but is implemented as fetch *then*
 review: the click only downloads (step 2's pooling), and the resulting Review
 pill is the invitation to walk through the diff whenever convenient — not a
-forced modal in the same click. Once PR 3 lands the source-sheet strip, this
+forced modal in the same click. With PR 3's source-sheet strip in place, this
 is how a book's own page re-pulls its feed without detouring through the
 vendor board at all.
 
@@ -72,19 +72,23 @@ vendor board at all.
 - The pending pool is **session-state only** — a `File`'s bytes can't go in
   `jsonb`, so a page reload silently clears it. Accepted: refetching is cheap
   (seconds against a live portal session), and nothing was ever committed, so
-  there's no data to lose, only a re-click.
+  there's no data to lose, only a re-click. Leaving the Price book Settings
+  section clears it too (and the pasted live-session tokens), since
+  `PriceBookLibrary` — which owns the pool — unmounts when you switch
+  sections; same trade-off, no data loss, refetching is cheap.
 - `ImportRouter` gained two capabilities to support both directions of this
   decision: forced per-file `targets` (a `File` → bookId map, same precedence
   tier as the existing `preferTarget`) so a pooled review always lands on the
   book it was fetched for, and an `onFileDone(file, applied)` outcome callback
   so the pool can tell "reviewed and applied" apart from "wizard dismissed" —
   the distinction this whole ADR depends on.
-- The fetch machinery living inside `VendorFetchPage` (groups, sesid
-  resolution, progress, run/createBookFromSheet) will move into a
-  `useVendorFetch` hook in PR 3, so `BookDetail` can call `run([sheet])` for
+- The fetch machinery that lived inside `VendorFetchPage` (groups, sesid
+  resolution, progress, run/createBookFromSheet) moved into a
+  `useVendorFetch` hook in PR 3, so `BookDetail` calls `run([sheet])` for
   its own source sheet without the page component being in the render tree.
-  Until PR 3 lands, refreshing a book's feed still happens from the vendor
-  board, not from the book page.
+  With PR 3 landed, refreshing a book's feed happens from the book page
+  itself, via its source-sheet strip, and no longer requires detouring
+  through the vendor board.
 - The sesid/authorization mechanics (ADR 0019: a sheet fetches only with a
   live session matching its own `{host, user}`; `portal` stays nominal, ADR
   0020/0021) are entirely unchanged — this ADR only changes what happens
