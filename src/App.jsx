@@ -5657,7 +5657,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
 // rename / sign-in link / delete, then single-line sheet rows. Sheets move
 // between sign-ins from a row's ⋯ menu (the pointer-drag went away with the
 // board layout — ADR 0021).
-function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, pendingFor, onReview, inp }) {
+function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, onOpenBook, pendingFor, onReview, inp }) {
   const [menu, setMenu] = useState(false);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -5711,18 +5711,27 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
       )}
       {group.sheets.length === 0 ? (
         <p className="px-2.5 py-2 text-[11px] text-slate-400">No sheets yet — paste a link above, or move one here from a row's ⋯ menu.</p>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {group.sheets.map((s) => { const info = sheetInfo(s); return (
-            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} pending={pendingFor(s)} onReview={onReview} />
-          ); })}
-        </div>
-      )}
+      ) : (() => {
+        const linked = group.sheets.filter((s) => sheetInfo(s).book);
+        const loose = group.sheets.filter((s) => !sheetInfo(s).book);
+        const rowProps = (s) => ({ sheet: s, group, groups, prog: progress[recordKey(s)], locked: !sheetSesid(s), mismatch: !sheetMatchesGroup(s, group), running, pending: pendingFor(s), checked: selected.has(recordKey(s)), onToggle: () => onToggleSheet(s), onRedownload: onRedownloadSheet, onReview, onRemove: onRemoveSheet, onMove: onMoveSheet });
+        return (
+          <div className="divide-y divide-slate-100">
+            {linked.map((s) => { const info = sheetInfo(s); return (
+              <VendorBookRow key={recordKey(s)} {...rowProps(s)} book={info.book} stale={info.stale} onUnlinkBook={onUnlinkBook} onOpenBook={onOpenBook} />
+            ); })}
+            {loose.length > 0 && linked.length > 0 && <div className="px-2.5 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">Loose sheets</div>}
+            {loose.map((s) => { const info = sheetInfo(s); return (
+              <VendorSheetRow key={recordKey(s)} {...rowProps(s)} stale={info.stale} bookName={null} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
+            ); })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, pending, onPool, onReview, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, inp, lbl }) {
+export function VendorFetchPage({ settings, setSettings, pending, onPool, onReview, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, onOpenBook, inp, lbl }) {
   const [sesidPool, setSesidPool] = useState(vendorPending || []); // live-session pool (sesids) from full links
   const [sessions, setSessions] = useState([]); // bare bookmarklet sessions (host|user -> sesid), unlock only
   const [sessionNote, setSessionNote] = useState(null); // "sign-in captured" banner after a bookmarklet grab
@@ -5925,7 +5934,7 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
       ) : (
         <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
           ))}
         </div>
       )}
@@ -6050,7 +6059,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} onOpenBook={setSel} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
