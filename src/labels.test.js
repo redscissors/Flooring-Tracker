@@ -4,6 +4,7 @@ import {
   LABEL_FIELDS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
   normPreset, normLabelPresets, customLabelPresets, normLabel, newDraftFromPreset,
   perLetterSheet, sheetsForLabels,
+  faceSizeText, stockToLabelFields, escapeHtml, labelCardHTML, normLabel as _normLabel,
 } from "./labels.js";
 
 // --- presets ------------------------------------------------------------------
@@ -86,4 +87,43 @@ test("sheetsForLabels sums fractional coverage across mixed sizes", () => {
   assert.equal(sheetsForLabels(Array(13).fill(tag)), 2);        // 13/12 -> 2
   assert.equal(sheetsForLabels([card, card, card, card, card]), 2); // 5/4 -> 2
   assert.equal(sheetsForLabels([]), 0);
+});
+
+// --- stock mapping ------------------------------------------------------------
+
+test("faceSizeText pulls a clean LxW out of vendor size text", () => {
+  assert.equal(faceSizeText('12" x 24" Nominal'), '12" x 24"');
+  assert.equal(faceSizeText("12x24"), "12x24");
+  assert.equal(faceSizeText('2" Hex'), '2" Hex'); // no LxW -> returned as-is
+});
+
+test("stockToLabelFields maps a normalized stock item to label fields", () => {
+  const f = stockToLabelFields({ sku: "CM-2046", description: "Carrara Marble Polished", size: '12" x 24"', priceSqft: 8.99, brand: "Anatolia", thickness: '3/8"' });
+  assert.equal(f.name, "Carrara Marble Polished");
+  assert.equal(f.sku, "CM-2046");
+  assert.equal(f.size, '12" x 24"');
+  assert.equal(f.price, "$8.99/sq ft");
+  assert.equal(f.brand, "Anatolia");
+  assert.equal(f.thickness, '3/8"');
+});
+
+test("stockToLabelFields derives $/sf from carton price when priceSqft is absent", () => {
+  const f = stockToLabelFields({ sku: "X", product: "Tile X", price: 50, sfPerUnit: 10 });
+  assert.equal(f.name, "Tile X");
+  assert.equal(f.price, "$5.00/sq ft");
+});
+
+test("escapeHtml neutralizes markup", () => {
+  assert.equal(escapeHtml('<b>&"'), "&lt;b&gt;&amp;&quot;");
+});
+
+test("labelCardHTML renders visible fields and skips hidden ones", () => {
+  const l = _normLabel({ id: "l1", presetId: "sample-tag", w: 1.5, h: 2.5, header: "Keim",
+    lines: [{ key: "name", show: true, size: 13 }, { key: "sku", show: true, size: 10 }, { key: "note", show: false, size: 9 }],
+    fields: { name: "Carrara", sku: "CM-2046", note: "hidden note" } });
+  const html = labelCardHTML(l);
+  assert.match(html, /Carrara/);
+  assert.match(html, /CM-2046/);
+  assert.doesNotMatch(html, /hidden note/);
+  assert.match(html, /width:1\.5in/);
 });

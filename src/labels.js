@@ -139,3 +139,52 @@ export const sheetsForLabels = (labels) => {
   }
   return Math.ceil(sheets);
 };
+
+// Pull a "12x24"-style face size out of the price book's size text (mirrors
+// App.jsx faceSize; duplicated here to keep labels.js dependency-free).
+export const faceSizeText = (size) => {
+  const s = str(size);
+  const m = s.match(/^\s*(\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d+(?:\.\d+)?\s*["']?)/i);
+  return (m ? m[1] : s).trim();
+};
+
+const money = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
+
+// Map a normalized StockItem (see stock.js normStockItem) to editable label
+// fields. A prefill only — the user edits freely afterward, nothing re-reads.
+export const stockToLabelFields = (item) => {
+  if (!item) return {};
+  const psf = item.priceSqft != null ? item.priceSqft
+    : (item.price != null && item.sfPerUnit > 0 ? item.price / item.sfPerUnit : null);
+  return {
+    name: str(item.description) || str(item.product),
+    sku: str(item.sku),
+    size: faceSizeText(item.size) || str(item.sheetSize),
+    price: psf != null ? `${money(psf)}/sq ft` : (item.price != null ? money(item.price) : ""),
+    brand: str(item.brand),
+    thickness: str(item.thickness),
+  };
+};
+
+export const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
+
+const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
+
+// One card as a standalone HTML string (used by the print window). Kept as a
+// string — not React — so printing runs in a clean popup free of app CSS.
+export const labelCardHTML = (label) => {
+  const val = (k) => escapeHtml(label.fields?.[k] || "");
+  const body = (label.lines || []).filter((l) => l.show).map((l) => {
+    if (l.key === "name") return `<div style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
+    if (l.key === "surface") return `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>`;
+    const mono = l.key === "sku" ? "font-family:ui-monospace,monospace;" : "";
+    return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}">${val(l.key) || "—"}</div></div>`;
+  }).join("");
+  return `<div style="width:${label.w}in;height:${label.h}in;background:#1A1A1A;color:#fff;border-radius:3px;padding:.12in;font-family:'Inter',sans-serif;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+    <div style="font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#fff;">${escapeHtml(label.header || "Keim")}</div>
+    <div style="border-top:1px solid rgba(255,255,255,.2);margin:6px 0 2px;"></div>
+    ${body}
+  </div>`;
+};
