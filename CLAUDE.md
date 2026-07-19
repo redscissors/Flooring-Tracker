@@ -102,16 +102,25 @@ src/
                     # {host,user}); `normVendorGroups`/`migrateVendorSheets`
                     # (one-way flat→groups migration, called from catalog.js
                     # normOps), `moveSheetInGroups`/`sheetMatchesGroup`/
-                    # `rememberIntoGroups` for the VendorFetchPage tab. `portal`
+                    # `rememberIntoGroups` for the library board's sign-in
+                    # columns. `portal`
                     # is nominal (naming + mismatch chip), never authorizes a
                     # fetch — a sheet's sesid comes from a live link matching its
                     # OWN {host,user}, so freely moving sheets between groups is
-                    # safe. The tab renders groups as board columns with checkbox
+                    # safe. Groups render as board columns with checkbox
                     # batch download and always-live (never pre-locked) fetch
-                    # buttons; moves happen from a row's ⋯ menu (ADR 0021)
+                    # buttons; moves happen from a row's ⋯ menu (ADR 0021 —
+                    # board layout, batch selection, always-live downloads;
+                    # its old standalone "Vendor sheets" tab is retired, see
+                    # the library board below)
                     # + review-when-ready pending pool (ADR 0024):
                     # poolPendingReview/removePendingReview/pendingForSheet —
-                    # fetched Files park session-side until reviewed
+                    # fetched Files park session-side until reviewed.
+                    # + the library board (ADR 0024): renders each sign-in as
+                    # a column of book rows beside an In-house column; a
+                    # linked sheet lives inside its book (source-sheet strip
+                    # on the book page), and the separate Vendor sheets tab +
+                    # the price-book sidebar list are retired
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
                     # its book — shop workbook by sheet-name signature
@@ -123,8 +132,8 @@ src/
                     # book's saved mapping that parses the file. A book stamps
                     # `data.importFingerprint` on import so the next drop
                     # matches. The Price book library's drop area (top of the
-                    # book-list sidebar) routes a mixed drop and reuses each
-                    # book's normal import preview.
+                    # board page, ADR 0024) routes a mixed drop and reuses
+                    # each book's normal import preview.
   labels.js         # Label Generator pure logic (Apps hub): LABEL_FIELDS,
                     # built-in size presets, preset/label normalization,
                     # stock->field mapping, per-letter-sheet math, print HTML
