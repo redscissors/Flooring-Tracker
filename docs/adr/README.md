@@ -28,3 +28,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0022](0022-quick-price-draft-lifecycle.md) | Quick Price: a customer-less draft Project (`quick` flag, no SQL), lands in search, promotes via `linkProject`, self-clears in 30 days | Accepted | 2026-07-18 |
 | [0023](0023-apps-hub-label-generator.md) | Apps hub Label Generator: labels in a new shared table, size presets in shared settings, structured savable presets over a free-drag designer | Accepted | 2026-07-19 |
 | [0024](0024-pricebook-one-library.md) | One price-book library: sign-in board absorbs the vendor-sheets tab and sidebar list; fetches park in a review-when-ready pool instead of opening review immediately | Accepted | 2026-07-19 |
+| [0025](0025-import-source-provenance.md) | A book may be fed by several source sheets: items carry provenance, an import retires only its own slice | Proposed | 2026-07-19 |
