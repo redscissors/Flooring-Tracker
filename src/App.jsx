@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
+import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
@@ -1725,6 +1726,10 @@ export default function App({ user, onSignOut }) {
   // sidebar badge and refreshed every time the list is opened.
   const [todos, setTodos] = useState([]);
   const [showTodos, setShowTodos] = useState(false);
+  // Apps → Label Generator: saved showroom labels, shared team-wide (issue
+  // label-generator-integration). Own table, loaded once on mount.
+  const [labels, setLabels] = useState([]);
+  const [showApps, setShowApps] = useState(false);
   // Price book library (ADR 0009): registry books beyond the stock workbook.
   // Metadata is loaded up front for the Settings list; a book's items load
   // lazily when it's opened (a vendor book is ~10x the stock book). Empty
@@ -1911,6 +1916,9 @@ export default function App({ user, onSignOut }) {
         // Best-effort: installs that haven't run supabase/todos.sql yet just
         // don't get the team to-do list.
         try { setTodos(await loadTodos()); } catch (x) { }
+        // Best-effort: installs that haven't run supabase/labels.sql yet just
+        // don't get the label generator's saved list.
+        try { setLabels(await loadLabels()); } catch (x) { }
         // Best-effort: installs that haven't run supabase/pricebooks.sql yet
         // just don't get the price book library (registry affordances hide).
         try { setBooks(await loadBooks()); } catch (x) { }
@@ -2950,6 +2958,45 @@ export default function App({ user, onSignOut }) {
     setTodos(next);
     const rows = next.filter((t) => pos.has(t.id)).map((t) => ({ id: t.id, position: t.position, data: todoData(t) }));
     (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+
+  // Labels write path (Apps → Label Generator). Mirrors the todos helpers but
+  // pages with fetchAllRows since the shared set can exceed the 1000-row cap.
+  const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
+  const loadLabels = async () => {
+    const rows = await fetchAllRows(() => supabase.from("labels").select("id, position, data").order("position"));
+    return rows.map((r) => normLabel({ id: r.id, position: r.position ?? 0, ...(r.data || {}) }));
+  };
+  const openApps = () => { setShowApps(true); setSidebarOpen(false); loadLabels().then(setLabels).catch(() => { }); };
+  const nextPos = () => (labels.length ? Math.max(...labels.map((l) => l.position)) + 1 : 0);
+  const addLabel = (draft) => {
+    const l = normLabel({ ...draft, id: uid(), position: nextPos(), createdBy: profile.name || user.email || "", createdAt: Date.now() });
+    setLabels((prev) => [...prev, l]);
+    (async () => { try { const { error } = await supabase.from("labels").insert({ id: l.id, position: l.position, data: labelData(l) }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/labels.sql?"); } })();
+    return l;
+  };
+  const addLabelsBulk = (drafts) => {
+    let pos = nextPos();
+    const made = drafts.map((d) => normLabel({ ...d, id: uid(), position: pos++, createdBy: profile.name || user.email || "", createdAt: Date.now() }));
+    setLabels((prev) => [...prev, ...made]);
+    (async () => { try { const { error } = await supabase.from("labels").insert(made.map((l) => ({ id: l.id, position: l.position, data: labelData(l) }))); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/labels.sql?"); } })();
+  };
+  const updateLabel = (id, patch) => {
+    const next = labels.map((l) => l.id === id ? normLabel({ ...l, ...patch }) : l);
+    setLabels(next);
+    const l = next.find((x) => x.id === id);
+    (async () => { try { const { error } = await supabase.from("labels").update({ position: l.position, data: labelData(l) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+  const delLabel = (id) => {
+    setLabels((prev) => prev.filter((l) => l.id !== id));
+    (async () => { try { const { error } = await supabase.from("labels").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
+  };
+  // Custom size presets live in shared settings; setSettings persists them
+  // (serializeSettings keeps only non-built-in presets).
+  const saveLabelPreset = (preset) => {
+    const cur = settings.apps?.labels?.presets || [];
+    const presets = [...cur.filter((p) => p.id !== preset.id), preset];
+    setSettings({ ...settings, apps: { ...settings.apps, labels: { presets } } });
   };
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
