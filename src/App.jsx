@@ -5507,6 +5507,78 @@ function SignInPaste({ onPasteSession, onUnlock, onAdd, inp }) {
   );
 }
 
+// A linked sheet presents as its BOOK (ADR 0024): name + meta up front, the
+// filename demoted to the ⋯ menu. Row click opens the book; the refresh
+// control fetches the sheet and parks it for review (the pill).
+function VendorBookRow({ sheet, book, group, groups, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onUnlinkBook, onOpenBook }) {
+  const [menu, setMenu] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const others = groups.filter((g) => g.id !== group.id);
+  const fetching = prog?.state === "fetching";
+  const openMenu = (v) => { setMenu(v); if (!v) setMoveOpen(false); };
+  const meta = pending ? "downloaded — changes waiting"
+    : fetching ? `downloading ${entryFileName(sheet)}…`
+    : `${book.data?.lastImport?.skus ? `${book.data.lastImport.skus} items · ` : ""}${sheet.lastFetched ? `fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : "not fetched yet"}`;
+  return (
+    <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : pending ? "bg-indigo-50/40" : stale?.stale ? "bg-amber-50" : "")}>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" checked={checked} onChange={onToggle} className="shrink-0" title="Select for batch download" />
+        <BookOpen size={14} className="text-slate-400 shrink-0" />
+        <button onClick={() => onOpenBook(book.id)} className="min-w-0 flex-1 text-left" title={`${book.name || "Untitled"} — open this price book (source sheet: ${entryFileName(sheet)})`}>
+          <div className="text-[12.5px] font-medium truncate">{book.name || "Untitled"}</div>
+          <div className="text-[10px] text-slate-400 truncate">{meta}</div>
+        </button>
+        {mismatch && <span className="shrink-0 leading-none" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={12} className="text-amber-500" /></span>}
+        {stale?.stale && !pending && <span className="shrink-0 leading-none" title={`Last imported ${stale.days} days ago — refresh to update.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
+        {prog?.state === "done" && !pending && <Check size={13} className="text-emerald-600 shrink-0" />}
+        {prog?.state === "error" && <AlertTriangle size={12} className="text-red-500 shrink-0" />}
+        {pending && !fetching && (
+          <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open this book's import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
+        )}
+        {!fetching && !pending && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Refresh this book's sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — refresh this book's sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
+        <div className="relative shrink-0">
+          <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
+          {menu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => openMenu(false)} />
+              <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                <div className="px-3 py-1 text-[11px] text-slate-400 truncate" title={entryFileName(sheet)}>Source sheet: <span className="text-slate-600">{entryFileName(sheet)}</span></div>
+                <button onClick={() => { onOpenBook(book.id); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><BookOpen size={13} className="text-slate-400" /> Open price book</button>
+                <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
+                {others.length > 0 && (
+                  <>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button onClick={() => setMoveOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
+                      <ChevronRight size={13} className={"text-slate-400 transition-transform " + (moveOpen ? "rotate-90" : "")} /> Move to another sign-in
+                    </button>
+                    {moveOpen && (
+                      <div className="max-h-40 overflow-y-auto bg-slate-50">
+                        {others.map((g) => (
+                          <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">{g.name}</button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="my-1 border-t border-slate-100" />
+                <button onClick={() => { onRemove(group.id, sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><X size={13} /> Forget this sheet</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      {fetching && (
+        <div className="pl-6 pr-1 pt-1">
+          <div className={"ft-progress h-1" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
+            {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
+          </div>
+        </div>
+      )}
+      {prog?.state === "error" && <div className="pl-6 pt-0.5 text-[10px] text-red-600" title={prog.note}>{prog.note}</div>}
+    </div>
+  );
+}
+
 // One remembered sheet on a dense board row: checkbox · filename · warn icons ·
 // re-download · ⋯ menu. Clicking the name toggles selection for the batch bar.
 // Downloads are never pre-locked (ADR 0021): a fetch without this portal's live
@@ -5585,7 +5657,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
 // rename / sign-in link / delete, then single-line sheet rows. Sheets move
 // between sign-ins from a row's ⋯ menu (the pointer-drag went away with the
 // board layout — ADR 0021).
-function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, pendingFor, onReview, inp }) {
+function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, onOpenBook, pendingFor, onReview, inp }) {
   const [menu, setMenu] = useState(false);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -5639,18 +5711,27 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
       )}
       {group.sheets.length === 0 ? (
         <p className="px-2.5 py-2 text-[11px] text-slate-400">No sheets yet — paste a link above, or move one here from a row's ⋯ menu.</p>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {group.sheets.map((s) => { const info = sheetInfo(s); return (
-            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} pending={pendingFor(s)} onReview={onReview} />
-          ); })}
-        </div>
-      )}
+      ) : (() => {
+        const linked = group.sheets.filter((s) => sheetInfo(s).book);
+        const loose = group.sheets.filter((s) => !sheetInfo(s).book);
+        const rowProps = (s) => ({ sheet: s, group, groups, prog: progress[recordKey(s)], locked: !sheetSesid(s), mismatch: !sheetMatchesGroup(s, group), running, pending: pendingFor(s), checked: selected.has(recordKey(s)), onToggle: () => onToggleSheet(s), onRedownload: onRedownloadSheet, onReview, onRemove: onRemoveSheet, onMove: onMoveSheet });
+        return (
+          <div className="divide-y divide-slate-100">
+            {linked.map((s) => { const info = sheetInfo(s); return (
+              <VendorBookRow key={recordKey(s)} {...rowProps(s)} book={info.book} stale={info.stale} onUnlinkBook={onUnlinkBook} onOpenBook={onOpenBook} />
+            ); })}
+            {loose.length > 0 && linked.length > 0 && <div className="px-2.5 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">Loose sheets</div>}
+            {loose.map((s) => { const info = sheetInfo(s); return (
+              <VendorSheetRow key={recordKey(s)} {...rowProps(s)} stale={info.stale} bookName={null} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
+            ); })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
-export function VendorFetchPage({ settings, setSettings, pending, onPool, onReview, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, inp, lbl }) {
+export function VendorFetchPage({ settings, setSettings, pending, onPool, onReview, vendorPending, vendorSession, onSessionUsed, books, staleDays, addBook, onOpenBook, inp, lbl }) {
   const [sesidPool, setSesidPool] = useState(vendorPending || []); // live-session pool (sesids) from full links
   const [sessions, setSessions] = useState([]); // bare bookmarklet sessions (host|user -> sesid), unlock only
   const [sessionNote, setSessionNote] = useState(null); // "sign-in captured" banner after a bookmarklet grab
@@ -5853,7 +5934,7 @@ export function VendorFetchPage({ settings, setSettings, pending, onPool, onRevi
       ) : (
         <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
           ))}
         </div>
       )}
@@ -5978,7 +6059,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} onOpenBook={setSel} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
