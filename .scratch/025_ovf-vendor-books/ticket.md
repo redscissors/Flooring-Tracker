@@ -5,11 +5,27 @@ summary: Onboard four new OVF (Ohio Valley Flooring) vendor price books into the
   wood), and Tarkett Home LVT. Two are flat tables that go in through the existing
   no-code mapped-import wizard; two are Mannington-style banded grids that each
   need a dedicated parser module. Classification + plan below, no code yet.
-status: needs-triage
-labels: [needs-triage]
+status: in-progress
+labels: [ready-for-human]
 ---
 
 # Onboard four OVF vendor price books
+
+## Progress (2026-07-19)
+
+- **Built + wired:** `src/ovfbook.js` (parseHallmark, parseTarkett, parseOvf,
+  detectors) + tests; `ingest` branch in App.jsx; `ovf-hallmark`/`ovf-tarkett`
+  drop-routing tags. Verified against the real files end-to-end through
+  `parseMapped`: Hallmark 187 floors + 686 trims (15 collections), Tarkett 99
+  floors + 389 trims + 7 accessories (8 collections). Trims stamped
+  `fits {floor SKU}` — the per-color linkage. Preview proof:
+  `ovf-import-proof.html` in this folder (self-contained; real modules on real
+  data, interactive floor→trim search demo).
+- **Remaining (owner, in the live app):** create the four books and import —
+  Sika + Stauf through the plain wizard (Stauf needs SKU pattern
+  `^[A-Za-z0-9.#/-]{3,}$`; both mostly/partly N/A-priced), Hallmark + Tarkett
+  just upload (the parser auto-maps). Then set each book's markups.
+- The Trim material-category feature (below) stays floated, not committed.
 
 ## Context (2026-07-18)
 

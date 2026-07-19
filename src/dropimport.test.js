@@ -16,6 +16,48 @@ test("fileFormat: stock signature, VTC EFT, generic xlsx, generic pdf", () => {
   assert.equal(fileFormat({ pages: [], isPdf: true }), "generic");
 });
 
+// The OVF banded books (issue 025): each is told apart by its grid signature —
+// KEIM account line + SPECIES/COLOR header (Hallmark) or Tarkett banner +
+// Design header (Tarkett). A flat OVF sheet (Sika/Stauf) stays generic.
+const hallmarkSheets = [{ name: "Hallmark", rows: [
+  ["Prepared especially for KEIM LUMBER CO"],
+  ["Alta Vista Collection"],
+  ["SPECIES / COLOR", "NEW ITEM #", "", "OLD ITEM #", "STAIR NOSING 82\"", "T-MOLD 82\""],
+  ["EUROPEAN WHITE OAK", "$7.29", "", "$7.29", "$111.49", "$73.59"],
+  ["Balboa", "AV75OBALC", "", "AV75OBAL", "AV75OBALSN", "AV75OBALTM"],
+] }];
+const tarkettSheets = [{ name: "Tarkett LVT", rows: [
+  ["Prepared especially for KEIM LUMBER CO"],
+  ["Tarkett EverGen™"],
+  ["Plank Size 7\" x 60\"  •  9 PC/CT  •  26.25 SF/CT"],
+  ["Design", "Item #", "Quarter Round (94\")"],
+  ["$3.97/SF", "$104.15/CT", "$15.18/EA"],
+  ["Endless Maple Bourbon", "270311021", "335013221"],
+] }];
+
+test("fileFormat: OVF banded books get their own tags; flat OVF sheets stay generic", () => {
+  assert.equal(fileFormat({ sheets: hallmarkSheets }), "ovf-hallmark");
+  assert.equal(fileFormat({ sheets: tarkettSheets }), "ovf-tarkett");
+  assert.equal(fileFormat({ sheets: [{ name: "DriTac", rows: [
+    ["Prepared especially for KEIM LUMBER CO"],
+    ["Adhesive", "Size", "SF Coverage", "Weight", "Item #", "Price"],
+    ["Sika 5900", "1 GA", "1,000", "10 LB", "SIK831394", "$30.89 / EA"],
+  ] }] }), "generic");
+});
+
+test("routeFile: an OVF book routes by its stamped format tag", () => {
+  const hall = { id: "hall", name: "Hallmark Wood", data: { importFingerprint: { format: "ovf-hallmark" } } };
+  const tark = { id: "tark", name: "Tarkett LVT", data: { importFingerprint: { format: "ovf-tarkett" } } };
+  const r = routeFile({ format: "ovf-hallmark", headerSig: "", sheets: hallmarkSheets }, [hall, tark]);
+  assert.equal(r.target, "hall");
+  assert.match(r.reason, /OVF Hallmark wood/);
+  assert.equal(routeFile({ format: "ovf-tarkett", headerSig: "", sheets: tarkettSheets }, [hall, tark]).target, "tark");
+  // No matching book yet ⇒ ask, naming the recognized format.
+  const ask = routeFile({ format: "ovf-tarkett", headerSig: "", sheets: tarkettSheets }, [hall]);
+  assert.equal(ask.target, null);
+  assert.match(ask.reason, /OVF Tarkett LVT/);
+});
+
 test("computeFingerprint: format tag + order-independent header signature", () => {
   const fp = computeFingerprint({ sheets: vtcSheets });
   assert.equal(fp.format, "vtc-eft");
