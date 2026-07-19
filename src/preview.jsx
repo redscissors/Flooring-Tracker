@@ -5,7 +5,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { SourceSheetStrip, VendorBookRow, GateGap } from "./App.jsx";
+import { SourceSheetStrip, VendorBookRow, GateGap, AddFileNotice } from "./App.jsx";
 import { sourceSlot, mergeSources, missingSources } from "./dropimport.js";
 
 const sheet = (uid, filename, opts = {}) => ({
@@ -85,6 +85,11 @@ function Preview() {
         </Case>
 
         <GateCase />
+
+        <Case title="Book page — “Add a file”" note="A new file just joins. A file the book already knows is probably meant as a replacement, so it says so.">
+          <AddFileNotice knownSlot={null} />
+          <AddFileNotice knownSlot={slots.chart} />
+        </Case>
       </div>
     </div>
   );
