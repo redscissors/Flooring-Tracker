@@ -5376,12 +5376,30 @@ function PasteLinks({ onUnlock, onAdd, inp, rows = 2, placeholder }) {
 // icons flag a portal-account mismatch and a stale linked book (row tints amber
 // too). The ⋯ menu creates/unlinks a price book, moves the sheet to another
 // sign-in (collapsible list), or forgets it.
-function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onUnlinkBook }) {
+function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onLinkBook, onUnlinkBook }) {
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
-  const openMenu = (v) => { setMenu(v); if (!v) setMoveOpen(false); };
+  const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
+  const bookList = (
+    <div className="max-h-40 overflow-y-auto bg-slate-50">
+      {(books || []).length === 0 ? (
+        <div className="pl-8 pr-3 py-1.5 text-[12px] text-slate-400">No price books yet</div>
+      ) : (books || []).map((b) => (
+        <button key={b.id} disabled={b.id === sheet.bookId} onClick={() => { onLinkBook(sheet, b.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent truncate">{b.name || "Untitled"}</button>
+      ))}
+    </div>
+  );
+  const linkItem = (label) => (
+    <>
+      <button onClick={() => setLinkOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
+        <ChevronRight size={13} className={"text-slate-400 transition-transform " + (linkOpen ? "rotate-90" : "")} /> {label}
+      </button>
+      {linkOpen && bookList}
+    </>
+  );
   return (
     <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : stale?.stale ? "bg-amber-50" : "")}>
       <div className="flex items-center gap-2">
@@ -5401,10 +5419,14 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
                 {sheet.bookId ? (
                   <>
                     <div className="px-3 py-1 text-[11px] text-slate-400 truncate">Feeds <span className="text-slate-600">{bookName || "a deleted book"}</span></div>
+                    {linkItem("Link to a different book")}
                     <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
                   </>
                 ) : (
-                  <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
+                  <>
+                    <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
+                    {linkItem("Link to an existing price book…")}
+                  </>
                 )}
                 {others.length > 0 && (
                   <>
@@ -5444,7 +5466,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
 // rename / sign-in link / delete, then single-line sheet rows. Sheets move
 // between sign-ins from a row's ⋯ menu (the pointer-drag went away with the
 // board layout — ADR 0021).
-function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onUnlinkBook, inp }) {
+function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onLinkBook, onUnlinkBook, inp }) {
   const [menu, setMenu] = useState(false);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
@@ -5500,7 +5522,7 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
       ) : (
         <div className="divide-y divide-slate-100">
           {group.sheets.map((s) => { const info = sheetInfo(s); return (
-            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onUnlinkBook={onUnlinkBook} />
+            <VendorSheetRow key={recordKey(s)} sheet={s} group={group} groups={groups} books={books} prog={progress[recordKey(s)]} locked={!sheetSesid(s)} mismatch={!sheetMatchesGroup(s, group)} running={running} stale={info.stale} bookName={info.book?.name} checked={selected.has(recordKey(s))} onToggle={() => onToggleSheet(s)} onRedownload={onRedownloadSheet} onRemove={onRemoveSheet} onMove={onMoveSheet} onCreateBook={onCreateBook} onLinkBook={onLinkBook} onUnlinkBook={onUnlinkBook} />
           ); })}
         </div>
       )}
@@ -5642,6 +5664,10 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
     (onFilesToBook || onFiles)([res.file], id);
   };
   const unlinkSheetBook = (sheet) => writeGroups(setSheetBook(groupsRef.current, sheet, null));
+  // Point a sheet at a book that already exists (the "merge" path): the sheet
+  // starts feeding that book, so re-downloads keep it fresh and the stale flag
+  // has a book to watch — without spinning up a duplicate book.
+  const linkSheetBook = (sheet, bookId) => writeGroups(setSheetBook(groupsRef.current, sheet, bookId));
 
   return (
     <div>
@@ -5696,7 +5722,7 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
       ) : (
         <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {groups.map((g) => (
-            <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onUnlinkBook={unlinkSheetBook} inp={inp} />
+            <VendorGroupCard key={g.id} group={g} groups={groups} books={books} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={patchGroup} onDelete={delGroup} onRemoveSheet={removeSheet} onMoveSheet={moveSheet} onCreateBook={createBookFromSheet} onLinkBook={linkSheetBook} onUnlinkBook={unlinkSheetBook} inp={inp} />
           ))}
         </div>
       )}

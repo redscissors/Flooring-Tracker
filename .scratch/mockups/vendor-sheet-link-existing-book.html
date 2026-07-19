@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Link sheet to existing book — menu proof</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background:#f1f5f9; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .ic { display:inline-block; width:13px; height:13px; vertical-align:-2px; }
+</style>
+</head>
+<body class="p-8">
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-xl font-semibold mb-1">Vendor sheets — new "Link to an existing price book" option</h1>
+  <p class="text-sm text-slate-500 mb-6">The sheet row's ⋯ menu, shown for an <b>unlinked</b> sheet (left) and one that <b>already feeds a book</b> (right). Both now list your existing books.</p>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- Column: In House sign-in -->
+    <div class="rounded-xl border border-slate-200 bg-white">
+      <div class="px-2.5 py-2 border-b border-slate-100">
+        <div class="flex items-center gap-1">
+          <h3 class="text-[13px] font-semibold truncate flex-1">Virginia Tile · shop-acct</h3>
+          <button class="p-1 text-indigo-600"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+          <button class="p-1 text-slate-400"><svg class="ic" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div class="text-[11px] text-slate-400 mt-0.5">3 sheets</div>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <!-- Unlinked sheet with menu open -->
+        <div class="px-2.5 py-1.5">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" class="shrink-0" />
+            <span class="text-[12.5px] truncate min-w-0 flex-1 text-left">Home Collection - price list.xls</span>
+            <button class="p-0.5 text-slate-400"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
+            <div class="relative shrink-0">
+              <button class="p-0.5 text-slate-600"><svg class="ic" fill="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+              <div class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"><svg class="ic text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Create price book from this sheet</button>
+                <!-- NEW option, expanded -->
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"><svg class="ic text-slate-400 rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg> Link to an existing price book…</button>
+                <div class="max-h-40 overflow-y-auto bg-slate-50">
+                  <button class="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">Home Collection</button>
+                  <button class="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">Virginia Tile Core</button>
+                  <button class="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">Emser Everyday</button>
+                </div>
+                <div class="my-1 border-t border-slate-100"></div>
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"><svg class="ic text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg> Move to another sign-in</button>
+                <div class="my-1 border-t border-slate-100"></div>
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg> Forget this sheet</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column: linked state -->
+    <div class="rounded-xl border border-slate-200 bg-white">
+      <div class="px-2.5 py-2 border-b border-slate-100">
+        <div class="flex items-center gap-1">
+          <h3 class="text-[13px] font-semibold truncate flex-1">In House</h3>
+          <button class="p-1 text-indigo-600"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+          <button class="p-1 text-slate-400"><svg class="ic" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+        <div class="text-[11px] text-slate-400 mt-0.5">2 sheets</div>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="px-2.5 py-1.5">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" class="shrink-0" />
+            <span class="text-[12.5px] truncate min-w-0 flex-1 text-left">Home Collection.xls</span>
+            <button class="p-0.5 text-slate-400"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
+            <div class="relative shrink-0">
+              <button class="p-0.5 text-slate-600"><svg class="ic" fill="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+              <div class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
+                <div class="px-3 py-1 text-[11px] text-slate-400 truncate">Feeds <span class="text-slate-600">Home Collection</span></div>
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"><svg class="ic text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg> Link to a different book</button>
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"><svg class="ic text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg> Unlink price book</button>
+                <div class="my-1 border-t border-slate-100"></div>
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"><svg class="ic text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg> Move to another sign-in</button>
+                <div class="my-1 border-t border-slate-100"></div>
+                <button class="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg> Forget this sheet</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="text-xs text-slate-400 mt-6">The book list is your registry books (<code>books</code>); the one a sheet already feeds is greyed out. Picking one calls <code>setSheetBook(groups, sheet, bookId)</code> — the same write path unlink already uses.</p>
+</div>
+</body>
+</html>
