@@ -5114,7 +5114,7 @@ function StaleChip({ days }) {
 // then steps through each file's normal import preview one at a time. Registry
 // files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
 // stock preview. No new write path — each apply is the book's existing one.
-function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -5131,11 +5131,13 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
         const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
         const fp = computeFingerprint(parsed);
         let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
-        // A file fetched via "Create price book from this sheet" always lands in
-        // the book we just made for it — the user's explicit intent outranks any
-        // fingerprint match to another book.
-        if (preferTarget && registryBooks.some((b) => b.id === preferTarget)) {
-          r = { ...r, target: preferTarget, reason: "new book from this sheet" };
+        // Explicit intent outranks any fingerprint match to another book:
+        // preferTarget = "Create price book from this sheet"; targets = files
+        // fetched for a known linked book (review-when-ready pool).
+        const forced = (preferTarget && registryBooks.some((b) => b.id === preferTarget)) ? preferTarget
+          : (targets && targets.get(file));
+        if (forced && registryBooks.some((b) => b.id === forced)) {
+          r = { ...r, target: forced, reason: forced === preferTarget ? "new book from this sheet" : "fetched for this book" };
         }
         out.push({ file, ...parsed, ...r });
       } catch (x) { out.push({ file, error: "Could not read this file" }); }
@@ -5154,7 +5156,7 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
     const row = runnable[qi];
-    if (row.target === "stock") { setActive(null); importStockFile(row.file, advance); return; }
+    if (row.target === "stock") { setActive(null); importStockFile(row.file, () => { onFileDone && onFileDone(row.file, true); advance(); }); return; }
     let ok = true;
     setActive(null);
     loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
@@ -5206,8 +5208,8 @@ function ImportRouter({ files, preferTarget, books, applyBookImport, updateBook,
       key={active.book.id + qi}
       book={active.book} existingItems={active.items}
       preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
-      onClose={advance}
-      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } advance(); }}
+      onClose={() => { onFileDone && onFileDone(active.row.file, false); advance(); }}
+      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); } catch (x) { /* surfaced by applyBookImport */ } onFileDone && onFileDone(active.row.file, true); advance(); }}
       saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
       types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
     />
