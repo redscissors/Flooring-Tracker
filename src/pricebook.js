@@ -836,6 +836,9 @@ function mappedItem(mapping, raw, sku, sem) {
     // so the book can price them at a separate markup. Only that parser emits it;
     // every other sheet leaves it blank, so trim stays false.
     trim: /^(trim|y|yes|true|1)$/i.test(str(raw.trim)),
+    // A mapped "Fits" column: the floor SKUs this trim belongs to, space
+    // separated (ADR 0012 amendment). Only the trim-aware parsers emit it.
+    fits: str(raw.fits),
     cost,
     sfPerUnit,
     pcPerUnit: numOrNull(raw.pcPerUnit),

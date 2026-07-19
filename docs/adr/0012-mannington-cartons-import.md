@@ -105,3 +105,52 @@ trim must **surface when its floor's Color Code is searched, floor first.**
   search picker (owner preference, 2026-07-14) and makes the trim findable by its
   floor's code. The note also rides onto a picked trim line; revisit if it reads
   as clutter on a printed quote.
+
+---
+
+## Amendment (2026-07-19) — the floor→trim link becomes a structured field
+
+**Status:** Accepted · **Scope:** `src/manningtonbook.js`, `src/ovfbook.js`
+(Hallmark + Tarkett), `src/pricebook.js`, `src/orderbook.js`. No schema change
+(`price_book_items.data` is jsonb), no SQL to run, no new dependency.
+
+The original decision put the parent color codes **only** in the description, on
+the reasoning that this "feeds the ADR 0009 §6 `search_text` column — no SQL
+change". That worked for the use it was designed for (type a floor code, see its
+trims) and should be kept. But it made the relation a *string*, and three costs
+surfaced once ADR 0019's OVF parsers (Hallmark, Tarkett) landed alongside it:
+
+- **Truncation lost data.** `ovfbook.js` capped the note at six parents
+  (`fits.slice(0, 6)`), so a molding serving a seventh floor was unfindable by
+  that floor's code. Mannington had no cap — the two behaved differently for no
+  stated reason.
+- **Fuzzy search cannot be exact.** `search_price_book_items` matches on
+  `word_similarity` at `p_threshold: 0.3`, so searching `APX020` also surfaces
+  trims belonging to `APX021`/`APX025`. `orderFloorFirst` cannot separate them,
+  having no link to check against.
+- **The reverse direction did not exist.** Nothing could answer "what are *this*
+  floor's trims", because a substring in prose is not queryable that way. The
+  floated Trim-section proposal (`.scratch/025_ovf-vendor-books/ticket.md`)
+  assumed the data was already there — "data side is free; this is a UI layer".
+  It was not: the parsers computed the relation and discarded it.
+
+**Decision.** Every trim-aware parser emits a twelfth canonical column, `Fits`,
+carrying its parent floor SKUs space-separated and **uncapped**; it maps to a
+sorted, deduped `fits` array on the order item. `trimsForFloor(items, sku)` reads
+it for the reverse direction, by exact SKU containment.
+
+The `· fits …` description note **stays**, now uncapped to match. That is
+deliberate duplication: the note is what `search_text` indexes, so keeping it
+preserves floor-code search with no SQL for the owner to run by hand. `fits` is
+the authoritative relation; the note is its search-index projection.
+
+Consequences:
+
+- `fits` joins `BOOK_FIELDS`, so a changed parent list shows in the import diff.
+  Array fields broke the diff's identity comparison (every trim would read as
+  changed on every re-import), so field equality now goes through `sameField`.
+- **Existing books must be re-imported** to gain `fits` — the stored descriptions
+  are a lossy source (six-parent cap), so backfilling from them is not possible.
+  Until a book is re-imported its trims have `fits: []`; search is unaffected.
+- A later migration could index `fits` directly and retire the description note.
+  That needs SQL run by hand, so it is deliberately out of scope here.
