@@ -8,7 +8,7 @@ import {
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
   HANDOFF_MARK, stripHandoffMark,
-  poolPendingReview, removePendingReview, pendingForSheet,
+  poolPendingReview, removePendingReview, pendingForSheet, sheetForBook,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -372,4 +372,14 @@ test("pending-review pool keys by recordKey and replaces on re-pool", () => {
   assert.equal(pool.length, 1);
   assert.equal(pendingForSheet(pool, sheetA), null);
   assert.equal(pendingForSheet(pool, sheetB).file, f3);
+});
+
+test("sheetForBook finds a linked sheet and its group", () => {
+  const s1 = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1", filename: "A", user: "U1", bookId: "bkA" };
+  const s2 = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "2", filename: "B", user: "U1" };
+  const groups = [{ id: "g1", name: "G", loginUrl: "", portal: null, sheets: [s2, s1] }];
+  assert.equal(sheetForBook(groups, "bkA").sheet.uid, "1");
+  assert.equal(sheetForBook(groups, "bkA").group.id, "g1");
+  assert.equal(sheetForBook(groups, "bkNope"), null);
+  assert.equal(sheetForBook([], "bkA"), null);
 });
