@@ -75,13 +75,30 @@ stale lingers. That is the design recorded below.
 migration**:
 
 ```
-{ id, label, kind: "fetch" | "manual", recordKey?, lastSeen? }
+{ id, label, kind: "fetch" | "manual", recordKey?, fingerprint?, lastSeen? }
 ```
 
 - `kind: "fetch"` slots correspond to linked vendor sheets and are derived from
   `sheetsForBook` (#174); `recordKey` ties the slot to its sheet.
-- `kind: "manual"` slots are files supplied by hand. The slot remembers the file's
-  **identity** (name, format) — never its bytes, which cannot persist (ADR 0024).
+- `kind: "manual"` slots are files supplied by hand, matched by their **content
+  fingerprint** (`computeFingerprint` — format + header signature + title
+  signature), never their bytes, which cannot persist (ADR 0024).
+
+**A filename is never an identity.** Vendors date their files, and those dates
+change between releases (`AOT EFT 26 02 19` → `AOT EFT 26 05 20`). Both slot kinds
+are already immune, for different reasons:
+
+- `recordKey` is `vendor:host:uid:user` and deliberately excludes the filename —
+  *"a sheet keeps its link and history across moves and re-pulls"*
+  (`vendorfetch.js:126`). `mergeRecords` refreshes the stored filename on
+  re-fetch while keeping the same record, and `vendorfetch.test.js:210` asserts
+  exactly this (`// filename is not identity`).
+- Manual slots key on the fingerprint, which is the same signal the drop router
+  (ADR 0009 PR C) already uses to route a dropped file to its book.
+
+`label` is display only — the filename as last seen, refreshed on every match, so
+the gate can say "missing: `Mirage_Product_Chart.pdf`" using current wording
+without ever matching on it.
 
 The manifest is built by use, not configured up front: importing a bundle records
 each file it contained as a slot. A book fed by one file has a one-slot manifest
@@ -131,12 +148,26 @@ The book page gains "Add a file", which drops a file into the book's manifest an
 opens the same bundle review. This is how a manual slot is first created, and how
 a book picks up a file that did not exist when it was set up.
 
-**7. A parser may consume several files.**
+**7. A parser may consume several files, and must be able to tell them apart.**
 
 `parseMirage(payloads)` follows the existing `parseOvf` / `parsePdfPages`
 precedent — collapse N inputs into one canonical sheet plus a mapping — extended
 from N sheets/pages to N files. Everything downstream (sheet picker, mapping
 controls, diff, apply) is untouched.
+
+A multi-file vendor must also ship **a detector per file kind**, so each of its
+files earns a distinguishing `format` tag from `fileFormat` the way
+`isManningtonCartons` does. Rule 1's manual slots depend on it: today
+`computeFingerprint` gives PDFs **no header signature** ("their layout is
+grid-driven, matched by format tag"), so an undetected PDF fingerprints as
+`{format: "generic", headerSig: "", titleSig: ""}` — which matches *every* other
+generic PDF. Mirage's Product Chart is exactly that case, and it is the one file
+the owner supplies by hand, so this is not hypothetical: without
+`isMirageChart(pages)` the gate could accept any unrelated PDF as the missing
+file.
+
+The parser needs these detectors for its own routing regardless, so this costs
+nothing extra — it just has to be stated as a requirement rather than assumed.
 
 ## Alternatives considered
 
@@ -182,3 +213,13 @@ choice *with* the consequence counted.
 - Manifest drift: a slot whose `recordKey` no longer matches any linked sheet (the
   sheet was unlinked or moved) should surface in the gate as missing rather than
   silently disappearing.
+- **A dated filename must never be load-bearing.** Fetch slots are already immune
+  (`recordKey` excludes the filename, with a test); manual slots are immune only
+  because they match on fingerprint. If a future change reintroduces filename
+  matching anywhere in this flow, a vendor re-dating a file silently turns into
+  "missing 1 of 4" every quarter.
+- PDF fingerprinting is weak by design (format tag only). Rule 7's per-kind
+  detectors cover the vendors we parse, but a *generic* PDF dropped as a manual
+  source still cannot be told from another generic PDF. If manual PDF slots become
+  common, `computeFingerprint` should learn a title signature from page-1 text —
+  out of scope here, noted so it is a known limit rather than a surprise.
