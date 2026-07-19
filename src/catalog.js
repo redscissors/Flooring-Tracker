@@ -5,6 +5,7 @@
 // catalog.test.js). App.jsx imports everything it needs from here. The one
 // module dependency is the equally pure vendorfetch.js (no React either).
 import { normVendorGroups } from "./vendorfetch.js";
+import { normLabelPresets, customLabelPresets } from "./labels.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -703,11 +704,16 @@ const pctMarkup = (v, dflt) => { const n = parseFloat(v); return Number.isFinite
 export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
-// maps the math reads. Only { waste, catalog, pricing, ops } is persisted.
+// maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
+// Apps hub configuration. Currently just the Label Generator's size presets:
+// built-ins are code-defined and always seeded; only customs are persisted.
+const normApps = (raw) => ({ labels: { presets: normLabelPresets(raw?.labels?.presets) } });
+const serializeApps = (apps) => ({ labels: { presets: customLabelPresets(apps?.labels?.presets) } });
+
 export const serializeSettings = (s) => {
   const ops = normOps(s.ops);
-  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), ...(ops ? { ops } : {}) };
+  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), apps: serializeApps(s.apps), ...(ops ? { ops } : {}) };
 };
 
 // Entry point for loaded/imported settings: backfill a pre-catalog record by
@@ -719,5 +725,5 @@ export function normalizeSettings(raw) {
     ? normalizeCatalog(raw.catalog)
     : seedCatalog(mergeSettings(raw));
   const ops = normOps(raw?.ops);
-  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), ...(ops ? { ops } : {}) });
+  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), apps: normApps(raw?.apps), ...(ops ? { ops } : {}) });
 }

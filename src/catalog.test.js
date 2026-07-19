@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -1201,4 +1202,21 @@ test("serializeSettings persists pricing and round-trips", () => {
   const out = serializeSettings(s);
   assert.deepEqual(out.pricing, { builderPct: 6, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50 });
   assert.deepEqual(normalizeSettings(out).pricing, { builderPct: 6, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50 });
+});
+
+// --- Apps hub: Label Generator presets (issue: label-generator-integration) -
+
+test("normalizeSettings seeds the built-in label presets", () => {
+  const s = normalizeSettings({});
+  const ids = s.apps.labels.presets.map((p) => p.id);
+  assert.ok(ids.includes("sample-tag"));
+  assert.ok(ids.includes("spec-card"));
+});
+
+test("serializeSettings persists only custom label presets", () => {
+  const s = normalizeSettings({ apps: { labels: { presets: [{ id: "c1", name: "Wood", w: 4, h: 2.75, header: "Keim", lines: [] }] } } });
+  const saved = serializeSettings(s);
+  const ids = saved.apps.labels.presets.map((p) => p.id);
+  assert.deepEqual(ids, ["c1"]);
+  assert.ok(!ids.some((id) => BUILTIN_IDS.has(id)));
 });
