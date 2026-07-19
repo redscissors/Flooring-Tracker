@@ -313,17 +313,32 @@ export function mergeEntries(prev, next) {
   return [...(prev || []).filter((e) => !fresh.has(entryKey(e)) && !entryProblems(e)), ...(next || [])];
 }
 
+// The copied clipboard blob is a marked base64 payload: the mark lets FloorTrack
+// tell a "Paste sign-in" blob apart from a plain pasted price-list URL. The
+// payload itself (base64 of {v:1,links,session}) is exactly what decodeHandoff /
+// decodeHandoffSession already parse.
+export const HANDOFF_MARK = "FTSHEETS:";
+
+export function stripHandoffMark(text) {
+  const t = String(text || "").trim();
+  return t.startsWith(HANDOFF_MARK) ? t.slice(HANDOFF_MARK.length) : t;
+}
+
 // The bookmarklet does two things on the portal page, logged in as the user:
 // (1) harvest any getPrettyPriceList links present (page-style portals), and
 // (2) grab the live session token itself — `d24sesid`/`d24user` off the portal's
 // own storage (or, failing that, anywhere in the page HTML). Menu-style portals
 // (Dancik's #menu-option nav) expose no download links until a sheet is opened,
 // so the bare session is what unlocks their remembered sheets: FloorTrack pools
-// it and every saved sheet for that sign-in becomes fetchable. Both are handed
-// back base64'd in the URL *fragment* — fragments never reach a server or its
-// logs, which matters because the token authorizes downloads.
-export function bookmarkletSource(origin) {
-  const src = `(()=>{var L=new Set();var H="";var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";H+=h;(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);var gv=function(n){try{return localStorage.getItem(n)||sessionStorage.getItem(n)}catch(e){return null}};var sid=gv("d24sesid");var usr=gv("d24user");if(!sid){var ms=H.match(/d24sesid=([A-Za-z0-9]{1,64})/);if(ms)sid=ms[1]}if(!usr){var mu=H.match(/d24user=([A-Za-z0-9]{1,24})/);if(mu)usr=mu[1]}var S=sid?{host:location.hostname,user:usr||"",sesid:sid}:null;if(!L.size&&!S){alert("Couldn't find your vendor sign-in on this page. Make sure you're logged into the portal, then click the bookmark again.");return}var payload={v:1,links:Array.from(L)};if(S)payload.session=S;var w=window.open(${JSON.stringify(origin)}+"/#vfetch="+btoa(JSON.stringify(payload)),"ftvfetch");if(w)w.focus()})()`;
+// it and every saved sheet for that sign-in becomes fetchable.
+//
+// Instead of opening a FloorTrack tab, it COPIES the (base64) payload to the
+// clipboard — the user pastes it into FloorTrack's "Paste sign-in", so no new
+// tab is ever spawned. The token never touches a server (clipboard is local),
+// same as the old URL-fragment hand-off. A textarea+execCommand fallback covers
+// portals served without a secure context, and a prompt() covers a hard failure.
+export function bookmarkletSource() {
+  const src = `(()=>{var L=new Set();var H="";var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";H+=h;(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);var gv=function(n){try{return localStorage.getItem(n)||sessionStorage.getItem(n)}catch(e){return null}};var sid=gv("d24sesid");var usr=gv("d24user");if(!sid){var ms=H.match(/d24sesid=([A-Za-z0-9]{1,64})/);if(ms)sid=ms[1]}if(!usr){var mu=H.match(/d24user=([A-Za-z0-9]{1,24})/);if(mu)usr=mu[1]}var S=sid?{host:location.hostname,user:usr||"",sesid:sid}:null;if(!L.size&&!S){alert("Couldn't find your vendor sign-in on this page. Make sure you're logged into the portal, then click the bookmark again.");return}var payload={v:1,links:Array.from(L)};if(S)payload.session=S;var TXT=${JSON.stringify(HANDOFF_MARK)}+btoa(JSON.stringify(payload));var ok=function(){alert("FloorTrack \\u2713 sign-in copied.\\n\\nSwitch to your FloorTrack tab and click \\u201CPaste sign-in\\u201D.")};var no=function(){window.prompt("FloorTrack: copy this text, then paste it into \\u201CPaste sign-in\\u201D:",TXT)};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(TXT).then(ok,no)}else{try{var t=document.createElement("textarea");t.value=TXT;t.style.position="fixed";t.style.top="-1000px";document.body.appendChild(t);t.focus();t.select();var c=document.execCommand("copy");document.body.removeChild(t);c?ok():no()}catch(e){no()}}})()`;
   return `javascript:${src}`;
 }
 

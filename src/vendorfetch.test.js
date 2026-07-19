@@ -7,6 +7,7 @@ import {
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
+  HANDOFF_MARK, stripHandoffMark,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -112,21 +113,31 @@ test("harvestVendorLinks dedupes and survives junk", () => {
   assert.deepEqual(harvestVendorLinks(null, "https://connect24.virginiatile.com/"), []);
 });
 
-test("bookmarkletSource embeds the app origin and stays one line", () => {
-  const src = bookmarkletSource("https://floortrack.example.com");
+test("bookmarkletSource copies a marked payload to the clipboard, one line", () => {
+  const src = bookmarkletSource();
   assert.ok(src.startsWith("javascript:"));
-  assert.ok(src.includes('"https://floortrack.example.com"'));
   assert.ok(src.includes("getPrettyPriceList"));
-  assert.ok(src.includes('"ftvfetch"')); // named window: repeat clicks reuse one FloorTrack tab
+  assert.ok(src.includes("clipboard")); // copies rather than opening a tab
+  assert.ok(src.includes("writeText"));
+  assert.ok(src.includes(JSON.stringify(HANDOFF_MARK))); // marked so paste can recognize it
+  assert.ok(!src.includes("window.open")); // the tab-opening path is gone
   assert.ok(!src.includes("\n"));
 });
 
 test("bookmarkletSource also grabs the bare session token off the portal", () => {
-  const src = bookmarkletSource("https://floortrack.example.com");
+  const src = bookmarkletSource();
   assert.ok(src.includes("localStorage")); // reads the portal's own storage
   assert.ok(src.includes("d24sesid"));
   assert.ok(src.includes("d24user"));
-  assert.ok(src.includes("payload.session")); // and ships it in the hand-off
+  assert.ok(src.includes("payload.session")); // and ships it in the copied blob
+});
+
+test("stripHandoffMark unwraps a marked clipboard blob, leaves plain text alone", () => {
+  const raw = btoa(JSON.stringify({ v: 1, links: [LINK] }));
+  assert.equal(stripHandoffMark(HANDOFF_MARK + raw), raw);
+  assert.equal(stripHandoffMark("  " + HANDOFF_MARK + raw + "  "), raw); // trims first
+  assert.equal(stripHandoffMark(LINK), LINK); // a plain URL passes through
+  assert.deepEqual(decodeHandoff(stripHandoffMark(HANDOFF_MARK + raw)).length, 1);
 });
 
 test("normSession validates an allowlisted host + token, user optional", () => {

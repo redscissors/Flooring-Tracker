@@ -7,7 +7,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
@@ -5324,7 +5324,7 @@ async function runFetch(entry, token, onProgress) {
 // The bookmarklet setup steps (drag-to-bookmarks + copy), shared by the empty
 // state and the "Set up one-click fetch" disclosure.
 function VendorBookmarklet() {
-  const bmSrc = bookmarkletSource(window.location.origin);
+  const bmSrc = bookmarkletSource();
   const [copied, setCopied] = useState(false);
   return (
     <ol className="text-sm text-slate-600 list-decimal ml-5 space-y-1.5">
@@ -5334,36 +5334,72 @@ function VendorBookmarklet() {
         <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
       </li>
       <li>Log into the vendor portal (e.g. Virginia Tile connect24) — any page works once you're signed in.</li>
-      <li>Click the bookmark — it grabs your sign-in and unlocks every saved sheet here, ready to download. (On portals that list their sheets as links, it grabs those too.)</li>
+      <li>Click the bookmark — it copies your sign-in to the clipboard (no new tab). Come back here and hit <span className="font-medium text-slate-600">Paste sign-in</span> to unlock every saved sheet, ready to download. (On portals that list their sheets as links, it grabs those too.)</li>
     </ol>
   );
 }
 
-// The paste box does two independent things, split across two buttons.
-// "Unlock downloads" (primary) donates the link's live session token to the
-// pool so every remembered sheet for that sign-in becomes fetchable — the
-// pasted sheet is NOT saved to the board (the temp path: one link, download the
-// lot, save nothing). "Add to board" also remembers the pasted sheet, needed to
-// bootstrap menu-style portals where pasting is the only way to register one.
-function PasteLinks({ onUnlock, onAdd, inp, rows = 2, placeholder }) {
+// The neat little sign-in box. The primary path is one button: click the
+// bookmark on the portal (it copies your sign-in to the clipboard), come back
+// here, hit "Paste sign-in". It reads the clipboard, folds the sign-in in, and
+// every saved sheet for that portal lights up green, ready to download.
+// A collapsed "paste a link instead" reveals the manual textarea fallback —
+// needed to bootstrap menu-style portals (Downloads-page copy) and unchanged in
+// behaviour: "Unlock" donates the link's session without saving the sheet,
+// "Add to board" also remembers it. Both the button and the fallback accept a
+// copied sign-in blob OR a plain price-list URL.
+function SignInPaste({ onPasteSession, onUnlock, onAdd, inp }) {
+  const [manual, setManual] = useState(false);
   const [text, setText] = useState("");
-  const [note, setNote] = useState(null);
-  const unlock = () => { const r = onUnlock(text); if (r) { setText(""); setNote(r); } };
-  const add = () => { if (onAdd(text)) { setText(""); setNote(null); } };
+  const [note, setNote] = useState(null); // { unlocked } on success | { err } otherwise
+  const [busy, setBusy] = useState(false);
+  const BAD = "That doesn't look like a FloorTrack sign-in or a price-list link.";
+
+  const pasteFromClipboard = async () => {
+    setBusy(true);
+    let clip = "";
+    try { clip = await navigator.clipboard.readText(); } catch {}
+    setBusy(false);
+    if (clip) { const r = onPasteSession(clip); if (r) { setNote(r); setManual(false); return; } }
+    setManual(true);
+    setNote({ err: clip
+      ? "That clipboard text isn't a FloorTrack sign-in — click the bookmark on the portal first, or paste a sheet link below."
+      : "Couldn't read the clipboard. Paste the copied text (or a sheet link) below, then Unlock." });
+  };
+  const unlock = () => { const r = onPasteSession(text) || onUnlock(text); if (r) { setText(""); setNote(r); } else setNote({ err: BAD }); };
+  const add = () => { const r = onPasteSession(text); if (r) { setText(""); setNote(r); return; } if (onAdd(text)) { setText(""); setNote(null); } else setNote({ err: BAD }); };
+
   return (
     <>
-      <textarea value={text} onChange={(e) => { setText(e.target.value); if (note) setNote(null); }} rows={rows} placeholder={placeholder || "https://connect24.virginiatile.com/…getPrettyPriceList…"} className={inp + " font-mono text-[11px]"} />
-      <div className="flex items-center justify-end gap-2 mt-2">
-        <button onClick={add} disabled={!text.trim()} title="Also save this sheet to the board" className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add to board</button>
-        <button onClick={unlock} disabled={!text.trim()} title="Grab this sign-in's session to unlock its downloads — the sheet isn't saved" className="text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">Unlock downloads</button>
+      <div className="flex items-center gap-2">
+        <button onClick={pasteFromClipboard} disabled={busy} title="Reads the sign-in the bookmark copied to your clipboard" className="flex items-center gap-1.5 text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">
+          <ClipboardList size={14} /> Paste sign-in
+        </button>
+        <button onClick={() => { setManual((v) => !v); setNote(null); }} className="text-[11px] text-slate-400 hover:text-slate-600 underline shrink-0">{manual ? "hide link box" : "paste a link instead"}</button>
       </div>
-      {note && (
-        <div className={"mt-2 flex items-start gap-1.5 text-xs " + (note.unlocked ? "text-emerald-700" : "text-slate-500")}>
-          <Check size={13} className="mt-0.5 shrink-0 text-emerald-600" />
-          <span>{note.unlocked
-            ? `Sign-in captured — ${note.unlocked} saved ${note.unlocked === 1 ? "sheet is" : "sheets are"} ready to download below.`
-            : "Sign-in captured, but no saved sheets match it yet — use “Add to board” to keep this sheet."}</span>
+      {manual && (
+        <div className="mt-2">
+          <textarea value={text} onChange={(e) => { setText(e.target.value); if (note) setNote(null); }} rows={2} placeholder="https://connect24.virginiatile.com/…getPrettyPriceList…" className={inp + " font-mono text-[11px]"} />
+          <div className="flex items-center justify-end gap-2 mt-2">
+            <button onClick={add} disabled={!text.trim()} title="Also save this sheet to the board" className="text-sm rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50">Add to board</button>
+            <button onClick={unlock} disabled={!text.trim()} title="Unlock this sign-in's downloads — the sheet isn't saved" className="text-sm rounded-lg bg-indigo-600 text-white px-3 py-1.5 font-medium hover:bg-indigo-700 disabled:opacity-50">Unlock downloads</button>
+          </div>
         </div>
+      )}
+      {note && (
+        note.err ? (
+          <div className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+            <span>{note.err}</span>
+          </div>
+        ) : (
+          <div className={"mt-2 flex items-start gap-1.5 text-xs " + (note.unlocked ? "text-emerald-700" : "text-slate-500")}>
+            <Check size={13} className="mt-0.5 shrink-0 text-emerald-600" />
+            <span>{note.unlocked
+              ? `Sign-in captured — ${note.unlocked} saved ${note.unlocked === 1 ? "sheet is" : "sheets are"} ready to download below.`
+              : "Sign-in captured, but no saved sheets match it yet — use “paste a link instead” → “Add to board” to keep one."}</span>
+          </div>
+        )
       )}
     </>
   );
@@ -5391,7 +5427,7 @@ function VendorSheetRow({ sheet, group, groups, prog, locked, mismatch, running,
         {stale?.stale && <span className="shrink-0 leading-none" title={`${bookName || "Its price book"} was last imported ${stale.days} days ago — re-download this sheet to refresh it.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
         {prog?.state === "done" && <Check size={13} className="text-emerald-600 shrink-0" />}
         {prog?.state === "error" && <AlertTriangle size={12} className="text-red-500 shrink-0" />}
-        {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Download this sheet"} className="p-0.5 text-slate-400 hover:text-indigo-600 disabled:opacity-40 shrink-0"><RotateCcw size={12} /></button>}
+        {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — download this sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
         <div className="relative shrink-0">
           <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
           {menu && (
@@ -5454,6 +5490,7 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
 
   const commitName = () => { const n = nameDraft.trim(); if (n && n !== group.name) onPatch(group.id, { name: n }); else setNameDraft(group.name); setEditName(false); };
   const commitUrl = () => { onPatch(group.id, { loginUrl: urlDraft.trim() }); setEditUrl(false); };
+  const groupLive = group.sheets.length > 0 && group.sheets.some((s) => sheetSesid(s));
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -5464,7 +5501,7 @@ function VendorGroupCard({ group, groups, sheetSesid, sheetInfo, progress, runni
           ) : (
             <h3 className="text-[13px] font-semibold truncate flex-1 min-w-0" title={group.name}>{group.name}</h3>
           )}
-          <button onClick={() => onRedownloadAll(group)} disabled={running || group.sheets.length === 0} title="Download every sheet in this sign-in" className="p-1 text-indigo-600 hover:text-indigo-700 disabled:opacity-40 shrink-0"><Download size={14} /></button>
+          <button onClick={() => onRedownloadAll(group)} disabled={running || group.sheets.length === 0} title={groupLive ? "Ready — download every sheet in this sign-in" : "Download every sheet in this sign-in"} className={"p-1 disabled:opacity-40 shrink-0 " + (groupLive ? "ft-live" : "text-indigo-600 hover:text-indigo-700")}><Download size={14} /></button>
           <div className="relative shrink-0">
             <button onClick={() => setMenu((v) => !v)} title="Sign-in options" className="p-1 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
             {menu && (
@@ -5560,6 +5597,30 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
   };
 
   const parseLinks = (text) => (text || "").split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
+
+  // The clipboard sign-in blob the bookmarklet copies (marked base64 of
+  // {v:1,links,session}). Fold its session into the unlock pool AND remember any
+  // links it carried, then report how many saved sheets are now live. Returns
+  // null when the text isn't a sign-in blob, so the caller can fall back to
+  // treating it as a plain price-list URL.
+  const pasteSignIn = (text) => {
+    const raw = stripHandoffMark(text);
+    const links = decodeHandoff(raw) || [];
+    const session = decodeHandoffSession(raw);
+    if (!links.length && !session) return null;
+    if (session) setSessions((prev) => poolSession(prev, session, groupsRef.current));
+    if (links.length) setPending((p) => mergeEntries(p, links));
+    const nextGroups = links.length ? rememberIntoGroups(groupsRef.current, links.map(sheetRecord)) : groupsRef.current;
+    if (nextGroups !== groupsRef.current && JSON.stringify(nextGroups) !== JSON.stringify(groupsRef.current)) writeGroups(nextGroups);
+    const portals = new Set(links.map((e) => `${e.host}|${e.user}`));
+    if (session) {
+      if (session.user) portals.add(`${session.host}|${session.user}`);
+      else for (const g of nextGroups) for (const s of g.sheets) if (s.host === session.host) portals.add(`${s.host}|${s.user}`);
+    }
+    const unlocked = nextGroups.reduce((n, g) => n + g.sheets.filter((s) => portals.has(`${s.host}|${s.user}`)).length, 0);
+    return { unlocked };
+  };
+
   // Temp unlock: pool the pasted link's live session token so every remembered
   // sheet for its sign-in becomes fetchable, without saving the pasted sheet.
   const unlockPasted = (text) => {
@@ -5653,17 +5714,18 @@ export function VendorFetchPage({ settings, setSettings, onFiles, onFilesToBook,
         {groups.length > 0 && <button onClick={addGroup} className="shrink-0 flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New sign-in</button>}
       </div>
 
-      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5">
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 max-w-md">
         <div className="flex items-center justify-between gap-2">
-          <label className={lbl + " mb-0"}>Paste a sheet link{groups.length > 0 ? <span className="font-normal normal-case tracking-normal text-slate-400"> — unlocks this sign-in's downloads; the sheet isn't saved</span> : null}</label>
-          <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up one-click fetch"}</button>
+          <label className={lbl + " mb-0"}>Add a sign-in</label>
+          <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
         </div>
-        <div className="mt-2"><PasteLinks onUnlock={unlockPasted} onAdd={addPasted} inp={inp} /></div>
+        <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Click the bookmark on a vendor portal, then paste it here — no new tab.</p>
+        <SignInPaste onPasteSession={pasteSignIn} onUnlock={unlockPasted} onAdd={addPasted} inp={inp} />
         {setupOpen && (
           <div className="mt-3 border-t border-slate-200 pt-3">
-            <p className="text-xs text-slate-500 mb-2">One bookmark grabs your portal sign-in and unlocks every saved sheet here for download:</p>
+            <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download:</p>
             <VendorBookmarklet />
-            <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), and paste it above with “Add to board” to save it.</p>
+            <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</p>
           </div>
         )}
       </div>
