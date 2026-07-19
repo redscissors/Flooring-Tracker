@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile } from "./dropimport.js";
+import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook } from "./dropimport.js";
 
 const stockSheets = [{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }];
 const vtcSheets = [{ name: "EFT", rows: [
@@ -144,4 +144,43 @@ test("routeFile: nothing matches ⇒ null target, empty candidates", () => {
   const r = routeFile({ format: "generic", headerSig: "x", sheets: [{ name: "S", rows: [["Name"], ["Oak"]] }] }, []);
   assert.equal(r.target, null);
   assert.deepEqual(r.candidates, []);
+});
+
+// --- bundling a drop by book (ADR 0025) --------------------------------------
+
+const dropRow = (name, target) => ({ file: { name }, target });
+
+test("bundleByBook walks a book's files back to back and marks the last one", () => {
+  const steps = bundleByBook([
+    dropRow("mirage-hardwood.xls", "bkMirage"),
+    dropRow("hallmark.xls", "bkHallmark"),
+    dropRow("mirage-trim.xls", "bkMirage"),
+    dropRow("mirage-chart.pdf", "bkMirage"),
+  ]);
+  // Mirage's three files are adjacent even though the drop interleaved them.
+  assert.deepEqual(steps.map((s) => s.row.file.name), [
+    "mirage-hardwood.xls", "mirage-trim.xls", "mirage-chart.pdf", "hallmark.xls",
+  ]);
+  assert.deepEqual(steps.map((s) => `${s.bundle.index + 1}/${s.bundle.total}`), ["1/3", "2/3", "3/3", "1/1"]);
+  // Every step of a bundle knows the whole set, so the last can report them all.
+  assert.deepEqual(steps[0].files.map((f) => f.name), ["mirage-hardwood.xls", "mirage-trim.xls", "mirage-chart.pdf"]);
+});
+
+test("bundleByBook leaves the single-file case exactly as it was", () => {
+  const steps = bundleByBook([dropRow("a.xls", "bkA"), dropRow("b.xls", "bkB")]);
+  assert.deepEqual(steps.map((s) => s.row.file.name), ["a.xls", "b.xls"]);
+  assert.deepEqual(steps.map((s) => s.bundle), [{ index: 0, total: 1 }, { index: 0, total: 1 }]);
+  assert.deepEqual(bundleByBook([]), []);
+  assert.deepEqual(bundleByBook(null), []);
+});
+
+// Stock files share the reserved "stock" target, so they group like any book.
+// NOTE: grouping is all they get — the stock path (importStockFile) applies each
+// file on its own, so two shop workbooks in one drop still retire each other.
+// Out of scope for ADR 0025, which covers price books; recorded so the grouping
+// here isn't mistaken for a fix.
+test("bundleByBook groups stock files too, though the stock path still applies per file", () => {
+  const steps = bundleByBook([dropRow("shop.xlsx", "stock"), dropRow("x.xls", "bkA"), dropRow("shop2.xlsx", "stock")]);
+  assert.deepEqual(steps.map((s) => s.row.target), ["stock", "stock", "bkA"]);
+  assert.deepEqual(steps.map((s) => s.bundle.total), [2, 2, 1]);
 });

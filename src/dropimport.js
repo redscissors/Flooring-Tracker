@@ -112,3 +112,29 @@ export function routeFile({ format, headerSig, titleSig, title, sheets }, books)
   }
   return { target: null, candidates, reason: candidates.length ? "More than one book could take this file" : reasonFor(format, title) };
 }
+
+// Walk order for a routed drop, grouped so that every file heading for the same
+// book is visited back to back as one bundle (ADR 0025).
+//
+// This exists because importing a book's files one after another is silently
+// destructive: each apply diffs against the WHOLE book, so the second file reads
+// the first file's rows as missing and retires them, leaving only the last file's
+// contents active. Bundling lets the caller accumulate items across a book's
+// files and write once, on the last step.
+//
+// Input rows are the routed drop rows ({ target, ... }); output preserves the
+// order books were first seen, and stamps each step with its position in its
+// book's bundle plus the bundle's files (so the last step can report them all).
+export function bundleByBook(rows) {
+  const groups = [];
+  for (const row of rows || []) {
+    const g = groups.find((x) => x.target === row.target);
+    if (g) g.rows.push(row); else groups.push({ target: row.target, rows: [row] });
+  }
+  return groups.flatMap((g) =>
+    g.rows.map((row, index) => ({
+      row,
+      bundle: { index, total: g.rows.length },
+      files: g.rows.map((r) => r.file),
+    })));
+}

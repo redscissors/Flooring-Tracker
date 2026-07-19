@@ -7,7 +7,7 @@ import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
-import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
+import { computeFingerprint, fileFormat, routeFile, bundleByBook } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
@@ -5180,8 +5180,17 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
   })(); return () => { ok = false; }; }, []);
 
   const setTarget = (i, target) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, target } : r)));
-  const runnable = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip");
+  const flat = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip");
+  // Several files can name the same book (ADR 0025): a vendor that splits its
+  // price list, or a batch download of a book's sheets. Importing them one after
+  // another would be silently destructive — each apply diffs against the whole
+  // book, so file 2 retires everything file 1 just added. So a book's files are
+  // walked as one bundle: each step maps its own file, but the items accumulate
+  // and only the LAST step diffs and applies. One import, one retire decision.
+  const runnable = bundleByBook(flat);
   const advance = () => setQi((i) => i + 1);
+  // Items collected from the earlier files of the current book's bundle.
+  const [carry, setCarry] = useState([]);
 
   // Drive the queue: stock rows go through the App stock preview (a separate
   // modal — we render nothing until it calls back); registry rows load their
@@ -5189,11 +5198,12 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
   useEffect(() => {
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
-    const row = runnable[qi];
+    const { row, bundle, files } = runnable[qi];
+    if (bundle.index === 0) setCarry([]); // first file of a book's bundle
     if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
-    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
+    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, bundle, files, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
     return () => { ok = false; };
   }, [phase, qi]);
 
@@ -5236,14 +5246,38 @@ function ImportRouter({ files, preferTarget, targets, onFileDone, books, applyBo
   // Run phase: the stock step is handled by the App stock preview; render nothing
   // until a registry step has its book + items loaded.
   if (!active) return null;
-  const stepNote = <div className="text-[11px] text-slate-400 mb-2">Reviewing {qi + 1} of {runnable.length} — {active.row.file.name}</div>;
+  const multi = active.bundle.total > 1;
+  const stepNote = (
+    <div className="text-[11px] text-slate-400 mb-2">
+      Reviewing {qi + 1} of {runnable.length} — {active.row.file.name}
+      {multi && <> · file {active.bundle.index + 1} of {active.bundle.total} for {active.book.name || "this book"}</>}
+    </div>
+  );
   return (
     <BookImportWizard
       key={active.book.id + qi}
       book={active.book} existingItems={active.items}
       preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
-      onClose={() => { onFileDone && onFileDone(active.row.file, false); advance(); }}
-      onApply={async (diff, opts) => { try { await applyBookImport(active.book.id, diff, opts); onFileDone && onFileDone(active.row.file, true); } catch (x) { onFileDone && onFileDone(active.row.file, false); /* error surfaced by applyBookImport */ } advance(); }}
+      carryItems={carry} bundle={active.bundle}
+      onClose={() => {
+        // Backing out of one file of a bundle abandons the WHOLE bundle. Skipping
+        // just this one would leave the remaining files to apply without its rows,
+        // which is precisely the retire-each-other bug — so skip to the next book.
+        const rest = active.bundle.total - active.bundle.index;
+        for (const f of active.files) onFileDone && onFileDone(f, false);
+        setCarry([]);
+        setQi((i) => i + rest);
+      }}
+      onApply={async (diff, opts, bundleItems) => {
+        // Not the last file of this book's bundle: bank the items and move on —
+        // nothing is written until the whole bundle has been through.
+        if (active.bundle.index < active.bundle.total - 1) { setCarry(bundleItems); advance(); return; }
+        try {
+          await applyBookImport(active.book.id, diff, opts);
+          for (const f of active.files) onFileDone && onFileDone(f, true);
+        } catch (x) { for (const f of active.files) onFileDone && onFileDone(f, false); /* error surfaced by applyBookImport */ }
+        advance();
+      }}
       saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
       types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
     />
@@ -6811,7 +6845,7 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
 // too), set the SKU pattern and a status-flag legend, watch the parse preview
 // live, then apply the diff. The mapping is saved on the book so re-imports are
 // one click. The parse is entirely client-side; nothing writes until Apply.
-function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote }) {
+function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null }) {
   const saved = book.data?.mapping || null;
   const [sheets, setSheets] = useState(null); // [{ name, rows }]
   const [sheetName, setSheetName] = useState(saved?.sheet || "");
@@ -6928,8 +6962,13 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // listed for review below; un-ticking one keeps it a square-foot line.
   const reclassified = parsedItems.filter((it) => it.trimSignal);
   const items = keepArea.size ? parsedItems.map((it) => (keepArea.has(it.sku) ? { ...it, trim: false, type: mapping.defaultType || null, trimSignal: "" } : it)) : parsedItems;
-  const diff = sheet ? diffBookItems(existingItems, items) : { added: [], changed: [], missing: [], unchanged: [] };
-  const editedOverwritten = sheet ? editedInDiff(existingItems, items) : [];
+  // When several files feed one book (ADR 0025), the diff is against everything
+  // the bundle has produced so far, not just this file — otherwise each file
+  // would read the previous file's rows as "missing" and retire them. A later
+  // file wins a SKU collision, so the sheets are layered in the order routed.
+  const bundleItems = carryItems.length ? [...new Map([...carryItems, ...items].map((it) => [it.sku, it])).values()] : items;
+  const diff = sheet ? diffBookItems(existingItems, bundleItems) : { added: [], changed: [], missing: [], unchanged: [] };
+  const editedOverwritten = sheet ? editedInDiff(existingItems, bundleItems) : [];
   const flagCol = Object.entries(columns).find(([, f]) => f === "flag")?.[0];
   const flagValues = flagCol != null ? [...new Set(rows.slice((headerRow >= 0 ? headerRow : -1) + 1).map((r) => String(r?.[flagCol] ?? "").trim()).filter((v) => v && v.length <= 4))].slice(0, 12) : [];
 
@@ -6968,7 +7007,12 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // Disabling SKUs is a valid apply even when the re-import is otherwise a no-op
   // (identical book → every row unchanged) — so the button also opens on pending
   // disables, and reads them alone when there's no import to report.
-  const applyLabel = importCount === 0 && disableSkus.length
+  // A book's bundle only writes on its last file; before that the button banks
+  // this file's rows and moves to the next one.
+  const lastOfBundle = !bundle || bundle.index >= bundle.total - 1;
+  const applyLabel = !lastOfBundle
+    ? `Next file — ${bundle.index + 2} of ${bundle.total}`
+    : importCount === 0 && disableSkus.length
     ? `Apply — ${disableSkus.length} disabled`
     : `Apply — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retiring${disableSkus.length ? ` · ${disableSkus.length} disabled` : ""}`;
 
@@ -7165,7 +7209,7 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede, fingerprint }); }} disabled={importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede, fingerprint }, bundleItems); }} disabled={lastOfBundle && importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>
