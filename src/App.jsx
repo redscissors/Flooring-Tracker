@@ -6129,8 +6129,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         const plus = <span className="inline-grid place-items-center w-[18px] h-[18px] shrink-0 rounded text-indigo-700 bg-indigo-50 text-[13px] font-extrabold leading-none">+</span>;
         return (
         <>
-          <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.15fr_1.4fr] items-stretch">
-            <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
+          <div className="mt-4 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:flex-col md:overflow-visible md:w-[360px] md:pb-0 md:snap-none items-stretch">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:shrink rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
               <span className="ft-eyebrow text-[10px]">Import</span>
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -6146,7 +6146,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:shrink rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
               <span className="ft-eyebrow text-[10px]">Price tiers</span>
               <div className="flex flex-col gap-2 text-xs text-slate-600">
                 <label className="flex items-center gap-2" title="Builder tier — percent off retail on the printed estimate">
@@ -6162,7 +6162,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               <span className="text-[11px] text-slate-400 mt-auto">Employee is cost + 6%; lines without a cost stay retail.</span>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:shrink rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
               <span className="ft-eyebrow text-[10px]">Sheoga markup</span>
               <div className="flex flex-col gap-2 text-xs text-slate-600">
                 <label className="flex items-center gap-2" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
@@ -6175,6 +6175,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               <span className="text-[11px] text-slate-400 mt-auto">Per-configuration markup is still adjustable in the Sheoga popup.</span>
             </div>
           </div>
+
+          <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup</div>
 
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
