@@ -123,7 +123,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
     if (!w) return;
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Labels</title>
       <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-      <style>@page{margin:0.3in;size:letter}body{margin:0;display:flex;flex-wrap:wrap;gap:0.15in}</style></head>
+      <style>@page{margin:0.3in;size:letter}body{margin:0;display:flex;flex-wrap:wrap;gap:0.15in}body>div{break-inside:avoid}</style></head>
       <body>${list.map(labelCardHTML).join("")}</body></html>`);
     w.document.close();
     setTimeout(() => { w.focus(); w.print(); }, 400);
@@ -169,6 +169,22 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
           <div className="flex-1 grid grid-cols-1 md:grid-cols-[380px_1fr] min-h-0">
             {/* form */}
             <div className="border-r border-slate-100 p-5 overflow-y-auto">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Size &amp; header</div>
+              <div className="flex items-end gap-2 mb-3">
+                <label className="flex-1">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Width (in)</div>
+                  <input type="number" step="0.25" min="0.25" value={draft.w} onChange={(e) => patchDraft({ w: Math.max(0.25, parseFloat(e.target.value) || 0.25) })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" />
+                </label>
+                <label className="flex-1">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Height (in)</div>
+                  <input type="number" step="0.25" min="0.25" value={draft.h} onChange={(e) => patchDraft({ h: Math.max(0.25, parseFloat(e.target.value) || 0.25) })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" />
+                </label>
+                <div className="text-[10px] text-slate-400 pb-1.5 whitespace-nowrap">≈{perLetterSheet(draft)}/sheet</div>
+              </div>
+              <label className="block mb-4">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Header</div>
+                <input value={draft.header} onChange={(e) => patchDraft({ header: e.target.value })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" placeholder="Keim" />
+              </label>
               <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Fill from stock book</div>
               <SkuLookup stock={stock} onPick={fillFrom} onBulk={bulkFrom} />
 
@@ -253,7 +269,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                         <LabelCard label={l} scale={Math.min(0.6, 120 / (l.w * 96))} />
                       </button>
                       {selected.has(l.id) && <div className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">✓</div>}
-                      <button onClick={() => onDeleteLabel(l.id)} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-slate-200 text-red-500 opacity-0 group-hover:opacity-100 flex items-center justify-center" title="Delete"><Trash2 size={12} /></button>
+                      <button onClick={() => { if (editingId === l.id) startNew(); onDeleteLabel(l.id); }} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-slate-200 text-red-500 opacity-0 group-hover:opacity-100 flex items-center justify-center" title="Delete"><Trash2 size={12} /></button>
                     </div>
                   ))}
                 </div>
