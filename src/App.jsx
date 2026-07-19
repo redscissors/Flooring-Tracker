@@ -8,7 +8,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
@@ -5886,8 +5886,7 @@ function useVendorFetch({ settings, setSettings, books, vendorPending, vendorSes
   return { groups, writeGroups, sheetSesid, sheetInfo, progress, running, run, createBookFromSheet, unlinkSheetBook, patchGroup, delGroup, addGroup, removeSheet, moveSheet, pasteSignIn, unlockPasted, addPasted, sessionNote, setSessionNote };
 }
 
-function VendorFetchPage({ vf, pending, onReview, onOpenBook, inp, lbl }) {
-  const [setupOpen, setSetupOpen] = useState(false);
+function VendorFetchPage({ vf, pending, onReview, onOpenBook, leadColumn, inp, lbl }) {
   const [selSheets, setSelSheets] = useState(() => new Set()); // recordKeys picked for the batch bar
   const { groups, sheetSesid, sheetInfo, progress, running, sessionNote, setSessionNote } = vf;
   const clearKeys = (keys) => setSelSheets((prev) => { const n = new Set(prev); for (const k of keys || []) n.delete(k); return n; });
@@ -5900,29 +5899,7 @@ function VendorFetchPage({ vf, pending, onReview, onOpenBook, inp, lbl }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-baseline gap-2 min-w-0">
-          <h2 className="ft-serif text-2xl">Vendor sheets</h2>
-          <p className="text-xs text-slate-400 truncate hidden sm:block" title="Pull the latest price lists straight off each distributor portal. One fresh link (or a bookmark click) unlocks a whole sign-in's re-download; fetched sheets go through the normal import review, and the portal session code stays in this browser.">Pull price lists straight off each distributor portal — grouped by sign-in.</p>
-        </div>
-        {groups.length > 0 && <button onClick={vf.addGroup} className="shrink-0 flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New sign-in</button>}
-      </div>
-
-      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 max-w-md">
-        <div className="flex items-center justify-between gap-2">
-          <label className={lbl + " mb-0"}>Add a sign-in</label>
-          <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
-        </div>
-        <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Click the bookmark on a vendor portal, then paste it here — no new tab.</p>
-        <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
-        {setupOpen && (
-          <div className="mt-3 border-t border-slate-200 pt-3">
-            <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download:</p>
-            <VendorBookmarklet />
-            <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</p>
-          </div>
-        )}
-      </div>
+      <h2 className="ft-serif text-2xl">Vendor sheets</h2>
 
       {sessionNote && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
@@ -5934,20 +5911,21 @@ function VendorFetchPage({ vf, pending, onReview, onOpenBook, inp, lbl }) {
         </div>
       )}
 
-      {groups.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-slate-200 p-6 text-center">
-          <Download size={22} className="mx-auto text-slate-300" />
-          <h3 className="mt-2 text-sm font-medium text-slate-600">No sign-ins yet</h3>
-          <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">Set up the one-click bookmark above and click it on a vendor portal, or paste a price-list link. Sheets land here grouped by sign-in, ready to fetch and re-fetch.</p>
-          <button onClick={vf.addGroup} className="mt-3 inline-flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
-        </div>
-      ) : (
-        <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
-          {groups.map((g) => (
+      <div className="mt-3 grid gap-3 items-start grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+        {leadColumn}
+        {groups.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 p-6 text-center">
+            <Download size={22} className="mx-auto text-slate-300" />
+            <h3 className="mt-2 text-sm font-medium text-slate-600">No sign-ins yet</h3>
+            <p className="mt-1 text-xs text-slate-400">Paste a portal sign-in above and click the bookmark on a vendor portal, or paste a price-list link. Sheets land here grouped by sign-in, ready to fetch and re-fetch.</p>
+          </div>
+        ) : (
+          groups.map((g) => (
             <VendorGroupCard key={g.id} group={g} groups={groups} sheetSesid={sheetSesid} sheetInfo={sheetInfo} progress={progress} running={running} selected={selSheets} onToggleSheet={toggleSheet} onRedownloadAll={redownloadAll} onRedownloadSheet={redownloadSheet} onPatch={vf.patchGroup} onDelete={vf.delGroup} onRemoveSheet={removeSheet} onMoveSheet={vf.moveSheet} onCreateBook={vf.createBookFromSheet} onUnlinkBook={vf.unlinkSheetBook} onOpenBook={onOpenBook} pendingFor={(s) => pendingForSheet(pending, s)} onReview={onReview} inp={inp} />
-          ))}
-        </div>
-      )}
+          ))
+        )}
+        <button onClick={vf.addGroup} className="rounded-xl border border-dashed border-slate-300 min-h-[5.5rem] flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:bg-slate-50"><Plus size={14} /> New sign-in</button>
+      </div>
 
       {selSheets.size > 0 && (
         <div className={`fixed ${pending.length ? "bottom-[4.25rem]" : "bottom-5"} left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2`}>
@@ -5960,16 +5938,81 @@ function VendorFetchPage({ vf, pending, onReview, onOpenBook, inp, lbl }) {
   );
 }
 
+// Books with no portal sheet — the shop workbook plus hand-kept/unlinked
+// registry books. First column of the library board (ADR 0024).
+function InHouseColumn({ books, groups, stockCount, stockStale, bookStale, onOpen }) {
+  const linkedIds = new Set();
+  for (const g of groups) for (const s of g.sheets || []) if (s.bookId) linkedIds.add(s.bookId);
+  const inHouse = books.filter((b) => !linkedIds.has(b.id));
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="px-2.5 py-2 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+        <h3 className="text-[13px] font-semibold">In-house</h3>
+        <div className="text-[11px] text-slate-400 mt-0.5">no portal — imported by hand</div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        <button onClick={() => onOpen("stock")} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
+          <BookOpen size={14} className="text-slate-400 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12.5px] font-medium truncate">Shop workbook</span>
+            <span className="block text-[10px] text-slate-400">{stockCount || "—"} items</span>
+          </span>
+          {stockStale.stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${stockStale.days} days ago`} />}
+        </button>
+        {inHouse.map((b) => (
+          <button key={b.id} onClick={() => onOpen(b.id)} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
+            <Database size={14} className="text-slate-400 shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px] font-medium truncate">{b.name || "Untitled"}</span>
+              <span className="block text-[10px] text-slate-400">{b.kind === "stock" ? "stock" : "special order"}{b.active ? "" : " · off"}</span>
+            </span>
+            {bookStale(b).stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// "Paste sign-in" popover: the add-a-sign-in box (paste row + bookmark setup)
+// tucked behind a header button so the board stays the focus (ADR 0024).
+function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((v) => !v)} className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${open ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+        <Hand size={13} /> Paste sign-in
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-80 z-30 rounded-xl border border-slate-200 bg-white shadow-xl p-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className={lbl + " mb-0"}>Add a sign-in</label>
+            <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Click the bookmark on a vendor portal, then paste it here — no new tab.</p>
+          <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
+          {setupOpen && (
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download:</p>
+              <VendorBookmarklet />
+              <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
-  const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
-  useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
-  const [sel, setSel] = useState(() => (vendorPending || vendorSession) ? "vendor" : "stock"); // "stock" | "vendor" | bookId
+  const [sel, setSel] = useState("library"); // "library" | "stock" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
   const [hideCosts, setHideCosts] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false); // "Set up bookmark" toggle inside PasteSignInPopover
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
   // Review-when-ready (mockup 2026-07-19): fetched sheets park here instead of
@@ -5989,15 +6032,13 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
   // each one opens the Vendor sheets tab.
   useEffect(() => {
-    const onHash = () => { const p = captureHandoff(); const s = captureHandoffSession(); if (p) setVendorPending(p); if (s) setVendorSession(s); if (p || s) setSel("vendor"); };
+    const onHash = () => { const p = captureHandoff(); const s = captureHandoffSession(); if (p) setVendorPending(p); if (s) setVendorSession(s); if (p || s) setSel("library"); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const takeFiles = (list, prefer) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped({ files: fs, prefer }); };
   const vf = useVendorFetch({ settings, setSettings, books, vendorPending, vendorSession, onSessionUsed: () => { setVendorSession(null); clearHandoffSession(); }, onPool: poolFetched, addBook });
 
-  const stockBooks = books.filter((b) => b.kind === "stock");
-  const orderBooks = books.filter((b) => b.kind === "order");
   const selBook = sel === "stock" ? null : books.find((b) => b.id === sel);
   const stockCount = stock.filter((s) => s.active).length;
 
@@ -6015,99 +6056,75 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
     setAdding(false); setNewName(""); setSel(id);
   };
 
-  const rowCls = (on) => `w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-left ${on ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`;
+  const backBtn = (
+    <button onClick={() => setSel("library")} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 -ml-1 mb-2">
+      <ChevronRight size={13} className="rotate-180" /> All price books
+    </button>
+  );
+  const sourcePendingFor = (bookId) => { const hit = sheetForBook(vf.groups, bookId); return hit ? pendingForSheet(pendingReviews, hit.sheet) : null; };
+  const sourceLiveFor = (bookId) => { const hit = sheetForBook(vf.groups, bookId); return !!(hit && vf.sheetSesid(hit.sheet)); };
+  const inHouseCol = <InHouseColumn books={books} groups={vf.groups} stockCount={stockCount} stockStale={stockStale} bookStale={bookStale} onOpen={setSel} />;
 
   return (
-    <div className={"flex-1 flex overflow-hidden " + (isWide ? "flex-row" : "flex-col")}>
-      <div className={isWide ? "w-56 shrink-0 border-r border-slate-100 overflow-y-auto p-3 space-y-3" : "shrink-0 border-b border-slate-100 overflow-y-auto p-3 space-y-3 max-h-[42vh]"}>
+    <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h2 className="ft-serif text-3xl">Price books</h2>
+          <p className="text-xs text-slate-400 truncate hidden sm:block">Every book in one place — grouped by portal sign-in.</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500" title="Books not re-imported within this many days get an amber ‘stale’ flag. Vendors re-issue cost lists roughly quarterly.">
+            Flag stale after
+            <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className={inp + " w-16 text-center"} />
+            days
+          </label>
+          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+            {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
+          </button>
+          <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
+          <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New book</button>
+        </div>
+      </div>
+
+      {/* Team-wide tier percentages (spec 2026-07-16). A project picks its
+          tier on the job header; these set what Builder/Sale mean. */}
+      {(() => { const pcts = normPricing(settings.pricing); const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } }); return (
+        <div className="mt-3 flex items-center gap-4 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
+          <span className="ft-eyebrow text-[10px]">Pricing tiers</span>
+          <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
+            Builder <input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+          </label>
+          <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
+            Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
+          </label>
+          <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
+            Sheoga flooring markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
+          </label>
+          <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
+            Sheoga vents &amp; dampers markup <input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
+          </label>
+          <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
+        </div>
+      ); })()}
+
+      {sel === "library" && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
           onClick={() => dropRef.current?.click()}
-          className={`rounded-lg border-2 border-dashed px-2 py-3 text-center text-xs cursor-pointer ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+          className={`mt-3 rounded-lg border border-dashed px-3 py-2 text-xs cursor-pointer flex items-center gap-2 ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-200 text-slate-400 hover:bg-slate-50"}`}
         >
-          <Upload size={15} className="mx-auto mb-1 text-slate-400" />
-          Drop vendor sheets or the shop workbook — <span className="underline text-indigo-600">browse…</span>
-          <div className="text-[10px] text-slate-400 mt-1">.xlsx · .xls · .pdf — one or many; each routes to its book</div>
+          <Upload size={14} className="shrink-0" />
+          <span>Drop vendor sheets or the shop workbook — each file routes to its book · <span className="underline text-indigo-600">browse…</span></span>
           <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
         </div>
-        <button onClick={() => setSel("vendor")} className={rowCls(sel === "vendor")} title="Pull the latest price sheets straight off a vendor portal — grouped by sign-in, re-fetchable on demand">
-          <Download size={14} className={sel === "vendor" ? "" : "text-slate-400"} />
-          <span className="flex-1 truncate">Vendor sheets</span>
-          {vendorPending && <span className={`rounded-full text-[10px] px-1.5 py-0.5 ${sel === "vendor" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"}`}>{vendorPending.length}</span>}
-        </button>
-        <div>
-          <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Stock</div>
-          <button onClick={() => setSel("stock")} className={rowCls(sel === "stock")}>
-            <BookOpen size={14} className={sel === "stock" ? "" : "text-slate-400"} />
-            <span className="flex-1 truncate">Shop workbook</span>
-            {stockStale.stale && <AlertTriangle size={12} className={sel === "stock" ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${stockStale.days} days ago`} />}
-            <span className={`text-[10px] ${sel === "stock" ? "text-white/70" : "text-slate-400"}`}>{stockCount || "—"}</span>
-          </button>
-          {stockBooks.map((b) => (
-            <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
-              <BookOpen size={14} className={sel === b.id ? "" : "text-slate-400"} />
-              <span className="flex-1 truncate">{b.name || "Untitled"}</span>
-              {bookStale(b).stale && <AlertTriangle size={12} className={sel === b.id ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
-            </button>
-          ))}
-        </div>
-        <div>
-          <div className="ft-eyebrow text-[10px] text-slate-400 px-1 mb-1">Special order</div>
-          {orderBooks.length === 0 && <div className="text-[11px] text-slate-400 px-1 py-1">None yet</div>}
-          {orderBooks.map((b) => (
-            <button key={b.id} onClick={() => setSel(b.id)} className={rowCls(sel === b.id)}>
-              <Database size={14} className={sel === b.id ? "" : "text-slate-400"} />
-              <span className="flex-1 truncate">{b.name || "Untitled"}</span>
-              {bookStale(b).stale && <AlertTriangle size={12} className={sel === b.id ? "text-amber-200" : "text-amber-500"} aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
-              {!b.active && <span className={`text-[10px] ${sel === b.id ? "text-white/70" : "text-slate-400"}`}>off</span>}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => setAdding(true)} className="w-full flex items-center gap-1.5 text-sm rounded-md border border-dashed border-slate-300 px-2.5 py-2 text-slate-500 hover:bg-slate-50"><Plus size={14} /> New book</button>
-      </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
-        {sel === "vendor" ? (
-          <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} inp={inp} lbl={lbl} />
-        ) : (<>
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="ft-serif text-3xl">Price book</h2>
-          <div className="flex items-center gap-2 shrink-0">
-            <label className="flex items-center gap-1.5 text-xs text-slate-500" title="Books not re-imported within this many days get an amber ‘stale’ flag in the list. Vendors re-issue cost lists roughly quarterly.">
-              Flag stale after
-              <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className={inp + " w-16 text-center"} />
-              days
-            </label>
-            <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-              {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
-            </button>
-          </div>
-        </div>
-
-        {/* Team-wide tier percentages (spec 2026-07-16). A project picks its
-            tier on the job header; these set what Builder/Sale mean. */}
-        {(() => { const pcts = normPricing(settings.pricing); const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } }); return (
-          <div className="mt-3 flex items-center gap-4 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
-            <span className="ft-eyebrow text-[10px]">Pricing tiers</span>
-            <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
-              Builder <input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
-            </label>
-            <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
-              Sale <input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={inp + " w-16 text-center"} /> % off retail
-            </label>
-            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
-              Sheoga flooring markup <input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
-            </label>
-            <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
-              Sheoga vents &amp; dampers markup <input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={inp + " w-16 text-center"} /> % over cost
-            </label>
-            <span className="text-slate-400">Employee is always cost + 6% (lines without a cost stay retail).</span>
-          </div>
-        ); })()}
-
-        {sel === "stock" ? (
+      {sel === "library" ? (
+        <VendorFetchPage vf={vf} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} lbl={lbl} />
+      ) : sel === "stock" ? (
+        <>{backBtn}
           <div className="mt-3">
             <p className="text-xs text-slate-400 max-w-xl">
               {stockCount > 0
@@ -6125,13 +6142,12 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
               computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
             {stockCount > 0 && <StockItems stock={stock} setStockItemsDisabled={setStockItemsDisabled} inp={inp} typeLabels={typeLabels} />}
           </div>
-        ) : selBook ? (
-          <BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
-        ) : (
-          <p className="text-xs text-slate-400 mt-3">Select a book.</p>
-        )}
-        </>)}
-      </div>
+        </>
+      ) : selBook ? (
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("stock")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetForBook(vf.groups, selBook.id)} sourcePending={sourcePendingFor(selBook.id)} sourceLive={sourceLiveFor(selBook.id)} onRefreshSheet={(s) => vf.run([s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+      ) : (
+        <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
+      )}
 
       {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
