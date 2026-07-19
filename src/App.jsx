@@ -8,7 +8,7 @@ import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettin
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile } from "./dropimport.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
@@ -5856,6 +5856,18 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   const [hideCosts, setHideCosts] = useState(false);
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
   const [dragOver, setDragOver] = useState(false);
+  // Review-when-ready (mockup 2026-07-19): fetched sheets park here instead of
+  // opening import review. Session-only — File bytes can't persist, a reload
+  // clears the pool and re-fetching is cheap.
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const poolFetched = (adds) => setPendingReviews((prev) => (adds || []).reduce((acc, a) => poolPendingReview(acc, a), prev));
+  const reviewOne = (p) => setDropped({ files: [p.file], prefer: p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : undefined });
+  const reviewAll = () => setDropped({
+    files: pendingReviews.map((p) => p.file),
+    targets: new Map(pendingReviews.filter((p) => p.sheet.bookId).map((p) => [p.file, p.sheet.bookId])),
+  });
+  // Applied files leave the pool; a wizard closed with "X" (= later) stays.
+  const fileDone = (file, applied) => { if (applied) setPendingReviews((prev) => prev.filter((p) => p.file !== file)); };
   const dropRef = useRef(null);
   // Menu-style portals hand sheets over one bookmark-click at a time; the
   // bookmarklet reuses this tab, so later hand-offs arrive as hash changes —
@@ -5941,7 +5953,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {sel === "vendor" ? (
-          <VendorFetchPage settings={settings} setSettings={setSettings} onFiles={(files) => setDropped({ files })} onFilesToBook={(files, prefer) => setDropped({ files, prefer })} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
+          <VendorFetchPage settings={settings} setSettings={setSettings} pending={pendingReviews} onPool={poolFetched} onReview={reviewOne} vendorPending={vendorPending} vendorSession={vendorSession} onSessionUsed={() => { setVendorSession(null); clearHandoffSession(); }} books={books} staleDays={staleDays} addBook={addBook} inp={inp} lbl={lbl} />
         ) : (<>
         <div className="flex items-start justify-between gap-3">
           <h2 className="ft-serif text-3xl">Price book</h2>
@@ -6004,7 +6016,15 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         </>)}
       </div>
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+
+      {pendingReviews.length > 0 && !dropped && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
+          <span className="text-sm font-semibold whitespace-nowrap">{pendingReviews.length} downloaded — ready to review</span>
+          <button onClick={reviewAll} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 whitespace-nowrap">Review all</button>
+          <button onClick={() => setPendingReviews([])} title="Discard the downloaded files without reviewing" className="p-1.5 text-slate-400 hover:text-slate-600"><X size={14} /></button>
+        </div>
+      )}
 
       {adding && (
         <Modal title="New price book" onClose={() => setAdding(false)}>
