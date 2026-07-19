@@ -376,15 +376,15 @@ git add src/App.jsx
 git commit -m "feat: fetches pool for review-when-ready; Review pills on sheet rows"
 ```
 
-### Task 5: ADR 0023 + docs
+### Task 5: ADR 0024 + docs
 
 **Files:**
-- Create: `docs/adr/0023-pricebook-one-library.md`
+- Create: `docs/adr/0024-pricebook-one-library.md`
 - Modify: `docs/adr/README.md` (append index row), `CLAUDE.md` (vendorfetch.js line in the source-layout block)
 
 - [ ] **Step 1: Write the ADR**
 
-`docs/adr/0023-pricebook-one-library.md` — follow the house format (Status/Context/Decision/Consequences, ~1 page). Content requirements:
+`docs/adr/0024-pricebook-one-library.md` — follow the house format (Status/Context/Decision/Consequences, ~1 page). Content requirements:
 - **Status:** accepted (2026-07-19). Amends ADR 0020/0021; supersedes ADR 0021's *sheet-row* board presentation (the sign-in/board concept and never-pre-locked downloads stay).
 - **Context:** vendor sheets and price books were two disconnected surfaces; with many books coming, the sidebar list doesn't scale, and a batch fetch popping N sequential review wizards ambushes the user.
 - **Decision:** (1) One library page — the Settings "Price book" section's landing view is the sign-in board; a linked sheet is *absorbed into its book* (book-first rows; source-sheet strip inside `BookDetail`); an In-house column holds the shop workbook and portal-less books; the separate Vendor sheets tab and sidebar book list are retired. (2) Review-when-ready — fetching only downloads; files park in a session-only pending pool (keyed by `recordKey`, re-fetch replaces); each parked book shows a Review pill and a floating bar reviews all sequentially; only an applied import leaves the pool. (3) Refresh-on-a-book means fetch *and then* review — one intent, two user-paced steps.
@@ -392,13 +392,13 @@ git commit -m "feat: fetches pool for review-when-ready; Review pills on sheet r
 
 - [ ] **Step 2: Index + CLAUDE.md**
 
-Append the ADR to `docs/adr/README.md`'s table matching its existing row format. In `CLAUDE.md`'s `vendorfetch.js` source-layout entry, append a clause: `+ review-when-ready pending pool (ADR 0023): poolPendingReview/removePendingReview/pendingForSheet — fetched Files park session-side until reviewed`.
+Append the ADR to `docs/adr/README.md`'s table matching its existing row format. In `CLAUDE.md`'s `vendorfetch.js` source-layout entry, append a clause: `+ review-when-ready pending pool (ADR 0024): poolPendingReview/removePendingReview/pendingForSheet — fetched Files park session-side until reviewed`.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/adr/0023-pricebook-one-library.md docs/adr/README.md CLAUDE.md
-git commit -m "docs: ADR 0023 — one price-book library + review-when-ready"
+git add docs/adr/0024-pricebook-one-library.md docs/adr/README.md CLAUDE.md
+git commit -m "docs: ADR 0024 — one price-book library + review-when-ready"
 ```
 
 ### Task 6: PR 1
@@ -409,7 +409,7 @@ git commit -m "docs: ADR 0023 — one price-book library + review-when-ready"
 ```bash
 git push -u origin claude/pr1-review-when-ready
 gh pr create --title "Vendor sheets: review-when-ready — fetches park until reviewed" --body "$(cat <<'EOF'
-Refresh now only downloads. Fetched sheets park in a session-side pool; their rows show an indigo Review pill, and a floating bar reviews everything sequentially (ImportRouter). Only an applied import leaves the pool — closing a wizard keeps the file parked. Create-book-from-sheet parks too. ADR 0023.
+Refresh now only downloads. Fetched sheets park in a session-side pool; their rows show an indigo Review pill, and a floating bar reviews everything sequentially (ImportRouter). Only an applied import leaves the pool — closing a wizard keeps the file parked. Create-book-from-sheet parks too. ADR 0024.
 
 [preview screenshots here]
 
@@ -436,7 +436,7 @@ Branch: `claude/pr2-board-book-rows` off PR 1's branch (rebase onto `main` once 
 - [ ] **Step 1: Write the component**
 
 ```jsx
-// A linked sheet presents as its BOOK (ADR 0023): name + meta up front, the
+// A linked sheet presents as its BOOK (ADR 0024): name + meta up front, the
 // filename demoted to the ⋯ menu. Row click opens the book; the refresh
 // control fetches the sheet and parks it for review (the pill).
 function VendorBookRow({ sheet, book, group, groups, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onUnlinkBook, onOpenBook }) {
@@ -574,7 +574,7 @@ git add src/App.jsx
 git commit -m "feat: vendor board shows linked sheets as book rows"
 git push -u origin claude/pr2-board-book-rows
 gh pr create --base claude/pr1-review-when-ready --title "Vendor board: linked sheets present as their price books" --body "$(cat <<'EOF'
-Variant-B rows from the 2026-07-19 mockup: a sheet linked to a book renders book-first (name, items, fetched-ago, stale flag, refresh/Review pill); the filename moves into the ⋯ menu; unlinked sheets sit under a Loose sheets eyebrow; clicking a book row opens the book. ADR 0023.
+Variant-B rows from the 2026-07-19 mockup: a sheet linked to a book renders book-first (name, items, fetched-ago, stale flag, refresh/Review pill); the filename moves into the ⋯ menu; unlinked sheets sit under a Loose sheets eyebrow; clicking a book row opens the book. ADR 0024.
 
 [preview screenshots here]
 
@@ -806,7 +806,7 @@ New component above `PriceBookLibrary`:
 
 ```jsx
 // Books with no portal sheet — the shop workbook plus hand-kept/unlinked
-// registry books. First column of the library board (ADR 0023).
+// registry books. First column of the library board (ADR 0024).
 function InHouseColumn({ books, groups, stockCount, stockStale, bookStale, onOpen }) {
   const linkedIds = new Set();
   for (const g of groups) for (const s of g.sheets || []) if (s.bookId) linkedIds.add(s.bookId);
@@ -941,13 +941,13 @@ git commit -m "chore: retire vendor-tab remnants; mobile pass on the library boa
 ### Task 15: Docs
 
 **Files:**
-- Modify: `CLAUDE.md` (source-layout notes for the retired tab + one-library board), `docs/adr/0023-pricebook-one-library.md` (flip any "planned" phrasing to shipped), memory of the repo stays accurate.
+- Modify: `CLAUDE.md` (source-layout notes for the retired tab + one-library board), `docs/adr/0024-pricebook-one-library.md` (flip any "planned" phrasing to shipped), memory of the repo stays accurate.
 
-- [ ] **Step 1:** Update `CLAUDE.md`'s `vendorfetch.js` entry's tail: the tab is gone — "…the library board renders groups as columns of book rows next to an In-house column; the sheet lives inside its book (source strip on the book page). ADR 0023." Also update the ADR-0021 reference sentence if it describes the old tab as current.
+- [ ] **Step 1:** Update `CLAUDE.md`'s `vendorfetch.js` entry's tail: the tab is gone — "…the library board renders groups as columns of book rows next to an In-house column; the sheet lives inside its book (source strip on the book page). ADR 0024." Also update the ADR-0021 reference sentence if it describes the old tab as current.
 - [ ] **Step 2:** Commit:
 
 ```bash
-git add CLAUDE.md docs/adr/0023-pricebook-one-library.md
+git add CLAUDE.md docs/adr/0024-pricebook-one-library.md
 git commit -m "docs: one-library board shipped — CLAUDE.md source notes"
 ```
 
@@ -960,7 +960,7 @@ git commit -m "docs: one-library board shipped — CLAUDE.md source notes"
 ```bash
 git push -u origin claude/pr3-one-library
 gh pr create --base claude/pr2-board-book-rows --title "Price books: one library page — board replaces the sidebar" --body "$(cat <<'EOF'
-Variant C (ADR 0023): the Price book section lands on the board — an In-house column (shop workbook + portal-less books) beside the sign-in columns of book rows; the sidebar list and the separate Vendor sheets tab are gone. Book pages open with a back link and carry a source-sheet strip (refresh → parks for review; Review-changes when parked). Paste sign-in + bookmarklet setup live in a header popover; the drop strip sits under the header. Fetch machinery hoisted into useVendorFetch so the book page can refresh its own sheet.
+Variant C (ADR 0024): the Price book section lands on the board — an In-house column (shop workbook + portal-less books) beside the sign-in columns of book rows; the sidebar list and the separate Vendor sheets tab are gone. Book pages open with a back link and carry a source-sheet strip (refresh → parks for review; Review-changes when parked). Paste sign-in + bookmarklet setup live in a header popover; the drop strip sits under the header. Fetch machinery hoisted into useVendorFetch so the book page can refresh its own sheet.
 
 [preview screenshots here]
 
