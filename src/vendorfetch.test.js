@@ -8,7 +8,7 @@ import {
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
   HANDOFF_MARK, stripHandoffMark,
-  poolPendingReview, removePendingReview, pendingForSheet, sheetForBook,
+  poolPendingReview, removePendingReview, pendingForSheet, sheetsForBook,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -29,6 +29,15 @@ test("parseVendorLink reads a connect24 price-list link", () => {
   });
   assert.equal(entryProblems(e), null);
   assert.equal(entryFileName(e), "AOT EFT 26 02 19.xls");
+});
+
+test("entryFileName only assumes .xls when the sheet has no extension of its own", () => {
+  const f = (filename) => entryFileName({ filename });
+  assert.equal(f("AOT EFT 26 02 19"), "AOT EFT 26 02 19.xls"); // the common case
+  assert.equal(f("Mirage_Product_Chart.pdf"), "Mirage_Product_Chart.pdf"); // not .pdf.xls
+  assert.equal(f("Cartons Detail.PDF"), "Cartons Detail.PDF");
+  assert.equal(f("book.xlsx"), "book.xlsx");
+  assert.equal(f(""), "price list.xls");
 });
 
 test("parseVendorLink reads an OVF (ovf400) price-list link — second Dancik host", () => {
@@ -374,12 +383,27 @@ test("pending-review pool keys by recordKey and replaces on re-pool", () => {
   assert.equal(pendingForSheet(pool, sheetB).file, f3);
 });
 
-test("sheetForBook finds a linked sheet and its group", () => {
+test("sheetsForBook finds a linked sheet and its group", () => {
   const s1 = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "1", filename: "A", user: "U1", bookId: "bkA" };
   const s2 = { vendor: "dancik", host: "connect24.virginiatile.com", uid: "2", filename: "B", user: "U1" };
   const groups = [{ id: "g1", name: "G", loginUrl: "", portal: null, sheets: [s2, s1] }];
-  assert.equal(sheetForBook(groups, "bkA").sheet.uid, "1");
-  assert.equal(sheetForBook(groups, "bkA").group.id, "g1");
-  assert.equal(sheetForBook(groups, "bkNope"), null);
-  assert.equal(sheetForBook([], "bkA"), null);
+  assert.equal(sheetsForBook(groups, "bkA").length, 1);
+  assert.equal(sheetsForBook(groups, "bkA")[0].sheet.uid, "1");
+  assert.equal(sheetsForBook(groups, "bkA")[0].group.id, "g1");
+  assert.deepEqual(sheetsForBook(groups, "bkNope"), []);
+  assert.deepEqual(sheetsForBook([], "bkA"), []);
+});
+
+// A book fed by several files (Mirage: flooring + trim + product chart). These
+// used to be silently hidden behind the first match — the book page showed one
+// feed and "Refresh" re-pulled only that one.
+test("sheetsForBook returns every sheet feeding a book, across groups", () => {
+  const mk = (uid, bookId, user = "U1") => ({ vendor: "dancik", host: "connect24.virginiatile.com", uid, filename: `f${uid}`, user, bookId });
+  const groups = [
+    { id: "g1", name: "G1", loginUrl: "", portal: null, sheets: [mk("1", "bkA"), mk("2", "bkB"), mk("3", "bkA")] },
+    { id: "g2", name: "G2", loginUrl: "", portal: null, sheets: [mk("4", "bkA", "U2")] },
+  ];
+  const hits = sheetsForBook(groups, "bkA");
+  assert.deepEqual(hits.map((h) => h.sheet.uid), ["1", "3", "4"]);
+  assert.deepEqual(hits.map((h) => h.group.id), ["g1", "g1", "g2"]); // each carries its own group
 });
