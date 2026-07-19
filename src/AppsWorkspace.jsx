@@ -180,6 +180,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
 
         {/* main */}
         <div className="flex-1 flex flex-col min-w-0">
+          {app === "labels" && (<>
           {/* preset strip */}
           <div className="flex items-end gap-3 px-5 py-3 border-b border-slate-100 overflow-x-auto">
             {presets.map((p) => {
@@ -308,21 +309,23 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               )}
             </div>
           </div>
+          </>)}
+          {app === "sheoga" && sheoga && (
+            <SheogaConfigurator
+              embedded
+              markupDefault={sheoga.markupDefault}
+              ventMarkupDefault={sheoga.ventMarkupDefault}
+              basket={sheogaBasket}
+              onBasketChange={setSheogaBasket}
+              areaName={sheoga.currentName || "a new quick price"}
+              onAdd={(lines) => requestCommit(lines, null)}
+              onMove={(lines) => requestCommit(lines, null)}
+              onMoveEntries={(lines, nextBasket) => requestCommit(lines, nextBasket)}
+              onClose={() => { if (!pendingRef.current) setApp("labels"); }}
+            />
+          )}
         </div>
       </div>
-      {app === "sheoga" && sheoga && (
-        <SheogaConfigurator
-          markupDefault={sheoga.markupDefault}
-          ventMarkupDefault={sheoga.ventMarkupDefault}
-          basket={sheogaBasket}
-          onBasketChange={setSheogaBasket}
-          areaName={sheoga.currentName || "a new quick price"}
-          onAdd={(lines) => requestCommit(lines, null)}
-          onMove={(lines) => requestCommit(lines, null)}
-          onMoveEntries={(lines, nextBasket) => requestCommit(lines, nextBasket)}
-          onClose={() => { if (!pendingRef.current) setApp("labels"); }}
-        />
-      )}
       {pending && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,15,10,.5)" }} onClick={(e) => { e.stopPropagation(); setPending(null); }}>
           <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
