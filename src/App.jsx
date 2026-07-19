@@ -6129,8 +6129,8 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         const plus = <span className="inline-grid place-items-center w-[18px] h-[18px] shrink-0 rounded text-indigo-700 bg-indigo-50 text-[13px] font-extrabold leading-none">+</span>;
         return (
         <>
-          <div className="mt-4 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:flex-col md:overflow-visible md:w-[360px] md:pb-0 md:snap-none items-stretch">
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:shrink rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
+          <div className="mt-4 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[680px] md:max-w-full md:pb-0 md:snap-none items-stretch">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[120px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
               <span className="ft-eyebrow text-[10px]">Import</span>
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -6138,41 +6138,42 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
                 onClick={() => dropRef.current?.click()}
                 className={`flex-1 rounded-lg border border-dashed px-3 py-4 text-xs cursor-pointer flex flex-col items-center justify-center text-center gap-1.5 ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-300 text-slate-400 hover:bg-slate-50"}`}
+                title="Drop vendor sheets or the shop workbook here — each file routes to its book"
               >
                 <Upload size={20} className="shrink-0" />
-                <span className="font-semibold text-slate-600">Drop vendor sheets</span>
-                <span className="text-slate-400 max-w-[16rem]">or the shop workbook — each file routes to its book · <span className="underline text-indigo-600">browse…</span></span>
+                <span className="font-semibold text-slate-600 leading-tight">Drop sheets</span>
+                <span className="text-slate-400 leading-tight">or <span className="underline text-indigo-600">browse…</span></span>
                 <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
               </div>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:shrink rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
               <span className="ft-eyebrow text-[10px]">Price tiers</span>
               <div className="flex flex-col gap-2 text-xs text-slate-600">
                 <label className="flex items-center gap-2" title="Builder tier — percent off retail on the printed estimate">
-                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={pctInp} /><span className="font-medium">Builder</span><span className="text-slate-400">off retail</span>
+                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={pctInp} /><span className="font-medium">Builder</span>
                 </label>
                 <label className="flex items-center gap-2" title="Sale tier — percent off retail on the printed estimate">
-                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={pctInp} /><span className="font-medium">Sale</span><span className="text-slate-400">off retail</span>
+                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={pctInp} /><span className="font-medium">Sale</span>
                 </label>
                 <div className="flex items-center gap-2" title="Employee tier is fixed at cost + 6%; lines without a cost stay retail">
-                  {plus}<span className="rounded-md bg-indigo-50 text-indigo-700 px-2 py-1 text-xs font-bold">6%</span><span className="font-medium">Employee</span><span className="text-slate-400">over cost</span>
+                  {plus}<span className="rounded-md bg-indigo-50 text-indigo-700 px-2 py-1 text-xs font-bold">6%</span><span className="font-medium">Employee</span>
                 </div>
               </div>
-              <span className="text-[11px] text-slate-400 mt-auto">Employee is cost + 6%; lines without a cost stay retail.</span>
+              <span className="text-[11px] text-slate-400 mt-auto">Builder / Sale are % off retail; Employee is cost + 6% (lines without a cost stay retail).</span>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:shrink rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-3 flex flex-col gap-2">
               <span className="ft-eyebrow text-[10px]">Sheoga markup</span>
               <div className="flex flex-col gap-2 text-xs text-slate-600">
                 <label className="flex items-center gap-2" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
-                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium">Flooring</span><span className="text-slate-400">over cost</span>
+                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium">Flooring</span>
                 </label>
                 <label className="flex items-center gap-2" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
-                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium">Vents &amp; dampers</span><span className="text-slate-400">over cost</span>
+                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium">Vents &amp; dampers</span>
                 </label>
               </div>
-              <span className="text-[11px] text-slate-400 mt-auto">Per-configuration markup is still adjustable in the Sheoga popup.</span>
+              <span className="text-[11px] text-slate-400 mt-auto">% over distributor cost — adjustable per configuration in the Sheoga popup.</span>
             </div>
           </div>
 
