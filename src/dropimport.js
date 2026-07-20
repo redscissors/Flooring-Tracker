@@ -220,3 +220,19 @@ export function missingSources(manifest, slots) {
   const have = new Set((slots || []).map((s) => s?.id).filter(Boolean));
   return (manifest || []).filter((s) => s?.id && !have.has(s.id));
 }
+
+// ---- what the review step is fed ------------------------------------------
+// The payload(s) BookImportWizard parses for one step of the walk. A joined
+// vendor's step hands over EVERY file's payload at once (its parser has to see
+// the set); every other step is its single file.
+//
+// This lives here, next to bundleByBook which decides `joined`, because the two
+// have to agree. When the caller rebuilt this from hand-copied step fields it
+// dropped `joined`, quietly reducing a joined bundle to its first file — and a
+// joined step reports total:1, so that partial parse counted as the last of its
+// bundle and would have applied, retiring everything the other files hold.
+export const payloadOf = (r) => (r?.isPdf ? { pages: r.pages, isPdf: true } : { sheets: r?.sheets });
+export const stepPayloads = (step) =>
+  step?.joined
+    ? { payloads: (step.rows || []).map(payloadOf), format: step.row?.format }
+    : payloadOf(step?.row);

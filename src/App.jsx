@@ -7,7 +7,7 @@ import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
-import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources } from "./dropimport.js";
+import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
@@ -5291,7 +5291,32 @@ export function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+// Add a file to the pass that is already open, with no gap needing to be
+// detected first. GateGap can only ask for what a book's manifest already knows
+// about, and a manifest is recorded BY USE — so the first import of a multi-file
+// book has nothing to be short of, and the gate cannot bootstrap itself. This is
+// how the set gets assembled that one time; after it, the gate does the asking.
+// Deliberately untargeted: the added file routes like any other, so an
+// unfamiliar one lands with its own "pick a book" chooser rather than being
+// forced somewhere by where it was dropped. Exported for the preview harness.
+export function AddFileRow({ onAdd }) {
+  const [over, setOver] = useState(false);
+  const pick = useRef(null);
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { e.preventDefault(); setOver(false); onAdd(e.dataTransfer?.files); }}
+      onClick={() => pick.current?.click()}
+      className={"mt-2 cursor-pointer rounded-lg border border-dashed px-3 py-2.5 text-center text-[11.5px] " + (over ? "border-indigo-400 bg-indigo-50/70 text-indigo-700" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-500")}
+    >
+      Add a file — drop here, or click to choose
+      <input ref={pick} type="file" multiple accept=".xlsx,.xls,.pdf" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
+    </div>
+  );
+}
+
+export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -5340,7 +5365,9 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
     const added = [];
     for (const f of picked) {
       const r = await readRow(f);
-      added.push(r.error ? r : { ...r, target: to, reason: "added here to complete this book" });
+      // No `to` = the untargeted "Add a file" row: keep the file's own routing,
+      // so an unfamiliar one shows its chooser instead of silently taking a book.
+      added.push(r.error || !to ? r : { ...r, target: to, reason: "added here to complete this book" });
     }
     setRows((rs) => [...(rs || []), ...added]);
   };
@@ -5364,12 +5391,17 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
   useEffect(() => {
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
-    const { row, bundle, files, rows: steprows } = runnable[qi];
+    // Spread the whole step rather than naming its fields: `joined` was lost in a
+    // hand-copied destructure once, which silently reduced a joined vendor's
+    // bundle to its first file — and its step says total:1, so it would have
+    // applied that partial parse and retired the rest of the book.
+    const step = runnable[qi];
+    const { row, bundle } = step;
     if (bundle.index === 0) setCarry([]); // first file of a book's bundle
     if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
-    loadBookItems(row.target).then((items) => { if (ok) setActive({ row, bundle, files, rows: steprows, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
+    loadBookItems(row.target).then((items) => { if (ok) setActive({ ...step, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
     return () => { ok = false; };
   }, [phase, qi]);
 
@@ -5389,8 +5421,9 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
     return (
       <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
         <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-1"><h3 className="ft-serif text-2xl">Route {files.length} file{files.length === 1 ? "" : "s"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
-          <p className="text-xs text-slate-400 mb-3">Each file is sent to its own book's import preview, one at a time. Unfamiliar files need a book picked.</p>
+          <div className="flex items-center justify-between mb-1">{/* Counts the rows, not the dropped files — the Add row can grow the pass. */}
+            <h3 className="ft-serif text-2xl">Route {(rows || files).length} file{(rows || files).length === 1 ? "" : "s"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+          <p className="text-xs text-slate-400 mb-3">Files heading for the same book are reviewed together, one book at a time. Unfamiliar files need a book picked.</p>
           {rows == null ? <p className="text-sm text-slate-400 py-6 text-center">Reading files…</p> : (
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
               {rows.map((r, i) => (
@@ -5411,6 +5444,7 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
               ))}
             </div>
           )}
+          {rows != null && <AddFileRow onAdd={(list) => addFiles(list)} />}
           {gaps.map(({ book, have, total, missing }) => (
             <GateGap key={book.id} book={book} have={have} total={total} missing={missing} onAdd={(list) => addFiles(list, book.id)} inp={inp} />
           ))}
@@ -5442,15 +5476,11 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
           {multi && <> · file {active.bundle.index + 1} of {active.bundle.total} for {active.book.name || "this book"}</>}</>}
     </div>
   );
-  // One payload per file of a joined bundle; the parser routes them by kind.
-  const payloadOf = (r) => (r.isPdf ? { pages: r.pages, isPdf: true } : { sheets: r.sheets });
   return (
     <BookImportWizard
       key={active.book.id + qi}
       book={active.book} existingItems={active.items}
-      preParsed={active.joined
-        ? { payloads: active.rows.map(payloadOf), format: active.row.format }
-        : payloadOf(active.row)}
+      preParsed={stepPayloads(active)}
       carryItems={carry} bundle={active.bundle}
       onClose={() => {
         // Backing out of one file of a bundle abandons the WHOLE bundle. Skipping
