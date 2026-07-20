@@ -22,8 +22,10 @@ three"); the boot sequence predated it.
 round trip** of only what the opening screen draws: the profile blob
 (`app_data`), shared settings, the projects light list, people, and builders.
 Stage 2 never blocks paint: bounded team caches (`stock_items`, `todos`,
-`price_books` metadata) load in parallel in the background, each best-effort.
-Everything else stays on demand.
+`price_books` metadata) load in parallel in the background, each best-effort,
+and **each applies the moment its own fetch lands** — no barrier, so a slow
+query can neither delay the other caches nor land a stale snapshot over a
+user's optimistic write made in the gap. Everything else stays on demand.
 
 **2. Unbounded data is never eagerly loaded.** It is server-searched
 (`price_book_items`), key-fetched (the `orderItems` drift cache, version
@@ -39,15 +41,21 @@ chunk is for the estimate grid and sidebar. First applications:
 `SheogaConfigurator`, `AppsWorkspace` (which chains the Sheoga chunk — its
 static import — on first open; both stay out of the boot chunk).
 
-**5. `stockReady` guards the cache-coupled write paths.** During the stage-2
-window, anything that *diffs against* or *snapshots from* the in-memory stock
-cache refuses loudly instead of proceeding against `[]`: the shop-workbook
-import (a diff against nothing lies "all new"), rollback (would silently drop
-its retire marks), and book-linked grout picks (would blank ADR-0007 SKU/caulk
-snapshots). Pure reads (SKU search, drift chips, grout family dropdowns)
-simply fill in when the load lands. `stockReady` flips on load **failure**
-too, so no guard holds forever; `stockReady && stock.length === 0` means a
-genuinely empty install.
+**5. `stockReady`/`stockFailed` guard the cache-coupled write paths.** During
+the stage-2 window, anything that *diffs against* or *snapshots from* the
+in-memory stock cache refuses loudly instead of proceeding against `[]`: the
+shop-workbook import (a diff against nothing lies "all new"), rollback (would
+silently drop its retire marks), and book-linked grout picks (would blank
+ADR-0007 SKU/caulk snapshots — one shared `groutSnapshotPatch` in `stock.js`
+builds the patch for every surface). Pure reads (SKU search, drift chips,
+grout family dropdowns) simply fill in when the load lands. Two flags because
+"settled" and "trustworthy" are different facts: `stockReady` flips when the
+attempt settles — success **or** failure — so no guard holds forever, and
+`stockFailed` records that it settled by failing, so the diff/snapshot guards
+stay closed (an empty cache for the wrong reason must not pass as a genuinely
+empty install). Search surfaces say "Price book still loading…" rather than
+claiming "no match" during the window, and Enter never silently falls through
+to manual entry while the book is loading.
 
 **6. Escape hatches are pre-planned, trigger-based, and not built now.**
 - `stock_items` > ~5,000 active rows (Supabase dashboard — the primary
@@ -99,10 +107,19 @@ genuinely empty install.
 - Accepted windows: registry files dropped on the library in the first
   seconds route unmatched (`books=[]`) and are reassigned by hand — no wrong
   writes; the Apps hub's first open computes label positions from a
-  still-loading list, risking only a sort tie (the pre-existing last-write
-  clobber race is unchanged).
-- Stage 2 now runs even when stage 1 fails — default settings alongside live
-  caches is a new (strictly more useful) partial state; every affordance
-  still hides when its own load fails.
+  still-loading list, risking only a sort tie (the open-refresh **merges** by
+  id instead of replacing, so an optimistic add can no longer vanish from
+  view).
+- Stage 2 is **skipped when stage 1 fails** — a failed core load must look
+  failed. Populating the caches over default settings and an empty project
+  list would read as "that ping was noise" and invite quoting against default
+  rates; instead the guards close (`stockFailed`) and the user reloads.
+- The lazy chunks sit inside an error boundary: a chunk fetch that fails (an
+  offline blip, or a tab from before a deploy whose hashed chunk is gone —
+  `main` auto-deploys and Netlify deploys are atomic) shows a "reload"
+  panel instead of unmounting the whole app mid-estimate.
+- The Supabase preconnect is a `%VITE_SUPABASE_URL%` tag in `index.html`
+  (Vite HTML env replacement), so the handshake starts during HTML parse and
+  overlaps the bundle download rather than following it.
 - A signed-out-fast user changes nothing: the effect keys on `user.id` and
   re-runs per session as before.

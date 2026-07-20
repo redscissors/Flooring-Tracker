@@ -357,6 +357,15 @@ export function groutCaulkItem(stock, family, color) {
   return stock.find((it) => it.active && !it.discontinued && !it.disabled && isGroutColorItem(it) && /caulk/i.test(it.product) && it.section === g.section && it.color.toLowerCase() === g.color.toLowerCase()) || null;
 }
 
+// The full ADR-0007 pick snapshot in one place: the color's own SKU plus the
+// color-matched caulk's SKU and price. Every surface that picks a book-linked
+// grout color spreads this, so the patch shape can't drift between them.
+export function groutSnapshotPatch(stock, family, color) {
+  const it = groutColorItem(stock, family, color);
+  const ck = groutCaulkItem(stock, family, color);
+  return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" };
+}
+
 // --- import diff -----------------------------------------------------------------
 
 const FIELDS = ["description", "brand", "product", "color", "unit", "size", "thickness", "type", "price", "priceSqft", "sfPerUnit", "coverage", "discontinued"];

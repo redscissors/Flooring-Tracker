@@ -25,10 +25,10 @@ export const lightRow = (r) => ({
 });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
-// real column.
-export const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes";
-export const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
-export const builderRow = (r) => ({ id: r.id, name: r.name || "" });
+// real column. (Internal — only the loaders below consume these.)
+const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes";
+const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
+const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 
 // Fetch every project, but LIGHT: only the fields the list draws/searches/
 // sorts, projected out of the jsonb server-side. The heavy detail stays on the
@@ -71,7 +71,9 @@ export const resolveSharedSettings = async (db, row, fallbackRaw) => {
   const hasRow = row?.data && Object.keys(row.data).length;
   const settings = normalizeSettings(hasRow ? row.data : fallbackRaw);
   if (!hasRow || !row.data.catalog || !catalogHasSeedUnderlayments(row.data.catalog)) {
-    try { await db.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
+    // Best-effort seed, deliberately not awaited: the caller already has the
+    // settings it needs, and the write round trip must not block first paint.
+    Promise.resolve(db.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" })).then(() => { }, () => { });
   }
   return settings;
 };
@@ -96,7 +98,7 @@ export const loadBooks = async (db) => {
   return (rows || []).map(normBook);
 };
 
-export const todoFromRow = (r) => ({ id: r.id, position: r.position ?? 0, text: r.data?.text || "", done: !!r.data?.done, doneAt: r.data?.doneAt || null, createdBy: r.data?.createdBy || "", createdAt: r.data?.createdAt || null });
+const todoFromRow = (r) => ({ id: r.id, position: r.position ?? 0, text: r.data?.text || "", done: !!r.data?.done, doneAt: r.data?.doneAt || null, createdBy: r.data?.createdBy || "", createdAt: r.data?.createdAt || null });
 export const loadTodos = async (db) => {
   const { data: rows, error } = await db.from("todos").select("id, position, data").order("position");
   if (error) throw error;
