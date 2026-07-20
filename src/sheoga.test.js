@@ -342,7 +342,9 @@ test("lineItems: fees land as their own misc lines at cost", () => {
     assert.equal(f.qty, "1");
     assert.equal(f.markupPct, "0");
     assert.equal(f.priceSqft, f.costSqft); // passed through at cost, no markup
-    assert.equal(f.sheoga, undefined);
+    // Sheoga-sourced (so it files under Special order) but with no cfg to reopen
+    assert.deepEqual(f.sheoga, { fee: true });
+    assert.equal(f.sheoga.cfg, undefined);
   }
   assert.equal(fee.brandColor, "Sheoga — Small-order fee — prefinished job under 250 sf");
   assert.equal(sample.priceSqft, "750");

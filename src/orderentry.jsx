@@ -4,6 +4,10 @@
 // Special-order lines come first: each is a two-line item (size + color / SKU +
 // coverage) with the buy/sell unit tagged at the front (CT/SH, nothing for
 // pieces), the ordered qty, and per-unit cost & sell priced in that same unit.
+// Special covers both price-book order items and Sheoga-configurator lines
+// (floors and their at-cost fee lines). Sheoga sells by description, not SKU,
+// so those rows say so where the SKU would sit and copy the qty inline — the
+// copied text is the whole order, since there's no SKU for the desk to key.
 // A per-line copy button grabs the whole item (tag included) and then stays a
 // green check, so you can track which specials you've already keyed. Stock
 // lines follow with per-line checkboxes plus "Copy all" / "Copy selected",
@@ -88,7 +92,7 @@ function SpecialRow({ r, alt }) {
           {r.name && <> <span className="font-bold">{r.name}</span></>}
         </div>
         <div className="truncate text-[11px] leading-tight text-slate-400 ft-mono">
-          <span className="font-semibold text-slate-500">{r.sku || "—"}</span>{r.coverage && ` ${r.coverage}`}
+          <span className="font-semibold text-slate-500">{r.byDesc ? "by description — no SKU" : r.sku || "—"}</span>{r.coverage && ` ${r.coverage}`}
         </div>
       </div>
 

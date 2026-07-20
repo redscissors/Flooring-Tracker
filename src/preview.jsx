@@ -1,138 +1,98 @@
-// Preview harness for the multi-sheet-per-book change. Renders the REAL
-// SourceSheetStrip and VendorBookRow against fake props, so the change can be
-// shown working without touching the live Supabase project or signing in.
+// Preview harness for "Sheoga lines file under Special order". Renders the REAL
+// OrderEntryPanel over rows built from the REAL sheoga.lineItems() payloads and
+// classified by the REAL isSpecialOrder / orderCopyText — so what shows here is
+// the code path the app runs, without touching Supabase or signing in.
 // Dev-only entry (preview.html); not part of the app build.
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { SourceSheetStrip, VendorBookRow, GateGap, AddFileNotice } from "./App.jsx";
-import { sourceSlot, mergeSources, missingSources } from "./dropimport.js";
+import { OrderEntryPanel } from "./orderentry.jsx";
+import { isSpecialOrder, orderCopyText } from "./orderentry.js";
+import { lineItems, defaultConfig } from "./sheoga.js";
 
-const sheet = (uid, filename, opts = {}) => ({
-  vendor: "dancik", host: "connect24.virginiatile.com", uid, filename, user: "KEIM",
-  bookId: "bkMirage", lastFetched: Date.parse("2026-07-18T12:00:00Z"), ...opts,
-});
+// A configured prefinished floor with a custom color — a main floor line plus
+// the two fees it drags along (small-order + color-match sample), which is the
+// case that used to scatter three red "no SKU" rows through the Stock list.
+const floorCfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, finish: "t1", sample: true };
+const sheogaLines = lineItems({ mode: "floor", cfg: floorCfg }, { sf: 240, markupPct: 40 });
+const ventLines = lineItems({ mode: "vent", cfg: { ...defaultConfig("vent"), sp: "Walnut", size: "4×12", qty: 6 } }, { sf: 0 });
 
-const group = { id: "g1", name: "Ohio Valley Flooring · KEIM", loginUrl: "", portal: null, sheets: [] };
-const mirage = [
-  { group, sheet: sheet("1", "OVF-Mirage-Hardwood.xls") },
-  { group, sheet: sheet("2", "OVF-Mirage-Value-Tower.xls") },
-  { group, sheet: sheet("3", "OVF-Mirage-Trim.xls") },
-  { group, sheet: sheet("4", "Mirage_Product_Chart.pdf") },
+// Stand-ins for the two row kinds that already worked, so the change can be read
+// against them: a price-book special (has a SKU) and a plain stock row.
+const bookRow = {
+  id: "bk1", bookId: "bkVTC", sku: "ANA-CAR-1224", brandColor: "Anatolia Carrara Bianco",
+  sizeText: '12" × 24"', qtyType: "sqft", qty: "310", cartonSf: "15.5",
+  priceSqft: "7.20", costSqft: "4.10",
+};
+const stockRow = { id: "st1", sku: "SCH-DIL-8MM", brandColor: "Schluter Ditra 8mm", qtyType: "count", qty: "4" };
+
+// The display fields orderEntryRow() derives from the snapshotted row. The
+// quantity/price math it does (printProduct, orderLineCost) needs App.jsx's
+// whole calc chain, so the harness states plausible numbers directly — the
+// SECTION SPLIT and the COPIED TEXT, which is what changed, come from the real
+// exported helpers below.
+const ROW_NUMBERS = {
+  bk1: { qty: 20, unitCode: "CT", tag: "CT", coverage: "15.5 SF/CT", perCost: 63.55, perSell: 111.6 },
+  st1: { qty: 4, unitCode: "EA", tag: "", coverage: "", perCost: 0, perSell: 0 },
+};
+const sheogaNumbers = [
+  { qty: 12, unitCode: "CT", tag: "CT", coverage: "20.5 SF/CT" },
+  { qty: 1, unitCode: "EA", tag: "", coverage: "" },
+  { qty: 1, unitCode: "EA", tag: "", coverage: "" },
 ];
-const single = [{ group, sheet: sheet("9", "OVF-Hallmark.xls") }];
 
-const fresh = { stale: false, days: 3 };
-const book = { id: "bkMirage", name: "Mirage (OVF)", data: { lastImport: { at: Date.parse("2026-07-14T12:00:00Z"), skus: 858 } } };
-const hallmark = { id: "bkH", name: "Hallmark (OVF)", data: { lastImport: { at: Date.now(), skus: 412 } } };
-
-const noop = () => {};
-const rowProps = {
-  group, groups: [group], books: [book], prog: null, locked: false, mismatch: false, running: false,
-  stale: fresh, pending: null, checked: false, onToggle: noop, onRedownload: noop, onReview: noop,
-  onRemove: noop, onMove: noop, onLinkBook: noop, onUnlinkBook: noop, onOpenBook: noop,
+const toRow = (p, nums) => {
+  const byDesc = !!p.sheoga && !p.sku;
+  const sell = Number(p.priceSqft || 0);
+  const cost = Number(p.costSqft || 0);
+  const r = {
+    id: p.id, special: isSpecialOrder(p), byDesc, area: "Kitchen",
+    tag: nums.tag, sizePlain: p.sizeText || "", name: String(p.brandColor || ""), sku: p.sku || "",
+    coverage: nums.coverage, qty: nums.qty, unitCode: nums.unitCode,
+    qtyText: nums.qty > 0 ? `${nums.qty} ${nums.unitCode}` : "—",
+    perCost: nums.perCost ?? (nums.unitCode === "CT" ? cost * 20.5 : cost),
+    perSell: nums.perSell ?? (nums.unitCode === "CT" ? sell * 20.5 : sell),
+  };
+  return { ...r, copy: orderCopyText(r) };
 };
 
-const Case = ({ title, note, children }) => (
-  <section className="mb-8">
-    <h2 className="text-sm font-semibold mb-1">{title}</h2>
-    <p className="text-xs text-slate-500 mb-2">{note}</p>
-    <div className="rounded-xl border border-slate-200 bg-white p-3">{children}</div>
-  </section>
-);
+const rows = [
+  toRow({ ...bookRow }, ROW_NUMBERS.bk1),
+  ...sheogaLines.map((p, i) => toRow({ ...p, id: `sh${i}` }, sheogaNumbers[i] || sheogaNumbers[1])),
+  toRow({ ...ventLines[0], id: "shv" }, { qty: 6, unitCode: "PC", tag: "", coverage: "" }),
+  toRow({ ...stockRow }, ROW_NUMBERS.st1),
+];
 
 function Preview() {
-  const [pending, setPending] = React.useState(false);
-  const pendingOf = (s) => (pending && (s.uid === "2" || s.uid === "3") ? { sheet: s, file: {} } : null);
-  const pendingSources = mirage.filter(({ sheet }) => pendingOf(sheet));
+  const [before, setBefore] = React.useState(false);
+  // "Before" reproduces the old predicate (bookId only) so the fix is visible as
+  // a change, not just as a screenshot of the current state.
+  const special = rows.filter((r) => (before ? r.sku && r.id.startsWith("bk") : r.special));
+  const stock = rows.filter((r) => !special.includes(r));
   return (
     <div className="min-h-screen bg-slate-50 p-8 text-slate-800">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-lg font-semibold mb-1">A book fed by several files</h1>
-        <p className="text-xs text-slate-500 mb-6">
-          Preview harness for the multi-file price-book work (ADR 0025). Renders the real
-          components against fake props — nothing here touches Supabase.
+      {/* The panel is a fixed inset-0 overlay, so the harness controls have to
+          sit above it to stay clickable. */}
+      <div className="max-w-3xl relative z-[60]">
+        <h1 className="text-lg font-semibold mb-1">Sheoga lines belong to Special order</h1>
+        <p className="text-xs text-slate-500 mb-4 max-w-xl">
+          A configured Sheoga floor (5¼" White Oak, custom T-1 color, 240 sf) plus the two fees it
+          carries, and a vent line. Rows come from the real <code>lineItems()</code>; the section
+          split is the real <code>isSpecialOrder()</code> and the copy text the real{" "}
+          <code>orderCopyText()</code>.
         </p>
-
-        <label className="flex items-center gap-2 text-xs mb-6">
-          <input type="checkbox" checked={pending} onChange={(e) => setPending(e.target.checked)} />
-          Simulate 2 of the 4 sheets downloaded and waiting for review
+        <label className="flex items-center gap-2 text-xs mb-4">
+          <input type="checkbox" checked={before} onChange={(e) => setBefore(e.target.checked)} />
+          Show the old behaviour (classify on <code>bookId</code> alone)
         </label>
-
-        <Case title="Book page — source-sheet strip (4 sheets)" note="Each sheet gets its own Refresh/Review; the header acts on all of them.">
-          <SourceSheetStrip sources={mirage} pendingSources={pendingSources} stale={fresh}
-            lastImportAt={book.data.lastImport.at} pendingOf={pendingOf} liveOf={() => true}
-            onRefresh={noop} onReview={noop} />
-        </Case>
-
-        <Case title="Book page — a stale book (amber)" note="The amber surface stays light in dark mode, so its text has to state an amber ink rather than inherit.">
-          <SourceSheetStrip sources={single} pendingSources={[]} stale={{ stale: true, days: 91 }}
-            lastImportAt={hallmark.data.lastImport.at} pendingOf={() => null} liveOf={() => false}
-            onRefresh={noop} onReview={noop} />
-        </Case>
-
-        <Case title="Book page — a single-sheet book is unchanged" note="No header row, same one-line strip as before.">
-          <SourceSheetStrip sources={single} pendingSources={[]} stale={fresh}
-            lastImportAt={hallmark.data.lastImport.at} pendingOf={() => null} liveOf={() => false}
-            onRefresh={noop} onReview={noop} />
-        </Case>
-
-        <Case title="Library board — one row per book, not per sheet" note="The Mirage row reports “4 sheets”; its checkbox and Refresh cover all four.">
-          <div className="rounded-lg border border-slate-200 divide-y divide-slate-100 max-w-md">
-            <VendorBookRow {...rowProps} sheet={mirage[0].sheet} siblings={mirage.slice(1).map((m) => m.sheet)} book={book} />
-            <VendorBookRow {...rowProps} sheet={single[0].sheet} book={hallmark} />
-          </div>
-        </Case>
-
-        <GateCase />
-
-        <Case title="Book page — “Add a file”" note="A new file just joins. A file the book already knows is probably meant as a replacement, so it says so.">
-          <AddFileNotice knownSlot={null} />
-          <AddFileNotice knownSlot={slots.chart} />
-        </Case>
+        <p className="text-xs mb-6" style={{ color: before ? "#b45309" : "var(--ft-brand-deep)" }}>
+          {before
+            ? "Before — the 4 Sheoga rows fall into Stock, where they read as red “no SKU” lines and are left out of Copy all."
+            : "After — all 4 Sheoga rows sit under Special order, each copying its full description."}
+        </p>
       </div>
+      <OrderEntryPanel name="Preview — 1421 Maple Ave" special={special} stock={stock} onClose={() => {}} />
     </div>
-  );
-}
-
-// The completeness gate (ADR 0025), driven by the real manifest helpers rather
-// than hand-written props, so what renders is what an import would actually see.
-const slots = {
-  hardwood: sourceSlot({ recordKey: "dancik:ovf:101:KEIM", name: "OVF-Mirage-Hardwood.xls" }),
-  tower: sourceSlot({ recordKey: "dancik:ovf:102:KEIM", name: "OVF-Mirage-Value-Tower.xls" }),
-  trim: sourceSlot({ recordKey: "dancik:ovf:103:KEIM", name: "OVF-Mirage-Trim.xls" }),
-  chart: sourceSlot({ fingerprint: { format: "mirage-chart" }, name: "Mirage_Product_Chart.pdf" }),
-};
-const manifest = mergeSources([], Object.values(slots), Date.parse("2026-04-01"));
-const mirageBook = { id: "bkMirage", name: "Mirage (OVF)", data: { sources: manifest } };
-
-function GateCase() {
-  const [have, setHave] = React.useState(["hardwood", "tower", "trim"]);
-  const present = have.map((k) => slots[k]);
-  const missing = missingSources(manifest, present);
-  const toggle = (k) => setHave((h) => (h.includes(k) ? h.filter((x) => x !== k) : [...h, k]));
-  return (
-    <section className="mb-8">
-      <h2 className="text-sm font-semibold mb-1">Import routing — completeness gate</h2>
-      <p className="text-xs text-slate-500 mb-2">
-        Three of Mirage's four files fetch from the portal; the Product Chart is supplied by hand.
-        The gate names what is short and takes it on the spot. Filenames are never the match key —
-        slots key on recordKey (fetched) or content fingerprint (manual).
-      </p>
-      <div className="flex flex-wrap gap-3 mb-2 text-[11px]">
-        {Object.keys(slots).map((k) => (
-          <label key={k} className="flex items-center gap-1.5">
-            <input type="checkbox" checked={have.includes(k)} onChange={() => toggle(k)} />
-            {slots[k].label}
-          </label>
-        ))}
-      </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
-        {missing.length === 0
-          ? <p className="text-xs text-slate-500 py-2">All four present — no gate. This is also what a one-file book always sees.</p>
-          : <GateGap book={mirageBook} have={present.length} total={manifest.length} missing={missing} onAdd={() => {}} />}
-      </div>
-    </section>
   );
 }
 

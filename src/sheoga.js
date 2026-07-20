@@ -491,7 +491,7 @@ export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP
   const fees = b.fees.map((x) => ({
     type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
     priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
-    note: "Sheoga vendor fee — passed through at cost (shared across the multi-width set)",
+    note: "Sheoga vendor fee — passed through at cost (shared across the multi-width set)", sheoga: FEE_MARK,
   }));
   return [...rows, ...fees];
 }
@@ -516,6 +516,12 @@ export function cartonize(sf, cartonSf) {
 // cost/markup carried per ADR 0011/0018 so tiers and margin read honestly, and
 // the raw configuration kept on the row (product.sheoga) for "Reconfigure".
 // Fees are flat misc lines passed through at cost — never folded into the $/sf.
+//
+// A fee line carries `sheoga` too, but with no `cfg`: it is a Sheoga-sourced row
+// (so the order-entry panel files it under Special order with the floor it came
+// from) that has no configuration of its own to reopen. Read `sheoga.cfg`, not
+// `sheoga`, wherever the question is "can this row be reconfigured".
+const FEE_MARK = Object.freeze({ fee: true });
 
 export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
   const c = calcConfig(snap, sf);
@@ -538,7 +544,7 @@ export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
   const fees = (c.fees || []).map((x) => ({
     type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
     priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
-    note: "Sheoga vendor fee — passed through at cost",
+    note: "Sheoga vendor fee — passed through at cost", sheoga: FEE_MARK,
   }));
   return [main, ...fees];
 }

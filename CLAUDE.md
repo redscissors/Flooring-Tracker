@@ -91,6 +91,16 @@ src/
                     # rail+BuildCard; on mobile the options fill the screen with a
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
                     # (BuildCard + Add). BuildCard is the shared cost->sell card
+  orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` (a row
+                    # is a special order when it carries a price-book `bookId` OR
+                    # a `sheoga` marker — Sheoga floors AND their at-cost fee
+                    # lines, which carry `sheoga` with no `cfg`) and
+                    # `orderCopyText`. Split from the .jsx so `node --test` can
+                    # cover it; imports always name the extension
+  orderentry.jsx    # the panel itself — Special order (per-line copy) above
+                    # Stock (checkboxes + Copy all as SKU⇥qty). A Sheoga line has
+                    # no SKU to key, so it reads "by description — no SKU" and
+                    # copies its qty inline
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

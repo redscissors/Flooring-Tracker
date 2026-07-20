@@ -14,6 +14,7 @@ import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
+import { isSpecialOrder, orderCopyText } from "./orderentry.js";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -4121,9 +4122,9 @@ export default function App({ user, onSignOut }) {
                         // Drift / retired-SKU / base-variant chips render under the row on
                         // both layouts, so the block is built once. A Sheoga row's chip
                         // reopens the configurator pre-filled from its saved configuration.
-                        const driftBlock = (drift || oDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga) ? (
+                        const driftBlock = (drift || oDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
-                            {p.sheoga && (
+                            {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
                                 className="rounded-full border px-2 py-0.5 font-medium hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>
                                 Sheoga — reconfigure
@@ -4989,15 +4990,16 @@ function orderEntryRow(p, s, area) {
   // that helps the picker surface it under a floor-code search; it's noise once
   // the trim is on the order, so drop it from the panel's name and copied text.
   const name = String(p.brandColor || "").replace(/\s*·\s*fits\b.*$/i, "").trim();
-  const copy = [tag, sizePlain, name, p.sku, coverage].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
-  return {
-    id: p.id, special: !!p.bookId, area,
+  // Sheoga sells by description, not SKU — the description IS the order.
+  const byDesc = !!p.sheoga && !p.sku;
+  const r = {
+    id: p.id, special: isSpecialOrder(p), byDesc, area,
     tag, sizePlain, name, sku: p.sku, coverage,
     qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
-    copy,
   };
+  return { ...r, copy: orderCopyText(r) };
 }
 
 // The shared team issue / to-do list (issue 006). Open items are ordered by
