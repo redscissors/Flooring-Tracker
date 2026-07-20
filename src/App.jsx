@@ -1,11 +1,13 @@
-import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import { Component, Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, LockOpen, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
+import { LIST_SELECT, lightRow, normBook, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadLabels, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { bootTrace, traceRows } from "./boottrace.js";
 import { normLabel } from "./labels.js";
-import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
-import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
+import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
@@ -20,8 +22,40 @@ import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, ti
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed, normBasketEntry, multiWidthLineItems } from "./sheoga.js";
-import SheogaConfigurator from "./SheogaConfigurator.jsx";
-import { AppsWorkspace } from "./AppsWorkspace.jsx";
+// Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
+// feature work on them stops growing the boot download. Both are conditional
+// overlays; a null Suspense fallback reads as normal open latency.
+const SheogaConfigurator = lazy(() => import("./SheogaConfigurator.jsx"));
+const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ default: m.AppsWorkspace })));
+
+// A lazy chunk can fail to fetch — an offline blip, or a tab open from before
+// a deploy whose hashed chunk no longer exists (main auto-deploys, Netlify
+// deploys are atomic). Suspense doesn't catch that rejection; unguarded, it
+// unmounts the entire app mid-estimate.
+class LazyBoundary extends Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 print:hidden">
+        <div className="bg-white rounded-lg shadow-xl p-5 max-w-sm text-center">
+          <div className="text-sm font-bold mb-1">Couldn't open this screen</div>
+          <div className="text-xs text-slate-500 mb-3">The app has likely updated since this tab loaded — your work is saved.</div>
+          <button onClick={() => location.reload()} className="rounded-md bg-indigo-600 text-white px-4 py-1.5 text-xs font-bold">Reload</button>
+        </div>
+      </div>
+    );
+  }
+}
+
+// Stage-2 messages for actions that need the stock cache (ADR 0026): one
+// string per state so the grid and mobile surfaces can't drift apart.
+const STOCK_LOADING_MSG = "Price book still loading — try again in a moment";
+const STOCK_FAILED_MSG = "Price book couldn't load — reload the page and try again";
+// One place decides whether the SKU cell is a search field (vs a plain input):
+// the desktop grid and the mobile row sheet must never disagree.
+const skuSearchable = (stock, searchOrder, stockReady) => stock.length > 0 || !!searchOrder || !stockReady;
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -290,13 +324,16 @@ function useMergedResults(active, stock, query, searchOrder) {
 // each of the rest via onPickMany.
 const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
 
-function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
+function SkuPicker({ value, stock, stockReady, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
   const { results, total } = useMergedResults(open, stock, value, searchOrder);
+  // "Showing only the loading note" — one flag so the panel-mount, note, and
+  // footer conditions can't disagree (the footer holds the multi-pick commit).
+  const loadingOnly = !stockReady && results.length === 0;
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { onPick(it); close(); };
@@ -335,9 +372,12 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey} data-c="sku"
         className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
-      {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
+      {open && pos && (results.length > 0 || picked.length > 0 || (loadingOnly && value)) && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          {loadingOnly && (
+            <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Price book still loading…</div>
+          )}
           <div className="max-h-72 min-h-0 overflow-y-auto">
             {results.map((it, i) => {
               const sel = picked.some((x) => hitKey(x) === hitKey(it));
@@ -351,14 +391,16 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
               );
             })}
           </div>
-          <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
-            <span className="truncate">{matchSummary(results.length, total)}</span>
-            {picked.length > 0 ? (
-              <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
-            ) : (
-              <span className="ml-auto shrink-0">Shift-click to pick several</span>
-            )}
-          </div>
+          {(!loadingOnly || picked.length > 0) && (
+            <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+              <span className="truncate">{matchSummary(results.length, total)}</span>
+              {picked.length > 0 ? (
+                <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+              ) : (
+                <span className="ml-auto shrink-0">Shift-click to pick several</span>
+              )}
+            </div>
+          )}
         </div>, document.body)}
     </div>
   );
@@ -426,7 +468,6 @@ function FamilySearch({ families, onPick, inp }) {
 }
 
 const ATT_BUCKET = "attachments";
-const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -617,12 +658,9 @@ const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "
 const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, floor: w.floor ?? 5, tileOn: !!w.tileOn, floorOn: !!w.floorOn });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
 
-// Customer (person) rows: contact info lives in the data jsonb; builder_id is a
-// real column. personData is what gets written back to the jsonb.
-const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes";
-const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
+// personData is what gets written back to a person's data jsonb; the person/
+// builder row mappers and selects live in bootload.js.
 const personData = ({ id, createdAt, updatedAt, builderId, ...rest }) => rest;
-const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 
 // Builder picker: type to search the canonical list or add a new one. Picking an
 // existing builder links by id; typing a name close to an existing one warns
@@ -905,7 +943,7 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
 // search as the grid pickers; tapping a row picks it, the leading checkbox
 // builds a multi-selection (the shift-click stand-in), and a no-match query
 // can be handed to manual entry.
-export function MobileSearchSheet({ stock, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onVendor, onClose }) {
+export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onVendor, onClose }) {
   const [q, setQ] = useState(initial);
   const [picked, setPicked] = useState([]);
   const inputRef = useRef(null);
@@ -948,12 +986,16 @@ export function MobileSearchSheet({ stock, searchOrder, bookName, initial = "", 
             <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
           </button>
         )}
-        {noHits && !vendor && (
+        {noHits && !vendor && (stockReady ? (
           <div className="px-4 py-6 text-center text-sm text-slate-400">
             No price-book match.
             <button onClick={() => onManual(q.trim())} className="mt-3 mx-auto block rounded-md bg-indigo-600 text-white px-4 h-[38px] text-[12.5px] font-bold">Enter "{q.trim()}" by hand</button>
           </div>
-        )}
+        ) : (
+          // A no-match claim would be a lie while stage 2 is in flight — it
+          // steers a real book SKU into hand entry with no snapshot.
+          <div className="px-4 py-6 text-center text-sm text-slate-400">Price book still loading…</div>
+        ))}
         {!q.trim() && <div className="px-4 py-6 text-center text-sm text-slate-300">Type a SKU or product words — picks fill the row.</div>}
       </div>
       <div className="shrink-0 flex items-center gap-2 px-3 pt-2 border-t border-slate-200 text-[11px] text-slate-400" style={{ paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
@@ -1021,14 +1063,14 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, stockReady, stockFailed, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
   if (!p) return null;
   const blank = rowBlank(p);
   const accent = TYPE_ACCENT[p.type];
-  const canSearch = stock.length > 0 || !!searchOrder;
+  const canSearch = skuSearchable(stock, searchOrder, stockReady);
 
   // Same per-row derivations as the desktop grid (App's products map).
   const G = getGrout(p, settings), M = getMortar(p, settings);
@@ -1045,11 +1087,16 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamil
   const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
   const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
   const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
-  const pickGroutColor = (color) => { const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; onPatch({ grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
-  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; onPatch({ grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+  // Book-linked picks snapshot from the stock cache at click time (ADR 0007,
+  // groutSnapshotPatch) — while the background stock load is in flight (or
+  // after it failed) that would blank an existing snapshot, so refuse loudly
+  // instead (ADR 0026).
+  const stockBusy = (book) => { if (book && (!stockReady || stockFailed)) { notify?.(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; } return false; };
+  const pickGroutColor = (color) => { if (stockBusy(gBook)) return; onPatch({ grout: { ...p.grout, color, ...groutSnapshotPatch(stock, gBook, color) } }); };
+  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, product, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
   const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
   const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
   const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
   const U = getUnderlay(p, settings), uEx = underlayExact(p, settings);
   const installDefs = settings.underlayments[p.underlay.product]?.install || [];
@@ -1373,7 +1420,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamil
       ))}
       <div style={{ height: 6 }} />
       {searching && (
-        <MobileSearchSheet stock={stock} searchOrder={searchOrder} bookName={bookName} initial={p.sku || ""}
+        <MobileSearchSheet stock={stock} stockReady={stockReady} searchOrder={searchOrder} bookName={bookName} initial={p.sku || ""}
           onPick={(it) => { setSearching(false); onPickStock([it]); }}
           onPickMany={(items) => { setSearching(false); onPickStock(items); }}
           onManual={(t) => { setSearching(false); if (t && !p.brandColor) onPatch({ brandColor: t }); }}
@@ -1573,7 +1620,7 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
 // price book by SKU or product words. Picking a match fills the whole row
 // (like the SKU/product cells do); shift-click adds several as their own rows;
 // Enter with no match — or a double-click — hands the row to manual entry.
-export function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef }) {
+export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
@@ -1621,7 +1668,9 @@ export function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onMa
     else if (results[hi]) pick(results[hi]);
     else if (results.length) pick(results[0]);
     else if (vendor) goVendor();
-    else if (query.trim()) goManual();
+    // No results while the book is still loading is not "not in the book" —
+    // Enter must not silently commit a real SKU to manual entry.
+    else if (query.trim() && stockReady) goManual();
   };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
@@ -1638,12 +1687,13 @@ export function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onMa
   // keeps focus in the field so the pick never trips blur/focus-out dismissal.
   const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
   const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0;
+  const bookLoading = !stockReady && query.trim() && results.length === 0;
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
-      {open && pos && (results.length > 0 || picked.length > 0 || noHits || vendor) && createPortal(
+      {open && pos && (results.length > 0 || picked.length > 0 || noHits || vendor || bookLoading) && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           {results.length > 0 && (
@@ -1676,7 +1726,9 @@ export function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onMa
             </div>
           )}
           <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
-            {noHits ? (
+            {bookLoading ? (
+              <span className="truncate">Price book still loading…</span>
+            ) : noHits ? (
               <><span className="truncate">No price-book match.</span>
                 <button onMouseDown={(e) => { e.preventDefault(); onManual(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Enter "{query.trim()}" by hand</button></>
             ) : (<>
@@ -1707,19 +1759,6 @@ function gridEnterNav(e, addRow) {
   else if (i === cards.length - 1) { e.preventDefault(); addRow(); }
 }
 
-// The light list row: everything the sidebar draws/searches/sorts, projected out
-// of the jsonb server-side. Shared by the initial load and server-side search.
-const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick";
-const lightRow = (r) => ({
-  id: r.id,
-  customerId: r.customer_id ?? null,
-  createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-  updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
-  name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
-  // ->> projects the jsonb boolean out as text "true"/"false" (or null).
-  quick: r.quick === true || r.quick === "true",
-  _full: false,
-});
 // Version metadata as held in memory — snapshots stay on the server until a
 // restore actually needs one.
 const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
@@ -1821,23 +1860,29 @@ export default function App({ user, onSignOut }) {
   // anything else stored there.
   const appBlobRef = useRef({});
   const [showVersions, setShowVersions] = useState(false);
-  // Stock price book (ADR 0003): all active+retired items, loaded once — the
-  // SKU picker and drift chips search this in memory. Empty until the team has
-  // run supabase/stock.sql and imported the workbook.
+  // Stock price book (ADR 0003): all active+retired items, loaded in the
+  // background after first paint (ADR 0026 stage 2) — the SKU picker and drift
+  // chips search this in memory. stockReady = the load attempt settled (so no
+  // guard holds forever); stockFailed = it settled by FAILING, so the cache is
+  // empty for the wrong reason and diff/snapshot writes must stay blocked.
+  // Empty until the team has run supabase/stock.sql and imported the workbook.
   const [stock, setStock] = useState([]);
+  const [stockReady, setStockReady] = useState(false);
+  const [stockFailed, setStockFailed] = useState(false);
   // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
   // at edit time only (color dropdowns, Settings linking), never at calc time.
   const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
-  // Team to-do / issue list (issue 006): shared rows, loaded once for the
-  // sidebar badge and refreshed every time the list is opened.
+  // Team to-do / issue list (issue 006): shared rows, loaded in the background
+  // after first paint for the sidebar badge and refreshed on every open.
   const [todos, setTodos] = useState([]);
   const [showTodos, setShowTodos] = useState(false);
   // Apps → Label Generator: saved showroom labels, shared team-wide (issue
-  // label-generator-integration). Own table, loaded once on mount.
+  // label-generator-integration). Own table, loaded when the Apps hub opens
+  // (ADR 0026) — nothing at boot reads it.
   const [labels, setLabels] = useState([]);
   const [showApps, setShowApps] = useState(false);
   // Price book library (ADR 0009): registry books beyond the stock workbook.
-  // Metadata is loaded up front for the Settings list; a book's items load
+  // Metadata loads in the background after first paint; a book's items load
   // lazily when it's opened (a vendor book is ~10x the stock book). Empty
   // until the team has run supabase/pricebooks.sql.
   const [books, setBooks] = useState([]);
@@ -1981,30 +2026,41 @@ export default function App({ user, onSignOut }) {
 
   useEffect(() => {
     (async () => {
+      const trace = bootTrace();
+      let coreOk = true;
       try {
-        // The legacy per-user blob is still read: to pick up any customers
-        // awaiting migration, and as the seed fallback for the shared settings.
-        const { data: row, error } = await supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle();
+        // Stage 1 (ADR 0026) — everything the first screen draws, one parallel
+        // round trip. The legacy per-user blob is still read: to pick up any
+        // customers awaiting migration, and as the seed fallback for the
+        // shared settings (resolved after both land, below).
+        const [blobRes, settingsRow, projectRows, people, builders] = await Promise.all([
+          trace.span("app_data", () => supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle()),
+          trace.span("shared_settings", () => loadSettingsRow(supabase)),
+          trace.span("projects", () => loadProjects(supabase)),
+          trace.span("people", () => loadPeople(supabase)),
+          trace.span("builders", () => loadBuilders(supabase)),
+        ]);
+        const { data: row, error } = blobRes;
         if (error) throw error;
         // Customers and settings have both moved out of this blob (migrated
         // below / seeded into shared_settings), so drop them from the copy that
         // profile saves write back.
         appBlobRef.current = (({ customers, settings, ...rest }) => rest)(row?.data || {});
         setProfile(normProfile(row?.data?.profile));
-
-        // Settings now live in one shared record every signed-in user reads and
-        // writes (ADR 0002), no longer in per-user app_data.
-        const settings = await loadSharedSettings(row?.data?.settings);
+        const settings = await resolveSharedSettings(supabase, settingsRow, row?.data?.settings);
 
         // One-time migration: move any customers still embedded in the blob into
         // the customers table (and relocate their attachment files), then strip
-        // them from the blob. Idempotent — safe to run on every load.
+        // them from the blob. Idempotent — safe to run on every load. It inserts
+        // projects rows, and the parallel list load above ran before those
+        // existed — so re-fetch.
+        let projects = projectRows;
         const legacy = row?.data?.customers;
         if (Array.isArray(legacy) && legacy.length) {
           await migrateLegacyCustomers(legacy.map(normC));
+          projects = await trace.span("projects (post-migration)", () => loadProjects(supabase));
         }
 
-        const [projects, people, builders] = await Promise.all([loadProjects(), loadPeople(), loadBuilders()]);
         // Client-side 30-day sweep (ADR 0022): an unpromoted quick draft
         // (quick + still customer-less) untouched for QUICK_SWEEP_DAYS is
         // discarded on load. Best-effort deletes — a missed one just retries
@@ -2016,50 +2072,37 @@ export default function App({ user, onSignOut }) {
         const kept = swept.length ? projects.filter((p) => !swept.some((s) => s.id === p.id)) : projects;
         setData({ projects: kept, people, builders, settings });
         for (const p of swept) supabase.from("projects").delete().eq("id", p.id).then(() => {}, () => {});
-        // Best-effort: installs that haven't run supabase/stock.sql yet just
-        // don't get the SKU picker.
-        try { setStock(await loadStock()); } catch (x) { }
-        // Best-effort: installs that haven't run supabase/todos.sql yet just
-        // don't get the team to-do list.
-        try { setTodos(await loadTodos()); } catch (x) { }
-        // Best-effort: installs that haven't run supabase/labels.sql yet just
-        // don't get the label generator's saved list.
-        try { setLabels(await loadLabels()); } catch (x) { }
-        // Best-effort: installs that haven't run supabase/pricebooks.sql yet
-        // just don't get the price book library (registry affordances hide).
-        try { setBooks(await loadBooks()); } catch (x) { }
-      } catch (e) { ping("Could not load your data — check connection"); }
+      } catch (e) { coreOk = false; ping("Could not load your data — check connection"); }
       setLoading(false);
+      trace.paint();
+
+      // A failed core load must LOOK failed — populating the caches over an
+      // app running on default settings and an empty project list would read
+      // as "that ping was noise" and invite quoting against default rates.
+      if (!coreOk) { setStockFailed(true); setStockReady(true); return; }
+
+      // Stage 2 (ADR 0026) — bounded shared caches; nothing here blocks first
+      // paint, and each cache applies the moment its OWN fetch lands (no
+      // barrier: a slow price_books query must not hold the stock cache — or a
+      // stale todos snapshot — hostage). Best-effort per load: an install that
+      // hasn't run that table's SQL file just doesn't get the feature
+      // (stock.sql → SKU picker, todos.sql → team list, pricebooks.sql →
+      // registry affordances). Labels load when the Apps hub opens, not here.
+      await Promise.allSettled([
+        trace.span("stock", () => loadStock(supabase))
+          .then((rows) => setStock(rows), () => setStockFailed(true))
+          .finally(() => setStockReady(true)),
+        trace.span("todos", () => loadTodos(supabase)).then(setTodos, () => { }),
+        trace.span("books", () => loadBooks(supabase)).then(setBooks, () => { }),
+      ]);
+      trace.done();
+      // Production-readable trace so the ADR 0026 stage-2 trigger is observable
+      // without a dev build; the console table stays dev-only.
+      try { localStorage.setItem("ft-boot-trace", JSON.stringify(trace.report())); } catch (x) { }
+      if (import.meta.env.DEV) console.table(traceRows(trace.report()));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
-
-  // Fetch every customer the current user may see (own + public), but LIGHT:
-  // only the fields the list draws/searches/sorts, projected out of the jsonb
-  // server-side. The heavy detail (categories/products/versions/attachments)
-  // stays on the server until a customer is opened (see loadDetail).
-  const loadProjects = async () => {
-    const { data: rows, error } = await supabase.from("projects").select(LIST_SELECT);
-    if (error) throw error;
-    return (rows || []).map(lightRow);
-  };
-  // People (customers) and builders are small — load them whole. Best-effort:
-  // an install that hasn't run supabase/migrate-hierarchy.sql yet just gets
-  // empty lists (the projects list still works on its own).
-  const loadPeople = async () => {
-    try {
-      const { data: rows, error } = await supabase.from("customers").select(PERSON_SELECT);
-      if (error) throw error;
-      return (rows || []).map(personRow);
-    } catch (x) { return []; }
-  };
-  const loadBuilders = async () => {
-    try {
-      const { data: rows, error } = await supabase.from("builders").select("id, name");
-      if (error) throw error;
-      return (rows || []).map(builderRow);
-    } catch (x) { return []; }
-  };
 
   // Lazy-load one customer's full record on open, merging it into the light row.
   // Version metadata (never snapshots) loads alongside; snapshots are fetched
@@ -2099,31 +2142,6 @@ export default function App({ user, onSignOut }) {
     } catch (e) { ping("Could not open customer — check connection"); }
   };
 
-  // Read the one shared settings record. If it is missing or empty (the seed
-  // migration hasn't run yet), seed it from this user's former per-user settings
-  // — falling back to built-in defaults — so the team starts from real numbers.
-  const loadSharedSettings = async (fallbackRaw) => {
-    const { data: row, error } = await supabase.from("shared_settings").select("data").eq("id", SHARED_SETTINGS_ID).maybeSingle();
-    if (error) throw error;
-    const hasRow = row?.data && Object.keys(row.data).length;
-    const settings = normalizeSettings(hasRow ? row.data : fallbackRaw);
-    // Persist when the stored record is missing, still pre-catalog, or lacks
-    // any of the starter underlayments, so the backfilled catalog (with stable
-    // ids) becomes the canonical shared copy.
-    if (!hasRow || !row.data.catalog || !catalogHasSeedUnderlayments(row.data.catalog)) {
-      try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
-    }
-    return settings;
-  };
-
-  const loadStock = async () => {
-    // select * so the app keeps working whether or not the disabled column
-    // exists yet (pricebook-disabled.sql); a named select of a missing column
-    // errors and would silently kill the SKU picker.
-    const rows = await fetchAllRows(() => supabase.from("stock_items").select("*").order("sku"));
-    return rows.map(normStockItem);
-  };
-
   // Parse a freshly exported price book workbook in the browser and show what
   // an import would change — nothing is written until the preview is applied.
   // Read + preview a shop-workbook file. onDone (from the multi-file drop router)
@@ -2133,6 +2151,10 @@ export default function App({ user, onSignOut }) {
   // read-error — so the router knows whether the file was really imported.
   const importStockFile = async (file, onDone) => {
     if (!file) return;
+    // The diff below compares against the in-memory stock cache; against a
+    // still-loading (or failed-to-load) cache it wouldn't error, it would lie
+    // (every row "new", no retire marks).
+    if (!stockReady || stockFailed) { ping(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); onDone?.(false); return; }
     setImporting(true);
     try {
       const sheets = await readXlsxSheets(file);
@@ -2174,7 +2196,7 @@ export default function App({ user, onSignOut }) {
       await snapshotBookVersion(STOCK_BOOK_ID, applied, stockData);
       const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: applied.length } };
       setSettings(sync.changes.length ? { catalog: sync.catalog, ops } : { ops });
-      setStock(await loadStock());
+      setStock(await loadStock(supabase));
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
       onDone?.(true);
@@ -2187,13 +2209,16 @@ export default function App({ user, onSignOut }) {
   // history list refreshes. No catalog price-sync — a rollback restores the
   // book's own rows, not catalog prices.
   const rollbackStock = async (diff) => {
+    // Same hazard as importStockFile, but quiet: a rollback diffed against a
+    // still-loading (or failed-to-load) cache would apply without retire marks.
+    if (!stockReady || stockFailed) { ping(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return; }
     try {
       await upsertStock(diff);
       const applied = appliedFromDiff(diff);
       await snapshotBookVersion(STOCK_BOOK_ID, applied, stockData);
       const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: applied.length } };
       setSettings({ ops });
-      setStock(await loadStock());
+      setStock(await loadStock(supabase));
       flashSaved();
     } catch (x) { ping("Rollback failed"); }
   };
@@ -2203,18 +2228,6 @@ export default function App({ user, onSignOut }) {
   // Registry books (stock- and order-kind) live in price_books; their items in
   // price_book_items, one row per (book_id, sku). Same trust + no-delete rules
   // as stock_items. Writes go only through these paths.
-
-  const normBook = (row) => ({
-    id: row.id, kind: row.kind || "order", name: row.name || "",
-    active: row.active !== false, data: row.data || {},
-    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
-  });
-
-  const loadBooks = async () => {
-    const { data: rows, error } = await supabase.from("price_books").select("id, kind, name, active, data, updated_at");
-    if (error) throw error;
-    return (rows || []).map(normBook);
-  };
 
   // A book's items, loaded on demand (Settings browse). Not held in app state —
   // the caller keeps them while the book is open.
@@ -2410,7 +2423,7 @@ export default function App({ user, onSignOut }) {
       flashSaved();
     } catch (x) {
       ping("Save failed — has supabase/pricebook-disabled.sql been run?");
-      try { setStock(await loadStock()); } catch (_) { /* keep optimistic view */ }
+      try { setStock(await loadStock(supabase)); } catch (_) { /* keep optimistic view */ }
     }
   };
 
@@ -3038,17 +3051,11 @@ export default function App({ user, onSignOut }) {
   // Open items order by `position` (smaller = higher); a drag renumbers all
   // open items 0..n-1 and writes them in one upsert. Done items keep their row
   // and sort by completion time instead.
-  const todoFromRow = (r) => ({ id: r.id, position: r.position ?? 0, text: r.data?.text || "", done: !!r.data?.done, doneAt: r.data?.doneAt || null, createdBy: r.data?.createdBy || "", createdAt: r.data?.createdAt || null });
   const todoData = (t) => ({ text: t.text, done: t.done, doneAt: t.doneAt, createdBy: t.createdBy, createdAt: t.createdAt });
-  const loadTodos = async () => {
-    const { data: rows, error } = await supabase.from("todos").select("id, position, data").order("position");
-    if (error) throw error;
-    return (rows || []).map(todoFromRow);
-  };
   const openTodos = () => {
     setShowTodos(true); setSidebarOpen(false);
     // Refresh so the list shows what teammates added since load.
-    loadTodos().then(setTodos).catch(() => { });
+    loadTodos(supabase).then(setTodos).catch(() => { });
   };
   const addTodo = (text) => {
     const top = Math.min(0, ...todos.filter((t) => !t.done).map((t) => t.position));
@@ -3094,14 +3101,18 @@ export default function App({ user, onSignOut }) {
     (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
   };
 
-  // Labels write path (Apps → Label Generator). Mirrors the todos helpers but
-  // pages with fetchAllRows since the shared set can exceed the 1000-row cap.
+  // Labels write path (Apps → Label Generator). Mirrors the todos helpers; the
+  // paged loader lives in bootload.js.
   const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, twoVariant: l.twoVariant, fields2: l.fields2, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
-  const loadLabels = async () => {
-    const rows = await fetchAllRows(() => supabase.from("labels").select("id, position, data").order("position"));
-    return rows.map((r) => normLabel({ id: r.id, position: r.position ?? 0, ...(r.data || {}) }));
+  // The refresh merges instead of replacing: an optimistic add made before the
+  // fetch resolves (its select predates the insert) must not vanish from view.
+  const openApps = () => {
+    setShowApps(true); setSidebarOpen(false);
+    loadLabels(supabase).then((rows) => setLabels((prev) => {
+      const have = new Set(rows.map((l) => l.id));
+      return [...rows, ...prev.filter((l) => !have.has(l.id))];
+    })).catch(() => { });
   };
-  const openApps = () => { setShowApps(true); setSidebarOpen(false); loadLabels().then(setLabels).catch(() => { }); };
   const nextPos = () => (labels.length ? Math.max(...labels.map((l) => l.position)) + 1 : 0);
   const addLabel = (draft) => {
     const l = normLabel({ ...draft, id: uid(), position: nextPos(), createdBy: profile.name || user.email || "", createdAt: Date.now() });
@@ -4152,8 +4163,13 @@ export default function App({ user, onSignOut }) {
                         const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
                         const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
-                        const pickGroutColor = (color) => { const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
-                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+                        // A book-linked pick snapshots from the stock cache at click
+                        // time (ADR 0007, groutSnapshotPatch) — while stage 2 is in
+                        // flight (or after it failed) that would blank an existing
+                        // snapshot, so refuse loudly instead (ADR 0026).
+                        const stockBusy = (book) => { if (book && (!stockReady || stockFailed)) { ping(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; } return false; };
+                        const pickGroutColor = (color) => { if (stockBusy(gBook)) return; updProduct(a.id, p.id, { grout: { ...p.grout, color, ...groutSnapshotPatch(stock, gBook, color) } }); };
+                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, product, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
                         // Turning a material on: keep the row's pick when the catalog
                         // still offers it, else the team's catalog default, else the
                         // first offered — so "click to choose" never activates a
@@ -4162,7 +4178,7 @@ export default function App({ user, onSignOut }) {
                         // option, as before.
                         const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
                         const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
@@ -4289,7 +4305,7 @@ export default function App({ user, onSignOut }) {
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
-                            settings={wSet} stock={stock} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv}
+                            settings={wSet} stock={stock} stockReady={stockReady} stockFailed={stockFailed} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
@@ -4328,7 +4344,7 @@ export default function App({ user, onSignOut }) {
                                 <span className="w-1 shrink-0" />
                               </div>
                               <div style={gridCell}>
-                                <GridOmniSearch stock={stock} query={omniText}
+                                <GridOmniSearch stock={stock} stockReady={stockReady} query={omniText}
                                   onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
                                   onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
                                   onManual={() => goManual()} onAbandon={clearOmni}
@@ -4360,8 +4376,8 @@ export default function App({ user, onSignOut }) {
                                 <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
-                                {stock.length > 0 || searchOrder ? (
-                                  <SkuPicker value={p.sku || ""} stock={stock}
+                                {skuSearchable(stock, searchOrder, stockReady) ? (
+                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady}
                                     onChange={(v) => updProduct(a.id, p.id, { sku: v })}
                                     onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                                     onPickMany={(items) => addStockProducts(a.id, p.id, items)}
@@ -4815,7 +4831,7 @@ export default function App({ user, onSignOut }) {
           through setSettings / the import + backup handlers. */}
       {showSettings && (
         <SettingsWorkspace onClose={() => setShowSettings(false)}
-          settings={settings} setSettings={setSettings} stock={stock} gFamilies={gFamilies}
+          settings={settings} setSettings={setSettings} stock={stock} stockReady={stockReady} gFamilies={gFamilies}
           importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
@@ -4825,6 +4841,8 @@ export default function App({ user, onSignOut }) {
       )}
 
       {showApps && (
+        <LazyBoundary>
+        <Suspense fallback={null}>
         <AppsWorkspace
           onClose={() => setShowApps(false)}
           stock={stock}
@@ -4843,6 +4861,8 @@ export default function App({ user, onSignOut }) {
             addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
           }}
         />
+        </Suspense>
+        </LazyBoundary>
       )}
 
       {showTodos && (
@@ -4859,6 +4879,8 @@ export default function App({ user, onSignOut }) {
         const row = sel.categories.find((x) => x.id === sheogaPop.aid)?.products.find((x) => x.id === sheogaPop.pid);
         if (!row) { return null; }
         return (
+          <LazyBoundary>
+          <Suspense fallback={null}>
           <SheogaConfigurator seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
@@ -4870,6 +4892,8 @@ export default function App({ user, onSignOut }) {
             onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onClose={() => setSheogaPop(null)} />
+          </Suspense>
+          </LazyBoundary>
         );
       })()}
 
@@ -6314,7 +6338,7 @@ function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
   );
 }
 
-function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | "stock" | bookId
@@ -6508,7 +6532,9 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
             <p className="text-xs text-slate-400 max-w-xl">
               {stockCount > 0
                 ? `${stockCount} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
-                : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
+                : !stockReady
+                  ? "Price book still loading… "
+                  : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
               The shop workbook keeps its hand-built import; a SKU on a product row copies that item's values onto the row, and later price changes never rewrite saved selections.
             </p>
             {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1 flex items-center gap-2 flex-wrap">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}{stockStale.stale && <StaleChip days={stockStale.days} />}</p>}
@@ -7611,7 +7637,7 @@ const MATERIAL_CATEGORIES = [
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
 
-function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock }) {
+function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("materials");
@@ -8231,7 +8257,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} stock={stock} stockReady={stockReady} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>

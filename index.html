@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>the ned — Selection Manager</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Vite substitutes %VITE_SUPABASE_URL% at build time (HTML env
+         replacement), so the DNS+TCP+TLS handshake to Supabase starts during
+         HTML parse — overlapping the bundle download instead of following it. -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />

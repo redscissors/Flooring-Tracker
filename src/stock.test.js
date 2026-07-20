@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, deriveSquareDim } from "./stock.js";
+import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
@@ -482,6 +482,20 @@ test("groutCaulkItem finds the same section's caulk column in the picked color",
   assert.equal(groutCaulkItem(retired, "Laticrete Permacolor Color Kit", "Almond"), null);
   // A family that IS the caulk column matches itself.
   assert.equal(groutCaulkItem(stock, "Laticrete Latasil Caulk", "Raven").sku, "1519068");
+});
+
+test("groutSnapshotPatch bundles color SKU + caulk SKU/price; empty on a miss", () => {
+  const stock = [
+    colorItem("1519025", "Laticrete Permacolor Color Kit", "Almond", 5.39),
+    colorItem("1519067", "Laticrete Latasil Caulk", "Almond", 12.5),
+  ];
+  assert.deepEqual(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Almond"),
+    { sku: "1519025", caulkSku: "1519067", caulkPrice: "12.5" });
+  assert.deepEqual(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Nope"),
+    { sku: "", caulkSku: "", caulkPrice: "" });
+  assert.deepEqual(groutSnapshotPatch([], "Laticrete Permacolor Color Kit", "Almond"),
+    { sku: "", caulkSku: "", caulkPrice: "" });
+  assert.deepEqual(groutSnapshotPatch(stock, "", "Almond"), { sku: "", caulkSku: "", caulkPrice: "" });
 });
 
 // --- disabled switch (importer-upgrades spec, PR A) ----------------------------

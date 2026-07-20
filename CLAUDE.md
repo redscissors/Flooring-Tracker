@@ -37,8 +37,13 @@ per-user login.
 ```
 index.html
 src/
-  main.jsx          # React entry
+  main.jsx          # React entry (+ Supabase preconnect link, ADR 0026)
   Root.jsx          # Supabase config check + auth session gate
+  bootload.js       # boot loaders + row mappers, client injected as a required
+                    # param (ADR 0026) — must never import lib/supabase.js so
+                    # node --test can drive them with a fake builder
+  boottrace.js      # boot timing spans; every boot writes ft-boot-trace to
+                    # localStorage, dev builds console.table it (ADR 0026)
   Auth.jsx          # sign-in screen (sign-up disabled by design)
   App.jsx           # the FloorTrack application (props: { user, onSignOut })
   catalog.js        # settings normalization + material math + shared catalog
@@ -419,6 +424,12 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   survive re-import. Keep these write paths; don't write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
+- Boot follows ADR 0026's two-stage policy: stage 1 is one parallel round trip
+  of what the first screen draws; bounded caches (stock, todos, books) load in
+  the background after paint; unbounded data is never eagerly loaded; a dataset
+  a surface re-fetches on open doesn't also load at boot; new full-screen
+  surfaces ship as `React.lazy` chunks. Anything that diffs against or
+  snapshots from the stock cache checks `stockReady` first.
 - The theme ("the ned" Moss kit: ink & paper UI, single moss-green accent,
   moss data ramp, Manrope only) works by **overriding Tailwind's slate/indigo
   classes**. These overrides live in `src/index.css` so the login screen
