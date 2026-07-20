@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate } from "./miragebook.js";
+import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup } from "./miragebook.js";
 
 // A PDF text item in the shape App.jsx's readPdfPages produces (y top-down).
 const it = (str, x, y, w = 10) => ({ str, x, y, w });
@@ -326,6 +326,148 @@ test("the later-dated price sheet wins, whatever order the files arrive in", () 
 test("a set with no Mirage file falls through instead of claiming it", () => {
   assert.equal(parseMirage([{ sheets: [{ name: "x", rows: [["Item Code", "Dealer Price"]] }] }]), null);
   assert.equal(parseMirage([]), null);
+});
+
+// --- Value Tower's colour grid ----------------------------------------------
+
+const colorGridSheet = [{ name: "Mirage", rows: [
+  ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"],
+  ["Effective: February 3, 2025"],
+  ["", "", "", "", 'Classic 3/4"'],
+  ["", "", "", "", '3-1/4"'],
+  ["", "", "Specie", "Grades", "Lengths 10 to 76\""],
+  ["Lakeside", "", "Red Oak", "Traditional", "$4.99/SF"],
+  [],
+  ["", "", "", "", 'TruBalance 3/4"'],
+  ["", "", "", "", '5"'],
+  ["", "", "Specie", "Grades", "Lengths 20 to 82\""],
+  ["Muse", "", "White Oak", "Character", "$10.29/SF"],
+  [],
+  ["White Oak Brushed DuraMatt®", "", "", 'TruBalance 3/4"', "", "", 'TruBalance Lite 9/16"'],
+  ["", "", "", '5"', '7"', 'Herr. 5"', '5"'],
+  ["", "", "Colors", "Lengths 20 to 82\"", "", "", ""],
+  ["Muse", "Character", "Ada", "75986", "77929", "76054", "56685"],
+  ["", "", "Rachel", "73266", "78025", "76067", "56691"],
+  [],
+  ["Red Oak                Traditional", "", "", 'Classic 3/4"'],
+  ["", "", "", '3-1/4"'],
+  ["", "", "Colors", "Lengths 10 to 76\""],
+  ["Escape", "Traditional", "Blue Ridge", "75088"],
+  ["", "", "Champlain", "78084"],
+] }];
+
+test("the colour grid reads a block's species, construction and widths", () => {
+  const { rows } = parseMirageColorGrid(colorGridSheet);
+  const ada5 = rows.find((r) => r.color === "Ada" && r.width === '5"' && /TruBalance 3/.test(r.construction));
+  assert.equal(ada5.sku, "75986");
+  assert.equal(ada5.species, "White Oak");        // cut from the banner's texture
+  assert.equal(ada5.collection, "Muse");
+  assert.equal(ada5.grade, "Character");
+  // The band label fills right across its merged span, and the next label starts
+  // a new span — so the last column is Lite, not TruBalance.
+  assert.match(rows.find((r) => r.color === "Ada" && r.sku === "56685").construction, /Lite/);
+});
+
+// The grid files these under "Escape" but the price list sells them as
+// "Lakeside" (owner, 2026-07-20). Both halves are useless alone: Lakeside has a
+// price and no SKUs, Escape Traditional has SKUs and no price.
+test("the Traditional colours take the collection the price list sells them under", () => {
+  const { rows } = parseMirageColorGrid(colorGridSheet);
+  const trad = rows.filter((r) => r.grade === "Traditional");
+  assert.deepEqual(trad.map((r) => r.color), ["Blue Ridge", "Champlain"]);
+  assert.deepEqual([...new Set(trad.map((r) => r.collection))], ["Lakeside"]);
+  assert.equal(trad[0].species, "Red Oak");
+  // Only the Traditional block is renamed — Muse is left alone.
+  assert.equal(rows.find((r) => r.color === "Ada").collection, "Muse");
+});
+
+test("the colour grid supplies Lakeside, and its price, to the book", () => {
+  const res = parseMirage([chartPayload, { sheets: colorGridSheet[0] ? colorGridSheet : [] }]);
+  const lake = res.rows.filter((r) => r[2] === "Lakeside");
+  assert.equal(lake.length, 2);
+  assert.equal(lake[0][6], "4.99");              // joined to the Lakeside price row
+  assert.match(lake[0][1], /Red Oak Blue Ridge — Traditional, Classic 3\/4" 3-1\/4"/);
+});
+
+// The grid travels with its own sheet's date. A SKU-level merge readmits items a
+// newer chart has since dropped — discontinued product, resurrected AND priced.
+test("the colour grid adds Lakeside and nothing else", () => {
+  const res = parseMirage([chartPayload, { sheets: colorGridSheet }]);
+  // The chart's Muse block wins; the grid's older Muse SKUs are not readmitted.
+  assert.equal(res.rows.some((r) => r[0] === "75986"), false);
+  assert.equal(res.rows.some((r) => r[0] === "72697"), true);   // the chart's Muse SKU
+  assert.equal(res.meta.fromGrid, 2);                          // only the Lakeside pair
+  // And a collection appears once, not twice under two spellings.
+  assert.deepEqual([...new Set(res.rows.slice(1).map((r) => r[2]))].sort(), ["Lakeside", "Muse"]);
+});
+
+// --- the trim sheet ----------------------------------------------------------
+
+// The two halves name a trim differently, and the price table groups by
+// THICKNESS while the SKU grid names the constructions sharing it.
+test("a trim's name and group reduce to what both tables agree on", () => {
+  assert.equal(normTrimType("Matchable Square Stair Nosing"), normTrimType('Match. Square Nosing 69"'));
+  assert.equal(normTrimType("Treads & Risers Planks**"), normTrimType("Tread & Riser Planks"));
+  assert.equal(normTrimType('4X10" Flush Mount Vent*'), normTrimType('4"x10" Flush Mount Vent*'));
+  // The parenthetical lists which constructions share a thickness — comparing it
+  // costs the 3/4" TruBalance blocks their prices.
+  assert.equal(normTrimGroup('3/4" thick (TruBalance, Classic)'), normTrimGroup('3/4"(TruBalance)'));
+  assert.equal(normTrimGroup('9/16" thick (TruBalance Lite)'), "9/16");
+  assert.equal(normTrimGroup("Multifunctions - all technologies"), "multifunctions");
+});
+
+const trimSheet = [{ name: "MIR trim", rows: [
+  ["", "", "USA DISTRIBUTORS - MOLDINGS & STAIR COMPONENTS PRICE LIST ($/Unit)"],
+  ["", "", "Effective: July 13th, 2026"],
+  [],
+  ["", "", "", "White Oak", "Red Oak & Oak", "Maple"],
+  ['3/4" thick (TruBalance, Classic)', "Stair Nosing", "", "$196.69/EA", "$128.89/EA", "$157.49/EA"],
+  ["", "Matchable Square Stair Nosing", "", "$107.49/EA", "$87.89/EA", "$103.99/EA"],
+  [],
+  ["White Oak Brushed DuraMatt®", "", '3/4"(TruBalance, Classic)'],
+  [],
+  ["", "", "Stair Nosing", "Matchable Square Nosing"],
+  ["", "", "", '48"', '69"'],
+  [],
+  ["", "Colors", "", "", ""],
+  ["Blanc", "Natural", "42014", "73595", "73607"],
+] }];
+
+test("a trim takes its price from the species column that covers it", () => {
+  const prices = parseMirageTrimPrices(trimSheet);
+  // One column can serve two species ("Red Oak & Oak"), so both must key to it.
+  assert.equal(prices.get("3/4|nosing|red oak"), 128.89);
+  assert.equal(prices.get("3/4|nosing|oak"), 128.89);
+  assert.equal(prices.get("3/4|nosing|white oak"), 196.69);
+});
+
+test("a size row splits one trim label across two columns", () => {
+  const skus = parseMirageTrimSkus(trimSheet);
+  assert.deepEqual(skus.map((s) => s.sku), ["42014", "73595", "73607"]);
+  // "Matchable Square Nosing" spans two columns; the 48"/69" row is what tells
+  // them apart, so the label carries the size.
+  assert.deepEqual(skus.map((s) => s.label), ["Stair Nosing", 'Matchable Square Nosing 48"', 'Matchable Square Nosing 69"']);
+  assert.deepEqual([...new Set(skus.map((s) => s.species))], ["White Oak"]);
+  assert.deepEqual([...new Set(skus.map((s) => s.collection))], ["Blanc"]);
+});
+
+test("trims join the book priced and pointing at the floors they fit", () => {
+  const res = parseMirage([chartPayload, floorPayload("July 13th, 2026", "10.29"), { sheets: trimSheet }]);
+  const trim = res.rows.find((r) => r[0] === "42014");
+  assert.equal(trim[9], "trim");
+  assert.equal(trim[7], "EA");
+  assert.equal(trim[6], "196.69");
+  assert.equal(res.meta.trims, 3);
+  // The chart's Blanc/Natural floor is what this nosing fits. The chart fixture
+  // is Muse/Eleanor, so nothing matches — and an unmatched trim still imports.
+  assert.equal(trim[11], "");
+  assert.equal(res.meta.trimOrphan, 3);
+  assert.match(res.warnings.join(" "), /matched no floor/);
+});
+
+test("a bundle with no trim sheet says the book will have no mouldings", () => {
+  const res = parseMirage([chartPayload, floorPayload("July 13th, 2026", "10.29")]);
+  assert.match(res.warnings.join(" "), /no mouldings or stair parts/i);
 });
 
 test("a bundle missing the chart says so rather than importing a colourless book", () => {

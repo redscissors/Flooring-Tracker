@@ -1,6 +1,6 @@
 # Mirage import — handoff (2026-07-20)
 
-Status: **parsing is clean and the four files join into one book; the router/wizard wiring is what remains before any of it is reachable from the UI.**
+Status: **complete — all four documents import as one book (1728 items: 942 floors + 786 trims), reachable from the UI.**
 
 ## Start here
 
@@ -9,7 +9,7 @@ Status: **parsing is clean and the four files join into one book; the router/wiz
 2. Branch fresh off `main`. **Branch every PR off `main`.** Stacking cost us
    three re-lands (#174→#176, #179→#180, #181 merged only its first commit →
    #184).
-3. `npm test` — 546 passing.
+3. `npm test` — 558 passing.
 
 ## Where the work stands
 
@@ -24,10 +24,10 @@ Status: **parsing is clean and the four files join into one book; the router/wiz
 | #181 | Mirage detectors + the 2025 Product Chart parser |
 | #184 | flooring price parsers, the chart→price join, 2026 chart layout, region segmentation |
 | #185 | the split-baseline width fix — **its FIRST commit only**, see below |
+| #186 | `parseMirage(payloads)` + the species join-key fix |
 
 ### Open
-- **#186** — `parseMirage(payloads)` (ADR 0025 rule 7) + the species join-key
-  fix. Parser-only; nothing calls it yet.
+- **#187** — the UI wiring, Value Tower's Lakeside colours, and the trim sheet.
 
 > **#185 merged only its first commit**, exactly as #181 did. Its later two
 > commits never reached `main` and were re-landed as #186 off `main`. The PR
@@ -93,29 +93,71 @@ Lessons that generalize:
 - A count of rows "missing" a field is a weak signal; a count of rows that
   **collide** once that field is dropped is the strong one.
 
+## The track is complete (2026-07-20)
+
+All four documents now import as one book: **1728 items — 942 floors + 786
+trims.**
+
+| piece | where | state |
+|---|---|---|
+| chart parser | `parseMirageChart` | both editions, 0 rows missing a field |
+| price sheets | `parseMirageFlooring` | both, side-by-side tables included |
+| the join | `priceChartRows` | keyed incl. species |
+| multi-file entry | `parseMirage(payloads)` | ADR 0025 rule 7 |
+| UI wiring | `bundleByBook` + `ingest` | 4 files → 1 review pass |
+| Lakeside | `parseMirageColorGrid` | 6 colours at $4.99 |
+| trims | `parseMirageTrim*` | 786 priced, 668 carrying `fits` |
+
+### Lakeside is Escape Traditional under another name
+
+Owner-confirmed 2026-07-20. The two halves look like separate products and are
+useless apart: the price grid sells **Lakeside / Red Oak / Traditional / Classic
+3/4" / 3-1/4" at $4.99** with no SKUs; the colour grid lists **Escape /
+Traditional** with six colours and no price. Same species, grade, construction
+and width — only the collection name differs. `aliasCollection` rejoins them, and
+Lakeside is the name that goes on the order.
+
+### Value Tower is consulted for Lakeside ONLY
+
+`GRID_ONLY_COLLECTIONS`. Deliberately a named collection, not "anything the chart
+lacks": the grid carries its own sheet's date (Feb 2025 against a Feb 2026
+chart), so a general merge readmits **243 discontinued items, priced**. A
+"collections the chart doesn't cover" rule looks identical today and quietly
+becomes that the first time a collection is retired. Add the next chart-less
+collection here on purpose.
+
+### The side-by-side table in the .xls
+
+`parseMirageFlooring` read the collection from column 0 — true only of the
+LEFT-hand table. The Hardwood sheet prints a second table at columns 10-15, which
+is where **Elemental** lives, so Elemental priced as collection `""`, matched no
+chart row, and the entire collection was dropped from the book in silence. The
+collection is now read from just left of the Species column (two columns of
+reach: Hardwood puts it adjacent, Value Tower leaves a gap). Worth +6 floors and
++51 linked trims.
+
+### Trim notes
+
+- The two halves name a trim differently ("Matchable Square Stair Nosing" vs
+  "Match. Square Nosing 69\""), and the price table groups by **thickness** while
+  the SKU grid names the constructions sharing it. `normTrimType` /
+  `normTrimGroup` reduce both to what they agree on — 794 of 802 join.
+- The 8 that don't are real: the sheet leaves Square Stair Nosing unpriced for
+  Red Oak. Dropped and reported, like an unpriced floor.
+- **A trim SKU can serve two collections** (Maple Platinum's parts are listed
+  under both Admiration and Elemental). The book is a SKU-keyed upsert, so the
+  rows are merged with their `fits` UNIONED — emitting both means one wins
+  arbitrarily and takes only half the floors it fits.
+- 118 trims carry no `fits`. All legitimate: colours the 2026 chart no longer
+  lists (DreamVille Sanibel/Morro Bay, Sweet Memories Peppermint, six Admiration
+  Maple colours) and Imagine, a collection dropped from the chart entirely.
+- One block is NOT parsed: the "Natural" programme at rows 163-166, which has a
+  Species column but no `Colors` header, so it is skipped rather than guessed at.
+
 ## What is NOT built
 
-With the parsing clean and `parseMirage` landed, **the router/wizard wiring is
-what now stands between this and the UI.** `parseMirage(payloads)` exists and is
-verified, but nothing calls it: the wizard's `ingest()` still takes ONE payload
-and `bundleByBook` still walks a book's files one wizard step at a time. Until
-that changes none of this is reachable, so it outranks both items below.
-
-0. **Hand the bundle to `parseMirage`.** `bundleByBook` should collapse a
-   recognized multi-file set into ONE step carrying all payloads, and `ingest`
-   should accept an array and try `parseMirage` before the single-file path
-   (where `parseOvf` sits today). Needs preview proof — it is a UI change.
-
-1. **Value Tower's colour grid.** The chart is the spine, but Lakeside and the
-   Escape *Traditional* colours (Blue Ridge, Champlain, Chelan, Madison,
-   Moosehead, Yellowstone) exist ONLY in Value Tower's own colour grid (rows 25+).
-   The owner flagged Value Tower as load-bearing for exactly these, so shipping
-   without it means a Mirage book with no Lakeside.
-2. **The trim sheet.** Should emit trim rows carrying `fits` (#173) keyed by
-   (collection, colour) — that link is stated outright in the sheet, 23/29 on a
-   rough match, the misses being the Traditional line which genuinely has no
-   colour-matched trim. `parseMirage` already warns that trim is unparsed — that
-   warning is the thing to delete when it lands.
+- The "Natural" trim block above.
+- Targeted replace (ADR 0025 deliberately deferred it).
 
 ## Facts worth not rediscovering
 

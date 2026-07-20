@@ -424,12 +424,32 @@ export function parseMirageFlooring(sheets) {
       for (let c = gradeCol + 1; c < widthRow.length; c++) if (cell(widthRow, c)) priceCols.push(c);
       if (!priceCols.length) continue;
 
+      // The collection sits just LEFT of the species column, not in column 0.
+      // Column 0 is only the collection for the left-hand table, and the sheet
+      // prints a second table beside it (Elemental lives at columns 10-15) —
+      // reading column 0 there picks up the left table's cells, so Elemental
+      // came through with no collection, matched no chart row, and the entire
+      // collection was dropped from the book without a word.
+      //
+      // Two columns of reach, because the sheets vary: Hardwood puts the
+      // collection immediately left of Species, Value Tower leaves a blank
+      // column between them.
+      const collAt = [speciesCol - 1, speciesCol - 2].filter((c) => c >= 0);
+      const collectionOf = (row) => {
+        for (const c of collAt) {
+          const v = cell(row, c);
+          if (v && priceOf(v) == null) return v;
+        }
+        return "";
+      };
+
       let collection = "", species = "";
       for (let r = h + 1; r < grid.length; r++) {
         const row = grid[r];
         // A new band/header row ends the block.
         if (findCol(row, /^grades?$/i) >= 0) break;
-        if (cell(row, 0)) collection = cell(row, 0);
+        const coll = collectionOf(row);
+        if (coll) collection = coll;
         if (cell(row, speciesCol)) species = cell(row, speciesCol);
         const grade = cell(row, gradeCol);
         let any = false;
@@ -451,6 +471,258 @@ export function parseMirageFlooring(sheets) {
   }
   if (!rows.length) warnings.push("No Mirage flooring prices were recognized — is this a Mirage flooring price sheet?");
   return { rows, warnings };
+}
+
+// ---- Value Tower's own colour grid ------------------------------------------
+// Below its price grid, the Value Tower sheet repeats the chart's job: colour
+// rows of SKUs under a construction × width header, per species block. Mostly it
+// duplicates the chart, but it is the ONLY source for the Escape *Traditional*
+// colours, which the chart does not list at all.
+//
+// Same shape as a chart block, in cells rather than x-bands:
+//
+//   [ White Oak Brushed DuraMatt® | | | TruBalance 3/4" | | | | TruBalance Lite ]  banner + bands
+//   [                            | | | 5" | 7" | Herr. 5" | Chevron 5" | 5"     ]  widths
+//   [                            | | Colors | Lengths 20 to 82" | …            ]  header
+//   [ Muse | Character | Ada | 75986 | 77929 | 76054 | …                       ]  data
+
+// The species leads its banner and the texture follows it ("White Oak Brushed
+// DuraMatt®", "Red Oak Traditional"). Cut at the texture so the species matches
+// how the price grid spells it — the join depends on the two agreeing.
+const TEXTURE_RE = /\b(brushed|smooth|hand|wire|cork|traditional|distressed)\b/i;
+const bannerSpecies = (s) => {
+  const v = str(s).replace(/\s+/g, " ");
+  const m = TEXTURE_RE.exec(v);
+  return (m ? v.slice(0, m.index) : v).replace(/[®*†]/g, "").trim();
+};
+
+const looksWidth = (v) => /^(?:(?:herringbone|herr\.?|chevron|chev\.?)\s*)?\d+(?:[-\s]\d+\/\d+)?\s*(?:["'′]{1,2})?\**$/i.test(str(v));
+
+// The colour grid files the Traditional colours under "Escape", but the price
+// list sells them as "Lakeside", and Lakeside is the name that goes on the order
+// (owner, 2026-07-20). Both sides agree on species, grade, construction and
+// width — the collection name is the only difference, which is why the two
+// halves look like separate products: Lakeside has a price and no SKUs, Escape
+// Traditional has SKUs and no price. Renaming here rejoins them.
+const aliasCollection = (r) =>
+  (/^escape$/i.test(str(r.collection)) && /^traditional$/i.test(str(r.grade))) ? "Lakeside" : r.collection;
+
+// What the colour grid is allowed to add to the book. Everything else it holds
+// duplicates the chart, at an older date — see the merge in parseMirage.
+const GRID_ONLY_COLLECTIONS = new Set(["lakeside"]);
+
+export function parseMirageColorGrid(sheets) {
+  const out = [];
+  const warnings = [];
+  for (const sh of sheets || []) {
+    const grid = sh?.rows || [];
+    for (let h = 0; h < grid.length; h++) {
+      const colorCol = findCol(grid[h], /^colou?rs?$/i);
+      if (colorCol < 0) continue;
+      // The width row is the nearest row above carrying width-shaped cells to the
+      // right of the colour column; the band row is the nearest above THAT naming
+      // constructions. Searching upward rather than at fixed offsets is what lets
+      // the blocks differ in spacing, which they do (2 blank rows here, 1 there).
+      let widthRow = -1, bandRow = -1;
+      for (let r = h - 1; r >= 0 && r >= h - 4 && widthRow < 0; r--) {
+        if ((grid[r] || []).some((c, i) => i > colorCol && looksWidth(c))) widthRow = r;
+      }
+      if (widthRow < 0) continue;
+      for (let r = widthRow - 1; r >= 0 && r >= widthRow - 4 && bandRow < 0; r--) {
+        if ((grid[r] || []).some((c) => /TruBalance|Classic|Lock|Solid/i.test(str(c)))) bandRow = r;
+      }
+      if (bandRow < 0) continue;
+
+      // Merged header cells put a band label in the first column of its span, so
+      // it fills right until the next label (the price grid does the same).
+      const bandAt = [];
+      let band = "";
+      for (let c = 0; c < Math.max((grid[bandRow] || []).length, (grid[widthRow] || []).length); c++) {
+        const v = cell(grid[bandRow], c);
+        if (v && /TruBalance|Classic|Lock|Solid/i.test(v)) band = v;
+        bandAt[c] = band;
+      }
+      const species = bannerSpecies(cell(grid[bandRow], 0));
+      const skuCols = [];
+      for (let c = colorCol + 1; c < (grid[widthRow] || []).length; c++) if (looksWidth(cell(grid[widthRow], c))) skuCols.push(c);
+      if (!skuCols.length) continue;
+
+      let collection = "", grade = "";
+      for (let r = h + 1; r < grid.length; r++) {
+        const row = grid[r] || [];
+        if (findCol(row, /^colou?rs?$/i) >= 0) break;                    // the next block's header
+        if (row.some((c) => /TruBalance|Classic|Lock|Solid/i.test(str(c)))) break; // or its bands
+        if (cell(row, 0)) collection = cell(row, 0);
+        if (cell(row, 1)) grade = cell(row, 1);
+        const color = cell(row, colorCol);
+        if (!color) continue;
+        for (const c of skuCols) {
+          const sku = cell(row, c);
+          if (!isSku(sku)) continue;
+          const r = { collection, grade, color, species, construction: bandAt[c] || "", width: cell(grid[widthRow], c), sku };
+          out.push({ ...r, collection: aliasCollection(r) });
+        }
+      }
+    }
+  }
+  if (!out.length) warnings.push("No Mirage colour-grid rows were recognized — does this sheet carry the per-colour SKU grid below its prices?");
+  return { rows: out, warnings };
+}
+
+// ---- the trim sheet ---------------------------------------------------------
+// Two tables that must be joined to each other before either is useful:
+//
+//   prices  (construction group, trim type) x SPECIES        — no SKUs
+//   SKUs    (collection, colour) x (construction, trim type) — no prices
+//
+// and the two halves name a trim differently ("Matchable Square Stair Nosing"
+// against "Match. Square Nosing 69\""), so the labels are normalized to one
+// spelling the way construction and width already are for floors.
+
+// A trim's identity, reduced to the words both tables agree on. "Stair" goes
+// because one side writes "Matchable Square Stair Nosing" and the other
+// "Matchable Square Nosing"; plurals go because of "Treads & Risers Planks" vs
+// "Tread & Riser Planks"; the footnote markers and inch marks are decoration.
+export const normTrimType = (v) =>
+  str(v).toLowerCase()
+    .replace(/\*+/g, "")
+    .replace(/\bmatch\.?\b/g, "matchable")
+    .replace(/["'′]/g, "")
+    .replace(/\b(\d+)\s*x\s*(\d+)\b/g, "$1x$2")     // 4X10 / 4"x10"
+    .replace(/\bstair\s+nosing\b/g, "nosing")
+    .replace(/\bnosings\b/g, "nosing")
+    .replace(/\btreads\b/g, "tread").replace(/\brisers\b/g, "riser")
+    .replace(/\bmoulding\b/g, "molding")
+    .replace(/\b\d+(?:-\d+\/\d+)?\b(?=\s*$)/g, "")  // a trailing size ("… 69")
+    .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+
+// The construction group, reduced to its THICKNESS. The price table groups trims
+// as '3/4" thick (TruBalance, Classic)' while the SKU grid writes
+// '3/4"(TruBalance, Classic)' in one block and plain '3/4"(TruBalance)' in the
+// next — the parenthetical only lists which constructions share that thickness,
+// so comparing it costs the 3/4" TruBalance blocks their prices. Thickness is
+// what the vendor actually prices on. "Multifunctions" fits every thickness and
+// is its own group.
+export const normTrimGroup = (v) => {
+  const s = str(v).toLowerCase();
+  if (/multifunction/.test(s)) return "multifunctions";
+  const m = /(\d+)\s*\/\s*(\d+)/.exec(s);
+  return m ? `${m[1]}/${m[2]}` : s.replace(/[^a-z0-9/ ]/g, " ").replace(/\s+/g, " ").trim();
+};
+
+// A price column can serve several species ("Red Oak & Oak"). R&Q is rift-and-
+// quartered — one product, not two, so it must not be split on its ampersand.
+const speciesOfHeader = (v) =>
+  str(v).replace(/\br\s*&\s*q\b/gi, "RQ").split("&").map((s) => s.trim().toLowerCase()).filter(Boolean);
+
+// The upper table: price per (group, trim type, species).
+export function parseMirageTrimPrices(sheets) {
+  const out = new Map();
+  for (const sh of sheets || []) {
+    const grid = sh?.rows || [];
+    for (let h = 0; h < grid.length; h++) {
+      const cols = [];
+      for (let c = 0; c < (grid[h] || []).length; c++) {
+        const sp = speciesOfHeader(cell(grid[h], c));
+        if (sp.length && /oak|maple|hickory|walnut|birch|cherry/i.test(cell(grid[h], c))) cols.push({ c, sp });
+      }
+      if (cols.length < 2) continue;                       // not the species header
+      let group = "", type = "";
+      for (let r = h + 1; r < grid.length; r++) {
+        const row = grid[r] || [];
+        if (cell(row, 0)) group = cell(row, 0);
+        if (cell(row, 1)) type = cell(row, 1);
+        if (!group || !type) continue;
+        for (const { c, sp } of cols) {
+          const price = priceEach(cell(row, c));
+          if (price == null) continue;
+          for (const s of sp) {
+            const key = `${normTrimGroup(group)}|${normTrimType(type)}|${s}`;
+            if (!out.has(key)) out.set(key, price);        // first row wins: 48" before 69"
+          }
+        }
+      }
+      break;                                               // one price table per sheet
+    }
+  }
+  return out;
+}
+
+const priceEach = (v) => {
+  const m = /\$?\s*([\d,]+(?:\.\d+)?)\s*(?:\/\s*EA)?\s*$/i.exec(str(v));
+  return m && /[\d]/.test(m[1]) ? parseFloat(m[1].replace(/,/g, "")) : null;
+};
+
+// The lower grid: a trim SKU per (collection, colour) x (construction, type).
+export function parseMirageTrimSkus(sheets) {
+  const out = [];
+  for (const sh of sheets || []) {
+    const grid = sh?.rows || [];
+    for (let h = 0; h < grid.length; h++) {
+      const colorCol = findCol(grid[h], /^colou?rs?$/i);
+      if (colorCol < 0) continue;
+      // Walk up for the type row and the banner row. Between them can sit a size
+      // row (48" / 69") that splits ONE type label across two columns, so the
+      // label is composed from both rather than read off a single row.
+      let typeRow = -1, bandRow = -1, sizeRow = -1;
+      for (let r = h - 1; r >= 0 && r >= h - 7; r--) {
+        const row = grid[r] || [];
+        // The banner carries the construction groups and tops the block, so it
+        // ends the search — anything above belongs to the previous block.
+        if (row.some((c) => /TruBalance|Classic|Lock|Multifunction/i.test(str(c)))) { bandRow = r; break; }
+        const right = row.filter((c, i) => i > colorCol && cell(row, i));
+        if (!right.length) continue;
+        // A row of nothing but sizes is the 48"/69" splitter under one type
+        // label; a row of words is the type row itself.
+        if (right.every((c) => looksWidth(c))) { if (sizeRow < 0) sizeRow = r; continue; }
+        if (typeRow < 0 && right.length >= 2) typeRow = r;
+      }
+      if (typeRow < 0 || bandRow < 0) continue;
+
+      const width = Math.max(...[bandRow, typeRow, sizeRow, h].filter((r) => r >= 0).map((r) => (grid[r] || []).length));
+      const bandAt = [], typeAt = [];
+      let band = "", type = "";
+      for (let c = 0; c < width; c++) {
+        const b = cell(grid[bandRow], c);
+        if (b && /TruBalance|Classic|Lock|Multifunction/i.test(b)) band = b;
+        bandAt[c] = band;
+        const t = cell(grid[typeRow], c);
+        if (t) type = t;
+        typeAt[c] = c > colorCol ? type : "";
+      }
+      // Most blocks banner one species ("Maple Smooth DuraMatt®"). The
+      // multi-species collections instead give it its own column and leave the
+      // banner as bare texture ("Cork DuraMatt®"), exactly as the chart's cork
+      // block does — so a per-row column, where present, outranks the banner.
+      const speciesCol = findCol(grid[h], /^species$/i);
+      const banner = bannerSpecies(cell(grid[bandRow], 0));
+
+      let collection = "", rowSpecies = "";
+      for (let r = h + 1; r < grid.length; r++) {
+        const row = grid[r] || [];
+        if (findCol(row, /^colou?rs?$/i) >= 0) break;
+        if (row.some((c) => /TruBalance|Classic|Lock|Multifunction/i.test(str(c)))) break;
+        if (cell(row, 0)) collection = cell(row, 0);
+        if (speciesCol >= 0 && cell(row, speciesCol)) rowSpecies = cell(row, speciesCol);
+        const species = (speciesCol >= 0 ? rowSpecies : banner) || banner;
+        const color = cell(row, colorCol);
+        if (!color) continue;
+        for (let c = colorCol + 1; c < width; c++) {
+          const sku = cell(row, c);
+          if (!isSku(sku) || !typeAt[c]) continue;
+          const size = sizeRow >= 0 ? cell(grid[sizeRow], c) : "";
+          out.push({
+            sku, collection, color, species,
+            group: bandAt[c] || "",
+            type: typeAt[c],
+            size,
+            label: [typeAt[c], size].filter(Boolean).join(" "),
+          });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 // Chart SKUs priced from the flooring sheets. The chart is the spine — it alone
@@ -565,17 +837,46 @@ export function parseMirage(payloads, name = "Mirage price book") {
   const chart = chartAt ? parseMirageChart(chartAt.p.pages) : { rows: [], warnings: [] };
   warnings.push(...chart.warnings);
 
+  const trimSkus = [], trimPrices = new Map();
+  for (const t of trimAt) {
+    trimSkus.push(...parseMirageTrimSkus(t.p.sheets));
+    for (const [k, v] of parseMirageTrimPrices(t.p.sheets)) if (!trimPrices.has(k)) trimPrices.set(k, v);
+  }
+
   // Oldest first, so the newest sheet is the last writer in priceChartRows.
   // A sheet with no readable date sorts oldest — it loses an overlap rather than
   // silently overwriting a sheet we CAN date.
   const priceRows = [];
+  const gridRows = [];
   for (const o of floorAt.map((t) => ({ t, at: effectiveDate(t.p.sheets) })).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))) {
     const r = parseMirageFlooring(o.t.p.sheets);
     priceRows.push(...r.rows);
     if (!r.rows.length) warnings.push(...r.warnings);
+    gridRows.push(...parseMirageColorGrid(o.t.p.sheets).rows);
   }
 
-  const { rows: priced, unpriced } = priceChartRows(chart.rows, priceRows);
+  // The chart is the spine. The colour grid is consulted for ONE thing —
+  // Lakeside — because that is the only collection Mirage sells that the chart
+  // does not list (owner, 2026-07-20).
+  //
+  // Deliberately a named collection rather than "anything the chart lacks". The
+  // grid carries its own sheet's date (Value Tower is Feb 2025 against a Feb 2026
+  // chart), so a general merge readmits 243 items the newer chart has since
+  // dropped — discontinued product, resurrected AND priced, which is worse than
+  // missing. A "collections the chart doesn't cover" rule would look equivalent
+  // today and quietly become that the first time a collection is retired.
+  //
+  // If Mirage adds another chart-less collection, add it here on purpose.
+  const spine = [...chart.rows];
+  const known = new Set(spine.map((r) => r.sku));
+  let fromGrid = 0;
+  for (const r of gridRows) {
+    if (!GRID_ONLY_COLLECTIONS.has(str(r.collection).toLowerCase())) continue;
+    if (known.has(r.sku)) continue;
+    known.add(r.sku); spine.push(r); fromGrid++;
+  }
+
+  const { rows: priced, unpriced } = priceChartRows(spine, priceRows);
 
   const out = [CANON.slice()];
   for (const r of priced) {
@@ -583,15 +884,58 @@ export function parseMirage(payloads, name = "Mirage price book") {
       r.price != null ? String(r.price) : "", "SF", "hardwood", "", MIRAGE_BRAND, ""]);
   }
 
+  // Trims, keyed to the floors they match. `fits` (ADR/PR #173) is what lets a
+  // floor's search surface its own stair nosing, so it is the whole point of
+  // importing the trim sheet rather than a list of loose part numbers.
+  const floorsAt = new Map();
+  for (const r of priced) {
+    const k = `${str(r.collection).toLowerCase()}|${str(r.color).toLowerCase()}`;
+    if (!floorsAt.has(k)) floorsAt.set(k, []);
+    floorsAt.get(k).push(r.sku);
+  }
+  // The trim sheet sometimes qualifies a collection with its species
+  // ("Admiration Maple") where the floors just say "Admiration", so a miss on the
+  // full name retries on the leading word. Colour still has to match exactly —
+  // that is the part that makes a trim the right trim.
+  const fitsFor = (t) => {
+    const color = str(t.color).toLowerCase();
+    const full = str(t.collection).toLowerCase();
+    return floorsAt.get(`${full}|${color}`) || floorsAt.get(`${full.split(" ")[0]}|${color}`) || [];
+  };
+
+  // One row per trim SKU, with the fits UNIONED. The vendor lists a few parts
+  // under two collections (Maple Platinum's serve both Admiration and Elemental),
+  // and the book is a SKU-keyed upsert — so emitting both rows means one wins
+  // arbitrarily and takes only half the floors it actually fits.
+  const bySku = new Map();
+  let trimUnpriced = 0;
+  for (const t of trimSkus) {
+    const price = trimPrices.get(`${normTrimGroup(t.group)}|${normTrimType(t.label)}|${str(t.species).toLowerCase()}`);
+    if (price == null) { trimUnpriced++; continue; }
+    const hit = bySku.get(t.sku);
+    if (hit) { for (const f of fitsFor(t)) hit.fits.add(f); continue; }
+    bySku.set(t.sku, { t, price, fits: new Set(fitsFor(t)) });
+  }
+  let trimOrphan = 0;
+  for (const { t, price, fits } of bySku.values()) {
+    if (!fits.size) trimOrphan++;
+    const desc = [titleCase(t.species), t.color, "—", t.label].filter(Boolean).join(" ").replace(/\s+—\s+/, " — ");
+    out.push([t.sku, desc, t.collection, t.color, t.size || "", "",
+      String(price), "EA", "", "trim", MIRAGE_BRAND, [...fits].join(" ")]);
+  }
+  const trims = bySku.size;
+
   // The gaps are stated, not swallowed. A Mirage book silently missing its
   // colours or its prices looks like a working import of a smaller book.
   if (!chartAt) warnings.push("The Mirage Product Chart is missing. It is the only document that carries colours and floor SKUs, so no floors can be built from the price sheets alone.");
   if (!floorAt.length) warnings.push("No Mirage flooring price sheet in this set — every chart SKU would be unpriced, and unpriced rows are dropped.");
   if (unpriced.length) warnings.push(`${unpriced.length} chart SKUs had no price in these sheets and were dropped. Expect some: the chart and the sheets are published on different dates, so an older chart still lists widths the current sheets no longer carry.`);
-  if (trimAt.length) warnings.push("The Mirage trim sheet is not parsed yet, so its mouldings and stair parts are not in this import.");
+  if (!trimAt.length) warnings.push("No Mirage trim sheet in this set — the book will have floors but no mouldings or stair parts.");
+  if (trimUnpriced) warnings.push(`${trimUnpriced} trim SKUs had no price for their species and were dropped (the sheet leaves some trims priced only in certain species).`);
+  if (trimOrphan) warnings.push(`${trimOrphan} trims matched no floor in this import, so they carry no "fits" link — they are still orderable by SKU.`);
 
   return {
     name, rows: out, mapping: { ...MIRAGE_MAPPING }, warnings,
-    meta: { floors: priced.length, unpriced: unpriced.length, chart: chart.rows.length, prices: priceRows.length },
+    meta: { floors: priced.length, unpriced: unpriced.length, chart: chart.rows.length, prices: priceRows.length, fromGrid, trims, trimUnpriced, trimOrphan },
   };
 }
