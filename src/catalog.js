@@ -25,7 +25,7 @@ export const FLOOR_TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet"];
 // Schluter All Set numbers are first-pass estimates the team is expected to
 // calibrate against their real-world yields in Settings.
 export const DEFAULTS = {
-  waste: { tile: 10, floor: 10 },
+  waste: { tile: 10, floor: 5 },
   mortars: { "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 0 }, "AcrylPro": { tier1: 40, tier2: 15, tier3: 10, unit: "gallons", price: 0 }, "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 0 } },
   grouts: { "PermaColor Select": { coverage: 110, unit: "bags", price: 0 }, "SpectraLOCK 1": { coverage: 85, unit: "units", price: 0 }, "SpectraLOCK PRO": { coverage: 90, unit: "units", price: 0 }, "CEG-Lite": { coverage: 187, unit: "units", price: 0 }, "Tec Power Grout": { coverage: 45, unit: "bags", price: 0 } },
 };
@@ -44,13 +44,33 @@ export const ceilQty = (ex) => Math.ceil(Math.round(ex * 1e6) / 1e6);
 // flooring type (hardwood/vinyl/laminate/carpet). Records written before the
 // split stored a single `wastePct` number — migrate it onto both families so
 // old data keeps the rate it had. An explicit `waste.tile`/`waste.floor` wins
-// over the legacy number, which wins over the 10% default.
+// over the legacy number, which wins over the per-family default.
+// On Settings this is now the DEFAULT new projects are seeded from, not the
+// rate any job calcs against — see `projWaste`.
 export const normWaste = (raw) => {
   const legacy = (raw?.wastePct == null || raw?.wastePct === "") ? null : raw.wastePct;
-  const base = legacy ?? 10;
   const w = raw?.waste || {};
-  return { tile: w.tile ?? base, floor: w.floor ?? base };
+  return { tile: w.tile ?? legacy ?? DEFAULTS.waste.tile, floor: w.floor ?? legacy ?? DEFAULTS.waste.floor };
 };
+
+// The waste rates a JOB calcs against. Waste moved onto the project so one
+// quote can order overage the next one doesn't, and each family is a toggle
+// the salesperson presses when they're ready to order — an unpressed family
+// contributes 0, i.e. raw measured footage.
+//
+// `proj.waste == null` is every project written before the move. Those fall
+// back to the shop default with BOTH families applied, which is exactly how
+// they were quoted — waste resolves at calc time, so anything else would
+// silently reprice saved jobs the next time someone opened them.
+export const projWaste = (proj, s) => {
+  const w = proj?.waste;
+  if (w == null) return { tile: num(s?.waste?.tile), floor: num(s?.waste?.floor) };
+  return { tile: w.tileOn ? num(w.tile) : 0, floor: w.floorOn ? num(w.floor) : 0 };
+};
+
+// The project's waste folded onto a settings object, so every existing calc
+// path (which reads `s.waste`) picks it up without a signature change.
+export const withProjWaste = (s, proj) => ({ ...s, waste: projWaste(proj, s) });
 
 // The waste multiplier a product line calcs against: tile lines use the tile
 // rate, all other flooring types share the floor rate. Misc lines never reach
