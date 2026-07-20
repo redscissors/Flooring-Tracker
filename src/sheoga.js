@@ -149,9 +149,11 @@ export const HERRINGBONE = {
   },
 };
 export const CHEVRON_ADD = 3.00;
-// Herringbone is priced in four slat-length tiers, but a salesperson can enter
-// an exact slat length; it snaps to the tier it falls in (upper bounds 18 / 28
-// / 38 / 48 inches) for pricing and prints the real length on the order.
+// Herringbone is priced in four slat-length tiers, but the salesperson enters
+// the exact slat length; it snaps to the tier it falls in (upper bounds 18 / 28
+// / 38 / 48 inches) for pricing and prints the real length on the order. The
+// tiers themselves aren't selectable in the UI — `band` survives only as a
+// legacy fallback so configs saved before the length-entry change still price.
 export const HB_SLAT_MIN = 9;
 export const HB_SLAT_MAX = 48;
 export const hbBandForLen = (len) => (len <= 18 ? 0 : len <= 28 ? 1 : len <= 38 ? 2 : 3);
@@ -246,7 +248,7 @@ export const MODES = [
 
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
-  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: 1, slatLen: "", chevron: false };
+  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: null, slatLen: "", chevron: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, tex: false, damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
@@ -364,7 +366,8 @@ export function calcHerringbone(h) {
   const i = t.ws.indexOf(h.w);
   if (i < 0) return null;
   const len = hbSlatLen(h);
-  const band = len != null ? hbBandForLen(len) : (h.band || 0);
+  const band = len != null ? hbBandForLen(len) : (Number.isFinite(h.band) ? h.band : null);
+  if (band == null) return null; // no length entered (and no legacy tier) — nothing to price
   const base = t.p[band]?.[i];
   if (base == N) return null;
   // Exact length prints its own "24\" slats" label; tier mode prints the range.
