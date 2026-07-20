@@ -104,6 +104,61 @@ test("a block with its own species column keeps colours and species apart", () =
   assert.equal(rows.every((r) => r.collection === "Imagine"), true);
 });
 
+// The widths are not always one printed row. Where a band's columns carry a
+// pattern qualifier, their widths sit on a lower baseline than the plain ones
+// (439.7 vs 443.2 on the real 2026 chart) — far enough apart to land in separate
+// rows. Reading only the row above found 2 widths under 3 bands, so bandRuns
+// rightly refused to map them and the whole block lost its construction.
+const splitWidthPage = [
+  it("Oak", 42, 10), it("TruBalance", 207, 10, 40), it("TruBalance Lite", 267, 10, 40), it("Solid", 317, 10, 20),
+  it("Thickness: 3/4", 205, 16), it('"', 250, 16),
+  it("Herringbone", 232, 22, 30),                             // the qualifier floats above its column
+  it("5", 205, 28, 4), it('"', 210, 28, 3),                   // plain widths, upper baseline
+  it("7", 285, 28, 4), it('"', 290, 28, 3),
+  it("4-1/4", 320, 28, 12), it('"', 335, 28, 3),
+  it("5", 245, 33, 4), it('"', 250, 33, 3),                   // the qualified width, lower baseline
+  it("Grades", 68, 40), it("Colors", 115, 40),
+  it("Lively", 54, 50), it("Ada", 115, 50),
+  it("11111", 205, 50, 20), it("22222", 245, 50, 20), it("33333", 285, 50, 20), it("44444", 320, 50, 20),
+  it("Character", 67, 60), it("Bea", 115, 60),
+  it("55555", 205, 60, 20), it("66666", 245, 60, 20), it("77777", 285, 60, 20), it("88888", 320, 60, 20),
+];
+
+test("widths split across two baselines are read as one row of columns", () => {
+  const { rows } = parseMirageChart([splitWidthPage]);
+  assert.equal(rows.length, 8);
+  const ada = (sku) => rows.find((r) => r.sku === sku);
+  // All four columns resolve, and each takes the construction printed over it —
+  // the qualified column belongs to TruBalance, not to its right-hand neighbour.
+  assert.deepEqual(
+    ["11111", "22222", "33333", "44444"].map((s) => `${ada(s).construction} ${ada(s).width}`),
+    ['TruBalance 5"', 'TruBalance Herringbone 5"', 'TruBalance Lite 7"', 'Solid 4-1/4"'],
+  );
+  assert.equal(rows.every((r) => r.construction), true);
+});
+
+// The 2025 chart prints the qualifier INSIDE the width item ("Herringbone 5"),
+// where the 2026 one floats it on its own row — both must parse.
+test("a width carrying its own qualifier is read as that one column", () => {
+  const page = [
+    it("Oak", 42, 10), it("TruBalance", 206, 10, 40), it("Classic", 276, 10, 20),
+    it("5", 205, 20, 4), it('"', 210, 20, 3),
+    it("Herringbone 5", 230, 20, 30), it('"', 262, 20, 3),
+    it("4-1/4", 280, 20, 12), it('"', 295, 20, 3),
+    it("Grades", 68, 30), it("Colors", 115, 30),
+    it("Blanc", 54, 40), it("Ada", 115, 40),
+    it("11111", 205, 40, 20), it("22222", 245, 40, 20), it("33333", 285, 40, 20),
+    it("Character", 67, 50), it("Bea", 115, 50),
+    it("44444", 205, 50, 20), it("55555", 245, 50, 20), it("66666", 285, 50, 20),
+  ];
+  const { rows } = parseMirageChart([page]);
+  const at = (sku) => rows.find((r) => r.sku === sku);
+  assert.equal(at("22222").width, 'Herringbone 5"');
+  assert.equal(at("22222").construction, "TruBalance");
+  assert.equal(at("33333").construction, "Classic");
+  assert.equal(rows.every((r) => r.construction), true);
+});
+
 test("an unrecognized PDF yields no rows and says so, never plausible garbage", () => {
   const { rows, warnings } = parseMirageChart([[it("Some other price list", 20, 20)]]);
   assert.equal(rows.length, 0);
