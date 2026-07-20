@@ -165,14 +165,22 @@ function parseBlocks(rows) {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i], txt = rowText(r);
     // A band row names the constructions and carries the species in column 0.
-    if (/TruBalance|Classic|Lock/.test(txt) && !/thick/.test(txt)) {
+    // A band row is STRUCTURALLY pure: nothing but band labels, optionally with a
+    // species banner to their left. Testing for the words alone was enough while
+    // they were distinctive, but "Solid" also appears in prose, and a stray match
+    // starts a bogus block that swallows the real one's widths.
+    const bandItems = r.items.filter((i) => /TruBalance|Classic|Lock|Solid/.test(i.s));
+    const leftmostBand = bandItems.length ? Math.min(...bandItems.map((i) => i.x)) : Infinity;
+    const pureBandRow = bandItems.length > 0 && !/thick/i.test(txt) &&
+      r.items.every((i) => bandItems.includes(i) || i.x < leftmostBand);
+    if (pureBandRow) {
       // Column 0 of a band row usually banners the species ("White Oak"), but on
       // blocks that carry their own species column it is just the first band —
       // taking it blindly files rows under a species called "TruBalance".
       const lead = r.items[0]?.s;
-      const banner = lead && !/TruBalance|Classic|Lock/i.test(lead) ? str(lead) : "";
+      const banner = lead && !/TruBalance|Classic|Lock|Solid/i.test(lead) ? str(lead) : "";
       cur = { bands: [], widths: [], colorRows: [], grades: [], speciesLabels: [], cols: null, collection: "", species: banner };
-      for (const it of r.items) if (/TruBalance|Classic|Lock/.test(it.s)) cur.bands.push({ label: it.s, cx: it.cx });
+      for (const it of bandItems) cur.bands.push({ label: it.s, cx: it.cx });
       blocks.push(cur);
       continue;
     }
@@ -189,6 +197,15 @@ function parseBlocks(rows) {
           parts.push({ s: it.s, cx: it.cx });
         }
         cur.widths = parts.filter((p) => /\d/.test(p.s)).map((p) => ({ label: p.s, cx: p.cx }));
+        // Later charts moved the pattern qualifier onto its own row above the
+        // widths, so a band prints as 5" / 7-3/4" / 5" / 5" with "Herringbone"
+        // and "Chevron" floating above the last two. Without folding them back
+        // in, three columns of one band all key as plain 5" and collide.
+        const quals = (rows[i - 2]?.items || []).filter((q) => /^(herringbone|herr\.?|chevron|chev\.?)$/i.test(q.s));
+        for (const q of quals) {
+          const w = cur.widths.reduce((b, x) => (Math.abs(x.cx - q.cx) < Math.abs(b.cx - q.cx) ? x : b), cur.widths[0]);
+          if (w && Math.abs(w.cx - q.cx) <= 30 && !/herr|chev/i.test(w.label)) w.label = `${q.s} ${w.label}`;
+        }
       }
       continue;
     }
@@ -199,11 +216,23 @@ function parseBlocks(rows) {
     // Each label is looked up independently: a grade can share its row with a
     // colour and its SKUs (Escape prints "Character" beside "Cold Springs"), so
     // finding one must not stop us finding the others.
-    const collAt = r.items.find((i) => i.x < gx - 5);
-    const gradeAt = r.items.find((i) => near(i.x, gx, 6) && !isSku(i.s));
-    const speciesAt = r.items.find((i) => near(i.x, sx, 10) && !isSku(i.s));
-    const colorAt = r.items.find((i) => near(i.x, cx, 12) && !isSku(i.s));
-    if (collAt) cur.collection = collAt.s;
+    const firstSkuX = skus.length ? Math.min(...skus.map((s) => s.x)) : Infinity;
+    const labels = r.items.filter((i) => !isSku(i.s) && i.x < firstSkuX - 4);
+    const collAt = labels.find((i) => i.x < gx - 5);
+    const gradeAt = labels.find((i) => near(i.x, gx, 8));
+    // Everything from the colour column rightwards is the colour, joined: later
+    // charts break one name into several text items ("Bow Valley" "(" "Natural"
+    // ")"), so taking a single item yields ")". The window is generous to the
+    // LEFT because those charts centre the "Colors" header over a left-aligned
+    // column (header x=153, values x=127) — but it still starts well right of
+    // the species column, so the two never merge.
+    const colorParts = labels.filter((i) => i.x >= cx - 30);
+    const color = colorParts.map((i) => i.s).join(" ")
+      .replace(/\s*\(\s*/g, " (").replace(/\s+\)/g, ")").replace(/\s+/g, " ").trim();
+    const colorAt = colorParts.length ? { s: color } : null;
+    const speciesAt = labels.find((i) => i.x < cx - 30 && near(i.x, sx, 14));
+    const collParts = labels.filter((i) => i.x < gx - 5).map((i) => i.s).filter((s) => !/^collections?$/i.test(s));
+    if (collParts.length) cur.collection = collParts.join(" ");
     if (gradeAt) cur.grades.push({ label: gradeAt.s, y: r.y });
     if (speciesAt) cur.speciesLabels.push({ label: speciesAt.s, y: r.y });
     if (colorAt && skus.length) cur.colorRows.push({ color: colorAt.s, y: r.y, skus });
