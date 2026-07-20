@@ -3182,7 +3182,9 @@ export default function App({ user, onSignOut }) {
   // What the header control shows and writes back. A project from before waste
   // moved off Settings (`waste == null`) was quoted with both families applied
   // at the shop rate — present it that way, and the first press materializes it.
-  const jobWasteUI = sel?.waste || { tile: settings.waste.tile, floor: settings.waste.floor, tileOn: true, floorOn: true };
+  // Gated on `_full` for the same reason `wSet` is: a list-shaped record has no
+  // `waste` yet, and the control must not claim a state the math isn't using.
+  const jobWasteUI = (sel && sel._full && sel.waste) || { tile: settings.waste.tile, floor: settings.waste.floor, tileOn: true, floorOn: true };
   const tv = tierView(sel && sel._full ? sel : null, wSet);
   const tSet = tv.settings;
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, caulkCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
