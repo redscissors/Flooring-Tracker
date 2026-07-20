@@ -9,7 +9,7 @@ Status: **parsing is clean and the four files join into one book; the router/wiz
 2. Branch fresh off `main`. **Branch every PR off `main`.** Stacking cost us
    three re-lands (#174→#176, #179→#180, #181 merged only its first commit →
    #184).
-3. `npm test` — 520 passing.
+3. `npm test` — 546 passing.
 
 ## Where the work stands
 
@@ -23,10 +23,19 @@ Status: **parsing is clean and the four files join into one book; the router/wiz
 | #180 | "Add a file…" on the book page |
 | #181 | Mirage detectors + the 2025 Product Chart parser |
 | #184 | flooring price parsers, the chart→price join, 2026 chart layout, region segmentation |
+| #185 | the split-baseline width fix — **its FIRST commit only**, see below |
 
 ### Open
-- **#185** — the split-baseline width fix, `parseMirage(payloads)` (ADR 0025
-  rule 7), and the species join-key fix. Parser-only; nothing calls it yet.
+- **#186** — `parseMirage(payloads)` (ADR 0025 rule 7) + the species join-key
+  fix. Parser-only; nothing calls it yet.
+
+> **#185 merged only its first commit**, exactly as #181 did. Its later two
+> commits never reached `main` and were re-landed as #186 off `main`. The PR
+> object's head stopped tracking the branch (GitHub was returning 503s at the
+> time) while `git ls-remote` showed the pushes had landed — so the PR page
+> looked one commit old and merged that way. **Check `git log origin/main` for
+> the actual commits after every merge; the PR's own commit list is not
+> trustworthy in this repo.**
 
 ## The one defect — FIXED
 
@@ -58,7 +67,7 @@ priced, 2026 968 rows / all 10 collections / 0 missing a grade or construction.
 The LIVELY block's width→construction map was checked column by column against
 the raw PDF x-positions (`livelymap.mjs`).
 
-## The species trap (found 2026-07-20, fixed in #185)
+## The species trap (found 2026-07-20, fixed in #186)
 
 Worth reading before touching the join, because it was invisible and expensive.
 
