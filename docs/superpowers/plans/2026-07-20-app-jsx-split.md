@@ -62,8 +62,8 @@ App-component internals (Phase 2 targets; offsets verified):
 | Toast | 2488–2489 | `ping`, `flashSaved` |
 | Settings/profile | 2499–2513 | `setSettings`, `saveProfile` |
 | Directory CRUD | 2553–2675 | `updateProject`, `addProject`, `pickProject`, `goHome`, `delProject`, `linkProject`, `promoteProject`, `promoteToNewCustomer`, `addPerson`, `updatePerson`, `delPerson`, `addBuilderFor` |
-| Row/area edit + drag | 2675–2979 | `addArea`…`moveProduct`, `startDrag`/`beginDrag`, sheoga adders — **stays in App** (grid render's hands) |
-| Order search | 2717–2818 | `fuzzyRpc`, `searchOrder` memo, `orderRowKeys` memo, drift effect, `orderItems` |
+| Row/area edit + drag | 2676–2716, 2819–2979 | `addArea`…`moveProduct`, `startDrag`/`beginDrag`, sheoga adders — **stays in App** (grid render's hands) |
+| Order search | 2717–2818 | `fuzzyRpc`, `searchOrder` memo, `orderRowKeys` memo, drift effect (the slice Task 17 lifts out of the middle of the row-edit region) |
 | Attachments | 2980–2983 | `attPath`, `addAttachment`, `openAttachment`, `delAttachment` |
 | Versions | 2988–3053 | `insertVersion`, `startVersionName`, `confirmVersion`, `loadVersion`, `delVersion`, `autoSnapshot`, sign-out hook |
 | Todos | 3054–3105 | |
@@ -185,7 +185,7 @@ git commit -m "chore: add ESLint no-undef gate ahead of App.jsx split"
 **Interfaces:**
 - Produces (all `export`ed): `TYPES`, `TLBL`, `UNDERLAY_LABEL`, `underlayLabel`, `TYPE_ACCENT`, `ROW_WASH`, `TOTAL_WASH`, `JOINTS`, `THICK`, `DEFAULT_COLORS`, `GROUT_COLORS`, `colorsFor`, `STOCK_LOADING_MSG`, `STOCK_FAILED_MSG`, `skuSearchable`, `ATT_BUCKET`, `TIER_COLOR`, `TIER_LONG`, `tierBadgeText`, `AUTO_KEEP`, `QUICK_SWEEP_DAYS`, `BOOK_VERSION_KEEP`, `STOCK_BOOK_ID` — names and values unchanged.
 
-- [ ] **Step 1:** Move Protocol with the declarations at App.jsx 54–58 (`STOCK_*_MSG`, `skuSearchable`), 86–121 (`TYPES`…`colorsFor`), 470 (`ATT_BUCKET`), 571–581 (`tierBadgeText`, `TIER_COLOR`), 1514 (`TIER_LONG`), 1766–1775 (`AUTO_KEEP`…`STOCK_BOOK_ID`). This file is JSX-free and imports nothing.
+- [ ] **Step 1:** Move Protocol with the declarations at App.jsx 54–58 (`STOCK_*_MSG`, `skuSearchable`), 86–121 (`TYPES`…`colorsFor`), 470 (`ATT_BUCKET`), 570–582 (`tierBadgeText`, `TIER_COLOR` — the object's `};` is line 582; cut the whole declaration), 1514 (`TIER_LONG`), 1766–1775 (`AUTO_KEEP`…`STOCK_BOOK_ID`). This file is JSX-free and imports nothing.
 - [ ] **Step 2:** Run `npm run lint && npm test && npm run build` → all green.
 - [ ] **Step 3:** Commit: `refactor: extract shared UI constants to src/uiconst.js`
 
@@ -280,7 +280,7 @@ test("money formats to two decimals", () => {
 
 **Files:**
 - Create: `src/fileread.js` (App.jsx 63–84: `readXlsxSheets`, `readPdfPages` — keep the lazy `import("xlsx")`/`import("pdfjs-dist")` exactly as-is; that laziness is ADR 0026 load-bearing)
-- Create: `src/print.test.js`, then `src/print.js` (App.jsx 495–570 `printProduct`, `orderLineCost`, `printAreaFloor`, `PRINT_KINDS`, `PRINT_COLS`, `PRINT_COLS_UNIT`, `PRINT_COLS_NONE`, `KSHORT`, `ESTIMATE_PRINT_LAYOUT`; 582–610 `u1`, `matSku`, `printMatList`; 5117–5162 `ORDER_UNIT_CODE`, `orderEntryRow`). `PRINT_DASH` (App.jsx:564) is JSX — it **stays in App.jsx** until Phase 2 Task 21.
+- Create: `src/print.test.js`, then `src/print.js` (App.jsx 495–570 `printProduct`, `orderLineCost`, `printAreaFloor`, `PRINT_KINDS`, `PRINT_COLS`, `PRINT_COLS_UNIT`, `PRINT_COLS_NONE`, `KSHORT`, `ESTIMATE_PRINT_LAYOUT`; 583–610 `u1`, `matSku`, `printMatList` — starting AFTER `TIER_COLOR`'s closing brace on 582, which Task 2 already took; 5117–5162 `ORDER_UNIT_CODE`, `orderEntryRow`). `PRINT_DASH` (App.jsx:564) is JSX — it **stays in App.jsx** until Phase 2 Task 21.
 
 **Interfaces:**
 - Produces: all names above, exported, signatures unchanged. `printProduct(p, s)` returns `{ size, C, PC, line, mats, qtyText, priceText, orderedSf }`.
@@ -350,13 +350,13 @@ Commit: `refactor: extract shared widgets to src/widgets.jsx`
 
 ### Task 6: `src/search.jsx`
 
-Move: `SKU_SHOW` (136), `SizeChip` (152–158), `StockHit` (159–177), `OrderHit` (178–197), `Hit` (198–217), `SEARCH_PANEL_MIN`/`searchPanelBox` (264–276), `SkuPicker` (327–411), `StockSearch` (412–442), `FamilySearch` (443–469).
-Imports `useAnchoredPanel`, `vPos`, `PANEL_MAX` from `./widgets.jsx`. Exports `SkuPicker`, `StockSearch`, `FamilySearch`, `Hit`, `searchPanelBox`, `SEARCH_PANEL_MIN` (the latter three are consumed by Tasks 7–8).
+Move: `SKU_SHOW` (136), `hitKey` (141), `faceSize` (146–150), `SizeChip` (152–158), `StockHit` (159–177), `OrderHit` (178–197), `Hit` (198–217), `SEARCH_PANEL_MIN`/`searchPanelBox` (264–276), `SkuPicker` (327–411), `StockSearch` (412–442), `FamilySearch` (443–469).
+Imports `useAnchoredPanel`, `vPos`, `PANEL_MAX` from `./widgets.jsx`. Exports `SkuPicker`, `StockSearch`, `FamilySearch`, `Hit`, `searchPanelBox`, `SEARCH_PANEL_MIN`, `SKU_SHOW`, `hitKey`, `faceSize` — `hitKey`/`faceSize` are consumed by Tasks 7–8 (grid + mobile), `SKU_SHOW` also by App's `searchOrder` memo (App.jsx:2735, 2747). Leaving `hitKey`/`faceSize` behind would force search.jsx to import from App.jsx — a cycle the lint gate can't fix.
 Commit: `refactor: extract price-book search widgets to src/search.jsx`
 
 ### Task 7: `src/grid.jsx`
 
-Move: `TypeSelect` (1437–1500), `GRID_COLS` (1501), `GridPriceCell` (1515–1540), `GridSizeInput` (1541–1592), `GridProductBox` (1593–1622), `GridOmniSearch` (1623–1765).
+Move: `TypeSelect` (1437–1500), `GRID_COLS` (1501), `GridPriceCell` (1515–1540), `GridSizeInput` (1541–1592), `GridProductBox` (1593–1622), `GridOmniSearch` (1623 to its real closing brace ≈ 1746 — NOT 1765). `gridEnterNav` (1749–1760, used only by App's grid render at 4124), `vMeta` (1764, used by `loadDetail`) and `normProfile` (1765, used by boot + Phase 2 Task 20) **stay in App.jsx**.
 Commit: `refactor: extract selection-grid cells to src/grid.jsx`
 
 ### Task 8: `src/mobile.jsx`
@@ -373,7 +373,7 @@ This is the payoff PR: ~3,000 lines leave the boot chunk. Three move tasks + the
 
 ### Task 9: `src/TeamTodos.jsx`
 
-Move: `TeamTodos` (5163–5286). Commit: `refactor: extract TeamTodos to its own file`
+Move: `TeamTodos` (5163–5266 — the component closes at 5266; lines 5270–5286 are the price-book banner comment + `bookFieldOptions`, which belong to Task 11, NOT this file). Commit: `refactor: extract TeamTodos to its own file`
 
 ### Task 10: `src/vendorpanel.jsx`
 
@@ -383,8 +383,8 @@ Commit: `refactor: extract vendor-sheet board to src/vendorpanel.jsx`
 
 ### Task 11: `src/pricebooklib.jsx`
 
-Move: `GateGap` (5312–5345), `ImportRouter` (5346–5558), `StockItems` (5559–5726), `PriceBookLibrary` (6341–6595), `ImportHistory` (6596–6673), `ManualSourcesCard` (6674–6716), `SourceSheetStrip` (6717–6759), `BookDetail` (6760–7060), `BookItemEditModal` (7061–7111), `GROUP_LABEL`/`GROUP_AXES` (7112–7113), `MarkupEditor` (7114–7204), `AddFileNotice` (7205–7220), `BookImportWizard` (7221–7633).
-Export `PriceBookLibrary`, `ImportRouter` (consumed by Task 12's `SettingsWorkspace`).
+Move: `bookFieldOptions` (5279–5286 — consumed only by `BookImportWizard` at 7485), `GateGap` (5312–5345), `ImportRouter` (5346–5558), `StockItems` (5559–5726), `PriceBookLibrary` (6341–6595), `ImportHistory` (6596–6673), `ManualSourcesCard` (6674–6716), `SourceSheetStrip` (6717–6759), `BookDetail` (6760–7060), `BookItemEditModal` (7061–7111), `GROUP_LABEL`/`GROUP_AXES` (7112–7113), `MarkupEditor` (7114–7204), `AddFileNotice` (7205–7220), `BookImportWizard` (7221–7633).
+Export only `PriceBookLibrary` (consumed by Task 12's `SettingsWorkspace`) — `ImportRouter`'s sole render site is inside `PriceBookLibrary` itself (App.jsx:6557).
 Commit: `refactor: extract price-book library to src/pricebooklib.jsx`
 
 ### Task 12: `src/SettingsWorkspace.jsx` + lazy flip
@@ -397,7 +397,7 @@ Commit: `refactor: extract price-book library to src/pricebooklib.jsx`
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
 ```
 
-and wrap the render site (App.jsx:4832, `{showSettings && (<SettingsWorkspace …/>)}`) in the exact `showApps` pattern from App.jsx:4882–4884:
+and wrap the render site (App.jsx:4832, `{showSettings && (<SettingsWorkspace …/>)}`) in the exact `showApps`/`AppsWorkspace` pattern from App.jsx:4844–4866:
 
 ```jsx
 {showSettings && (
@@ -427,7 +427,9 @@ Commit: `docs: source layout after App.jsx split`
 
 Phase 2 tasks are refactors, not rewrites: every function body moves verbatim; only the closure it lives in changes. Any diff beyond `s/const X = /…/` plumbing is out of scope.
 
-## PR 5 — `useToast` + `useStock` (branch `claude/split-pr5-stock`)
+## PR 5 — `useToast` + `useBooks` (branch `claude/split-pr5-books`)
+
+Books come **before** stock: the stock-book import (`applyImport`/`rollbackStock`) snapshots versions through `snapshotBookVersion`/`appliedFromDiff`, so those two are extracted here as **module-level exports** of `usebooks.js` (they close over nothing — supabase + `uid` + `BOOK_VERSION_KEEP` only), which `usestock.js` then imports in PR 6 with no hook-ordering or circular-import constraint.
 
 ### Task 14: `src/usetoast.js`
 
@@ -446,12 +448,33 @@ export function useToast() {
 
 In App: `const { toast, saveOk, ping, flashSaved } = useToast();` replaces the `toast`/`saveOk` state (App.jsx:1899, 1944) and `ping`/`flashSaved` (2488–2489). Lint/build/test; commit `refactor: useToast hook`.
 
-### Task 15: `src/usestock.js`
-
-**Interfaces — Produces:**
+### Task 15: `src/usebooks.js`
 
 ```js
-export function useStock({ user, ping }) → {
+// Module-level (NOT hook-bound) — consumed by usestock.js in PR 6:
+export const appliedFromDiff = (diff) => …   // verbatim from App.jsx:2325
+export async function snapshotBookVersion(bookId, appliedItems, toData) { … }  // verbatim from App.jsx:2333–2346
+
+export function useBooks({ user, ping, flashSaved }) → {
+  books, hydrateBooks(rows),
+  orderItems, setOrderItems,        // consumed by useOrderSearch (Task 17)
+  loadBookItems, addBook, updateBook, delBook, applyBookImport,
+  loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
+  updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
+}
+```
+
+Bodies verbatim from App.jsx 2234–2414, with `appliedFromDiff`/`snapshotBookVersion` hoisted to module level as above (`BOOK_VERSION_KEEP` comes from `./uiconst.js`).
+Smoke for PR 5: book detail opens, import history renders, markup editor renders. Commit `refactor: useBooks hook`.
+
+## PR 6 — `useStock` + `useOrderSearch` (branch `claude/split-pr6-stock`)
+
+### Task 16: `src/usestock.js`
+
+```js
+import { appliedFromDiff, snapshotBookVersion } from "./usebooks.js";
+
+export function useStock({ user, ping, flashSaved, profile, settings, setSettings }) → {
   stock, stockReady, stockFailed,           // state (names unchanged)
   hydrateStock(rows), markStockReady(), markStockFailed(),  // boot hooks
   importing, importPreview, setImportPreview, pbRef,
@@ -460,41 +483,25 @@ export function useStock({ user, ping }) → {
 }
 ```
 
-Bodies move verbatim from App.jsx 2152–2233 (`importStockFile`, `importPriceBook`, `upsertStock` — internal, not returned — `applyImport`, `rollbackStock`) and 2415–2429 (`setStockItemsDisabled`); state from 1868–1871, 1894–1896. The boot effect's stage-2 stock load (inside 2027–2109) now calls `hydrateStock`/`markStockReady`/`markStockFailed` instead of the raw setters. `gFamilies` (the `useMemo` at 1873) stays in App, fed by `stock`.
+The widened param list is not optional: `importStockFile` reads `settings.catalog` (App.jsx:2165); `applyImport`/`rollbackStock` read `settings.ops`, call `setSettings` + `flashSaved`, and stamp `profile.name` (2196–2221). Bodies move verbatim from App.jsx 2152–2233 (`importStockFile`, `importPriceBook`, `upsertStock` — internal, not returned — `applyImport`, `rollbackStock`) and 2415–2429 (`setStockItemsDisabled`); state from 1869–1871, 1895–1897. The boot effect's stage-2 stock load (inside 2027–2109) now calls `hydrateStock`/`markStockReady`/`markStockFailed` instead of the raw setters. `gFamilies` (the `useMemo` at 1873) stays in App, fed by `stock`.
 Lint/build/test; smoke: SKU search fills a row (throwaway project), Settings→Price book stock panel renders. Commit `refactor: useStock hook`.
-
-## PR 6 — `useBooks` + `useOrderSearch` (branch `claude/split-pr6-books`)
-
-### Task 16: `src/usebooks.js`
-
-```js
-export function useBooks({ user, ping, flashSaved }) → {
-  books, hydrateBooks(rows),
-  orderItems, setOrderItems,
-  loadBookItems, addBook, updateBook, delBook, applyBookImport,
-  loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
-  updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
-}
-```
-
-Bodies verbatim from App.jsx 2234–2414 (including the internal `appliedFromDiff`, `snapshotBookVersion`; `BOOK_VERSION_KEEP` comes from `./uiconst.js`). Commit `refactor: useBooks hook`.
 
 ### Task 17: `src/useordersearch.js`
 
 ```js
-export function useOrderSearch({ books, sel }) → { searchOrder, orderRowKeys, bookName }
+export function useOrderSearch({ books, sel, orderItems, setOrderItems }) → { searchOrder, orderRowKeys, bookName }
 ```
 
-Move the `fuzzyRpc` ref, `orderBooks`/`bookName` (2717–2718), the `searchOrder` memo (2730–2764), `orderRowKeys` memo (2765–2780) and the drift effect (2781–2818) verbatim. Commit `refactor: useOrderSearch hook`.
+`orderItems`/`setOrderItems` are owned by `useBooks` (Task 15) and passed through — the drift effect reads and writes them (App.jsx:2782–2818). `SKU_SHOW` imports from `./search.jsx` (exported there since Task 6). Move the `fuzzyRpc` ref, `orderBooks`/`bookName` (2717–2718), the `searchOrder` memo (2730–2764), `orderRowKeys` memo (2765–2780) and the drift effect (2781–2818) verbatim. Commit `refactor: useOrderSearch hook`.
 
-Smoke for PR 6: order search in a row (special-order results appear, drift chips render), book detail opens, markup editor renders.
+Smoke for PR 6: order search in a row (special-order results appear, drift chips render); a stock re-import preview opens and is cancelled.
 
 ## PR 7 — `useTodos` + `useLabels` (branch `claude/split-pr7-sidecars`)
 
 ### Task 18: `src/usetodos.js` and `src/uselabels.js`
 
-`useTodos({ user, profile, ping })` ← state 1876–1877 + bodies 3054–3105 (`todoData`, `openTodos`, `addTodo`, `updateTodo`, `toggleTodo`, `delTodo`, `clearDoneTodos`, `reorderTodos`), returning also `showTodos`/`setShowTodos` and `hydrateTodos`.
-`useLabels({ user, profile, ping })` ← state 1881–1882 + bodies 3106–3146, returning `labels`, `hydrateLabels`, `showApps`/`setShowApps`, `openApps`, `addLabel`, `addLabelsBulk`, `updateLabel`, `delLabel`, `saveLabelPreset`.
+`useTodos({ user, profile, ping, flashSaved, setSidebarOpen })` ← state 1876–1877 + bodies 3054–3105 (`todoData`, `openTodos`, `addTodo`, `updateTodo`, `toggleTodo`, `delTodo`, `clearDoneTodos`, `reorderTodos`), returning also `showTodos`/`setShowTodos` and `hydrateTodos`. (`openTodos` calls `setSidebarOpen(false)` at 3056 — sidebar state stays in App; the mutators call `flashSaved`.)
+`useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings })` ← state 1881–1882 + bodies 3106–3146, returning `labels`, `hydrateLabels`, `showApps`/`setShowApps`, `openApps`, `addLabel`, `addLabelsBulk`, `updateLabel`, `delLabel`, `saveLabelPreset`. (`openApps` calls `setSidebarOpen(false)` at 3110; `saveLabelPreset` reads `settings.apps` and writes through `setSettings` at 3141–3146.)
 Smoke: Issues modal add/check/reorder in a throwaway item, then delete it; Apps hub opens, label preview renders. Commit per hook.
 
 ## PR 8 — `useVersions` (branch `claude/split-pr8-versions`)
@@ -502,13 +509,13 @@ Smoke: Issues modal add/check/reorder in a throwaway item, then delete it; Apps 
 ### Task 19: `src/useversions.js`
 
 ```js
-export function useVersions({ user, ping, dataRef, baselineRef, updateProject, selId }) → {
+export function useVersions({ user, ping, flashSaved, sel, setData, dataRef, baselineRef, updateProject, selId }) → {
   showVersions, setShowVersions, namingVersion, versionName, setVersionName,
   startVersionName, confirmVersion, insertVersion, loadVersion, delVersion, autoSnapshot,
 }
 ```
 
-Bodies verbatim from App.jsx 2988–3047 (`insertVersion` … `autoSnapshot`; `AUTO_KEEP` from `./uiconst.js`, `catSig` from `./model.js`). The deselect effect (3042–3047) and `handleSignOut` (3048) **stay in App** and call `autoSnapshot` from the hook — the selection lifecycle remains App's. Smoke: save a named version in the throwaway project, restore it, delete it; deselect writes an auto version. Commit `refactor: useVersions hook`.
+`sel`/`setData`/`flashSaved` are required: `startVersionName` reads `namedCount(sel)` (App.jsx:2995), `confirmVersion` uses all three (2996–3006), `loadVersion`/`delVersion` use `sel.id` + `setData` (3007–3019), `autoSnapshot` calls `setData` (3025–3041). Bodies verbatim from App.jsx 2988–3041 (`insertVersion` … `autoSnapshot`; `AUTO_KEEP` from `./uiconst.js`, `catSig` from `./model.js`). The deselect effect (3042–3047) and `handleSignOut` (3048) **stay in App** and call `autoSnapshot` from the hook — the selection lifecycle remains App's. Smoke: save a named version in the throwaway project, restore it, delete it; deselect writes an auto version. Commit `refactor: useVersions hook`.
 
 ## PR 9 — `useDirectory` (branch `claude/split-pr9-directory`)
 
@@ -517,7 +524,11 @@ The riskiest hook — it owns the shared `customers`-lineage write paths — so 
 ### Task 20: `src/usedirectory.js`
 
 ```js
-export function useDirectory({ user, ping, flashSaved, autoSnapshot }) → {
+// Module-level exports (pure, consumed by App):
+export const attPath = (custId, fileId) => `${custId}/${fileId}`;  // verbatim from App.jsx:2980
+export const normProfile = …                                       // verbatim from App.jsx:1765 (kept in App through Phase 1, moves here now)
+
+export function useDirectory({ user, ping, flashSaved, setSidebarOpen }) → {
   data, setData, loading,                    // { projects, people, builders, settings } — names unchanged
   selId, selCustId, sel, selCust,            // selection state + derived, moved as-is
   hydrateDirectory(rows), loadDetail,
@@ -525,11 +536,11 @@ export function useDirectory({ user, ping, flashSaved, autoSnapshot }) → {
   linkProject, promoteProject, promoteToNewCustomer,
   addPerson, updatePerson, delPerson, addBuilderFor,
   builderNameOf, projectsOf, migrateLegacyCustomers,
-  setSettings, saveProfile, profile,
+  setSettings, saveProfile, profile, setProfile, appBlobRef,   // setProfile/appBlobRef feed the boot effect that stays in App
 }
 ```
 
-Bodies verbatim from App.jsx 2110–2151 (`loadDetail`), 2430–2452 (`migrateLegacyCustomers`), 2499–2513 (`setSettings`, `saveProfile`), 2553–2675 (directory CRUD), plus the `data`/`loading`/`selId`/`selCustId`/`profile` state and `appBlobRef`/`dataRef`/`baselineRef`/`prevSelRef` refs. Circularity with `useVersions` resolves by order: `useDirectory` is called first, `useVersions({ …, updateProject })` second, and `autoSnapshot` reaches `useDirectory`'s consumers via the deselect effect that stays in App. The attachment handlers (2980–2983) stay in App — four one-liners on `sel` + `updateProject`.
+No `autoSnapshot` parameter — its only call sites are the deselect effect (App.jsx:3045) and `handleSignOut` (3048), both of which stay in App; wiring it into this hook would also invert the PR-8→PR-9 call order for nothing. `setSidebarOpen` IS required (`addProject` at 2564, `pickProject`/`goHome` at 2636-region close the sidebar; sidebar state stays in App). Bodies verbatim from App.jsx 2110–2151 (`loadDetail`), 2430–2452 (`migrateLegacyCustomers`), 2495 (`custData` — used by the CRUD, comes along), 2499–2513 (`setSettings`, `saveProfile`), 2553–2675 (directory CRUD), plus the `data`/`loading`/`selId`/`selCustId`/`profile` state and `appBlobRef`/`dataRef`/`baselineRef`/`prevSelRef` refs. `delProject` calls `attPath` (2583–2585) — hence the module-level export above; the four attachment *handlers* (2980–2983) stay in App and import `attPath` from this file. Hook order in App: `useDirectory` first, then `useVersions({ …, sel, setData, updateProject })`.
 Smoke: create a person + project (throwaway), edit, link to a builder, promote a quick price, delete all of it; reload and confirm the sidebar buckets. Commit `refactor: useDirectory hook`.
 
 ## PR 10 — `EstimatePrint` (branch `claude/split-pr10-print`)
@@ -542,7 +553,7 @@ Convert the two closures `renderEstimatePaperClassic` (3279–3435) and `renderE
 export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, settings }) { … }
 ```
 
-Procedure: paste the closure bodies into the component, then let `npm run lint` enumerate every remaining free identifier — each becomes a prop, added to the signature AND the two call sites (view tab 4750, print path 4828). Expected prop set is the list above; if lint reveals more (e.g. `wSet`, `aByCat`), add them the same way — do not re-derive anything inside the component. `import { EstimatePaper } from "./EstimatePrint.jsx"` must be **static** (see Global Constraints — the `window.print()` race).
+Procedure: paste the closure bodies into the component, then let `npm run lint` enumerate every remaining free identifier — each becomes a prop, added to the signature AND the two call sites (view tab 4750, print path 4828). Expected prop set is the list above; if lint reveals more (e.g. `wSet`, `aByCat`), add them the same way — do not re-derive anything inside the component. The two call sites are the Preview tab (App.jsx:4753) and the print path (App.jsx:4828). `import { EstimatePaper } from "./EstimatePrint.jsx"` must be **static** (see Global Constraints — the `window.print()` race).
 Smoke (the print pillar — be thorough): Preview tab renders identically; Print estimate → browser preview matches a `main` build print of the same job for full/unit/none pricing modes and both tiers with a tag; order-sheet print unchanged; cancel every dialog. Screenshot before/after pairs go in the PR.
 Commit `refactor: extract EstimatePaper component`.
 
@@ -557,12 +568,17 @@ Commit `refactor: extract EstimatePaper component`.
 ```
 - [ ] npm run lint — 0 errors
 - [ ] npm test — all pass (N tests)
-- [ ] npm run build — success; chunk sizes recorded (PR 4, 9)
+- [ ] npm run build — success; chunk sizes recorded (PR 4 — the only chunk-affecting PR)
 - [ ] wc -l src/App.jsx — recorded
 - [ ] moved names grep to 0 in App.jsx
 - [ ] smoke checklist (human, live site rules: browse-only + throwaway project) — checked
 - [ ] before/after screenshots attached
 ```
+
+## Review log
+
+- 2026-07-20: ESLint gate validated empirically against the working tree — 0 `no-undef` errors on current code; probe file with a planted missing helper + missing component produced exactly the 2 expected errors; scaffolding removed.
+- 2026-07-20: adversarial agent review (independent context, read-only, evidence-required). 13 findings: 1 blocker (useStock↔useBooks internal-function split — fixed by hoisting `appliedFromDiff`/`snapshotBookVersion` to module level and swapping PR 5/6), 8 major (hook signatures missing real closure deps; three orphan declarations — `hitKey`/`faceSize`, `bookFieldOptions`, `gridEnterNav`/`vMeta`/`normProfile` — re-homed), 4 minor (range/citation drift). All folded in. The review also confirmed: no external importers of App.jsx exports, SettingsWorkspace is closure-free and safe to lazy-load, the admin cluster is unreachable outside it, every test assertion in Tasks 3–4 matches the real implementations, and the smoke steps stay inside sanctioned app write paths.
 
 ## Explicit non-goals (do not let scope creep into these)
 
