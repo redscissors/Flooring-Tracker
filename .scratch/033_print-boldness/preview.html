@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Print boldness — estimate sheet options</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#26231F;font-family:Manrope,ui-sans-serif,system-ui,sans-serif;padding:26px 22px 60px;color:#F6F3EC}
+  h1{font-size:17px;font-weight:800;margin:0 0 4px}
+  .sub{font-size:12.5px;color:#A8A29A;margin:0 0 22px;max-width:860px;line-height:1.5}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(470px,1fr));gap:26px;max-width:1560px}
+  .slot .tag{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;padding:3px 10px;border-radius:99px;background:#3a352d;color:#d9d4c8;margin-bottom:10px}
+  .slot .tag.rec{background:#57703A;color:#fff}
+  .slot .why{font-size:11.5px;color:#A8A29A;margin:0 0 10px;line-height:1.45;min-height:32px}
+
+  /* ---- the sheet ---------------------------------------------------- */
+  /* Variant knobs: --ink/--muted/--faint/--rule colors, --w base weight,
+     --wb "bold" weight (inline 700s), --wx heavy weight (inline 800s). */
+  .sheet{background:#fff;border-radius:3px;box-shadow:0 8px 30px rgba(0,0,0,.45);padding:30px 32px;
+         font-size:11px;line-height:1.35;font-weight:var(--w);color:var(--ink)}
+  .v-current{--ink:#1C1A17;--muted:#57534C;--faint:#8A8378;--rule:#CBC6B9;--w:400;--wb:700;--wx:800}
+  .v-ink    {--ink:#000000;--muted:#403C36;--faint:#615B51;--rule:#ABA494;--w:400;--wb:700;--wx:800}
+  .v-weight {--ink:#1C1A17;--muted:#57534C;--faint:#8A8378;--rule:#CBC6B9;--w:500;--wb:800;--wx:800}
+  .v-both   {--ink:#000000;--muted:#403C36;--faint:#615B51;--rule:#ABA494;--w:500;--wb:800;--wx:800}
+
+  .sheet .hd{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:14px}
+  .sheet .logo{height:40px;width:96px;flex-shrink:0;background:#1C1A17;color:#F6F3EC;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;letter-spacing:.04em;border-radius:2px}
+  .sheet .badge{flex:0 1 auto;max-width:320px;text-align:center;background:#f4ebd6;border:1px solid #d8c48c;border-radius:6px;padding:5px 14px;line-height:1.28}
+  .sheet .badge b{display:block;font-size:12px;font-weight:var(--wx);letter-spacing:.06em;color:#7a5a1c;text-transform:uppercase}
+  .sheet .badge span{font-size:9px;color:var(--muted)}
+  .sheet .hd-r{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+  .sheet .eyebrow{font-size:10px;font-weight:var(--wb);letter-spacing:.24em;color:#40542A;text-transform:uppercase}
+  .sheet .date{font-size:9.5px;color:var(--muted)}
+
+  .sheet .info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:12px}
+  .sheet .info .lb{font-size:8.5px;font-weight:var(--wb);letter-spacing:.2em;color:var(--faint);text-transform:uppercase;margin-bottom:2px}
+  .sheet .info .nm{font-size:12.5px;font-weight:var(--wb)}
+  .sheet .info .dt{font-size:11px;color:var(--muted)}
+
+  .sheet .band{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#EDE9DE;border-radius:4px;padding:6px 12px;min-height:28px}
+  .sheet .band .t{font-size:10px;font-weight:var(--wb);letter-spacing:.22em;color:#40542A;text-transform:uppercase}
+  .sheet .band .x{font-size:10px;font-style:italic;color:var(--muted);white-space:nowrap}
+  .sheet .band .x b{font-style:normal;font-weight:var(--wx);color:#40542A}
+
+  .sheet .row{display:flex;justify-content:space-between;gap:22px;padding:8px 12px}
+  .sheet .row + .row{border-top:1px solid var(--rule)}
+  .sheet .row .nm{font-weight:var(--wb);font-size:12.5px;line-height:1.25}
+  .sheet .row .nm span{font-weight:var(--w);font-size:10.5px;color:var(--muted)}
+  .sheet .row .spec{font-size:10.5px;color:var(--muted);margin-top:2px}
+  .sheet .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .sheet .chip{font-size:10px;background:rgba(87,112,58,.13);color:#40542A;border-radius:20px;padding:2px 10px;font-weight:600;white-space:nowrap}
+  .sheet .chip b{font-weight:var(--wx)}
+  .sheet .num{text-align:right;white-space:nowrap;flex-shrink:0}
+  .sheet .num .q{font-size:10.5px;color:var(--muted)}
+  .sheet .num .u{font-size:11px;color:var(--ink);margin-top:2px}
+  .sheet .num .u span{color:var(--muted)}
+  .sheet .num .tot{font-size:14px;font-weight:var(--wx);margin-top:2px}
+
+  .sheet .xh{font-size:10px;font-weight:var(--wb);letter-spacing:.22em;color:#40542A;text-transform:uppercase;margin:15px 0 6px}
+  .sheet .xbox{background:#EDE9DE;border-radius:4px;padding:11px 15px}
+  .sheet .xcols{columns:2;column-gap:28px}
+  .sheet .xg{break-inside:avoid;margin-bottom:9px}
+  .sheet .xg .gl{font-size:8.5px;font-weight:var(--wb);letter-spacing:.2em;color:#40542A;text-transform:uppercase;margin-bottom:3px}
+  .sheet .xi{display:flex;justify-content:space-between;gap:14px;align-items:baseline;margin-bottom:6px}
+  .sheet .xi .n{font-size:11.5px;font-weight:var(--wb)}
+  .sheet .xi .d{font-size:10px;color:var(--muted);margin-top:1px;font-weight:var(--w)}
+  .sheet .xi .r{text-align:right;white-space:nowrap;flex-shrink:0}
+  .sheet .xi .r .q{font-size:10.5px;color:var(--muted)}
+  .sheet .xi .r .q i{font-style:normal;color:var(--ink)}
+  .sheet .xi .r .c{font-size:12px;font-weight:var(--wx);margin-top:1px}
+  .sheet .xsub{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--rule);margin-top:4px;padding-top:7px}
+  .sheet .xsub .l{font-size:8.5px;font-weight:var(--wb);letter-spacing:.2em;color:#40542A;text-transform:uppercase}
+  .sheet .xsub .v{font-size:12px;font-weight:var(--wx)}
+
+  .sheet .gt{display:flex;justify-content:flex-end;align-items:baseline;gap:10px;border-top:2px solid var(--ink);padding-top:10px;margin-top:10px}
+  .sheet .gt .l{font-size:10px;font-weight:var(--wb);letter-spacing:.2em;color:#40542A;text-transform:uppercase}
+  .sheet .gt .v{font-size:26px;font-weight:var(--wx);letter-spacing:-.01em}
+  .sheet .waste{font-size:9.5px;color:var(--faint);margin-top:6px;text-align:right}
+  .sheet .ft{display:flex;justify-content:center;align-items:center;gap:7px;border-top:1px solid #E4E0D3;padding-top:12px;margin-top:18px;font-size:10.5px;color:var(--faint)}
+  .sheet .ft b{color:var(--ink);font-weight:var(--wb)}
+
+  .notes{max-width:900px;margin-top:34px;font-size:12.5px;line-height:1.55;color:#d9d4c8}
+  .notes h2{font-size:13px;font-weight:800;color:#F6F3EC;margin:18px 0 6px}
+  .notes code{background:#3a352d;padding:1px 5px;border-radius:3px;font-size:11.5px}
+</style>
+</head>
+<body>
+<h1>Print boldness — estimate sheet options (issue 033)</h1>
+<p class="sub">The printed estimate reads light because most of its supporting text is mid-gray
+(<code>--ft-muted #57534C</code>, <code>--ft-faint #8A8378</code>) set in Manrope&nbsp;400 at 10–11px, the ink is a soft
+near-black (<code>#1C1A17</code>), and the row rules are <code>#CBC6B9</code> — all of which a grayscale laser dithers even
+lighter. Below: the current sheet next to three darkening treatments. Zoom to ~100% and squint, or print this page.</p>
+
+<div class="grid">
+  <div class="slot"><span class="tag">1 · Current</span><p class="why">As deployed today.</p><div class="sheet v-current"></div></div>
+  <div class="slot"><span class="tag">2 · Darker ink</span><p class="why">Colors only: true black ink, grays pulled two steps darker, rules darkened. Weights untouched — layout identical.</p><div class="sheet v-ink"></div></div>
+  <div class="slot"><span class="tag">3 · Heavier type</span><p class="why">Weights only: body 400→500, bolds 700→800. Colors untouched.</p><div class="sheet v-weight"></div></div>
+  <div class="slot"><span class="tag rec">4 · Both — recommended</span><p class="why">Darker ink + heavier type together. The biggest lift on paper while keeping the hierarchy (muted specs still read quieter than names).</p><div class="sheet v-both"></div></div>
+</div>
+
+<div class="notes">
+  <h2>What each option costs</h2>
+  <p>Options 2 and 4's color changes are a token tweak in the <code>.ft-light</code> block of <code>src/index.css</code>
+  (the estimate paper subtree) — no layout risk. The weight bump in 3/4 is one inherited <code>font-weight:500</code> on the
+  paper container plus changing the sheet's inline <code>700</code>s to <code>800</code> in <code>App.jsx</code>; Manrope 500/800
+  are already loaded, and at these sizes the width change is negligible (no reflow/pagination risk seen at 780px).
+  Both apply to the on-screen preview too, so preview stays WYSIWYG with the printout. The order sheet shares the same
+  <code>.ft-light</code> wrapper and would darken along with it.</p>
+  <h2>Also worth checking</h2>
+  <p>If the printer is in toner-save / EconoMode, every option still prints light — worth ruling out on the shop printer.
+  And the sand bands only print when "background graphics" is on in the print dialog (Chrome usually honors the app's
+  <code>print-color-adjust:exact</code>, but other browsers may not).</p>
+</div>
+
+<script>
+  const sheet = `
+  <div class="hd">
+    <div class="logo">KEIM</div>
+    <div class="badge"><b>Rough Estimate</b><span>For planning purposes only · pricing subject to change on final order</span></div>
+    <div class="hd-r"><div class="eyebrow">Selection Sheet</div><div class="date">7/20/2026</div></div>
+  </div>
+  <div class="info">
+    <div><div class="lb">Customer</div><div class="nm">Miller Residence</div><div class="dt">4802 Township Rd 366, Millersburg</div></div>
+    <div><div class="lb">Your salesperson</div><div class="nm">Dan Keim</div><div class="dt">(330) 555-0114 · dan@keim.com</div></div>
+    <div><div class="lb">Project</div><div class="nm">Main floor remodel</div><div class="dt">2 areas · 10% waste</div></div>
+  </div>
+  <div class="band"><div class="t">Area 01 · Kitchen &amp; Dining</div><div class="x"><b>＋</b> extras priced below</div></div>
+  <div class="row">
+    <div style="min-width:0">
+      <div class="nm">Anatolia Evolution Mist 12×24 <span>— tile</span></div>
+      <div class="spec">12 × 24 · 15.5 SF/CT · SKU EVO-MIST-1224</div>
+      <div class="chips">
+        <span class="chip"><b>Grout</b> 3 · Prism Silverado — 1/8″ joint</span>
+        <span class="chip"><b>Mortar</b> 4 · 254 Platinum</span>
+        <span class="chip"><b>Caulk</b> 2 · Matching caulk</span>
+      </div>
+    </div>
+    <div class="num"><div class="q">217.0 SF ordered · 14 cartons</div><div class="u">$4.85/sf <span>· $75.18/ct</span></div><div class="tot">$1,052.45</div></div>
+  </div>
+  <div class="row">
+    <div style="min-width:0">
+      <div class="nm">Mannington Adura Max Sausalito <span>— vinyl</span></div>
+      <div class="spec">7 × 48 · 23.3 SF/CT · SKU MAX-SAUS-748</div>
+    </div>
+    <div class="num"><div class="q">163.1 SF ordered · 7 cartons</div><div class="u">$3.99/sf <span>· $92.97/ct</span></div><div class="tot">$650.77</div></div>
+  </div>
+  <div class="xh">Extras</div>
+  <div class="xbox">
+    <div class="xcols">
+      <div class="xg"><div class="gl">Grout</div>
+        <div class="xi"><div><div class="n">Prism — Silverado</div><div class="d">17-lb pail · SKU PG652</div></div><div class="r"><div class="q">3 pails · <i>$31.40/pail</i></div><div class="c">$94.20</div></div></div>
+      </div>
+      <div class="xg"><div class="gl">Mortar</div>
+        <div class="xi"><div><div class="n">Laticrete 254 Platinum</div><div class="d">50-lb bag · SKU 0254-0050-21</div></div><div class="r"><div class="q">4 bags · <i>$28.75/bag</i></div><div class="c">$115.00</div></div></div>
+      </div>
+    </div>
+    <div class="xsub"><div class="l">Extras subtotal</div><div class="v">$209.20</div></div>
+  </div>
+  <div class="gt"><span class="l">Estimated total</span><span class="v">$1,912.42</span></div>
+  <div class="waste">Includes 10% waste</div>
+  <div class="ft"><span>Prepared with</span><b>the ned</b></div>`;
+  document.querySelectorAll('.sheet').forEach((el) => { el.innerHTML = sheet; });
+</script>
+</body>
+</html>
