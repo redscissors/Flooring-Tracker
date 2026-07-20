@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  LABEL_FIELDS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
+  LABEL_FIELDS, VARIANT_KEYS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
   normPreset, normLabelPresets, customLabelPresets, normLabel, newDraftFromPreset,
   perLetterSheet, sheetsForLabels,
   faceSizeText, stockToLabelFields, escapeHtml, labelCardHTML, normLabel as _normLabel,
@@ -115,6 +115,53 @@ test("stockToLabelFields derives $/sf from carton price when priceSqft is absent
 
 test("escapeHtml neutralizes markup", () => {
   assert.equal(escapeHtml('<b>&"'), "&lt;b&gt;&amp;&quot;");
+});
+
+// --- two-variant labels -------------------------------------------------------
+
+test("normLabel defaults twoVariant off with blank fields2, keeps old records valid", () => {
+  const old = normLabel({ id: "l1", presetId: "sample-tag", fields: { name: "Carrara" } });
+  assert.equal(old.twoVariant, false);
+  assert.deepEqual(old.fields2, { sku: "", size: "", price: "" });
+  const two = normLabel({ id: "l2", twoVariant: true, fields2: { sku: "CM-2048", size: 12, junk: "x" } });
+  assert.equal(two.twoVariant, true);
+  assert.equal(two.fields2.sku, "CM-2048");
+  assert.equal(two.fields2.size, "12"); // coerced to string
+  assert.equal(two.fields2.junk, undefined); // only VARIANT_KEYS survive
+});
+
+test("newDraftFromPreset starts single-variant", () => {
+  const d = newDraftFromPreset(BUILTIN_PRESETS[0]);
+  assert.equal(d.twoVariant, false);
+  assert.deepEqual(d.fields2, { sku: "", size: "", price: "" });
+});
+
+test("labelCardHTML renders a two-variant label as one split block", () => {
+  const l = _normLabel({ id: "l1", presetId: "sample-tag", w: 2, h: 2.5, header: "Keim", twoVariant: true,
+    lines: [
+      { key: "name", show: true, size: 13 }, { key: "sku", show: true, size: 10 },
+      { key: "size", show: true, size: 10 }, { key: "price", show: false, size: 10 },
+    ],
+    fields: { name: "Carrara", sku: "CM-2046", size: '12" x 24"' },
+    fields2: { sku: "CM-2048", size: '12" x 48"', price: "$9.99/sq ft" } });
+  const html = labelCardHTML(l);
+  assert.match(html, /CM-2046/);
+  assert.match(html, /CM-2048/);
+  assert.match(html, /12&quot; x 48&quot;/);
+  assert.doesNotMatch(html, /\$9\.99/); // price line hidden -> hidden in both columns
+  // each shown variant field's caption appears exactly twice (once per column)
+  assert.equal(html.split(">SKU<").length - 1, 2);
+  assert.equal(html.split(">Size<").length - 1, 2);
+});
+
+test("labelCardHTML ignores fields2 when twoVariant is off", () => {
+  const l = _normLabel({ id: "l1", presetId: "sample-tag",
+    lines: [{ key: "name", show: true, size: 13 }, { key: "sku", show: true, size: 10 }],
+    fields: { name: "Carrara", sku: "CM-2046" }, fields2: { sku: "CM-2048" } });
+  const html = labelCardHTML(l);
+  assert.match(html, /CM-2046/);
+  assert.doesNotMatch(html, /CM-2048/);
+  assert.equal(html.split(">SKU<").length - 1, 1);
 });
 
 test("labelCardHTML renders visible fields and skips hidden ones", () => {
