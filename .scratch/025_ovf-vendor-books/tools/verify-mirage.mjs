@@ -4,7 +4,7 @@ import fs from 'fs'
 const require = createRequire('file:///C:/Users/User/OneDrive/Documents/Claude%20ReadWrite/Flooring-Tracker/package.json')
 const XLSX = require('xlsx')
 const pdfjs = await import('file:///C:/Users/User/OneDrive/Documents/Claude%20ReadWrite/Flooring-Tracker/node_modules/pdfjs-dist/legacy/build/pdf.mjs')
-const M = await import('file:///C:/Users/User/OneDrive/Documents/Claude%20ReadWrite/Flooring-Tracker/.claude/worktrees/price-sheet-trim-floor-link-6d2e84/src/miragebook.js')
+const M = await import(new URL('../../../src/miragebook.js', import.meta.url))
 
 const DL = 'C:/Users/User/Downloads/'
 const CHART = 'C:/Users/User/.claude/uploads/e9b78c39-9596-4609-a885-3981a8fd2e42/94a4ee2c-Mirage_Product_Chart.pdf'

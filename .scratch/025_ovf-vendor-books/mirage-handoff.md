@@ -1,15 +1,15 @@
 # Mirage import — handoff (2026-07-20)
 
-Status: **parsing works except one isolated defect; nothing is wired to the UI yet.**
+Status: **parsing is clean on both chart editions; nothing is wired to the UI yet.**
 
 ## Start here
 
 1. Read ADR 0025 (`docs/adr/0025-import-source-provenance.md`) — accepted, and it
    governs everything below.
-2. `git checkout claude/mirage-book` (PR #184 open) or branch fresh off `main`.
-   **Branch every PR off `main`.** Stacking cost us three re-lands this session
-   (#174→#176, #179→#180, #181 merged only its first commit → #184).
-3. `npm test` — 507 passing.
+2. Branch fresh off `main`. **Branch every PR off `main`.** Stacking cost us
+   three re-lands (#174→#176, #179→#180, #181 merged only its first commit →
+   #184).
+3. `npm test` — 514 passing.
 
 ## Where the work stands
 
@@ -23,25 +23,47 @@ Status: **parsing works except one isolated defect; nothing is wired to the UI y
 | #180 | "Add a file…" on the book page |
 | #181 | Mirage detectors + the 2025 Product Chart parser |
 
+| #184 | flooring price parsers, the chart→price join, 2026 chart layout, region segmentation |
+
 ### Open
-- **#184** — flooring price parsers, the chart→price join, 2026 chart layout,
-  region segmentation. Carries the known defect below.
+- nothing.
 
-## The one defect
+## The one defect — FIXED
 
-**119 rows carry no `construction`, all `LIVELY` at `5"`.** One block, page 2 of
-the 2026 chart, band row y419 (`TruBalance | TruBalance Lite | Solid` over 9
-width columns).
+**119 LIVELY rows carried no `construction`.** The document was never the
+problem, and the instrumentation gave the answer in one run: that block offered
+**2 widths against 3 bands**, so `bandRuns` correctly refused to map them.
 
-Reading the PDF says it should resolve: 3 bands, 9 widths, every SKU x maps to a
-distinct column with no ambiguity. So the cause is NOT visible in the document —
-**instrument `parseBlocks` and print the actual `b.bands` / `b.widths` / the
-`bandRuns` map for that block** rather than re-reading the PDF. That is the next
-concrete task and it has a definite answer.
+The widths are not always ONE printed row. Where a band's columns carry a
+pattern qualifier, their widths sit on a lower baseline than the plain ones —
+439.72 vs 443.16, a 3.44 gap that just clears `pageRows`' `<= 3` row tolerance.
+Reading only `rows[i-1]` therefore saw the two Herringbone 5" columns and
+nothing else. The parser now gathers every row between the header and the
+thickness/band row above it.
 
-Everything else in the 2026 chart parses (968 rows, all 10 collections).
+Two things fell out of that and are worth remembering:
+
+- **The editions print a qualified width differently.** 2025 puts it inside one
+  text item (`"Herringbone 5"`); 2026 floats the qualifier on its own row. A
+  width filter tight enough to reject the gathered non-width text has to accept
+  both, or 2025 silently loses `herr 5` / `chevron 5` — it did, mid-session, and
+  the join fell 765 → 729.
+- **`cur.widths` must be sorted by centre.** Gathering across rows interleaves
+  the baselines, and `bandRuns` partitions widths into *contiguous* runs — an
+  out-of-order list maps columns to the wrong construction while still looking
+  fully populated, which is worse than the blank it replaced.
+
+Both editions now parse clean: 2025 868 rows / 39-of-39 cross-check / 765-of-765
+priced, 2026 968 rows / all 10 collections / 0 missing a grade or construction.
+The LIVELY block's width→construction map was checked column by column against
+the raw PDF x-positions (`livelymap.mjs`).
 
 ## What is NOT built
+
+With the parsing clean, **#3 (multi-payload `ingest`) is the one that unblocks
+everything** — until it exists none of this is reachable from the UI, so the
+other two ship into a book nobody can import. Do it first unless the owner wants
+Lakeside visible sooner.
 
 1. **Value Tower's colour grid.** The chart is the spine, but Lakeside and the
    Escape *Traditional* colours (Blue Ridge, Champlain, Chelan, Madison,
@@ -107,7 +129,14 @@ dev-only (never imported by the app). Run with plain `node`.
 | `verify-mirage.mjs` | 2025 chart: row count, detectors, spot checks, and the 39/39 cross-check against the Value Tower colour grid |
 | `newchart.mjs` | 2026 chart: rows, collections, constructions, rows missing a grade/construction |
 | `join-check.mjs` | the chart→price join, which sheet won each overlap, unpriced rows by collection |
+| `livelymap.mjs` | the LIVELY block's width→construction map + one colour's SKUs, to check a mapping is RIGHT and not merely present |
+| `qualrows.mjs` | both editions side by side around every Herringbone/Chevron row — the tool for "how does this edition print a qualified width?" |
 | `dump.mjs` / `pdftext.mjs` | raw xls rows / raw PDF text with x,y — what to reach for when a layout question comes up |
+
+They import `miragebook.js` **relative to their own location**, so they always
+test the worktree they sit in. They used to hardcode an absolute path to a
+worktree that no longer exists — if you copy one of these, keep the relative
+import.
 
 The cross-checks are the real acceptance test; the unit tests use synthetic
 fixtures so they can live in the repo without the sample files.

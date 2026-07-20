@@ -238,23 +238,53 @@ function parseBlocks(rows) {
     const cols = headerColumns(r);
     if (cols) {
       cur.cols = cols;
-      const prev = rows[i - 1];
-      if (prev) {
-        const parts = [];
-        for (const it of prev.items) {
-          if (/^["']$/.test(it.s) && parts.length) { parts[parts.length - 1].s += '"'; continue; }
-          parts.push({ s: it.s, cx: it.cx });
+      // The widths are not reliably ONE printed row. Where a band's columns carry
+      // a pattern qualifier, their widths sit on a slightly lower baseline than
+      // the plain ones (439.7 vs 443.2 on the 2026 chart) — far enough apart to
+      // land in different rows. Reading only the row above then finds 2 widths
+      // under 3 bands, and bandRuns rightly refuses to map them, costing the
+      // whole block its construction. So collect every row between this header
+      // and the thickness/band row above it.
+      const above = [];
+      for (let j = i - 1; j >= 0 && above.length < 3; j--) {
+        const rr = rows[j];
+        if (/thick/i.test(rowText(rr))) break;
+        if (rr.items.some((it) => isSku(it.s) || /TruBalance|Classic|Lock|Solid/.test(it.s))) break;
+        above.push(rr);
+      }
+      const parts = [];
+      for (const rr of above.reverse()) {
+        // Stitch the inch mark back onto its number WITHIN a row, never across
+        // one — the next row's first item is a new column, not this one's mark.
+        let prevPart = null;
+        for (const it of rr.items) {
+          if (/^["']$/.test(it.s) && prevPart) { prevPart.s += '"'; continue; }
+          prevPart = { s: it.s, cx: it.cx };
+          parts.push(prevPart);
         }
-        cur.widths = parts.filter((p) => /\d/.test(p.s)).map((p) => ({ label: p.s, cx: p.cx }));
-        // Later charts moved the pattern qualifier onto its own row above the
-        // widths, so a band prints as 5" / 7-3/4" / 5" / 5" with "Herringbone"
-        // and "Chevron" floating above the last two. Without folding them back
-        // in, three columns of one band all key as plain 5" and collide.
-        const quals = (rows[i - 2]?.items || []).filter((q) => /^(herringbone|herr\.?|chevron|chev\.?)$/i.test(q.s));
-        for (const q of quals) {
-          const w = cur.widths.reduce((b, x) => (Math.abs(x.cx - q.cx) < Math.abs(b.cx - q.cx) ? x : b), cur.widths[0]);
-          if (w && Math.abs(w.cx - q.cx) <= 30 && !/herr|chev/i.test(w.label)) w.label = `${q.s} ${w.label}`;
-        }
+      }
+      // Gathering several rows means non-width text comes along (a species
+      // banner, the bare qualifiers), so a width must now LOOK like one rather
+      // than merely contain a digit — with the qualifier optional, because the
+      // 2025 chart prints it INSIDE the width item ("Herringbone 5") where the
+      // 2026 one floats it on its own row.
+      //
+      // Then sorted by centre, NOT left in the order read: gathering across rows
+      // interleaves the baselines, and bandRuns partitions the widths into
+      // CONTIGUOUS runs — an out-of-order list maps columns to the wrong
+      // construction while still looking fully populated.
+      cur.widths = parts.filter((p) => /^(?:(?:herringbone|herr\.?|chevron|chev\.?) )?\d+(?:-\d+\/\d+)?"?\**$/i.test(p.s))
+        .map((p) => ({ label: p.s, cx: p.cx }))
+        .sort((a, b) => a.cx - b.cx);
+      // Later charts moved the pattern qualifier onto its own row above the
+      // widths, so a band prints as 5" / 7-3/4" / 5" / 5" with "Herringbone"
+      // and "Chevron" floating above the last two. Without folding them back
+      // in, three columns of one band all key as plain 5" and collide.
+      const quals = parts.filter((q) => /^(herringbone|herr\.?|chevron|chev\.?)$/i.test(q.s));
+      for (const q of quals) {
+        if (!cur.widths.length) break;
+        const w = cur.widths.reduce((b, x) => (Math.abs(x.cx - q.cx) < Math.abs(b.cx - q.cx) ? x : b), cur.widths[0]);
+        if (w && Math.abs(w.cx - q.cx) <= 30 && !/herr|chev/i.test(w.label)) w.label = `${q.s} ${w.label}`;
       }
       continue;
     }

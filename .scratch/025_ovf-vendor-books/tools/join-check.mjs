@@ -2,7 +2,7 @@ import { createRequire } from 'module'; import fs from 'fs';
 const require = createRequire('file:///C:/Users/User/OneDrive/Documents/Claude%20ReadWrite/Flooring-Tracker/package.json');
 const XLSX = require('xlsx');
 const pdfjs = await import('file:///C:/Users/User/OneDrive/Documents/Claude%20ReadWrite/Flooring-Tracker/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
-const M = await import('file:///C:/Users/User/OneDrive/Documents/Claude%20ReadWrite/Flooring-Tracker/.claude/worktrees/price-sheet-trim-floor-link-6d2e84/src/miragebook.js');
+const M = await import(new URL('../../../src/miragebook.js', import.meta.url));
 const DL='C:/Users/User/Downloads/';
 const readSheets=(f)=>{const wb=XLSX.read(fs.readFileSync(f),{type:'buffer'});return wb.SheetNames.map(name=>({name,rows:XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,blankrows:false,raw:true,defval:''})}));};
 const doc=await pdfjs.getDocument({data:new Uint8Array(fs.readFileSync('C:/Users/User/.claude/uploads/e9b78c39-9596-4609-a885-3981a8fd2e42/94a4ee2c-Mirage_Product_Chart.pdf')),useSystemFonts:true}).promise;
