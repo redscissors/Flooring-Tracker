@@ -358,15 +358,26 @@ test("lineItems: fees land as their own misc lines at cost", () => {
 
 test("lineItems: vents are count lines; config snapshot is a deep copy", () => {
   const cfg = { ...defaultConfig("vent"), sp: "Walnut", size: "4×12", qty: 6 };
-  const [main] = lineItems({ mode: "vent", cfg }, { sf: 0 });
+  const [main] = lineItems({ mode: "vent", cfg }, { sf: 0, markupPct: 50 });
   assert.equal(main.qtyType, "count");
   assert.equal(main.qty, "6");
   assert.equal(main.cartonSf, undefined);
-  assert.ok(main.brandColor.includes('4×12" Flush vent · Walnut'));
+  // Size lands in the row's size field, not buried in the description.
+  assert.equal(main.sizeText, '4×12"');
+  assert.equal(main.brandColor, "Sheoga — Flush vent · Walnut");
   assert.equal(main.costSqft, "20.85");
+  assert.equal(main.priceSqft, String(Math.round(20.85 * 1.5 * 100) / 100));
   cfg.qty = 99;
   assert.equal(main.sheoga.cfg.qty, 6);
   assert.deepEqual(lineItems({ mode: "floor", cfg: floor({ w: 9.25 }) }, { sf: 100 }), []);
+});
+
+test("lineItems: dampers carry size + priced-each payload like vents", () => {
+  const [main] = lineItems({ mode: "damper", cfg: { size: "6×14", qty: 8 } }, { sf: 0 });
+  assert.equal(main.qtyType, "count");
+  assert.equal(main.qty, "8");
+  assert.equal(main.sizeText, '6×14"');
+  assert.equal(main.brandColor, "Sheoga — vent damper (loose)");
 });
 
 // --- SKU-search entry ---------------------------------------------------------

@@ -416,9 +416,9 @@ export function calcVent(v) {
     cost += fc;
     rows.push([`Frame — ${li}" lineal @ $0.40`, `+${fm(fc)}`]);
   }
-  const desc = `${v.size}" ${cat.name} vent · ${v.sp}${v.cubed && cat.cubed ? " · Cubed" : ""}${v.prefin ? " · Prefinished" : ""}${v.tex ? " · Textured" : ""}${v.damper && DAMPERS[v.size] ? " · w/ damper" : ""}${v.frame && cat.frame ? " · w/ frame" : ""}`;
+  const rest = `${cat.name} vent · ${v.sp}${v.cubed && cat.cubed ? " · Cubed" : ""}${v.prefin ? " · Prefinished" : ""}${v.tex ? " · Textured" : ""}${v.damper && DAMPERS[v.size] ? " · w/ damper" : ""}${v.frame && cat.frame ? " · w/ frame" : ""}`;
   return {
-    desc, name: `Sheoga vent ${v.size}" ${v.sp}`, rows, cost, per: "ea", qty: v.qty || 1,
+    desc: `${v.size}" ${rest}`, size: `${v.size}"`, rest, name: `Sheoga vent ${v.size}" ${v.sp}`, rows, cost, per: "ea", qty: v.qty || 1,
     warn: cat.id === "framed" ? ['Overall size adds 2¾" all around the duct size'] : [], fees: [],
   };
 }
@@ -431,7 +431,7 @@ export function calcDamper(d) {
     ["Sheoga list: builder " + fm(t[2]) + " · retail " + fm(t[3]), ""],
   ];
   return {
-    desc: `${d.size}" vent damper (loose)`, name: `Sheoga damper ${d.size}"`, rows, cost: t[1], per: "ea", qty: d.qty || 1,
+    desc: `${d.size}" vent damper (loose)`, size: `${d.size}"`, rest: "vent damper (loose)", name: `Sheoga damper ${d.size}"`, rows, cost: t[1], per: "ea", qty: d.qty || 1,
     warn: ["Attached-to-vent price is damper + $5.00 (use the vent tab)"], fees: [],
   };
 }
@@ -534,7 +534,7 @@ export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
   const main =
     c.per === "ea"
       ? {
-          type: "hardwood", sku: "", sizeText: "", brandColor: `Sheoga — ${c.desc}`, qtyType: "count", qty: String(c.qty || 1),
+          type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga — ${c.rest || c.desc}`, qtyType: "count", qty: String(c.qty || 1),
           priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
           note: "Sheoga special order — by description, no SKU", sheoga,
         }
