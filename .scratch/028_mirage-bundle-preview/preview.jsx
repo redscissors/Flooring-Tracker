@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
-import { BookImportWizard } from "../../src/App.jsx";
+import { BookImportWizard } from "../../src/pricebooklib.jsx";
 import { bundleByBook, fileFormat } from "../../src/dropimport.js";
 import payloads from "./payloads.json";
 

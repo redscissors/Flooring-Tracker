@@ -12,7 +12,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import * as XLSX from "xlsx";
 import "../../src/index.css";
-import { ImportRouter } from "../../src/App.jsx";
+import { ImportRouter } from "../../src/pricebooklib.jsx";
 import { declareManualSource, sourceSlot } from "../../src/dropimport.js";
 
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
