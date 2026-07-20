@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup, normSpecies } from "./miragebook.js";
+import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup, normSpecies, parseMirageFloorSkus } from "./miragebook.js";
 
 // A PDF text item in the shape App.jsx's readPdfPages produces (y top-down).
 const it = (str, x, y, w = 10) => ({ str, x, y, w });
@@ -501,6 +501,48 @@ test("R&Q survives normalization on both sides of the trim join", () => {
   const prices = parseMirageTrimPrices(naturalTrimSheet);
   assert.equal(prices.get("3/4|nosing|white oak rq"), 235.99);
   assert.equal(prices.get("3/4|nosing|hickory"), 196.69);
+});
+
+// A flooring sheet prints its grid twice — prices above, the matching SKUs below.
+// For a multi-colour collection those SKUs are one arbitrary colour's and must
+// never be used; for a single-colour programme like Natural they are the
+// collection's own, which is why the merge is gated on a named allowlist.
+const naturalFloorSheet = [{ name: "$ Flooring blank", rows: [
+  ["Prepared especially for KEIM LUMBER CO"],
+  ["Effective: July 13th, 2026"],
+  [],
+  ["", "", "", "", "", 'TruBalance 3/4"'],
+  ["", "", "", "", "", '5"', '6-1/2"'],
+  ["", "Species", "Grades", "Texture", "Finish", "Lengths 20 to 82\"", "Lengths 27 to 82\""],
+  ["Natural", "White Oak R&Q", "Character", "Brushed", "DuraMatt®", "$10.79/SF", "$11.99/SF"],
+  ["", "Hickory", "Character", "", "", "$11.09/SF", "$12.19/SF"],
+  [],
+  ["", "", "", "", "", 'TruBalance 3/4"'],
+  ["", "", "", "", "", '5"', '6-1/2"'],
+  ["", "Species", "Grades", "Texture", "Finish", "Lengths 20 to 82\"", "Lengths 27 to 82\""],
+  ["Natural", "White Oak R&Q", "Character", "Brushed", "DuraMatt®", "48001", "49811"],
+  ["", "Hickory", "Character", "", "", "49797", "50424"],
+] }];
+
+test("the SKU half of a flooring sheet is read as SKUs, the price half as prices", () => {
+  // A cell only belongs to a half when it parses as that kind, so neither half
+  // pollutes the other.
+  assert.deepEqual(parseMirageFlooring(naturalFloorSheet).rows.map((r) => r.price), [10.79, 11.99, 11.09, 12.19]);
+  const skus = parseMirageFloorSkus(naturalFloorSheet);
+  assert.deepEqual(skus.map((r) => r.sku), ["48001", "49811", "49797", "50424"]);
+  // A single-colour programme's name IS its colour.
+  assert.deepEqual([...new Set(skus.map((r) => r.color))], ["Natural"]);
+  assert.deepEqual([...new Set(skus.map((r) => r.species))], ["White Oak R&Q", "Hickory"]);
+});
+
+test("Natural floors reach the book with their own prices", () => {
+  const res = parseMirage([chartPayload, { sheets: naturalFloorSheet }]);
+  const nat = res.rows.filter((r) => r[2] === "Natural");
+  assert.equal(nat.length, 4);
+  assert.equal(nat.find((r) => r[0] === "48001")[6], "10.79");
+  assert.equal(nat.find((r) => r[0] === "50424")[6], "12.19");
+  assert.match(nat[0][1], /White Oak R&Q Natural/);   // R&Q stays capitalised
+  assert.equal(res.meta.fromGrid, 4);
 });
 
 test("a bundle with no trim sheet says the book will have no mouldings", () => {

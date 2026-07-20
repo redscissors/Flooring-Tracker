@@ -1,6 +1,6 @@
 # Mirage import — handoff (2026-07-20)
 
-Status: **complete — all four documents import as one book (1747 items: 942 floors + 805 trims), reachable from the UI.**
+Status: **complete — all four documents import as one book (1759 items: 954 floors + 805 trims), reachable from the UI.**
 
 ## Start here
 
@@ -95,7 +95,7 @@ Lessons that generalize:
 
 ## The track is complete (2026-07-20)
 
-All four documents now import as one book: **1747 items — 942 floors + 805 trims.**
+All four documents now import as one book: **1759 items — 954 floors + 805 trims.**
 
 | piece | where | state |
 |---|---|---|
@@ -105,6 +105,7 @@ All four documents now import as one book: **1747 items — 942 floors + 805 tri
 | multi-file entry | `parseMirage(payloads)` | ADR 0025 rule 7 |
 | UI wiring | `bundleByBook` + `ingest` | 4 files → 1 review pass |
 | Lakeside | `parseMirageColorGrid` | 6 colours at $4.99 |
+| Natural | `parseMirageFloorSkus` | 12 floors, and its trims now link |
 | trims | `parseMirageTrim*` | 805 priced, 668 carrying `fits` |
 
 ### Lakeside is Escape Traditional under another name
@@ -167,9 +168,19 @@ it before a single price was read — the whole Natural programme, gone. The blo
 now bounds itself at the gutter (a run of 3 empty width cells) and only looks for
 the next header WITHIN its own columns. Worth +12 price rows.
 
-Natural floors are the Lakeside shape again: 12 prices, no SKUs in any document.
-So the 19 Natural trims import priced and correctly carry no `fits`. If OVF ever
-supplies Natural floor SKUs they will link themselves.
+A flooring sheet prints its grid TWICE — prices in the upper half, the matching
+SKUs in the lower half, under identical headers (Hardwood rows 38-44 and 90-96).
+That lower half is where Natural's floor SKUs live, and it is the ONLY source for
+them. `walkFloorBlocks` now serves both halves, the caller saying whether it
+wants `priceOf` or `isSku` out of a cell.
+
+The standing warning still holds: for a MULTI-colour collection those SKUs are
+one arbitrary colour's (Blanc/Character/5" reads 36180, which is White Mist), so
+they must never be used as that collection's SKUs. The exception is a
+single-colour programme, where "one arbitrary colour" and "the colour" are the
+same thing — which is exactly why the merge is gated on GRID_ONLY_COLLECTIONS
+rather than taking the lot. Natural yields 12 floors, and its 19 trims now find
+them by species+colour.
 
 ## What is NOT built
 

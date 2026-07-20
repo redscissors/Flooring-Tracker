@@ -401,9 +401,13 @@ const priceOf = (v) => {
 const cell = (row, i) => str((row || [])[i]);
 const findCol = (row, re) => (row || []).findIndex((c) => re.test(str(c)));
 
-export function parseMirageFlooring(sheets) {
+// A flooring sheet prints its grid TWICE — prices in the upper half, the matching
+// SKUs in the lower half, under identical headers. So the block walk is shared
+// and the caller says which value it wants out of a cell: `priceOf` for the price
+// half, `isSku` for the SKU half. A cell only belongs to a block when it actually
+// parses as that kind, which is what keeps the two halves apart.
+function walkFloorBlocks(sheets, read) {
   const rows = [];
-  const warnings = [];
   for (const sh of sheets || []) {
     const grid = sh?.rows || [];
     for (let h = 2; h < grid.length; h++) {
@@ -470,23 +474,41 @@ export function parseMirageFlooring(sheets) {
         const grade = cell(row, gradeCol);
         let any = false;
         for (const c of priceCols) {
-          const price = priceOf(cell(row, c));
-          if (price == null) continue;
+          const value = read(cell(row, c));
+          if (value == null) continue;
           any = true;
           rows.push({
             collection, species, grade,
-            construction: bandAt[c] || "", width: cell(widthRow, c), price,
+            construction: bandAt[c] || "", width: cell(widthRow, c), value,
             sheet: sh.name || "",
           });
         }
-        // Blank spacer rows are fine; a run of them with no prices and no labels
+        // Blank spacer rows are fine; a run of them with no values and no labels
         // means the block is over.
         if (!any && !cell(row, 0) && !grade && !(row || []).some((c) => str(c))) break;
       }
     }
   }
-  if (!rows.length) warnings.push("No Mirage flooring prices were recognized — is this a Mirage flooring price sheet?");
+  return rows;
+}
+
+export function parseMirageFlooring(sheets) {
+  const rows = walkFloorBlocks(sheets, priceOf).map(({ value, ...r }) => ({ ...r, price: value }));
+  const warnings = rows.length ? [] : ["No Mirage flooring prices were recognized — is this a Mirage flooring price sheet?"];
   return { rows, warnings };
+}
+
+// The SKU half of the same grid.
+//
+// For most collections these SKUs are ONE ARBITRARY COLOUR'S — Blanc/Character/5"
+// reads 36180, which is specifically White Mist — so they must never be used as a
+// collection's SKUs. The exception is a single-colour programme, where "one
+// arbitrary colour" and "the colour" are the same thing. Natural is one: it is the
+// clear coat, so the collection has exactly one colour and its name IS the colour.
+// That is why the caller gates this on an allowlist rather than taking the lot.
+export function parseMirageFloorSkus(sheets) {
+  return walkFloorBlocks(sheets, (v) => (isSku(v) ? str(v) : null))
+    .map(({ value, ...r }) => ({ ...r, sku: value, color: r.collection }));
 }
 
 // ---- Value Tower's own colour grid ------------------------------------------
@@ -523,9 +545,16 @@ const looksWidth = (v) => /^(?:(?:herringbone|herr\.?|chevron|chev\.?)\s*)?\d+(?
 const aliasCollection = (r) =>
   (/^escape$/i.test(str(r.collection)) && /^traditional$/i.test(str(r.grade))) ? "Lakeside" : r.collection;
 
-// What the colour grid is allowed to add to the book. Everything else it holds
-// duplicates the chart, at an older date — see the merge in parseMirage.
-const GRID_ONLY_COLLECTIONS = new Set(["lakeside"]);
+// The collections a flooring sheet — not the chart — is the source for. The chart
+// is the spine for everything else; these two it simply does not list.
+//
+//   lakeside  the Value Tower colour grid's Traditional block (see aliasCollection)
+//   natural   the Hardwood sheet's own SKU half, a single-colour programme
+//
+// Named on purpose rather than inferred as "whatever the chart lacks": the sheets
+// carry their own dates, so an inferred rule readmits discontinued product the
+// moment a collection is retired. Add the next one here deliberately.
+const GRID_ONLY_COLLECTIONS = new Set(["lakeside", "natural"]);
 
 export function parseMirageColorGrid(sheets) {
   const out = [];
@@ -889,7 +918,10 @@ export function parseMirage(payloads, name = "Mirage price book") {
     const r = parseMirageFlooring(o.t.p.sheets);
     priceRows.push(...r.rows);
     if (!r.rows.length) warnings.push(...r.warnings);
-    gridRows.push(...parseMirageColorGrid(o.t.p.sheets).rows);
+    // Both places a flooring sheet can carry SKUs the chart doesn't: Value
+    // Tower's per-colour grid, and the sheet's own SKU half. Both are filtered to
+    // GRID_ONLY_COLLECTIONS below.
+    gridRows.push(...parseMirageColorGrid(o.t.p.sheets).rows, ...parseMirageFloorSkus(o.t.p.sheets));
   }
 
   // The chart is the spine. The colour grid is consulted for ONE thing —
