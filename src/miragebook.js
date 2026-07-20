@@ -874,20 +874,11 @@ export const MIRAGE_MAPPING = {
   groupBy: "productLine",
 };
 
-// A floor's shelf name. Construction and width are what a salesperson is actually
-// choosing between, and grade is what moves the price, so all three stay visible
-// rather than hiding in the columns.
-//
-// Separated by a COMMA, not a middot: rowAdvisories treats a free-standing "·"
-// as the residue of a mis-split size (the ".43X12" lesson) and would flag all 930
-// rows. Commas and hyphens are exempt there precisely because vendors use them as
-// real separators — so the fix is to write a normal separator, not to loosen a
-// check that exists to catch bad parses.
-const floorName = (r) => {
-  const who = [titleCase(r.species), r.color].filter(Boolean).join(" ").trim() || r.color;
-  const spec = [r.grade, [r.construction, r.width].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  return spec ? `${who} — ${spec}` : who;
-};
+// A floor's shelf name: species, colour, grade, construction as one plain
+// phrase — no punctuation (owner, 2026-07-20). Width is left out because it
+// already prints from the Size column; keeping it here doubled it on every line.
+const floorName = (r) =>
+  [titleCase(r.species), r.color, r.grade, r.construction].filter(Boolean).join(" ").trim() || r.color;
 
 export function parseMirage(payloads, name = "Mirage price book") {
   const tagged = (payloads || []).map((p) => ({ p, kind: mirageFileKind(p || {}) }));
@@ -998,7 +989,7 @@ export function parseMirage(payloads, name = "Mirage price book") {
   let trimOrphan = 0;
   for (const { t, price, fits } of bySku.values()) {
     if (!fits.size) trimOrphan++;
-    const desc = [titleCase(t.species), t.color, "—", t.label].filter(Boolean).join(" ").replace(/\s+—\s+/, " — ");
+    const desc = [titleCase(t.species), t.color, t.label].filter(Boolean).join(" ");
     out.push([t.sku, desc, t.collection, t.color, t.size || "", "",
       String(price), "EA", "", "trim", MIRAGE_BRAND, [...fits].join(" ")]);
   }
