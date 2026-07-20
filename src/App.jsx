@@ -22,6 +22,10 @@ import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, ti
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed, normBasketEntry, multiWidthLineItems } from "./sheoga.js";
+import { STOCK_LOADING_MSG, STOCK_FAILED_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, THICK, colorsFor, ATT_BUCKET, TIER_COLOR, TIER_LONG, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS, BOOK_VERSION_KEEP, STOCK_BOOK_ID } from "./uiconst.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, wasteMeta, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normA, normC, personData } from "./model.js";
+import { lineTotal, printProduct, orderLineCost, printAreaFloor, PRINT_KINDS, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1, printMatList, orderEntryRow } from "./print.js";
+import { readXlsxSheets, readPdfPages } from "./fileread.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -49,76 +53,9 @@ class LazyBoundary extends Component {
   }
 }
 
-// Stage-2 messages for actions that need the stock cache (ADR 0026): one
-// string per state so the grid and mobile surfaces can't drift apart.
-const STOCK_LOADING_MSG = "Price book still loading — try again in a moment";
-const STOCK_FAILED_MSG = "Price book couldn't load — reload the page and try again";
-// One place decides whether the SKU cell is a search field (vs a plain input):
-// the desktop grid and the mobile row sheet must never disagree.
-const skuSearchable = (stock, searchOrder, stockReady) => stock.length > 0 || !!searchOrder || !stockReady;
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
-
-// Shared file readers for every import path (the shop workbook, a registry
-// book's wizard, and the multi-file drop router) — parse an .xlsx into
-// arrays-of-arrays sheets, or a text .pdf into per-page positioned text items.
-// xlsx and pdfjs are lazy-loaded so they never weigh on first paint.
-async function readXlsxSheets(file) {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-  return wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
-}
-async function readPdfPages(file) {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-  const pages = [];
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const vh = page.getViewport({ scale: 1 }).height; // pdf y is bottom-up; flip to top-down
-    const content = await page.getTextContent();
-    pages.push(content.items.filter((i) => i.str && i.str.trim()).map((i) => ({ str: i.str, x: i.transform[4], y: vh - i.transform[5], w: i.width })));
-  }
-  return pages;
-}
-
-const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
-const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
-// The underlayment row is labelled per flooring type — a tile job wants "backer"
-// language, the soft/plank goods want "underlayment".
-const UNDERLAY_LABEL = { tile: "Tile Backer" };
-const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
-// Product-type accents: the small type button, active joint toggle and the
-// material check chips carry the flooring type's color (the selection rows
-// themselves are paper-washed, not type-colored — see ROW_WASH below). They
-// resolve to CSS tokens (src/index.css) sourced from the NED data series, so
-// each flips with light/dark and a recolor is a one-line stylesheet change.
-const TYPE_ACCENT = { tile: "var(--ft-type-tile)", hardwood: "var(--ft-type-hardwood)", vinyl: "var(--ft-type-vinyl)", laminate: "var(--ft-type-laminate)", carpet: "var(--ft-type-carpet)", misc: "var(--ft-type-misc)" };
-
-// Selection grid tone recipe (prototype 2026-07-12): rows and the materials
-// box sit on the page tone (--ft-area-row) so the card interior reads as the
-// surrounding surface; the band, column header and the Price/Total cells share
-// one head tone (--ft-area-head — page ink in dark, where the rows lift 5%
-// instead). Not the flooring-type color — the type accent is reserved for the
-// small type button, joint toggles and the material check chips. Product boxes
-// stack flush inside their area card with a thin --ft-grid-line divider; the
-// area card's own border is that same line, so a product's left/right edge
-// lines up with the card outline as one clean line.
-const ROW_WASH = "var(--ft-area-row)";
-const TOTAL_WASH = "var(--ft-area-head)";
-const JOINTS = [{ label: '1/16"', v: 0.0625 }, { label: '1/8"', v: 0.125 }, { label: '3/16"', v: 0.1875 }];
-const THICK = [{ label: '1/8"', v: "0.125" }, { label: '3/16"', v: "0.1875" }, { label: '1/4"', v: "0.25" }, { label: '5/16"', v: "0.3125" }, { label: '3/8"', v: "0.375" }, { label: '7/16"', v: "0.4375" }, { label: '1/2"', v: "0.5" }, { label: '5/8"', v: "0.625" }, { label: '3/4"', v: "0.75" }];
-// Grout colors are code-defined (out of the persisted catalog — see ADR 0002),
-// but keyed per grout product so each brand offers its own palette. A grout not
-// listed here (e.g. a team-added one) falls back to DEFAULT_COLORS. The job's
-// color picker resolves the list by the selected grout's name.
-const DEFAULT_COLORS = ["Mushroom", "Natural Gray", "Bright White", "Dusty Grey", "Desert Khaki", "Latte", "Antique White", "Marble Beige", "Light Pewter", "Parchment", "Raven", "Sterling Silver", "Mocha", "Smoke Grey", "Silver Shadow", "Sand Beige", "Sauterne", "Platinum", "Midnight Black", "Espresso", "Butter Cream", "Silk", "Slate Grey", "Almond", "Toasted Almond", "Hemp", "Hot Cocoa", "Terra Cotta", "Quarry Red", "Chestnut Brown", "Autumn Green", "Twilight Blue", "Sandstone", "Fossil", "Walnut", "Mink", "Steamship", "Iron", "Frosty", "Stormy Grey"];
-const GROUT_COLORS = {
-  "Tec Power Grout": ["Antique White", "Birch", "Bright White", "Charcoal", "Coffee", "Dark Walnut", "Dove Grey", "Espresso", "Jet Black", "Light Bronze", "Light Buff", "Light Cool Gray", "Light Pewter", "Light Smoke", "Mist", "Mocha", "Optic White", "Pearl", "Praline", "Raven", "Sable", "Sandstone", "Silhouette", "Silverado", "Slate Grey", "Standard Grey", "Standard White", "Starry Night", "Sterling", "Summer Wheat", "Urban Bronze", "Warm Taupe"],
-  "CEG-Lite": ["Bright White", "Snow White", "Antique White", "Alabaster", "Bone", "Linen", "Quartz", "Urban Putty", "Haystack", "Sandstone", "Mushroom", "Light Smoke", "Khaki", "Fawn", "Sahara Tan", "Summer Wheat", "Earth", "Nutmeg", "Walnut", "Chateau", "New Taupe", "Saddle Brown", "Tobacco Brown", "Sable Brown", "Truffle", "Surf Green", "Ice Blue", "Platinum", "Rolling Fog", "Bleached Wood", "Oyster Gray", "Cape Gray", "Delorean Gray", "Driftwood", "Graystone", "Natural Gray", "Winter Gray", "Pewter", "Dove Gray", "Charcoal"],
-};
-const colorsFor = (groutName) => GROUT_COLORS[groutName] || DEFAULT_COLORS;
 
 // A native select sizes to its longest option (or its container), not the
 // selected one — an invisible twin of the selected label sets the width here.
@@ -467,199 +404,7 @@ function FamilySearch({ families, onPick, inp }) {
   );
 }
 
-const ATT_BUCKET = "attachments";
-const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
-const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
-// Estimate wording for the waste factor. Each family is a toggle now, so the
-// paperwork names only what was actually applied — a family left off added no
-// overage and gets no mention, and with both off the line disappears entirely
-// (callers render nothing on null).
-export const wasteNote = (w) => {
-  const t = num(w?.tile), f = num(w?.floor);
-  if (!t && !f) return null;
-  if (t && f) return t === f ? `${t}% material waste` : `material waste (tile ${t}%, other flooring ${f}%)`;
-  return t ? `${t}% material waste on tile` : `${f}% material waste on flooring`;
-};
-// The same fact compressed for the estimate's header meta line.
-export const wasteMeta = (w, one = "waste") => {
-  const t = num(w?.tile), f = num(w?.floor);
-  if (!t && !f) return "";
-  if (t && f) return t === f ? `${one} ${t}%` : `waste tile ${t}% · other ${f}%`;
-  return t ? `waste tile ${t}%` : `waste other ${f}%`;
-};
-// Misc lines are flat-priced; a typed quantity multiplies the price. Only
-// count-mode qty is honored so a stale sqft value left over from a type
-// switch (or legacy rows) can't silently multiply the total.
-const miscQty = (p) => (p.qtyType === "count" && String(p.qty ?? "").trim() !== "" ? num(p.qty) : 1);
-// Extended line total at `unit` (the row's per-sf or per-each price): pieces
-// for misc, whole-carton footage when carton-sold, otherwise the entered qty —
-// which on a non-misc row counted each (a Sheoga vent, a row toggled to EA) is
-// the count itself, not square footage.
-const lineTotal = (p, C, PC, unit) => (p.type === "misc" ? unit * (PC ? PC.pieces : miscQty(p)) : (C ? C.order * C.sf : num(p.qty)) * unit);
-
-// One product row -> everything the print layouts render for it. Materials
-// carry a `kind` + aggregation `key`; `inline` rows print under the product
-// (label · qty · name), install extras only reach the bottom breakdown.
-function printProduct(p, s) {
-  const G = getGrout(p, s), M = getMortar(p, s), U = getUnderlay(p, s), IN = getUnderlayInstall(p, s) || [];
-  const sf = p.qtyType === "sqft" ? num(p.qty) : 0;
-  const C = p.type === "misc" ? null : getCarton(p, s);
-  // A carton-sold count line (cartonPc) bills every piece in the rounded-up
-  // cartons, price per piece (ADR 0013 amendment).
-  const PC = getPieceCarton(p);
-  const line = lineTotal(p, C, PC, num(p.priceSqft));
-  const j = JOINTS.find((x) => x.v === num(p.grout?.joint))?.label;
-  const mats = [];
-  if (p.type === "tile" && p.grout?.checked) {
-    // Show selected grout even when the quantity can't be computed (e.g. tile
-    // thickness/joint not entered) so it prints like mortar/backer instead of
-    // silently vanishing; blank order/price when uncomputed.
-    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: [j ? `${j} joint` : "", G && G.round ? "penny round" : ""].filter(Boolean).join(" · "), inline: true, order: G ? G.order : 0, unit: G ? G.unit : "", exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0 });
-    const ck = num(p.grout.caulk);
-    if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", sku: p.grout.caulkSku || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, price: num(p.grout.caulkPrice), cost: ck * num(p.grout.caulkPrice) });
-  }
-  if (M) mats.push({ kind: "Mortar", key: `m|${M.product}`, name: M.product, spec: "", detail: "", inline: true, order: M.order, unit: M.unit, exact: M.exact, price: M.price, cost: M.price > 0 ? M.order * M.price : 0 });
-  if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, price: U.price, cost: U.price > 0 ? U.order * U.price : 0 });
-  IN.forEach((m) => mats.push(m.kind === "mortar"
-    ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }
-    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", sku: m.sku || "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
-  // Add-on categories (ADR 0016) print inline under the product and roll into
-  // the bottom breakdown, keyed by category + product name; the category name
-  // is the material "kind" (no fixed KSHORT — labels fall back to it).
-  for (const cat of (s.catalog?.categories || [])) {
-    const A = getAttached(p, s, cat); if (!A) continue;
-    mats.push({ kind: cat.name, addon: true, key: `x|${cat.id}|${A.product}`, name: A.product, spec: "", sku: s.attached?.[cat.id]?.[A.product]?.sku || "", detail: "", inline: true, order: A.order, unit: A.unit, exact: A.exact, price: A.price, cost: A.price > 0 ? A.order * A.price : 0 });
-  }
-  const thickSuffix = p.type === "tile" && p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : "";
-  const size = p.type === "tile" ? (p.sizeText ? `${p.sizeText}${thickSuffix}` : `${p.L}" × ${p.W}"${thickSuffix}`) : (p.sizeText || "");
-  const qtyText = p.type === "misc" ? (PC ? `${PC.pieces} pcs (${PC.cartons} ${PC.unit})` : String(miscQty(p))) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
-  const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) + ((PC ? PC.pieces : miscQty(p)) !== 1 ? "/ea" : "") : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
-  return { size, C, PC, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
-}
-// The honest extended vendor cost of a special-order line: the snapshotted
-// per-unit cost (costSqft, parallel to priceSqft) carried through the SAME
-// quantity math as its sell (printProduct.line), so hand-editing the sale price
-// moves the margin, not the cost. Rows saved before costSqft existed fall back
-// to deriving the cost from the markup — the prior behavior, correct until the
-// price is edited. `sell` is the line's extended sell (printProduct.line).
-function orderLineCost(p, s, sell) {
-  if (String(p.costSqft ?? "").trim() !== "") return lineTotal(p, getCarton(p, s), getPieceCarton(p), num(p.costSqft));
-  const pct = num(p.markupPct);
-  return pct > 0 ? sell / (1 + pct / 100) : sell;
-}
-// Estimate area headers show the flooring subtotal only — material costs live
-// in the bottom "Setting materials & sundries" breakdown.
-const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
-const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
-// Kiln #8b estimate sheet: the 9-column product grid and the muted em dash
-// empty cells render (the Color column is a dash for now — the data model
-// keeps brand+color in one brandColor field).
-const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
-// Print-pricing variants (spec 2026-07-16): "unit" drops the Total column,
-// "none" drops Price too — quantities/SKUs keep the sheet a selection document.
-const PRINT_COLS_UNIT = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr";
-const PRINT_COLS_NONE = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.8fr";
 const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
-const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
-// Estimate print layout. "cards" is the 2026-07 receipt-card redesign; flip to
-// "classic" to restore the prior 8-column table sheet (kept intact in
-// renderEstimatePaperClassic) if the new one ever needs to be pulled.
-const ESTIMATE_PRINT_LAYOUT = "cards";
-// The on-screen tier badge beside the grand total — a discounted screen must
-// never be mistaken for retail.
-const tierBadgeText = (tier, pct) => tier === "retail" ? "" : tier === "employee" ? "Employee" : pct > 0 ? `${tier[0].toUpperCase()}${tier.slice(1)} −${pct}%` : "";
-// Each tier owns a color (owner request): the selected segment, the Order
-// entry / Print buttons, and every tier-adjusted price wear it, so a glance
-// says which pricing the job is on. Retail keeps the default look.
-export const TIER_COLOR = {
-  builder: { main: "#2563eb", soft: "#dbeafe" },
-  employee: { main: "#0d9488", soft: "#ccfbf1" },
-  // Sale is pink on purpose — orange/red/yellow read as warnings, not discounts.
-  sale: { main: "#db2777", soft: "#fce7f3" },
-  custom: { main: "#7c3aed", soft: "#ede9fe" },
-};
-const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
-// The catalog SKU a breakdown row carries (materials resolve by name — the SKU
-// is display-only, per ADR 0006).
-const matSku = (kind, name, s) =>
-  kind === "Grout" ? s.grouts[name]?.sku || ""
-    : kind === "Mortar" ? s.mortars[name]?.sku || ""
-      : kind === "Tile Backer" || kind === "Underlayment" ? s.underlayments?.[name]?.sku || "" : "";
-// Whole-job materials for the estimate's bottom breakdown: aggregate exact
-// quantities per item (ceil once at the end, like the on-screen totals) and
-// sum the per-line costs so the breakdown reconciles with the grand total.
-// Base units derive from the aggregated grout kit counts (ADR 0006) via the
-// same groutBaseList the on-screen summary uses.
-function printMatList(cust, s) {
-  const agg = new Map();
-  (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
-    const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, detail: m.detail || "", sku: "", unit: m.unit, price: m.price, exact: 0, cost: 0 };
-    e.exact += m.exact; e.cost += m.cost; e.sku = e.sku || m.sku || ""; e.detail = e.detail || m.detail || ""; agg.set(m.key, e);
-  })));
-  // A selection-snapshotted SKU (the grout color's own SKU, ADR 0007) outranks
-  // the catalog product's SKU; the catalog SKU is the fallback.
-  const rows = [...agg.values()].map((m) => ({ ...m, sku: m.sku || matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
-  const bases = groutBaseList(rows.filter((m) => m.kind === "Grout").map((m) => ({ product: m.name, order: m.order })), s)
-    .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
-  // Built-in kinds sort by PRINT_KINDS; add-on categories (unknown kinds) sort
-  // after them, grouped so each category gets one breakdown heading.
-  const rank = (k) => { const i = PRINT_KINDS.indexOf(k); return i < 0 ? PRINT_KINDS.length : i; };
-  return [...rows, ...bases].sort((x, y) => rank(x.kind) - rank(y.kind));
-}
-const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
-const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
-
-const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonPc: "", cartonUnit: "CT", cartonManual: "", note: "", grout: { checked: false, product: "", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "" }, mortar: { checked: false, product: "", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} }, attached: {} });
-const newArea = () => ({ id: uid(), name: "", note: "", products: [newProduct()] });
-const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
-// A row with no identity yet — the empty state renders as a price-book search
-// instead of the full grid (pick a match to fill it, or a type/double-click to
-// enter it by hand).
-const rowBlank = (p) => !p.sku && !p.brandColor && !p.L && !p.W && !p.sizeText && !(num(p.priceSqft) > 0) && !(num(p.qty) > 0);
-// Every area carries one trailing blank "adder" row (the inline New-row
-// affordance). It's ephemeral scaffolding, not a real selection, so change
-// detection for auto-versions compares categories with blank rows stripped —
-// otherwise the adder would look like an edit on every open.
-const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, products: (a.products || []).filter((p) => !rowBlank(p)) })));
-// A Project is what a "Customer" used to be: one job/estimate holding areas.
-// It belongs to a Customer (person) via customerId (the projects.customer_id
-// column). See ADR 0005.
-// salesperson is SNAPSHOTTED from the creator's profile at addProject time and
-// never read live again — projects are team-shared, so without the snapshot a
-// teammate opening the job would print THEIR name on the estimate. Editable
-// only through the header's salesperson popover.
-// opts.quick marks a customer-less quick-price draft (lives in the sidebar's
-// Quick Prices folder, self-clears after 30 days, cleared to false on promote).
-// opts.seedArea opens the draft with one area whose blank adder row IS the
-// product search, so a Quick Price lands straight in "grab a price". See
-// docs/adr/0022-quick-price-draft-lifecycle.md.
-// opts.waste seeds the job's waste rates from the shop default (Settings →
-// General). Both families start UNPRESSED: a new quote reads raw measured
-// footage until someone presses the waste they want ordered.
-const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [] });
-// A Customer is the person/account that owns many projects and holds contact
-// info once. A Builder is a canonical name-list a customer links to by id.
-const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
-const newBuilder = (name = "") => ({ id: uid(), name });
-
-// thickness/joint use || not ??: rows migrated from the artifact can hold ""
-// (or 0), which silently blocks the grout calc — mortar doesn't need either,
-// so grout alone showed "—". Default them like a fresh row.
-const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", cartonManual: p.cartonManual ?? "", note: p.note ?? "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", sheoga: p.sheoga ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
-// Add-on material selections, keyed by category id (ADR 0016). Old records have
-// no `attached` — they normalize to {} and stay valid.
-const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
-const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-// Projects written before waste moved off Settings have no `waste` — keep it
-// null rather than filling a default, so `projWaste` can tell "quoted under
-// the old global rate" from "quoted with both toggles deliberately off".
-const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, floor: w.floor ?? 5, tileOn: !!w.tileOn, floorOn: !!w.floorOn });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
-
-// personData is what gets written back to a person's data jsonb; the person/
-// builder row mappers and selects live in bootload.js.
-const personData = ({ id, createdAt, updatedAt, builderId, ...rest }) => rest;
 
 // Builder picker: type to search the canonical list or add a new one. Picking an
 // existing builder links by id; typing a name close to an existing one warns
@@ -1508,7 +1253,6 @@ const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, dis
 // input's spot (color-coded like the tier chips) and the editable retail
 // slides beneath as a micro field — the GridSizeInput footnote pattern.
 // Retail stays the stored value; the top line is derived, never typed.
-const TIER_LONG = { builder: "Builder", employee: "Employee", sale: "Sale", custom: "Custom" };
 export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title }) {
   if (tierPrice == null && !noCost) return (
     <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" placeholder="0.00" title={title} />
@@ -1760,16 +1504,6 @@ function gridEnterNav(e, addRow) {
 // restore actually needs one.
 const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
 const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
-const AUTO_KEEP = 5;
-// Unpromoted quick-price drafts self-delete this many days after their last
-// edit (ADR 0022). Age is measured from updatedAt, not createdAt, so a draft
-// someone is still refining is never swept out from under them.
-const QUICK_SWEEP_DAYS = 30;
-// Price-book import versions kept per book (pinned rows are never pruned).
-const BOOK_VERSION_KEEP = 3;
-// Reserved pricebook_versions.book_id for the shop workbook (its items live in
-// stock_items, not price_book_items — ADR 0009 §5).
-const STOCK_BOOK_ID = "stock";
 
 // Animated light/dark switch (RiccardoRapelli sun/moon toggle, Uiverse.io) —
 // a quick binary shortcut for the three-way theme control in Settings. Checked
@@ -5102,53 +4836,6 @@ function Modal({ title, children, onClose }) {
       </div>
     </div>
   );
-}
-
-// Display unit codes for the order-entry panel. The order unit ("ct"/"sh" for
-// carton/sheet-billed rows, "units" for a piece count, "ea" for misc, "sf" for
-// square-foot flooring) becomes a short uppercase code shown on the qty and the
-// per-unit cost/sell — so a line always reads in the unit it's bought and sold.
-const ORDER_UNIT_CODE = { ct: "CT", sh: "SH", sf: "SF", units: "PC", ea: "EA" };
-
-// One product row → the fields the order-entry panel shows. Special-order rows
-// (bookId set) carry a snapshotted cost; the sell is the row's line total, and
-// the cost is the honest vendor cost carried through the same quantity math
-// (orderLineCost) — so a hand-edited sale price moves the margin, not the cost.
-// Per-unit values are the extended totals ÷ ordered qty, so they read in the
-// sell unit (per carton / sheet / piece / sf). The item text
-// splits at the SKU: size + color on top, SKU + coverage beneath — thickness
-// dropped, spaces only. Carton/sheet rows lead with a CT/SH tag (also in the
-// copied text) since the order-entry system can't be switched off "each".
-// Read-only; no math is mutated.
-function orderEntryRow(p, s, area, descLimit) {
-  const c = printProduct(p, s);
-  const isMisc = p.type === "misc";
-  // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
-  // desk keys the order in cartons even though the row quotes per piece.
-  const qty = isMisc ? (c.PC ? c.PC.cartons : miscQty(p)) : (c.C ? c.C.order : num(p.qty));
-  const rawUnit = isMisc ? (c.PC ? c.PC.unit : "ea") : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : "units"));
-  const unitCode = ORDER_UNIT_CODE[rawUnit] || String(rawUnit || "").toUpperCase();
-  // Only carton/sheet-billed lines flag a non-"each" order unit.
-  const tag = c.C || c.PC ? unitCode : "";
-  const sizePlain = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
-  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${unitCode}` : c.PC ? `${c.PC.per} PC/${unitCode}` : "";
-  const extSell = c.line;
-  const extCost = orderLineCost(p, s, extSell);
-  // A Mannington trim's name carries a "· fits APX020 …" note (manningtonbook.js)
-  // that helps the picker surface it under a floor-code search; it's noise once
-  // the trim is on the order, so drop it from the panel's name and copied text.
-  const name = String(p.brandColor || "").replace(/\s*·\s*fits\b.*$/i, "").trim();
-  // Sheoga sells by description, not SKU — the description IS the order.
-  const byDesc = !!p.sheoga && !p.sku;
-  const r = {
-    id: p.id, special: isSpecialOrder(p), byDesc, area,
-    tag, sizePlain, name, sku: p.sku, coverage, sheoga: p.sheoga,
-    qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
-    perCost: qty > 0 ? extCost / qty : 0,
-    perSell: qty > 0 ? extSell / qty : 0,
-  };
-  const desc = orderDescription(r, descLimit);
-  return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
 }
 
 // The shared team issue / to-do list (issue 006). Open items are ordered by
