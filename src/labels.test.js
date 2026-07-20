@@ -5,6 +5,7 @@ import {
   normPreset, normLabelPresets, customLabelPresets, normLabel, newDraftFromPreset,
   perLetterSheet, sheetsForLabels,
   faceSizeText, stockToLabelFields, escapeHtml, labelCardHTML, normLabel as _normLabel,
+  isSpacer, clampSpace, newSpacerLine, SPACE_MIN, SPACE_MAX, SPACE_DEFAULT,
 } from "./labels.js";
 
 // --- presets ------------------------------------------------------------------
@@ -196,6 +197,56 @@ test("custom lines are part of every normalized preset (appended hidden)", () =>
     assert.ok(line);
     assert.equal(line.show, false);
   }
+});
+
+// --- filler spacer lines ------------------------------------------------------
+
+test("newSpacerLine makes unique sp_ keys at the default height", () => {
+  const a = newSpacerLine(), b = newSpacerLine();
+  assert.ok(isSpacer(a.key));
+  assert.notEqual(a.key, b.key);
+  assert.equal(a.size, SPACE_DEFAULT);
+  assert.equal(a.show, true);
+  assert.ok(!isSpacer("sku"));
+  assert.ok(!isSpacer("surface")); // "s" prefixes of real fields never collide
+});
+
+test("clampSpace keeps filler heights in the spacer range, not the font range", () => {
+  assert.equal(clampSpace(0), SPACE_MIN);
+  assert.equal(clampSpace(500), SPACE_MAX);
+  assert.equal(clampSpace(24), 24);
+  assert.equal(clampSpace("junk"), SPACE_DEFAULT);
+});
+
+test("spacer lines survive preset and label normalization in place", () => {
+  const lines = [
+    { key: "name", show: true, size: 13 },
+    { key: "sp_gap1", show: true, size: 200 }, // clamped to SPACE_MAX
+    { key: "sku", show: true, size: 10 },
+    { key: "sp_gap2", show: false, size: 8 },
+  ];
+  for (const norm of [(ls) => normPreset({ id: "x", name: "X", lines: ls }), (ls) => normLabel({ id: "l1", lines: ls })]) {
+    const out = norm(lines).lines;
+    assert.deepEqual(out.slice(0, 4).map((l) => l.key), ["name", "sp_gap1", "sku", "sp_gap2"]);
+    assert.equal(out[1].size, SPACE_MAX);
+    assert.equal(out[3].show, false);
+    // every fixed field still appended exactly once
+    assert.deepEqual(new Set(out.filter((l) => !isSpacer(l.key)).map((l) => l.key)), new Set(LABEL_FIELDS.map((f) => f.key)));
+  }
+});
+
+test("labelCardHTML prints a shown filler as blank height and skips a hidden one", () => {
+  const l = _normLabel({ id: "l1", lines: [
+    { key: "name", show: true, size: 13 },
+    { key: "sp_gap1", show: true, size: 14 },
+    { key: "sku", show: true, size: 10 },
+    { key: "sp_gap2", show: false, size: 22 },
+  ], fields: { name: "Carrara", sku: "CM-2046" } });
+  const html = labelCardHTML(l);
+  assert.match(html, /height:14px/);
+  assert.doesNotMatch(html, /height:22px/);
+  // blank space only — no caption, no dash placeholder
+  assert.doesNotMatch(html, /Filler/);
 });
 
 test("labelCardHTML renders visible fields and skips hidden ones", () => {

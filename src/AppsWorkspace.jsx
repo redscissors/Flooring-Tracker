@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
+import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical } from "lucide-react";
+import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -11,8 +11,11 @@ const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
 const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
 
 // ── The dark label card, data-driven over `lines` (screen render) ──────────────
-function LabelCard({ label, scale = 1 }) {
+// `boxes` outlines every rendered line (screen preview only, never printed) so
+// the spacing work — filler lines especially — is visible.
+function LabelCard({ label, scale = 1, boxes = false }) {
   const px = 96; // 1in ≈ 96 CSS px on screen
+  const bx = boxes ? { outline: "1px dashed rgba(255,255,255,.35)", outlineOffset: -1 } : null;
   const variantLines = label.twoVariant ? label.lines.filter((l) => l.show && VARIANT_KEYS.includes(l.key)) : [];
   const firstVariant = variantLines[0]?.key;
   const variantCol = (fields) => (
@@ -34,13 +37,14 @@ function LabelCard({ label, scale = 1 }) {
         <div style={{ borderTop: "1px solid rgba(255,255,255,.2)", margin: "6px 0 2px" }} />
         {label.lines.filter((l) => l.show).map((l) => {
           const v = label.fields?.[l.key] || "";
-          if (l.key === "name") return <div key={l.key} style={{ fontFamily: "'Oswald',sans-serif", fontSize: l.size, textTransform: "uppercase", letterSpacing: ".03em", lineHeight: 1.12, wordBreak: "break-word" }}>{v || "Tile Name"}</div>;
-          if (l.key === "surface") return v ? <span key={l.key} style={{ alignSelf: "flex-start", marginTop: 6, fontSize: 8, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: surfaceColor(v) }}>{v}</span> : null;
-          if (KIND_OF[l.key] === "custom") return v ? <div key={l.key} style={{ marginTop: 6, lineHeight: 1.3, fontSize: l.size, wordBreak: "break-word" }}>{v}</div> : null;
+          if (isSpacer(l.key)) return <div key={l.key} style={{ height: l.size, flex: "0 0 auto", ...bx }} />;
+          if (l.key === "name") return <div key={l.key} style={{ fontFamily: "'Oswald',sans-serif", fontSize: l.size, textTransform: "uppercase", letterSpacing: ".03em", lineHeight: 1.12, wordBreak: "break-word", ...bx }}>{v || "Tile Name"}</div>;
+          if (l.key === "surface") return v ? <span key={l.key} style={{ alignSelf: "flex-start", marginTop: 6, fontSize: 8, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: surfaceColor(v), ...bx }}>{v}</span> : null;
+          if (KIND_OF[l.key] === "custom") return v ? <div key={l.key} style={{ marginTop: 6, lineHeight: 1.3, fontSize: l.size, wordBreak: "break-word", ...bx }}>{v}</div> : null;
           if (label.twoVariant && VARIANT_KEYS.includes(l.key)) {
             if (l.key !== firstVariant) return null;
             return (
-              <div key="variants" style={{ display: "flex", gap: 8 }}>
+              <div key="variants" style={{ display: "flex", gap: 8, ...bx }}>
                 {variantCol(label.fields)}
                 <div style={{ width: 1, background: "rgba(255,255,255,.18)", marginTop: 6 }} />
                 {variantCol(label.fields2)}
@@ -48,7 +52,7 @@ function LabelCard({ label, scale = 1 }) {
             );
           }
           return (
-            <div key={l.key} style={{ marginTop: 6 }}>
+            <div key={l.key} style={{ marginTop: 6, ...bx }}>
               <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em", color: "#9a9a9a", fontWeight: 700, lineHeight: 1 }}>{LABEL_OF[l.key]}</div>
               <div style={{ lineHeight: 1.3, fontSize: l.size, fontFamily: l.key === "sku" ? "ui-monospace,monospace" : "inherit" }}>{v || "—"}</div>
             </div>
@@ -121,6 +125,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const [listSearch, setListSearch] = useState("");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
+  const [showBoxes, setShowBoxes] = useState(false);
 
   // ── draft editing ──
   const patchDraft = (p) => setDraft((d) => ({ ...d, ...p }));
@@ -133,13 +138,41 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
     ? { ...d, twoVariant: true, wBefore: d.w, w: Math.max(d.w, 2) }
     : { ...d, twoVariant: false, w: d.wBefore ?? d.w, wBefore: undefined });
   const setLine = (key, p) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, ...p } : l) }));
-  const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, size: clampSize(l.size + dir) } : l) }));
-  const moveLine = (idx, dir) => setDraft((d) => {
-    const lines = [...d.lines]; const j = idx + dir;
-    if (j < 0 || j >= lines.length) return d;
-    [lines[idx], lines[j]] = [lines[j], lines[idx]];
-    return { ...d, lines };
+  const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, size: isSpacer(key) ? clampSpace(l.size + dir * 2) : clampSize(l.size + dir) } : l) }));
+  const addSpacer = () => setDraft((d) => ({ ...d, lines: [...d.lines, newSpacerLine()] }));
+  const removeLine = (key) => setDraft((d) => ({ ...d, lines: d.lines.filter((l) => l.key !== key) }));
+
+  // Drag reorder: the grip arms its row (`dragArm` makes it draggable — the
+  // rows hold text inputs, so they can't be draggable at rest), dragging over
+  // another row live-reorders, dragend settles.
+  const [dragArm, setDragArm] = useState(null);
+  const [dragKey, setDragKey] = useState(null);
+  const dragTo = (overKey) => {
+    if (!dragKey || dragKey === overKey) return;
+    setDraft((d) => {
+      const lines = [...d.lines];
+      const from = lines.findIndex((l) => l.key === dragKey);
+      const to = lines.findIndex((l) => l.key === overKey);
+      if (from < 0 || to < 0) return d;
+      const [moved] = lines.splice(from, 1);
+      lines.splice(to, 0, moved);
+      return { ...d, lines };
+    });
+  };
+  const rowDnD = (l) => ({
+    draggable: dragArm === l.key,
+    onDragStart: (e) => { setDragKey(l.key); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", l.key); } catch { /* IE-style throw */ } },
+    onDragEnter: () => dragTo(l.key),
+    onDragOver: (e) => e.preventDefault(),
+    onDrop: (e) => e.preventDefault(),
+    onDragEnd: () => { setDragKey(null); setDragArm(null); },
   });
+  const dragHandle = (l) => (
+    <button onMouseDown={() => setDragArm(l.key)} onMouseUp={() => setDragArm(null)}
+      className="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500" title="Drag to reorder">
+      <GripVertical size={14} />
+    </button>
+  );
 
   const applyPreset = (p) => { setDraft(newDraftFromPreset(p)); setEditingId(null); };
   const fillFrom = (item) => setDraft((d) => ({ ...d, sku: item.sku || null, fields: { ...d.fields, ...stockToLabelFields(item) } }));
@@ -268,15 +301,33 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               )}
 
               <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mt-3 mb-0.5">Label lines</div>
-              <div className="text-[11px] text-slate-400 mb-1">Toggle, reorder, resize — then Save Label.</div>
-              {draft.lines.map((l, idx) => {
+              <div className="text-[11px] text-slate-400 mb-1">Toggle, drag to reorder, resize — then Save Label.</div>
+              {draft.lines.map((l) => {
+                const rowCls = `flex items-center gap-1.5 py-0.5 border-b border-slate-50 ${l.show ? "" : "opacity-50"} ${dragKey === l.key ? "bg-indigo-50/70 rounded-md" : ""}`;
+                if (isSpacer(l.key)) {
+                  return (
+                    <div key={l.key} {...rowDnD(l)} className={rowCls}>
+                      {dragHandle(l)}
+                      <button onClick={() => setLine(l.key, { show: !l.show })} className="w-6 h-6 shrink-0 flex items-center justify-center border border-slate-200 rounded-md text-indigo-600">
+                        {l.show ? <Eye size={13} /> : <EyeOff size={13} className="text-slate-300" />}
+                      </button>
+                      <div className="flex-1 min-w-0 py-1">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Filler space</div>
+                        <div className="mt-0.5 rounded border border-dashed border-slate-300 bg-slate-50" style={{ height: Math.min(l.size, 18) }} />
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button onClick={() => bumpSize(l.key, -1)} className="w-5 h-5 border border-slate-200 rounded text-slate-500 text-xs leading-none">−</button>
+                        <span className="text-[10px] text-slate-400 w-4 text-center">{l.size}</span>
+                        <button onClick={() => bumpSize(l.key, 1)} className="w-5 h-5 border border-slate-200 rounded text-slate-500 text-xs leading-none">+</button>
+                      </div>
+                      <button onClick={() => removeLine(l.key)} className="w-5 h-5 shrink-0 flex items-center justify-center text-slate-300 hover:text-red-500" title="Remove filler"><Trash2 size={12} /></button>
+                    </div>
+                  );
+                }
                 const meta = LABEL_FIELDS.find((f) => f.key === l.key);
                 return (
-                  <div key={l.key} className={`flex items-center gap-1.5 py-0.5 border-b border-slate-50 ${l.show ? "" : "opacity-50"}`}>
-                    <div className="flex flex-col">
-                      <button onClick={() => moveLine(idx, -1)} className="text-slate-300 hover:text-slate-600 leading-none"><ChevronUp size={13} /></button>
-                      <button onClick={() => moveLine(idx, 1)} className="text-slate-300 hover:text-slate-600 leading-none"><ChevronDown size={13} /></button>
-                    </div>
+                  <div key={l.key} {...rowDnD(l)} className={rowCls}>
+                    {dragHandle(l)}
                     <button onClick={() => setLine(l.key, { show: !l.show })} className="w-6 h-6 shrink-0 flex items-center justify-center border border-slate-200 rounded-md text-indigo-600">
                       {l.show ? <Eye size={13} /> : <EyeOff size={13} className="text-slate-300" />}
                     </button>
@@ -308,7 +359,10 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 );
               })}
 
-              <button onClick={saveAsPreset} className="mt-2 text-xs text-indigo-600 font-semibold underline">＋ Save these lines &amp; size as a preset</button>
+              <div className="flex items-center gap-3 mt-2">
+                <button onClick={addSpacer} className="text-xs text-slate-500 font-semibold underline" title="A blank line that holds space open — drag it where you need the gap">＋ Add filler space</button>
+                <button onClick={saveAsPreset} className="text-xs text-indigo-600 font-semibold underline">＋ Save lines &amp; size as a preset</button>
+              </div>
 
               <div className="flex gap-2 mt-2.5">
                 <button onClick={save} className="flex-1 bg-indigo-600 text-white rounded-md py-1.5 text-sm font-semibold hover:bg-indigo-700">{editingId ? "Save Changes" : "Save Label"}</button>
@@ -319,14 +373,20 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
             {/* preview + set */}
             <div className="p-5 overflow-y-auto bg-slate-50/40">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Live preview</div>
+                <div className="flex items-center gap-3">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Live preview</div>
+                  <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer select-none" title="Outline each line on the preview to check spacing — never prints">
+                    <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} className="accent-indigo-600" />
+                    Line boxes
+                  </label>
+                </div>
                 <div className="flex gap-2">
                   {selected.size > 0 && <button onClick={() => print(selectedLabels)} className="text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-200 bg-white flex items-center gap-1.5"><Printer size={13} /> Print Selected ({selected.size}) · {sheetsForLabels(selectedLabels)} sheet{sheetsForLabels(selectedLabels) === 1 ? "" : "s"}</button>}
                   {labels.length > 0 && <button onClick={() => print(view)} className="text-xs font-semibold px-3 py-1.5 rounded-md bg-slate-800 text-white flex items-center gap-1.5"><Printer size={13} /> Print All ({view.length}) · {sheetsForLabels(view)} sheet{sheetsForLabels(view) === 1 ? "" : "s"}</button>}
                 </div>
               </div>
 
-              <div className="mb-5"><LabelCard label={previewLabel} scale={Math.min(1, 210 / (draft.w * 96))} /></div>
+              <div className="mb-5"><LabelCard label={previewLabel} boxes={showBoxes} scale={Math.min(1, 210 / (draft.w * 96))} /></div>
 
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <div className="text-[13px] font-bold">Label Set ({labels.length})</div>

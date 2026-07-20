@@ -34,6 +34,18 @@ const FIELD_KEYS = LABEL_FIELDS.map((f) => f.key);
 const isField = (k) => FIELD_KEYS.includes(k);
 export const KIND_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.kind]));
 
+// Filler lines: user-added blank spacers that hold vertical space open on the
+// card (their `size` is a height in px, not a font size). Keyed "sp_<id>" so
+// any number of them ride through normLines alongside the fixed fields.
+// Hiding a normal line always collapses the card — a filler is the explicit
+// way to keep a gap.
+export const isSpacer = (k) => typeof k === "string" && k.startsWith("sp_");
+export const SPACE_MIN = 2;
+export const SPACE_MAX = 80;
+export const SPACE_DEFAULT = 12;
+export const clampSpace = (n) => Math.min(SPACE_MAX, Math.max(SPACE_MIN, Math.round(num(n, SPACE_DEFAULT))));
+export const newSpacerLine = () => ({ key: "sp_" + uid(), show: true, size: SPACE_DEFAULT });
+
 // Two-variant labels (v3 port): one tile sold in two sizes shares a single
 // label — these fields get a second column (`fields2`) when `twoVariant` is on.
 // Label-level only; presets don't carry it.
@@ -71,7 +83,13 @@ const normLines = (raw) => {
   const out = [];
   for (const l of Array.isArray(raw) ? raw : []) {
     const key = str(l?.key);
-    if (!isField(key) || seen.has(key)) continue;
+    if (seen.has(key)) continue;
+    if (isSpacer(key)) {
+      seen.add(key);
+      out.push(line(key, l?.show !== false, clampSpace(l?.size)));
+      continue;
+    }
+    if (!isField(key)) continue;
     seen.add(key);
     out.push(line(key, l?.show !== false, clampSize(l?.size ?? DEFAULT_SIZES[key])));
   }
@@ -213,6 +231,7 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
   }).join("");
   const variantBlock = `<div style="display:flex;gap:8px;"><div style="flex:1;min-width:0;">${variantCol(val)}</div><div style="width:1px;background:rgba(255,255,255,.18);align-self:stretch;margin-top:6px;"></div><div style="flex:1;min-width:0;">${variantCol(val2)}</div></div>`;
   const body = (label.lines || []).filter((l) => l.show).map((l) => {
+    if (isSpacer(l.key)) return `<div style="height:${l.size}px;flex:0 0 auto;"></div>`;
     if (l.key === "name") return `<div style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
     if (l.key === "surface") return val("surface") ? `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>` : "";
     if (KIND_OF[l.key] === "custom") return val(l.key) ? `<div style="margin-top:6px;color:#fff;line-height:1.3;font-size:${l.size}px;word-break:break-word;">${val(l.key)}</div>` : "";

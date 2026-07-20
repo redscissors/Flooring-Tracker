@@ -159,11 +159,14 @@ src/
                     # board page, ADR 0024) routes a mixed drop and reuses
                     # each book's normal import preview.
   labels.js         # Label Generator pure logic (Apps hub): LABEL_FIELDS,
-                    # built-in size presets, preset/label normalization,
+                    # built-in size presets, preset/label normalization
+                    # (incl. "sp_" filler spacer lines — user-added blanks
+                    # whose size is a height in px, holding a gap open),
                     # stock->field mapping, per-letter-sheet math, print HTML
   AppsWorkspace.jsx # the Apps hub overlay (SettingsWorkspace-style shell) +
-                    # the Label Generator UI (preset strip, SKU fill, preview,
-                    # label set, print)
+                    # the Label Generator UI (preset strip, SKU fill,
+                    # drag-to-reorder lines + filler spacers, preview with
+                    # line-boxes toggle, label set, print)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 netlify/
   functions/
