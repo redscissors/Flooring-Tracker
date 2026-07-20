@@ -240,3 +240,117 @@ export function parseMirageChart(pages) {
   if (!out.length) warnings.push("No Mirage product-chart rows were recognized — is this the Mirage Product Chart PDF?");
   return { rows: out, warnings };
 }
+
+// ---- the flooring price sheets ---------------------------------------------
+// Hardwood and Value Tower share a layout: a construction band row, a width row,
+// a header row naming Species/Grades, then data rows of $/SF. Both print the
+// grid twice — prices on one side, SKUs on the other — so a column only becomes
+// a price when it actually parses as one.
+
+// The join keys. The three documents spell the same axis differently, and every
+// mismatch here silently costs a floor its price, so both sides are normalized
+// to one spelling rather than compared raw.
+//
+//   chart      Hardwood            Value Tower
+//   Classic    Solid 3/4"          Classic 3/4''      <- different WORD, not just thickness
+//   Herringbone 5"   Herr. 5"      Herr. 5"
+//   7-3/4"     7-3/4"              7 3/4"
+export const normConstruction = (v) =>
+  str(v).toLowerCase()
+    .replace(/\d+\s*[-\/]?\s*\d*\s*\/?\s*\d*\s*["'′]+/g, " ") // drop the thickness
+    .replace(/\bsolid\b/, "classic")                          // Hardwood's word for Classic
+    .replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+
+export const normWidth = (v) =>
+  str(v).toLowerCase()
+    .replace(/\*+/g, "")                       // footnote markers ("9\"**")
+    .replace(/["'′]+/g, "")
+    .replace(/\bherringbone\b|\bherr\b\.?/g, "herr")
+    .replace(/\bchev\b\.?/g, "chevron")
+    .replace(/(\d)\s+(\d+\/\d+)/g, "$1-$2")   // "7 3/4" -> "7-3/4"
+    .replace(/[^a-z0-9\-\/ ]/g, " ").replace(/\s+/g, " ").trim();
+
+const priceOf = (v) => {
+  const m = /\$?\s*([\d,]+(?:\.\d+)?)\s*\/\s*SF/i.exec(str(v));
+  return m ? parseFloat(m[1].replace(/,/g, "")) : null;
+};
+
+const cell = (row, i) => str((row || [])[i]);
+const findCol = (row, re) => (row || []).findIndex((c) => re.test(str(c)));
+
+export function parseMirageFlooring(sheets) {
+  const rows = [];
+  const warnings = [];
+  for (const sh of sheets || []) {
+    const grid = sh?.rows || [];
+    for (let h = 2; h < grid.length; h++) {
+      const gradeCol = findCol(grid[h], /^grades?$/i);
+      const speciesCol = findCol(grid[h], /^species?$|^specie$/i);
+      if (gradeCol < 0 || speciesCol < 0) continue;
+      const widthRow = grid[h - 1] || [], bandRow = grid[h - 2] || [];
+      // Merged header cells put the band label in the first column of its span,
+      // so it fills right until the next label — unlike the PDF, where the same
+      // label is centred over its columns.
+      const bandAt = [];
+      let band = "";
+      for (let c = 0; c < Math.max(bandRow.length, widthRow.length); c++) {
+        if (cell(bandRow, c)) band = cell(bandRow, c);
+        bandAt[c] = band;
+      }
+      const priceCols = [];
+      for (let c = gradeCol + 1; c < widthRow.length; c++) if (cell(widthRow, c)) priceCols.push(c);
+      if (!priceCols.length) continue;
+
+      let collection = "", species = "";
+      for (let r = h + 1; r < grid.length; r++) {
+        const row = grid[r];
+        // A new band/header row ends the block.
+        if (findCol(row, /^grades?$/i) >= 0) break;
+        if (cell(row, 0)) collection = cell(row, 0);
+        if (cell(row, speciesCol)) species = cell(row, speciesCol);
+        const grade = cell(row, gradeCol);
+        let any = false;
+        for (const c of priceCols) {
+          const price = priceOf(cell(row, c));
+          if (price == null) continue;
+          any = true;
+          rows.push({
+            collection, species, grade,
+            construction: bandAt[c] || "", width: cell(widthRow, c), price,
+            sheet: sh.name || "",
+          });
+        }
+        // Blank spacer rows are fine; a run of them with no prices and no labels
+        // means the block is over.
+        if (!any && !cell(row, 0) && !grade && !(row || []).some((c) => str(c))) break;
+      }
+    }
+  }
+  if (!rows.length) warnings.push("No Mirage flooring prices were recognized — is this a Mirage flooring price sheet?");
+  return { rows, warnings };
+}
+
+// Chart SKUs priced from the flooring sheets. The chart is the spine — it alone
+// knows the colours — and a price is looked up per (collection, grade,
+// construction, width). Where the two sheets overlap the LATER effective date
+// wins, which is why the caller passes Value Tower first and Hardwood second.
+//
+// A chart SKU with no price is DROPPED, not carried at zero: an order item's
+// cost drives the quote, so a priceless row would quote $0 rather than fail
+// loudly. They come back as `unpriced` so the import can say how many and why.
+// Expect some: the chart and the price sheets are published on different dates,
+// so a chart older than the current sheet still lists widths that have since
+// been dropped.
+export function priceChartRows(chartRows, priceRows) {
+  const key = (r) =>
+    [str(r.collection).toLowerCase(), str(r.grade).toLowerCase(), normConstruction(r.construction), normWidth(r.width)].join("|");
+  const byKey = new Map();
+  for (const p of priceRows || []) byKey.set(key(p), p); // last writer wins
+  const rows = [], unpriced = [];
+  for (const c of chartRows || []) {
+    const p = byKey.get(key(c));
+    if (p) rows.push({ ...c, price: p.price, priceSheet: p.sheet });
+    else unpriced.push(c);
+  }
+  return { rows, unpriced };
+}
