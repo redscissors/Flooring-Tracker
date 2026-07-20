@@ -234,6 +234,23 @@ const searchPanelBox = (pos) => {
   return { ...vPos(pos), maxHeight: pos.maxH, width, left: Math.max(8, Math.min(pos.left, window.innerWidth - width - 8)) };
 };
 
+// A right-anchored ⋯ action menu on the same portal + fixed-coordinates rig as
+// the search panels: a scroll container can't clip it, and a trigger near the
+// bottom of the screen flips the menu upward instead of dropping it off the
+// page. The right edge hugs the trigger, clamped to the viewport; dismissal
+// (outside pointer-down / focus-out) comes from useAnchoredPanel, so callers
+// don't need a backdrop.
+export function DotMenu({ open, onClose, anchorRef, width = 224, children }) {
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
+  if (!open || !pos) return null;
+  const left = Math.max(8, Math.min(pos.left + pos.width - width, window.innerWidth - width - 8));
+  return createPortal(
+    <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, width, left }} className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm overflow-y-auto">
+      {children}
+    </div>, document.body);
+}
+
 // Order-book search for the selection-row pickers (ADR 0009 §6). Stock stays
 // instant from the in-memory list; special-order matches stream in behind them
 // from a debounced server query (searchOrder — null when no order books exist,
@@ -5796,6 +5813,7 @@ export function VendorBookRow({ sheet, siblings = [], book, group, groups, books
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const menuBtn = useRef(null);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
   const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
@@ -5820,40 +5838,33 @@ export function VendorBookRow({ sheet, siblings = [], book, group, groups, books
           <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open this book's import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
         )}
         {!fetching && !pending && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Refresh this book's sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — refresh this book's sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
-        <div className="relative shrink-0">
-          <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
-          {menu && (
+        <button ref={menuBtn} onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"><MoreHorizontal size={14} /></button>
+        <DotMenu open={menu} onClose={() => openMenu(false)} anchorRef={menuBtn}>
+          <div className="px-3 py-1 text-[11px] text-slate-400">
+            Source sheet{feeds.length > 1 ? "s" : ""}:
+            {feeds.map((f) => <div key={recordKey(f)} className="text-slate-600 truncate" title={entryFileName(f)}>{entryFileName(f)}</div>)}
+          </div>
+          <button onClick={() => { onOpenBook(book.id); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><BookOpen size={13} className="text-slate-400" /> Open price book</button>
+          <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
+          {bookLinkMenu({ books, sheet, onLinkBook, onDone: () => openMenu(false), open: linkOpen, setOpen: setLinkOpen, label: "Link to a different book" })}
+          {others.length > 0 && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => openMenu(false)} />
-              <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
-                <div className="px-3 py-1 text-[11px] text-slate-400">
-                  Source sheet{feeds.length > 1 ? "s" : ""}:
-                  {feeds.map((f) => <div key={recordKey(f)} className="text-slate-600 truncate" title={entryFileName(f)}>{entryFileName(f)}</div>)}
+              <div className="my-1 border-t border-slate-100" />
+              <button onClick={() => setMoveOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
+                <ChevronRight size={13} className={"text-slate-400 transition-transform " + (moveOpen ? "rotate-90" : "")} /> Move to another sign-in
+              </button>
+              {moveOpen && (
+                <div className="max-h-40 overflow-y-auto bg-slate-50">
+                  {others.map((g) => (
+                    <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">{g.name}</button>
+                  ))}
                 </div>
-                <button onClick={() => { onOpenBook(book.id); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><BookOpen size={13} className="text-slate-400" /> Open price book</button>
-                <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
-                {bookLinkMenu({ books, sheet, onLinkBook, onDone: () => openMenu(false), open: linkOpen, setOpen: setLinkOpen, label: "Link to a different book" })}
-                {others.length > 0 && (
-                  <>
-                    <div className="my-1 border-t border-slate-100" />
-                    <button onClick={() => setMoveOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
-                      <ChevronRight size={13} className={"text-slate-400 transition-transform " + (moveOpen ? "rotate-90" : "")} /> Move to another sign-in
-                    </button>
-                    {moveOpen && (
-                      <div className="max-h-40 overflow-y-auto bg-slate-50">
-                        {others.map((g) => (
-                          <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">{g.name}</button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="my-1 border-t border-slate-100" />
-                <button onClick={() => { onRemove(group.id, sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><X size={13} /> Forget this sheet</button>
-              </div>
+              )}
             </>
           )}
-        </div>
+          <div className="my-1 border-t border-slate-100" />
+          <button onClick={() => { onRemove(group.id, sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><X size={13} /> Forget this sheet</button>
+        </DotMenu>
       </div>
       {fetching && (
         <div className="pl-6 pr-1 pt-1">
@@ -5878,6 +5889,7 @@ function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, r
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const menuBtn = useRef(null);
   const others = groups.filter((g) => g.id !== group.id);
   const fetching = prog?.state === "fetching";
   const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
@@ -5895,44 +5907,37 @@ function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, r
           <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open its import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
         )}
         {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — download this sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
-        <div className="relative shrink-0">
-          <button onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
-          {menu && (
+        <button ref={menuBtn} onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"><MoreHorizontal size={14} /></button>
+        <DotMenu open={menu} onClose={() => openMenu(false)} anchorRef={menuBtn}>
+          {sheet.bookId ? (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => openMenu(false)} />
-              <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
-                {sheet.bookId ? (
-                  <>
-                    <div className="px-3 py-1 text-[11px] text-slate-400 truncate">Feeds <span className="text-slate-600">{bookName || "a deleted book"}</span></div>
-                    <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
-                    {linkItem}
-                  </>
-                )}
-                {others.length > 0 && (
-                  <>
-                    <div className="my-1 border-t border-slate-100" />
-                    <button onClick={() => setMoveOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
-                      <ChevronRight size={13} className={"text-slate-400 transition-transform " + (moveOpen ? "rotate-90" : "")} /> Move to another sign-in
-                    </button>
-                    {moveOpen && (
-                      <div className="max-h-40 overflow-y-auto bg-slate-50">
-                        {others.map((g) => (
-                          <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">{g.name}</button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="my-1 border-t border-slate-100" />
-                <button onClick={() => { onRemove(group.id, sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><X size={13} /> Forget this sheet</button>
-              </div>
+              <div className="px-3 py-1 text-[11px] text-slate-400 truncate">Feeds <span className="text-slate-600">{bookName || "a deleted book"}</span></div>
+              <button onClick={() => { onUnlinkBook(sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2Off size={13} className="text-slate-400" /> Unlink price book</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { onCreateBook(sheet); openMenu(false); }} disabled={running} title="Download this sheet and start a new price book from it" className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} className="text-slate-400" /> Create price book from this sheet</button>
+              {linkItem}
             </>
           )}
-        </div>
+          {others.length > 0 && (
+            <>
+              <div className="my-1 border-t border-slate-100" />
+              <button onClick={() => setMoveOpen((v) => !v)} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50">
+                <ChevronRight size={13} className={"text-slate-400 transition-transform " + (moveOpen ? "rotate-90" : "")} /> Move to another sign-in
+              </button>
+              {moveOpen && (
+                <div className="max-h-40 overflow-y-auto bg-slate-50">
+                  {others.map((g) => (
+                    <button key={g.id} onClick={() => { onMove(sheet, group.id, g.id); openMenu(false); }} className="w-full text-left pl-8 pr-3 py-1.5 text-[13px] hover:bg-slate-100 truncate">{g.name}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          <div className="my-1 border-t border-slate-100" />
+          <button onClick={() => { onRemove(group.id, sheet); openMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><X size={13} /> Forget this sheet</button>
+        </DotMenu>
       </div>
       {fetching && (
         <div className="pl-6 pr-1 pt-1">
@@ -5952,6 +5957,7 @@ function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, r
 // board layout — ADR 0021).
 function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress, running, selected, onToggleSheet, onRedownloadAll, onRedownloadSheet, onPatch, onDelete, onRemoveSheet, onMoveSheet, onCreateBook, onLinkBook, onUnlinkBook, onOpenBook, pendingFor, onReview, inp }) {
   const [menu, setMenu] = useState(false);
+  const menuBtn = useRef(null);
   const [editName, setEditName] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
   const [editUrl, setEditUrl] = useState(false);
@@ -5972,20 +5978,13 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
             <h3 className="text-[13px] font-semibold truncate flex-1 min-w-0" title={group.name}>{group.name}</h3>
           )}
           <button onClick={() => onRedownloadAll(group)} disabled={running || group.sheets.length === 0} title={groupLive ? "Ready — download every sheet in this sign-in" : "Download every sheet in this sign-in"} className={"p-1 disabled:opacity-40 shrink-0 " + (groupLive ? "ft-live" : "text-indigo-600 hover:text-indigo-700")}><Download size={14} /></button>
-          <div className="relative shrink-0">
-            <button onClick={() => setMenu((v) => !v)} title="Sign-in options" className="p-1 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
-            {menu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
-                <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
-                  <button onClick={() => { setNameDraft(group.name); setEditName(true); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Pencil size={13} className="text-slate-400" /> Rename sign-in</button>
-                  <button onClick={() => { setUrlDraft(group.loginUrl || ""); setEditUrl(true); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2 size={13} className="text-slate-400" /> {group.loginUrl ? "Edit" : "Add"} sign-in link</button>
-                  <div className="my-1 border-t border-slate-100" />
-                  <button onClick={() => { setConfirmDel(true); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><Trash2 size={13} /> Delete sign-in…</button>
-                </div>
-              </>
-            )}
-          </div>
+          <button ref={menuBtn} onClick={() => setMenu((v) => !v)} title="Sign-in options" className="p-1 text-slate-400 hover:text-slate-600 shrink-0"><MoreHorizontal size={14} /></button>
+          <DotMenu open={menu} onClose={() => setMenu(false)} anchorRef={menuBtn} width={192}>
+            <button onClick={() => { setNameDraft(group.name); setEditName(true); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Pencil size={13} className="text-slate-400" /> Rename sign-in</button>
+            <button onClick={() => { setUrlDraft(group.loginUrl || ""); setEditUrl(true); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 hover:bg-slate-50"><Link2 size={13} className="text-slate-400" /> {group.loginUrl ? "Edit" : "Add"} sign-in link</button>
+            <div className="my-1 border-t border-slate-100" />
+            <button onClick={() => { setConfirmDel(true); setMenu(false); }} className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-red-600 hover:bg-red-50"><Trash2 size={13} /> Delete sign-in…</button>
+          </DotMenu>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5 min-w-0">
           {group.loginUrl && <a href={group.loginUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:underline shrink-0"><Link2 size={11} /> Sign in</a>}
@@ -7626,6 +7625,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const [error, setError] = useState("");
   const [confirmDel, setConfirmDel] = useState(null); // { companyId, kind, productId }
   const [menuFor, setMenuFor] = useState(null); // company id with the ⋯ menu open
+  const menuBtns = useRef({}); // company id -> its ⋯ button, the open menu's DotMenu anchor
   const [showOthers, setShowOthers] = useState(false); // "Not in this section" group
   const [rename, setRename] = useState(null); // { value, error } — renaming the selected product
   const [coRename, setCoRename] = useState(null); // { id, value } — renaming a company inline
@@ -7755,7 +7755,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   ];
 
   const companyHeader = (co) => (
-    <div className="px-3 py-1 flex items-center gap-2 relative">
+    <div className="px-3 py-1 flex items-center gap-2">
       {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
       {coRename?.id === co.id ? (
         <input autoFocus value={coRename.value} onChange={(e) => setCoRename({ id: co.id, value: e.target.value })}
@@ -7764,19 +7764,14 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
       ) : (
         <span className={`ft-eyebrow text-[9px] flex-1 truncate ${co.enabled ? "" : "opacity-50"}`}>{co.name}</span>
       )}
-      <button onClick={() => setMenuFor(menuFor === co.id ? null : co.id)} title="Company options" className={`shrink-0 ${menuFor === co.id ? "text-slate-600" : "text-slate-300 hover:text-slate-600"}`}><MoreHorizontal size={14} /></button>
-      {menuFor === co.id && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />
-          <div className="absolute right-2 top-6 z-20 w-48 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
-            {kindsFor.map((kind) => (
-              <button key={kind} onClick={() => { setMenuFor(null); startAdd(co.id, kind); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={12} className="text-slate-400" /> Add {kindLabel(kind)}</button>
-            ))}
-            <button onClick={() => { setMenuFor(null); setCoRename({ id: co.id, value: co.name }); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Pencil size={12} className="text-slate-400" /> Rename company</button>
-            {countAll(co) === 0 && <button onClick={() => { setMenuFor(null); onChange(removeCompany(catalog, co.id)); }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"><Trash2 size={12} /> Delete company</button>}
-          </div>
-        </>
-      )}
+      <button ref={(el) => { menuBtns.current[co.id] = el; }} onClick={() => setMenuFor(menuFor === co.id ? null : co.id)} title="Company options" className={`shrink-0 ${menuFor === co.id ? "text-slate-600" : "text-slate-300 hover:text-slate-600"}`}><MoreHorizontal size={14} /></button>
+      <DotMenu open={menuFor === co.id} onClose={() => setMenuFor(null)} anchorRef={{ get current() { return menuBtns.current[co.id]; } }} width={192}>
+        {kindsFor.map((kind) => (
+          <button key={kind} onClick={() => { setMenuFor(null); startAdd(co.id, kind); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={12} className="text-slate-400" /> Add {kindLabel(kind)}</button>
+        ))}
+        <button onClick={() => { setMenuFor(null); setCoRename({ id: co.id, value: co.name }); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Pencil size={12} className="text-slate-400" /> Rename company</button>
+        {countAll(co) === 0 && <button onClick={() => { setMenuFor(null); onChange(removeCompany(catalog, co.id)); }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"><Trash2 size={12} /> Delete company</button>}
+      </DotMenu>
     </div>
   );
 
