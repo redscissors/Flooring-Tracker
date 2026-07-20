@@ -17,7 +17,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
-import { VendorFetchPage } from "../../src/App.jsx";
+import { VendorFetchPage } from "../../src/vendorpanel.jsx";
 
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
 const lbl = "ft-eyebrow text-[10px] mb-1 block";
