@@ -549,6 +549,95 @@ export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
   return [main, ...fees];
 }
 
+// --- short forms for a narrow ERP description field ---------------------------
+// Sheoga descriptions are assembled from known enums, so they abbreviate
+// LOSSLESSLY: every category keeps a slot, it just gets a shorter label. That's
+// the whole reason the "short" rung of descfit.js exists — nothing here is a
+// truncation, and no two values in a category share a short form.
+//
+// These are ORDER TEXT read by the desk (and, on a printed PO, by Sheoga), so
+// keep them unambiguous over merely brief. Widths already print short ('5¼"').
+
+const SP_SHORT = {
+  "White Oak": "WO", "Red Oak": "RO", Hickory: "Hick", Maple: "Mpl", Cherry: "Chry",
+  Walnut: "Wal", Beech: "Bch", "Q/R White Oak": "QRWO", [LIVE_SAWN_SP]: "LSWO",
+};
+const GRADE_SHORT = { Clear: "Clr", Character: "Char", "Live Sawn": "LS" };
+const TEX_SHORT = { smooth: "Smth", aged: "AgdBr", sawcut: "SawCut", bandsawn: "BndSwn", country: "CtryWrn", vintage: "VntChrm", oldmill: "OldMill" };
+const EDGE_SHORT = { square: "Sq", bevel: "MBvl", pillow: "HndPlw", vgroove: "VGrv" };
+const LEN_SHORT = { "1-8": "1-8'", "1-10": "1-10'", "2-8": "2-8'", "2-10": "2-10'", "3-8": "3-8'", "3-10": "3-10'" };
+const FIN_SHORT = { unf: "Unf", nat: "Nat", t1: "T-1", t2: "T-2", t3: "T-3" };
+const STAIN_SHORT = {
+  Natural: "Nat", Cattail: "Cattail", Caramel: "Caramel", "Fresh Cut": "FrshCut",
+  "Toasted Acorn": "TstdAcrn", Nutmeg: "Nutmeg", Buckeye: "Buckeye", "Hickory Nut": "HickNut", Frost: "Frost",
+};
+
+const shortFinish = (f) => {
+  if (f.finish === "est") return f.stain ? STAIN_SHORT[f.stain] || f.stain : "Est";
+  return FIN_SHORT[f.finish] || finishName(f);
+};
+
+// A configuration → the description's categories, in print order, each with its
+// drop priority. Rank 0 is identity — width, species, grade, construction and
+// finish all name a different product, so none of them may be dropped. Sheen
+// and no-sap are rank 1; the appearance options that only appear when they're
+// already non-standard are rank 2.
+//
+// The `full` strings MUST match what calcFloor/calcStocked put in `rest` (the
+// snapshotted description) — orderentry.test.js asserts the join across a
+// matrix of configurations, so a change to one side fails until both agree.
+// Returns null for herringbone/vents/dampers, whose descriptions aren't a flat
+// enum join; those fall back to the unstructured single-part path.
+export function descParts(snap) {
+  if (!snap || !snap.cfg) return null;
+  if (snap.mode === "floor") return floorParts(snap.cfg);
+  if (snap.mode === "stocked") return stockedParts(snap.cfg);
+  return null;
+}
+
+function floorParts(f) {
+  const tex = TEXTURES.find((t) => t.id === f.tex);
+  const edge = EDGES.find((e) => e.id === f.edge);
+  const len = LENGTHS.find((l) => l.id === f.len);
+  if (!tex || !edge || !len || !FINISHES.find((x) => x.id === f.finish)) return null;
+  const sap = f.noSap ? NO_SAP[f.sp] || 0 : 0;
+  const grade = gradeName(f);
+  const out = [
+    { full: WIDTH_LABEL[f.w], rank: 0 },
+    { full: f.sp, short: SP_SHORT[f.sp] || f.sp, rank: 0 },
+    { full: grade, short: GRADE_SHORT[grade] || grade, rank: 0 },
+    { full: f.cons === "solid" ? "Solid" : "Engineered", short: f.cons === "solid" ? "Sol" : "Eng", rank: 0 },
+  ];
+  if (f.noSap && sap) out.push({ full: "No sap", short: "NoSap", rank: 1 });
+  if (tex.id !== "smooth") out.push({ full: tex.name.replace(" (standard)", ""), short: TEX_SHORT[tex.id], rank: 2 });
+  if (edge.id !== "square") out.push({ full: edge.name, short: EDGE_SHORT[edge.id], rank: 2 });
+  if (len.pct) out.push({ full: len.name.replace(" (standard)", "") + " lengths", short: LEN_SHORT[len.id], rank: 2 });
+  if (f.finish === "unf") out.push({ full: "Unfinished", short: "Unf", rank: 0 });
+  else {
+    out.push({ full: finishName(f), short: shortFinish(f), rank: 0 });
+    out.push({ full: `${f.sheen || "30"} sheen`, short: `${f.sheen || "30"}sh`, rank: 1 });
+  }
+  return out;
+}
+
+function stockedParts(k) {
+  const it = stockedItem(k);
+  if (!it) return null;
+  const sheen = k.sheen != null && k.sheen !== "" ? String(k.sheen) : String(it.sheen);
+  const grade = k.grade === "clear" ? "Clear" : "Character";
+  const color = it.color.replace(/ · /g, " ");
+  return [
+    { full: WIDTH_LABEL[k.w], rank: 0 },
+    { full: it.sp, short: SP_SHORT[it.sp] || it.sp, rank: 0 },
+    // "Fresh Cut" abbreviates whole; "Cattail · Sawcut" pairs a colour with a
+    // texture, so fall back to shortening each word it knows.
+    { full: color, short: STAIN_SHORT[color] || color.split(" ").map((w) => STAIN_SHORT[w] || w).join(" "), rank: 0 },
+    { full: grade, short: GRADE_SHORT[grade], rank: 0 },
+    { full: "Stocked prefinished", short: "Stk", rank: 2 },
+    { full: `${sheen} sheen`, short: `${sheen}sh`, rank: 1 },
+  ];
+}
+
 // --- SKU-search entry point ---------------------------------------------------
 // Sheoga has no SKUs, so it can never be a book match. The SKU dropdown pins a
 // "Vendor configurators" row when the query starts spelling the vendor (any

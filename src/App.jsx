@@ -14,7 +14,7 @@ import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
-import { isSpecialOrder, orderCopyText } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
@@ -4749,10 +4749,11 @@ export default function App({ user, onSignOut }) {
         // through (spec 2026-07-16) — the salesperson keys builder/sale discounts
         // into the vendor order by hand.
         const oeProj = tv.tier === "employee" ? tv.proj : sel;
+        const descLimit = normPricing(settings.pricing).descLimit;
         const rows = [];
-        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
+        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai), descLimit)); }));
         const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
-        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} onClose={() => setShowOrderCopy(false)} />;
+        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
       })()}
 
       {custModal && (() => {
@@ -4972,7 +4973,7 @@ const ORDER_UNIT_CODE = { ct: "CT", sh: "SH", sf: "SF", units: "PC", ea: "EA" };
 // dropped, spaces only. Carton/sheet rows lead with a CT/SH tag (also in the
 // copied text) since the order-entry system can't be switched off "each".
 // Read-only; no math is mutated.
-function orderEntryRow(p, s, area) {
+function orderEntryRow(p, s, area, descLimit) {
   const c = printProduct(p, s);
   const isMisc = p.type === "misc";
   // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
@@ -4994,12 +4995,13 @@ function orderEntryRow(p, s, area) {
   const byDesc = !!p.sheoga && !p.sku;
   const r = {
     id: p.id, special: isSpecialOrder(p), byDesc, area,
-    tag, sizePlain, name, sku: p.sku, coverage,
+    tag, sizePlain, name, sku: p.sku, coverage, sheoga: p.sheoga,
     qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
   };
-  return { ...r, copy: orderCopyText(r) };
+  const desc = orderDescription(r, descLimit);
+  return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
 }
 
 // The shared team issue / to-do list (issue 006). Open items are ordered by
@@ -6315,9 +6317,21 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
                 </label>
               </div>
             </div>
+
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+              <span className="ft-eyebrow text-[10px]">Order entry</span>
+              <div className="flex flex-col gap-1 text-[11px] text-slate-600">
+                <label className="flex items-center gap-1.5" title="How many characters your ERP's order-description field holds. Special-order lines abbreviate to fit; anything that still won't fit gets a second copy button for the extended-text field. Set 0 to turn fitting off.">
+                  <span className="grid place-items-center w-5 h-[22px] text-slate-400 font-bold">¶</span>
+                  <input type="number" min="0" max="200" step="1" value={pcts.descLimit} onChange={(e) => setPct("descLimit")(e.target.value)} className={pctInp} />
+                  <span className="font-medium">Desc. field</span>
+                </label>
+                <p className="text-[10px] text-slate-400 leading-snug pl-[26px]">characters · 0 = no limit</p>
+              </div>
+            </div>
           </div>
 
-          <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup</div>
+          <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup · Order entry</div>
 
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
