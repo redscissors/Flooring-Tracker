@@ -4,6 +4,7 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { LIST_SELECT, lightRow, normBook, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadLabels, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { bootTrace, traceRows } from "./boottrace.js";
 import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
@@ -291,7 +292,7 @@ function useMergedResults(active, stock, query, searchOrder) {
 // each of the rest via onPickMany.
 const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
 
-function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
+function SkuPicker({ value, stock, stockReady, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
@@ -336,9 +337,12 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
       <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
         onKeyDown={onKey} data-c="sku"
         className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
-      {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
+      {open && pos && (results.length > 0 || picked.length > 0 || (!stockReady && value)) && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          {!stockReady && results.length === 0 && (
+            <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Price book still loading…</div>
+          )}
           <div className="max-h-72 min-h-0 overflow-y-auto">
             {results.map((it, i) => {
               const sel = picked.some((x) => hitKey(x) === hitKey(it));
@@ -352,14 +356,16 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
               );
             })}
           </div>
-          <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
-            <span className="truncate">{matchSummary(results.length, total)}</span>
-            {picked.length > 0 ? (
-              <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
-            ) : (
-              <span className="ml-auto shrink-0">Shift-click to pick several</span>
-            )}
-          </div>
+          {(stockReady || results.length > 0) && (
+            <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+              <span className="truncate">{matchSummary(results.length, total)}</span>
+              {picked.length > 0 ? (
+                <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+              ) : (
+                <span className="ml-auto shrink-0">Shift-click to pick several</span>
+              )}
+            </div>
+          )}
         </div>, document.body)}
     </div>
   );
@@ -1018,14 +1024,14 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, stockReady, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
   if (!p) return null;
   const blank = rowBlank(p);
   const accent = TYPE_ACCENT[p.type];
-  const canSearch = stock.length > 0 || !!searchOrder;
+  const canSearch = stock.length > 0 || !!searchOrder || !stockReady;
 
   // Same per-row derivations as the desktop grid (App's products map).
   const G = getGrout(p, settings), M = getMortar(p, settings);
@@ -1042,11 +1048,14 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, gFamil
   const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
   const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
   const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
-  const pickGroutColor = (color) => { const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; onPatch({ grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
-  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; onPatch({ grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+  // Book-linked picks snapshot from the stock cache at click time (ADR 0007) —
+  // while the background stock load is in flight they would blank an existing
+  // snapshot, so refuse loudly instead (ADR 0026).
+  const pickGroutColor = (color) => { if (gBook && !stockReady) { notify?.("Price book still loading — try that color again in a moment"); return; } const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; onPatch({ grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (book && !stockReady) { notify?.("Price book still loading — try again in a moment"); return; } const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; onPatch({ grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
   const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
   const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (book && !stockReady) { notify?.("Price book still loading — try again in a moment"); return; } const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
   const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
   const U = getUnderlay(p, settings), uEx = underlayExact(p, settings);
   const installDefs = settings.underlayments[p.underlay.product]?.install || [];
@@ -1805,23 +1814,27 @@ export default function App({ user, onSignOut }) {
   // anything else stored there.
   const appBlobRef = useRef({});
   const [showVersions, setShowVersions] = useState(false);
-  // Stock price book (ADR 0003): all active+retired items, loaded once — the
-  // SKU picker and drift chips search this in memory. Empty until the team has
-  // run supabase/stock.sql and imported the workbook.
+  // Stock price book (ADR 0003): all active+retired items, loaded in the
+  // background after first paint (ADR 0026 stage 2) — the SKU picker and drift
+  // chips search this in memory. stockReady tells "still loading" apart from
+  // "loaded empty"; it flips on load failure too, so no guard holds forever.
+  // Empty until the team has run supabase/stock.sql and imported the workbook.
   const [stock, setStock] = useState([]);
+  const [stockReady, setStockReady] = useState(false);
   // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
   // at edit time only (color dropdowns, Settings linking), never at calc time.
   const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
-  // Team to-do / issue list (issue 006): shared rows, loaded once for the
-  // sidebar badge and refreshed every time the list is opened.
+  // Team to-do / issue list (issue 006): shared rows, loaded in the background
+  // after first paint for the sidebar badge and refreshed on every open.
   const [todos, setTodos] = useState([]);
   const [showTodos, setShowTodos] = useState(false);
   // Apps → Label Generator: saved showroom labels, shared team-wide (issue
-  // label-generator-integration). Own table, loaded once on mount.
+  // label-generator-integration). Own table, loaded when the Apps hub opens
+  // (ADR 0026) — nothing at boot reads it.
   const [labels, setLabels] = useState([]);
   const [showApps, setShowApps] = useState(false);
   // Price book library (ADR 0009): registry books beyond the stock workbook.
-  // Metadata is loaded up front for the Settings list; a book's items load
+  // Metadata loads in the background after first paint; a book's items load
   // lazily when it's opened (a vendor book is ~10x the stock book). Empty
   // until the team has run supabase/pricebooks.sql.
   const [books, setBooks] = useState([]);
@@ -1965,30 +1978,40 @@ export default function App({ user, onSignOut }) {
 
   useEffect(() => {
     (async () => {
+      const trace = bootTrace();
       try {
-        // The legacy per-user blob is still read: to pick up any customers
-        // awaiting migration, and as the seed fallback for the shared settings.
-        const { data: row, error } = await supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle();
+        // Stage 1 (ADR 0026) — everything the first screen draws, one parallel
+        // round trip. The legacy per-user blob is still read: to pick up any
+        // customers awaiting migration, and as the seed fallback for the
+        // shared settings (resolved after both land, below).
+        const [blobRes, settingsRow, projectRows, people, builders] = await Promise.all([
+          trace.span("app_data", () => supabase.from("app_data").select("data").eq("user_id", user.id).maybeSingle()),
+          trace.span("shared_settings", () => loadSettingsRow(supabase)),
+          trace.span("projects", () => loadProjects(supabase)),
+          trace.span("people", () => loadPeople(supabase)),
+          trace.span("builders", () => loadBuilders(supabase)),
+        ]);
+        const { data: row, error } = blobRes;
         if (error) throw error;
         // Customers and settings have both moved out of this blob (migrated
         // below / seeded into shared_settings), so drop them from the copy that
         // profile saves write back.
         appBlobRef.current = (({ customers, settings, ...rest }) => rest)(row?.data || {});
         setProfile(normProfile(row?.data?.profile));
-
-        // Settings now live in one shared record every signed-in user reads and
-        // writes (ADR 0002), no longer in per-user app_data.
-        const settings = await resolveSharedSettings(supabase, await loadSettingsRow(supabase), row?.data?.settings);
+        const settings = await resolveSharedSettings(supabase, settingsRow, row?.data?.settings);
 
         // One-time migration: move any customers still embedded in the blob into
         // the customers table (and relocate their attachment files), then strip
-        // them from the blob. Idempotent — safe to run on every load.
+        // them from the blob. Idempotent — safe to run on every load. It inserts
+        // projects rows, and the parallel list load above ran before those
+        // existed — so re-fetch.
+        let projects = projectRows;
         const legacy = row?.data?.customers;
         if (Array.isArray(legacy) && legacy.length) {
           await migrateLegacyCustomers(legacy.map(normC));
+          projects = await trace.span("projects (post-migration)", () => loadProjects(supabase));
         }
 
-        const [projects, people, builders] = await Promise.all([loadProjects(supabase), loadPeople(supabase), loadBuilders(supabase)]);
         // Client-side 30-day sweep (ADR 0022): an unpromoted quick draft
         // (quick + still customer-less) untouched for QUICK_SWEEP_DAYS is
         // discarded on load. Best-effort deletes — a missed one just retries
@@ -2000,20 +2023,30 @@ export default function App({ user, onSignOut }) {
         const kept = swept.length ? projects.filter((p) => !swept.some((s) => s.id === p.id)) : projects;
         setData({ projects: kept, people, builders, settings });
         for (const p of swept) supabase.from("projects").delete().eq("id", p.id).then(() => {}, () => {});
-        // Best-effort: installs that haven't run supabase/stock.sql yet just
-        // don't get the SKU picker.
-        try { setStock(await loadStock(supabase)); } catch (x) { }
-        // Best-effort: installs that haven't run supabase/todos.sql yet just
-        // don't get the team to-do list.
-        try { setTodos(await loadTodos(supabase)); } catch (x) { }
-        // Best-effort: installs that haven't run supabase/labels.sql yet just
-        // don't get the label generator's saved list.
-        try { setLabels(await loadLabels(supabase)); } catch (x) { }
-        // Best-effort: installs that haven't run supabase/pricebooks.sql yet
-        // just don't get the price book library (registry affordances hide).
-        try { setBooks(await loadBooks(supabase)); } catch (x) { }
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
+      trace.paint();
+
+      // Stage 2 (ADR 0026) — bounded shared caches; nothing here blocks first
+      // paint, and it runs even when stage 1 failed (each cache degrades
+      // independently). Best-effort per load: an install that hasn't run that
+      // table's SQL file just doesn't get the feature (stock.sql → SKU picker,
+      // todos.sql → team list, pricebooks.sql → registry affordances). Labels
+      // load when the Apps hub opens, not here.
+      const [stockRows, todoRows, bookRows] = await Promise.all([
+        trace.span("stock", () => loadStock(supabase)).catch(() => null),
+        trace.span("todos", () => loadTodos(supabase)).catch(() => null),
+        trace.span("books", () => loadBooks(supabase)).catch(() => null),
+      ]);
+      if (stockRows) setStock(stockRows);
+      setStockReady(true);
+      if (todoRows) setTodos(todoRows);
+      if (bookRows) setBooks(bookRows);
+      trace.done();
+      // Production-readable trace so the ADR 0026 stage-2 trigger is observable
+      // without a dev build; the console table stays dev-only.
+      try { localStorage.setItem("ft-boot-trace", JSON.stringify(trace.report())); } catch (x) { }
+      if (import.meta.env.DEV) console.table(traceRows(trace.report()));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
@@ -2065,6 +2098,9 @@ export default function App({ user, onSignOut }) {
   // read-error — so the router knows whether the file was really imported.
   const importStockFile = async (file, onDone) => {
     if (!file) return;
+    // The diff below compares against the in-memory stock cache; against a
+    // still-loading cache it wouldn't error, it would lie (every row "new").
+    if (!stockReady) { ping("Price book still loading — try again in a moment"); onDone?.(false); return; }
     setImporting(true);
     try {
       const sheets = await readXlsxSheets(file);
@@ -2119,6 +2155,9 @@ export default function App({ user, onSignOut }) {
   // history list refreshes. No catalog price-sync — a rollback restores the
   // book's own rows, not catalog prices.
   const rollbackStock = async (diff) => {
+    // Same hazard as importStockFile, but quiet: a rollback diffed against a
+    // still-loading cache would apply without its retire marks.
+    if (!stockReady) { ping("Price book still loading — try again in a moment"); return; }
     try {
       await upsertStock(diff);
       const applied = appliedFromDiff(diff);
@@ -4062,8 +4101,11 @@ export default function App({ user, onSignOut }) {
                         const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
                         const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
-                        const pickGroutColor = (color) => { const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
-                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+                        // A book-linked pick snapshots from the stock cache at click
+                        // time (ADR 0007) — while stage 2 is in flight it would blank
+                        // an existing snapshot, so refuse loudly instead (ADR 0026).
+                        const pickGroutColor = (color) => { if (gBook && !stockReady) { ping("Price book still loading — try that color again in a moment"); return; } const it = gBook ? groutColorItem(stock, gBook, color) : null; const ck = gBook ? groutCaulkItem(stock, gBook, color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, color, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (book && !stockReady) { ping("Price book still loading — try again in a moment"); return; } const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, product, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
                         // Turning a material on: keep the row's pick when the catalog
                         // still offers it, else the team's catalog default, else the
                         // first offered — so "click to choose" never activates a
@@ -4072,7 +4114,7 @@ export default function App({ user, onSignOut }) {
                         // option, as before.
                         const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
                         const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
+                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (book && !stockReady) { ping("Price book still loading — try again in a moment"); return; } const it = book && p.grout.color ? groutColorItem(stock, book, p.grout.color) : null; const ck = book && p.grout.color ? groutCaulkItem(stock, book, p.grout.color) : null; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" } }); };
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
@@ -4199,7 +4241,7 @@ export default function App({ user, onSignOut }) {
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
-                            settings={wSet} stock={stock} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv}
+                            settings={wSet} stock={stock} stockReady={stockReady} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
@@ -4270,8 +4312,8 @@ export default function App({ user, onSignOut }) {
                                 <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
-                                {stock.length > 0 || searchOrder ? (
-                                  <SkuPicker value={p.sku || ""} stock={stock}
+                                {stock.length > 0 || searchOrder || !stockReady ? (
+                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady}
                                     onChange={(v) => updProduct(a.id, p.id, { sku: v })}
                                     onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                                     onPickMany={(items) => addStockProducts(a.id, p.id, items)}
