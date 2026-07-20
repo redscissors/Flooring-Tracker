@@ -51,12 +51,15 @@ test("clampSize keeps sizes in the 6..40 range", () => {
 
 // --- labels -------------------------------------------------------------------
 
-test("normLabel coerces all fields to strings and defaults surface to Floor", () => {
+test("normLabel coerces all fields to strings; surface stays blank (no pill) unless picked", () => {
   const l = normLabel({ id: "l1", position: 3, presetId: "sample-tag", fields: { name: 12, price: null } });
   assert.equal(l.fields.name, "12");
   assert.equal(l.fields.price, "");
-  assert.equal(l.fields.surface, "Floor");
+  assert.equal(l.fields.surface, "");
   assert.equal(l.position, 3);
+  // old records that saved a surface keep it
+  const old = normLabel({ id: "l2", fields: { surface: "Floor" } });
+  assert.equal(old.fields.surface, "Floor");
 });
 
 test("newDraftFromPreset clones the preset layout and blanks the fields", () => {
@@ -64,7 +67,7 @@ test("newDraftFromPreset clones the preset layout and blanks the fields", () => 
   assert.equal(d.presetId, "sample-tag");
   assert.equal(d.w, 1.5);
   assert.equal(d.fields.name, "");
-  assert.equal(d.fields.surface, "Floor");
+  assert.equal(d.fields.surface, "");
   // mutating the draft's lines must not touch the built-in
   d.lines[0].show = false;
   assert.notEqual(BUILTIN_PRESETS[0].lines[0].show, false);
@@ -162,6 +165,37 @@ test("labelCardHTML ignores fields2 when twoVariant is off", () => {
   assert.match(html, /CM-2046/);
   assert.doesNotMatch(html, /CM-2048/);
   assert.equal(html.split(">SKU<").length - 1, 1);
+});
+
+test("labelCardHTML skips the surface pill when no surface is picked", () => {
+  const lines = [{ key: "name", show: true, size: 13 }, { key: "surface", show: true, size: 9 }];
+  const none = labelCardHTML(_normLabel({ id: "l1", lines, fields: { name: "Carrara" } }));
+  assert.doesNotMatch(none, /border-radius:4px/); // the pill's telltale style
+  const wall = labelCardHTML(_normLabel({ id: "l2", lines, fields: { name: "Carrara", surface: "Wall" } }));
+  assert.match(wall, /Wall/);
+  assert.match(wall, /border-radius:4px/);
+});
+
+test("custom lines print as caption-less free text and vanish when blank", () => {
+  const lines = [
+    { key: "name", show: true, size: 13 },
+    { key: "custom1", show: true, size: 10 }, { key: "custom2", show: true, size: 10 },
+  ];
+  const l = _normLabel({ id: "l1", lines, fields: { name: "Carrara", custom1: "Grout: Silverado" } });
+  const html = labelCardHTML(l);
+  assert.match(html, /Grout: Silverado/);
+  assert.doesNotMatch(html, /Custom line/); // no caption printed
+  // the blank shown custom2 emits nothing — no dangling "—"
+  assert.doesNotMatch(html, /—/);
+});
+
+test("custom lines are part of every normalized preset (appended hidden)", () => {
+  const p = normPreset({ id: "x", name: "X", lines: [{ key: "name", show: true, size: 13 }] });
+  for (const k of ["custom1", "custom2", "custom3"]) {
+    const line = p.lines.find((l) => l.key === k);
+    assert.ok(line);
+    assert.equal(line.show, false);
+  }
 });
 
 test("labelCardHTML renders visible fields and skips hidden ones", () => {

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { LABEL_FIELDS, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
+import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
 import { searchStock } from "./stock.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -8,7 +8,7 @@ import keimLogo from "./assets/keim-logo-ink.png";
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
-const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
+const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
 
 // ── The dark label card, data-driven over `lines` (screen render) ──────────────
 function LabelCard({ label, scale = 1 }) {
@@ -35,7 +35,8 @@ function LabelCard({ label, scale = 1 }) {
         {label.lines.filter((l) => l.show).map((l) => {
           const v = label.fields?.[l.key] || "";
           if (l.key === "name") return <div key={l.key} style={{ fontFamily: "'Oswald',sans-serif", fontSize: l.size, textTransform: "uppercase", letterSpacing: ".03em", lineHeight: 1.12, wordBreak: "break-word" }}>{v || "Tile Name"}</div>;
-          if (l.key === "surface") return <span key={l.key} style={{ alignSelf: "flex-start", marginTop: 6, fontSize: 8, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: surfaceColor(v) }}>{v}</span>;
+          if (l.key === "surface") return v ? <span key={l.key} style={{ alignSelf: "flex-start", marginTop: 6, fontSize: 8, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: surfaceColor(v) }}>{v}</span> : null;
+          if (KIND_OF[l.key] === "custom") return v ? <div key={l.key} style={{ marginTop: 6, lineHeight: 1.3, fontSize: l.size, wordBreak: "break-word" }}>{v}</div> : null;
           if (label.twoVariant && VARIANT_KEYS.includes(l.key)) {
             if (l.key !== firstVariant) return null;
             return (
@@ -126,8 +127,11 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const setField = (k, v) => setDraft((d) => ({ ...d, fields: { ...d.fields, [k]: v } }));
   const setField2 = (k, v) => setDraft((d) => ({ ...d, fields2: { ...d.fields2, [k]: v } }));
   // Turning two-variant on widens a still-narrow label so both columns fit
-  // (v3 went 1.5 -> 2in); turning it off leaves the width alone.
-  const setTwoVariant = (on) => setDraft((d) => ({ ...d, twoVariant: on, w: on ? Math.max(d.w, 2) : d.w }));
+  // (v3 went 1.5 -> 2in); turning it off restores the width it widened from.
+  // `wBefore` is draft-only UI state — normLabel never persists it.
+  const setTwoVariant = (on) => setDraft((d) => on
+    ? { ...d, twoVariant: true, wBefore: d.w, w: Math.max(d.w, 2) }
+    : { ...d, twoVariant: false, w: d.wBefore ?? d.w, wBefore: undefined });
   const setLine = (key, p) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, ...p } : l) }));
   const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, size: clampSize(l.size + dir) } : l) }));
   const moveLine = (idx, dir) => setDraft((d) => {
@@ -229,66 +233,66 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
           </div>
 
           <div className="flex-1 grid grid-cols-1 md:grid-cols-[380px_1fr] min-h-0">
-            {/* form */}
-            <div className="border-r border-slate-100 p-5 overflow-y-auto">
-              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Size &amp; header</div>
-              <div className="flex items-end gap-2 mb-3">
+            {/* form — kept intentionally dense so the whole thing fits without scrolling */}
+            <div className="border-r border-slate-100 p-3.5 overflow-y-auto">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Size &amp; header</div>
+              <div className="flex items-end gap-2 mb-1.5">
                 <label className="flex-1">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Width (in)</div>
-                  <input type="number" step="0.25" min="0.25" value={draft.w} onChange={(e) => patchDraft({ w: Math.max(0.25, parseFloat(e.target.value) || 0.25) })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" />
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Width (in)</div>
+                  <input type="number" step="0.25" min="0.25" value={draft.w} onChange={(e) => patchDraft({ w: Math.max(0.25, parseFloat(e.target.value) || 0.25) })} className="w-full border border-slate-200 rounded-md px-2 py-0.5 text-sm" />
                 </label>
                 <label className="flex-1">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Height (in)</div>
-                  <input type="number" step="0.25" min="0.25" value={draft.h} onChange={(e) => patchDraft({ h: Math.max(0.25, parseFloat(e.target.value) || 0.25) })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" />
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Height (in)</div>
+                  <input type="number" step="0.25" min="0.25" value={draft.h} onChange={(e) => patchDraft({ h: Math.max(0.25, parseFloat(e.target.value) || 0.25) })} className="w-full border border-slate-200 rounded-md px-2 py-0.5 text-sm" />
                 </label>
-                <div className="text-[10px] text-slate-400 pb-1.5 whitespace-nowrap">≈{perLetterSheet(draft)}/sheet</div>
+                <div className="text-[10px] text-slate-400 pb-1 whitespace-nowrap">≈{perLetterSheet(draft)}/sheet</div>
               </div>
-              <label className="block mb-4">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">Header</div>
-                <input value={draft.header} onChange={(e) => patchDraft({ header: e.target.value })} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm" placeholder="Keim" />
+              <label className="block mb-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Header</div>
+                <input value={draft.header} onChange={(e) => patchDraft({ header: e.target.value })} className="w-full border border-slate-200 rounded-md px-2 py-0.5 text-sm" placeholder="Keim" />
                 <div className="text-[10px] text-slate-400 mt-0.5">“Keim” (or blank) shows the Keim logo; anything else prints as text.</div>
               </label>
-              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Fill from stock book</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Fill from stock book</div>
               <SkuLookup stock={stock} onPick={fillFrom} onBulk={bulkFrom} />
 
-              <label className="flex items-center gap-2 mt-3 text-xs text-slate-600 cursor-pointer select-none">
+              <label className="flex items-center gap-2 mt-1.5 text-xs text-slate-600 cursor-pointer select-none">
                 <input type="checkbox" checked={!!draft.twoVariant} onChange={(e) => setTwoVariant(e.target.checked)} className="accent-indigo-600" />
                 <span className="font-semibold">Second SKU / size / price</span>
                 <span className="text-slate-400">— two sizes on one label</span>
               </label>
               {draft.twoVariant && (
-                <div className="mt-2 pl-3 border-l-2 border-slate-100">
+                <div className="mt-1 pl-3 border-l-2 border-slate-100">
                   <SkuLookup stock={stock} onPick={fillFrom2} onBulk={fillFrom2} placeholder="Search stock book to fill the 2nd column…" hint="Pick to fill the 2nd column" />
-                  <div className="text-[10px] text-slate-400 mt-0.5 mb-1">SKU, Size, and Price get a “2nd” box below; both columns print side by side.</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">SKU, Size, and Price get a “2nd” box below; both columns print side by side.</div>
                 </div>
               )}
 
-              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mt-5 mb-1">Label lines</div>
-              <div className="text-[11px] text-slate-400 mb-2">Toggle, reorder, resize — then Save Label.</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mt-3 mb-0.5">Label lines</div>
+              <div className="text-[11px] text-slate-400 mb-1">Toggle, reorder, resize — then Save Label.</div>
               {draft.lines.map((l, idx) => {
                 const meta = LABEL_FIELDS.find((f) => f.key === l.key);
                 return (
-                  <div key={l.key} className={`flex items-center gap-2 py-1.5 border-b border-slate-50 ${l.show ? "" : "opacity-50"}`}>
+                  <div key={l.key} className={`flex items-center gap-1.5 py-0.5 border-b border-slate-50 ${l.show ? "" : "opacity-50"}`}>
                     <div className="flex flex-col">
                       <button onClick={() => moveLine(idx, -1)} className="text-slate-300 hover:text-slate-600 leading-none"><ChevronUp size={13} /></button>
                       <button onClick={() => moveLine(idx, 1)} className="text-slate-300 hover:text-slate-600 leading-none"><ChevronDown size={13} /></button>
                     </div>
-                    <button onClick={() => setLine(l.key, { show: !l.show })} className="w-7 h-7 shrink-0 flex items-center justify-center border border-slate-200 rounded-md text-indigo-600">
-                      {l.show ? <Eye size={14} /> : <EyeOff size={14} className="text-slate-300" />}
+                    <button onClick={() => setLine(l.key, { show: !l.show })} className="w-6 h-6 shrink-0 flex items-center justify-center border border-slate-200 rounded-md text-indigo-600">
+                      {l.show ? <Eye size={13} /> : <EyeOff size={13} className="text-slate-300" />}
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{meta.label}</div>
                       {meta.kind === "surface" ? (
-                        <div className="flex gap-1.5 mt-0.5">
-                          {["Floor", "Wall", "Floor & Wall"].map((s) => (
-                            <button key={s} onClick={() => setField("surface", s)} className={`flex-1 text-xs font-semibold py-1 rounded-md border ${draft.fields.surface === s ? "bg-slate-800 text-white border-slate-800" : "border-slate-200"}`}>{s}</button>
+                        <div className="flex gap-1.5 mt-0.5 mb-0.5">
+                          {["Wall", "Floor & Wall"].map((s) => (
+                            <button key={s} onClick={() => setField("surface", draft.fields.surface === s ? "" : s)} title="Optional — tap again to remove the pill" className={`flex-1 text-xs font-semibold py-0.5 rounded-md border ${draft.fields.surface === s ? "bg-slate-800 text-white border-slate-800" : "border-slate-200"}`}>{s}</button>
                           ))}
                         </div>
                       ) : (
                         <>
-                          <input value={draft.fields[l.key]} onChange={(e) => setField(l.key, e.target.value)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm mt-0.5" />
+                          <input value={draft.fields[l.key]} onChange={(e) => setField(l.key, e.target.value)} placeholder={meta.kind === "custom" ? "Free text — e.g. Grout: Silverado" : undefined} className="w-full border border-slate-200 rounded-md px-2 py-0.5 text-sm" />
                           {draft.twoVariant && VARIANT_KEYS.includes(l.key) && (
-                            <input value={draft.fields2[l.key]} onChange={(e) => setField2(l.key, e.target.value)} placeholder="2nd" className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm mt-1" />
+                            <input value={draft.fields2[l.key]} onChange={(e) => setField2(l.key, e.target.value)} placeholder="2nd" className="w-full border border-slate-200 rounded-md px-2 py-0.5 text-sm mt-0.5" />
                           )}
                         </>
                       )}
@@ -304,10 +308,10 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 );
               })}
 
-              <button onClick={saveAsPreset} className="mt-3 text-xs text-indigo-600 font-semibold underline">＋ Save these lines &amp; size as a preset</button>
+              <button onClick={saveAsPreset} className="mt-2 text-xs text-indigo-600 font-semibold underline">＋ Save these lines &amp; size as a preset</button>
 
-              <div className="flex gap-2 mt-4">
-                <button onClick={save} className="flex-1 bg-indigo-600 text-white rounded-md py-2 text-sm font-semibold hover:bg-indigo-700">{editingId ? "Save Changes" : "Save Label"}</button>
+              <div className="flex gap-2 mt-2.5">
+                <button onClick={save} className="flex-1 bg-indigo-600 text-white rounded-md py-1.5 text-sm font-semibold hover:bg-indigo-700">{editingId ? "Save Changes" : "Save Label"}</button>
                 <button onClick={startNew} className="border border-slate-200 rounded-md px-4 text-sm font-semibold hover:bg-slate-50">New</button>
               </div>
             </div>
