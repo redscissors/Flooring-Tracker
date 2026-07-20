@@ -127,7 +127,7 @@ const StockHit = ({ it }) => (
     <div className="flex items-baseline gap-2">
       <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
       <SizeChip it={it} />
-      <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product || it.section}</span>
+      <span className="text-xs font-medium flex-1 min-w-0 break-words text-slate-900">{it.description || it.product || it.section}</span>
     </div>
     <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
       <span className="md:hidden ft-mono shrink-0">{it.sku}</span>
@@ -146,7 +146,7 @@ const OrderHit = ({ it, bookName }) => (
     <div className="flex items-baseline gap-2">
       <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
       <SizeChip it={it} />
-      <span className="text-xs font-medium truncate flex-1 text-slate-900">{it.description || it.product}</span>
+      <span className="text-xs font-medium flex-1 min-w-0 break-words text-slate-900">{it.description || it.product}</span>
       <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
     </div>
     <div className="flex items-baseline gap-1.5 text-[11px]">
@@ -222,6 +222,17 @@ const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
   return pos;
 };
 const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos.bottom });
+
+// A search panel is as wide as the field it hangs off — the omni-search field
+// spans most of the row, and a long vendor description needs every character it
+// can get — but never narrower than SEARCH_PANEL_MIN (a SKU cell is only a few
+// characters wide) and never wider than the viewport.
+const SEARCH_PANEL_MIN = 416;
+const searchPanelBox = (pos) => {
+  const room = window.innerWidth - 16;
+  const width = Math.min(Math.max(pos.width, SEARCH_PANEL_MIN), room);
+  return { ...vPos(pos), maxHeight: pos.maxH, width, left: Math.max(8, Math.min(pos.left, window.innerWidth - width - 8)) };
+};
 
 // Order-book search for the selection-row pickers (ADR 0009 §6). Stock stays
 // instant from the in-memory list; special-order matches stream in behind them
@@ -308,8 +319,8 @@ function SkuPicker({ value, stock, onChange, onPick, onPickMany, searchOrder, bo
         onKeyDown={onKey} data-c="sku"
         className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
       {open && pos && (results.length > 0 || picked.length > 0) && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
-          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+        <div ref={panelRef} style={searchPanelBox(pos)}
+          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           <div className="max-h-72 min-h-0 overflow-y-auto">
             {results.map((it, i) => {
               const sel = picked.some((x) => hitKey(x) === hitKey(it));
@@ -1527,8 +1538,8 @@ function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName,
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
         data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
       {open && pos && matches.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
-          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+        <div ref={panelRef} style={searchPanelBox(pos)}
+          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {matches.map((it) => (
               <button key={(it.bookId || "stock") + "|" + it.sku} onMouseDown={(e) => { e.preventDefault(); onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
@@ -1616,8 +1627,8 @@ export function GridOmniSearch({ stock, query, onQuery, onPick, onPickMany, onMa
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {open && pos && (results.length > 0 || picked.length > 0 || noHits || vendor) && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: Math.max(8, Math.min(pos.left, window.innerWidth - Math.min(416, window.innerWidth * 0.9) - 8)) }}
-          className="fixed w-[26rem] max-w-[90vw] rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+        <div ref={panelRef} style={searchPanelBox(pos)}
+          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           {results.length > 0 && (
             <div className="max-h-72 min-h-0 overflow-y-auto">
               {results.map((it, i) => {
