@@ -539,9 +539,15 @@ export const MIRAGE_MAPPING = {
 // A floor's shelf name. Construction and width are what a salesperson is actually
 // choosing between, and grade is what moves the price, so all three stay visible
 // rather than hiding in the columns.
+//
+// Separated by a COMMA, not a middot: rowAdvisories treats a free-standing "·"
+// as the residue of a mis-split size (the ".43X12" lesson) and would flag all 930
+// rows. Commas and hyphens are exempt there precisely because vendors use them as
+// real separators — so the fix is to write a normal separator, not to loosen a
+// check that exists to catch bad parses.
 const floorName = (r) => {
   const who = [titleCase(r.species), r.color].filter(Boolean).join(" ").trim() || r.color;
-  const spec = [r.grade, [r.construction, r.width].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+  const spec = [r.grade, [r.construction, r.width].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   return spec ? `${who} — ${spec}` : who;
 };
 

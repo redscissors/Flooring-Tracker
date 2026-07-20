@@ -304,7 +304,7 @@ test("the four documents collapse into one canonical sheet", () => {
   assert.equal(res.rows[0][0], "Item #");           // canonical header
   assert.equal(res.meta.floors, 2);
   const eleanor = res.rows.find((r) => r[0] === "72697");
-  assert.equal(eleanor[1], 'White Oak Eleanor — Character · TruBalance 5"');
+  assert.equal(eleanor[1], 'White Oak Eleanor — Character, TruBalance 5"');
   assert.equal(eleanor[2], "Muse");                 // collection
   assert.equal(eleanor[6], "9.99");                 // the joined price
   assert.equal(eleanor[8], "hardwood");
