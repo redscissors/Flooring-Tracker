@@ -1,138 +1,110 @@
-// Preview harness for the multi-sheet-per-book change. Renders the REAL
-// SourceSheetStrip and VendorBookRow against fake props, so the change can be
-// shown working without touching the live Supabase project or signing in.
+// Preview harness for the order-entry work. Renders the REAL OrderEntryPanel
+// over rows built from the REAL sheoga.lineItems() payloads, classified by the
+// REAL isSpecialOrder and fitted by the REAL orderDescription — so what shows
+// here is the code path the app runs, without touching Supabase or signing in.
+// The slider is the Settings → Price book "Desc. field" value, live.
 // Dev-only entry (preview.html); not part of the app build.
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { SourceSheetStrip, VendorBookRow, GateGap, AddFileNotice } from "./App.jsx";
-import { sourceSlot, mergeSources, missingSources } from "./dropimport.js";
+import { OrderEntryPanel } from "./orderentry.jsx";
+import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
+import { lineItems, defaultConfig } from "./sheoga.js";
 
-const sheet = (uid, filename, opts = {}) => ({
-  vendor: "dancik", host: "connect24.virginiatile.com", uid, filename, user: "KEIM",
-  bookId: "bkMirage", lastFetched: Date.parse("2026-07-18T12:00:00Z"), ...opts,
-});
+// A plain configured floor (fits abbreviated) and a heavily-optioned one with
+// two fees (can't fit — the case that needs the extended-text field).
+const plainCfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" };
+const loadedCfg = { ...plainCfg, sp: "Q/R White Oak", tex: "bandsawn", edge: "pillow", len: "3-10", finish: "est", stain: "Toasted Acorn", sample: true };
+const plainLines = lineItems({ mode: "floor", cfg: plainCfg }, { sf: 900, markupPct: 40 });
+const loadedLines = lineItems({ mode: "floor", cfg: loadedCfg }, { sf: 240, markupPct: 40 });
+const ventLines = lineItems({ mode: "vent", cfg: { ...defaultConfig("vent"), sp: "Walnut", size: "4×12", qty: 6 } }, { sf: 0 });
 
-const group = { id: "g1", name: "Ohio Valley Flooring · KEIM", loginUrl: "", portal: null, sheets: [] };
-const mirage = [
-  { group, sheet: sheet("1", "OVF-Mirage-Hardwood.xls") },
-  { group, sheet: sheet("2", "OVF-Mirage-Value-Tower.xls") },
-  { group, sheet: sheet("3", "OVF-Mirage-Trim.xls") },
-  { group, sheet: sheet("4", "Mirage_Product_Chart.pdf") },
-];
-const single = [{ group, sheet: sheet("9", "OVF-Hallmark.xls") }];
+const bookRow = {
+  id: "bk1", bookId: "bkVTC", sku: "ANA-CAR-1224", brandColor: "Anatolia Carrara Bianco Polished Rectified",
+  sizeText: '12" × 24"', qtyType: "sqft", qty: "310", cartonSf: "15.5", priceSqft: "7.20", costSqft: "4.10",
+};
+const stockRow = { id: "st1", sku: "SCH-DIL-8MM", brandColor: "Schluter Ditra 8mm", qtyType: "count", qty: "4" };
 
-const fresh = { stale: false, days: 3 };
-const book = { id: "bkMirage", name: "Mirage (OVF)", data: { lastImport: { at: Date.parse("2026-07-14T12:00:00Z"), skus: 858 } } };
-const hallmark = { id: "bkH", name: "Hallmark (OVF)", data: { lastImport: { at: Date.now(), skus: 412 } } };
-
-const noop = () => {};
-const rowProps = {
-  group, groups: [group], books: [book], prog: null, locked: false, mismatch: false, running: false,
-  stale: fresh, pending: null, checked: false, onToggle: noop, onRedownload: noop, onReview: noop,
-  onRemove: noop, onMove: noop, onLinkBook: noop, onUnlinkBook: noop, onOpenBook: noop,
+// The quantity/price math orderEntryRow() does needs App.jsx's whole calc chain,
+// so the harness states plausible numbers directly. The SECTION SPLIT and the
+// DESCRIPTION FIT — what this change is about — come from the real helpers.
+const NUMS = {
+  bk1: { qty: 20, unitCode: "CT", tag: "CT", coverage: "15.5 SF/CT", perCost: 63.55, perSell: 111.6 },
+  st1: { qty: 4, unitCode: "EA", tag: "", coverage: "", perCost: 0, perSell: 0 },
+  carton: { qty: 12, unitCode: "CT", tag: "CT", coverage: "20.5 SF/CT" },
+  each: { qty: 1, unitCode: "EA", tag: "", coverage: "" },
+  vent: { qty: 6, unitCode: "PC", tag: "", coverage: "" },
 };
 
-const Case = ({ title, note, children }) => (
-  <section className="mb-8">
-    <h2 className="text-sm font-semibold mb-1">{title}</h2>
-    <p className="text-xs text-slate-500 mb-2">{note}</p>
-    <div className="rounded-xl border border-slate-200 bg-white p-3">{children}</div>
-  </section>
-);
+const toRow = (p, nums, limit) => {
+  const sell = Number(p.priceSqft || 0);
+  const cost = Number(p.costSqft || 0);
+  const r = {
+    id: p.id, special: isSpecialOrder(p), byDesc: !!p.sheoga && !p.sku, area: "Kitchen",
+    tag: nums.tag, sizePlain: p.sizeText || "", name: String(p.brandColor || ""), sku: p.sku || "",
+    sheoga: p.sheoga, coverage: nums.coverage, qty: nums.qty, unitCode: nums.unitCode,
+    qtyText: nums.qty > 0 ? `${nums.qty} ${nums.unitCode}` : "—",
+    perCost: nums.perCost ?? (nums.unitCode === "CT" ? cost * 20.5 : cost),
+    perSell: nums.perSell ?? (nums.unitCode === "CT" ? sell * 20.5 : sell),
+  };
+  const desc = orderDescription(r, limit);
+  return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
+};
+
+const build = (limit) => [
+  toRow({ ...bookRow }, NUMS.bk1, limit),
+  toRow({ ...plainLines[0], id: "shp" }, NUMS.carton, limit),
+  ...loadedLines.map((p, i) => toRow({ ...p, id: `shl${i}` }, i === 0 ? NUMS.carton : NUMS.each, limit)),
+  toRow({ ...ventLines[0], id: "shv" }, NUMS.vent, limit),
+  toRow({ ...stockRow }, NUMS.st1, limit),
+];
+
+const TIER_NOTE = {
+  full: "fits as written",
+  short: "abbreviated — every category kept",
+  split: "won't fit — identity in the field, everything in Ext",
+};
 
 function Preview() {
-  const [pending, setPending] = React.useState(false);
-  const pendingOf = (s) => (pending && (s.uid === "2" || s.uid === "3") ? { sheet: s, file: {} } : null);
-  const pendingSources = mirage.filter(({ sheet }) => pendingOf(sheet));
+  const [limit, setLimit] = React.useState(30);
+  const rows = build(limit);
+  const special = rows.filter((r) => r.special);
+  const stock = rows.filter((r) => !r.special);
+  const tally = special.reduce((a, r) => ({ ...a, [r.desc.tier]: (a[r.desc.tier] || 0) + 1 }), {});
   return (
     <div className="min-h-screen bg-slate-50 p-8 text-slate-800">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-lg font-semibold mb-1">A book fed by several files</h1>
-        <p className="text-xs text-slate-500 mb-6">
-          Preview harness for the multi-file price-book work (ADR 0025). Renders the real
-          components against fake props — nothing here touches Supabase.
+      {/* The panel is a fixed inset-0 overlay, so the controls have to sit above
+          it to stay clickable. */}
+      <div className="max-w-xl relative z-[60]">
+        <h1 className="text-lg font-semibold mb-1">Fitting descriptions to the ERP field</h1>
+        <p className="text-xs text-slate-500 mb-4">
+          Rows come from the real <code>lineItems()</code>; the section split is the real{" "}
+          <code>isSpecialOrder()</code> and the fit the real <code>orderDescription()</code>.
         </p>
 
-        <label className="flex items-center gap-2 text-xs mb-6">
-          <input type="checkbox" checked={pending} onChange={(e) => setPending(e.target.checked)} />
-          Simulate 2 of the 4 sheets downloaded and waiting for review
+        <label className="block text-xs mb-1 font-semibold">
+          Description field: {limit === 0 ? "no limit" : `${limit} characters`}
         </label>
+        <input type="range" min="0" max="80" value={limit} onChange={(e) => setLimit(Number(e.target.value))}
+          className="w-full max-w-sm mb-3" style={{ accentColor: "var(--ft-brand)" }} />
 
-        <Case title="Book page — source-sheet strip (4 sheets)" note="Each sheet gets its own Refresh/Review; the header acts on all of them.">
-          <SourceSheetStrip sources={mirage} pendingSources={pendingSources} stale={fresh}
-            lastImportAt={book.data.lastImport.at} pendingOf={pendingOf} liveOf={() => true}
-            onRefresh={noop} onReview={noop} />
-        </Case>
-
-        <Case title="Book page — a stale book (amber)" note="The amber surface stays light in dark mode, so its text has to state an amber ink rather than inherit.">
-          <SourceSheetStrip sources={single} pendingSources={[]} stale={{ stale: true, days: 91 }}
-            lastImportAt={hallmark.data.lastImport.at} pendingOf={() => null} liveOf={() => false}
-            onRefresh={noop} onReview={noop} />
-        </Case>
-
-        <Case title="Book page — a single-sheet book is unchanged" note="No header row, same one-line strip as before.">
-          <SourceSheetStrip sources={single} pendingSources={[]} stale={fresh}
-            lastImportAt={hallmark.data.lastImport.at} pendingOf={() => null} liveOf={() => false}
-            onRefresh={noop} onReview={noop} />
-        </Case>
-
-        <Case title="Library board — one row per book, not per sheet" note="The Mirage row reports “4 sheets”; its checkbox and Refresh cover all four.">
-          <div className="rounded-lg border border-slate-200 divide-y divide-slate-100 max-w-md">
-            <VendorBookRow {...rowProps} sheet={mirage[0].sheet} siblings={mirage.slice(1).map((m) => m.sheet)} book={book} />
-            <VendorBookRow {...rowProps} sheet={single[0].sheet} book={hallmark} />
-          </div>
-        </Case>
-
-        <GateCase />
-
-        <Case title="Book page — “Add a file”" note="A new file just joins. A file the book already knows is probably meant as a replacement, so it says so.">
-          <AddFileNotice knownSlot={null} />
-          <AddFileNotice knownSlot={slots.chart} />
-        </Case>
+        <div className="text-xs space-y-1">
+          {["full", "short", "split"].map((t) => (
+            <div key={t} className="flex items-baseline gap-2">
+              <span className="ft-mono font-bold w-6 text-right">{tally[t] || 0}</span>
+              <span className="font-semibold w-10">{t}</span>
+              <span className="text-slate-500">{TIER_NOTE[t]}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-slate-400 mt-3 max-w-sm">
+          Drag to 0 for the old behaviour. Around 24–30 most builds land on “short”; below ~20 even
+          the abbreviations stop fitting and the Ext button appears.
+        </p>
       </div>
+      <OrderEntryPanel name="Preview — 1421 Maple Ave" special={special} stock={stock}
+        descLimit={limit} onClose={() => {}} />
     </div>
-  );
-}
-
-// The completeness gate (ADR 0025), driven by the real manifest helpers rather
-// than hand-written props, so what renders is what an import would actually see.
-const slots = {
-  hardwood: sourceSlot({ recordKey: "dancik:ovf:101:KEIM", name: "OVF-Mirage-Hardwood.xls" }),
-  tower: sourceSlot({ recordKey: "dancik:ovf:102:KEIM", name: "OVF-Mirage-Value-Tower.xls" }),
-  trim: sourceSlot({ recordKey: "dancik:ovf:103:KEIM", name: "OVF-Mirage-Trim.xls" }),
-  chart: sourceSlot({ fingerprint: { format: "mirage-chart" }, name: "Mirage_Product_Chart.pdf" }),
-};
-const manifest = mergeSources([], Object.values(slots), Date.parse("2026-04-01"));
-const mirageBook = { id: "bkMirage", name: "Mirage (OVF)", data: { sources: manifest } };
-
-function GateCase() {
-  const [have, setHave] = React.useState(["hardwood", "tower", "trim"]);
-  const present = have.map((k) => slots[k]);
-  const missing = missingSources(manifest, present);
-  const toggle = (k) => setHave((h) => (h.includes(k) ? h.filter((x) => x !== k) : [...h, k]));
-  return (
-    <section className="mb-8">
-      <h2 className="text-sm font-semibold mb-1">Import routing — completeness gate</h2>
-      <p className="text-xs text-slate-500 mb-2">
-        Three of Mirage's four files fetch from the portal; the Product Chart is supplied by hand.
-        The gate names what is short and takes it on the spot. Filenames are never the match key —
-        slots key on recordKey (fetched) or content fingerprint (manual).
-      </p>
-      <div className="flex flex-wrap gap-3 mb-2 text-[11px]">
-        {Object.keys(slots).map((k) => (
-          <label key={k} className="flex items-center gap-1.5">
-            <input type="checkbox" checked={have.includes(k)} onChange={() => toggle(k)} />
-            {slots[k].label}
-          </label>
-        ))}
-      </div>
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
-        {missing.length === 0
-          ? <p className="text-xs text-slate-500 py-2">All four present — no gate. This is also what a one-file book always sees.</p>
-          : <GateGap book={mirageBook} have={present.length} total={manifest.length} missing={missing} onAdd={() => {}} />}
-      </div>
-    </section>
   );
 }
 

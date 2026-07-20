@@ -91,6 +91,30 @@ src/
                     # rail+BuildCard; on mobile the options fill the screen with a
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
                     # (BuildCard + Add). BuildCard is the shared cost->sell card
+  descfit.js        # fitting an order description into a fixed-width ERP field.
+                    # A special line has no SKU, so a dropped CATEGORY reads as a
+                    # different product — this never truncates to fit, it climbs
+                    # down a ladder: `full` (fits as written) -> `short` (every
+                    # category kept, each abbreviated) -> `split` (identity in the
+                    # field with a trailing "+", the complete text going to the
+                    # ERP's extended-text field as a second copy). Parts are
+                    # { full, short, rank }; rank is DROP priority, not print
+                    # order, and rank 0 is identity and never dropped
+  orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` (a row
+                    # is a special order when it carries a price-book `bookId` OR
+                    # a `sheoga` marker — Sheoga floors AND their at-cost fee
+                    # lines, which carry `sheoga` with no `cfg`), plus
+                    # `orderDescription` (the row -> descfit ladder; a Sheoga row
+                    # abbreviates losslessly off `sheoga.descParts`, anything else
+                    # is arbitrary vendor text with no short rung) and
+                    # `orderCopyText` (the description field's contents, nothing
+                    # else — qty/cost/sell are separate ERP fields with their own
+                    # columns). Split from the .jsx so `node --test` can cover it;
+                    # imports always name the extension
+  orderentry.jsx    # the panel itself — Special order (per-line copy) above
+                    # Stock (checkboxes + Copy all as SKU⇥qty). A Sheoga line has
+                    # no SKU to key, so it reads "by description — no SKU" and
+                    # copies its qty inline
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the
@@ -252,8 +276,11 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // round up to whole cartons of cartonPc, billing every piece.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...},
-           pricing: { builderPct: 8, salePct: 10 } }   // Builder/Sale tier %s,
-                                                       // edited in Settings → Price book (ADR 0018)
+           pricing: { builderPct: 8, salePct: 10, descLimit: 30 } }
+           // builderPct/salePct = Builder/Sale tier %s (ADR 0018).
+           // descLimit = how many characters the ERP's order-description field
+           // holds; drives the order-entry fit ladder (descfit.js), 0 = off.
+           // All edited in Settings → Price book.
 ```
 
 **Versions** (issue 003) live in their own table so customer saves never carry

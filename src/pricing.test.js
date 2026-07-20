@@ -26,14 +26,20 @@ test("normTier / normPrintPricing default invalid values", () => {
 });
 
 test("normPricing defaults builder 8 / sale 10 / Sheoga markup 40 / vent markup 50 and clamps", () => {
-  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50 });
-  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50 });
-  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50 });
-  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50 });
+  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
+  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
+  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
+  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
   // Markup is a % over cost, not a discount — it may exceed 100.
   assert.equal(normPricing({ sheogaMarkupPct: 150 }).sheogaMarkupPct, 150);
   assert.equal(normPricing({ sheogaMarkupPct: -3 }).sheogaMarkupPct, 0);
-  assert.equal(normPricing({ sheogaVentMarkupPct: 75 }).sheogaVentMarkupPct, 75);
+  assert.equal(normPricing({ sheogaVentMarkupPct: 75, descLimit: 30 }).sheogaVentMarkupPct, 75);
+  // The ERP description-field width: whole characters, 0 = no fitting.
+  assert.equal(normPricing({ descLimit: 40 }).descLimit, 40);
+  assert.equal(normPricing({ descLimit: 0 }).descLimit, 0);
+  assert.equal(normPricing({ descLimit: -5 }).descLimit, 0);
+  assert.equal(normPricing({ descLimit: 9999 }).descLimit, 200);
+  assert.equal(normPricing({ descLimit: "abc" }).descLimit, 30);
 });
 
 // --- tierPct -------------------------------------------------------------------

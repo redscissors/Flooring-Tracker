@@ -4,6 +4,10 @@
 // Special-order lines come first: each is a two-line item (size + color / SKU +
 // coverage) with the buy/sell unit tagged at the front (CT/SH, nothing for
 // pieces), the ordered qty, and per-unit cost & sell priced in that same unit.
+// Special covers both price-book order items and Sheoga-configurator lines
+// (floors and their at-cost fee lines). Sheoga sells by description, not SKU,
+// so those rows say so where the SKU would sit and copy the qty inline — the
+// copied text is the whole order, since there's no SKU for the desk to key.
 // A per-line copy button grabs the whole item (tag included) and then stays a
 // green check, so you can track which specials you've already keyed. Stock
 // lines follow with per-line checkboxes plus "Copy all" / "Copy selected",
@@ -58,23 +62,27 @@ const GRID = { display: "grid", gridTemplateColumns: "24px minmax(0,1fr) 42px 76
 
 // One special-order line. The copy button copies the whole item (with tag) and
 // latches to a green check so the salesperson can see what's already entered.
-function SpecialRow({ r, alt }) {
+const writeClipboard = async (text) => {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch {}
+    document.body.removeChild(ta);
+  }
+};
+
+function SpecialRow({ r, alt, descLimit }) {
   const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(r.copy); }
-    catch {
-      const ta = document.createElement("textarea");
-      ta.value = r.copy; ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); } catch {}
-      document.body.removeChild(ta);
-    }
-    setCopied(true);
-  };
+  const [copiedExt, setCopiedExt] = useState(false);
+  const copy = async () => { await writeClipboard(r.copy); setCopied(true); };
+  const copyExt = async () => { await writeClipboard(r.desc.ext); setCopiedExt(true); };
+  const d = r.desc;
   return (
     <div style={{ ...GRID, padding: "9px 12px", background: alt ? "var(--ft-prod)" : "transparent" }}
       className="border-t border-slate-100 first:border-t-0">
-      <button onClick={copy} title="Copy this line" style={copied ? DONE_MOSS : undefined}
+      <button onClick={copy} title="Copy the description field" style={copied ? DONE_MOSS : undefined}
         className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
           (copied ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
         {copied ? <Check size={15} /> : <Copy size={14} />}
@@ -88,8 +96,29 @@ function SpecialRow({ r, alt }) {
           {r.name && <> <span className="font-bold">{r.name}</span></>}
         </div>
         <div className="truncate text-[11px] leading-tight text-slate-400 ft-mono">
-          <span className="font-semibold text-slate-500">{r.sku || "—"}</span>{r.coverage && ` ${r.coverage}`}
+          <span className="font-semibold text-slate-500">{r.byDesc ? "by description — no SKU" : r.sku || "—"}</span>{r.coverage && ` ${r.coverage}`}
         </div>
+
+        {/* What will actually land in the description field, shown only once it
+            stops being the plain description — so an abbreviation is never a
+            surprise after pasting, and a split announces its second half. */}
+        {d && d.tier !== "full" && (
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            <span className="ft-mono text-[11px] leading-tight rounded px-1 py-px break-all"
+              style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>{d.main}</span>
+            <span className={"text-[10px] leading-tight " + (d.over > 0 ? "text-red-600 font-semibold" : "text-slate-400")}>
+              {d.main.length}/{descLimit}
+            </span>
+            {d.ext && (
+              <button onClick={copyExt} title="Copy the full description for the extended-text field"
+                style={copiedExt ? DONE_MOSS : undefined}
+                className={"inline-flex items-center gap-1 rounded px-1.5 py-px text-[10px] font-semibold border transition-colors " +
+                  (copiedExt ? "" : "border-amber-300 text-amber-700 hover:bg-amber-50")}>
+                {copiedExt ? <Check size={11} /> : <Copy size={11} />} Ext
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="text-right ft-mono font-bold text-[13px] whitespace-nowrap">{r.qty > 0 ? <>{r.qty} <span className="text-[9px] font-semibold text-slate-400">{r.unitCode}</span></> : "—"}</div>
@@ -141,7 +170,8 @@ function CopySection({ title, rows, emptyText, hint }) {
   );
 }
 
-export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
+export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0, onClose }) {
+  const splits = special.filter((r) => r.desc && r.desc.ext).length;
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
@@ -170,8 +200,16 @@ export function OrderEntryPanel({ name, special = [], stock = [], onClose }) {
                   <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Cost</span>
                   <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Sell</span>
                 </div>
-                {special.map((r, i) => <SpecialRow key={r.id} r={r} alt={i % 2 === 1} />)}
-                <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100">A copied line stays a green check so you can track your place · Cost &amp; Sell are per the buy/sell unit.</div>
+                {special.map((r, i) => <SpecialRow key={r.id} r={r} alt={i % 2 === 1} descLimit={descLimit} />)}
+                <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100">
+                  A copied line stays a green check so you can track your place · Cost &amp; Sell are per the buy/sell unit.
+                  {descLimit > 0 && <> · Descriptions are fitted to {descLimit} characters.</>}
+                  {splits > 0 && (
+                    <span className="text-amber-700">
+                      {" "}{splits === 1 ? "One line is" : `${splits} lines are`} too long to fit — the “+” means the rest is in <b>Ext</b>.
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </section>
