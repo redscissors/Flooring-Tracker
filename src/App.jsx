@@ -7,7 +7,7 @@ import { LIST_SELECT, lightRow, normBook, SHARED_SETTINGS_ID, loadProjects, load
 import { bootTrace, traceRows } from "./boottrace.js";
 import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
-import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, priceUnitOf, orderUnitOf } from "./stock.js";
+import { normStockItem, stockData, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
@@ -15,7 +15,7 @@ import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
 import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
@@ -27,6 +27,7 @@ import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, wast
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, PRINT_KINDS, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1, printMatList, orderEntryRow } from "./print.js";
 import { readXlsxSheets, readPdfPages } from "./fileread.js";
 import { LazyBoundary, FitSelect, useAnchoredPanel, vPos, DotMenu, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, FilesPop, ThemeSwitch, MarginLine, Modal } from "./widgets.jsx";
+import { SkuPicker, StockSearch, FamilySearch, Hit, searchPanelBox, SKU_SHOW, hitKey, matchSummary, useMergedResults } from "./search.jsx";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -36,272 +37,6 @@ const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ de
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
-
-const SKU_SHOW = 30;
-
-// A stable id for a search hit across stock and every order book — the same
-// string used as the React key and to dedupe the multi-select. Stock items have
-// no bookId; two order books can legitimately reuse a SKU, so the book scopes it.
-const hitKey = (it) => (it.bookId || "stock") + "|" + it.sku;
-
-// The product's face size for a search row — thickness is its own field, so a
-// vendor that jammed it onto the L×W (e.g. "12x24x9mm") gets trimmed back to the
-// face dimensions; a non-rectangular shape ("2\" Hex") passes through whole.
-const faceSize = (it) => {
-  const s = String(it?.size || "").trim();
-  const m = s.match(/^\s*(\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d+(?:\.\d+)?\s*["']?)/i);
-  return (m ? m[1] : s).trim();
-};
-
-const SizeChip = ({ it }) => {
-  const sz = faceSize(it);
-  return sz ? <span className="ft-mono text-[11px] font-semibold text-slate-500 shrink-0">{sz}</span> : null;
-};
-
-// Below md (the phone layout) the SKU drops to the second line so the size
-// and description get the full first line of the narrow popup.
-const StockHit = ({ it }) => (
-  <>
-    <div className="flex items-baseline gap-2">
-      <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
-      <SizeChip it={it} />
-      <span className="text-xs font-medium flex-1 min-w-0 break-words text-slate-900">{it.description || it.product || it.section}</span>
-    </div>
-    <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
-      <span className="md:hidden ft-mono shrink-0">{it.sku}</span>
-      <span className="truncate">{[it.brand && !it.description.includes(it.brand) ? it.brand : it.section].filter(Boolean).join(" · ")}</span>
-      <span className="ml-auto shrink-0 ft-mono">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
-    </div>
-  </>
-);
-
-// A special-order search hit (ADR 0009 §6): StockHit's shape plus the book
-// badge, the lead time a salesperson needs before quoting, and a freight flag
-// (highlight only — no charge math, §3.6). The price shown is the live sell
-// (cost × book markup); the snapshot happens only on pick.
-const OrderHit = ({ it, bookName }) => (
-  <>
-    <div className="flex items-baseline gap-2">
-      <span className="hidden md:inline ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
-      <SizeChip it={it} />
-      <span className="text-xs font-medium flex-1 min-w-0 break-words text-slate-900">{it.description || it.product}</span>
-      <span className="ml-auto shrink-0 ft-mono text-[11px]">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>
-    </div>
-    <div className="flex items-baseline gap-1.5 text-[11px]">
-      <span className="md:hidden ft-mono text-slate-400 shrink-0">{it.sku}</span>
-      <span className="shrink-0 rounded px-1 bg-indigo-50 text-indigo-600 font-medium">{bookName(it.bookId)} · special order</span>
-      {it.leadTime && <span className="text-slate-400 truncate">{it.leadTime}</span>}
-      {it.freightFlag && <span className="shrink-0 rounded px-1 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
-    </div>
-  </>
-);
-
-// One search-result body: an order item badges as special-order; a stock item
-// renders as today, plus an "also on {book}" note when the same SKU also lives
-// in an order book (the collision resolved to stock — mergeSearch §6).
-const Hit = ({ it, bookName = () => "special order" }) => (
-  it.bookId ? <OrderHit it={it} bookName={bookName} /> : (
-    <>
-      <StockHit it={it} />
-      {it.alsoOn?.length > 0 && <div className="text-[11px] text-slate-400">also on {it.alsoOn.map(bookName).join(", ")}</div>}
-    </>
-  )
-);
-
-const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${total} matches — keep typing to narrow` : `${total} match${total === 1 ? "" : "es"}`;
-
-// A search panel is as wide as the field it hangs off — the omni-search field
-// spans most of the row, and a long vendor description needs every character it
-// can get — but never narrower than SEARCH_PANEL_MIN (a SKU cell is only a few
-// characters wide) and never wider than the viewport.
-const SEARCH_PANEL_MIN = 416;
-const searchPanelBox = (pos) => {
-  const room = window.innerWidth - 16;
-  const width = Math.min(Math.max(pos.width, SEARCH_PANEL_MIN), room);
-  return { ...vPos(pos), maxHeight: pos.maxH, width, left: Math.max(8, Math.min(pos.left, window.innerWidth - width - 8)) };
-};
-
-// Order-book search for the selection-row pickers (ADR 0009 §6). Stock stays
-// instant from the in-memory list; special-order matches stream in behind them
-// from a debounced server query (searchOrder — null when no order books exist,
-// which keeps the whole feature inert until one is imported).
-function useOrderResults(query, searchOrder) {
-  const [items, setItems] = useState([]);
-  useEffect(() => {
-    const q = (query || "").trim();
-    if (!q || !searchOrder) { setItems([]); return; }
-    let stale = false;
-    const t = setTimeout(async () => {
-      try { const r = await searchOrder(q); if (!stale) setItems(r); }
-      catch { if (!stale) setItems([]); }
-    }, 250);
-    return () => { stale = true; clearTimeout(t); };
-  }, [query, searchOrder]);
-  return items;
-}
-
-// Instant stock matches + streamed order matches, merged stock-first with the
-// exact-SKU collision resolved to stock (mergeSearch), then capped for display.
-// Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
-// the shared in-memory stock objects.
-function useMergedResults(active, stock, query, searchOrder) {
-  const orderRaw = useOrderResults(active ? query : "", searchOrder);
-  const stockMatches = active ? searchStock(stock, query) : [];
-  const { stock: sMatches, order: oMatches } = mergeSearch(stockMatches.map((it) => ({ ...it })), orderRaw);
-  const combined = [...sMatches, ...oMatches];
-  return { results: combined.slice(0, SKU_SHOW), total: combined.length };
-}
-
-// SKU typeahead for a product row. Typing stores the text on the row (a SKU is
-// just a field); picking a suggestion snapshots the stock item's values onto
-// the row via onPick. Search matches SKU prefixes or words in the item text.
-// Shift-click (or the leading checkbox) marks several results; committing the
-// selection fills this row with the first item and appends a product row for
-// each of the rest via onPickMany.
-const fitW = (v, minCh, padRem) => ({ width: `calc(${Math.max(String(v ?? "").length, minCh)}ch + ${padRem}rem)` });
-
-function SkuPicker({ value, stock, stockReady, onChange, onPick, onPickMany, searchOrder, bookName, wrapClass, wrapStyle, inputClass }) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
-  const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
-  const wrapRef = useRef(null);
-  const panelRef = useRef(null);
-  const { results, total } = useMergedResults(open, stock, value, searchOrder);
-  // "Showing only the loading note" — one flag so the panel-mount, note, and
-  // footer conditions can't disagree (the footer holds the multi-pick commit).
-  const loadingOnly = !stockReady && results.length === 0;
-  const close = () => { setOpen(false); setPicked([]); };
-  const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
-  const pick = (it) => { onPick(it); close(); };
-  // Keep the whole hit, not just its SKU — order items aren't in the in-memory
-  // stock list to re-resolve from, and holding the snapshot lets the selection
-  // survive the user changing search words between picks.
-  const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
-  const commit = () => {
-    if (picked.length === 1) onPick(picked[0]);
-    else if (picked.length) onPickMany(picked);
-    close();
-  };
-  // Enter and Tab both commit: a built-up multi-selection, else the highlighted
-  // (hovered/arrowed) row, else the first match. Tab only hijacks when the panel
-  // is actually offering something — otherwise it stays plain field navigation.
-  const commitFromKey = () => {
-    if (picked.length) commit();
-    else if (results[hi]) pick(results[hi]);
-    else if (results.length) pick(results[0]);
-  };
-  const onKey = (e) => {
-    if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
-    if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-    if (e.key === "Enter") { e.preventDefault(); commitFromKey(); }
-    if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
-    if (e.key === "Escape") close();
-  };
-  // Pick/toggle on mousedown (not click): the results list re-renders as the
-  // debounced order matches stream in, and a click that spans that re-render is
-  // dropped by the browser (pointerup lands on a fresh node) — the row looked
-  // like it "just closed the popup". preventDefault also keeps focus in the
-  // field so the pick never trips the focus-out dismiss.
-  const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
-  return (
-    <div ref={wrapRef} className={wrapClass ?? "relative shrink-0 h-9 border-r border-slate-200"} style={wrapStyle ?? { ...fitW(value, 6, 1.4), maxWidth: "18rem" }}>
-      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onFocus={() => setOpen(true)}
-        onKeyDown={onKey} data-c="sku"
-        className={inputClass ?? "w-full h-full px-2 py-1.5 ft-field focus:outline-none focus:bg-white"} placeholder="SKU" title="Stock price book — enter a SKU or search words, pick a match to fill this row. Shift-click to pick several; Tab or Enter adds the selection." />
-      {open && pos && (results.length > 0 || picked.length > 0 || (loadingOnly && value)) && createPortal(
-        <div ref={panelRef} style={searchPanelBox(pos)}
-          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
-          {loadingOnly && (
-            <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Price book still loading…</div>
-          )}
-          <div className="max-h-72 min-h-0 overflow-y-auto">
-            {results.map((it, i) => {
-              const sel = picked.some((x) => hitKey(x) === hitKey(it));
-              return (
-                <div key={hitKey(it)} onMouseDown={(e) => onRow(e, it)} onMouseEnter={() => setHi(i)}
-                  className={`flex items-start gap-2 cursor-pointer px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${sel ? "bg-indigo-50/60" : i === hi ? "bg-slate-50" : ""}`}>
-                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
-                    className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={11} />}</button>
-                  <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
-                </div>
-              );
-            })}
-          </div>
-          {(!loadingOnly || picked.length > 0) && (
-            <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
-              <span className="truncate">{matchSummary(results.length, total)}</span>
-              {picked.length > 0 ? (
-                <button onMouseDown={(e) => { e.preventDefault(); commit(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
-              ) : (
-                <span className="ml-auto shrink-0">Shift-click to pick several</span>
-              )}
-            </div>
-          )}
-        </div>, document.body)}
-    </div>
-  );
-}
-
-// Price book lookup for the Settings catalog's add-product form: picking an
-// item pre-fills the draft (name, price, coverage when the book has one). No
-// multi-select — catalog products are added one at a time.
-function StockSearch({ stock, onPick, inp, placeholder = "Search the price book to pre-fill (optional)…" }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-  const panelRef = useRef(null);
-  const matches = open ? searchStock(stock, q) : [];
-  const results = matches.slice(0, SKU_SHOW);
-  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
-  const pick = (it) => { onPick(it); setQ(`${it.sku} — ${it.description || it.product}`); setOpen(false); };
-  return (
-    <div ref={wrapRef} className="relative mb-1.5">
-      <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
-        className={inp} placeholder={placeholder} />
-      {open && pos && results.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
-          <div className="max-h-60 min-h-0 overflow-y-auto">
-            {results.map((it) => (
-              <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); pick(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                <StockHit it={it} />
-              </button>
-            ))}
-          </div>
-          <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
-        </div>, document.body)}
-    </div>
-  );
-}
-
-// Grout family lookup (ADR 0007): search the imported book's Grout & Caulk
-// families to link a catalog grout's color source.
-function FamilySearch({ families, onPick, inp }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-  const panelRef = useRef(null);
-  const t = q.trim().toLowerCase();
-  const matches = open ? families.filter((f) => !t || `${f.brand} ${f.product}`.toLowerCase().includes(t)) : [];
-  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
-  const pick = (f) => { onPick(f); setQ(""); setOpen(false); };
-  return (
-    <div ref={wrapRef} className="relative flex-1 min-w-0">
-      <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape") setOpen(false); }}
-        className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
-      {open && pos && matches.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 overflow-y-auto">
-          {matches.map((f) => (
-            <button key={f.product} onMouseDown={(e) => { e.preventDefault(); pick(f); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
-              <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>
-              <div className="flex items-baseline gap-2 text-[11px] text-slate-400"><span className="truncate">{f.brand}</span>{f.price != null && <span className="ml-auto shrink-0 ft-mono">${f.price.toFixed(2)}</span>}</div>
-            </button>
-          ))}
-        </div>, document.body)}
-    </div>
-  );
-}
 
 const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
