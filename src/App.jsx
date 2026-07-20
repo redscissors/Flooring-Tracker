@@ -3427,9 +3427,9 @@ export default function App({ user, onSignOut }) {
             <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 2 }}>For planning purposes only · pricing subject to change on final order</div>
           </div>
           <div className="flex flex-col items-end" style={{ gap: 3, flexShrink: 0 }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".24em", color: "var(--ft-brand-deep)" }}>Selection Sheet</div>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".24em", color: "var(--ft-brand-deep)" }}>Selection Sheet</div>
             <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</div>
-            {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
+            {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
           </div>
         </div>
 
@@ -3440,8 +3440,8 @@ export default function App({ user, onSignOut }) {
             ["Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  ")],
           ].map(([label, name, detail], i) => (
             <div key={i} className="flex flex-col" style={{ gap: 2 }}>
-              <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
-              <div style={{ fontSize: 12.5, fontWeight: 700 }}>{name || PRINT_DASH}</div>
+              <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 800 }}>{name || PRINT_DASH}</div>
               {detail && <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>{detail}</div>}
             </div>
           ))}
@@ -3453,7 +3453,7 @@ export default function App({ user, onSignOut }) {
           return (
             <div key={a.id} className="break-inside-avoid" style={{ marginBottom: 12 }}>
               <div className="flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "6px 12px", minHeight: 28 }}>
-                <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
+                <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
                 {showUnit && areaHasExtras && <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
               </div>
               {a.note && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ft-muted)", padding: "6px 12px 0" }}>{a.note}</div>}
@@ -3469,7 +3469,7 @@ export default function App({ user, onSignOut }) {
                 return (
                   <div key={p.id} className="flex justify-between" style={{ gap: 22, padding: "8px 12px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none" }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 12.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 400, fontSize: 10.5, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
+                      <div style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10.5, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
                       {specParts && <div style={{ fontSize: 10.5, color: "var(--ft-muted)", marginTop: 2 }}>{specParts}</div>}
                       {inline.length > 0 && (
                         <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
@@ -3505,16 +3505,16 @@ export default function App({ user, onSignOut }) {
 
         {pMats.length > 0 && (
           <div className="break-inside-avoid" style={{ margin: "15px 0 6px" }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 6 }}>Extras</div>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 6 }}>Extras</div>
             <div style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "11px 15px" }}>
               <div style={{ columns: 2, columnGap: 28 }}>
                 {groups.map((g, gi) => (
                   <div key={gi} className="break-inside-avoid" style={{ marginBottom: 9 }}>
-                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>{g.kind}</div>
+                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>{g.kind}</div>
                     {g.items.map((m, i) => (
                       <div key={i} className="flex justify-between" style={{ gap: 14, alignItems: "baseline", marginBottom: 6, breakInside: "avoid" }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 11.5, fontWeight: 700 }}>{m.name}{m.spec ? ` — ${m.spec}` : ""}</div>
+                          <div style={{ fontSize: 11.5, fontWeight: 800 }}>{m.name}{m.spec ? ` — ${m.spec}` : ""}</div>
                           {(m.detail || m.sku) && <div style={{ fontSize: 10, color: "var(--ft-muted)", marginTop: 1 }}>{[m.detail, m.sku ? `SKU ${m.sku}` : ""].filter(Boolean).join(" · ")}</div>}
                         </div>
                         <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -3533,7 +3533,7 @@ export default function App({ user, onSignOut }) {
               </div>
               {showTotals && (
                 <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-paper-rule)", marginTop: 4, paddingTop: 7 }}>
-                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Extras subtotal</div>
+                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Extras subtotal</div>
                   <div className="ft-mono" style={{ fontSize: 12, fontWeight: 800 }}>{money(materialsCost)}</div>
                 </div>
               )}
@@ -3544,7 +3544,7 @@ export default function App({ user, onSignOut }) {
         {showTotals && grandTotal > 0 && (
           <div className="break-inside-avoid flex justify-end items-baseline" style={{ borderTop: "2px solid var(--ft-text)", paddingTop: 10, marginTop: 10 }}>
             <div className="flex items-baseline" style={{ gap: 10 }}>
-              <span className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span>
+              <span className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span>
               <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.01em" }}>{money(grandTotal)}</span>
             </div>
           </div>
