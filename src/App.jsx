@@ -5291,7 +5291,7 @@ export function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -5386,7 +5386,13 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileD
     // Books fed by a single file have a one-slot manifest and never appear.
     const gaps = (rows || []).length ? registryBooks.flatMap((b) => {
       const mine = (rows || []).filter((r) => !r.error && r.target === b.id);
-      const manifest = b.data?.sources || [];
+      // What the book is made of, from BOTH things that know: the manifest (what
+      // imports have recorded, plus any declaration) and the sheets linked to it
+      // right now. The link is live and needs no import history, so a book whose
+      // three portal sheets are linked is short two of them the moment a pass
+      // arrives holding one — which is what reviewing a single pooled sheet used
+      // to do silently.
+      const manifest = mergeSources(b.data?.sources, linkedSlots ? linkedSlots(b.id) : [], 0);
       // The <2 guard keeps a single-file book from ever nagging. A DECLARED slot
       // is an explicit statement that the book needs more, so it outranks the
       // guard — otherwise the first import, when the manifest holds only the
@@ -6314,7 +6320,21 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   // clears the pool and re-fetching is cheap.
   const [pendingReviews, setPendingReviews] = useState([]);
   const poolFetched = (adds) => setPendingReviews((prev) => (adds || []).reduce((acc, a) => poolPendingReview(acc, a), prev));
-  const reviewOne = (p) => setDropped({ files: [p.file], prefer: p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : undefined, sourceKeys: new Map([[p.file, recordKey(p.sheet)]]) });
+  // Reviewing one pooled sheet reviews every pooled sheet of the SAME BOOK.
+  // A book's import diffs against the whole book, so a pass holding one of its
+  // sheets reads the others' rows as absent and retires them. The per-sheet
+  // button therefore can't mean "just this file" for a book fed by several —
+  // it means "this book, with everything of its own that has arrived".
+  const reviewOne = (p) => {
+    const bookId = p.sheet.bookId && books.some((b) => b.id === p.sheet.bookId) ? p.sheet.bookId : null;
+    const list = bookId ? pendingReviews.filter((q) => q.sheet.bookId === bookId) : [p];
+    const files = (list.length ? list : [p]);
+    setDropped({
+      files: files.map((q) => q.file),
+      targets: new Map(files.filter((q) => q.sheet.bookId).map((q) => [q.file, q.sheet.bookId])),
+      sourceKeys: new Map(files.map((q) => [q.file, recordKey(q.sheet)])),
+    });
+  };
   const reviewAll = () => setDropped({
     files: pendingReviews.map((p) => p.file),
     targets: new Map(pendingReviews.filter((p) => p.sheet.bookId).map((p) => [p.file, p.sheet.bookId])),
@@ -6333,6 +6353,12 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
   }, []);
   const takeFiles = (list, prefer) => { const fs = [...(list || [])].filter((f) => /\.(xlsx|xls|pdf)$/i.test(f.name)); if (fs.length) setDropped({ files: fs, prefer }); };
   const vf = useVendorFetch({ settings, setSettings, books, vendorPending, vendorSession, onSessionUsed: () => { setVendorSession(null); clearHandoffSession(); }, onPool: poolFetched, addBook });
+
+  // The fetch slots a book's currently-linked sheets would fill. Live knowledge:
+  // it does not wait for an import to record anything, which is what lets the
+  // gate count a book's portal sheets on its very first pass.
+  const bookFetchSlots = (bookId) =>
+    sheetsForBook(vf.groups, bookId).map(({ sheet }) => sourceSlot({ recordKey: recordKey(sheet), name: entryFileName(sheet) }));
 
   const selBook = sel === "stock" ? null : books.find((b) => b.id === sel);
   const stockCount = stock.filter((s) => s.active).length;
@@ -6492,7 +6518,7 @@ function PriceBookLibrary({ books, stock, addBook, updateBook, delBook, loadBook
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
       {pendingReviews.length > 0 && !dropped && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
