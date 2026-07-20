@@ -78,11 +78,13 @@ body {
   --ft-area-row:#F6F3EC;                 /* product rows + materials box (page tone) */
 
   /* Estimate paper — always light (the sheet prints white in every theme), so
-     these are defined once and never overridden. */
-  --ft-paper-ink:#1C1A17;
-  --ft-paper-muted:#57534C;
-  --ft-paper-faint:#8A8378;
-  --ft-paper-rule:#CBC6B9;
+     these are defined once and never overridden. Darker than the app's UI
+     grays: grayscale lasers dither mid-grays lighter than they screen (issue
+     033), so the paper gets true black ink and two-steps-darker support text. */
+  --ft-paper-ink:#000000;
+  --ft-paper-muted:#403C36;
+  --ft-paper-faint:#615B51;
+  --ft-paper-rule:#ABA494;
   --ft-paper-band:#EDE9DE;
   --ft-paper-footer:#E4E0D3;
 
@@ -400,12 +402,16 @@ input.ft-cell[type="number"]{-moz-appearance:textfield;}
   }
 }
 /* The estimate paper is a printed white sheet — re-assert the light tokens on
-   its subtree so it stays light in every app theme (on screen and in print). */
+   its subtree so it stays light in every app theme (on screen and in print).
+   Ink/muted/faint take the darker --ft-paper-* values and the base weight
+   bumps 400→500 (issue 033): mid-gray Manrope 400 at 10–11px prints too
+   light. Inline weights and Tailwind font-* classes still override. */
 .ft-light{
+  font-weight:500;
   --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-prod:#F1EDE2; --ft-field:#FFFFFF;
   --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
   --ft-grid-line:rgba(28,26,23,.34);
-  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+  --ft-text:var(--ft-paper-ink); --ft-muted:var(--ft-paper-muted); --ft-faint:var(--ft-paper-faint);
   --ft-accent:#1C1A17; --ft-accent-press:#3A3630; --ft-accent-ink:#F6F3EC; --ft-accent-deep:#141210;
   --ft-brand:#57703A; --ft-brand-deep:#40542A;
   --ft-sand:#EDE9DD; --ft-deep:#1C1A17; --ft-logo:#1C1A17;
