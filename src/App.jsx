@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, LockOpen, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
+import { LIST_SELECT, lightRow, normBook, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadLabels, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { normLabel } from "./labels.js";
-import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
@@ -426,7 +427,6 @@ function FamilySearch({ families, onPick, inp }) {
 }
 
 const ATT_BUCKET = "attachments";
-const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -617,12 +617,9 @@ const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "
 const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, floor: w.floor ?? 5, tileOn: !!w.tileOn, floorOn: !!w.floorOn });
 const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
 
-// Customer (person) rows: contact info lives in the data jsonb; builder_id is a
-// real column. personData is what gets written back to the jsonb.
-const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes";
-const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
+// personData is what gets written back to a person's data jsonb; the person/
+// builder row mappers and selects live in bootload.js.
 const personData = ({ id, createdAt, updatedAt, builderId, ...rest }) => rest;
-const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 
 // Builder picker: type to search the canonical list or add a new one. Picking an
 // existing builder links by id; typing a name close to an existing one warns
@@ -1707,19 +1704,6 @@ function gridEnterNav(e, addRow) {
   else if (i === cards.length - 1) { e.preventDefault(); addRow(); }
 }
 
-// The light list row: everything the sidebar draws/searches/sorts, projected out
-// of the jsonb server-side. Shared by the initial load and server-side search.
-const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick";
-const lightRow = (r) => ({
-  id: r.id,
-  customerId: r.customer_id ?? null,
-  createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-  updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
-  name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
-  // ->> projects the jsonb boolean out as text "true"/"false" (or null).
-  quick: r.quick === true || r.quick === "true",
-  _full: false,
-});
 // Version metadata as held in memory — snapshots stay on the server until a
 // restore actually needs one.
 const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
@@ -1994,7 +1978,7 @@ export default function App({ user, onSignOut }) {
 
         // Settings now live in one shared record every signed-in user reads and
         // writes (ADR 0002), no longer in per-user app_data.
-        const settings = await loadSharedSettings(row?.data?.settings);
+        const settings = await resolveSharedSettings(supabase, await loadSettingsRow(supabase), row?.data?.settings);
 
         // One-time migration: move any customers still embedded in the blob into
         // the customers table (and relocate their attachment files), then strip
@@ -2004,7 +1988,7 @@ export default function App({ user, onSignOut }) {
           await migrateLegacyCustomers(legacy.map(normC));
         }
 
-        const [projects, people, builders] = await Promise.all([loadProjects(), loadPeople(), loadBuilders()]);
+        const [projects, people, builders] = await Promise.all([loadProjects(supabase), loadPeople(supabase), loadBuilders(supabase)]);
         // Client-side 30-day sweep (ADR 0022): an unpromoted quick draft
         // (quick + still customer-less) untouched for QUICK_SWEEP_DAYS is
         // discarded on load. Best-effort deletes — a missed one just retries
@@ -2018,48 +2002,21 @@ export default function App({ user, onSignOut }) {
         for (const p of swept) supabase.from("projects").delete().eq("id", p.id).then(() => {}, () => {});
         // Best-effort: installs that haven't run supabase/stock.sql yet just
         // don't get the SKU picker.
-        try { setStock(await loadStock()); } catch (x) { }
+        try { setStock(await loadStock(supabase)); } catch (x) { }
         // Best-effort: installs that haven't run supabase/todos.sql yet just
         // don't get the team to-do list.
-        try { setTodos(await loadTodos()); } catch (x) { }
+        try { setTodos(await loadTodos(supabase)); } catch (x) { }
         // Best-effort: installs that haven't run supabase/labels.sql yet just
         // don't get the label generator's saved list.
-        try { setLabels(await loadLabels()); } catch (x) { }
+        try { setLabels(await loadLabels(supabase)); } catch (x) { }
         // Best-effort: installs that haven't run supabase/pricebooks.sql yet
         // just don't get the price book library (registry affordances hide).
-        try { setBooks(await loadBooks()); } catch (x) { }
+        try { setBooks(await loadBooks(supabase)); } catch (x) { }
       } catch (e) { ping("Could not load your data — check connection"); }
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
-
-  // Fetch every customer the current user may see (own + public), but LIGHT:
-  // only the fields the list draws/searches/sorts, projected out of the jsonb
-  // server-side. The heavy detail (categories/products/versions/attachments)
-  // stays on the server until a customer is opened (see loadDetail).
-  const loadProjects = async () => {
-    const { data: rows, error } = await supabase.from("projects").select(LIST_SELECT);
-    if (error) throw error;
-    return (rows || []).map(lightRow);
-  };
-  // People (customers) and builders are small — load them whole. Best-effort:
-  // an install that hasn't run supabase/migrate-hierarchy.sql yet just gets
-  // empty lists (the projects list still works on its own).
-  const loadPeople = async () => {
-    try {
-      const { data: rows, error } = await supabase.from("customers").select(PERSON_SELECT);
-      if (error) throw error;
-      return (rows || []).map(personRow);
-    } catch (x) { return []; }
-  };
-  const loadBuilders = async () => {
-    try {
-      const { data: rows, error } = await supabase.from("builders").select("id, name");
-      if (error) throw error;
-      return (rows || []).map(builderRow);
-    } catch (x) { return []; }
-  };
 
   // Lazy-load one customer's full record on open, merging it into the light row.
   // Version metadata (never snapshots) loads alongside; snapshots are fetched
@@ -2097,31 +2054,6 @@ export default function App({ user, onSignOut }) {
       }));
       baselineRef.current = { id, json: catSig(full.categories) };
     } catch (e) { ping("Could not open customer — check connection"); }
-  };
-
-  // Read the one shared settings record. If it is missing or empty (the seed
-  // migration hasn't run yet), seed it from this user's former per-user settings
-  // — falling back to built-in defaults — so the team starts from real numbers.
-  const loadSharedSettings = async (fallbackRaw) => {
-    const { data: row, error } = await supabase.from("shared_settings").select("data").eq("id", SHARED_SETTINGS_ID).maybeSingle();
-    if (error) throw error;
-    const hasRow = row?.data && Object.keys(row.data).length;
-    const settings = normalizeSettings(hasRow ? row.data : fallbackRaw);
-    // Persist when the stored record is missing, still pre-catalog, or lacks
-    // any of the starter underlayments, so the backfilled catalog (with stable
-    // ids) becomes the canonical shared copy.
-    if (!hasRow || !row.data.catalog || !catalogHasSeedUnderlayments(row.data.catalog)) {
-      try { await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" }); } catch (x) { /* best-effort seed */ }
-    }
-    return settings;
-  };
-
-  const loadStock = async () => {
-    // select * so the app keeps working whether or not the disabled column
-    // exists yet (pricebook-disabled.sql); a named select of a missing column
-    // errors and would silently kill the SKU picker.
-    const rows = await fetchAllRows(() => supabase.from("stock_items").select("*").order("sku"));
-    return rows.map(normStockItem);
   };
 
   // Parse a freshly exported price book workbook in the browser and show what
@@ -2174,7 +2106,7 @@ export default function App({ user, onSignOut }) {
       await snapshotBookVersion(STOCK_BOOK_ID, applied, stockData);
       const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: applied.length } };
       setSettings(sync.changes.length ? { catalog: sync.catalog, ops } : { ops });
-      setStock(await loadStock());
+      setStock(await loadStock(supabase));
       flashSaved();
       ping(`Price book imported — ${diff.added.length} new, ${diff.changed.length} updated, ${diff.missing.length} retired`);
       onDone?.(true);
@@ -2193,7 +2125,7 @@ export default function App({ user, onSignOut }) {
       await snapshotBookVersion(STOCK_BOOK_ID, applied, stockData);
       const ops = { ...(settings.ops || {}), lastImport: { at: Date.now(), by: profile.name || user.email || "", skus: applied.length } };
       setSettings({ ops });
-      setStock(await loadStock());
+      setStock(await loadStock(supabase));
       flashSaved();
     } catch (x) { ping("Rollback failed"); }
   };
@@ -2203,18 +2135,6 @@ export default function App({ user, onSignOut }) {
   // Registry books (stock- and order-kind) live in price_books; their items in
   // price_book_items, one row per (book_id, sku). Same trust + no-delete rules
   // as stock_items. Writes go only through these paths.
-
-  const normBook = (row) => ({
-    id: row.id, kind: row.kind || "order", name: row.name || "",
-    active: row.active !== false, data: row.data || {},
-    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
-  });
-
-  const loadBooks = async () => {
-    const { data: rows, error } = await supabase.from("price_books").select("id, kind, name, active, data, updated_at");
-    if (error) throw error;
-    return (rows || []).map(normBook);
-  };
 
   // A book's items, loaded on demand (Settings browse). Not held in app state —
   // the caller keeps them while the book is open.
@@ -2410,7 +2330,7 @@ export default function App({ user, onSignOut }) {
       flashSaved();
     } catch (x) {
       ping("Save failed — has supabase/pricebook-disabled.sql been run?");
-      try { setStock(await loadStock()); } catch (_) { /* keep optimistic view */ }
+      try { setStock(await loadStock(supabase)); } catch (_) { /* keep optimistic view */ }
     }
   };
 
@@ -3038,17 +2958,11 @@ export default function App({ user, onSignOut }) {
   // Open items order by `position` (smaller = higher); a drag renumbers all
   // open items 0..n-1 and writes them in one upsert. Done items keep their row
   // and sort by completion time instead.
-  const todoFromRow = (r) => ({ id: r.id, position: r.position ?? 0, text: r.data?.text || "", done: !!r.data?.done, doneAt: r.data?.doneAt || null, createdBy: r.data?.createdBy || "", createdAt: r.data?.createdAt || null });
   const todoData = (t) => ({ text: t.text, done: t.done, doneAt: t.doneAt, createdBy: t.createdBy, createdAt: t.createdAt });
-  const loadTodos = async () => {
-    const { data: rows, error } = await supabase.from("todos").select("id, position, data").order("position");
-    if (error) throw error;
-    return (rows || []).map(todoFromRow);
-  };
   const openTodos = () => {
     setShowTodos(true); setSidebarOpen(false);
     // Refresh so the list shows what teammates added since load.
-    loadTodos().then(setTodos).catch(() => { });
+    loadTodos(supabase).then(setTodos).catch(() => { });
   };
   const addTodo = (text) => {
     const top = Math.min(0, ...todos.filter((t) => !t.done).map((t) => t.position));
@@ -3094,14 +3008,10 @@ export default function App({ user, onSignOut }) {
     (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
   };
 
-  // Labels write path (Apps → Label Generator). Mirrors the todos helpers but
-  // pages with fetchAllRows since the shared set can exceed the 1000-row cap.
+  // Labels write path (Apps → Label Generator). Mirrors the todos helpers; the
+  // paged loader lives in bootload.js.
   const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, twoVariant: l.twoVariant, fields2: l.fields2, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
-  const loadLabels = async () => {
-    const rows = await fetchAllRows(() => supabase.from("labels").select("id, position, data").order("position"));
-    return rows.map((r) => normLabel({ id: r.id, position: r.position ?? 0, ...(r.data || {}) }));
-  };
-  const openApps = () => { setShowApps(true); setSidebarOpen(false); loadLabels().then(setLabels).catch(() => { }); };
+  const openApps = () => { setShowApps(true); setSidebarOpen(false); loadLabels(supabase).then(setLabels).catch(() => { }); };
   const nextPos = () => (labels.length ? Math.max(...labels.map((l) => l.position)) + 1 : 0);
   const addLabel = (draft) => {
     const l = normLabel({ ...draft, id: uid(), position: nextPos(), createdBy: profile.name || user.email || "", createdAt: Date.now() });
