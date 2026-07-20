@@ -45,7 +45,34 @@ src/
   boottrace.js      # boot timing spans; every boot writes ft-boot-trace to
                     # localStorage, dev builds console.table it (ADR 0026)
   Auth.jsx          # sign-in screen (sign-up disabled by design)
-  App.jsx           # the FloorTrack application (props: { user, onSignOut })
+  App.jsx           # the FloorTrack application (props: { user, onSignOut }) —
+                    # the split files below carry its extracted pieces
+  uiconst.js        # shared UI constants: TYPES/TLBL, tier colors/labels,
+                    # joints/thicknesses, grout color lists, sweep/keep constants,
+                    # stock-loading messages, `skuSearchable`, `colorsFor`
+  model.js          # job-model factories + normalizers: `uid`/`money`, `newProduct`/
+                    # `newArea`/`newProject`, `normP`/`normA`/`normC`, `catSig`,
+                    # `rowBlank`, `personData`… (model.test.js, their first tests)
+  print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
+                    # `printAreaFloor`, `orderEntryRow`, `ESTIMATE_PRINT_LAYOUT`…
+                    # (print.test.js)
+  fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
+                    # `import("pdfjs-dist")` preserved
+  widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
+                    # anchored-panel machinery, `ThemeSwitch`, popovers, bars
+  search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
+                    # `FamilySearch`, hit rows, merged-results hooks
+  grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
+                    # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`
+  mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
+                    # `MobileProductRow`, `MobileRowSheet`
+  TeamTodos.jsx     # the team issue/to-do modal (issue 006)
+  vendorpanel.jsx   # the vendor-sheet board: `useVendorFetch`, `VendorFetchPage`,
+                    # sign-in group cards, `StaleChip`/`FLAG_SEMANTICS`
+  pricebooklib.jsx  # the price-book library (`PriceBookLibrary` + book detail,
+                    # import wizard, stock items panel, markup editor — internal)
+  SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
+                    # `MATERIAL_CATEGORIES` lives here
   catalog.js        # settings normalization + material math + shared catalog
   pricebook.js      # stock price book .xlsx -> flat stock items (ADR 0003);
                     # + generic mapped import for order/registry books (ADR 0009)
@@ -349,7 +376,7 @@ into the estimate totals; caulk itself never lives in the catalog.
 Unlinked grouts keep the code-defined standard color list. Custom
 underlayment install items also carry an optional `sku`.
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
-App.jsx): left-nav sections (General · Price book · Materials & add-ons ·
+`SettingsWorkspace.jsx`): left-nav sections (General · Price book · Materials & add-ons ·
 Backup & restore; the built-in Grout / Mortar / Underlayment categories
 present as a locked library, spec 2026-07-15) with master→detail catalog
 editing; every
