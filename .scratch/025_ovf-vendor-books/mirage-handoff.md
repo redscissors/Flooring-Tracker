@@ -1,6 +1,6 @@
 # Mirage import — handoff (2026-07-20)
 
-Status: **complete — all four documents import as one book (1728 items: 942 floors + 786 trims), reachable from the UI.**
+Status: **complete — all four documents import as one book (1747 items: 942 floors + 805 trims), reachable from the UI.**
 
 ## Start here
 
@@ -9,7 +9,7 @@ Status: **complete — all four documents import as one book (1728 items: 942 fl
 2. Branch fresh off `main`. **Branch every PR off `main`.** Stacking cost us
    three re-lands (#174→#176, #179→#180, #181 merged only its first commit →
    #184).
-3. `npm test` — 558 passing.
+3. `npm test` — 560 passing.
 
 ## Where the work stands
 
@@ -95,8 +95,7 @@ Lessons that generalize:
 
 ## The track is complete (2026-07-20)
 
-All four documents now import as one book: **1728 items — 942 floors + 786
-trims.**
+All four documents now import as one book: **1747 items — 942 floors + 805 trims.**
 
 | piece | where | state |
 |---|---|---|
@@ -106,7 +105,7 @@ trims.**
 | multi-file entry | `parseMirage(payloads)` | ADR 0025 rule 7 |
 | UI wiring | `bundleByBook` + `ingest` | 4 files → 1 review pass |
 | Lakeside | `parseMirageColorGrid` | 6 colours at $4.99 |
-| trims | `parseMirageTrim*` | 786 priced, 668 carrying `fits` |
+| trims | `parseMirageTrim*` | 805 priced, 668 carrying `fits` |
 
 ### Lakeside is Escape Traditional under another name
 
@@ -151,12 +150,29 @@ reach: Hardwood puts it adjacent, Value Tower leaves a gap). Worth +6 floors and
 - 118 trims carry no `fits`. All legitimate: colours the 2026 chart no longer
   lists (DreamVille Sanibel/Morro Bay, Sweet Memories Peppermint, six Admiration
   Maple colours) and Imagine, a collection dropped from the chart entirely.
-- One block is NOT parsed: the "Natural" programme at rows 163-166, which has a
-  Species column but no `Colors` header, so it is skipped rather than guessed at.
+
+### The Natural programme
+
+"Natural" is not a colour among others — it is the clear coat, the wood's own
+colour (owner, 2026-07-20). Its trim block therefore has NO Colors column: it
+varies by SPECIES (White Oak R&Q, Hickory, Walnut), names no collection, and
+prints the colour once in column 0. The sheet's own footnote says it — "available
+in a variety of species in our collections". Those trims fit by species+colour
+rather than by collection.
+
+Chasing it turned up a THIRD side-by-side casualty. The Hardwood sheet's two
+tables are offset by a row, so the right table's header lands on the Natural
+block's first data row and the row-wide "a new header ends the block" test killed
+it before a single price was read — the whole Natural programme, gone. The block
+now bounds itself at the gutter (a run of 3 empty width cells) and only looks for
+the next header WITHIN its own columns. Worth +12 price rows.
+
+Natural floors are the Lakeside shape again: 12 prices, no SKUs in any document.
+So the 19 Natural trims import priced and correctly carry no `fits`. If OVF ever
+supplies Natural floor SKUs they will link themselves.
 
 ## What is NOT built
 
-- The "Natural" trim block above.
 - Targeted replace (ADR 0025 deliberately deferred it).
 
 ## Facts worth not rediscovering

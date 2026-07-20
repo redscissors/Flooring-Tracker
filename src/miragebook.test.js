@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup } from "./miragebook.js";
+import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup, normSpecies } from "./miragebook.js";
 
 // A PDF text item in the shape App.jsx's readPdfPages produces (y top-down).
 const it = (str, x, y, w = 10) => ({ str, x, y, w });
@@ -463,6 +463,44 @@ test("trims join the book priced and pointing at the floors they fit", () => {
   assert.equal(trim[11], "");
   assert.equal(res.meta.trimOrphan, 3);
   assert.match(res.warnings.join(" "), /matched no floor/);
+});
+
+// "Natural" is not one colour among others — it is the clear coat, the wood's own
+// colour — so its block has no Colors column at all. It varies by SPECIES, names
+// no collection, and prints the colour once in column 0.
+const naturalTrimSheet = [{ name: "MIR trim", rows: [
+  ["", "", "USA DISTRIBUTORS - MOLDINGS & STAIR COMPONENTS PRICE LIST ($/Unit)"],
+  [],
+  ["", "", "", "White Oak R&Q", "Hickory"],
+  ['3/4" thick (TruBalance, Classic)', "Stair Nosing", "", "$235.99/EA", "$196.69/EA"],
+  ["", "Round Reducer", "", "$121.79/EA", "$103.99/EA"],
+  [],
+  ["Brushed DuraMatt®", "", "", '3/4"(TruBalance, Classic)'],
+  [],
+  ["", "", "", "Stair Nosing", "Round Reducer"],
+  [],
+  ["", "Species", "", "", ""],
+  ["Natural", "White Oak R&Q", "", "49787", "49788"],
+  ["", "Hickory", "", "54350", "50613"],
+] }];
+
+test("the Natural block reads its colour from column 0 and varies by species", () => {
+  const skus = parseMirageTrimSkus(naturalTrimSheet);
+  assert.equal(skus.length, 4);
+  // The colour is Natural for both; the species is what changes.
+  assert.deepEqual([...new Set(skus.map((s) => s.color))], ["Natural"]);
+  assert.deepEqual([...new Set(skus.map((s) => s.species))], ["White Oak R&Q", "Hickory"]);
+  // It names no collection — Natural is sold across them.
+  assert.deepEqual([...new Set(skus.map((s) => s.collection))], [""]);
+});
+
+test("R&Q survives normalization on both sides of the trim join", () => {
+  assert.equal(normSpecies("White Oak R&Q"), normSpecies("White Oak R & Q"));
+  // It must not split on the ampersand the way "Red Oak & Oak" does.
+  assert.equal(normSpecies("White Oak R&Q"), "white oak rq");
+  const prices = parseMirageTrimPrices(naturalTrimSheet);
+  assert.equal(prices.get("3/4|nosing|white oak rq"), 235.99);
+  assert.equal(prices.get("3/4|nosing|hickory"), 196.69);
 });
 
 test("a bundle with no trim sheet says the book will have no mouldings", () => {

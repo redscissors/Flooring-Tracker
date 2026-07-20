@@ -420,8 +420,17 @@ export function parseMirageFlooring(sheets) {
         if (cell(bandRow, c)) band = cell(bandRow, c);
         bandAt[c] = band;
       }
+      // This block's price columns, stopping at the gutter. The sheet prints two
+      // tables side by side and offset by a row, so the width row carries the
+      // NEIGHBOUR's columns too — taking every non-empty cell stretches the block
+      // across the gutter, and then the neighbour's header row (which lands on
+      // this block's first data row) reads as "this block is over".
       const priceCols = [];
-      for (let c = gradeCol + 1; c < widthRow.length; c++) if (cell(widthRow, c)) priceCols.push(c);
+      let gap = 0;
+      for (let c = gradeCol + 1; c < widthRow.length; c++) {
+        if (cell(widthRow, c)) { priceCols.push(c); gap = 0; continue; }
+        if (priceCols.length && ++gap >= 3) break;
+      }
       if (!priceCols.length) continue;
 
       // The collection sits just LEFT of the species column, not in column 0.
@@ -443,11 +452,18 @@ export function parseMirageFlooring(sheets) {
         return "";
       };
 
+      // Where this block's columns stop. The break test below must not look past
+      // it: the sheet's side-by-side tables mean the RIGHT table's header row
+      // lands on the LEFT table's first data row, so a row-wide test ends the
+      // left block before it has read a single price. That is how the whole
+      // "Natural" programme (White Oak R&Q, Hickory, Walnut) was being lost.
+      const blockEnd = Math.max(...priceCols);
+
       let collection = "", species = "";
       for (let r = h + 1; r < grid.length; r++) {
         const row = grid[r];
-        // A new band/header row ends the block.
-        if (findCol(row, /^grades?$/i) >= 0) break;
+        // A new band/header row ends the block — one belonging to THIS block.
+        if (findCol((row || []).slice(0, blockEnd + 1), /^grades?$/i) >= 0) break;
         const coll = collectionOf(row);
         if (coll) collection = coll;
         if (cell(row, speciesCol)) species = cell(row, speciesCol);
@@ -610,10 +626,15 @@ export const normTrimGroup = (v) => {
   return m ? `${m[1]}/${m[2]}` : s.replace(/[^a-z0-9/ ]/g, " ").replace(/\s+/g, " ").trim();
 };
 
-// A price column can serve several species ("Red Oak & Oak"). R&Q is rift-and-
-// quartered — one product, not two, so it must not be split on its ampersand.
+// One spelling for a species on both sides of the trim join. R&Q is rift-and-
+// quartered, a distinct product — it must survive as one token, and must read
+// the same whether it came from a price header or a SKU block's species column.
+export const normSpecies = (v) =>
+  str(v).toLowerCase().replace(/\br\s*&\s*q\b/g, "rq").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+
+// A price column can serve several species ("Red Oak & Oak"), so it keys to each.
 const speciesOfHeader = (v) =>
-  str(v).replace(/\br\s*&\s*q\b/gi, "RQ").split("&").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  str(v).replace(/\br\s*&\s*q\b/gi, "RQ").split("&").map((s) => normSpecies(s)).filter(Boolean);
 
 // The upper table: price per (group, trim type, species).
 export function parseMirageTrimPrices(sheets) {
@@ -660,7 +681,19 @@ export function parseMirageTrimSkus(sheets) {
     const grid = sh?.rows || [];
     for (let h = 0; h < grid.length; h++) {
       const colorCol = findCol(grid[h], /^colou?rs?$/i);
-      if (colorCol < 0) continue;
+      const speciesColHdr = findCol(grid[h], /^species$/i);
+      // Two block shapes. Most list colours down a Colors column. The "Natural"
+      // programme instead varies by SPECIES and has no Colors column at all,
+      // because Natural is not one colour among others — it is the clear coat,
+      // the wood's own colour — so the sheet prints it once in column 0 and lets
+      // the species column do the work. Its own footnote says as much:
+      // "available in a variety of species in our collections". Such a block
+      // names no collection either, and fits any collection's Natural floor.
+      if (colorCol < 0 && speciesColHdr < 0) continue;
+      const naturalBlock = colorCol < 0;
+      // Everything right of the label columns is a trim column, whichever shape
+      // the block takes.
+      const labelFrom = colorCol >= 0 ? colorCol : speciesColHdr;
       // Walk up for the type row and the banner row. Between them can sit a size
       // row (48" / 69") that splits ONE type label across two columns, so the
       // label is composed from both rather than read off a single row.
@@ -670,7 +703,7 @@ export function parseMirageTrimSkus(sheets) {
         // The banner carries the construction groups and tops the block, so it
         // ends the search — anything above belongs to the previous block.
         if (row.some((c) => /TruBalance|Classic|Lock|Multifunction/i.test(str(c)))) { bandRow = r; break; }
-        const right = row.filter((c, i) => i > colorCol && cell(row, i));
+        const right = row.filter((c, i) => i > labelFrom && cell(row, i));
         if (!right.length) continue;
         // A row of nothing but sizes is the 48"/69" splitter under one type
         // label; a row of words is the type row itself.
@@ -688,7 +721,7 @@ export function parseMirageTrimSkus(sheets) {
         bandAt[c] = band;
         const t = cell(grid[typeRow], c);
         if (t) type = t;
-        typeAt[c] = c > colorCol ? type : "";
+        typeAt[c] = c > labelFrom ? type : "";
       }
       // Most blocks banner one species ("Maple Smooth DuraMatt®"). The
       // multi-species collections instead give it its own column and leave the
@@ -697,15 +730,17 @@ export function parseMirageTrimSkus(sheets) {
       const speciesCol = findCol(grid[h], /^species$/i);
       const banner = bannerSpecies(cell(grid[bandRow], 0));
 
-      let collection = "", rowSpecies = "";
+      let collection = "", rowSpecies = "", natural = "";
       for (let r = h + 1; r < grid.length; r++) {
         const row = grid[r] || [];
         if (findCol(row, /^colou?rs?$/i) >= 0) break;
         if (row.some((c) => /TruBalance|Classic|Lock|Multifunction/i.test(str(c)))) break;
-        if (cell(row, 0)) collection = cell(row, 0);
+        // Column 0 is the collection on a normal block and the colour on a
+        // Natural one, where it is printed once and fills down.
+        if (cell(row, 0)) { if (naturalBlock) natural = cell(row, 0); else collection = cell(row, 0); }
         if (speciesCol >= 0 && cell(row, speciesCol)) rowSpecies = cell(row, speciesCol);
         const species = (speciesCol >= 0 ? rowSpecies : banner) || banner;
-        const color = cell(row, colorCol);
+        const color = naturalBlock ? natural : cell(row, colorCol);
         if (!color) continue;
         for (let c = colorCol + 1; c < width; c++) {
           const sku = cell(row, c);
@@ -771,7 +806,9 @@ export function priceChartRows(chartRows, priceRows) {
 
 const MIRAGE_BRAND = "Mirage";
 
-const titleCase = (s) => str(s).replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+// An ampersand marks an abbreviation the vendor writes in caps ("R&Q", rift and
+// quartered), not a word to sentence-case into "R&q".
+const titleCase = (s) => str(s).replace(/\w\S*/g, (w) => (/&/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
 
 // "Effective: July 13th, 2026" -> a sortable timestamp.
 //
@@ -897,9 +934,19 @@ export function parseMirage(payloads, name = "Mirage price book") {
   // ("Admiration Maple") where the floors just say "Admiration", so a miss on the
   // full name retries on the leading word. Colour still has to match exactly —
   // that is the part that makes a trim the right trim.
+  // The Natural trims name no collection — Natural is the clear coat, sold
+  // across collections in whatever species — so they fit by species + colour
+  // instead, in any collection that offers it.
+  const bySpecies = new Map();
+  for (const r of priced) {
+    const k = `${normSpecies(r.species)}|${str(r.color).toLowerCase()}`;
+    if (!bySpecies.has(k)) bySpecies.set(k, []);
+    bySpecies.get(k).push(r.sku);
+  }
   const fitsFor = (t) => {
     const color = str(t.color).toLowerCase();
     const full = str(t.collection).toLowerCase();
+    if (!full) return bySpecies.get(`${normSpecies(t.species)}|${color}`) || [];
     return floorsAt.get(`${full}|${color}`) || floorsAt.get(`${full.split(" ")[0]}|${color}`) || [];
   };
 
@@ -910,7 +957,7 @@ export function parseMirage(payloads, name = "Mirage price book") {
   const bySku = new Map();
   let trimUnpriced = 0;
   for (const t of trimSkus) {
-    const price = trimPrices.get(`${normTrimGroup(t.group)}|${normTrimType(t.label)}|${str(t.species).toLowerCase()}`);
+    const price = trimPrices.get(`${normTrimGroup(t.group)}|${normTrimType(t.label)}|${normSpecies(t.species)}`);
     if (price == null) { trimUnpriced++; continue; }
     const hit = bySku.get(t.sku);
     if (hit) { for (const f of fitsFor(t)) hit.fits.add(f); continue; }
