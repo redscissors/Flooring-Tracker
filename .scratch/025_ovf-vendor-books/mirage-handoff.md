@@ -1,6 +1,6 @@
 # Mirage import — handoff (2026-07-20)
 
-Status: **parsing is clean on both chart editions; nothing is wired to the UI yet.**
+Status: **parsing is clean and the four files join into one book; the router/wizard wiring is what remains before any of it is reachable from the UI.**
 
 ## Start here
 
@@ -9,7 +9,7 @@ Status: **parsing is clean on both chart editions; nothing is wired to the UI ye
 2. Branch fresh off `main`. **Branch every PR off `main`.** Stacking cost us
    three re-lands (#174→#176, #179→#180, #181 merged only its first commit →
    #184).
-3. `npm test` — 514 passing.
+3. `npm test` — 546 passing.
 
 ## Where the work stands
 
@@ -22,11 +22,20 @@ Status: **parsing is clean on both chart editions; nothing is wired to the UI ye
 | #178 | `book.data.sources` manifest + the completeness gate |
 | #180 | "Add a file…" on the book page |
 | #181 | Mirage detectors + the 2025 Product Chart parser |
-
 | #184 | flooring price parsers, the chart→price join, 2026 chart layout, region segmentation |
+| #185 | the split-baseline width fix — **its FIRST commit only**, see below |
 
 ### Open
-- nothing.
+- **#186** — `parseMirage(payloads)` (ADR 0025 rule 7) + the species join-key
+  fix. Parser-only; nothing calls it yet.
+
+> **#185 merged only its first commit**, exactly as #181 did. Its later two
+> commits never reached `main` and were re-landed as #186 off `main`. The PR
+> object's head stopped tracking the branch (GitHub was returning 503s at the
+> time) while `git ls-remote` showed the pushes had landed — so the PR page
+> looked one commit old and merged that way. **Check `git log origin/main` for
+> the actual commits after every merge; the PR's own commit list is not
+> trustworthy in this repo.**
 
 ## The one defect — FIXED
 
@@ -58,12 +67,44 @@ priced, 2026 968 rows / all 10 collections / 0 missing a grade or construction.
 The LIVELY block's width→construction map was checked column by column against
 the raw PDF x-positions (`livelymap.mjs`).
 
+## The species trap (found 2026-07-20, fixed in #186)
+
+Worth reading before touching the join, because it was invisible and expensive.
+
+The 2026 chart moved **species** off the band row onto the texture row, printed
+as an ALL-CAPS banner beside the texture (`MAPLE` `Smooth | DuraMatt®`). Nothing
+failed — 960 of 968 rows simply carried no species, and every count still looked
+healthy.
+
+It mattered because **species belongs in the join key**. Admiration Exclusive
+sells in Red Oak *and* Maple at the same collection/grade/construction/width,
+priced **$9.29 vs $11.49**, and 27 chart rows differ by nothing else. Keyed
+without species, both SKUs took whichever sheet row was written last — one of
+them quoting ~$2/sq ft wrong, silently, with a 100%-priced join as evidence that
+all was well.
+
+Lessons that generalize:
+
+- **"100% priced" is not "correctly priced."** The join reported 765/765 while
+  mispricing. Check for price *conflicts* within a key, not just coverage.
+- **Chart and sheets spell species identically** (verified across all 16 shared
+  collection+grade pairs), so no mapping is needed — unlike construction and
+  width, which do need normalizing. Don't invent a species synonym table.
+- A count of rows "missing" a field is a weak signal; a count of rows that
+  **collide** once that field is dropped is the strong one.
+
 ## What is NOT built
 
-With the parsing clean, **#3 (multi-payload `ingest`) is the one that unblocks
-everything** — until it exists none of this is reachable from the UI, so the
-other two ship into a book nobody can import. Do it first unless the owner wants
-Lakeside visible sooner.
+With the parsing clean and `parseMirage` landed, **the router/wizard wiring is
+what now stands between this and the UI.** `parseMirage(payloads)` exists and is
+verified, but nothing calls it: the wizard's `ingest()` still takes ONE payload
+and `bundleByBook` still walks a book's files one wizard step at a time. Until
+that changes none of this is reachable, so it outranks both items below.
+
+0. **Hand the bundle to `parseMirage`.** `bundleByBook` should collapse a
+   recognized multi-file set into ONE step carrying all payloads, and `ingest`
+   should accept an array and try `parseMirage` before the single-file path
+   (where `parseOvf` sits today). Needs preview proof — it is a UI change.
 
 1. **Value Tower's colour grid.** The chart is the spine, but Lakeside and the
    Escape *Traditional* colours (Blue Ridge, Champlain, Chelan, Madison,
@@ -73,12 +114,8 @@ Lakeside visible sooner.
 2. **The trim sheet.** Should emit trim rows carrying `fits` (#173) keyed by
    (collection, colour) — that link is stated outright in the sheet, 23/29 on a
    rough match, the misses being the Traditional line which genuinely has no
-   colour-matched trim.
-3. **Multi-payload `ingest`** (ADR 0025 rule 7). The wizard's `ingest()` takes ONE
-   payload; Mirage needs all files handed to one parser, because the chart and the
-   price sheets must be JOINED, not concatenated. **Until this exists none of the
-   parsing is reachable from the UI.** #177's bundling accumulates *items* across
-   files, which is not the same thing.
+   colour-matched trim. `parseMirage` already warns that trim is unparsed — that
+   warning is the thing to delete when it lands.
 
 ## Facts worth not rediscovering
 
@@ -88,8 +125,13 @@ Lakeside visible sooner.
 - **Document vintages differ.** Chart 2026-02-02, Value Tower 2025-02-03,
   Hardwood 2026-07-13. An older chart lists widths since discontinued, so some
   chart SKUs legitimately have no price and are dropped.
-- **Hardwood supersedes Value Tower** where they overlap (owner, 2026-07-19).
-  `priceChartRows` relies on call order: Value Tower first, Hardwood second.
+- **Hardwood supersedes Value Tower** where they overlap (owner, 2026-07-19) —
+  but that is a fact about *today's editions*, not about the sheets. `parseMirage`
+  now sorts them by each sheet's own `Effective:` line and hands them to
+  `priceChartRows` oldest-first, so a newly published Value Tower wins on its own.
+  Don't reintroduce a fixed call order.
+- **Species is part of the join key**, and the chart and sheets spell it the same.
+  See "The species trap" above before touching this.
 - **A filename is never an identity.** Vendors re-date files
   (`AOT EFT 26 02 19` → `26 05 20`). Fetched sheets key on `recordKey`, manual
   files on content fingerprint.
@@ -107,7 +149,9 @@ Lakeside visible sooner.
 
 ## Source files
 
-- `src/miragebook.js` + `.test.js` — detectors, chart parser, flooring parser, join
+- `src/miragebook.js` + `.test.js` — detectors, chart parser, flooring parser,
+  the join, and `parseMirage(payloads)` — the multi-file entry point (ADR 0025
+  rule 7) that emits the canonical sheet + `MIRAGE_MAPPING`
 - `src/dropimport.js` — `bundleByBook`, `sourceSlot`/`mergeSources`/`missingSources`,
   Mirage format tags in `fileFormat`
 - `src/App.jsx` — `ImportRouter` (bundling + the gate), `GateGap`, `AddFileNotice`,
@@ -129,6 +173,7 @@ dev-only (never imported by the app). Run with plain `node`.
 | `verify-mirage.mjs` | 2025 chart: row count, detectors, spot checks, and the 39/39 cross-check against the Value Tower colour grid |
 | `newchart.mjs` | 2026 chart: rows, collections, constructions, rows missing a grade/construction |
 | `join-check.mjs` | the chart→price join, which sheet won each overlap, unpriced rows by collection |
+| `bundle-check.mjs` | `parseMirage` on the real four-file set: the canonical sheet, effective dates, order-independence, and that a non-Mirage set falls through |
 | `livelymap.mjs` | the LIVELY block's width→construction map + one colour's SKUs, to check a mapping is RIGHT and not merely present |
 | `qualrows.mjs` | both editions side by side around every Herringbone/Chevron row — the tool for "how does this edition print a qualified width?" |
 | `dump.mjs` / `pdftext.mjs` | raw xls rows / raw PDF text with x,y — what to reach for when a layout question comes up |
