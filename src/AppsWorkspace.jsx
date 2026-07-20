@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, ChevronUp, ChevronDown } from "lucide-react";
-import { LABEL_FIELDS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
+import { LABEL_FIELDS, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader } from "./labels.js";
 import { searchStock } from "./stock.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -13,6 +13,18 @@ const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1.5 text-sm foc
 // ── The dark label card, data-driven over `lines` (screen render) ──────────────
 function LabelCard({ label, scale = 1 }) {
   const px = 96; // 1in ≈ 96 CSS px on screen
+  const variantLines = label.twoVariant ? label.lines.filter((l) => l.show && VARIANT_KEYS.includes(l.key)) : [];
+  const firstVariant = variantLines[0]?.key;
+  const variantCol = (fields) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      {variantLines.map((l) => (
+        <div key={l.key} style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em", color: "#9a9a9a", fontWeight: 700, lineHeight: 1 }}>{LABEL_OF[l.key]}</div>
+          <div style={{ lineHeight: 1.3, fontSize: l.size, fontFamily: l.key === "sku" ? "ui-monospace,monospace" : "inherit", wordBreak: "break-word" }}>{fields?.[l.key] || "—"}</div>
+        </div>
+      ))}
+    </div>
+  );
   return (
     <div style={{ width: label.w * px * scale, height: label.h * px * scale }}>
       <div style={{ width: `${label.w}in`, height: `${label.h}in`, transform: `scale(${scale})`, transformOrigin: "top left", background: "#1A1A1A", color: "#fff", borderRadius: 3, padding: "0.12in", fontFamily: "'Inter',sans-serif", display: "flex", flexDirection: "column", boxSizing: "border-box", overflow: "hidden" }}>
@@ -24,6 +36,16 @@ function LabelCard({ label, scale = 1 }) {
           const v = label.fields?.[l.key] || "";
           if (l.key === "name") return <div key={l.key} style={{ fontFamily: "'Oswald',sans-serif", fontSize: l.size, textTransform: "uppercase", letterSpacing: ".03em", lineHeight: 1.12, wordBreak: "break-word" }}>{v || "Tile Name"}</div>;
           if (l.key === "surface") return <span key={l.key} style={{ alignSelf: "flex-start", marginTop: 6, fontSize: 8, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: surfaceColor(v) }}>{v}</span>;
+          if (label.twoVariant && VARIANT_KEYS.includes(l.key)) {
+            if (l.key !== firstVariant) return null;
+            return (
+              <div key="variants" style={{ display: "flex", gap: 8 }}>
+                {variantCol(label.fields)}
+                <div style={{ width: 1, background: "rgba(255,255,255,.18)", marginTop: 6 }} />
+                {variantCol(label.fields2)}
+              </div>
+            );
+          }
           return (
             <div key={l.key} style={{ marginTop: 6 }}>
               <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em", color: "#9a9a9a", fontWeight: 700, lineHeight: 1 }}>{LABEL_OF[l.key]}</div>
@@ -37,7 +59,7 @@ function LabelCard({ label, scale = 1 }) {
 }
 
 // ── SKU lookup: single-pick fills the form, shift-click bulk-adds ──────────────
-function SkuLookup({ stock, onPick, onBulk }) {
+function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to fill…", hint = "Pick to fill · Shift-click to add as its own label" }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const results = useMemo(() => (open ? searchStock(stock, q).slice(0, 30) : []), [open, q, stock]);
@@ -49,7 +71,7 @@ function SkuLookup({ stock, onPick, onBulk }) {
     <div className="relative mb-1">
       <Search size={15} className="absolute left-2.5 top-2.5 text-slate-400" />
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className={inp + " pl-8"} placeholder="Search SKU or name to fill…" />
+        className={inp + " pl-8"} placeholder={placeholder} />
       {open && results.length > 0 && (
         <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-64 overflow-y-auto">
           {results.map((it) => (
@@ -61,7 +83,7 @@ function SkuLookup({ stock, onPick, onBulk }) {
               </div>
             </button>
           ))}
-          <div className="px-2.5 py-1.5 text-[11px] text-slate-400 bg-slate-50/60 border-t border-slate-100">Pick to fill · Shift-click to add as its own label</div>
+          <div className="px-2.5 py-1.5 text-[11px] text-slate-400 bg-slate-50/60 border-t border-slate-100">{hint}</div>
         </div>
       )}
     </div>
@@ -102,6 +124,10 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   // ── draft editing ──
   const patchDraft = (p) => setDraft((d) => ({ ...d, ...p }));
   const setField = (k, v) => setDraft((d) => ({ ...d, fields: { ...d.fields, [k]: v } }));
+  const setField2 = (k, v) => setDraft((d) => ({ ...d, fields2: { ...d.fields2, [k]: v } }));
+  // Turning two-variant on widens a still-narrow label so both columns fit
+  // (v3 went 1.5 -> 2in); turning it off leaves the width alone.
+  const setTwoVariant = (on) => setDraft((d) => ({ ...d, twoVariant: on, w: on ? Math.max(d.w, 2) : d.w }));
   const setLine = (key, p) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, ...p } : l) }));
   const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => l.key === key ? { ...l, size: clampSize(l.size + dir) } : l) }));
   const moveLine = (idx, dir) => setDraft((d) => {
@@ -114,6 +140,10 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const applyPreset = (p) => { setDraft(newDraftFromPreset(p)); setEditingId(null); };
   const fillFrom = (item) => setDraft((d) => ({ ...d, sku: item.sku || null, fields: { ...d.fields, ...stockToLabelFields(item) } }));
   const bulkFrom = (item) => onAddLabelsBulk([{ ...draft, sku: item.sku || null, fields: { ...draft.fields, ...stockToLabelFields(item) } }]);
+  const fillFrom2 = (item) => setDraft((d) => {
+    const f = stockToLabelFields(item);
+    return { ...d, fields2: Object.fromEntries(VARIANT_KEYS.map((k) => [k, f[k] || ""])) };
+  });
 
   const save = () => {
     if (!draft.fields.name.trim() && !draft.sku) return;
@@ -122,7 +152,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
     setEditingId(null);
   };
   const startNew = () => { setDraft(newDraftFromPreset(presets.find((p) => p.id === draft.presetId) || first)); setEditingId(null); };
-  const editLabel = (l) => { setDraft({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines.map((x) => ({ ...x })), fields: { ...l.fields }, sku: l.sku }); setEditingId(l.id); };
+  const editLabel = (l) => { setDraft({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines.map((x) => ({ ...x })), fields: { ...l.fields }, twoVariant: !!l.twoVariant, fields2: { ...l.fields2 }, sku: l.sku }); setEditingId(l.id); };
   const saveAsPreset = () => {
     const name = window.prompt("Name this size preset:", "");
     if (!name) return;
@@ -133,7 +163,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const view = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
     let out = labels.filter((l) => sizeFilter === "all" || l.presetId === sizeFilter);
-    if (q) out = out.filter((l) => [l.fields.name, l.fields.sku, l.fields.grout].join(" ").toLowerCase().includes(q));
+    if (q) out = out.filter((l) => [l.fields.name, l.fields.sku, l.fields.grout, l.twoVariant ? l.fields2?.sku : ""].join(" ").toLowerCase().includes(q));
     out = [...out].sort(sortBy === "az"
       ? (a, b) => (a.fields.name || "").localeCompare(b.fields.name || "")
       : (a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -221,6 +251,18 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Fill from stock book</div>
               <SkuLookup stock={stock} onPick={fillFrom} onBulk={bulkFrom} />
 
+              <label className="flex items-center gap-2 mt-3 text-xs text-slate-600 cursor-pointer select-none">
+                <input type="checkbox" checked={!!draft.twoVariant} onChange={(e) => setTwoVariant(e.target.checked)} className="accent-indigo-600" />
+                <span className="font-semibold">Second SKU / size / price</span>
+                <span className="text-slate-400">— two sizes on one label</span>
+              </label>
+              {draft.twoVariant && (
+                <div className="mt-2 pl-3 border-l-2 border-slate-100">
+                  <SkuLookup stock={stock} onPick={fillFrom2} onBulk={fillFrom2} placeholder="Search stock book to fill the 2nd column…" hint="Pick to fill the 2nd column" />
+                  <div className="text-[10px] text-slate-400 mt-0.5 mb-1">SKU, Size, and Price get a “2nd” box below; both columns print side by side.</div>
+                </div>
+              )}
+
               <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mt-5 mb-1">Label lines</div>
               <div className="text-[11px] text-slate-400 mb-2">Toggle, reorder, resize — then Save Label.</div>
               {draft.lines.map((l, idx) => {
@@ -243,7 +285,12 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                           ))}
                         </div>
                       ) : (
-                        <input value={draft.fields[l.key]} onChange={(e) => setField(l.key, e.target.value)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm mt-0.5" />
+                        <>
+                          <input value={draft.fields[l.key]} onChange={(e) => setField(l.key, e.target.value)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm mt-0.5" />
+                          {draft.twoVariant && VARIANT_KEYS.includes(l.key) && (
+                            <input value={draft.fields2[l.key]} onChange={(e) => setField2(l.key, e.target.value)} placeholder="2nd" className="w-full border border-slate-200 rounded-md px-2 py-1 text-sm mt-1" />
+                          )}
+                        </>
                       )}
                     </div>
                     {meta.kind !== "surface" && (

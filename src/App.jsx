@@ -3096,7 +3096,7 @@ export default function App({ user, onSignOut }) {
 
   // Labels write path (Apps → Label Generator). Mirrors the todos helpers but
   // pages with fetchAllRows since the shared set can exceed the 1000-row cap.
-  const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
+  const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, twoVariant: l.twoVariant, fields2: l.fields2, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
   const loadLabels = async () => {
     const rows = await fetchAllRows(() => supabase.from("labels").select("id, position, data").order("position"));
     return rows.map((r) => normLabel({ id: r.id, position: r.position ?? 0, ...(r.data || {}) }));

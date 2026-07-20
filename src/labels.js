@@ -28,6 +28,12 @@ export const LABEL_FIELDS = [
 const FIELD_KEYS = LABEL_FIELDS.map((f) => f.key);
 const isField = (k) => FIELD_KEYS.includes(k);
 
+// Two-variant labels (v3 port): one tile sold in two sizes shares a single
+// label — these fields get a second column (`fields2`) when `twoVariant` is on.
+// Label-level only; presets don't carry it.
+export const VARIANT_KEYS = ["sku", "size", "price"];
+const blankFields2 = () => Object.fromEntries(VARIANT_KEYS.map((k) => [k, ""]));
+
 export const DEFAULT_SIZES = { name: 16, surface: 9, sku: 11, size: 11, price: 11, grout: 10, brand: 10, thickness: 10, note: 10 };
 
 const line = (key, show, size) => ({ key, show, size });
@@ -91,6 +97,8 @@ export const normLabel = (raw) => {
   const fields = { ...blankFields() };
   for (const k of FIELD_KEYS) if (raw?.fields?.[k] != null) fields[k] = String(raw.fields[k]);
   if (!fields.surface) fields.surface = "Floor";
+  const fields2 = { ...blankFields2() };
+  for (const k of VARIANT_KEYS) if (raw?.fields2?.[k] != null) fields2[k] = String(raw.fields2[k]);
   return {
     id: str(raw?.id) || uid(),
     position: num(raw?.position, 0),
@@ -100,6 +108,8 @@ export const normLabel = (raw) => {
     header: raw?.header != null ? str(raw.header) : "Keim",
     lines: normLines(raw?.lines),
     fields,
+    twoVariant: raw?.twoVariant === true,
+    fields2,
     sku: raw?.sku ? str(raw.sku) : null,
     createdBy: str(raw?.createdBy),
     createdAt: num(raw?.createdAt, 0) || null,
@@ -111,6 +121,8 @@ export const newDraftFromPreset = (preset) => ({
   w: preset.w, h: preset.h, header: preset.header,
   lines: preset.lines.map((l) => ({ ...l })),
   fields: blankFields(),
+  twoVariant: false,
+  fields2: blankFields2(),
   sku: null,
 });
 
@@ -182,12 +194,23 @@ const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
 // unit-testable; without it the header always falls back to text.
 export const labelCardHTML = (label, { logoSrc } = {}) => {
   const val = (k) => escapeHtml(label.fields?.[k] || "");
+  const val2 = (k) => escapeHtml(label.fields2?.[k] || "");
   const header = logoSrc && isKeimHeader(label.header)
     ? `<img src="${escapeHtml(logoSrc)}" alt="Keim" style="height:14px;width:auto;align-self:flex-start;filter:brightness(0) invert(1);">`
     : `<div style="font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#fff;">${escapeHtml(label.header || "Keim")}</div>`;
+  // Two-variant: the shown variant lines render once, as a two-column block at
+  // the first variant line's spot; the other variant lines emit nothing.
+  const variantLines = label.twoVariant ? (label.lines || []).filter((l) => l.show && VARIANT_KEYS.includes(l.key)) : [];
+  const firstVariant = variantLines[0]?.key;
+  const variantCol = (get) => variantLines.map((l) => {
+    const mono = l.key === "sku" ? "font-family:ui-monospace,monospace;" : "";
+    return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}word-break:break-word;">${get(l.key) || "—"}</div></div>`;
+  }).join("");
+  const variantBlock = `<div style="display:flex;gap:8px;"><div style="flex:1;min-width:0;">${variantCol(val)}</div><div style="width:1px;background:rgba(255,255,255,.18);align-self:stretch;margin-top:6px;"></div><div style="flex:1;min-width:0;">${variantCol(val2)}</div></div>`;
   const body = (label.lines || []).filter((l) => l.show).map((l) => {
     if (l.key === "name") return `<div style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
     if (l.key === "surface") return `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>`;
+    if (label.twoVariant && VARIANT_KEYS.includes(l.key)) return l.key === firstVariant ? variantBlock : "";
     const mono = l.key === "sku" ? "font-family:ui-monospace,monospace;" : "";
     return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}">${val(l.key) || "—"}</div></div>`;
   }).join("");
