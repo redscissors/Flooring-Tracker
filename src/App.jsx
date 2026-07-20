@@ -7625,6 +7625,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   const [error, setError] = useState("");
   const [confirmDel, setConfirmDel] = useState(null); // { companyId, kind, productId }
   const [menuFor, setMenuFor] = useState(null); // company id with the ⋯ menu open
+  const menuBtns = useRef({}); // company id -> its ⋯ button, the open menu's DotMenu anchor
   const [showOthers, setShowOthers] = useState(false); // "Not in this section" group
   const [rename, setRename] = useState(null); // { value, error } — renaming the selected product
   const [coRename, setCoRename] = useState(null); // { id, value } — renaming a company inline
@@ -7754,7 +7755,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
   ];
 
   const companyHeader = (co) => (
-    <div className="px-3 py-1 flex items-center gap-2 relative">
+    <div className="px-3 py-1 flex items-center gap-2">
       {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
       {coRename?.id === co.id ? (
         <input autoFocus value={coRename.value} onChange={(e) => setCoRename({ id: co.id, value: e.target.value })}
@@ -7763,19 +7764,14 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
       ) : (
         <span className={`ft-eyebrow text-[9px] flex-1 truncate ${co.enabled ? "" : "opacity-50"}`}>{co.name}</span>
       )}
-      <button onClick={() => setMenuFor(menuFor === co.id ? null : co.id)} title="Company options" className={`shrink-0 ${menuFor === co.id ? "text-slate-600" : "text-slate-300 hover:text-slate-600"}`}><MoreHorizontal size={14} /></button>
-      {menuFor === co.id && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />
-          <div className="absolute right-2 top-6 z-20 w-48 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
-            {kindsFor.map((kind) => (
-              <button key={kind} onClick={() => { setMenuFor(null); startAdd(co.id, kind); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={12} className="text-slate-400" /> Add {kindLabel(kind)}</button>
-            ))}
-            <button onClick={() => { setMenuFor(null); setCoRename({ id: co.id, value: co.name }); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Pencil size={12} className="text-slate-400" /> Rename company</button>
-            {countAll(co) === 0 && <button onClick={() => { setMenuFor(null); onChange(removeCompany(catalog, co.id)); }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"><Trash2 size={12} /> Delete company</button>}
-          </div>
-        </>
-      )}
+      <button ref={(el) => { menuBtns.current[co.id] = el; }} onClick={() => setMenuFor(menuFor === co.id ? null : co.id)} title="Company options" className={`shrink-0 ${menuFor === co.id ? "text-slate-600" : "text-slate-300 hover:text-slate-600"}`}><MoreHorizontal size={14} /></button>
+      <DotMenu open={menuFor === co.id} onClose={() => setMenuFor(null)} anchorRef={{ get current() { return menuBtns.current[co.id]; } }} width={192}>
+        {kindsFor.map((kind) => (
+          <button key={kind} onClick={() => { setMenuFor(null); startAdd(co.id, kind); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={12} className="text-slate-400" /> Add {kindLabel(kind)}</button>
+        ))}
+        <button onClick={() => { setMenuFor(null); setCoRename({ id: co.id, value: co.name }); }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"><Pencil size={12} className="text-slate-400" /> Rename company</button>
+        {countAll(co) === 0 && <button onClick={() => { setMenuFor(null); onChange(removeCompany(catalog, co.id)); }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"><Trash2 size={12} /> Delete company</button>}
+      </DotMenu>
     </div>
   );
 
