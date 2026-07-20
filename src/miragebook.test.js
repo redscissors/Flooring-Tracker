@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth } from "./miragebook.js";
+import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate } from "./miragebook.js";
 
 // A PDF text item in the shape App.jsx's readPdfPages produces (y top-down).
 const it = (str, x, y, w = 10) => ({ str, x, y, w });
@@ -237,7 +237,99 @@ test("chart SKUs take their price from the sheets, later sheet winning an overla
 });
 
 test("the join survives the sheets and the chart spelling an axis differently", () => {
-  const chart = [{ collection: "Blanc", grade: "Character", color: "Natural", construction: "Classic", width: 'Herringbone 5"', sku: "42014" }];
-  const priced = [{ collection: "Blanc", grade: "Character", construction: 'Solid 3/4"', width: 'Herr. 5"', price: 8.59, sheet: "hw" }];
+  const chart = [{ collection: "Blanc", grade: "Character", color: "Natural", species: "White Oak", construction: "Classic", width: 'Herringbone 5"', sku: "42014" }];
+  const priced = [{ collection: "Blanc", grade: "Character", species: "White Oak", construction: 'Solid 3/4"', width: 'Herr. 5"', price: 8.59, sheet: "hw" }];
   assert.equal(priceChartRows(chart, priced).rows[0].price, 8.59);
+});
+
+// Admiration Exclusive sells in both Red Oak and Maple at the same width, and the
+// sheets price them $2.20/sq ft apart. Keyed without species, both SKUs take
+// whichever sheet row was written last — one of them silently quotes wrong.
+test("two species at one width keep their own prices", () => {
+  const chart = [
+    { collection: "Admiration", grade: "Exclusive", color: "Cape Cod", species: "Red Oak", construction: "TruBalance", width: '5"', sku: "36139" },
+    { collection: "Admiration", grade: "Exclusive", color: "Cape Cod", species: "Maple", construction: "TruBalance", width: '5"', sku: "36115" },
+  ];
+  const priced = [
+    { collection: "Admiration", grade: "Exclusive", species: "Red Oak", construction: 'TruBalance 3/4"', width: '5"', price: 9.29, sheet: "hw" },
+    { collection: "Admiration", grade: "Exclusive", species: "Maple", construction: 'TruBalance 3/4"', width: '5"', price: 11.49, sheet: "hw" },
+  ];
+  const { rows } = priceChartRows(chart, priced);
+  assert.equal(rows.find((r) => r.sku === "36139").price, 9.29);
+  assert.equal(rows.find((r) => r.sku === "36115").price, 11.49);
+});
+
+// The 2026 chart moved the species off the band row onto the texture row, as an
+// ALL-CAPS banner. Case is what distinguishes it from the texture beside it.
+test("a species printed as a banner above the widths is read", () => {
+  const page = [
+    it("TruBalance", 207, 10, 40),
+    it("MAPLE", 96, 22, 30), it("Smooth | DuraMatt®", 124, 22, 60), it("TM", 185, 22, 8),
+    it("5", 205, 28, 4), it('"', 210, 28, 3),
+    it("Grades", 68, 40), it("Colors", 115, 40),
+    it("Autumn", 54, 50), it("Ada", 115, 50), it("11111", 205, 50, 20),
+    it("Character", 67, 60), it("Bea", 115, 60), it("22222", 205, 60, 20),
+  ];
+  const { rows } = parseMirageChart([page]);
+  assert.equal(rows.length, 2);
+  // The texture and its trademark must not be mistaken for the species.
+  assert.deepEqual([...new Set(rows.map((r) => r.species))], ["Maple"]);
+  assert.deepEqual([...new Set(rows.map((r) => r.color))], ["Ada", "Bea"]);
+});
+
+// --- the whole book (ADR 0025 rule 7) ----------------------------------------
+
+const chartPayload = {
+  isPdf: true,
+  pages: [[
+    it("PRODUCT", 282, 6), it("CHART", 425, 6),
+    it("WHITE OAK", 89, 10, 40), it("TruBalance", 207, 10, 40),
+    it("5", 205, 20, 4), it('"', 210, 20, 3),
+    it("Grades", 68, 30), it("Colors", 115, 30),
+    it("Muse", 54, 40), it("Eleanor", 115, 40), it("72697", 205, 40, 20),
+    it("Character", 67, 50), it("Ada", 115, 50), it("72698", 205, 50, 20),
+  ]],
+};
+const floorPayload = (effective, price) => ({ sheets: [{ name: "Mirage", rows: [
+  ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"],
+  [`Effective: ${effective}`],
+  ["", "", "", "", 'TruBalance 3/4"'],
+  ["", "", "", "", '5"'],
+  ["", "", "Specie", "Grades", "Lengths 20 to 82\""],
+  ["Muse", "", "White Oak", "Character", `$${price}/SF`],
+] }] });
+
+test("the four documents collapse into one canonical sheet", () => {
+  const res = parseMirage([chartPayload, floorPayload("February 3, 2025", "9.99")]);
+  assert.equal(res.rows[0][0], "Item #");           // canonical header
+  assert.equal(res.meta.floors, 2);
+  const eleanor = res.rows.find((r) => r[0] === "72697");
+  assert.equal(eleanor[1], 'White Oak Eleanor — Character · TruBalance 5"');
+  assert.equal(eleanor[2], "Muse");                 // collection
+  assert.equal(eleanor[6], "9.99");                 // the joined price
+  assert.equal(eleanor[8], "hardwood");
+  assert.equal(res.mapping.columns[0], "sku");
+});
+
+// Which sheet supersedes the other is a question of DATE, not of argument order
+// or filename — a newly published Value Tower must win the moment it arrives.
+test("the later-dated price sheet wins, whatever order the files arrive in", () => {
+  const older = floorPayload("February 3, 2025", "9.99");
+  const newer = floorPayload("July 13th, 2026", "10.29");
+  assert.equal(effectiveDate(newer.sheets) > effectiveDate(older.sheets), true);
+  for (const set of [[chartPayload, older, newer], [newer, chartPayload, older]]) {
+    const res = parseMirage(set);
+    assert.equal(res.rows.find((r) => r[0] === "72697")[6], "10.29");
+  }
+});
+
+test("a set with no Mirage file falls through instead of claiming it", () => {
+  assert.equal(parseMirage([{ sheets: [{ name: "x", rows: [["Item Code", "Dealer Price"]] }] }]), null);
+  assert.equal(parseMirage([]), null);
+});
+
+test("a bundle missing the chart says so rather than importing a colourless book", () => {
+  const res = parseMirage([floorPayload("July 13th, 2026", "10.29")]);
+  assert.equal(res.meta.floors, 0);
+  assert.match(res.warnings.join(" "), /Product Chart is missing/i);
 });

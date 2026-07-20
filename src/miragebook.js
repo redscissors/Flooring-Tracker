@@ -253,15 +253,28 @@ function parseBlocks(rows) {
         above.push(rr);
       }
       const parts = [];
+      const gathered = [];
       for (const rr of above.reverse()) {
         // Stitch the inch mark back onto its number WITHIN a row, never across
         // one — the next row's first item is a new column, not this one's mark.
         let prevPart = null;
         for (const it of rr.items) {
           if (/^["']$/.test(it.s) && prevPart) { prevPart.s += '"'; continue; }
-          prevPart = { s: it.s, cx: it.cx };
+          prevPart = { s: it.s, cx: it.cx, x: it.x };
           parts.push(prevPart);
+          gathered.push(prevPart);
         }
+      }
+      // The 2026 chart moved the species off the band row and onto the texture
+      // row, as an ALL-CAPS banner left of the colours ("MAPLE", "RED OAK",
+      // then "Smooth | DuraMatt®"). Without it 960 of 968 rows carry no species,
+      // and species is the ONLY thing separating some Admiration SKUs — where
+      // the price sheets differ by $2.20/sq ft between Red Oak and Maple.
+      // Case is what tells the banner from its texture; the width bound keeps
+      // the trademark "TM" that trails a texture out of it.
+      if (!cur.species) {
+        const banner = gathered.find((g) => g.x < cols.color - 10 && /^[A-Z][A-Z ]{2,}$/.test(g.s));
+        if (banner) cur.species = titleCase(banner.s);
       }
       // Gathering several rows means non-width text comes along (a species
       // banner, the bare qualifiers), so a width must now LOOK like one rather
@@ -443,7 +456,8 @@ export function parseMirageFlooring(sheets) {
 // Chart SKUs priced from the flooring sheets. The chart is the spine — it alone
 // knows the colours — and a price is looked up per (collection, grade,
 // construction, width). Where the two sheets overlap the LATER effective date
-// wins, which is why the caller passes Value Tower first and Hardwood second.
+// wins, which is why the caller passes the sheets oldest-first (parseMirage
+// orders them by their own `Effective:` line).
 //
 // A chart SKU with no price is DROPPED, not carried at zero: an order item's
 // cost drives the quote, so a priceless row would quote $0 rather than fail
@@ -452,8 +466,15 @@ export function parseMirageFlooring(sheets) {
 // so a chart older than the current sheet still lists widths that have since
 // been dropped.
 export function priceChartRows(chartRows, priceRows) {
+  // SPECIES IS PART OF THE KEY. Admiration Exclusive sells in both Red Oak and
+  // Maple, at $9.29 and $11.49 for the same TruBalance 5" — and 27 chart rows
+  // differ by nothing else. Keyed without it, both SKUs silently take whichever
+  // sheet row was written last, and one of them quotes ~$2/sq ft wrong.
+  // The chart and the sheets spell species identically, so no mapping is needed;
+  // construction and width are the only axes that had to be normalized.
   const key = (r) =>
-    [str(r.collection).toLowerCase(), str(r.grade).toLowerCase(), normConstruction(r.construction), normWidth(r.width)].join("|");
+    [str(r.collection).toLowerCase(), str(r.grade).toLowerCase(), str(r.species).toLowerCase(),
+      normConstruction(r.construction), normWidth(r.width)].join("|");
   const byKey = new Map();
   for (const p of priceRows || []) byKey.set(key(p), p); // last writer wins
   const rows = [], unpriced = [];
@@ -463,4 +484,108 @@ export function priceChartRows(chartRows, priceRows) {
     else unpriced.push(c);
   }
   return { rows, unpriced };
+}
+
+// ---- the whole book, from all four files ------------------------------------
+// ADR 0025 rule 7: a parser may consume SEVERAL files and collapse them into one
+// canonical sheet + mapping, the same contract parseOvf and parsePdfPages meet
+// for one file. Everything downstream — sheet picker, mapping controls, diff,
+// apply — is untouched.
+//
+// Mirage needs it because the chart and the price sheets must be JOINED: the
+// chart carries identity with no prices, the sheets carry prices with no colours,
+// and the write path is a SKU-keyed upsert, so no sequence of single-file imports
+// can express the join.
+
+const MIRAGE_BRAND = "Mirage";
+
+const titleCase = (s) => str(s).replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+// "Effective: July 13th, 2026" -> a sortable timestamp.
+//
+// WHICH SHEET SUPERSEDES THE OTHER IS A QUESTION OF DATE, not of filename or
+// argument order. Hardwood happens to be newer than Value Tower today (2026-07-13
+// vs 2025-02-03), which is why the owner's rule reads "Hardwood supersedes Value
+// Tower" — but that is an observation about the current editions, not a property
+// of the sheets. Reading the date means a freshly published Value Tower wins the
+// moment it arrives, with nothing to remember.
+export function effectiveDate(sheets) {
+  for (const sh of sheets || []) {
+    for (const row of (sh?.rows || []).slice(0, 8)) {
+      for (const c of row || []) {
+        const m = /effective:\s*([A-Za-z]+\s+\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})/i.exec(str(c));
+        if (!m) continue;
+        const t = Date.parse(`${m[1]}, ${m[2]}`);
+        if (!Number.isNaN(t)) return t;
+      }
+    }
+  }
+  return null;
+}
+
+// The canonical column order, shared with the mapping below. Same shape the OVF
+// books emit, so the wizard treats a Mirage bundle like any other pre-resolved
+// sheet.
+const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
+
+export const MIRAGE_MAPPING = {
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand", 11: "fits" },
+  headerRow: 0,
+  skuPattern: "^\\d{5}[A-Z]?$",
+  defaultType: "",
+  groupBy: "productLine",
+};
+
+// A floor's shelf name. Construction and width are what a salesperson is actually
+// choosing between, and grade is what moves the price, so all three stay visible
+// rather than hiding in the columns.
+const floorName = (r) => {
+  const who = [titleCase(r.species), r.color].filter(Boolean).join(" ").trim() || r.color;
+  const spec = [r.grade, [r.construction, r.width].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+  return spec ? `${who} — ${spec}` : who;
+};
+
+export function parseMirage(payloads, name = "Mirage price book") {
+  const tagged = (payloads || []).map((p) => ({ p, kind: mirageFileKind(p || {}) }));
+  // Not a Mirage set at all: the caller falls through to the single-file path,
+  // exactly as parseOvf's null does.
+  if (!tagged.some((t) => t.kind)) return null;
+
+  const warnings = [];
+  const chartAt = tagged.find((t) => t.kind === "mirage-chart");
+  const floorAt = tagged.filter((t) => t.kind === "mirage-flooring");
+  const trimAt = tagged.filter((t) => t.kind === "mirage-trim");
+
+  const chart = chartAt ? parseMirageChart(chartAt.p.pages) : { rows: [], warnings: [] };
+  warnings.push(...chart.warnings);
+
+  // Oldest first, so the newest sheet is the last writer in priceChartRows.
+  // A sheet with no readable date sorts oldest — it loses an overlap rather than
+  // silently overwriting a sheet we CAN date.
+  const priceRows = [];
+  for (const o of floorAt.map((t) => ({ t, at: effectiveDate(t.p.sheets) })).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))) {
+    const r = parseMirageFlooring(o.t.p.sheets);
+    priceRows.push(...r.rows);
+    if (!r.rows.length) warnings.push(...r.warnings);
+  }
+
+  const { rows: priced, unpriced } = priceChartRows(chart.rows, priceRows);
+
+  const out = [CANON.slice()];
+  for (const r of priced) {
+    out.push([r.sku, floorName(r), r.collection, r.color, r.width, "",
+      r.price != null ? String(r.price) : "", "SF", "hardwood", "", MIRAGE_BRAND, ""]);
+  }
+
+  // The gaps are stated, not swallowed. A Mirage book silently missing its
+  // colours or its prices looks like a working import of a smaller book.
+  if (!chartAt) warnings.push("The Mirage Product Chart is missing. It is the only document that carries colours and floor SKUs, so no floors can be built from the price sheets alone.");
+  if (!floorAt.length) warnings.push("No Mirage flooring price sheet in this set — every chart SKU would be unpriced, and unpriced rows are dropped.");
+  if (unpriced.length) warnings.push(`${unpriced.length} chart SKUs had no price in these sheets and were dropped. Expect some: the chart and the sheets are published on different dates, so an older chart still lists widths the current sheets no longer carry.`);
+  if (trimAt.length) warnings.push("The Mirage trim sheet is not parsed yet, so its mouldings and stair parts are not in this import.");
+
+  return {
+    name, rows: out, mapping: { ...MIRAGE_MAPPING }, warnings,
+    meta: { floors: priced.length, unpriced: unpriced.length, chart: chart.rows.length, prices: priceRows.length },
+  };
 }
