@@ -7,7 +7,7 @@ import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
-import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads } from "./dropimport.js";
+import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captureHandoff, clearHandoff, captureHandoffSession, clearHandoffSession, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
@@ -5291,31 +5291,6 @@ export function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-// Add a file to the pass that is already open, with no gap needing to be
-// detected first. GateGap can only ask for what a book's manifest already knows
-// about, and a manifest is recorded BY USE — so the first import of a multi-file
-// book has nothing to be short of, and the gate cannot bootstrap itself. This is
-// how the set gets assembled that one time; after it, the gate does the asking.
-// Deliberately untargeted: the added file routes like any other, so an
-// unfamiliar one lands with its own "pick a book" chooser rather than being
-// forced somewhere by where it was dropped. Exported for the preview harness.
-export function AddFileRow({ onAdd }) {
-  const [over, setOver] = useState(false);
-  const pick = useRef(null);
-  return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); onAdd(e.dataTransfer?.files); }}
-      onClick={() => pick.current?.click()}
-      className={"mt-2 cursor-pointer rounded-lg border border-dashed px-3 py-2.5 text-center text-[11.5px] " + (over ? "border-indigo-400 bg-indigo-50/70 text-indigo-700" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-500")}
-    >
-      Add a file — drop here, or click to choose
-      <input ref={pick} type="file" multiple accept=".xlsx,.xls,.pdf" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
-    </div>
-  );
-}
-
 export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
@@ -5365,9 +5340,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileD
     const added = [];
     for (const f of picked) {
       const r = await readRow(f);
-      // No `to` = the untargeted "Add a file" row: keep the file's own routing,
-      // so an unfamiliar one shows its chooser instead of silently taking a book.
-      added.push(r.error || !to ? r : { ...r, target: to, reason: "added here to complete this book" });
+      added.push(r.error ? r : { ...r, target: to, reason: "added here to complete this book" });
     }
     setRows((rs) => [...(rs || []), ...added]);
   };
@@ -5414,9 +5387,17 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileD
     const gaps = (rows || []).length ? registryBooks.flatMap((b) => {
       const mine = (rows || []).filter((r) => !r.error && r.target === b.id);
       const manifest = b.data?.sources || [];
-      if (!mine.length || manifest.length < 2) return [];
+      // The <2 guard keeps a single-file book from ever nagging. A DECLARED slot
+      // is an explicit statement that the book needs more, so it outranks the
+      // guard — otherwise the first import, when the manifest holds only the
+      // declaration, is exactly the one that fails to ask.
+      if (!mine.length || (manifest.length < 2 && !manifest.some((s) => s?.pending))) return [];
       const missing = missingSources(manifest, mine.map((r) => r.slot));
-      return missing.length ? [{ book: b, have: mine.length, total: manifest.length, missing }] : [];
+      // What the book expects is what is in hand plus what is short of it — NOT
+      // the manifest's length, which counts only files an import has already
+      // recorded. A declared slot on a never-imported book made that read "2 of
+      // 1". For an established book the two agree.
+      return missing.length ? [{ book: b, have: mine.length, total: mine.length + missing.length, missing }] : [];
     }) : [];
     return (
       <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
@@ -5444,7 +5425,6 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileD
               ))}
             </div>
           )}
-          {rows != null && <AddFileRow onAdd={(list) => addFiles(list)} />}
           {gaps.map(({ book, have, total, missing }) => (
             <GateGap key={book.id} book={book} have={have} total={total} missing={missing} onAdd={(list) => addFiles(list, book.id)} inp={inp} />
           ))}
@@ -6621,6 +6601,57 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
 // its list across flooring / trim / product-chart files), so this renders one
 // row per sheet with its own Refresh or Review action, plus a header that acts
 // on all of them. Exported for the preview harness.
+// The files this book is fed BY HAND, stated up front rather than learned from an
+// import (ADR 0025 amendment). A book whose other sheets arrive by fetch has no
+// other way to say so: sources are recorded by use, so without this the book
+// must first be imported wrongly — short its hand-supplied document — before the
+// completeness gate can learn the document was ever part of it.
+//
+// Declared entries show as promises. Once a real file redeems one, it appears
+// here as an ordinary source, listed by the name it was asked for.
+export function ManualSourcesCard({ sources, onDeclare, onUndeclare, inp }) {
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const manual = (sources || []).filter((s) => s?.kind === "manual");
+  const add = () => { onDeclare(label); setLabel(""); setAdding(false); };
+  return (
+    // bg-slate-50/50, not /60: index.css remaps the /50 and bare variants to a
+    // dark surface, but not /60 — which stays literally white while slate inks
+    // are remapped near-white, leaving the card unreadable in dark mode.
+    <div className="mt-3 max-w-xl rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Added by hand</span>
+        {!adding && <button onClick={() => setAdding(true)} className="text-[11px] font-medium text-slate-500 hover:text-slate-700">+ Needs another file</button>}
+      </div>
+      {manual.length === 0 && !adding && (
+        <p className="mt-1 text-[11px] text-slate-400">Nothing. Say so here if this book also needs a file you supply yourself — a chart or spec sheet the portal doesn’t serve — and every refresh will ask for it.</p>
+      )}
+      <div className="mt-1 space-y-1">
+        {manual.map((s) => (
+          <div key={s.id} className="flex items-center gap-2 text-[12px]">
+            <FileText size={13} className={s.pending ? "text-slate-300 shrink-0" : "text-slate-400 shrink-0"} />
+            <span className="min-w-0 flex-1 truncate">
+              {s.pending ? s.label : (s.declaredAs || s.label)}
+              {!s.pending && <span className="text-[10.5px] text-slate-400"> · {s.label}</span>}
+            </span>
+            {s.pending
+              ? <span className="shrink-0 text-[10.5px] text-slate-400">asked for at every import</span>
+              : <span className="shrink-0 text-[10.5px] text-slate-400">last seen {s.lastSeen ? new Date(s.lastSeen).toLocaleDateString() : "—"}</span>}
+            {s.pending && <button onClick={() => onUndeclare(s.id)} className="shrink-0 text-[10.5px] text-slate-400 hover:text-red-600">remove</button>}
+          </div>
+        ))}
+      </div>
+      {adding && (
+        <div className="mt-2 flex items-center gap-2">
+          <input autoFocus className={`${inp} text-xs`} placeholder="What is it? e.g. Product Chart" value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <button onClick={add} className="shrink-0 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-indigo-700">Add</button>
+          <button onClick={() => { setAdding(false); setLabel(""); }} className="shrink-0 text-[11px] text-slate-400 hover:text-slate-600">Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SourceSheetStrip({ sources, pendingSources, stale: st, lastImportAt, pendingOf, liveOf, onRefresh, onReview }) {
   if (!sources?.length) return null;
   return (
@@ -6799,6 +6830,12 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
       )}
 
       <SourceSheetStrip sources={sources} pendingSources={pendingSources} stale={st} lastImportAt={li?.at} pendingOf={sourcePendingOf} liveOf={sourceLiveOf} onRefresh={onRefreshSheet} onReview={onReviewSheet} />
+      <ManualSourcesCard
+        sources={book.data?.sources}
+        inp={inp}
+        onDeclare={(label) => updateBook(book.id, { dataPatch: { sources: declareManualSource(book.data?.sources, label) } })}
+        onUndeclare={(id) => updateBook(book.id, { dataPatch: { sources: undeclareManualSource(book.data?.sources, id) } })}
+      />
 
       <div className="flex items-center gap-2 mt-3">
         <button onClick={() => setWizard("replace")} title="Import a file as this book's full contents — anything missing from it retires" className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>

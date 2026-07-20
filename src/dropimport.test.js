@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads } from "./dropimport.js";
+import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 
 const stockSheets = [{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }];
 const vtcSheets = [{ name: "EFT", rows: [
@@ -339,4 +339,48 @@ test("stepPayloads hands an ordinary step its one file", () => {
   assert.equal(steps.length, 2, "unjoined files walk one at a time");
   assert.deepEqual(stepPayloads(steps[0]), { sheets: [{ name: "S", rows: [["a"]] }] });
   assert.deepEqual(stepPayloads(steps[1]), { sheets: [{ name: "S", rows: [["b"]] }] });
+});
+
+// A declared slot (ADR 0025 amendment): the book states it is also fed a file by
+// hand, BEFORE any import has seen that file. Without it, a book whose other
+// sheets arrive by fetch cannot be assembled until after a wrong import.
+const fetchSlot = (key, label) => sourceSlot({ recordKey: key, name: label });
+const chartSlot = sourceSlot({ fingerprint: { format: "mirage-chart", headerSig: "", titleSig: "" }, name: "chart.pdf" });
+
+test("a declared slot makes the gate ask on the FIRST import, not the second", () => {
+  const declared = declareManualSource([fetchSlot("ovf:hw", "hardwood.xls")], "Product Chart");
+  assert.equal(declared.length, 2);
+  assert.equal(declared[1].pending, true);
+  assert.equal(declared[1].label, "Product Chart");
+
+  // The fetched sheet alone: the promise is outstanding, so the gate asks.
+  const short = missingSources(declared, [fetchSlot("ovf:hw", "hardwood.xls")]);
+  assert.equal(short.length, 1);
+  assert.equal(short[0].label, "Product Chart");
+
+  // Hand the chart over and nothing is missing — a declared slot has no
+  // fingerprint, so any unaccounted manual file satisfies it.
+  assert.deepEqual(missingSources(declared, [fetchSlot("ovf:hw", "hardwood.xls"), chartSlot]), []);
+});
+
+test("importing the declared file redeems the promise instead of doubling it", () => {
+  const declared = declareManualSource([fetchSlot("ovf:hw", "hardwood.xls")], "Product Chart");
+  const after = mergeSources(declared, [fetchSlot("ovf:hw", "hardwood.xls"), chartSlot], 1000);
+
+  assert.equal(after.length, 2, "the promise became the real slot, it did not sit beside it");
+  const chart = after.find((s) => s.kind === "manual");
+  assert.equal(chart.id, chartSlot.id, "now keyed on the file's real fingerprint");
+  assert.equal(chart.pending, false);
+  assert.equal(chart.declaredAs, "Product Chart", "what it was asked for as, kept");
+
+  // And from here it behaves like any recorded slot: absent ⇒ named as missing.
+  assert.deepEqual(missingSources(after, [fetchSlot("ovf:hw", "hardwood.xls")]).map((s) => s.id), [chartSlot.id]);
+});
+
+test("two declared slots need two hand-supplied files", () => {
+  const two = declareManualSource(declareManualSource([fetchSlot("k", "a.xls")], "Chart"), "Spec sheet");
+  assert.deepEqual(two.map((s) => s.id).slice(1), ["manual:pending:1", "manual:pending:2"]);
+  assert.equal(missingSources(two, [fetchSlot("k", "a.xls")]).length, 2);
+  assert.equal(missingSources(two, [fetchSlot("k", "a.xls"), chartSlot]).length, 1);
+  assert.equal(undeclareManualSource(two, "manual:pending:2").length, 2);
 });
