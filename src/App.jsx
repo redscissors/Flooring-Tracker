@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, LockOpen, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
@@ -22,8 +22,11 @@ import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, ti
 import { normName, matchName } from "./names.js";
 import { expand } from "./synonyms.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary, seedFromQuery as sheogaSeed, normBasketEntry, multiWidthLineItems } from "./sheoga.js";
-import SheogaConfigurator from "./SheogaConfigurator.jsx";
-import { AppsWorkspace } from "./AppsWorkspace.jsx";
+// Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
+// feature work on them stops growing the boot download. Both are conditional
+// overlays; a null Suspense fallback reads as normal open latency.
+const SheogaConfigurator = lazy(() => import("./SheogaConfigurator.jsx"));
+const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ default: m.AppsWorkspace })));
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -4777,6 +4780,7 @@ export default function App({ user, onSignOut }) {
       )}
 
       {showApps && (
+        <Suspense fallback={null}>
         <AppsWorkspace
           onClose={() => setShowApps(false)}
           stock={stock}
@@ -4795,6 +4799,7 @@ export default function App({ user, onSignOut }) {
             addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
           }}
         />
+        </Suspense>
       )}
 
       {showTodos && (
@@ -4811,6 +4816,7 @@ export default function App({ user, onSignOut }) {
         const row = sel.categories.find((x) => x.id === sheogaPop.aid)?.products.find((x) => x.id === sheogaPop.pid);
         if (!row) { return null; }
         return (
+          <Suspense fallback={null}>
           <SheogaConfigurator seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
@@ -4822,6 +4828,7 @@ export default function App({ user, onSignOut }) {
             onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onClose={() => setSheogaPop(null)} />
+          </Suspense>
         );
       })()}
 
