@@ -88,6 +88,55 @@ function pageRows(page) {
 
 const rowText = (r) => r.items.map((i) => i.s).join(" ");
 
+// Split a page into independently-parsable regions.
+//
+// Later charts print two unrelated tables side by side, so one printed LINE can
+// carry two different products ("Laguna (Natural) … 40193 | Windsor 42900").
+// Read as single rows they merge, and a table inherits its neighbour's bands.
+//
+// A page-wide column split does not work either: the gutter moves down the page
+// (x≈470–520 is empty beside the top tables and full of data lower down). What
+// makes it tractable is that the page is built from horizontal SECTIONS whose
+// bottoms line up even when their tops do not — so: cut into sections on the
+// vertical gaps between SKU rows first, then look for a left/right gutter WITHIN
+// each section, where it is constant.
+export function chartRegions(page) {
+  const items = (page || []).filter((i) => str(i.str));
+  const skus = items.filter((i) => isSku(i.str));
+  if (!skus.length) return [items];
+  const ys = [...new Set(skus.map((i) => i.y))].sort((a, b) => a - b);
+  const bands = [];
+  let run = [ys[0]];
+  for (let i = 1; i < ys.length; i++) {
+    if (ys[i] - ys[i - 1] > 25) { bands.push(run); run = []; }
+    run.push(ys[i]);
+  }
+  bands.push(run);
+
+  const regions = [];
+  let top = -Infinity;
+  for (const b of bands) {
+    const hi = b[b.length - 1] + 4;
+    const zone = items.filter((i) => i.y > top && i.y <= hi);
+    top = hi;
+    const zoneSkus = zone.filter((i) => isSku(i.str));
+    const xs = [...new Set(zoneSkus.map((i) => i.x))].sort((a, b) => a - b);
+    let cutIdx = -1, widest = 0;
+    for (let i = 1; i < xs.length; i++) {
+      const gap = xs[i] - xs[i - 1];
+      if (gap > widest) { widest = gap; cutIdx = i; }
+    }
+    if (widest < 60 || cutIdx < 1) { regions.push(zone); continue; }
+    // Cut just past the left table's last column, NOT at the midpoint of the
+    // gap: the right table's own labels (species, colour) sit well left of its
+    // SKUs, and a midpoint cut hands them to the left table.
+    const leftEdge = Math.max(...zoneSkus.filter((i) => i.x <= xs[cutIdx - 1]).map((i) => i.x + (i.w || 0)));
+    const cut = leftEdge + 15;
+    regions.push(zone.filter((i) => i.x < cut), zone.filter((i) => i.x >= cut));
+  }
+  return regions;
+}
+
 // The chart's columns are grouped under construction bands (TruBalance 3/4" /
 // TruBalance Lite 9/16" / Lock 7/16" / Classic). A band label is centred over the
 // columns it spans, so the bands partition the widths into contiguous runs: pick
@@ -247,21 +296,23 @@ export function parseMirageChart(pages) {
   const out = [];
   const warnings = [];
   for (const page of pages || []) {
-    for (const b of parseBlocks(pageRows(page))) {
-      if (!b.widths.length || !b.colorRows.length) continue;
-      assignGroups(b);
-      const runs = bandRuns(b.bands, b.widths);
-      for (const cr of b.colorRows) {
-        for (const it of cr.skus) {
-          const w = nearest(b.widths, it.cx);
-          out.push({
-            collection: b.collection,
-            // A per-row species column (the cork collection) is more specific
-            // than the block banner's "Red Oak / Brushed Cashmere®".
-            species: cr.species || b.species,
-            grade: cr.grade, color: cr.color,
-            construction: runs.get(w) || "", width: w?.label || "", sku: it.s,
-          });
+    for (const region of chartRegions(page)) {
+      for (const b of parseBlocks(pageRows(region))) {
+        if (!b.widths.length || !b.colorRows.length) continue;
+        assignGroups(b);
+        const runs = bandRuns(b.bands, b.widths);
+        for (const cr of b.colorRows) {
+          for (const it of cr.skus) {
+            const w = nearest(b.widths, it.cx);
+            out.push({
+              collection: b.collection,
+              // A per-row species column (the cork collection) is more specific
+              // than the block banner's "Red Oak / Brushed Cashmere®".
+              species: cr.species || b.species,
+              grade: cr.grade, color: cr.color,
+              construction: runs.get(w) || "", width: w?.label || "", sku: it.s,
+            });
+          }
         }
       }
     }
