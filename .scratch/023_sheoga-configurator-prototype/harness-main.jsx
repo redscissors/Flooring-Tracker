@@ -7,7 +7,8 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "/src/index.css";
-import { GridOmniSearch, MobileSearchSheet } from "/src/App.jsx";
+import { GridOmniSearch } from "/src/grid.jsx";
+import { MobileSearchSheet } from "/src/mobile.jsx";
 import SheogaConfigurator from "/src/SheogaConfigurator.jsx";
 import { normStockItem } from "/src/stock.js";
 import { seedFromQuery } from "/src/sheoga.js";

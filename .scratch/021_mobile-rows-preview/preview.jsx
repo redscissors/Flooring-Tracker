@@ -12,7 +12,8 @@ import { Menu, MoreHorizontal, Printer, Plus } from "lucide-react";
 import "../../src/index.css";
 import { num, normalizeSettings } from "../../src/catalog.js";
 import { normStockItem, stockPatch, groutFamilies } from "../../src/stock.js";
-import { MobileProductRow, MobileRowSheet, TIER_COLOR } from "../../src/App.jsx";
+import { MobileProductRow, MobileRowSheet } from "../../src/mobile.jsx";
+import { TIER_COLOR } from "../../src/uiconst.js";
 import NedMark from "../../src/NedMark.jsx";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
