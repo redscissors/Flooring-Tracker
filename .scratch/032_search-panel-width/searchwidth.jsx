@@ -6,7 +6,8 @@
 // shipped (lives in .scratch).
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { GridOmniSearch, MobileSearchSheet } from "../../src/App.jsx";
+import { GridOmniSearch } from "../../src/grid.jsx";
+import { MobileSearchSheet } from "../../src/mobile.jsx";
 import "../../src/index.css";
 
 const STOCK = [

@@ -11,7 +11,9 @@ import { Save, History, ClipboardList, Trash2, Copy, Printer, Plus } from "lucid
 import "../../src/index.css";
 import { num, getCarton, getPieceCarton, getGrout, getMortar } from "../../src/catalog.js";
 import { tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing, normPrintPricing } from "../../src/pricing.js";
-import { SegBar, FilesPop, GridPriceCell, TIER_COLOR } from "../../src/App.jsx";
+import { SegBar, FilesPop } from "../../src/widgets.jsx";
+import { GridPriceCell } from "../../src/grid.jsx";
+import { TIER_COLOR } from "../../src/uiconst.js";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });

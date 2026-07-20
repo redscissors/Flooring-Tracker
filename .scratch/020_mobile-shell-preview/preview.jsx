@@ -11,7 +11,9 @@ import { Menu, MoreHorizontal, Printer, Plus, Save, History, ClipboardList, Tras
 import "../../src/index.css";
 import { num } from "../../src/catalog.js";
 import { normPricing } from "../../src/pricing.js";
-import { SegBar, MobileSheet, TIER_COLOR } from "../../src/App.jsx";
+import { SegBar } from "../../src/widgets.jsx";
+import { MobileSheet } from "../../src/mobile.jsx";
+import { TIER_COLOR } from "../../src/uiconst.js";
 import NedMark from "../../src/NedMark.jsx";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

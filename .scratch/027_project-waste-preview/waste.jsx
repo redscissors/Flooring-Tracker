@@ -6,7 +6,9 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
 import { normalizeSettings, withProjWaste, projWaste, getCarton, getGrout } from "../../src/catalog.js";
-import { SegBar, WasteBar, wasteNote, wasteMeta, TIER_COLOR } from "../../src/App.jsx";
+import { SegBar, WasteBar } from "../../src/widgets.jsx";
+import { wasteNote, wasteMeta } from "../../src/model.js";
+import { TIER_COLOR } from "../../src/uiconst.js";
 
 const settings = normalizeSettings({ waste: { tile: 10, floor: 5 } });
 
