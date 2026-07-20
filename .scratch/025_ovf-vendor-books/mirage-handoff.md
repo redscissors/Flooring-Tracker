@@ -1,6 +1,6 @@
 # Mirage import — handoff (2026-07-20)
 
-Status: **parsing is clean and the four files join into one book; the router/wizard wiring is what remains before any of it is reachable from the UI.**
+Status: **complete — all four documents import as one book (1759 items: 954 floors + 805 trims), reachable from the UI.**
 
 ## Start here
 
@@ -9,7 +9,7 @@ Status: **parsing is clean and the four files join into one book; the router/wiz
 2. Branch fresh off `main`. **Branch every PR off `main`.** Stacking cost us
    three re-lands (#174→#176, #179→#180, #181 merged only its first commit →
    #184).
-3. `npm test` — 546 passing.
+3. `npm test` — 560 passing.
 
 ## Where the work stands
 
@@ -24,10 +24,10 @@ Status: **parsing is clean and the four files join into one book; the router/wiz
 | #181 | Mirage detectors + the 2025 Product Chart parser |
 | #184 | flooring price parsers, the chart→price join, 2026 chart layout, region segmentation |
 | #185 | the split-baseline width fix — **its FIRST commit only**, see below |
+| #186 | `parseMirage(payloads)` + the species join-key fix |
 
 ### Open
-- **#186** — `parseMirage(payloads)` (ADR 0025 rule 7) + the species join-key
-  fix. Parser-only; nothing calls it yet.
+- **#187** — the UI wiring, Value Tower's Lakeside colours, and the trim sheet.
 
 > **#185 merged only its first commit**, exactly as #181 did. Its later two
 > commits never reached `main` and were re-landed as #186 off `main`. The PR
@@ -93,29 +93,98 @@ Lessons that generalize:
 - A count of rows "missing" a field is a weak signal; a count of rows that
   **collide** once that field is dropped is the strong one.
 
+## The track is complete (2026-07-20)
+
+All four documents now import as one book: **1759 items — 954 floors + 805 trims.**
+
+| piece | where | state |
+|---|---|---|
+| chart parser | `parseMirageChart` | both editions, 0 rows missing a field |
+| price sheets | `parseMirageFlooring` | both, side-by-side tables included |
+| the join | `priceChartRows` | keyed incl. species |
+| multi-file entry | `parseMirage(payloads)` | ADR 0025 rule 7 |
+| UI wiring | `bundleByBook` + `ingest` | 4 files → 1 review pass |
+| Lakeside | `parseMirageColorGrid` | 6 colours at $4.99 |
+| Natural | `parseMirageFloorSkus` | 12 floors, and its trims now link |
+| trims | `parseMirageTrim*` | 805 priced, 668 carrying `fits` |
+
+### Lakeside is Escape Traditional under another name
+
+Owner-confirmed 2026-07-20. The two halves look like separate products and are
+useless apart: the price grid sells **Lakeside / Red Oak / Traditional / Classic
+3/4" / 3-1/4" at $4.99** with no SKUs; the colour grid lists **Escape /
+Traditional** with six colours and no price. Same species, grade, construction
+and width — only the collection name differs. `aliasCollection` rejoins them, and
+Lakeside is the name that goes on the order.
+
+### Value Tower is consulted for Lakeside ONLY
+
+`GRID_ONLY_COLLECTIONS`. Deliberately a named collection, not "anything the chart
+lacks": the grid carries its own sheet's date (Feb 2025 against a Feb 2026
+chart), so a general merge readmits **243 discontinued items, priced**. A
+"collections the chart doesn't cover" rule looks identical today and quietly
+becomes that the first time a collection is retired. Add the next chart-less
+collection here on purpose.
+
+### The side-by-side table in the .xls
+
+`parseMirageFlooring` read the collection from column 0 — true only of the
+LEFT-hand table. The Hardwood sheet prints a second table at columns 10-15, which
+is where **Elemental** lives, so Elemental priced as collection `""`, matched no
+chart row, and the entire collection was dropped from the book in silence. The
+collection is now read from just left of the Species column (two columns of
+reach: Hardwood puts it adjacent, Value Tower leaves a gap). Worth +6 floors and
++51 linked trims.
+
+### Trim notes
+
+- The two halves name a trim differently ("Matchable Square Stair Nosing" vs
+  "Match. Square Nosing 69\""), and the price table groups by **thickness** while
+  the SKU grid names the constructions sharing it. `normTrimType` /
+  `normTrimGroup` reduce both to what they agree on — 794 of 802 join.
+- The 8 that don't are real: the sheet leaves Square Stair Nosing unpriced for
+  Red Oak. Dropped and reported, like an unpriced floor.
+- **A trim SKU can serve two collections** (Maple Platinum's parts are listed
+  under both Admiration and Elemental). The book is a SKU-keyed upsert, so the
+  rows are merged with their `fits` UNIONED — emitting both means one wins
+  arbitrarily and takes only half the floors it fits.
+- 118 trims carry no `fits`. All legitimate: colours the 2026 chart no longer
+  lists (DreamVille Sanibel/Morro Bay, Sweet Memories Peppermint, six Admiration
+  Maple colours) and Imagine, a collection dropped from the chart entirely.
+
+### The Natural programme
+
+"Natural" is not a colour among others — it is the clear coat, the wood's own
+colour (owner, 2026-07-20). Its trim block therefore has NO Colors column: it
+varies by SPECIES (White Oak R&Q, Hickory, Walnut), names no collection, and
+prints the colour once in column 0. The sheet's own footnote says it — "available
+in a variety of species in our collections". Those trims fit by species+colour
+rather than by collection.
+
+Chasing it turned up a THIRD side-by-side casualty. The Hardwood sheet's two
+tables are offset by a row, so the right table's header lands on the Natural
+block's first data row and the row-wide "a new header ends the block" test killed
+it before a single price was read — the whole Natural programme, gone. The block
+now bounds itself at the gutter (a run of 3 empty width cells) and only looks for
+the next header WITHIN its own columns. Worth +12 price rows.
+
+A flooring sheet prints its grid TWICE — prices in the upper half, the matching
+SKUs in the lower half, under identical headers (Hardwood rows 38-44 and 90-96).
+That lower half is where Natural's floor SKUs live, and it is the ONLY source for
+them. `walkFloorBlocks` now serves both halves, the caller saying whether it
+wants `priceOf` or `isSku` out of a cell.
+
+The standing warning still holds: for a MULTI-colour collection those SKUs are
+one arbitrary colour's (Blanc/Character/5" reads 36180, which is White Mist), so
+they must never be used as that collection's SKUs. The exception is a
+single-colour programme, where "one arbitrary colour" and "the colour" are the
+same thing — which is exactly why the merge is gated on GRID_ONLY_COLLECTIONS
+rather than taking the lot. Natural yields 12 floors, and its 19 trims now find
+them by species+colour.
+
 ## What is NOT built
 
-With the parsing clean and `parseMirage` landed, **the router/wizard wiring is
-what now stands between this and the UI.** `parseMirage(payloads)` exists and is
-verified, but nothing calls it: the wizard's `ingest()` still takes ONE payload
-and `bundleByBook` still walks a book's files one wizard step at a time. Until
-that changes none of this is reachable, so it outranks both items below.
-
-0. **Hand the bundle to `parseMirage`.** `bundleByBook` should collapse a
-   recognized multi-file set into ONE step carrying all payloads, and `ingest`
-   should accept an array and try `parseMirage` before the single-file path
-   (where `parseOvf` sits today). Needs preview proof — it is a UI change.
-
-1. **Value Tower's colour grid.** The chart is the spine, but Lakeside and the
-   Escape *Traditional* colours (Blue Ridge, Champlain, Chelan, Madison,
-   Moosehead, Yellowstone) exist ONLY in Value Tower's own colour grid (rows 25+).
-   The owner flagged Value Tower as load-bearing for exactly these, so shipping
-   without it means a Mirage book with no Lakeside.
-2. **The trim sheet.** Should emit trim rows carrying `fits` (#173) keyed by
-   (collection, colour) — that link is stated outright in the sheet, 23/29 on a
-   rough match, the misses being the Traditional line which genuinely has no
-   colour-matched trim. `parseMirage` already warns that trim is unparsed — that
-   warning is the thing to delete when it lands.
+- Targeted replace (ADR 0025 deliberately deferred it).
 
 ## Facts worth not rediscovering
 

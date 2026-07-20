@@ -12,6 +12,7 @@ import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, captu
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
+import { parseMirage } from "./miragebook.js";
 import { normBookItem, bookItemData, diffBookItems, pricedItem, markupGroups, orderPatch, orderDrift, mergeSearch, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, rowCostSqft, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
@@ -5317,7 +5318,10 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
       // sheet by its recordKey, a hand-supplied file by its content fingerprint
       // — never by filename, which vendors re-date between releases.
       const slot = sourceSlot({ recordKey: sourceKeys?.get(file), fingerprint: fp, name: file.name });
-      return { file, ...parsed, ...r, slot };
+      // The file's own format tag, kept on the row so bundleByBook can spot a
+      // vendor whose files must be parsed together (ADR 0025 rule 7). A fetched
+      // file's slot has no fingerprint, so the slot can't answer this.
+      return { file, ...parsed, ...r, slot, format: fp.format };
     } catch (x) { return { file, error: "Could not read this file" }; }
   };
 
@@ -5428,17 +5432,25 @@ function ImportRouter({ files, preferTarget, targets, sourceKeys, onFileDone, bo
   // until a registry step has its book + items loaded.
   if (!active) return null;
   const multi = active.bundle.total > 1;
+  // A joined vendor's files are read together, so the step names all of them
+  // rather than counting through them one at a time.
   const stepNote = (
     <div className="text-[11px] text-slate-400 mb-2">
-      Reviewing {qi + 1} of {runnable.length} — {active.row.file.name}
-      {multi && <> · file {active.bundle.index + 1} of {active.bundle.total} for {active.book.name || "this book"}</>}
+      {active.joined
+        ? <>Reviewing {active.files.length} files together for {active.book.name || "this book"} — {active.files.map((f) => f.name).join(", ")}</>
+        : <>Reviewing {qi + 1} of {runnable.length} — {active.row.file.name}
+          {multi && <> · file {active.bundle.index + 1} of {active.bundle.total} for {active.book.name || "this book"}</>}</>}
     </div>
   );
+  // One payload per file of a joined bundle; the parser routes them by kind.
+  const payloadOf = (r) => (r.isPdf ? { pages: r.pages, isPdf: true } : { sheets: r.sheets });
   return (
     <BookImportWizard
       key={active.book.id + qi}
       book={active.book} existingItems={active.items}
-      preParsed={active.row.isPdf ? { pages: active.row.pages, isPdf: true } : { sheets: active.row.sheets }}
+      preParsed={active.joined
+        ? { payloads: active.rows.map(payloadOf), format: active.row.format }
+        : payloadOf(active.row)}
       carryItems={carry} bundle={active.bundle}
       onClose={() => {
         // Backing out of one file of a bundle abandons the WHOLE bundle. Skipping
@@ -7077,7 +7089,7 @@ export function AddFileNotice({ knownSlot }) {
   );
 }
 
-function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null, addMode = false }) {
+export function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null, addMode = false }) {
   const saved = book.data?.mapping || null;
   const [sheets, setSheets] = useState(null); // [{ name, rows }]
   const [sheetName, setSheetName] = useState(saved?.sheet || "");
@@ -7091,6 +7103,10 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   const [err, setErr] = useState("");
   const [srcName, setSrcName] = useState(""); // the chosen file name — a source slot label
   const [fmt, setFmt] = useState("generic"); // detected file format, stamped as the book's import fingerprint
+  // What the source parser itself wants said — which files it did and didn't
+  // find, and what it dropped. ADR 0025's rule is that a partial import is loud,
+  // so these sit with the mapping warnings rather than being swallowed.
+  const [srcWarn, setSrcWarn] = useState([]);
   const [ignored, setIgnored] = useState(() => new Set());   // SKUs the user chose to ignore (→ disabled)
   const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
   const [keepArea, setKeepArea] = useState(() => new Set()); // reclassified trims the user opted to KEEP as sqft
@@ -7106,10 +7122,27 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // Turn a chosen file — or sheets/pages the multi-file drop router already
   // parsed — into the wizard's sheet list + auto-mapping, and remember the
   // detected format for the book's import fingerprint.
-  const ingest = async ({ file, sheets: preSheets, pages: prePages, isPdf }) => {
+  const ingest = async ({ file, sheets: preSheets, pages: prePages, isPdf, payloads, format }) => {
     setReading(true); setErr("");
     if (file?.name) setSrcName(file.name);
     try {
+      // A vendor whose documents must be JOINED rather than concatenated gets
+      // every file at once (ADR 0025 rule 7). Like parseOvf below, the parser
+      // resolves the whole set to one canonical sheet + mapping, so nothing
+      // downstream knows it came from four files. It returns null when the set
+      // isn't its own, and then we fall through to the single-file path.
+      if (payloads?.length) {
+        const joined = parseMirage(payloads, book.name || "Mirage price book");
+        if (joined) {
+          setFmt(format || "mirage-chart");
+          setSheets([{ name: joined.name, rows: joined.rows }]);
+          setSrcWarn(joined.warnings || []);
+          applyDetected({ sheet: joined.name, ...joined.mapping });
+          setReading(false);
+          return;
+        }
+        return ingest({ ...payloads[0], file });
+      }
       // Text-PDF vendor price lists: pdfbook aligns every page's own header onto
       // one canonical sheet, then we apply its suggested mapping. Mannington's
       // account list leads each row with Pattern, not the item code, so its fixed
@@ -7191,7 +7224,10 @@ function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, 
   // codes in the parse warnings and the problem list below — a reviewed row
   // must not re-nag on every re-import of the same file.
   const review = flagReviewBySku(existingItems);
-  const { items: parsedItems, warnings } = sheet ? parseMapped(rows, mapping, review) : { items: [], warnings: [] };
+  const { items: parsedItems, warnings: mapWarn } = sheet ? parseMapped(rows, mapping, review) : { items: [], warnings: [] };
+  // The source parser's own warnings lead: "the chart is missing" outranks any
+  // per-row mapping complaint, because it changes what the import MEANS.
+  const warnings = srcWarn.length ? [...srcWarn, ...mapWarn] : mapWarn;
   // Rows the classifier reclassified to per-piece trims (ADR 0013 amendment),
   // listed for review below; un-ticking one keeps it a square-foot line.
   const reclassified = parsedItems.filter((it) => it.trimSignal);

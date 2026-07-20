@@ -148,22 +148,54 @@ test("routeFile: nothing matches ⇒ null target, empty candidates", () => {
 
 // --- bundling a drop by book (ADR 0025) --------------------------------------
 
-const dropRow = (name, target) => ({ file: { name }, target });
+const dropRow = (name, target, format = "generic") => ({ file: { name }, target, format });
 
+// A vendor that merely SPLITS its list across files (a batch download of a
+// book's sheets): each file maps itself, the items accumulate, and only the last
+// step applies.
 test("bundleByBook walks a book's files back to back and marks the last one", () => {
   const steps = bundleByBook([
-    dropRow("mirage-hardwood.xls", "bkMirage"),
+    dropRow("east.xls", "bkSplit"),
     dropRow("hallmark.xls", "bkHallmark"),
-    dropRow("mirage-trim.xls", "bkMirage"),
-    dropRow("mirage-chart.pdf", "bkMirage"),
+    dropRow("west.xls", "bkSplit"),
+    dropRow("north.xls", "bkSplit"),
   ]);
-  // Mirage's three files are adjacent even though the drop interleaved them.
+  // The split book's three files are adjacent even though the drop interleaved them.
   assert.deepEqual(steps.map((s) => s.row.file.name), [
-    "mirage-hardwood.xls", "mirage-trim.xls", "mirage-chart.pdf", "hallmark.xls",
+    "east.xls", "west.xls", "north.xls", "hallmark.xls",
   ]);
   assert.deepEqual(steps.map((s) => `${s.bundle.index + 1}/${s.bundle.total}`), ["1/3", "2/3", "3/3", "1/1"]);
   // Every step of a bundle knows the whole set, so the last can report them all.
-  assert.deepEqual(steps[0].files.map((f) => f.name), ["mirage-hardwood.xls", "mirage-trim.xls", "mirage-chart.pdf"]);
+  assert.deepEqual(steps[0].files.map((f) => f.name), ["east.xls", "west.xls", "north.xls"]);
+  assert.deepEqual(steps.map((s) => s.joined), [null, null, null, null]);
+});
+
+// A vendor whose files must be JOINED is different in kind: accumulating items
+// across separate steps cannot join them, because by then each file has been
+// reduced to rows of its own. So the whole set becomes ONE step (ADR 0025 rule 7).
+test("a joined vendor's files collapse into a single step holding all of them", () => {
+  const steps = bundleByBook([
+    dropRow("mirage-hardwood.xls", "bkMirage", "mirage-flooring"),
+    dropRow("hallmark.xls", "bkHallmark", "ovf-hallmark"),
+    dropRow("chart.pdf", "bkMirage", "mirage-chart"),
+    dropRow("trim.xls", "bkMirage", "mirage-trim"),
+  ]);
+  assert.equal(steps.length, 2);
+  const mirage = steps.find((s) => s.joined);
+  assert.equal(mirage.joined, "mirage");
+  assert.deepEqual(mirage.bundle, { index: 0, total: 1 }); // one pass, so it applies immediately
+  assert.deepEqual(mirage.rows.map((r) => r.file.name), ["mirage-hardwood.xls", "chart.pdf", "trim.xls"]);
+  assert.deepEqual(mirage.files.map((f) => f.name), ["mirage-hardwood.xls", "chart.pdf", "trim.xls"]);
+  // The unrelated book is untouched by any of this.
+  assert.equal(steps.find((s) => s.row.file.name === "hallmark.xls").joined, null);
+});
+
+// One file of a joined vendor is still that vendor: the parser wants the set,
+// and the completeness gate is what says the rest are missing.
+test("a lone file from a joined vendor still takes the joined path", () => {
+  const [step] = bundleByBook([dropRow("chart.pdf", "bkMirage", "mirage-chart")]);
+  assert.equal(step.joined, "mirage");
+  assert.deepEqual(step.bundle, { index: 0, total: 1 });
 });
 
 test("bundleByBook leaves the single-file case exactly as it was", () => {
@@ -251,11 +283,29 @@ test("each Mirage file gets its own tag, so the chart PDF is not just 'generic'"
   assert.equal(fileFormat({ sheets: [{ name: "Mirage", rows: [
     ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"], ["Specie", "Grades", 'TruBalance 3/4"'],
   ] }] }), "mirage-flooring");
-  // The three tags route to three different books rather than colliding.
-  const books = [
-    { id: "chart", data: { importFingerprint: { format: "mirage-chart" } } },
-    { id: "trim", data: { importFingerprint: { format: "mirage-trim" } } },
-  ];
-  assert.equal(routeFile({ format: "mirage-chart", headerSig: "" }, books).target, "chart");
-  assert.equal(routeFile({ format: "mirage-trim", headerSig: "" }, books).target, "trim");
+  // The tags stay distinct so the parser can route each file by kind and a
+  // manual source slot can tell the chart from any other PDF — but they all
+  // belong to ONE book. ADR 0025 rejected splitting Mirage across books (the
+  // chart and the price sheets describe the same products and must be joined),
+  // so the tags must not route to separate books.
+  const mirage = [{ id: "bk", data: { importFingerprint: { format: "mirage-chart" } } }];
+  for (const format of ["mirage-chart", "mirage-trim", "mirage-flooring"]) {
+    assert.equal(routeFile({ format, headerSig: "" }, mirage).target, "bk");
+  }
+  // Two Mirage books is an ambiguity to ask about, never a guess.
+  const two = [...mirage, { id: "bk2", data: { importFingerprint: { format: "mirage-trim" } } }];
+  assert.equal(routeFile({ format: "mirage-chart", headerSig: "" }, two).target, null);
+});
+
+// A book stores ONE import fingerprint, but a joined vendor's files each carry
+// their own tag. Matching on the exact tag would route whichever file was
+// stamped last and leave its siblings asking which book they belong to.
+test("every file of a joined vendor routes to the one book that owns the family", () => {
+  const books = [{ id: "bkMirage", name: "Mirage", data: { importFingerprint: { format: "mirage-chart" } } }];
+  for (const format of ["mirage-chart", "mirage-flooring", "mirage-trim"]) {
+    const r = routeFile({ format, headerSig: "", titleSig: "", sheets: [] }, books);
+    assert.equal(r.target, "bkMirage", `${format} should route to the Mirage book`);
+  }
+  // A different vendor's file is not swept in by the family rule.
+  assert.equal(routeFile({ format: "ovf-hallmark", headerSig: "", titleSig: "", sheets: [] }, books).target, null);
 });

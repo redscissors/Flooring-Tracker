@@ -28,6 +28,24 @@ export function fileFormat({ sheets, pages, isPdf }) {
   return "generic";
 }
 
+// A vendor whose files must be parsed TOGETHER rather than one after another
+// (ADR 0025 rule 7). Mirage is the first: its chart carries identity with no
+// prices and its sheets prices with no colours, so they must be JOINED — no
+// sequence of single-file passes can express that, because the write path is a
+// SKU-keyed upsert.
+//
+// Its files also all belong to ONE book, which is why the family matters twice:
+// bundleByBook collapses the group into a single review pass, and routeFile
+// treats a book stamped with any `mirage-*` fingerprint as the home for all of
+// them (a book stores one fingerprint, but this vendor's files each carry their
+// own tag, so an exact match would route the chart and leave the price sheets
+// asking which book they belong to).
+const JOINED_FAMILIES = ["mirage"];
+export const formatFamily = (format) =>
+  JOINED_FAMILIES.find((f) => String(format || "").startsWith(`${f}-`)) || format || "generic";
+export const joinedFamily = (formats) =>
+  JOINED_FAMILIES.find((f) => (formats || []).some((x) => String(x || "").startsWith(`${f}-`))) || null;
+
 // A short, order-independent signature of the file's header, so a book can
 // remember "what a file it imports looks like" and match the next drop even
 // before a saved mapping exists. VTC files fingerprint off their detected header
@@ -103,7 +121,11 @@ export function routeFile({ format, headerSig, titleSig, title, sheets }, books)
   const byTitle = new Set(), cand = new Set();
   for (const b of books || []) {
     const fp = b.data?.importFingerprint;
-    const sameFormat = format !== "generic" && fp?.format === format;
+    // Family, not exact tag: a multi-file vendor's files carry different tags
+    // ("mirage-chart" / "mirage-flooring" / "mirage-trim") but share one book,
+    // which stores only one fingerprint. Every other format is its own family,
+    // so this is an identity comparison for them.
+    const sameFormat = format !== "generic" && !!fp?.format && formatFamily(fp.format) === formatFamily(format);
     if (sameFormat && fp?.titleSig && titleSig) {
       if (fp.titleSig === titleSig) byTitle.add(b.id);
       continue;
@@ -138,13 +160,22 @@ export function bundleByBook(rows) {
     const g = groups.find((x) => x.target === row.target);
     if (g) g.rows.push(row); else groups.push({ target: row.target, rows: [row] });
   }
-  return groups.flatMap((g) =>
-    g.rows.map((row, index) => ({
+  return groups.flatMap((g) => {
+    const files = g.rows.map((r) => r.file);
+    // A joined vendor is ONE step holding every payload, not one step per file:
+    // its parser has to see the whole set at once. Accumulating items across
+    // separate steps — what the else-branch does — cannot join them, because by
+    // then each file has already been reduced to rows of its own.
+    const joined = joinedFamily(g.rows.map((r) => r.format));
+    if (joined) return [{ row: g.rows[0], bundle: { index: 0, total: 1 }, files, rows: g.rows, joined }];
+    return g.rows.map((row, index) => ({
       row,
       bundle: { index, total: g.rows.length },
-      files: g.rows.map((r) => r.file),
+      files,
       rows: g.rows,
-    })));
+      joined: null,
+    }));
+  });
 }
 
 // ---- the book's source manifest (ADR 0025) ---------------------------------
