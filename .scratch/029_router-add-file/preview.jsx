@@ -34,9 +34,13 @@ const sheetFile = (name, rows) => {
   return new File([buf], name, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 };
 
+// These carry the real detector marks (TruBalance + the sheet's own banner), so
+// fileFormat tags them mirage-flooring / mirage-trim for real and bundleByBook
+// sees a joined family. Their CONTENTS are token — this harness is about how
+// many payloads reach the parser, not what it makes of them.
 const SAMPLES = {
-  "OVF-Mirage-Hardwood.xls": [["Collection", "Grade", "Width", "Price"], ["Admiration", "Character", '5"', 8.42]],
-  "OVF-Mirage-Trim.xls": [["Catalog #", "Type", "Species", "Price"], ["MTR-4212", "Stair Nose", "Red Oak", 96.5]],
+  "OVF-Mirage-Hardwood.xls": [["Mirage TruBalance Flooring Price List"], ["Species", "Grades", "Width", "Price"], ["Red Oak", "Character", '5"', 8.42]],
+  "OVF-Mirage-Trim.xls": [["Mirage TruBalance Mouldings & Stair Parts"], ["Catalog #", "Type", "Species", "Price"], ["MTR-4212", "Stair Nose", "Red Oak", 96.5]],
 };
 // Only .xlsx samples here: this harness synthesizes its files, and a real PDF
 // cannot be faked with spreadsheet bytes. The hand-supplied chart is exercised
@@ -44,7 +48,7 @@ const SAMPLES = {
 
 // The file that starts the pass — as if one sheet had been fetched and sent to
 // review, which is the exact situation the Add row exists to rescue.
-const startFiles = [sheetFile("OVF-Mirage-Value-Tower.xls", [["Collection", "Grade", "Width", "Price"], ["Value Tower", "Classic", '3.25"', 5.11]])];
+const startFiles = [sheetFile("OVF-Mirage-Value-Tower.xls", [["Mirage TruBalance Value Tower Flooring Price List"], ["Collection", "Grade", "Width", "Price"], ["Value Tower", "Classic", '3.25"', 5.11]])];
 
 window.__drop = (name) => {
   const rows = SAMPLES[name] || [["A", "B"], [1, 2]];

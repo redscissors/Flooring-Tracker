@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources } from "./dropimport.js";
+import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads } from "./dropimport.js";
 
 const stockSheets = [{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }];
 const vtcSheets = [{ name: "EFT", rows: [
@@ -308,4 +308,35 @@ test("every file of a joined vendor routes to the one book that owns the family"
   }
   // A different vendor's file is not swept in by the family rule.
   assert.equal(routeFile({ format: "ovf-hallmark", headerSig: "", titleSig: "", sheets: [] }, books).target, null);
+});
+
+// The seam between bundleByBook and the review step. A joined bundle that loses
+// `joined` on the way across reduces to its first file — and because a joined
+// step reports total:1, that partial parse reads as the last of its bundle and
+// applies, retiring every SKU the other files hold.
+test("stepPayloads hands a joined bundle every file, not just the first", () => {
+  const rows = [
+    { file: { name: "chart.pdf" }, isPdf: true, pages: [["chart"]], format: "mirage-chart", target: "bk" },
+    { file: { name: "hardwood.xls" }, sheets: [{ name: "S", rows: [["hw"]] }], format: "mirage-flooring", target: "bk" },
+    { file: { name: "trim.xls" }, sheets: [{ name: "S", rows: [["trim"]] }], format: "mirage-trim", target: "bk" },
+  ];
+  const steps = bundleByBook(rows);
+  assert.equal(steps.length, 1, "a joined vendor's files are one step");
+
+  const fed = stepPayloads(steps[0]);
+  assert.equal(fed.payloads.length, 3, "every file reaches the parser");
+  assert.deepEqual(fed.payloads[0], { pages: [["chart"]], isPdf: true });
+  assert.deepEqual(fed.payloads[1], { sheets: [{ name: "S", rows: [["hw"]] }] });
+  assert.equal(fed.format, "mirage-chart");
+});
+
+test("stepPayloads hands an ordinary step its one file", () => {
+  const rows = [
+    { file: { name: "a.xls" }, sheets: [{ name: "S", rows: [["a"]] }], format: "generic", target: "bk" },
+    { file: { name: "b.xls" }, sheets: [{ name: "S", rows: [["b"]] }], format: "generic", target: "bk" },
+  ];
+  const steps = bundleByBook(rows);
+  assert.equal(steps.length, 2, "unjoined files walk one at a time");
+  assert.deepEqual(stepPayloads(steps[0]), { sheets: [{ name: "S", rows: [["a"]] }] });
+  assert.deepEqual(stepPayloads(steps[1]), { sheets: [{ name: "S", rows: [["b"]] }] });
 });
