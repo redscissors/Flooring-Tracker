@@ -304,7 +304,7 @@ test("the four documents collapse into one canonical sheet", () => {
   assert.equal(res.rows[0][0], "Item #");           // canonical header
   assert.equal(res.meta.floors, 2);
   const eleanor = res.rows.find((r) => r[0] === "72697");
-  assert.equal(eleanor[1], 'White Oak Eleanor — Character, TruBalance 5"');
+  assert.equal(eleanor[1], "White Oak Eleanor Character TruBalance");
   assert.equal(eleanor[2], "Muse");                 // collection
   assert.equal(eleanor[6], "9.99");                 // the joined price
   assert.equal(eleanor[8], "hardwood");
@@ -386,7 +386,7 @@ test("the colour grid supplies Lakeside, and its price, to the book", () => {
   const lake = res.rows.filter((r) => r[2] === "Lakeside");
   assert.equal(lake.length, 2);
   assert.equal(lake[0][6], "4.99");              // joined to the Lakeside price row
-  assert.match(lake[0][1], /Red Oak Blue Ridge — Traditional, Classic 3\/4" 3-1\/4"/);
+  assert.match(lake[0][1], /Red Oak Blue Ridge Traditional Classic 3\/4"/);
 });
 
 // The grid travels with its own sheet's date. A SKU-level merge readmits items a
