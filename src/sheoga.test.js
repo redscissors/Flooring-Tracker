@@ -233,6 +233,9 @@ test("calcHerringbone: exact slat length snaps to its tier and prints the real l
   assert.ok(calcHerringbone({ ...base, slatLen: "60" }).warn.some((w) => w.includes("outside the standard")));
   // Blank length falls back to the tier index (backward compatible with saved configs).
   assert.equal(calcHerringbone({ ...base, band: 2, slatLen: "" }).desc, '4¼" White Oak · Solid Herringbone · 28¼"–38" slats');
+  // No length and no legacy tier — nothing to price yet (the popup's default state).
+  assert.equal(calcHerringbone({ ...base, band: null, slatLen: "" }), null);
+  assert.equal(calcHerringbone(base), null);
 });
 
 // --- calcVent / calcDamper ----------------------------------------------------
@@ -288,9 +291,12 @@ test("calcDamper: loose dampers at stocking cost", () => {
 test("calcConfig dispatches on mode; defaults are priceable", () => {
   assert.equal(MODES.length, 5);
   for (const { id } of MODES) {
-    const c = calcConfig({ mode: id, cfg: defaultConfig(id) }, 1000);
+    // Herringbone deliberately has no price until a slat length is entered.
+    const cfg = id === "hb" ? { ...defaultConfig(id), slatLen: "24" } : defaultConfig(id);
+    const c = calcConfig({ mode: id, cfg }, 1000);
     assert.ok(c && c.cost > 0, id);
   }
+  assert.equal(calcConfig({ mode: "hb", cfg: defaultConfig("hb") }, 1000), null);
   assert.equal(calcConfig(null, 1000), null);
   assert.equal(calcConfig({ mode: "nope", cfg: {} }, 1000), null);
 });

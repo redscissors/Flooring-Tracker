@@ -350,7 +350,7 @@ function HbRail({ h, set, markup, onGrid }) {
   };
   const table = HERRINGBONE[h.cons === "solid" ? "solid" : "eng"][h.sp];
   const len = hbSlatLen(h);
-  const curBand = len != null ? hbBandForLen(len) : (h.band || 0);
+  const band = len != null ? hbBandForLen(len) : (Number.isFinite(h.band) ? h.band : null);
   return (<>
     <Sect title="Species">
       <Chips cur={h.sp} onPick={(sp) => set(snap({ ...h, sp }))}
@@ -364,12 +364,36 @@ function HbRail({ h, set, markup, onGrid }) {
       <Seg opts={[{ id: "solid", label: "Solid" }, { id: "eng", label: "Engineered" }]} cur={h.cons} onPick={(cons) => set(snap({ ...h, cons }))} />
     </Sect>
     <Sect title="Width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full price grid →</button>}>
+      {/* Every width in the run stays pickable — before a length is typed there
+          is no price yet, but the width choice must not be blocked on it. */}
       <Chips cur={h.w} onPick={(w) => set({ ...h, w: +w })}
-        items={table.ws.map((w) => { const c = calcHerringbone({ ...h, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })} />
+        items={table.ws.map((w) => { const c = calcHerringbone({ ...h, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
     </Sect>
-    <Sect title="Slat length" hint="made-to-order tiers — sell $/sf">
-      <Chips cur={curBand} onPick={(band) => set({ ...h, band: +band, slatLen: "" })}
-        items={HERRINGBONE.bands.map((b, i) => { const c = calcHerringbone({ ...h, band: i, slatLen: "" }); return { id: i, label: b, sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
+    <Sect title="Slat length" hint="type it — the tier prices it">
+      <div className="flex items-center gap-2 mb-2">
+        <input type="number" min="0" step="0.25" value={h.slatLen} placeholder="—" data-sheoga-slatlen
+          onChange={(e) => set({ ...h, slatLen: e.target.value })}
+          className="w-24 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-bold text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <span className="text-xs font-bold text-slate-500">inches</span>
+        <span className="text-[10.5px] text-slate-400 font-medium leading-tight">
+          {len != null
+            ? <>prices as the <b className="text-indigo-700">{HERRINGBONE.bands[band]}</b> tier · order prints {h.slatLen}"</>
+            : "enter the slat length you want"}
+        </span>
+      </div>
+      {/* The price tiers, shown for reference only — the typed length picks one. */}
+      <div className="flex flex-wrap gap-1.5">
+        {HERRINGBONE.bands.map((b, i) => {
+          const c = calcHerringbone({ ...h, band: i, slatLen: "" });
+          const on = i === band;
+          return (
+            <div key={i} className={`rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center select-none ${on ? "bg-slate-900 border-slate-900 text-white" : "border-slate-200 bg-white text-slate-500"}`}>
+              {b}
+              <span className={`block text-[10px] font-semibold ${on ? "text-white/70" : "text-slate-400"}`}>{c ? fm(sellOf(c.cost, markup)) + "/sf" : "—"}</span>
+            </div>
+          );
+        })}
+      </div>
     </Sect>
     <Sect title="Pattern">
       <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />
@@ -473,6 +497,10 @@ function GridModal({ mode, cfg, onPick, onClose }) {
     );
   } else if (mode === "hb") {
     const t = HERRINGBONE[cfg.cons === "solid" ? "solid" : "eng"][cfg.sp];
+    // The tier row isn't selectable — the typed slat length picks it. A cell
+    // click selects its width only; the highlight follows the length's tier.
+    const len = hbSlatLen(cfg);
+    const curBand = len != null ? hbBandForLen(len) : (Number.isFinite(cfg.band) ? cfg.band : null);
     title = `Herringbone — ${cfg.sp}, ${cfg.cons === "solid" ? "Solid" : "Engineered"}`;
     body = (
       <table className="w-full border-collapse">
@@ -482,8 +510,8 @@ function GridModal({ mode, cfg, onPick, onClose }) {
             <tr key={b} className="border-b border-slate-100">
               <td className={tdName}>{b}</td>
               {t.ws.map((w, wi) => {
-                const cur = bi === cfg.band && w === cfg.w;
-                return <td key={w} className="text-xs font-semibold"><button onClick={() => onPick({ band: bi, w })} className={`${gridBtn} ${cur ? gridCur : ""}`}>{t.p[bi][wi].toFixed(2)}</button></td>;
+                const cur = bi === curBand && w === cfg.w;
+                return <td key={w} className="text-xs font-semibold"><button onClick={() => onPick({ w })} className={`${gridBtn} ${cur ? gridCur : ""}`}>{t.p[bi][wi].toFixed(2)}</button></td>;
               })}
             </tr>
           ))}
@@ -866,6 +894,9 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const moveAllBasket = () => moveBasketEntries([...(basket || [])]);
 
   const sfMode = !isEa && mode !== "vent" && mode !== "damper";
+  // Herringbone with no length typed (and no legacy tier) isn't a dead combo —
+  // it's just waiting for the slat length, so prompt for that instead.
+  const hbNeedsLen = mode === "hb" && !c && hbSlatLen(cfg) == null && !Number.isFinite(cfg.band);
 
   const rail = (
     <>
@@ -947,7 +978,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
                 <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} markup={activeMarkup} onShare={setShare}
                   onAddBasket={addBundleToBasket} onMove={moveBundleToLine} />
               ) : (!c ? (
-                <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">This combination isn't offered — pick an available width.</div>
+                <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">{hbNeedsLen ? "Type a slat length on the left — the build prices from its tier." : "This combination isn't offered — pick an available width."}</div>
               ) : (
                 <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
               ))}
@@ -966,7 +997,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
             className="shrink-0 text-left border-t border-slate-300 px-4 pt-2 pb-3" style={{ background: "var(--ft-card)", boxShadow: "0 -6px 24px rgba(28,26,23,.10)" }} data-sheoga-pricebar>
             <div className="mx-auto mb-2 h-1.5 w-10 rounded-full" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.2))" }} />
             {!c ? (
-              <div className="text-center text-xs font-semibold text-slate-400 py-1">Pick an available option to see the price</div>
+              <div className="text-center text-xs font-semibold text-slate-400 py-1">{hbNeedsLen ? "Enter a slat length to see the price" : "Pick an available option to see the price"}</div>
             ) : (
               <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
