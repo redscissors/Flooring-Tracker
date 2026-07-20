@@ -208,7 +208,16 @@ export function mergeSources(prev, slots, at = Date.now()) {
     if (!slot?.id) continue;
     const hit = out.find((s) => s.id === slot.id);
     if (hit) { hit.label = slot.label || hit.label; hit.lastSeen = at; }
-    else out.push({ ...slot, lastSeen: at });
+    else {
+      // A declared slot is a promise with no fingerprint yet — nobody has seen
+      // the file. The first hand-supplied file that isn't already a known slot
+      // redeems the oldest outstanding promise, so the manifest converges on
+      // what the document actually looks like instead of accumulating a
+      // placeholder beside its own fulfilment.
+      const promise = slot.kind === "manual" ? out.find((s) => s.pending) : null;
+      if (promise) Object.assign(promise, { ...slot, declaredAs: promise.label, lastSeen: at, pending: false });
+      else out.push({ ...slot, lastSeen: at });
+    }
   }
   return out;
 }
@@ -216,10 +225,36 @@ export function mergeSources(prev, slots, at = Date.now()) {
 // Slots the book expects that this import does not have. Empty for a one-slot
 // book, and empty whenever every known slot is present — the gate only appears
 // when something the book has been fed before is absent.
+//
+// A declared slot has no fingerprint to match, so it is satisfied by ANY manual
+// file in the pass that isn't accounted for by a fingerprinted slot. That is the
+// whole point of declaring one: the gate can ask for a file BEFORE the book has
+// ever seen it, which is the only way a book fed by fetched sheets plus a
+// hand-supplied document can be assembled on its first import rather than its
+// second.
 export function missingSources(manifest, slots) {
   const have = new Set((slots || []).map((s) => s?.id).filter(Boolean));
-  return (manifest || []).filter((s) => s?.id && !have.has(s.id));
+  const known = (manifest || []).filter((s) => s?.id && !s.pending);
+  const missing = known.filter((s) => !have.has(s.id));
+  let spare = (slots || []).filter((s) => s?.kind === "manual" && !known.some((k) => k.id === s.id)).length;
+  for (const p of (manifest || []).filter((s) => s?.id && s.pending)) {
+    if (spare > 0) spare--; else missing.push(p);
+  }
+  return missing;
 }
+
+// ---- declaring a file the book is fed by hand ------------------------------
+// Recording sources by use cannot describe a file the book has never had. A book
+// whose other sheets arrive by fetch would have to be imported once, wrongly and
+// incompletely, before the gate could learn that a hand-supplied document was
+// ever part of it. Declaring the slot up front is that missing statement.
+export const declareManualSource = (sources, label) => {
+  const used = (sources || []).map((s) => String(s?.id || ""));
+  let n = 1;
+  while (used.includes(`manual:pending:${n}`)) n++;
+  return [...(sources || []), { id: `manual:pending:${n}`, kind: "manual", label: String(label || "").trim() || "a file added by hand", pending: true }];
+};
+export const undeclareManualSource = (sources, id) => (sources || []).filter((s) => s?.id !== id);
 
 // ---- what the review step is fed ------------------------------------------
 // The payload(s) BookImportWizard parses for one step of the walk. A joined
