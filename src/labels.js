@@ -13,10 +13,12 @@ export const MAX_SIZE = 40;
 export const clampSize = (n) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(num(n, MIN_SIZE))));
 
 // The fields a label can carry. `kind` drives how the card renders the line:
-// title = the big name, surface = the Floor/Wall pill, text = a labelled row.
+// title = the big name, surface = the optional Wall pill, text = a labelled
+// row, custom = free text with no caption (whatever is typed prints as-is —
+// blank lines the user can fill, e.g. a grout note at the bottom).
 export const LABEL_FIELDS = [
   { key: "name", label: "Tile Name", kind: "title" },
-  { key: "surface", label: "Floor or Wall", kind: "surface" },
+  { key: "surface", label: "Surface", kind: "surface" },
   { key: "sku", label: "SKU", kind: "text" },
   { key: "size", label: "Size", kind: "text" },
   { key: "price", label: "Price", kind: "text" },
@@ -24,9 +26,13 @@ export const LABEL_FIELDS = [
   { key: "brand", label: "Brand", kind: "text" },
   { key: "thickness", label: "Thickness", kind: "text" },
   { key: "note", label: "Note", kind: "text" },
+  { key: "custom1", label: "Custom line 1", kind: "custom" },
+  { key: "custom2", label: "Custom line 2", kind: "custom" },
+  { key: "custom3", label: "Custom line 3", kind: "custom" },
 ];
 const FIELD_KEYS = LABEL_FIELDS.map((f) => f.key);
 const isField = (k) => FIELD_KEYS.includes(k);
+export const KIND_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.kind]));
 
 // Two-variant labels (v3 port): one tile sold in two sizes shares a single
 // label — these fields get a second column (`fields2`) when `twoVariant` is on.
@@ -34,7 +40,7 @@ const isField = (k) => FIELD_KEYS.includes(k);
 export const VARIANT_KEYS = ["sku", "size", "price"];
 const blankFields2 = () => Object.fromEntries(VARIANT_KEYS.map((k) => [k, ""]));
 
-export const DEFAULT_SIZES = { name: 16, surface: 9, sku: 11, size: 11, price: 11, grout: 10, brand: 10, thickness: 10, note: 10 };
+export const DEFAULT_SIZES = { name: 16, surface: 9, sku: 11, size: 11, price: 11, grout: 10, brand: 10, thickness: 10, note: 10, custom1: 10, custom2: 10, custom3: 10 };
 
 const line = (key, show, size) => ({ key, show, size });
 
@@ -91,12 +97,11 @@ export const normLabelPresets = (raw) => {
 };
 export const customLabelPresets = (presets) => (presets || []).filter((p) => !BUILTIN_IDS.has(p.id));
 
-const blankFields = () => Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.key === "surface" ? "Floor" : ""]));
+const blankFields = () => Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, ""]));
 
 export const normLabel = (raw) => {
   const fields = { ...blankFields() };
   for (const k of FIELD_KEYS) if (raw?.fields?.[k] != null) fields[k] = String(raw.fields[k]);
-  if (!fields.surface) fields.surface = "Floor";
   const fields2 = { ...blankFields2() };
   for (const k of VARIANT_KEYS) if (raw?.fields2?.[k] != null) fields2[k] = String(raw.fields2[k]);
   return {
@@ -209,7 +214,8 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
   const variantBlock = `<div style="display:flex;gap:8px;"><div style="flex:1;min-width:0;">${variantCol(val)}</div><div style="width:1px;background:rgba(255,255,255,.18);align-self:stretch;margin-top:6px;"></div><div style="flex:1;min-width:0;">${variantCol(val2)}</div></div>`;
   const body = (label.lines || []).filter((l) => l.show).map((l) => {
     if (l.key === "name") return `<div style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
-    if (l.key === "surface") return `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>`;
+    if (l.key === "surface") return val("surface") ? `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>` : "";
+    if (KIND_OF[l.key] === "custom") return val(l.key) ? `<div style="margin-top:6px;color:#fff;line-height:1.3;font-size:${l.size}px;word-break:break-word;">${val(l.key)}</div>` : "";
     if (label.twoVariant && VARIANT_KEYS.includes(l.key)) return l.key === firstVariant ? variantBlock : "";
     const mono = l.key === "sku" ? "font-family:ui-monospace,monospace;" : "";
     return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}">${val(l.key) || "—"}</div></div>`;
