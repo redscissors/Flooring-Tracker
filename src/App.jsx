@@ -1,10 +1,10 @@
 import { Fragment, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, Download, Upload, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, Pencil, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, LockOpen, Pin, RotateCcw, AlertTriangle, Eye, EyeOff, Copy, Star, Tag, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { normLabel } from "./labels.js";
-import { num, ceilQty, wasteFor, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, isOffered, setCatalogDefault, catalogHasSeedUnderlayments, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { normStockItem, stockData, searchStock, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, priceUnitOf, orderUnitOf } from "./stock.js";
 import { parsePriceBook, parseMapped, mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources } from "./dropimport.js";
@@ -400,11 +400,23 @@ const SHARED_SETTINGS_ID = "singleton";
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
-// Estimate disclaimer wording for the waste factor: one number when tile and
-// other flooring share a rate, both spelled out when they differ.
-const wasteNote = (s) => num(s?.waste?.tile) === num(s?.waste?.floor)
-  ? `${num(s?.waste?.tile)}% material waste`
-  : `material waste (tile ${num(s?.waste?.tile)}%, other flooring ${num(s?.waste?.floor)}%)`;
+// Estimate wording for the waste factor. Each family is a toggle now, so the
+// paperwork names only what was actually applied — a family left off added no
+// overage and gets no mention, and with both off the line disappears entirely
+// (callers render nothing on null).
+export const wasteNote = (w) => {
+  const t = num(w?.tile), f = num(w?.floor);
+  if (!t && !f) return null;
+  if (t && f) return t === f ? `${t}% material waste` : `material waste (tile ${t}%, other flooring ${f}%)`;
+  return t ? `${t}% material waste on tile` : `${f}% material waste on flooring`;
+};
+// The same fact compressed for the estimate's header meta line.
+export const wasteMeta = (w, one = "waste") => {
+  const t = num(w?.tile), f = num(w?.floor);
+  if (!t && !f) return "";
+  if (t && f) return t === f ? `${one} ${t}%` : `waste tile ${t}% · other ${f}%`;
+  return t ? `waste tile ${t}%` : `waste other ${f}%`;
+};
 // Misc lines are flat-priced; a typed quantity multiplies the price. Only
 // count-mode qty is honored so a stale sqft value left over from a type
 // switch (or legacy rows) can't silently multiply the total.
@@ -552,7 +564,10 @@ const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, product
 // opts.seedArea opens the draft with one area whose blank adder row IS the
 // product search, so a Quick Price lands straight in "grab a price". See
 // docs/adr/0022-quick-price-draft-lifecycle.md.
-const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, sheogaBasket: [] });
+// opts.waste seeds the job's waste rates from the shop default (Settings →
+// General). Both families start UNPRESSED: a new quote reads raw measured
+// footage until someone presses the waste they want ordered.
+const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [] });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -566,7 +581,11 @@ const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type
 // no `attached` — they normalize to {} and stay valid.
 const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
 const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
-const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
+// Projects written before waste moved off Settings have no `waste` — keep it
+// null rather than filling a default, so `projWaste` can tell "quoted under
+// the old global rate" from "quoted with both toggles deliberately off".
+const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, floor: w.floor ?? 5, tileOn: !!w.tileOn, floorOn: !!w.floorOn });
+const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
 // real column. personData is what gets written back to the jsonb.
@@ -680,6 +699,61 @@ export function SegBar({ value, onChange, options, inputValue, onInput }) {
         );
         return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={seg} style={fill}>{o.label}</button>;
       })}
+    </div>
+  );
+}
+
+// Waste, per job (spec 2026-07-19). Each family is a press-to-apply button
+// showing the rate it applies: unpressed means the quote orders raw measured
+// footage. Pressed fills ink at the shop default and moss when the rate has
+// been changed, so "waste is on" and "waste is on but not our usual number"
+// read differently across the room.
+//
+// The rates hide behind the lock because waste multiplies EVERY quantity on
+// the job — a bare number input sitting in the header is one stray scroll
+// away from silently repricing the whole quote, with nothing on screen to say
+// why. Editing is deliberate: unlock, type, and it re-locks the moment focus
+// leaves. Text inputs (not number) for the same reason — no wheel, no spinner.
+export function WasteBar({ w, dflt, onChange, className = "" }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const wrap = useRef(null);
+  const cells = [{ k: "tile", flag: "tileOn", label: "Tile", of: "tile" }, { k: "floor", flag: "floorOn", label: "Flr", of: "other flooring" }];
+  return (
+    <div ref={wrap} className={"flex h-[30px] shrink-0 rounded-md border overflow-hidden " + className}
+      onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget)) setUnlocked(false); }}
+      onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setUnlocked(false); }}
+      style={{ borderColor: unlocked ? "var(--ft-brand)" : "var(--ft-border)", background: unlocked ? "var(--ft-card)" : "var(--ft-band)", boxShadow: unlocked ? "0 0 0 2px var(--ft-brand-soft)" : undefined }}>
+      {cells.map((c, i) => {
+        const on = !!w[c.flag], pct = num(w[c.k]);
+        const custom = on && pct !== num(dflt?.[c.k]);
+        const fill = !unlocked && on ? (custom ? "var(--ft-brand-deep)" : "var(--ft-text)") : undefined;
+        const dim = on && !unlocked ? "rgba(246,243,236,.7)" : "var(--ft-faint)";
+        return (
+          <div key={c.k} className="flex-1 min-w-0 flex items-center" style={{ background: fill, borderLeft: i ? "1px solid var(--ft-border)" : undefined }}>
+            {unlocked ? (
+              <label className="flex-1 min-w-0 flex items-center gap-1 px-1.5 cursor-text">
+                <span className="text-[10.5px]" style={{ color: "var(--ft-brand-deep)" }}>{c.label}</span>
+                <input value={w[c.k]} inputMode="numeric" onChange={(e) => onChange({ [c.k]: e.target.value })}
+                  className="ml-auto w-6 min-w-0 bg-transparent text-right text-[12.5px] font-semibold focus:outline-none"
+                  style={{ color: "var(--ft-text)", borderBottom: "1px solid var(--ft-brand)" }} />
+                <span className="text-[10px]" style={{ color: "var(--ft-faint)" }}>%</span>
+              </label>
+            ) : (
+              <button onClick={() => onChange({ [c.flag]: !on })} title={on ? `${pct}% waste applied to ${c.of} — press to order raw measured footage` : `No waste on ${c.of} — press to add ${pct}%`}
+                className="flex-1 min-w-0 h-full flex items-center gap-1 px-1.5">
+                <span className="text-[10.5px]" style={{ color: dim }}>{c.label}</span>
+                <span className="ml-auto text-[12.5px]" style={{ color: on ? "var(--ft-cream)" : "var(--ft-faint)", fontWeight: on ? 600 : 400 }}>{pct}</span>
+                <span className="text-[10px]" style={{ color: dim }}>%</span>
+              </button>
+            )}
+          </div>
+        );
+      })}
+      <button onClick={() => setUnlocked((v) => !v)} title={unlocked ? "Lock the waste rates" : "Change the waste rates"}
+        className="w-6 shrink-0 flex items-center justify-center"
+        style={{ borderLeft: "1px solid var(--ft-border)", background: unlocked ? "var(--ft-brand)" : undefined, color: unlocked ? "var(--ft-cream)" : "var(--ft-faint)" }}>
+        {unlocked ? <LockOpen size={12} /> : <Lock size={12} />}
+      </button>
     </div>
   );
 }
@@ -2441,7 +2515,7 @@ export default function App({ user, onSignOut }) {
   };
 
   const addProject = (customerId = null, name = "New Project", opts = {}) => {
-    const c = { ...newProject(customerId, name, opts), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+    const c = { ...newProject(customerId, name, { ...opts, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false);
@@ -2747,7 +2821,7 @@ export default function App({ user, onSignOut }) {
   // already in it and insert ONCE — applying the lines via updateProject after
   // creation would hit the stale-`data` closure and silently drop them.
   const createQuickWithSheoga = (lines) => {
-    const c = { ...newProject(null, "Quick price", { quick: true, seedArea: true }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+    const c = { ...newProject(null, "Quick price", { quick: true, seedArea: true, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
     c.categories = applySheogaToFirstArea(c.categories, lines);
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
@@ -3098,7 +3172,18 @@ export default function App({ user, onSignOut }) {
   // computes from the tier-priced pair; quantities are price-independent so the
   // order sheet and order-entry copies (which print no prices) are unaffected.
   // The raw `sel` stays the editable/stored truth.
-  const tv = tierView(sel && sel._full ? sel : null, settings);
+  // Waste lives on the project now, so fold it onto settings BEFORE the tier
+  // lens: tierView hands back the settings object untouched for retail/0%, so
+  // injecting downstream would leave every retail job on the shop default.
+  // `wSet` is what all job math reads — raw `settings` stays the shop record
+  // the Settings screen edits.
+  const wSet = withProjWaste(settings, sel && sel._full ? sel : null);
+  const jobWaste = wSet.waste;
+  // What the header control shows and writes back. A project from before waste
+  // moved off Settings (`waste == null`) was quoted with both families applied
+  // at the shop rate — present it that way, and the first press materializes it.
+  const jobWasteUI = sel?.waste || { tile: settings.waste.tile, floor: settings.waste.floor, tileOn: true, floorOn: true };
+  const tv = tierView(sel && sel._full ? sel : null, wSet);
   const tSet = tv.settings;
   let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, caulkCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
   (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { const PC = getPieceCarton(p); miscCost += num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, tSet); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } const G = getGrout(p, tSet); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: tSet.grouts[p.grout.product]?.unit || "units", price: num(tSet.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { caulkCost += ck * num(p.grout.caulkPrice); const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", sku: "", unit: "tubes", price: 0, exact: 0 }; cAgg[k].sku = cAgg[k].sku || p.grout.caulkSku || ""; if (num(p.grout.caulkPrice) > 0) cAgg[k].price = num(p.grout.caulkPrice); cAgg[k].exact += ck; } } const M = getMortar(p, tSet); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: tSet.mortars[p.mortar.product]?.unit || "units", price: num(tSet.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, tSet); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: tSet.underlayments?.[p.underlay.product]?.unit || "units", price: num(tSet.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, tSet); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
@@ -3174,7 +3259,7 @@ export default function App({ user, onSignOut }) {
               const sp = sel.salesperson || profile;
               const pname = sp.name || sp.email;
               const areaCount = sel.categories.length;
-              const wt = num(settings.waste?.tile), wf = num(settings.waste?.floor);
+              const wMeta = wasteMeta(jobWaste, "waste factor");
               const col = (label, name, detail) => (
                 <div className="flex flex-col" style={{ gap: 2 }}>
                   <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
@@ -3186,7 +3271,7 @@ export default function App({ user, onSignOut }) {
                 <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                   {col("Customer", cust?.name || sel.name, cust?.address || sel.address)}
                   {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  "))}
-                  {col("Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wt === wf ? `waste factor ${wt}%` : `waste tile ${wt}% · other ${wf}%`].filter(Boolean).join("  ·  "))}
+                  {col("Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  "))}
                 </div>
               );
             })()}
@@ -3276,7 +3361,7 @@ export default function App({ user, onSignOut }) {
                 </div>
                 {showTotals && grandTotal > 0 && <div className="flex items-baseline gap-2 shrink-0"><span className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span><span className="ft-serif" style={{ fontSize: 22 }}>{money(grandTotal)}</span></div>}
               </div>
-              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities{showUnit ? " and prices" : ""} are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
+              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities{showUnit ? " and prices" : ""} are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
             </div>
             <div className="break-inside-avoid flex mt-6" style={{ gap: 40 }}>
               <div className="flex-1 flex flex-col" style={{ gap: 4 }}>
@@ -3312,7 +3397,7 @@ export default function App({ user, onSignOut }) {
     const cust = data.people.find((c) => c.id === sel.customerId);
     const sp = sel.salesperson || profile;
     const pname = sp.name || sp.email;
-    const wt = num(settings.waste?.tile), wf = num(settings.waste?.floor);
+    const wMeta = wasteMeta(jobWaste);
     const areaCount = sel.categories.length;
     // CT/SH read as cartons/sheets on the qty line; the price keeps the short unit.
     const unitLong = (unit, n) => { const u = String(unit || "").toUpperCase(); if (u === "CT") return n === 1 ? "carton" : "cartons"; if (u === "SH") return n === 1 ? "sheet" : "sheets"; return u1(n, unit); };
@@ -3337,7 +3422,7 @@ export default function App({ user, onSignOut }) {
           {[
             ["Customer", cust?.name || sel.name, cust?.address || sel.address],
             ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  ")],
-            ["Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wt === wf ? `waste ${wt}%` : `waste tile ${wt}% · other ${wf}%`].filter(Boolean).join("  ·  ")],
+            ["Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  ")],
           ].map(([label, name, detail], i) => (
             <div key={i} className="flex flex-col" style={{ gap: 2 }}>
               <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
@@ -3449,7 +3534,7 @@ export default function App({ user, onSignOut }) {
             </div>
           </div>
         )}
-        {showTotals && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 6, textAlign: "right" }}>Includes {wasteNote(settings)}</div>}
+        {showTotals && wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 6, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
 
         <div className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 12, marginTop: 18 }}>
           <span style={{ fontSize: 10.5, color: "var(--ft-faint)" }}>Prepared with</span>
@@ -3799,13 +3884,21 @@ export default function App({ user, onSignOut }) {
                                 { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
                               ]} />
                           ); })()}
-                          <SegBar value={sel.printPricing || "full"}
-                            onChange={(v) => updateProject(sel.id, { printPricing: v })}
-                            options={[
-                              { v: "full", label: "All $", title: "Print every price and total" },
-                              { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
-                              { v: "none", label: "No $", title: "Print no pricing" },
-                            ]} />
+                          {/* Printed pricing shares its row with the waste
+                              toggles; the tier bar above keeps the full width. */}
+                          <div className="flex gap-1.5 min-w-0">
+                            <div className="flex-1 min-w-0">
+                              <SegBar value={sel.printPricing || "full"}
+                                onChange={(v) => updateProject(sel.id, { printPricing: v })}
+                                options={[
+                                  { v: "full", label: "All $", title: "Print every price and total" },
+                                  { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
+                                  { v: "none", label: "No $", title: "Print no pricing" },
+                                ]} />
+                            </div>
+                            <WasteBar w={jobWasteUI} dflt={settings.waste} className="w-[134px]"
+                              onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
+                          </div>
                         </div>
                         <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
                         <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
@@ -3907,6 +4000,11 @@ export default function App({ user, onSignOut }) {
                               { v: "none", label: "No $", title: "Print no pricing" },
                             ]} />
                         </div>
+                        <div>
+                          <label className={lbl}>Waste</label>
+                          <WasteBar w={jobWasteUI} dflt={settings.waste} className="w-[160px]"
+                            onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
+                        </div>
                         <div><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" rows={2} className={inp} /></div>
                         <div>
                           <label className={lbl}>Salesperson</label>
@@ -3995,15 +4093,15 @@ export default function App({ user, onSignOut }) {
                       </div>
                       )}
                       {a.products.map((p, pi) => {
-                        const G = getGrout(p, settings), M = getMortar(p, settings);
-                        const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
+                        const G = getGrout(p, wSet), M = getMortar(p, wSet);
+                        const gEx = groutExact(p, wSet), mEx = mortarExact(p, wSet);
                         const sf = p.qtyType === "sqft" ? num(p.qty) : 0;
                         // Amber-flag the empty qty box only once the row has identity —
                         // a freshly added blank row shouldn't glow before you start.
                         const qtyMissing = p.type !== "misc" && !(num(p.qty) > 0) && !!(p.sku || p.brandColor || num(p.priceSqft) > 0);
                         // Sold by the carton: whole cartons drive the line total —
                         // cartonSf for flooring sqft, cartonPc for per-piece count lines.
-                        const C = getCarton(p, settings), cEx = cartonExact(p, settings), PC = getPieceCarton(p);
+                        const C = getCarton(p, wSet), cEx = cartonExact(p, wSet), PC = getPieceCarton(p);
                         const line = p.type === "misc" ? num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)) : C ? C.order * C.sf * num(p.priceSqft) : sf * num(p.priceSqft);
                         // Tier lens (spec 2026-07-16): the price INPUT stays the stored
                         // retail; the chip + line total show the tier the estimate uses.
@@ -4037,9 +4135,9 @@ export default function App({ user, onSignOut }) {
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
                         // no longer offered is injected back so it still shows.
-                        const U = getUnderlay(p, settings), uEx = underlayExact(p, settings);
+                        const U = getUnderlay(p, wSet), uEx = underlayExact(p, wSet);
                         const installDefs = settings.underlayments[p.underlay.product]?.install || [];
-                        const INS = getUnderlayInstall(p, settings);
+                        const INS = getUnderlayInstall(p, wSet);
                         const insById = new Map((INS || []).map((m) => [m.defId, m]));
                         const insIncluded = installDefs.filter((d) => !p.underlay.installSkip?.[d.id]).length;
                         const insExpanded = !!insOpen[p.id];
@@ -4054,7 +4152,7 @@ export default function App({ user, onSignOut }) {
                         const matExpanded = !!matOpen[p.id];
                         const pInline = printProduct(tv.proj.categories[ai]?.products[pi] || p, tSet).mats.filter((m) => m.inline);
                         const matsCost = pInline.reduce((t, m) => t + m.cost, 0);
-                        const warns = materialWarnings(p, settings);
+                        const warns = materialWarnings(p, wSet);
                         // Add-on categories (ADR 0016) this row's flooring type offers.
                         const offCats = p.type === "misc" ? [] : offeredCategories(settings.catalog, p.type);
                         const WLBL = { grout: "Grout", mortar: "Mortar", underlay: underlayLabel(p.type), install: "Install materials" };
@@ -4159,7 +4257,7 @@ export default function App({ user, onSignOut }) {
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
-                            settings={settings} stock={stock} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv}
+                            settings={wSet} stock={stock} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
@@ -4185,7 +4283,7 @@ export default function App({ user, onSignOut }) {
                                 opens the row's editor sheet, a long-press pops it out for
                                 drag (startDrag's hold + move-abort does the detection; the
                                 timestamp keeps the drop's trailing click from re-opening) */}
-                            <MobileProductRow p={p} settings={settings} tv={tv}
+                            <MobileProductRow p={p} settings={wSet} tv={tv}
                               onPointerDown={(e) => { mobilePressAt.current = Date.now(); startDrag(e, a.id, p, pi, 350); }}
                               onOpen={() => { if (Date.now() - mobilePressAt.current > 330) return; setRowSheet({ aid: a.id, pid: p.id }); }} />
                             {driftBlock}
@@ -4450,10 +4548,10 @@ export default function App({ user, onSignOut }) {
                                   const names = offeredAttached(settings.catalog, cat.id);
                                   const opts = jobA.product && !names.includes(jobA.product) ? [jobA.product, ...names] : names;
                                   const def = resolveMaterialDefault(names, jobA.product, cat.default);
-                                  const A = getAttached(p, settings, cat);
+                                  const A = getAttached(p, wSet, cat);
                                   const pf = settings.attached?.[cat.id]?.[jobA.product];
                                   const aUnit = A ? A.unit : pf?.unit || "";
-                                  const covEx = cat.math === "coverage" && p.qtyType === "sqft" && num(p.qty) > 0 && num(pf?.coverage) > 0 ? num(p.qty) * wasteFor(p, settings) / num(pf.coverage) : null;
+                                  const covEx = cat.math === "coverage" && p.qtyType === "sqft" && num(p.qty) > 0 && num(pf?.coverage) > 0 ? num(p.qty) * wasteFor(p, wSet) / num(pf.coverage) : null;
                                   const setA = (patch) => updProduct(a.id, p.id, { attached: { ...p.attached, [cat.id]: { ...jobA, ...patch } } });
                                   const toggleOn = () => setA({ checked: true, product: jobA.product || def, manual: cat.math === "manual" ? (jobA.manual || "1") : jobA.manual });
                                   return jobA.checked ? (
@@ -4595,7 +4693,7 @@ export default function App({ user, onSignOut }) {
                         <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                         <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
                       </div>
-                      <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>Figures include {wasteNote(settings)}. Verify before ordering.</div>
+                      <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>{wasteNote(jobWaste) ? `Figures include ${wasteNote(jobWaste)}. ` : ""}Verify before ordering.</div>
                     </div>
                   </div>
                 </div>
@@ -4656,7 +4754,7 @@ export default function App({ user, onSignOut }) {
                 </tr>
               </thead>
               <tbody>
-                {sel.categories.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, settings); return (
+                {sel.categories.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, wSet); return (
                   <tr key={p.id} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
@@ -4676,7 +4774,7 @@ export default function App({ user, onSignOut }) {
                 ))}
               </tbody>
             </table>
-            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates, incl. {wasteNote(settings)}. Confirm against product specs and final measurements before ordering.</div>
+            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
         ) : renderEstimatePaper())}
       </div>
@@ -4749,7 +4847,7 @@ export default function App({ user, onSignOut }) {
         // into the vendor order by hand.
         const oeProj = tv.tier === "employee" ? tv.proj : sel;
         const rows = [];
-        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, settings, areaLabel(a, ai))); }));
+        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai))); }));
         const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
         return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} onClose={() => setShowOrderCopy(false)} />;
       })()}
@@ -7967,6 +8065,7 @@ function SettingsWorkspace({ onClose, settings, setSettings, stock, gFamilies, i
             <div className="mt-5 flex gap-6">
               <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
               <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
+              <div className="text-[11px] text-slate-400 self-end pb-1 max-w-[15rem]">The rates a new project starts with. Each job carries its own waste from there — changing these never touches a project that already exists.</div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">
               <label className={lbl}>Appearance</label>

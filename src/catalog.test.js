@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
@@ -17,7 +17,7 @@ const tile = (over = {}) => ({
 
 test("mergeSettings fills the full shape from built-in defaults when given nothing", () => {
   const s = mergeSettings(undefined);
-  assert.deepEqual(s.waste, { tile: 10, floor: 10 });
+  assert.deepEqual(s.waste, { tile: 10, floor: 5 });
   assert.deepEqual(Object.keys(s.grouts).sort(), [...GROUTS].sort());
   assert.deepEqual(Object.keys(s.mortars).sort(), [...MORTARS].sort());
   assert.equal(s.grouts["PermaColor Select"].coverage, 110);
@@ -61,14 +61,58 @@ test("DEFAULTS exposes the seeded built-in product names", () => {
 
 test("normWaste migrates a legacy single wastePct onto both families", () => {
   assert.deepEqual(normWaste({ wastePct: 18 }), { tile: 18, floor: 18 });
-  assert.deepEqual(normWaste(undefined), { tile: 10, floor: 10 });
+  assert.deepEqual(normWaste(undefined), { tile: 10, floor: 5 });
 });
 
 test("normWaste keeps an explicit waste split and ignores a stale legacy number", () => {
   assert.deepEqual(normWaste({ waste: { tile: 8, floor: 12 }, wastePct: 99 }), { tile: 8, floor: 12 });
-  // A half-specified split fills the missing family from the legacy number, then 10.
+  // A half-specified split fills the missing family from the legacy number,
+  // then that family's own default.
   assert.deepEqual(normWaste({ waste: { tile: 8 }, wastePct: 15 }), { tile: 8, floor: 15 });
   assert.deepEqual(normWaste({ waste: { floor: 12 } }), { tile: 10, floor: 12 });
+});
+
+// --- Per-project waste (2026-07-19) -----------------------------------------
+// Waste moved onto the job: each family is a toggle, and Settings holds only
+// the default a new job is seeded from.
+
+test("projWaste: a project written before the move keeps the shop rate, both families on", () => {
+  const s = { waste: { tile: 10, floor: 5 } };
+  // No `waste` on the project = quoted under the old global rate. Waste
+  // resolves at calc time, so anything but a pass-through would silently
+  // reprice a saved job the next time someone opened it.
+  assert.deepEqual(projWaste(null, s), { tile: 10, floor: 5 });
+  assert.deepEqual(projWaste({ name: "old job" }, s), { tile: 10, floor: 5 });
+});
+
+test("projWaste: an unpressed family contributes no waste", () => {
+  const s = { waste: { tile: 10, floor: 5 } };
+  assert.deepEqual(projWaste({ waste: { tile: 10, floor: 5, tileOn: false, floorOn: false } }, s), { tile: 0, floor: 0 });
+  assert.deepEqual(projWaste({ waste: { tile: 10, floor: 5, tileOn: true, floorOn: false } }, s), { tile: 10, floor: 0 });
+  assert.deepEqual(projWaste({ waste: { tile: 10, floor: 5, tileOn: false, floorOn: true } }, s), { tile: 0, floor: 5 });
+});
+
+test("projWaste: the job's own rate wins over the shop default", () => {
+  const s = { waste: { tile: 10, floor: 5 } };
+  assert.deepEqual(projWaste({ waste: { tile: 15, floor: 8, tileOn: true, floorOn: true } }, s), { tile: 15, floor: 8 });
+});
+
+test("withProjWaste: job math reads the project's rates, nothing else changes", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
+  const off = withProjWaste(s, { waste: { tile: 10, floor: 20, tileOn: false, floorOn: false } });
+  // Toggles off = raw measured footage, no overage.
+  assert.equal(cartonExact(tile({ qty: "200", cartonSf: "20", cartonManual: "" }), off), 200 / 20);
+  assert.equal(cartonExact({ type: "vinyl", qtyType: "sqft", qty: "200", cartonSf: "20" }, off), 200 / 20);
+  // Everything else on the settings object survives the fold.
+  assert.deepEqual(Object.keys(off).sort(), Object.keys(s).sort());
+  assert.equal(off.grouts["PermaColor Select"].coverage, s.grouts["PermaColor Select"].coverage);
+});
+
+test("withProjWaste: a pressed family orders overage again", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
+  const on = withProjWaste(s, { waste: { tile: 10, floor: 20, tileOn: true, floorOn: false } });
+  assert.equal(cartonExact(tile({ qty: "200", cartonSf: "20", cartonManual: "" }), on), 200 * 1.1 / 20);
+  assert.equal(cartonExact({ type: "vinyl", qtyType: "sqft", qty: "200", cartonSf: "20" }, on), 200 / 20);
 });
 
 test("wasteFor picks tile rate for tile, floor rate for every other type", () => {
