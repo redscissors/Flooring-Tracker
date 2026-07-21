@@ -1,90 +1,60 @@
-// Preview harness for the Sheoga vent/damper fix: per-each lines now land with
-// their size in the row's SIZE FIELD (sizeText) and their pricing carried into
-// every line total. Rows come from the REAL sheoga.lineItems(); the "grid row"
-// strip prices them with the same math as App.jsx's lineTotal helper, and the
-// order-entry section is the REAL OrderEntryPanel over the same payloads — so
-// what shows here is the code path the app runs, without touching Supabase.
+// Preview harness for the project-header split (projectheader.jsx): the REAL
+// ProjectHeaderBar (one-bar, 2026-07-21) and ProjectHeaderClassic rendered over
+// fake job data — every control is live (tier rows, waste card, save-version
+// popover, hover tips) without touching Supabase.
 // Dev-only entry (preview.html); not part of the app build.
+import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { OrderEntryPanel } from "./orderentry.jsx";
-import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
-import { lineItems, defaultConfig } from "./sheoga.js";
+import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
 
-const num = (v) => parseFloat(v) || 0;
-const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-// Same math as App.jsx's lineTotal: misc = pieces × each; flooring = cartons or
-// sqft × per-sf — and a non-misc row counted each bills qty × price-each.
-const lineTotal = (p) =>
-  p.type === "misc" ? num(p.priceSqft) * (num(p.qty) || 1)
-  : (num(p.cartonSf) > 0 && p.qtyType === "sqft" ? Math.ceil(num(p.qty) / num(p.cartonSf)) * num(p.cartonSf) : num(p.qty)) * num(p.priceSqft);
-
-// One of each per-each program (vent + loose damper, at the 50% vent markup)
-// plus a stocked floor line to show the sqft path unchanged (40% markup).
-const ventLines = lineItems({ mode: "vent", cfg: { ...defaultConfig("vent"), sp: "Walnut", size: "4×12", cubed: true, qty: 6 } }, { sf: 0, markupPct: 50 });
-const damperLines = lineItems({ mode: "damper", cfg: { size: "6×14", qty: 8 } }, { sf: 0, markupPct: 50 });
-const floorLines = lineItems({ mode: "floor", cfg: { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" } }, { sf: 900, markupPct: 40 });
-
-const gridRows = [
-  { ...ventLines[0], id: "v1" },
-  { ...damperLines[0], id: "d1" },
-  { ...floorLines[0], id: "f1" },
-];
-
-const toOrderRow = (p, limit) => {
-  const each = p.qtyType === "count";
-  const r = {
-    id: p.id, special: isSpecialOrder(p), byDesc: !!p.sheoga && !p.sku, area: "Kitchen",
-    tag: "", sizePlain: p.sizeText || "", name: String(p.brandColor || ""), sku: p.sku || "",
-    sheoga: p.sheoga, coverage: num(p.cartonSf) > 0 ? `${p.cartonSf} SF/CT` : "",
-    qty: num(p.qty), unitCode: each ? "PC" : "SF",
-    qtyText: num(p.qty) > 0 ? `${p.qty} ${each ? "PC" : "SF"}` : "—",
-    perCost: num(p.costSqft), perSell: num(p.priceSqft),
-  };
-  const desc = orderDescription(r, limit);
-  return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
+const SEL = {
+  id: "p1", name: "New House", address: "", notes: "", quick: false, customerId: "c1",
+  priceTier: "retail", customPct: "", printPricing: "none",
+  salesperson: { name: "Marcus", phone: "330 893 1292", email: "" },
+  attachments: [{ id: "a1", name: "kitchen-photo.jpg", type: "image/jpeg", size: 230000 }, { id: "a2", name: "measure-sheet.pdf", type: "application/pdf", size: 90000 }],
+  versions: [{ id: "v1" }, { id: "v2" }, { id: "v3" }],
+  categories: [], waste: null, _full: true,
 };
+const CUST = { id: "c1", name: "Test Man", address: "", builderId: "b1" };
+const SETTINGS = { pricing: {}, waste: { tile: 10, floor: 5 } };
+const PROFILE = { name: "Marcus", phone: "330 893 1292", email: "" };
 
-function Preview() {
-  const rows = gridRows.map((p) => toOrderRow(p, 30));
+function Harness() {
+  const [sel, setSel] = useState(SEL);
+  const [namingVersion, setNamingVersion] = useState(false);
+  const [versionName, setVersionName] = useState("");
+  const [log, setLog] = useState("—");
+  const nameRef = useRef(null);
+  const addAreaRef = useRef(null);
+  const attRef = useRef(null);
+  const updateProject = (id, patch) => setSel((s) => ({ ...s, ...patch }));
+  const say = (m) => () => setLog(m);
+  const tv = { tier: sel.priceTier || "retail", pct: sel.priceTier === "builder" ? 8 : sel.priceTier === "sale" ? 10 : sel.priceTier === "custom" ? Number(sel.customPct) || 0 : 0 };
+  const props = {
+    sel, cust: CUST, builderName: "P&L Builders", profile: PROFILE, tv, grandTotal: 27250.54, saveOk: false,
+    settings: SETTINGS, jobWasteUI: sel.waste || { tile: 10, floor: 5, tileOn: true, floorOn: true }, updateProject,
+    onOpenCustomer: say("open customer modal"), onPromote: say("promote"),
+    nameRef, addAreaRef, focusName: false, tabTo: () => () => {},
+    namingVersion, setNamingVersion, versionName, setVersionName,
+    startVersionName: () => { setVersionName(""); setNamingVersion(true); },
+    confirmVersion: () => { setLog(`saved version "${versionName || "Untitled"}"`); setNamingVersion(false); },
+    openAttachment: say("open file"), delAttachment: say("delete file"), attRef, addAttachment: say("add file"),
+    setShowVersions: say("open version history"), setPrintMode: (m) => setLog(`print mode: ${m}`),
+    setConfirm: say("confirm delete project"), setShowOrderCopy: say("open Order entry panel"), addArea: say("add area"),
+  };
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-800">
-      <div className="max-w-2xl relative z-[60]">
-        <h1 className="text-lg font-semibold mb-1">Sheoga vents & dampers — size in the size field, pricing carried</h1>
-        <p className="text-xs text-slate-500 mb-5 max-w-xl">
-          Payloads from the real <code>lineItems()</code>. Per-each lines used to land with an empty size
-          field (size buried in the description) and a $0 line total everywhere — the sqft math zeroed
-          count rows. The size now snapshots to <code>sizeText</code> and totals bill qty × price-each.
-        </p>
-
-        <h2 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mb-2">What lands on the product row (grid / estimate)</h2>
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden mb-6">
-          <div className="grid text-[9px] font-extrabold uppercase tracking-wide text-slate-400 px-3 py-2 border-b border-slate-200" style={{ gridTemplateColumns: "70px 1fr 64px 84px 90px" }}>
-            <span>Size</span><span>Product / Color</span><span className="text-right">Qty</span><span className="text-right">Price</span><span className="text-right">Line total</span>
-          </div>
-          {gridRows.map((p) => (
-            <div key={p.id} className="grid items-baseline px-3 py-2 text-[12.5px] border-b border-slate-100 last:border-b-0" style={{ gridTemplateColumns: "70px 1fr 64px 84px 90px" }}>
-              <span className="ft-mono font-bold" style={{ color: "var(--ft-brand-deep)" }}>{p.sizeText || "—"}</span>
-              <span className="truncate pr-2">{p.brandColor}</span>
-              <span className="ft-mono text-right">{p.qty} {p.qtyType === "count" ? "EA" : "SF"}</span>
-              <span className="ft-mono text-right">{money(num(p.priceSqft))}{p.qtyType === "count" ? "/ea" : "/sf"}</span>
-              <span className="ft-mono text-right font-bold">{money(lineTotal(p))}</span>
-            </div>
-          ))}
-          <div className="px-3 py-1.5 text-[11px] text-slate-400 bg-slate-50">
-            Before this fix the vent and damper rows read “—” size and a dash total; both now carry through
-            the grid, estimate totals, print, and the special-order margin.
-          </div>
-        </div>
+    <div className="min-h-screen p-6" style={{ background: "var(--ft-cream)", color: "var(--ft-text)" }}>
+      <div style={{ maxWidth: 1160 }}>
+        <h1 className="text-lg font-bold mb-0.5">Project header — real components, fake data</h1>
+        <p className="text-xs mb-1" style={{ color: "var(--ft-faint)" }}>Everything is live: tier rows, waste card lock, save-version popover, file popover, hover tips. Last action: <b style={{ color: "var(--ft-brand-deep)" }}>{log}</b></p>
+        <div className="ft-eyebrow text-[9px] mt-4 mb-2">One-bar (default)</div>
+        <ProjectHeaderBar {...props} />
+        <div className="ft-eyebrow text-[9px] mt-8 mb-2">Classic (Settings → General → Project header)</div>
+        <ProjectHeaderClassic {...props} />
       </div>
-
-      <OrderEntryPanel name="Preview — Sheoga vent fix" special={rows.filter((r) => r.special)}
-        stock={rows.filter((r) => !r.special)} descLimit={30} onClose={() => {}} />
     </div>
   );
 }
 
-const el = document.getElementById("preview");
-const root = (window.__previewRoot ||= createRoot(el));
-root.render(<Preview />);
+createRoot(document.getElementById("preview")).render(<Harness />);

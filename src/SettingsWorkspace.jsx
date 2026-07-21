@@ -25,7 +25,7 @@ const MATERIAL_CATEGORIES = [
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("materials");
@@ -640,6 +640,15 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
               <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
                 {[{ v: "system", label: "System", icon: Laptop }, { v: "light", label: "Light", icon: Sun }, { v: "dark", label: "Dark", icon: Moon }].map(({ v, label, icon: Icon }) => (
                   <button key={v} onClick={() => setTheme(v)} className={`flex items-center gap-1.5 px-3.5 py-2 font-medium ${theme === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}><Icon size={14} /> {label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <label className={lbl}>Project header</label>
+              <p className="text-[11px] text-slate-400 mt-1 mb-2.5 max-w-md">Applies on this device only. One-bar is the 2026-07 redesign; Classic is the original two-row header.</p>
+              <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
+                {[{ v: "bar", label: "One-bar" }, { v: "classic", label: "Classic" }].map(({ v, label }) => (
+                  <button key={v} onClick={() => setHeaderLayout(v)} className={`px-3.5 py-2 font-medium ${headerLayout === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
                 ))}
               </div>
             </div>

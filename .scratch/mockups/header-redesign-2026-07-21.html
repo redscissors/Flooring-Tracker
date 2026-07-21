@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project header — 4 prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --band:#E7E3D6;
+    --border:rgba(28,26,23,.10); --border-strong:rgba(28,26,23,.25);
+    --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A;
+    --moss-soft:color-mix(in oklab, #57703A 13%, transparent);
+    --tint:color-mix(in oklab, #57703A 6%, #fff);
+    --seg-on:color-mix(in oklab, #57703A 16%, transparent);
+    --hover:color-mix(in oklab, #57703A 7%, transparent);
+    --type-hw:#40542A; --type-tile:#2C3A1D; --type-misc:#8CA268;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--cream);color:var(--ink);font-family:Manrope,ui-sans-serif,system-ui,sans-serif;padding:18px 20px 120px}
+  svg{display:block}
+  h1{font-size:20px;font-weight:700;letter-spacing:-.01em}
+  .sub{font-size:12px;color:var(--faint);margin:3px 0 14px;max-width:720px;line-height:1.5}
+
+  /* ---- variant switcher ---- */
+  .tabs{position:sticky;top:0;z-index:50;display:flex;gap:6px;padding:8px 0 10px;background:linear-gradient(var(--cream) 85%,transparent);flex-wrap:wrap}
+  .tab{border:1px solid var(--border-strong);background:var(--card);border-radius:999px;padding:6.5px 14px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
+  .tab:hover{background:var(--hover)}
+  .tab.on{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  section.variant{display:none}
+  section.variant.on{display:block}
+  .vhead{margin:10px 0 12px;max-width:760px}
+  .vhead h2{font-size:16px;font-weight:800}
+  .vhead p{font-size:12.5px;color:var(--muted);line-height:1.55;margin-top:3px}
+  .vhead .pill{display:inline-block;font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 7px;margin:6px 6px 0 0}
+  .pro{background:var(--moss-soft);color:var(--moss-deep)}
+  .con{background:#FEF3C7;color:#92400E}
+
+  /* ---- shared bits ---- */
+  .eyebrow{font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--moss-deep)}
+  .headcard{border:1px solid var(--border);border-radius:10px;background:var(--band);padding:14px;max-width:1060px}
+  .icon{display:inline-flex;line-height:0;flex:none}
+  button{font-family:inherit;cursor:pointer}
+  input,textarea{font-family:inherit;color:var(--ink)}
+  .money{font-weight:800;letter-spacing:-.01em}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;border-radius:8px;border:1px solid var(--border-strong);background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;padding:0 12px;white-space:nowrap}
+  .btn:hover{background:var(--hover)}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:var(--cream);font-weight:700}
+  .btn.primary:hover{opacity:.92}
+  .btn.danger{color:#B91C1C;border-color:rgba(185,28,28,.35)}
+  .btn.danger:hover{background:#FEF2F2}
+  .count{background:var(--sand);border-radius:999px;font-size:10px;font-weight:800;padding:1px 6px;color:var(--muted)}
+  .seg{display:flex;background:var(--card);border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;height:30px}
+  .seg button{flex:1;border:0;background:none;font-size:11.5px;font-weight:600;color:var(--muted);padding:0 10px;white-space:nowrap}
+  .seg button+button{border-left:1px solid var(--border)}
+  .seg button.on{background:var(--seg-on);color:var(--ink);font-weight:800}
+  .notes{width:100%;border:1px solid var(--border);border-radius:8px;background:var(--card);padding:8px 10px;font-size:12.5px;resize:none;color:var(--muted)}
+  .addarea{margin-top:10px;width:100%;height:32px;border:0;border-radius:8px;background:var(--ink);color:var(--cream);font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px}
+  .addarea:hover{opacity:.92}
+
+  /* grayed context stub below each header */
+  .stub{max-width:1060px;margin-top:14px;opacity:.45;pointer-events:none}
+  .stub .areahead{background:var(--band);border:1px solid var(--border);border-radius:8px 8px 0 0;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:15px}
+  .stub .areahead span{font-size:11px;color:var(--muted);font-weight:600}
+  .stub .row{background:var(--card);border:1px solid var(--border);border-top:0;border-radius:0 0 8px 8px;padding:8px 12px;display:flex;gap:10px;align-items:center;font-size:12px}
+  .stub .chip{width:20px;height:20px;border-radius:4px;background:var(--type-hw);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .stubnote{font-size:10.5px;color:var(--faint);margin-top:4px;max-width:1060px}
+
+  /* ===================== V1 — named toolbar ===================== */
+  .v1-id{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:16px}
+  .v1-id .mid{border-left:1px solid var(--border);border-right:1px solid var(--border);padding:0 16px;text-align:center;position:relative}
+  .v1-name{font-size:23px;font-weight:800;background:none;border:0;border-bottom:2px solid transparent;text-align:center;width:100%;letter-spacing:-.01em}
+  .v1-name:focus{outline:none;border-color:var(--moss)}
+  .v1-addr{font-size:11.5px;color:var(--faint);background:none;border:0;text-align:center;width:100%;margin-top:2px}
+  .custlink{font-size:18px;font-weight:700;color:var(--moss);display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:0}
+  .subline{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:5px}
+  .v1-total{position:absolute;right:16px;top:0;text-align:right}
+  .v1-total .money{font-size:14px;color:var(--moss-deep)}
+  .toolband{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:grid;grid-template-columns:1.25fr 1fr 1fr 1.15fr;gap:0}
+  .tgroup{padding:0 14px;border-left:1px solid var(--border);min-width:0;display:flex;flex-direction:column;gap:6px}
+  .tgroup:first-child{border-left:0;padding-left:0}
+  .tgroup:last-child{padding-right:0}
+  .tgroup .glabel{font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+  .tgroup .btn{flex:1;padding:0 8px;font-size:12px}
+  .brow{display:flex;gap:6px}
+  .wastepill{display:inline-flex;align-items:center;gap:5px;height:30px;border:1px solid var(--border-strong);border-radius:8px;background:var(--card);font-size:11px;font-weight:700;color:var(--muted);padding:0 10px;white-space:nowrap}
+
+  /* ===================== V2 — dashboard tiles ===================== */
+  .statband{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:1060px}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 13px}
+  .stat .eyebrow{color:var(--faint)}
+  .stat .val{font-size:19px;font-weight:800;margin-top:3px;letter-spacing:-.01em}
+  .stat .val.moss{color:var(--moss-deep)}
+  .stat .sub2{font-size:11px;color:var(--faint);margin-top:1px}
+  .cardrow{display:grid;grid-template-columns:1fr 1.25fr 1.15fr;gap:10px;max-width:1060px;margin-top:10px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .panel .phead{background:var(--band);padding:7px 13px;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--border)}
+  .panel .phead .t{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--moss-deep)}
+  .panel .phead .d{font-size:10px;color:var(--faint);margin-left:auto;text-align:right}
+  .panel .pbody{padding:11px 13px;flex:1;display:flex;flex-direction:column;gap:7px}
+  .fieldlab{font-size:10px;font-weight:700;color:var(--faint);margin-bottom:-4px}
+  .v2-name{font-size:19px;font-weight:800;background:none;border:0;border-bottom:1.5px solid var(--border);padding-bottom:2px;width:100%}
+  .v2-name:focus{outline:none;border-color:var(--moss)}
+  .actionband{max-width:1060px;margin-top:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .actionband .cols{display:grid;grid-template-columns:1fr 1.1fr}
+  .agroup{padding:10px 13px}
+  .agroup+.agroup{border-left:1px solid var(--border)}
+  .agroup .glabel{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--moss-deep);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .agroup .glabel small{font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint);font-size:10px}
+  .abtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .abtn{border:1px solid var(--border-strong);border-radius:9px;background:var(--card);padding:9px 10px;text-align:left;display:flex;flex-direction:column;gap:4px}
+  .abtn:hover{background:var(--hover)}
+  .abtn .tt{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800}
+  .abtn .dd{font-size:10.5px;color:var(--faint);line-height:1.35}
+  .abtn.fill{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .abtn.fill .dd{color:rgba(246,243,236,.72)}
+  .abtn.fill:hover{opacity:.93}
+
+  /* ===================== V3 — slim command bar ===================== */
+  .slim{border:1px solid var(--border);border-radius:10px;background:var(--band);max-width:1060px;overflow:visible}
+  .slim .line1{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
+  .crumb{font-size:13px;font-weight:700;color:var(--moss);display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:0;white-space:nowrap}
+  .crumbsep{color:var(--faint);font-size:13px}
+  .v3-name{font-size:19px;font-weight:800;background:none;border:0;border-bottom:2px solid transparent;min-width:120px;flex:1;letter-spacing:-.01em}
+  .v3-name:focus{outline:none;border-color:var(--moss)}
+  .slim .total{margin-left:auto;text-align:right;white-space:nowrap}
+  .slim .total .money{font-size:15px;color:var(--moss-deep)}
+  .slim .total .tierchip{font-size:9.5px;font-weight:800;background:var(--moss-soft);color:var(--moss-deep);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:2px}
+  .slim .line2{display:flex;align-items:center;gap:6px;padding:0 14px 10px;flex-wrap:wrap}
+  .pillbtn{display:inline-flex;align-items:center;gap:5px;height:28px;border:1px solid var(--border-strong);border-radius:999px;background:var(--card);font-size:11.5px;font-weight:600;color:var(--muted);padding:0 11px;white-space:nowrap}
+  .pillbtn b{color:var(--ink);font-weight:800}
+  .pillbtn:hover{background:var(--hover)}
+  .pillbtn .chev{color:var(--faint)}
+  .slim .spacer{flex:1}
+  .drawer{border-top:1px solid var(--border);background:color-mix(in oklab,#fff 45%,var(--band));padding:10px 14px;display:none;grid-template-columns:1fr 1fr 1.3fr;gap:14px;border-radius:0 0 10px 10px}
+  .drawer.open{display:grid}
+  .drawer .dl{font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:3px;display:flex;align-items:center;gap:4px}
+  .drawer .dv{font-size:12.5px;font-weight:600}
+  .drawer .ds{font-size:11px;color:var(--faint)}
+
+  /* ===================== V4 — guided tiles ===================== */
+  .v4-grid{display:grid;grid-template-columns:.95fr 1.5fr;gap:10px;max-width:1060px;margin-top:10px}
+  .setupcard .srow{display:flex;flex-direction:column;gap:4px;padding:9px 0;border-top:1px dashed var(--border)}
+  .setupcard .srow:first-of-type{border-top:0;padding-top:0}
+  .setupcard .slabel{font-size:11.5px;font-weight:800}
+  .setupcard .sdesc{font-size:10.5px;color:var(--faint);line-height:1.35}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .tile{border:1px solid var(--border-strong);border-radius:10px;background:var(--card);padding:10px 12px;display:flex;gap:10px;align-items:flex-start;text-align:left}
+  .tile:hover{background:var(--hover)}
+  .tile .icon{margin-top:1px;color:var(--moss-deep)}
+  .tile .tt{font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .tile .dd{font-size:11px;color:var(--faint);line-height:1.4;margin-top:2px}
+  .tile.fill{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .tile.fill .icon{color:#B9C89B}
+  .tile.fill .dd{color:rgba(246,243,236,.72)}
+  .tile.fill:hover{opacity:.93}
+  .modechip{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--faint);border:1px dashed var(--border-strong);border-radius:999px;padding:3px 10px}
+  .modechip b{color:var(--moss-deep)}
+
+  /* ===================== V6 — one-bar (sketch) ===================== */
+  .sbar{display:flex;gap:8px;max-width:1060px;border:1px solid var(--border);border-radius:8px;background:var(--band);padding:10px;align-items:stretch}
+  .idstack{display:flex;flex-direction:column;gap:6px;width:188px;flex:none}
+  .idbox{background:var(--card);border:1px solid var(--border-strong);border-radius:6px;padding:5px 10px 6px;text-align:left;flex:1;display:flex;flex-direction:column;justify-content:center}
+  .idbox .il{font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:4px}
+  .idbox .iv{font-size:14px;font-weight:800;margin-top:1px}
+  .idbox .custlink{font-size:14px;margin-top:1px}
+  .idbox input{background:none;border:0;font-size:14px;font-weight:800;width:100%;padding:0}
+  .idbox input:focus{outline:none}
+  .idbox input.addr{font-size:10px;font-weight:500;color:var(--faint);margin-top:1px}
+  .idbox .is{font-size:10px;color:var(--faint);margin-top:1px}
+  .notescol{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+  .notescol .notes{flex:1;border:1px solid var(--border-strong);border-radius:6px}
+  .totalbox{padding:1px 4px 0}
+  .totalbox .il{font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .totalbox .money{font-size:20px;color:var(--moss-deep);letter-spacing:-.02em;line-height:1.1}
+  .vcol{background:var(--card);border:1px solid var(--border-strong);border-radius:6px;padding:0;display:flex;flex-direction:column;flex:none;overflow:hidden}
+  .vcol .vh{font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--moss-deep);padding:6px 10px 5px;display:flex;align-items:center;gap:4px;white-space:nowrap;border-bottom:1px solid var(--border);background:var(--sand)}
+  .vopt{border:0;background:none;border-radius:0;border-bottom:1px solid var(--border);font-size:11.5px;font-weight:600;color:var(--muted);padding:5px 11px;text-align:left;white-space:nowrap;flex:1;display:flex;align-items:center}
+  .vopt:last-child{border-bottom:0}
+  .vopt:hover{background:var(--hover)}
+  .vopt.on{background:var(--seg-on);color:var(--ink);font-weight:800;box-shadow:inset 0 2px 4px rgba(28,26,23,.22)}
+  .vopt.quiet{cursor:default;color:var(--muted);gap:4px}
+  .vopt.quiet b{color:var(--ink)}
+  .rightstack{display:flex;flex-direction:column;gap:8px;flex:none;width:96px}
+  .rightstack .vcol{flex:1}
+  .minigrid{display:grid;grid-template-columns:repeat(2,45px);gap:6px;flex:none}
+  .mini{width:45px;height:40px;border:1px solid var(--border-strong);border-radius:6px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);position:relative}
+  .mini:hover{background:var(--hover)}
+  .mini .count{position:absolute;top:-6px;right:-6px}
+  .primcol{display:flex;flex-direction:column;gap:8px;width:148px;flex:none}
+  .primcol .btn{flex:1;height:auto;font-size:13.5px;border-radius:6px}
+  .primcol .btn.primary:hover{opacity:1}
+  .btn2{flex-direction:column;gap:0}
+  .btn2 .l1{display:flex;align-items:center;gap:6px}
+  .btn2 .sub{font-size:9.5px;font-weight:600;opacity:.7;margin-top:1px}
+  .delbar{height:24px;flex:none;display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid rgba(185,28,28,.5);border-radius:6px;background:var(--card);color:#B91C1C;font-size:10.5px;font-weight:700;cursor:pointer}
+  /* lines & corners match the live header: 1px borders, 8px band, 6px controls */
+  #v6 .addarea{border-radius:6px}
+  [data-tip]{position:relative}
+  [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--ink);color:var(--cream);font-size:10.5px;font-weight:600;line-height:1.45;padding:8px 10px;border-radius:6px;width:132px;white-space:normal;text-align:left;z-index:30;pointer-events:none}
+
+  /* ===================== drag ideas ===================== */
+  .dragwrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:1060px;align-items:start}
+  .democard{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .democard .phead{background:var(--band);padding:8px 13px;border-bottom:1px solid var(--border)}
+  .democard .phead .t{font-size:12px;font-weight:800}
+  .democard .phead .d{font-size:10.5px;color:var(--faint);margin-top:1px;line-height:1.4}
+  .prow{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid rgba(28,26,23,.06);font-size:12.5px;position:relative;user-select:none;background:var(--card);transition:box-shadow .15s, transform .15s}
+  .prow:last-child{border-bottom:0}
+  .prow .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .prow .price{color:var(--muted);font-size:11.5px}
+  .typechip{width:22px;height:22px;border-radius:5px;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;cursor:grab;position:relative;transition:transform .12s}
+  .typechip:hover{transform:scale(1.12)}
+  .typechip:hover::after{content:"";position:absolute;inset:-3px;border:1.5px dashed var(--moss);border-radius:7px}
+  .prow.lifted{box-shadow:0 8px 22px rgba(28,26,23,.25);transform:scale(1.012);z-index:5;border-radius:8px;cursor:grabbing}
+  .prow.lifted .typechip{cursor:grabbing}
+  .holdhint{font-size:10.5px;color:var(--moss-deep);font-weight:700;background:var(--moss-soft);border-radius:5px;padding:2px 7px;display:none}
+  .prow.lifted .holdhint{display:inline-block}
+  .ctxmenu{position:fixed;z-index:100;background:var(--card);border:1px solid var(--border-strong);border-radius:9px;box-shadow:0 10px 30px rgba(28,26,23,.22);min-width:190px;padding:5px;display:none}
+  .ctxmenu.open{display:block}
+  .ctxmenu .mi{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;padding:6.5px 9px;border-radius:6px;border:0;background:none;width:100%;text-align:left;color:var(--ink)}
+  .ctxmenu .mi:hover{background:var(--hover)}
+  .ctxmenu .mi .icon{color:var(--faint)}
+  .ctxmenu .sep{height:1px;background:var(--border);margin:4px 6px}
+  .ctxmenu .mi.red{color:#B91C1C}
+  .ctxmenu .mi.red:hover{background:#FEF2F2}
+  .ctxmenu .mhead{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);padding:4px 9px 2px}
+  .dragnote{font-size:11.5px;color:var(--muted);line-height:1.55;max-width:1060px;margin-top:12px;background:var(--tint);border:1px solid var(--border);border-radius:10px;padding:11px 14px}
+  .dragnote b{color:var(--moss-deep)}
+</style>
+</head>
+<body>
+
+<h1>Project header — four prototypes</h1>
+<div class="sub">Same job as the live screenshot (Test&nbsp;Man · New House · $27,250.54). Click through the tabs — each variant is a different philosophy for making the header readable at a glance for someone new. The fifth tab explores replacing the little grab icon on product rows.</div>
+
+<div class="tabs" id="tabs">
+  <button class="tab on" data-v="v1">1 · Named toolbar</button>
+  <button class="tab" data-v="v2">2 · Dashboard panels</button>
+  <button class="tab" data-v="v3">3 · Slim bar + drawer</button>
+  <button class="tab" data-v="v4">4 · Guided tiles</button>
+  <button class="tab" data-v="v6">5 · One-bar (your sketch)</button>
+  <button class="tab" data-v="v5">✋ Drag ideas</button>
+</div>
+
+<!-- ================= V1 ================= -->
+<section class="variant on" id="v1">
+  <div class="vhead">
+    <h2>1 · Named toolbar — keep the shape, name everything</h2>
+    <p>Closest to today. The identity row stays print-paper style, but the button soup below becomes four titled groups with a divider between each — every button gets its word back, and the two "money" actions stay ink-filled.</p>
+    <span class="pill pro">least disruptive</span><span class="pill pro">everything still one glance</span><span class="pill con">still fairly dense</span>
+  </div>
+
+  <div class="headcard">
+    <div class="v1-id">
+      <div>
+        <div class="eyebrow">Customer</div>
+        <button class="custlink">Test Man <span class="icon" data-i="chev"></span></button>
+        <div class="subline"><span class="icon" data-i="building"></span> P&amp;L Builders</div>
+      </div>
+      <div class="mid">
+        <div class="v1-total"><div class="money">$27,250.54</div></div>
+        <div class="eyebrow" style="margin-bottom:2px">Project</div>
+        <input class="v1-name" value="New House" />
+        <input class="v1-addr" placeholder="Project address…" />
+      </div>
+      <div style="text-align:right">
+        <div class="eyebrow" style="display:flex;justify-content:flex-end;align-items:center;gap:4px"><span class="icon" data-i="lock"></span> Salesperson</div>
+        <div style="font-size:17px;font-weight:700;margin-top:1px">Marcus</div>
+        <div class="subline" style="justify-content:flex-end">330 893 1292</div>
+      </div>
+    </div>
+
+    <div class="toolband">
+      <div class="tgroup">
+        <div class="glabel">Pricing</div>
+        <div class="seg">
+          <button class="on">Retail</button><button>Builder</button><button>Employee</button><button>Sale</button><button>%</button>
+        </div>
+        <div class="brow">
+          <div class="seg" style="flex:1"><button>All $</button><button>Unit $</button><button class="on">No $</button></div>
+          <span class="wastepill"><span class="icon" data-i="lock"></span> Waste 10 / 5%</span>
+        </div>
+      </div>
+      <div class="tgroup">
+        <div class="glabel">Notes</div>
+        <textarea class="notes" style="flex:1" placeholder="Project notes…"></textarea>
+      </div>
+      <div class="tgroup">
+        <div class="glabel">This estimate</div>
+        <div class="brow" style="flex:1"><button class="btn" style="flex:1"><span class="icon" data-i="save"></span> Save version</button></div>
+        <div class="brow"><button class="btn" style="flex:1"><span class="icon" data-i="clip"></span> Files <span class="count">2</span></button><button class="btn" style="flex:1"><span class="icon" data-i="hist"></span> History</button></div>
+      </div>
+      <div class="tgroup">
+        <div class="glabel">Send &amp; print</div>
+        <div class="brow" style="flex:1"><button class="btn" style="flex:1"><span class="icon" data-i="sheet"></span> Order sheet</button><button class="btn danger" title="Delete project" style="width:34px;padding:0;flex:none"><span class="icon" data-i="trash"></span></button></div>
+        <div class="brow"><button class="btn primary" style="flex:1"><span class="icon" data-i="copy"></span> Order entry</button><button class="btn primary" style="flex:1"><span class="icon" data-i="print"></span> Print</button></div>
+      </div>
+    </div>
+    <button class="addarea"><span class="icon" data-i="plus"></span> Add area</button>
+  </div>
+  <div class="stub">
+    <div class="areahead">Kitchen <span>1,540 SF · $24,346.31</span></div>
+    <div class="row"><span class="chip">H</span> Mirage Blanc White Oak Bubble Bath … <span style="margin-left:auto;font-weight:700">$23,475.00</span></div>
+  </div>
+  <div class="stubnote">Areas list continues exactly as today.</div>
+</section>
+
+<!-- ================= V2 ================= -->
+<section class="variant" id="v2">
+  <div class="vhead">
+    <h2>2 · Dashboard panels — titled cards, stats up top</h2>
+    <p>Harvest/Xero-style: a read-only stat band answers "where is this job at" instantly, then three titled cards (Customer · Project · Pricing) and one Actions band where every button carries a one-line description. The most self-explanatory for a new person.</p>
+    <span class="pill pro">every section titled</span><span class="pill pro">buttons explain themselves</span><span class="pill con">tallest of the four</span>
+  </div>
+
+  <div class="statband">
+    <div class="stat"><div class="eyebrow">Job total</div><div class="val moss">$27,250.54</div><div class="sub2">Retail pricing</div></div>
+    <div class="stat"><div class="eyebrow">Areas</div><div class="val">2</div><div class="sub2">1,760 SF across Kitchen &amp; Bathroom</div></div>
+    <div class="stat"><div class="eyebrow">Price level</div><div class="val">Retail</div><div class="sub2">change below ↓</div></div>
+    <div class="stat"><div class="eyebrow">Printed estimate shows</div><div class="val">No prices</div><div class="sub2">totals hidden on the customer copy</div></div>
+  </div>
+
+  <div class="cardrow">
+    <div class="panel">
+      <div class="phead"><span class="t">Customer</span><span class="d">who it's for</span></div>
+      <div class="pbody">
+        <button class="custlink" style="font-size:17px">Test Man <span class="icon" data-i="chev"></span></button>
+        <div class="subline"><span class="icon" data-i="building"></span> P&amp;L Builders</div>
+        <div style="border-top:1px dashed var(--border);padding-top:7px;margin-top:auto">
+          <div class="eyebrow" style="display:flex;align-items:center;gap:4px;color:var(--faint)"><span class="icon" data-i="lock"></span> Salesperson</div>
+          <div style="font-size:13.5px;font-weight:700;margin-top:2px">Marcus · 330 893 1292</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span class="t">Project</span><span class="d">what we're quoting</span></div>
+      <div class="pbody">
+        <div class="fieldlab">Name</div>
+        <input class="v2-name" value="New House" />
+        <div class="fieldlab">Address</div>
+        <input class="v2-name" style="font-size:12.5px;font-weight:600" placeholder="Project address…" />
+        <div class="fieldlab">Notes</div>
+        <textarea class="notes" style="flex:1;min-height:40px" placeholder="Project notes…"></textarea>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span class="t">Pricing</span><span class="d">how it's priced &amp; printed</span></div>
+      <div class="pbody">
+        <div class="fieldlab">Price level</div>
+        <div class="seg"><button class="on">Retail</button><button>Builder</button><button>Employee</button><button>Sale</button><button>%</button></div>
+        <div class="fieldlab">Printed estimate shows</div>
+        <div class="seg"><button>All prices</button><button>Unit only</button><button class="on">No prices</button></div>
+        <div class="fieldlab">Waste added</div>
+        <span class="wastepill" style="align-self:flex-start"><span class="icon" data-i="lock"></span> Tile 10% · Floor 5%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="actionband">
+    <div class="cols">
+      <div class="agroup">
+        <div class="glabel">This estimate <small>— snapshots &amp; files</small></div>
+        <div class="abtns">
+          <button class="abtn"><span class="tt"><span class="icon" data-i="save"></span> Save version</span><span class="dd">Snapshot today's numbers before big changes</span></button>
+          <button class="abtn"><span class="tt"><span class="icon" data-i="clip"></span> Files <span class="count">2</span></span><span class="dd">Photos &amp; docs attached to this job</span></button>
+          <button class="abtn"><span class="tt"><span class="icon" data-i="hist"></span> History</span><span class="dd">Reopen or restore an earlier version</span></button>
+        </div>
+      </div>
+      <div class="agroup">
+        <div class="glabel">Send &amp; print <small>— what leaves the building</small></div>
+        <div class="abtns">
+          <button class="abtn"><span class="tt"><span class="icon" data-i="sheet"></span> Order sheet</span><span class="dd">Pull list for ordering &amp; the warehouse</span></button>
+          <button class="abtn fill"><span class="tt"><span class="icon" data-i="copy"></span> Order entry</span><span class="dd">Copy lines to paste into K8</span></button>
+          <button class="abtn fill"><span class="tt"><span class="icon" data-i="print"></span> Print estimate</span><span class="dd">The customer copy — opens print preview</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="addarea" style="max-width:1060px"><span class="icon" data-i="plus"></span> Add area</button>
+  <div class="stub">
+    <div class="areahead">Kitchen <span>1,540 SF · $24,346.31</span></div>
+    <div class="row"><span class="chip">H</span> Mirage Blanc White Oak Bubble Bath … <span style="margin-left:auto;font-weight:700">$23,475.00</span></div>
+  </div>
+</section>
+
+<!-- ================= V3 ================= -->
+<section class="variant" id="v3">
+  <div class="vhead">
+    <h2>3 · Slim bar + details drawer — give the space back</h2>
+    <p>The header shrinks to two lines: identity + total, then labeled pills that each open a small panel. Everything reads as "<b>Label:</b> current value ▾" so the state is visible without the controls being. Click <b>Details</b> to see the drawer (address, salesperson, notes live there). Roughly half the height of today's header.</p>
+    <span class="pill pro">most room for the areas</span><span class="pill pro">state readable as words</span><span class="pill con">one extra click to change things</span>
+  </div>
+
+  <div class="slim">
+    <div class="line1">
+      <button class="crumb">Test Man <span class="icon" data-i="chev"></span></button>
+      <span class="crumbsep">›</span>
+      <input class="v3-name" value="New House" />
+      <div class="total"><span class="money">$27,250.54</span><span class="tierchip">RETAIL</span><div style="font-size:10px;color:var(--faint)">2 areas · 1,760 SF</div></div>
+    </div>
+    <div class="line2">
+      <button class="pillbtn">Pricing: <b>Retail</b> <span class="icon chev" data-i="chev"></span></button>
+      <button class="pillbtn">Prints: <b>No $</b> <span class="icon chev" data-i="chev"></span></button>
+      <button class="pillbtn"><span class="icon" data-i="lock"></span> Waste: <b>10 / 5%</b></button>
+      <button class="pillbtn">Versions <span class="count">3</span> <span class="icon chev" data-i="chev"></span></button>
+      <button class="pillbtn">Files <span class="count">2</span> <span class="icon chev" data-i="chev"></span></button>
+      <button class="pillbtn" id="v3details">Details <span class="icon chev" data-i="chev"></span></button>
+      <span class="spacer"></span>
+      <span style="display:flex;gap:6px;margin-left:auto">
+        <button class="btn"><span class="icon" data-i="sheet"></span> Order sheet</button>
+        <button class="btn primary"><span class="icon" data-i="copy"></span> Order entry</button>
+        <button class="btn primary"><span class="icon" data-i="print"></span> Print</button>
+        <button class="btn" style="width:34px;padding:0" title="More — delete, quick actions"><span class="icon" data-i="more"></span></button>
+      </span>
+    </div>
+    <div class="drawer open" id="v3drawer">
+      <div>
+        <div class="dl">Project address</div>
+        <div class="dv" style="color:var(--faint);font-weight:500">add address…</div>
+        <div class="dl" style="margin-top:8px"><span class="icon" data-i="building"></span> Builder</div>
+        <div class="dv">P&amp;L Builders</div>
+      </div>
+      <div>
+        <div class="dl"><span class="icon" data-i="lock"></span> Salesperson</div>
+        <div class="dv">Marcus</div>
+        <div class="ds">330 893 1292</div>
+      </div>
+      <div>
+        <div class="dl">Project notes</div>
+        <textarea class="notes" style="min-height:52px" placeholder="Project notes…"></textarea>
+      </div>
+    </div>
+  </div>
+  <button class="addarea" style="max-width:1060px"><span class="icon" data-i="plus"></span> Add area</button>
+  <div class="stub">
+    <div class="areahead">Kitchen <span>1,540 SF · $24,346.31</span></div>
+    <div class="row"><span class="chip">H</span> Mirage Blanc White Oak Bubble Bath … <span style="margin-left:auto;font-weight:700">$23,475.00</span></div>
+    <div class="row" style="border-radius:0"><span class="chip" style="background:var(--type-tile)">T</span> WOW Skin Moss Matte <span style="margin-left:auto;font-weight:700">$773.21</span></div>
+  </div>
+  <div class="stubnote">The drawer is shown open here; it starts closed, so the header is just the two lines above.</div>
+</section>
+
+<!-- ================= V4 ================= -->
+<section class="variant" id="v4">
+  <div class="vhead">
+    <h2>4 · Guided tiles — training-wheels mode</h2>
+    <p>Built for the newest person on the team: setup on the left reads like a form (label + why it matters), actions on the right are big tiles with a title <i>and</i> a plain-English description. A per-user <b>Compact ⇄ Guided</b> switch lets veterans collapse this back to a dense bar (variant 1) once the tiles have taught them.</p>
+    <span class="pill pro">zero guessing what buttons do</span><span class="pill pro">could be a per-user toggle</span><span class="pill con">uses the most space per action</span>
+  </div>
+
+  <div class="headcard" style="background:var(--band)">
+    <div class="v1-id">
+      <div>
+        <div class="eyebrow">Customer</div>
+        <button class="custlink">Test Man <span class="icon" data-i="chev"></span></button>
+        <div class="subline"><span class="icon" data-i="building"></span> P&amp;L Builders</div>
+      </div>
+      <div class="mid">
+        <div class="v1-total"><div class="money">$27,250.54</div></div>
+        <div class="eyebrow" style="margin-bottom:2px">Project</div>
+        <input class="v1-name" value="New House" />
+        <input class="v1-addr" placeholder="Project address…" />
+      </div>
+      <div style="text-align:right">
+        <div class="eyebrow" style="display:flex;justify-content:flex-end;align-items:center;gap:4px"><span class="icon" data-i="lock"></span> Salesperson</div>
+        <div style="font-size:17px;font-weight:700;margin-top:1px">Marcus</div>
+        <div class="subline" style="justify-content:flex-end">330 893 1292</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v4-grid">
+    <div class="panel setupcard">
+      <div class="phead"><span class="t">Job setup</span><span class="d">applies to the whole project</span></div>
+      <div class="pbody">
+        <div class="srow">
+          <div class="slabel">Price level</div>
+          <div class="seg"><button class="on">Retail</button><button>Builder</button><button>Emp</button><button>Sale</button><button>%</button></div>
+          <div class="sdesc">Who's buying — Builder takes 8% off, Employee is cost + 6%.</div>
+        </div>
+        <div class="srow">
+          <div class="slabel">Printed estimate shows</div>
+          <div class="seg"><button>All $</button><button>Unit $</button><button class="on">No $</button></div>
+          <div class="sdesc">How much pricing the customer's printed copy reveals.</div>
+        </div>
+        <div class="srow">
+          <div class="slabel">Waste added</div>
+          <span class="wastepill" style="align-self:flex-start"><span class="icon" data-i="lock"></span> Tile 10% · Floor 5%</span>
+          <div class="sdesc">Extra material ordered over the measured square footage.</div>
+        </div>
+        <div class="srow">
+          <div class="slabel">Notes</div>
+          <textarea class="notes" style="min-height:44px" placeholder="Project notes…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span class="t">Actions</span><span class="d"><span class="modechip">view: <b>Guided</b> · Compact</span></span></div>
+      <div class="pbody">
+        <div class="tiles">
+          <button class="tile fill"><span class="icon" data-i="print"></span><span><span class="tt">Print estimate</span><span class="dd">The customer copy — opens the print preview.</span></span></button>
+          <button class="tile fill"><span class="icon" data-i="copy"></span><span><span class="tt">Order entry</span><span class="dd">Copy each line for typing into K8.</span></span></button>
+          <button class="tile"><span class="icon" data-i="sheet"></span><span><span class="tt">Order sheet</span><span class="dd">Pull list for ordering &amp; the warehouse.</span></span></button>
+          <button class="tile"><span class="icon" data-i="save"></span><span><span class="tt">Save a version</span><span class="dd">Snapshot today's numbers before big changes.</span></span></button>
+          <button class="tile"><span class="icon" data-i="clip"></span><span><span class="tt">Files <span class="count">2</span></span><span class="dd">Photos &amp; documents attached to this job.</span></span></button>
+          <button class="tile"><span class="icon" data-i="hist"></span><span><span class="tt">Version history</span><span class="dd">Reopen or restore an earlier snapshot.</span></span></button>
+        </div>
+        <div style="text-align:right;margin-top:2px"><button style="border:0;background:none;font-size:11px;color:#B91C1C;font-weight:600;text-decoration:underline">Delete this project…</button></div>
+      </div>
+    </div>
+  </div>
+  <button class="addarea" style="max-width:1060px"><span class="icon" data-i="plus"></span> Add area</button>
+  <div class="stub">
+    <div class="areahead">Kitchen <span>1,540 SF · $24,346.31</span></div>
+    <div class="row"><span class="chip">H</span> Mirage Blanc White Oak Bubble Bath … <span style="margin-left:auto;font-weight:700">$23,475.00</span></div>
+  </div>
+</section>
+
+<!-- ================= V6 one-bar (sketch) ================= -->
+<section class="variant" id="v6">
+  <div class="vhead">
+    <h2>5 · One-bar — your sketch, revision 5</h2>
+    <p>Delete now tops the money column, Order entry carries its "For ERP One" fine print on the button itself (no hover anywhere in that column), Flooring is spelled out in the Waste card, and the four small buttons pop neat square descriptions instead of long skinny ones.</p>
+    <span class="pill pro">one calm band, current width</span><span class="pill pro">pressed-in state is obvious</span><span class="pill pro">matches the app's lines &amp; corners</span>
+  </div>
+
+  <div class="sbar">
+    <div class="idstack">
+      <div class="idbox">
+        <div class="il">Customer</div>
+        <button class="custlink">Test Man <span class="icon" data-i="chev"></span></button>
+        <div class="is">P&amp;L Builders</div>
+      </div>
+      <div class="idbox">
+        <div class="il">Project</div>
+        <input value="New House" />
+        <input class="addr" placeholder="Project address…" />
+      </div>
+      <div class="idbox">
+        <div class="il"><span class="icon" data-i="lock"></span> Salesperson</div>
+        <div class="iv" style="font-size:13px">Marcus</div>
+        <div class="is">330 893 1292</div>
+      </div>
+    </div>
+
+    <div class="notescol">
+      <textarea class="notes" placeholder="Project notes…"></textarea>
+      <div class="totalbox">
+        <div class="il">Job total</div>
+        <div class="money">$27,250.54</div>
+      </div>
+    </div>
+
+    <div class="vcol">
+      <div class="vh">Estimate shows</div>
+      <button class="vopt">All prices</button>
+      <button class="vopt">Unit only</button>
+      <button class="vopt on">No prices</button>
+    </div>
+
+    <div class="vcol">
+      <div class="vh">Price level</div>
+      <button class="vopt on">Retail</button>
+      <button class="vopt">Builder</button>
+      <button class="vopt">Employee</button>
+      <button class="vopt">Sale</button>
+      <button class="vopt">Custom %</button>
+    </div>
+
+    <div class="rightstack">
+      <div class="vcol">
+        <div class="vh"><span class="icon" data-i="lock"></span> Waste</div>
+        <span class="vopt quiet">Tile <b>10%</b></span>
+        <span class="vopt quiet">Flooring <b>5%</b></span>
+      </div>
+      <div class="minigrid">
+        <button class="mini" data-tip="Order sheet — pull list for ordering &amp; the warehouse"><span class="icon" data-i="sheet"></span></button>
+        <button class="mini" data-tip="Files — photos &amp; docs attached to this job"><span class="icon" data-i="clip"></span><span class="count">2</span></button>
+        <button class="mini" data-tip="Save version — snapshot today's numbers before big changes"><span class="icon" data-i="save"></span></button>
+        <button class="mini" data-tip="History — reopen or restore an earlier version"><span class="icon" data-i="hist"></span></button>
+      </div>
+    </div>
+
+    <div class="primcol">
+      <button class="delbar"><span class="icon" data-i="trash"></span> Delete</button>
+      <button class="btn primary btn2"><span class="l1"><span class="icon" data-i="copy"></span> Order entry</span><span class="sub">For ERP One</span></button>
+      <button class="btn primary"><span class="icon" data-i="print"></span> Print</button>
+    </div>
+  </div>
+
+  <button class="addarea" style="max-width:1060px"><span class="icon" data-i="plus"></span> Add area</button>
+  <div class="stub">
+    <div class="areahead">Kitchen <span>1,540 SF · $24,346.31</span></div>
+    <div class="row"><span class="chip">H</span> Mirage Blanc White Oak Bubble Bath … <span style="margin-left:auto;font-weight:700">$23,475.00</span></div>
+  </div>
+  <div class="stubnote">Hover the four small buttons — each pops a small square description card. Delete is the slim red bar at the top of the money column; Order entry and Print have no hover effects at all.</div>
+</section>
+
+<!-- ================= V5 drag ideas ================= -->
+<section class="variant" id="v5">
+  <div class="vhead">
+    <h2>✋ Retiring the grab icon — two ideas you can try right here</h2>
+    <p>Today every row carries a little hand icon just for dragging. Both ideas below remove it: the row gets cleaner, and moving a row becomes something you do <i>to the row itself</i>.</p>
+  </div>
+
+  <div class="dragwrap">
+    <div class="democard">
+      <div class="phead">
+        <div class="t">A · Hold the type chip to drag</div>
+        <div class="d">The colored H/T/M chip is already the row's "handle" visually. Hover it — it hints with a dashed ring. <b>Press and hold ~a third of a second</b> and the row lifts, ready to drag. Try it below (mouse or touch).</div>
+      </div>
+      <div class="prow" data-hold><span class="typechip" style="background:var(--type-hw)">H</span><span class="name">Mirage Blanc White Oak Bubble Bath</span><span class="holdhint">drag to move · drop on another area</span><span class="price">$23,475.00</span></div>
+      <div class="prow" data-hold><span class="typechip" style="background:var(--type-tile)">T</span><span class="name">WOW Skin Moss Matte</span><span class="holdhint">drag to move · drop on another area</span><span class="price">$773.21</span></div>
+      <div class="prow" data-hold><span class="typechip" style="background:var(--type-misc)">M</span><span class="name">Potters Wine Rounded Edge Glossy</span><span class="holdhint">drag to move · drop on another area</span><span class="price">$98.10</span></div>
+    </div>
+
+    <div class="democard">
+      <div class="phead">
+        <div class="t">B · Right-click the row for a move menu</div>
+        <div class="d">Right-click is completely unused in the app today. <b>Right-click any row below</b> — moving stops being a physical drag and becomes a menu choice, which also gives us a free home for Duplicate and Delete.</div>
+      </div>
+      <div class="prow" data-ctx><span class="typechip" style="background:var(--type-hw);cursor:default">H</span><span class="name">Mirage Blanc White Oak Bubble Bath</span><span class="price">$23,475.00</span></div>
+      <div class="prow" data-ctx><span class="typechip" style="background:var(--type-tile);cursor:default">T</span><span class="name">WOW Skin Moss Matte</span><span class="price">$773.21</span></div>
+      <div class="prow" data-ctx><span class="typechip" style="background:var(--type-misc);cursor:default">M</span><span class="name">Potters Wine Rounded Edge Glossy</span><span class="price">$98.10</span></div>
+    </div>
+  </div>
+
+  <div class="dragnote">
+    <b>Recommendation: ship both, drop the hand icon.</b> The chip-hold keeps the fast physical drag the app already has (the 220ms hold-to-arm logic exists — it would just move from the hand icon to the chip), and the right-click menu is the discoverable, no-dexterity fallback that also works for "move to another area" without scrolling. On touch, long-pressing the chip opens the same menu instead of dragging. First time someone hovers a chip, a one-time tooltip ("hold to move · right-click for options") teaches it.
+  </div>
+
+  <div class="ctxmenu" id="ctxmenu">
+    <div class="mhead">This line</div>
+    <button class="mi"><span class="icon" data-i="up"></span> Move up</button>
+    <button class="mi"><span class="icon" data-i="down"></span> Move down</button>
+    <div class="sep"></div>
+    <div class="mhead">Move to area</div>
+    <button class="mi"><span class="icon" data-i="arr"></span> Kitchen</button>
+    <button class="mi"><span class="icon" data-i="arr"></span> Bathroom</button>
+    <div class="sep"></div>
+    <button class="mi"><span class="icon" data-i="copy"></span> Duplicate line</button>
+    <button class="mi red"><span class="icon" data-i="trash"></span> Delete line</button>
+  </div>
+</section>
+
+<script>
+const ICONS = {
+  chev:'<polyline points="6 9 12 15 18 9"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  building:'<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/><path d="M2 22h20"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1"/>',
+  save:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  clip:'<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  hist:'<path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/>',
+  sheet:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  print:'<path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  more:'<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  up:'<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  down:'<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  arr:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'
+};
+document.querySelectorAll('[data-i]').forEach(el=>{
+  const size = el.closest('.tile,.abtn') ? 17 : 14;
+  el.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[el.dataset.i]||''}</svg>`;
+});
+
+// tabs
+document.getElementById('tabs').addEventListener('click', e=>{
+  const b = e.target.closest('.tab'); if(!b) return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t===b));
+  document.querySelectorAll('section.variant').forEach(s=>s.classList.toggle('on', s.id===b.dataset.v));
+});
+
+// v3 drawer toggle
+document.getElementById('v3details').addEventListener('click', ()=>{
+  document.getElementById('v3drawer').classList.toggle('open');
+});
+
+// drag demo A: press-and-hold the chip
+document.querySelectorAll('[data-hold] .typechip').forEach(chip=>{
+  let timer=null;
+  const row = chip.closest('.prow');
+  const arm = e=>{ e.preventDefault(); timer=setTimeout(()=>row.classList.add('lifted'), 320); };
+  const disarm = ()=>{ clearTimeout(timer); row.classList.remove('lifted'); };
+  chip.addEventListener('pointerdown', arm);
+  window.addEventListener('pointerup', disarm);
+  chip.addEventListener('pointerleave', ()=>{ if(!row.classList.contains('lifted')) clearTimeout(timer); });
+});
+
+// drag demo B: context menu
+const menu = document.getElementById('ctxmenu');
+document.querySelectorAll('[data-ctx]').forEach(row=>{
+  row.addEventListener('contextmenu', e=>{
+    e.preventDefault();
+    menu.classList.add('open');
+    const w = 200, h = 290;
+    menu.style.left = Math.min(e.clientX, innerWidth - w - 8) + 'px';
+    menu.style.top  = Math.min(e.clientY, innerHeight - h - 8) + 'px';
+  });
+});
+window.addEventListener('click', ()=>menu.classList.remove('open'));
+window.addEventListener('scroll', ()=>menu.classList.remove('open'));
+</script>
+</body>
+</html>
