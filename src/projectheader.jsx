@@ -17,7 +17,7 @@ import { money } from "./model.js";
 
 // ---- one-bar ----------------------------------------------------------------
 
-const MINI = "ft-tip w-[45px] h-[40px] flex items-center justify-center rounded-md bg-white hover:bg-slate-50";
+const MINI = "ft-tip w-[45px] h-[40px] flex items-center justify-center rounded-md hover:bg-slate-50";
 const MINI_STYLE = { border: "1px solid var(--ft-border-strong)" };
 
 // Vertical SegBar: same options shape ({ v, label, color, title, input }), the
@@ -117,7 +117,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
-  const idbox = { background: "var(--ft-card)", border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "5px 10px 6px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 };
+  const idbox = { background: "transparent", border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "5px 10px 6px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 };
   const prim = "rounded-md flex flex-col items-center justify-center text-[13.5px] font-bold text-white bg-indigo-600";
   return (
     <>
@@ -141,30 +141,30 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             )}
           </div>
           <div style={idbox}>
-            <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Project</div>
-            <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
-              className={"w-full bg-transparent text-[14px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.25 }} />
-            <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[10px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none" />
-          </div>
-          <div style={idbox}>
             <div className="ft-eyebrow text-[8.5px] flex items-center gap-1" style={{ color: "var(--ft-faint)" }}><Lock size={9} /> Salesperson</div>
             <SalespersonPop small value={sel.salesperson} fallback={profile} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
             <div className="text-[10px] text-slate-500 truncate max-w-full">{sp.phone || " "}</div>
           </div>
-        </div>
-
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…"
-            className="w-full flex-1 rounded-md px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            style={{ background: "var(--ft-card)", border: "1px solid var(--ft-border-strong)" }} />
-          <div style={{ padding: "1px 4px 0" }}>
+          <div style={idbox}>
             <div className="ft-eyebrow text-[8.5px] flex items-center gap-2" style={{ color: "var(--ft-faint)" }}>
               Job total
               {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px font-semibold normal-case tracking-normal" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
               {saveOk && <span className="font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 10 }}>Saved ✓</span>}
             </div>
-            <div className="ft-mono font-bold" style={{ fontSize: 20, lineHeight: 1.15, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+            <div className="ft-mono font-bold" style={{ fontSize: 18, lineHeight: 1.15, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
           </div>
+        </div>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <div style={{ ...idbox, flex: "2 1 0", justifyContent: "flex-start", paddingTop: 7 }}>
+            <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Project</div>
+            <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
+              className={"w-full bg-transparent text-[17px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.25, marginTop: 2 }} />
+            <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[11px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" />
+          </div>
+          <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…"
+            className="w-full rounded-md px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            style={{ flex: "1 1 0", minHeight: 0, background: "var(--ft-cream)", border: "1px solid var(--ft-border-strong)" }} />
         </div>
 
         <VertBar header="Estimate shows" value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
@@ -196,7 +196,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
         </div>
 
         <div className="flex flex-col gap-2 shrink-0" style={{ width: 148 }}>
-          <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md flex items-center justify-center gap-1.5 text-[10.5px] font-bold shrink-0" style={{ height: 24, color: "#DC2626", border: "1px solid rgba(220,38,38,.55)", background: "var(--ft-card)" }}><Trash2 size={12} /> Delete</button>
+          <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md flex items-center justify-center gap-1.5 text-[10.5px] font-bold shrink-0 border text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500" style={{ height: 24, borderColor: "var(--ft-border-strong)" }}><Trash2 size={12} /> Delete</button>
           <button onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
             <span className="flex items-center gap-1.5"><Copy size={14} /> Order entry</span>
             <span className="text-[9.5px] font-semibold opacity-70" style={{ marginTop: 1 }}>For ERP One</span>

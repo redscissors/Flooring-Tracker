@@ -285,7 +285,7 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
       {/* mini = the one-bar header's 45×40 square with a count badge and the
           square hover-tip card in place of the native title */}
       <button ref={anchorRef} onClick={() => setOpen((o) => !o)} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
-        className={mini ? "ft-tip relative w-[45px] h-[40px] flex items-center justify-center rounded-md bg-white hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
+        className={mini ? "ft-tip relative w-[45px] h-[40px] flex items-center justify-center rounded-md hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
         style={mini ? { border: "1px solid var(--ft-border-strong)" } : undefined}>
         <Paperclip size={mini ? 15 : 14} />
         {n > 0 && (mini
