@@ -35,7 +35,7 @@ function VertBar({ header, headerIcon, value, onChange, options, inputValue, onI
           <label key={o.v} className={cls + " cursor-text gap-1"} style={fill} title={o.title}>
             <span>{o.label}</span>
             <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)}
-              className={"w-7 ml-auto bg-transparent text-right focus:outline-none " + (active ? "" : "text-slate-500")} />
+              className={"ft-nospin w-7 ml-auto bg-transparent text-right focus:outline-none " + (active ? "" : "text-slate-500")} />
             <span>%</span>
           </label>
         );
