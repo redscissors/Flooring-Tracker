@@ -23,6 +23,7 @@ import { SkuPicker, SKU_SHOW } from "./search.jsx";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
+import { useToast } from "./usetoast.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -135,7 +136,7 @@ export default function App({ user, onSignOut }) {
   const [importing, setImporting] = useState(false);
   const pbRef = useRef(null);
   const [confirm, setConfirm] = useState(null);
-  const [toast, setToast] = useState("");
+  const { toast, saveOk, ping, flashSaved } = useToast();
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
   useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); }, [printMode]);
@@ -180,7 +181,6 @@ export default function App({ user, onSignOut }) {
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [namingVersion, setNamingVersion] = useState(false);
   const [versionName, setVersionName] = useState("");
-  const [saveOk, setSaveOk] = useState(false);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -217,7 +217,6 @@ export default function App({ user, onSignOut }) {
   const prodRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
-  const saveOkTimer = useRef(null);
   // Auto-version bookkeeping: { id, json } — the open customer's categories as
   // of open / last snapshot. dataRef mirrors state so the deselect effect and
   // sign-out handler compare against the latest edits, not a stale closure.
@@ -723,9 +722,6 @@ export default function App({ user, onSignOut }) {
     }, 250);
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
-
-  const ping = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
-  const flashSaved = () => { if (saveOkTimer.current) clearTimeout(saveOkTimer.current); setSaveOk(true); saveOkTimer.current = setTimeout(() => setSaveOk(false), 2000); };
 
   // Strip the in-memory-only fields before writing to jsonb (versions live in
   // their own table; _full is load state; updatedAt mirrors the updated_at
