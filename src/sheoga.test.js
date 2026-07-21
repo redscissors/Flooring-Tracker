@@ -7,7 +7,7 @@ import {
   MODES, defaultConfig, floorWidths, floorBase, gradeName, finishName,
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
-  parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
+  parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
 } from "./sheoga.js";
@@ -265,6 +265,40 @@ test("calcVent options: cubed/prefin/tex/damper/frame stack onto the base", () =
   assert.ok(Math.abs(calcVent({ ...v, frame: true }).cost - (20.85 + 8)) < 1e-9);
   const full = calcVent({ ...v, cubed: true, prefin: true, tex: true, damper: true, frame: true });
   assert.equal(full.desc, '4×12" Flush vent · White Oak · Cubed · Prefinished · Textured · w/ damper · w/ frame');
+});
+
+test("calcVent: scrape and stain name the choice — description changes, price doesn't", () => {
+  const v = { ...defaultConfig("vent"), sp: "White Oak", cat: "std-fl", size: "4×12", prefin: true, tex: true };
+  const plain = calcVent(v);
+  assert.equal(plain.desc, '4×12" Flush vent · White Oak · Prefinished · Textured');
+  const named = calcVent({ ...v, stain: "Cattail", scrape: "sawcut" });
+  assert.equal(named.cost, plain.cost); // flat sheet adders — the names are order text only
+  assert.equal(named.desc, '4×12" Flush vent · White Oak · Prefinished Cattail stain · Saw Cut');
+  assert.ok(named.rows.some(([l]) => l === "Prefinished — Cattail"));
+  assert.ok(named.rows.some(([l]) => l === "Textured — Saw Cut"));
+  // Natural is a clear finish, not a stain — no trailing "stain".
+  assert.equal(calcVent({ ...v, stain: "Natural" }).desc, '4×12" Flush vent · White Oak · Prefinished Natural · Textured');
+  // Names only count with their toggle on; junk scrape ids fall back to plain Textured.
+  assert.equal(calcVent({ ...v, prefin: false, tex: false, stain: "Cattail", scrape: "sawcut" }).desc, '4×12" Flush vent · White Oak');
+  assert.equal(calcVent({ ...v, prefin: false, scrape: "smooth" }).desc, '4×12" Flush vent · White Oak · Textured');
+});
+
+test("ventFromFloor copies species/scrape/stain from a floor, stocked or herringbone config", () => {
+  const f = floor({ sp: "Maple", tex: "sawcut", finish: "est", stain: "Cattail" });
+  assert.deepEqual(ventFromFloor({ mode: "floor", cfg: f }),
+    { sp: "Hard Maple", prefin: true, stain: "Cattail", stainCustom: false, tex: true, scrape: "sawcut" });
+  // Unfinished smooth floor clears the options; Live Sawn maps to plain White Oak.
+  assert.deepEqual(ventFromFloor({ mode: "floor", cfg: floor({ sp: LIVE_SAWN_SP }) }),
+    { sp: "White Oak", prefin: false, stain: "", stainCustom: false, tex: false, scrape: "" });
+  // A T-tier custom color lands as a custom stain name; Natural finish names Natural.
+  assert.equal(ventFromFloor({ mode: "floor", cfg: floor({ finish: "t1", stain: "Driftwood" }) }).stainCustom, true);
+  assert.equal(ventFromFloor({ mode: "floor", cfg: floor({ finish: "nat" }) }).stain, "Natural");
+  // Stocked: always prefinished; a "color · texture" pair splits into stain + scrape.
+  assert.deepEqual(ventFromFloor({ mode: "stocked", cfg: { ...defaultConfig("stocked"), sp: "Red Oak", color: "Cattail · Sawcut" } }),
+    { sp: "Red Oak", prefin: true, stain: "Cattail", stainCustom: false, tex: true, scrape: "sawcut" });
+  // Herringbone: species only — it has no finish options to carry.
+  assert.deepEqual(ventFromFloor({ mode: "hb", cfg: defaultConfig("hb") }), { sp: "White Oak" });
+  assert.equal(ventFromFloor(null), null);
 });
 
 test("calcVent: cubed/frame only where the category offers them; damper only on stocked sizes", () => {

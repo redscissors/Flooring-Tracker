@@ -12,7 +12,7 @@ import {
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
-  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS,
+  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, ventScrape,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
@@ -401,13 +401,19 @@ function HbRail({ h, set, markup, onGrid }) {
   </>);
 }
 
-function VentRail({ v, set, markup, onGrid }) {
+function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
   const cat = VENT_CATS.find((c) => c.id === v.cat);
   const snapSize = (next) => {
     const c2 = VENT_CATS.find((c) => c.id === next.cat);
     return c2.list().some((r) => r[0] === next.size) ? next : { ...next, size: c2.list()[0][0] };
   };
   return (<>
+    {onCopyFloor && (
+      <div className="mb-4 flex items-center gap-2.5 rounded-lg p-2.5" style={{ border: "1px dashed var(--ft-brand)", background: "var(--ft-tint)" }}>
+        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Vents usually match the floor — copy species, scrape &amp; stain from the <b>{copySrc}</b> tab.</span>
+        <button onClick={onCopyFloor} className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)" }}>⤺ Copy floor</button>
+      </div>
+    )}
     <Sect title="Species" hint="A: cherry/hickory/beech/red oak">
       <Chips cur={v.sp} onPick={(sp) => set({ ...v, sp })}
         items={Object.keys(VENT_GROUP).map((sp) => ({ id: sp, label: sp, sub: "group " + VENT_GROUP[sp] }))} />
@@ -423,7 +429,28 @@ function VentRail({ v, set, markup, onGrid }) {
     <Sect title="Options">
       {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(sellOf(VENT_CUBED, markup))}`} />}
       <Toggle label="Prefinished" on={v.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(sellOf(VENT_PREFIN, markup))}`} />
+      {v.prefin && (
+        <div className="mt-1.5 mb-1.5 ml-[26px]">
+          <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Stain color</span><span className="text-[9.5px] text-slate-400 font-medium">included in the prefinish charge</span></div>
+          <select value={v.stainCustom ? "__c" : (STAIN_COLORS.includes(v.stain) ? v.stain : "")}
+            onChange={(e) => { const val = e.target.value; if (val === "__c") set({ ...v, stainCustom: true }); else set({ ...v, stainCustom: false, stain: val }); }} className={selectCls}>
+            <option value="">Pick color…</option>
+            {STAIN_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+            <option value="__c">Custom…</option>
+          </select>
+          {v.stainCustom && <input value={v.stain} onChange={(e) => set({ ...v, stain: e.target.value })} placeholder="Custom color name" className={textCls + " mt-1.5"} />}
+        </div>
+      )}
       <Toggle label="Textured" on={v.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(sellOf(VENT_TEX, markup))}`} />
+      {v.tex && (
+        <div className="mt-1.5 mb-1.5 ml-[26px]">
+          <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Scrape / texture</span><span className="text-[9.5px] text-slate-400 font-medium">any scrape, same flat charge</span></div>
+          <select value={ventScrape(v) ? v.scrape : ""} onChange={(e) => set({ ...v, scrape: e.target.value })} className={selectCls}>
+            <option value="">Textured (unspecified)</option>
+            {TEXTURES.filter((t) => t.id !== "smooth").map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      )}
       {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(sellOf(DAMPERS[v.size][1] + DAMPER_ATTACH, markup))}`} />}
       {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(sellOf(0.4 * frameLineal(v.size), markup))}`} />}
     </Sect>
@@ -835,6 +862,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
+  // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
+  // stocked / herringbone) the user last had open — seeded tab first.
+  const [floorSrc, setFloorSrc] = useState(seed?.mode === "stocked" || seed?.mode === "hb" ? seed.mode : "floor");
+  const pickMode = (id) => { setMode(id); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); };
+  const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
 
   // Multi-width entry (floor + stocked only): a job split across several plank
   // widths, sharing every other option. Lifted here so Task 9's MultiWidthCard
@@ -905,7 +937,8 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
       {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
       {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
-      {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)}
+        onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}
     </>
   );
@@ -944,12 +977,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     <div className={isWide ? "flex gap-0.5 px-4 pt-2.5 border-b border-slate-300" : "flex gap-1.5 px-4 pt-2 pb-2.5 overflow-x-auto border-b border-slate-200"}>
       {MODES.map((m) => (
         isWide ? (
-          <button key={m.id} onClick={() => setMode(m.id)}
+          <button key={m.id} onClick={() => pickMode(m.id)}
             className={`px-3.5 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px ${mode === m.id ? "bg-white border-slate-300 text-slate-900 relative z-10" : "bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-700"}`}>
             {m.label}
           </button>
         ) : (
-          <button key={m.id} onClick={() => setMode(m.id)}
+          <button key={m.id} onClick={() => pickMode(m.id)}
             className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-full border whitespace-nowrap ${mode === m.id ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-300 text-slate-500"}`}>
             {m.label}
           </button>

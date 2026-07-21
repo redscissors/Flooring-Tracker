@@ -136,6 +136,12 @@ src/
                     # (each with a Custom… entry). Stocked tab is species -> color
                     # -> grade -> width -> sheen, and an off-standard sheen there
                     # adds a $250 flat fee line (free on the custom/floor tab).
+                    # Vent tab: the Prefinished/Textured toggles reveal stain-color
+                    # and scrape pickers (order text only — the sheet's adders are
+                    # flat), and a "Copy floor" button maps the last-open floor/
+                    # stocked/herringbone tab's config onto the vent
+                    # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
+                    # -> White Oak, finish -> prefin+stain, texture -> scrape).
                     # Opened from a row's search (the pinned "Vendor configurators"
                     # row in GridOmniSearch or MobileSearchSheet — "she" is enough)
                     # or its "Sheoga — reconfigure" chip; Add fills the row via
