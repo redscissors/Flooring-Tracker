@@ -146,7 +146,9 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             <div className="text-[10px] text-slate-500 truncate max-w-full">{sp.phone || " "}</div>
           </div>
           <div style={idbox}>
-            <div className="ft-eyebrow text-[8.5px] flex items-center gap-2" style={{ color: "var(--ft-faint)" }}>
+            {/* fixed-height row: the tier badge / Saved ✓ pop in and out, and
+                without the reservation they nudge the whole band's height */}
+            <div className="ft-eyebrow text-[8.5px] flex items-center gap-2" style={{ color: "var(--ft-faint)", height: 15 }}>
               Job total
               {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px font-semibold normal-case tracking-normal" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
               {saveOk && <span className="font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 10 }}>Saved ✓</span>}
