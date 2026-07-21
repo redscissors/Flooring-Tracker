@@ -8,6 +8,7 @@ import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSessi
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
+import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
 import { normBookItem, diffBookItems, markupGroups, pricedItem, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
@@ -1343,6 +1344,16 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       if (ovf) {
         setSheets([{ name: ovf.name, rows: ovf.rows }]);
         applyDetected({ sheet: ovf.name, ...ovf.mapping });
+        setReading(false);
+        return;
+      }
+      // The Emser ISPL dealer list needs the same treatment: its packed Size
+      // cell, UOM-dependent coverage, and three-column drop status can't be
+      // column-mapped raw (src/emserbook.js).
+      const emser = parseEmser(parsed, (file?.name || book.name || "book").replace(/\.xlsx?$/i, ""));
+      if (emser) {
+        setSheets([{ name: emser.name, rows: emser.rows }]);
+        applyDetected({ sheet: emser.name, ...emser.mapping });
         setReading(false);
         return;
       }
