@@ -1,24 +1,22 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, Lock, AlertTriangle, Copy, Flag, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, Lock, AlertTriangle, Copy, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { fetchAllRows } from "./fetchall.js";
 import { LIST_SELECT, lightRow, normBook, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadLabels, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { normLabel } from "./labels.js";
-import { num, ceilQty, wasteFor, projWaste, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
-import { stockData, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch } from "./stock.js";
+import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { stockData, findStock, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
 import { parsePriceBook } from "./pricebook.js";
-import { normBookItem, bookItemData, diffBookItems, pricedItem, orderPatch, orderDrift, specialOrderMargin, orderFloorFirst, rowCostSqft } from "./orderbook.js";
+import { normBookItem, bookItemData, pricedItem, orderPatch, orderDrift, specialOrderMargin, orderFloorFirst, rowCostSqft } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
-import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
-import { normTier, normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
-import { normName, matchName } from "./names.js";
+import { normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, normPricing } from "./pricing.js";
+import { matchName } from "./names.js";
 import { expand } from "./synonyms.js";
-import { seedFromQuery as sheogaSeed, normBasketEntry, multiWidthLineItems } from "./sheoga.js";
-import { STOCK_LOADING_MSG, STOCK_FAILED_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, THICK, colorsFor, ATT_BUCKET, TIER_COLOR, TIER_LONG, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS, BOOK_VERSION_KEEP, STOCK_BOOK_ID } from "./uiconst.js";
+import { seedFromQuery as sheogaSeed } from "./sheoga.js";
+import { STOCK_LOADING_MSG, STOCK_FAILED_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, THICK, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS, BOOK_VERSION_KEEP, STOCK_BOOK_ID } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, wasteMeta, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normA, normC, personData } from "./model.js";
-import { lineTotal, printProduct, orderLineCost, printAreaFloor, PRINT_KINDS, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1, printMatList, orderEntryRow } from "./print.js";
+import { lineTotal, printProduct, orderLineCost, printAreaFloor, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1, printMatList, orderEntryRow } from "./print.js";
 import { readXlsxSheets } from "./fileread.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, FilesPop, ThemeSwitch, MarginLine, Modal } from "./widgets.jsx";
 import { SkuPicker, SKU_SHOW } from "./search.jsx";
@@ -830,6 +828,8 @@ export default function App({ user, onSignOut }) {
     try { const { error } = await supabase.from("projects").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
   };
   // Move a project to a different customer (or unassign with null).
+  // Dormant sanctioned write path (CLAUDE.md conventions); moves into useDirectory in phase 2.
+  // eslint-disable-next-line no-unused-vars
   const linkProject = (id, customerId) => {
     setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId: customerId || null, updatedAt: Date.now() } : c) }));
     (async () => { try { const { error } = await supabase.from("projects").update({ customer_id: customerId || null }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();

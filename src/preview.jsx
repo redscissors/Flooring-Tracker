@@ -5,7 +5,6 @@
 // order-entry section is the REAL OrderEntryPanel over the same payloads — so
 // what shows here is the code path the app runs, without touching Supabase.
 // Dev-only entry (preview.html); not part of the app build.
-import React from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { OrderEntryPanel } from "./orderentry.jsx";

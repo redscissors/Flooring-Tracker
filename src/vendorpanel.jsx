@@ -545,16 +545,15 @@ export function useVendorFetch({ settings, setSettings, books, vendorPending, ve
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     const fetched = [], ok = [];
-    let failures = 0;
     for (const s of list) {
       const k = recordKey(s);
       const ses = sheetSesid(s);
-      if (!ses) { failures++; setProgress((m) => ({ ...m, [k]: { state: "error", note: NO_SESSION } })); continue; }
+      if (!ses) { setProgress((m) => ({ ...m, [k]: { state: "error", note: NO_SESSION } })); continue; }
       const e = applySesid(s, ses);
       setProgress((m) => ({ ...m, [k]: { state: "fetching", value: null, note: "" } }));
       const res = await runFetch(e, token, (p) => setProgress((m) => ({ ...m, [k]: { state: "fetching", value: p.value, note: p.note } })));
       if (res.file) { fetched.push({ sheet: sheetRecord(e), file: res.file }); ok.push(e); setProgress((m) => ({ ...m, [k]: { state: "done" } })); }
-      else { failures++; setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); }
+      else { setProgress((m) => ({ ...m, [k]: { state: "error", note: res.error } })); }
     }
     if (ok.length) {
       writeGroups(rememberIntoGroups(groupsRef.current, ok.map((e) => ({ ...sheetRecord(e), lastFetched: Date.now() }))));

@@ -310,7 +310,6 @@ function parseBlocks(rows) {
     // finding one must not stop us finding the others.
     const firstSkuX = skus.length ? Math.min(...skus.map((s) => s.x)) : Infinity;
     const labels = r.items.filter((i) => !isSku(i.s) && i.x < firstSkuX - 4);
-    const collAt = labels.find((i) => i.x < gx - 5);
     const gradeAt = labels.find((i) => near(i.x, gx, 8));
     // Everything from the colour column rightwards is the colour, joined: later
     // charts break one name into several text items ("Bow Valley" "(" "Natural"

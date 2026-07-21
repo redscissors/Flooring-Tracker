@@ -20,6 +20,10 @@ export default [
     rules: {
       "no-undef": "error",
       "react/jsx-no-undef": "error",
+      // jsx-uses-vars marks components rendered in JSX as used, so
+      // no-unused-vars can police dead imports without flagging every one.
+      "react/jsx-uses-vars": "error",
+      "no-unused-vars": ["error", { args: "none", caughtErrors: "none", ignoreRestSiblings: true }],
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "off",
     },
@@ -31,6 +35,9 @@ export default [
       sourceType: "module",
       globals: { ...globals.node },
     },
-    rules: { "no-undef": "error" },
+    rules: {
+      "no-undef": "error",
+      "no-unused-vars": ["error", { args: "none", caughtErrors: "none", ignoreRestSiblings: true }],
+    },
   },
 ];

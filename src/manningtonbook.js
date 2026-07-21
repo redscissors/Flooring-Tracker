@@ -36,18 +36,8 @@ import { clusterRows } from "./pdfbook.js";
 const str = (c) => (c == null ? "" : String(c).trim());
 const num = (c) => { const n = parseFloat(str(c).replace(/[$,]/g, "")); return Number.isFinite(n) ? n : null; };
 
-// Column x-bands, read off the (identical) grid on every page. Boundaries sit at
-// the midpoints BETWEEN observed data columns, so a value printed a sub-pixel
-// off its header still lands in its own band. Everything at/after TRIM_X is the
-// trim/molding matrix.
-const BANDS = [
-  ["pattern", 0, 85], ["size", 85, 120], ["color", 120, 170], ["colorCode", 170, 214],
-  ["catalog", 214, 255], ["priceSf", 255, 286], ["priceCarton", 286, 318],
-  ["sfCarton", 318, 350], ["sfPallet", 350, 384], ["cartonsPallet", 384, 413],
-  ["lbsCarton", 413, 436], ["edge", 436, 485],
-];
+// Everything at/after TRIM_X is the trim/molding matrix.
 const TRIM_X = 485;
-const bandFor = (x) => { for (const [f, lo, hi] of BANDS) if (x >= lo && x < hi) return f; return x >= TRIM_X ? "trim" : null; };
 
 // A flooring/trim code cell: 4–6 leading digits (SAP catalog) or the alnum Color
 // Code (APX020, 28402P, MSPH07CHP1). Only used to spot data rows before columns
@@ -171,7 +161,6 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
       if (!catCell || left.x > 40 || /Price|Pattern|Per|Warranty|Thickness|Effective|Issue|Page:/.test(line)) continue;
 
       const colorCode = cellIn(row.items, 170, 214);
-      const catalog = cellIn(row.items, 214, 255);
       let patternName = cellIn(row.items, 0, 85);
       let color = cellIn(row.items, 120, 170);
       const size = cellIn(row.items, 85, 120);
