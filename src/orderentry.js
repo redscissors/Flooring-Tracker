@@ -47,3 +47,15 @@ export function orderDescription(r, limit) {
 // fields and have their own columns in the panel — pasting them into a
 // description is what overran the field in the first place.
 export const orderCopyText = (r) => (r.desc ? r.desc.main : "");
+
+// How many characters of the product/color text still let the WHOLE flow —
+// size · product · SKU · coverage — land in the ERP field on the clean "full"
+// rung (no "+", no extended text). The grid paints anything past this budget
+// red so a salesperson can trim to a guaranteed one-field paste. Counting only
+// the product text against the raw limit would lie: a 68-char name with a
+// 7-char size already splits a 70-char field.
+export function nameBudget(r, limit) {
+  if (!(Number(limit) > 0)) return Infinity;
+  const others = [r.sizePlain, r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
+  return Math.max(0, Number(limit) - others.reduce((n, s) => n + s.length + 1, 0));
+}
