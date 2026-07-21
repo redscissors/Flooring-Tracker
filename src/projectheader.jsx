@@ -20,6 +20,19 @@ import { money } from "./model.js";
 const MINI = "ft-tip w-[45px] h-[40px] flex items-center justify-center rounded-md hover:bg-slate-50";
 const MINI_STYLE = { border: "1px solid var(--ft-border-strong)" };
 
+// Tab-flow cleanup (2026-07-21): Tab from anywhere in the header card hands
+// focus to the first area's name — the header's secondary controls (address,
+// notes, tier/waste bars, minis) are mouse territory, reachable backwards with
+// Shift+Tab. The flow-end buttons (Order entry / Print) keep native order so
+// the Add area → Order entry → Print chain works.
+const headerTabOut = (nameTabRef) => (e) => {
+  if (e.key !== "Tab" || e.shiftKey) return;
+  if (e.target.closest && e.target.closest("[data-flow-end]")) return;
+  e.preventDefault();
+  const el = nameTabRef?.current;
+  el?.focus(); el?.select?.();
+};
+
 // Vertical SegBar: same options shape ({ v, label, color, title, input }), the
 // active row pressed in. Default active paints ink (the .bg-indigo-600 theme
 // override), tier rows paint their tier color.
@@ -113,7 +126,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   );
 }
 
-export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, addAreaRef, focusName, tabTo, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
@@ -122,7 +135,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
   return (
     <>
       <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-      <div className="rounded-lg border mb-4" style={{ padding: 10, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 8, alignItems: "stretch" }}>
+      <div className="rounded-lg border mb-4" onKeyDown={headerTabOut(nameTabRef)} style={{ padding: 10, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 8, alignItems: "stretch" }}>
         <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 150 }}>
           <div style={idbox}>
             <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Customer</div>
@@ -160,7 +173,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
         <div className="flex-1 min-w-0 flex flex-col gap-1.5">
           <div style={{ ...idbox, flex: "2 1 0", justifyContent: "flex-start", paddingTop: 7 }}>
             <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Project</div>
-            <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
+            <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
               className={"w-full bg-transparent text-[17px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.25, marginTop: 2 }} />
             <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[11px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" />
           </div>
@@ -199,11 +212,11 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 
         <div className="flex flex-col gap-2 shrink-0" style={{ width: 148 }}>
           <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md flex items-center justify-center gap-1.5 text-[10.5px] font-bold shrink-0 border text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500" style={{ height: 24, borderColor: "var(--ft-border-strong)" }}><Trash2 size={12} /> Delete</button>
-          <button onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
+          <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
             <span className="flex items-center gap-1.5"><Copy size={14} /> Order entry</span>
             <span className="text-[9.5px] font-semibold opacity-70" style={{ marginTop: 1 }}>For ERP One</span>
           </button>
-          <button onClick={() => setPrintMode("estimate")} className={prim} style={{ flex: 1, ...tierFill }}>
+          <button data-flow-end="1" onClick={() => setPrintMode("estimate")} className={prim} style={{ flex: 1, ...tierFill }}>
             <span className="flex items-center gap-1.5"><Printer size={14} /> Print</span>
           </button>
         </div>
@@ -217,12 +230,12 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 // Moved whole from App.jsx (print-sheet style: customer | project | salesperson
 // up top, then pricing + notes | actions, then the Add-area row).
 
-export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, addAreaRef, focusName, tabTo, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
   const sp = sel.salesperson || profile;
   const cols = { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 };
   const midPad = { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" };
   return (
-    <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+    <div className="rounded-lg border mb-4" onKeyDown={headerTabOut(nameTabRef)} style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
       <div style={cols}>
         <div className="min-w-0">
           <div className="ft-eyebrow text-[9px] mb-1">Customer</div>
@@ -248,7 +261,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
           </div>
           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: 16, color: "var(--ft-brand)" }}>Saved ✓</span>}
           <div className="ft-eyebrow text-[9px] mb-1 text-center">Project</div>
-          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition text-center" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
+          <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition text-center" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1 text-center" />
         </div>
         <div className="min-w-0 flex flex-col items-end text-right">
@@ -312,8 +325,8 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
           {/* Non-retail tiers repaint both buttons in the tier's color —
               the pricing state is visible right where you commit to it. */}
           <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-            <button onClick={() => setShowOrderCopy(true)} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
-            <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
+            <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
+            <button data-flow-end="1" onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
           </div>
         </div>
       </div>
