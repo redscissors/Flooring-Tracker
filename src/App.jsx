@@ -23,6 +23,7 @@ import { useToast } from "./usetoast.js";
 import { useBooks } from "./usebooks.js";
 import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
+import { useTodos } from "./usetodos.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -99,10 +100,6 @@ export default function App({ user, onSignOut }) {
   // anything else stored there.
   const appBlobRef = useRef({});
   const [showVersions, setShowVersions] = useState(false);
-  // Team to-do / issue list (issue 006): shared rows, loaded in the background
-  // after first paint for the sidebar badge and refreshed on every open.
-  const [todos, setTodos] = useState([]);
-  const [showTodos, setShowTodos] = useState(false);
   // Apps → Label Generator: saved showroom labels, shared team-wide (issue
   // label-generator-integration). Own table, loaded when the Apps hub opens
   // (ADR 0026) — nothing at boot reads it.
@@ -310,7 +307,7 @@ export default function App({ user, onSignOut }) {
         trace.span("stock", () => loadStock(supabase))
           .then((rows) => hydrateStock(rows), () => markStockFailed(true))
           .finally(() => markStockReady(true)),
-        trace.span("todos", () => loadTodos(supabase)).then(setTodos, () => { }),
+        trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
         trace.span("books", () => loadBooks(supabase)).then(hydrateBooks, () => { }),
       ]);
       trace.done();
@@ -445,6 +442,11 @@ export default function App({ user, onSignOut }) {
     importStockFile, importPriceBook, applyImport, rollbackStock,
     setStockItemsDisabled,
   } = useStock({ user, ping, flashSaved, profile, settings, setSettings, appliedFromDiff, snapshotBookVersion });
+  const {
+    todos, hydrateTodos,
+    showTodos, setShowTodos,
+    openTodos, addTodo, toggleTodo, delTodo, clearDoneTodos, reorderTodos,
+  } = useTodos({ user, profile, ping, flashSaved, setSidebarOpen });
   // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
   // at edit time only (color dropdowns, Settings linking), never at calc time.
   const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
@@ -895,60 +897,6 @@ export default function App({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId]);
   const handleSignOut = async () => { await autoSnapshot(selId); onSignOut(); };
-
-  // Team to-do / issue list (issue 006): every item is its own shared row.
-  // Open items order by `position` (smaller = higher); a drag renumbers all
-  // open items 0..n-1 and writes them in one upsert. Done items keep their row
-  // and sort by completion time instead.
-  const todoData = (t) => ({ text: t.text, done: t.done, doneAt: t.doneAt, createdBy: t.createdBy, createdAt: t.createdAt });
-  const openTodos = () => {
-    setShowTodos(true); setSidebarOpen(false);
-    // Refresh so the list shows what teammates added since load.
-    loadTodos(supabase).then(setTodos).catch(() => { });
-  };
-  const addTodo = (text) => {
-    const top = Math.min(0, ...todos.filter((t) => !t.done).map((t) => t.position));
-    const t = { id: uid(), position: top - 1, text, done: false, doneAt: null, createdBy: profile.name || user.email || "", createdAt: Date.now() };
-    setTodos((prev) => [t, ...prev]);
-    (async () => { try { const { error } = await supabase.from("todos").insert({ id: t.id, position: t.position, data: todoData(t) }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/todos.sql?"); } })();
-  };
-  const updateTodo = (id, patch) => {
-    const next = todos.map((t) => t.id === id ? { ...t, ...patch } : t);
-    setTodos(next);
-    const t = next.find((x) => x.id === id);
-    (async () => { try { const { error } = await supabase.from("todos").update({ position: t.position, data: todoData(t) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
-  };
-  const toggleTodo = (id) => {
-    const t = todos.find((x) => x.id === id);
-    if (!t) return;
-    // Reopening puts the item back on top so it gets looked at again.
-    updateTodo(id, t.done
-      ? { done: false, doneAt: null, position: Math.min(0, ...todos.filter((x) => !x.done).map((x) => x.position)) - 1 }
-      : { done: true, doneAt: Date.now() });
-  };
-  const delTodo = (id) => {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
-    (async () => { try { const { error } = await supabase.from("todos").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
-  };
-  const clearDoneTodos = () => {
-    const ids = todos.filter((t) => t.done).map((t) => t.id);
-    if (!ids.length) return;
-    setTodos((prev) => prev.filter((t) => !t.done));
-    (async () => { try { const { error } = await supabase.from("todos").delete().in("id", ids); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
-  };
-  // `from`/`to` index into the open list; `to` counts positions with the moved
-  // item already lifted out (same convention as moveProduct).
-  const reorderTodos = (from, to) => {
-    const open = todos.filter((t) => !t.done).sort((a, b) => a.position - b.position);
-    const [moved] = open.splice(from, 1);
-    if (!moved) return;
-    open.splice(to, 0, moved);
-    const pos = new Map(open.map((t, i) => [t.id, i]));
-    const next = todos.map((t) => pos.has(t.id) ? { ...t, position: pos.get(t.id) } : t);
-    setTodos(next);
-    const rows = next.filter((t) => pos.has(t.id)).map((t) => ({ id: t.id, position: t.position, data: todoData(t) }));
-    (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
-  };
 
   // Labels write path (Apps → Label Generator). Mirrors the todos helpers; the
   // paged loader lives in bootload.js.
