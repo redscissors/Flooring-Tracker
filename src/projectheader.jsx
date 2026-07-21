@@ -82,7 +82,7 @@ function WasteCard({ w, dflt, onChange }) {
             title={on ? `${pct}% waste applied to ${c.of} — press to order raw measured footage` : `No waste on ${c.of} — press to add ${pct}%`}
             className="ft-hopt gap-1" style={on ? { background: custom ? "var(--ft-brand-deep)" : "var(--ft-text)" } : undefined}>
             <span className="text-[10.5px]" style={{ color: dim }}>{c.label}</span>
-            <span className="ml-auto text-[12.5px]" style={{ color: on ? "var(--ft-cream)" : "var(--ft-faint)", fontWeight: on ? 600 : 400 }}>{pct}</span>
+            <span className="ml-auto text-[12.5px]" style={{ color: on ? "var(--ft-cream)" : "var(--ft-faint)", fontWeight: on ? 700 : 500 }}>{pct}</span>
             <span className="text-[10px]" style={{ color: dim }}>%</span>
           </button>
         );
