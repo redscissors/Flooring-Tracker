@@ -1,9 +1,8 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, Lock, AlertTriangle, Copy, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { LIST_SELECT, lightRow, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadLabels, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { LIST_SELECT, lightRow, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
-import { normLabel } from "./labels.js";
 import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } from "./orderbook.js";
@@ -23,6 +22,8 @@ import { useToast } from "./usetoast.js";
 import { useBooks } from "./usebooks.js";
 import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
+import { useTodos } from "./usetodos.js";
+import { useLabels } from "./uselabels.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -99,15 +100,6 @@ export default function App({ user, onSignOut }) {
   // anything else stored there.
   const appBlobRef = useRef({});
   const [showVersions, setShowVersions] = useState(false);
-  // Team to-do / issue list (issue 006): shared rows, loaded in the background
-  // after first paint for the sidebar badge and refreshed on every open.
-  const [todos, setTodos] = useState([]);
-  const [showTodos, setShowTodos] = useState(false);
-  // Apps → Label Generator: saved showroom labels, shared team-wide (issue
-  // label-generator-integration). Own table, loaded when the Apps hub opens
-  // (ADR 0026) — nothing at boot reads it.
-  const [labels, setLabels] = useState([]);
-  const [showApps, setShowApps] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const { toast, saveOk, ping, flashSaved } = useToast();
   const {
@@ -310,7 +302,7 @@ export default function App({ user, onSignOut }) {
         trace.span("stock", () => loadStock(supabase))
           .then((rows) => hydrateStock(rows), () => markStockFailed(true))
           .finally(() => markStockReady(true)),
-        trace.span("todos", () => loadTodos(supabase)).then(setTodos, () => { }),
+        trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
         trace.span("books", () => loadBooks(supabase)).then(hydrateBooks, () => { }),
       ]);
       trace.done();
@@ -445,6 +437,15 @@ export default function App({ user, onSignOut }) {
     importStockFile, importPriceBook, applyImport, rollbackStock,
     setStockItemsDisabled,
   } = useStock({ user, ping, flashSaved, profile, settings, setSettings, appliedFromDiff, snapshotBookVersion });
+  const {
+    todos, hydrateTodos,
+    showTodos, setShowTodos,
+    openTodos, addTodo, toggleTodo, delTodo, clearDoneTodos, reorderTodos,
+  } = useTodos({ user, profile, ping, flashSaved, setSidebarOpen });
+  const {
+    labels, showApps, setShowApps,
+    openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
+  } = useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings });
   // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
   // at edit time only (color dropdowns, Settings linking), never at calc time.
   const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
@@ -895,103 +896,6 @@ export default function App({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId]);
   const handleSignOut = async () => { await autoSnapshot(selId); onSignOut(); };
-
-  // Team to-do / issue list (issue 006): every item is its own shared row.
-  // Open items order by `position` (smaller = higher); a drag renumbers all
-  // open items 0..n-1 and writes them in one upsert. Done items keep their row
-  // and sort by completion time instead.
-  const todoData = (t) => ({ text: t.text, done: t.done, doneAt: t.doneAt, createdBy: t.createdBy, createdAt: t.createdAt });
-  const openTodos = () => {
-    setShowTodos(true); setSidebarOpen(false);
-    // Refresh so the list shows what teammates added since load.
-    loadTodos(supabase).then(setTodos).catch(() => { });
-  };
-  const addTodo = (text) => {
-    const top = Math.min(0, ...todos.filter((t) => !t.done).map((t) => t.position));
-    const t = { id: uid(), position: top - 1, text, done: false, doneAt: null, createdBy: profile.name || user.email || "", createdAt: Date.now() };
-    setTodos((prev) => [t, ...prev]);
-    (async () => { try { const { error } = await supabase.from("todos").insert({ id: t.id, position: t.position, data: todoData(t) }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/todos.sql?"); } })();
-  };
-  const updateTodo = (id, patch) => {
-    const next = todos.map((t) => t.id === id ? { ...t, ...patch } : t);
-    setTodos(next);
-    const t = next.find((x) => x.id === id);
-    (async () => { try { const { error } = await supabase.from("todos").update({ position: t.position, data: todoData(t) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
-  };
-  const toggleTodo = (id) => {
-    const t = todos.find((x) => x.id === id);
-    if (!t) return;
-    // Reopening puts the item back on top so it gets looked at again.
-    updateTodo(id, t.done
-      ? { done: false, doneAt: null, position: Math.min(0, ...todos.filter((x) => !x.done).map((x) => x.position)) - 1 }
-      : { done: true, doneAt: Date.now() });
-  };
-  const delTodo = (id) => {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
-    (async () => { try { const { error } = await supabase.from("todos").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
-  };
-  const clearDoneTodos = () => {
-    const ids = todos.filter((t) => t.done).map((t) => t.id);
-    if (!ids.length) return;
-    setTodos((prev) => prev.filter((t) => !t.done));
-    (async () => { try { const { error } = await supabase.from("todos").delete().in("id", ids); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
-  };
-  // `from`/`to` index into the open list; `to` counts positions with the moved
-  // item already lifted out (same convention as moveProduct).
-  const reorderTodos = (from, to) => {
-    const open = todos.filter((t) => !t.done).sort((a, b) => a.position - b.position);
-    const [moved] = open.splice(from, 1);
-    if (!moved) return;
-    open.splice(to, 0, moved);
-    const pos = new Map(open.map((t, i) => [t.id, i]));
-    const next = todos.map((t) => pos.has(t.id) ? { ...t, position: pos.get(t.id) } : t);
-    setTodos(next);
-    const rows = next.filter((t) => pos.has(t.id)).map((t) => ({ id: t.id, position: t.position, data: todoData(t) }));
-    (async () => { try { const { error } = await supabase.from("todos").upsert(rows, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
-  };
-
-  // Labels write path (Apps → Label Generator). Mirrors the todos helpers; the
-  // paged loader lives in bootload.js.
-  const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, twoVariant: l.twoVariant, fields2: l.fields2, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
-  // The refresh merges instead of replacing: an optimistic add made before the
-  // fetch resolves (its select predates the insert) must not vanish from view.
-  const openApps = () => {
-    setShowApps(true); setSidebarOpen(false);
-    loadLabels(supabase).then((rows) => setLabels((prev) => {
-      const have = new Set(rows.map((l) => l.id));
-      return [...rows, ...prev.filter((l) => !have.has(l.id))];
-    })).catch(() => { });
-  };
-  const nextPos = () => (labels.length ? Math.max(...labels.map((l) => l.position)) + 1 : 0);
-  const addLabel = (draft) => {
-    const l = normLabel({ ...draft, id: uid(), position: nextPos(), createdBy: profile.name || user.email || "", createdAt: Date.now() });
-    setLabels((prev) => [...prev, l]);
-    (async () => { try { const { error } = await supabase.from("labels").insert({ id: l.id, position: l.position, data: labelData(l) }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/labels.sql?"); } })();
-    return l;
-  };
-  const addLabelsBulk = (drafts) => {
-    let pos = nextPos();
-    const made = drafts.map((d) => normLabel({ ...d, id: uid(), position: pos++, createdBy: profile.name || user.email || "", createdAt: Date.now() }));
-    setLabels((prev) => [...prev, ...made]);
-    (async () => { try { const { error } = await supabase.from("labels").insert(made.map((l) => ({ id: l.id, position: l.position, data: labelData(l) }))); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/labels.sql?"); } })();
-  };
-  const updateLabel = (id, patch) => {
-    const next = labels.map((l) => l.id === id ? normLabel({ ...l, ...patch }) : l);
-    setLabels(next);
-    const l = next.find((x) => x.id === id);
-    (async () => { try { const { error } = await supabase.from("labels").update({ position: l.position, data: labelData(l) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
-  };
-  const delLabel = (id) => {
-    setLabels((prev) => prev.filter((l) => l.id !== id));
-    (async () => { try { const { error } = await supabase.from("labels").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
-  };
-  // Custom size presets live in shared settings; setSettings persists them
-  // (serializeSettings keeps only non-built-in presets).
-  const saveLabelPreset = (preset) => {
-    const cur = settings.apps?.labels?.presets || [];
-    const presets = [...cur.filter((p) => p.id !== preset.id), preset];
-    setSettings({ ...settings, apps: { ...settings.apps, labels: { presets } } });
-  };
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportBackup = async () => {
