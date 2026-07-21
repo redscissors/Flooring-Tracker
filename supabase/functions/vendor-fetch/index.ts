@@ -13,18 +13,29 @@
 // "Enforce JWT verification" ON — the gateway then rejects callers who are
 // not signed in to FloorTrack before this code runs. No secrets needed.
 
-const VENDORS: Record<string, { hosts: string[]; path: string }> = {
+const VENDORS: Record<string, { hosts: string[]; path: string; rules: Record<string, RegExp> }> = {
   dancik: {
     hosts: ["connect24.virginiatile.com", "ovf400.ovf.com"],
     path: "/danciko/dancik-ows/d24/getPrettyPriceList/xls",
+    rules: {
+      uid: /^\d{1,10}$/,
+      user: /^[A-Za-z0-9]{1,24}$/,
+      sesid: /^[A-Za-z0-9]{1,64}$/,
+      filename: /^[\w .\-&()]{1,120}$/,
+    },
   },
-};
-
-const RULES: Record<string, RegExp> = {
-  uid: /^\d{1,10}$/,
-  user: /^[A-Za-z0-9]{1,24}$/,
-  sesid: /^[A-Za-z0-9]{1,64}$/,
-  filename: /^[\w .\-&()]{1,120}$/,
+  // Emser's per-account document URL carries no session token — the filename
+  // (acct-period-doc.xlsx) is the whole identity (ADR 0019, Emser amendment).
+  emser: {
+    hosts: ["www.emser.com"],
+    path: "/api/v1/custom/customerDocuments/",
+    rules: {
+      uid: /^\d{1,10}$/,
+      user: /^\d{1,10}$/,
+      sesid: /^$/,
+      filename: /^\d{1,10}-[\w.\- ]{1,80}\.(xlsx?|csv|pdf)$/i,
+    },
+  },
 };
 
 // The app runs on a different origin (Netlify), so CORS headers are required
@@ -60,25 +71,27 @@ Deno.serve(async (req: Request) => {
   const cfg = VENDORS[String(entry?.vendor)];
   if (!cfg) return json(400, { error: "unknown vendor" });
   if (!cfg.hosts.includes(String(entry.host))) return json(400, { error: "host not allowlisted" });
-  for (const k of Object.keys(RULES)) {
-    if (!RULES[k].test(String(entry[k] ?? ""))) return json(400, { error: `bad ${k}` });
+  for (const k of Object.keys(cfg.rules)) {
+    if (!cfg.rules[k].test(String(entry[k] ?? ""))) return json(400, { error: `bad ${k}` });
   }
 
-  const q = new URLSearchParams({
-    d24_uid: String(entry.uid),
-    d24_filename: String(entry.filename),
-    d24_type: "X",
-    d24user: String(entry.user),
-    d24sesid: String(entry.sesid),
-    filename: `${entry.filename}.xls`,
-    "content-disposition": "inline",
-  });
+  const url = entry.vendor === "emser"
+    ? `https://${entry.host}${cfg.path}${encodeURIComponent(String(entry.filename))}`
+    : `https://${entry.host}${cfg.path}?${new URLSearchParams({
+        d24_uid: String(entry.uid),
+        d24_filename: String(entry.filename),
+        d24_type: "X",
+        d24user: String(entry.user),
+        d24sesid: String(entry.sesid),
+        filename: `${entry.filename}.xls`,
+        "content-disposition": "inline",
+      })}`;
 
   let res: Response;
   try {
     // Supabase gives a sync function 150s to answer, so wait just under that:
     // the observed worst-case portal build is ~103s, well inside this.
-    res = await fetch(`https://${entry.host}${cfg.path}?${q}`, { redirect: "manual", signal: AbortSignal.timeout(145000) });
+    res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(145000) });
   } catch (err) {
     const timedOut = (err as Error)?.name === "TimeoutError" || (err as Error)?.name === "AbortError";
     return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });

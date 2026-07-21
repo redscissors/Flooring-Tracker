@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor } from "./vendorfetch.js";
 import { bookStaleness, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu } from "./widgets.jsx";
 
@@ -84,7 +84,14 @@ async function runFetch(entry, token, onProgress) {
       }
       let err = "";
       try { err = (await res.json()).error || ""; } catch {}
-      if (err === "session-expired") return { error: "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" };
+      if (err === "session-expired") {
+        // A token-free vendor has no session to renew — a login bounce there
+        // means the link itself went stale (or the download needs their site's
+        // sign-in after all), so the bookmark advice would be a dead end.
+        return { error: sessionlessVendor(entry.vendor)
+          ? "the vendor declined the download — open the price list on their site and paste its fresh link"
+          : "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" };
+      }
       msg = err === "vendor-timeout"
         ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
         : (err || `failed (${res.status})`);
@@ -473,7 +480,9 @@ export function useVendorFetch({ settings, setSettings, books, vendorPending, ve
   const liveSesid = {};
   for (const e of sesidPool) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
   for (const s of sessions) { liveSesid[`${s.host}|${s.user}`] = s.sesid; } // a fresh bookmarklet grab outranks stale link tokens
-  const sheetSesid = (s) => liveSesid[`${s.host}|${s.user}`];
+  // A sessionless vendor's sheets are always live: the sentinel keeps every
+  // liveness read truthy, and applySesid clamps it back to "" for the relay.
+  const sheetSesid = (s) => (sessionlessVendor(s.vendor) ? "none-needed" : liveSesid[`${s.host}|${s.user}`]);
 
   // Staleness of the price book a sheet feeds: amber once the linked book's last
   // import is past the owner-set threshold (the same one the book list uses).
