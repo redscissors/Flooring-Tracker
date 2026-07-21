@@ -21,6 +21,7 @@ import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { useToast } from "./usetoast.js";
+import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useStock } from "./usestock.js";
@@ -130,6 +131,10 @@ export default function App({ user, onSignOut }) {
   // in sync when the user changes it. "system" clears both classes and lets the
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
+  // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" — per-device
+  // like the theme, switched in Settings → General.
+  const [headerLayout, setHeaderLayout] = useState(() => { try { return localStorage.getItem("ft-header") || "bar"; } catch { return "bar"; } });
+  useEffect(() => { try { localStorage.setItem("ft-header", headerLayout); } catch {} }, [headerLayout]);
   const themedOnce = useRef(false);
   useEffect(() => {
     try { localStorage.setItem("ft-theme", theme); } catch {}
@@ -1016,126 +1021,23 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              {/* Header card, print-sheet style: customer | project | salesperson
-                  up top, then builder + attachments | notes | actions, then a
-                  full-width Add-area row. The middle (project) column is the
-                  widest, like the estimate paper's header. Desktop only — the
-                  mobile shell (2026-07-16) collapses it to the stat strip +
-                  project sheet below. */}
-              {isWide && <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
-                {(() => {
-                  const cust = data.people.find((c) => c.id === sel.customerId);
-                  const bn = cust ? builderNameOf(cust.builderId) : "";
-                  const sp = sel.salesperson || profile;
-                  const cols = isWide ? { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 } : { display: "grid", gridTemplateColumns: "1fr", gap: 12 };
-                  const midPad = isWide ? { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" } : {};
-                  return (
-                    <>
-                      <div style={cols}>
-                        <div className="min-w-0">
-                          <div className="ft-eyebrow text-[9px] mb-1">Customer</div>
-                          {cust ? (
-                            <>
-                              <button onClick={() => setCustModal(cust.id)} title="Open customer details" className="ft-serif flex items-center gap-1 min-w-0 max-w-full text-indigo-600 hover:text-indigo-700" style={{ fontSize: 19, lineHeight: 1.15 }}>
-                                <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={14} className="shrink-0" />
-                              </button>
-                              <div className="text-xs text-slate-500 mt-1 truncate">{cust.address || " "}</div>
-                              {bn && <div className="text-xs text-slate-500 mt-0.5 truncate flex items-center gap-1"><Building2 size={11} className="shrink-0 text-slate-400" /> {bn}</div>}
-                            </>
-                          ) : (
-                            <button onClick={() => { setPromoteId(sel.id); setPromoteQ(""); }} title="File this job under a customer" className="flex items-center gap-2 text-amber-600 hover:text-amber-700 transition" style={{ lineHeight: 1.6 }}>
-                              <span className="text-sm font-semibold">{sel.quick ? "Quick price" : "Unassigned"}</span>
-                              <span className="text-[10.5px] font-semibold rounded border border-amber-300 px-1.5 py-0.5">File under customer ▾</span>
-                            </button>
-                          )}
-                        </div>
-                        <div className="min-w-0 relative" style={midPad}>
-                          {isWide && <div className="absolute top-0 flex flex-col items-end" style={{ right: 16 }}>
-                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
-                            {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-                          </div>}
-                          {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
-                          <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
-                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
-                          <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
-                          {!isWide && <div className="mt-1">
-                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
-                            {tierBadgeText(tv.tier, tv.pct) && <span className="inline-block rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-                          </div>}
-                        </div>
-                        <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
-                          <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
-                          <SalespersonPop value={sel.salesperson} fallback={profile} alignRight={isWide} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
-                          <div className="text-xs text-slate-500 mt-1 truncate max-w-full">{sp.phone || " "}</div>
-                        </div>
-                      </div>
-                      <div className="ft-noprint mt-2 pt-2 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
-                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 66 } : {}}>
-                          {(() => { const pcts = normPricing(settings.pricing); return (
-                            <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
-                              onChange={(v) => updateProject(sel.id, { priceTier: v })}
-                              onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
-                              options={[
-                                { v: "retail", label: "Retail", title: "Retail pricing" },
-                                { v: "builder", label: "Bldr", color: TIER_COLOR.builder.main, title: `Builder pricing — ${pcts.builderPct}% off retail` },
-                                { v: "employee", label: "Emp", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
-                                { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${pcts.salePct}% off retail` },
-                                { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
-                              ]} />
-                          ); })()}
-                          {/* Printed pricing shares its row with the waste
-                              toggles; the tier bar above keeps the full width. */}
-                          <div className="flex gap-1.5 min-w-0">
-                            <div className="flex-1 min-w-0">
-                              <SegBar value={sel.printPricing || "full"}
-                                onChange={(v) => updateProject(sel.id, { printPricing: v })}
-                                options={[
-                                  { v: "full", label: "All $", title: "Print every price and total" },
-                                  { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
-                                  { v: "none", label: "No $", title: "Print no pricing" },
-                                ]} />
-                            </div>
-                            <WasteBar w={jobWasteUI} dflt={settings.waste} className="w-[134px]"
-                              onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
-                          </div>
-                        </div>
-                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
-                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
-                          {namingVersion ? (
-                            <div className="flex items-center gap-1.5">
-                              <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                              <button onClick={confirmVersion} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
-                              <button onClick={() => setNamingVersion(false)} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 text-slate-400"><X size={15} /></button>
-                            </div>
-                          ) : (
-                            <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-                              <div className="flex gap-1.5">
-                                <button onClick={startVersionName} title="Save a version" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><Save size={14} /></button>
-                                <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
-                                <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
-                              </div>
-                              <div className="flex gap-1.5">
-                                <button onClick={() => setPrintMode("order")} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
-                                <button onClick={() => setConfirm({ id: sel.id })} title="Delete project" className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 text-slate-400"><Trash2 size={14} /></button>
-                              </div>
-                            </div>
-                          )}
-                          {/* Non-retail tiers repaint both buttons in the tier's color —
-                              the pricing state is visible right where you commit to it. */}
-                          <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-                            <button onClick={() => setShowOrderCopy(true)} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
-                            <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Ink row — same action as the dashed Add-area bar that
-                          trails the areas list; both stay on purpose. */}
-                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-2 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
-                    </>
-                  );
-                })()}
-              </div>}
+              {/* Header card (desktop): two layouts behind a per-device switch
+                  (Settings → General, "ft-header") — the one-bar (2026-07-21,
+                  .scratch/mockups/header-redesign-2026-07-21.html) and the
+                  print-sheet classic it replaced, both in projectheader.jsx.
+                  Mobile keeps the stat strip + project sheet below. */}
+              {isWide && (() => {
+                const cust = data.people.find((c) => c.id === sel.customerId);
+                const hp = {
+                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject,
+                  onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
+                  nameRef, addAreaRef, focusName, tabTo,
+                  namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
+                  openAttachment, delAttachment, attRef, addAttachment,
+                  setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea,
+                };
+                return headerLayout === "classic" ? <ProjectHeaderClassic {...hp} /> : <ProjectHeaderBar {...hp} />;
+              })()}
 
               {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2): the
                   header card collapses to a horizontally scrolling stat strip;
@@ -1992,7 +1894,7 @@ export default function App({ user, onSignOut }) {
           settings={settings} setSettings={setSettings} stock={stock} stockReady={stockReady} gFamilies={gFamilies}
           importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
-          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
+          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />

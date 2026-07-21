@@ -165,7 +165,7 @@ export function MetaChip({ icon: Icon, label, value, active, onClick }) {
 // salesperson (or the signed-in profile on pre-snapshot jobs) and opens an
 // anchored editor to change it. Fields edit live like the rest of the app;
 // "Use my details" restamps the whole snapshot from the current profile.
-export function SalespersonPop({ value, fallback, onChange, alignRight }) {
+export function SalespersonPop({ value, fallback, onChange, alignRight, small }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
@@ -175,7 +175,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight }) {
   const W = 240;
   return (
     <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Salesperson — locked in when the project was created. Click to change." className="ft-serif min-w-0 max-w-full truncate hover:text-indigo-700" style={{ fontSize: 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)" }}>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Salesperson — locked in when the project was created. Click to change." className={"min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")} style={{ fontSize: small ? 13 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && createPortal(
@@ -273,7 +273,7 @@ export function WasteBar({ w, dflt, onChange, className = "" }) {
 
 // Files, collapsed to a paperclip chip (spec 2026-07-16): the old dashed box
 // moved into an anchored popover so header column 1 can hold the pricing bars.
-export function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
+export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
@@ -282,8 +282,15 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd }) {
   const W = 260;
   return (
     <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title={`Files (not printed)${n ? ` — ${n}` : ""}`} className="h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50">
-        <Paperclip size={14} />{n > 0 && <span className="font-semibold">{n}</span>}
+      {/* mini = the one-bar header's 45×40 square with a count badge and the
+          square hover-tip card in place of the native title */}
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
+        className={mini ? "ft-tip relative w-[45px] h-[40px] flex items-center justify-center rounded-md bg-white hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
+        style={mini ? { border: "1px solid var(--ft-border-strong)" } : undefined}>
+        <Paperclip size={mini ? 15 : 14} />
+        {n > 0 && (mini
+          ? <span className="absolute rounded-full font-bold" style={{ top: -6, right: -6, fontSize: 10, padding: "1px 5px", background: "var(--ft-sand)", color: "var(--ft-muted)", border: "1px solid var(--ft-border)" }}>{n}</span>
+          : <span className="font-semibold">{n}</span>)}
       </button>
       {open && pos && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">

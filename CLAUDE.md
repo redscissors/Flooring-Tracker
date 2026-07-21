@@ -66,6 +66,11 @@ src/
                     # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
                     # `MobileProductRow`, `MobileRowSheet`
+  projectheader.jsx # the desktop project header, two layouts behind a per-device
+                    # switch (Settings → General, localStorage "ft-header"):
+                    # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
+                    # `ProjectHeaderClassic` (the print-sheet original, kept
+                    # whole so the team can flip back without a revert)
   TeamTodos.jsx     # the team issue/to-do modal (issue 006)
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
