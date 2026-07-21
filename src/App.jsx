@@ -187,6 +187,8 @@ export default function App({ user, onSignOut }) {
   const prodRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
+  const orderEntryRef = useRef(null);
+  const matDrawerRef = useRef(null);
 
   // FLIP: slide the flooring-type labels (and product cards) to their new spots
   // when a render reorders them. Offset coords (not getBoundingClientRect) so
@@ -310,6 +312,29 @@ export default function App({ user, onSignOut }) {
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
   useEffect(() => { if (focusProdBox && prodRefs.current[focusProdBox]) { const el = prodRefs.current[focusProdBox]; el.focus(); el.select?.(); setFocusProdBox(null); } }, [focusProdBox, data]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
+  // Tab flow (2026-07-21): opening a project starts the keyboard flow at the
+  // project name while it's still blank; a named project starts at the first
+  // area's name instead. Desktop only (the phone would pop its keyboard), and
+  // an addProject/quick-price open keeps its own focus target (focusName /
+  // focusProd set in the same commit).
+  const openedFocusRef = useRef(null);
+  useEffect(() => {
+    if (!selId) { openedFocusRef.current = null; return; }
+    if (!isWide || !sel?._full || openedFocusRef.current === selId) return;
+    openedFocusRef.current = selId;
+    if (focusName || focusProd) return;
+    if (!sel.name) setFocusName(true);
+    else areaRefs.current[sel.categories[0]?.id]?.focus();
+  }, [selId, sel?._full, isWide]);
+  // While a materials drawer is open, the keyboard lives inside it: focus its
+  // first dropdown (or the caulk box) on open — the drawer itself as fallback
+  // so Enter-to-close always has a target.
+  useEffect(() => {
+    const pid = Object.keys(matOpen)[0];
+    const el = matDrawerRef.current;
+    if (!pid || !el) return;
+    (el.querySelector("select, input:not([tabindex='-1'])") || el).focus();
+  }, [matOpen]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
   // Server-side search (debounced): ask the backend which customers match and
@@ -1028,10 +1053,13 @@ export default function App({ user, onSignOut }) {
                   Mobile keeps the stat strip + project sheet below. */}
               {isWide && (() => {
                 const cust = data.people.find((c) => c.id === sel.customerId);
+                // Tab out of the header lands on the first area's name; with no
+                // areas yet it falls back to the header's Add-area button.
+                const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
                 const hp = {
                   sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject,
                   onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
-                  nameRef, addAreaRef, focusName, tabTo,
+                  nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
                   setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea,
@@ -1311,7 +1339,7 @@ export default function App({ user, onSignOut }) {
                         // The note lives inside the tinted wrap, hugging the chip's
                         // bottom edge; rows with no wrap fall back to a cream note row.
                         const noteInput = (
-                          <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
+                          <input tabIndex={-1} value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
                         );
                         const searchMode = rowBlank(p) && !manualRows[p.id];
                         // The last row of an area is the permanent inline "adder";
@@ -1423,10 +1451,14 @@ export default function App({ user, onSignOut }) {
                                 {/* no expand carrot — the materials pill opens the drawer,
                                     clicking anywhere outside folds it */}
                                 <span className="w-1 shrink-0" />
+                                {/* Tab flow: a book-filled row (sku set) tabs product → SF →
+                                    extras; size/SKU/price stay click targets. A manual row
+                                    keeps size/coverage/price in the tab order — they must be
+                                    typed there. */}
                                 {p.type === "tile" ? (
-                                  <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
+                                  <GridSizeInput p={p} tabIndex={p.sku ? -1 : 0} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
                                 ) : (
-                                  <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : p.type === "misc" ? "Size (opt.)" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                  <input tabIndex={p.sku ? -1 : 0} value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : p.type === "misc" ? "Size (opt.)" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 )}
                               </div>
                               <div style={gridCell}>
@@ -1435,14 +1467,14 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {skuSearchable(stock, searchOrder, stockReady) ? (
-                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady}
+                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady} tabIndex={-1}
                                     onChange={(v) => updProduct(a.id, p.id, { sku: v })}
                                     onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                                     onPickMany={(items) => addStockProducts(a.id, p.id, items)}
                                     searchOrder={searchOrder} bookName={bookName}
                                     wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
                                 ) : (
-                                  <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
+                                  <input tabIndex={-1} value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
                                 )}
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
@@ -1463,7 +1495,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} tabIndex={p.sku ? -1 : 0} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
@@ -1524,7 +1556,29 @@ export default function App({ user, onSignOut }) {
                             {matExpanded && p.type !== "misc" && (
                               <>
                               <div className="ft-noprint" style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(20,15,10,.14)", backdropFilter: "blur(0.6px)", WebkitBackdropFilter: "blur(0.6px)" }} onClick={closeMats} />
-                              <div style={{ position: "absolute", left: 0, top: 0, zIndex: 45, width: "100%", background: rowTint, padding: "4px 8px 7px 26px", borderLeft: matBorder, borderRight: matBorder, borderBottom: matBorder, boxShadow: "0 10px 24px rgba(20,15,10,.16)" }}>
+                              {/* Keyboard contract (tab-flow cleanup 2026-07-21): Tab walks the
+                                  checked extras' dropdowns plus the caulk box (totals stay
+                                  click-to-override), Enter or Escape folds the drawer back to
+                                  its pill, and tabbing/clicking out folds it too. */}
+                              <div ref={(el) => { matDrawerRef.current = el; }} tabIndex={-1}
+                                onKeyDown={(e) => {
+                                  if (e.key !== "Enter" && e.key !== "Escape") return;
+                                  e.preventDefault();
+                                  const card = e.currentTarget.closest("[data-prod-card]");
+                                  closeMats();
+                                  requestAnimationFrame(() => card?.querySelector("[data-mats-pill]")?.focus());
+                                }}
+                                onBlur={() => {
+                                  // Deferred + body-tolerant: a toggle click unmounts the focused
+                                  // button (focus falls to body) and must NOT fold the drawer;
+                                  // tabbing or clicking to a real control outside does.
+                                  setTimeout(() => {
+                                    const el = matDrawerRef.current;
+                                    const ae = document.activeElement;
+                                    if (el && ae && ae !== document.body && !el.contains(ae)) closeMats();
+                                  }, 0);
+                                }}
+                                style={{ position: "absolute", left: 0, top: 0, zIndex: 45, width: "100%", background: rowTint, padding: "4px 8px 7px 26px", borderLeft: matBorder, borderRight: matBorder, borderBottom: matBorder, boxShadow: "0 10px 24px rgba(20,15,10,.16)", outline: "none" }}>
                               <div className="ft-mats" style={{ background: matBoxBg, border: chipBorder, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
@@ -1547,7 +1601,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="text-slate-400">Matching caulk</span>
                                       {p.grout.color && <span className="inline-flex items-center gap-1"><span className="shrink-0" style={{ width: 9, height: 9, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D" }} />{p.grout.color} match</span>}
                                       {p.grout.caulkSku && <span className="ft-mono text-[10px] text-slate-400">{p.grout.caulkSku}</span>}
-                                      <span className="ml-auto flex items-center gap-1"><input tabIndex={-1} type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
+                                      <span className="ml-auto flex items-center gap-1"><input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
                                     </div>
                                   </div>
                                 )}
@@ -1596,9 +1650,9 @@ export default function App({ user, onSignOut }) {
                                     {installDefs.length > 0 && (
                                       <div className="mt-1.5 pt-1.5" style={{ borderTop: "1px solid var(--ft-border)" }}>
                                   <div className="flex items-center gap-2">
-                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{p.underlay.install && <Check size={10} />}</button>
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{p.underlay.install && <Check size={10} />}</button>
                                     {p.underlay.install ? (
-                                      <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
+                                      <button tabIndex={-1} onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
                                         {insExpanded ? <ChevronDown size={12} className="text-slate-400 shrink-0" /> : <ChevronRight size={12} className="text-slate-400 shrink-0" />}
                                         Install materials
                                         <span className="text-[10px] text-slate-400 whitespace-nowrap">{insIncluded < installDefs.length ? `${insIncluded} of ${installDefs.length}` : `${installDefs.length} item${installDefs.length === 1 ? "" : "s"}`}</span>
@@ -1623,7 +1677,7 @@ export default function App({ user, onSignOut }) {
                                         const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
                                         return (
                                           <div key={d.id} className="flex items-center gap-2">
-                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : ""}`} style={skipped ? undefined : { background: accent, color: "var(--ft-type-ink)" }}>{!skipped && <Check size={10} />}</button>
+                                            <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : ""}`} style={skipped ? undefined : { background: accent, color: "var(--ft-type-ink)" }}>{!skipped && <Check size={10} />}</button>
                                             {d.kind === "mortar" && !skipped ? (
                                               <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
                                                 {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -1692,7 +1746,7 @@ export default function App({ user, onSignOut }) {
                             )}
                             {(stripMats.length > 0 || warns.length > 0) && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
+                              <button data-mats-pill onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
                                 {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -1711,7 +1765,7 @@ export default function App({ user, onSignOut }) {
                             )}
                             {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
+                              <button data-mats-pill onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                               {p.note ? noteInput : null}
@@ -1737,7 +1791,9 @@ export default function App({ user, onSignOut }) {
 
               {/* Mobile gets its + Area in the bottom add bar instead. */}
               {isWide && sel.categories.length > 0 && (
-                <button onClick={addArea} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
+                // Tab flow: after the last area's search row this Add-area bar is
+                // the next stop; Tab from it jumps back up to Order entry → Print.
+                <button onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
