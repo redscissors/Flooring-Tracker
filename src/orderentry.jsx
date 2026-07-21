@@ -101,16 +101,17 @@ function SpecialRow({ r, alt, descLimit }) {
 
         {/* What will actually land in the description field, shown only once it
             stops being the plain description — so an abbreviation is never a
-            surprise after pasting, and a split announces its second half. */}
+            surprise after pasting, and a split announces its second half.
+            Hovering the chip (or Ext) shows the full written-out description. */}
         {d && d.tier !== "full" && (
           <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-            <span className="ft-mono text-[11px] leading-tight rounded px-1 py-px break-all"
+            <span className="ft-mono text-[11px] leading-tight rounded px-1 py-px break-all" title={d.full}
               style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>{d.main}</span>
             <span className={"text-[10px] leading-tight " + (d.over > 0 ? "text-red-600 font-semibold" : "text-slate-400")}>
               {d.main.length}/{descLimit}
             </span>
             {d.ext && (
-              <button onClick={copyExt} title="Copy the full description for the extended-text field"
+              <button onClick={copyExt} title={"Copy the full description for the extended-text field:\n\n" + d.ext}
                 style={copiedExt ? DONE_MOSS : undefined}
                 className={"inline-flex items-center gap-1 rounded px-1.5 py-px text-[10px] font-semibold border transition-colors " +
                   (copiedExt ? "" : "border-amber-300 text-amber-700 hover:bg-amber-50")}>

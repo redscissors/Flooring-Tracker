@@ -49,7 +49,7 @@ const floorCfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "
 test("orderDescription: with no limit the description is the plain full text", () => {
   const d = orderDescription(book, 0);
   assert.equal(d.tier, "full");
-  assert.equal(d.main, 'ANA-CAR-1224 12" × 24" Anatolia Carrara Bianco');
+  assert.equal(d.main, '12" × 24" Anatolia Carrara Bianco ANA-CAR-1224');
   assert.equal(d.ext, null);
 });
 
@@ -81,8 +81,8 @@ test("orderDescription: a long Sheoga build splits, and ext holds every category
   }
 });
 
-test("orderDescription: a SKU leads but is the first thing dropped when tight", () => {
-  assert.ok(orderDescription(book, 60).main.startsWith("ANA-CAR-1224"));
+test("orderDescription: a SKU trails but is the first thing dropped when tight", () => {
+  assert.ok(orderDescription(book, 60).main.endsWith("ANA-CAR-1224"));
   const tight = orderDescription(book, 24);
   assert.equal(tight.tier, "split");
   assert.ok(!tight.main.includes("ANA-CAR-1224"), "a SKU is an item code, not a description");
