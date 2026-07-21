@@ -96,7 +96,11 @@ Deno.serve(async (req: Request) => {
     const timedOut = (err as Error)?.name === "TimeoutError" || (err as Error)?.name === "AbortError";
     return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });
   }
-  if (res.status >= 300 && res.status < 400) return json(409, { error: "session-expired" });
+  // Dancik bounces a dead session as a redirect to its login page; Emser's
+  // document API answers a hard 401 (its downloads require emser.com's login,
+  // verified 2026-07-21). All classify as the sign-in bounce, mirroring
+  // deadSessionStatus in src/vendorfetch.js.
+  if (res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) return json(409, { error: "session-expired" });
   if (!res.ok) return json(502, { error: `vendor portal answered ${res.status}` });
 
   const bytes = new Uint8Array(await res.arrayBuffer());

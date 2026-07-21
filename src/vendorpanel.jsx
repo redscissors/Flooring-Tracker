@@ -85,11 +85,12 @@ async function runFetch(entry, token, onProgress) {
       let err = "";
       try { err = (await res.json()).error || ""; } catch {}
       if (err === "session-expired") {
-        // A token-free vendor has no session to renew — a login bounce there
-        // means the link itself went stale (or the download needs their site's
-        // sign-in after all), so the bookmark advice would be a dead end.
+        // A token-free vendor has no session to renew, and the relay sends no
+        // cookies — Emser's downloads require its login (verified 2026-07-21),
+        // so a fresh link can't help either. Point at download-and-drop; the
+        // bookmark/paste advice stays for token-carrying (Dancik) portals.
         return { error: sessionlessVendor(entry.vendor)
-          ? "the vendor declined the download — open the price list on their site and paste its fresh link"
+          ? "this vendor's site requires its own sign-in to download — grab the sheet from their site while signed in and drop the file on this page"
           : "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" };
       }
       msg = err === "vendor-timeout"
