@@ -168,3 +168,45 @@ works until they re-drag the new one; the setup UI now hands out only the
 clipboard bookmarklet. Companion UI in the same change: the paste card shrank to
 a compact box, and a sheet whose sign-in is live now shows an emerald "ready"
 glow on its download button (`.ft-live`) until it's fetched (then the ✓).
+
+## Amendment (2026-07-21): Emser — the first sessionless adapter
+
+Emser Tile publishes each dealer's price list at a **stable per-account URL
+with no session token anywhere in it**:
+`https://www.emser.com/api/v1/custom/customerDocuments/<acct>-<period>-ISPL.xlsx`
+(e.g. `1374258-Jul2026-ISPL.xlsx`). That makes it the framework's first
+non-Dancik platform — and its first **sessionless** one, which the original
+decision's sesid mechanics didn't model.
+
+The `emser` adapter (`VENDORS.emser`) carries `sessionless: true` and
+per-vendor validation rules (rules moved from the module-level Dancik constants
+into each adapter):
+
+- **Identity is the filename.** uid and user are both the dealer account, read
+  off the filename's leading digit run, so recordKey/grouping work exactly like
+  Dancik's ("Emser Tile · 1374258" board column). The sesid rule is `/^$/` —
+  the relay rejects any entry that *carries* a token for this vendor.
+- **Always live.** `sheetSesid` returns a sentinel for sessionless vendors, so
+  remembered Emser sheets are permanently green/ready — no bookmarklet, no
+  session pool, no quarterly unlock. `applySesid` clamps the sentinel back to
+  `""` before the wire.
+- **Releases are period-stamped filenames.** A new release means pasting the
+  new link once ("Add to board" — it replaces its predecessor, recordKey
+  excludes the filename by design), the same gesture as a VTC quarterly. If a
+  cadence emerges, deriving candidate filenames (`<acct>-<Mon><YYYY>-ISPL.xlsx`)
+  is a possible later nicety; deliberately not built on one observed release.
+- **Failure stays soft.** If the URL turns out to require emser.com's login
+  after all (the relay sends no cookies), the login-bounce classifier surfaces
+  a per-sheet "the vendor declined the download" note — pointing at a fresh
+  link, not at the bookmarklet, which can't help a token-free vendor.
+
+**Owner verification required before trusting it:** open the URL in a private/
+incognito window. If it downloads logged-out (as Dancik's did), the relay path
+is sound. The Edge Function twin gained the same adapter — re-paste it in the
+dashboard (Edge Functions → vendor-fetch) to update the deployed copy; the
+Netlify fallback ships with the site build as usual.
+
+Boundary unchanged: the relay still accepts only structured params behind a
+FloorTrack JWT and rebuilds the URL from the allowlisted host + fixed path —
+`customerDocuments/<validated filename>` — so it still can't proxy anything
+else on emser.com.

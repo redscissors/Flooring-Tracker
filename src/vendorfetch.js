@@ -19,15 +19,37 @@ export const VENDORS = {
     hostLabels: { "connect24.virginiatile.com": "Virginia Tile connect24", "ovf400.ovf.com": "OVF (ovf400)" },
     path: "/danciko/dancik-ows/d24/getPrettyPriceList/xls",
     linkMark: "getPrettyPriceList",
+    rules: {
+      uid: /^\d{1,10}$/,
+      user: /^[A-Za-z0-9]{1,24}$/,
+      sesid: /^[A-Za-z0-9]{1,64}$/,
+      filename: /^[\w .\-&()]{1,120}$/,
+    },
+  },
+  emser: {
+    label: "Emser Tile",
+    // Emser publishes each dealer's documents at a stable per-account URL —
+    // /api/v1/custom/customerDocuments/<acct>-<period>-ISPL.xlsx — with NO
+    // session token anywhere in it (ADR 0019, Emser amendment). uid and user
+    // are both the dealer account, read off the filename's leading digits, so
+    // the group columns and recordKey identity work exactly like Dancik's.
+    hosts: ["www.emser.com"],
+    hostLabels: { "www.emser.com": "Emser Tile" },
+    path: "/api/v1/custom/customerDocuments/",
+    linkMark: "customerDocuments",
+    // No token to renew: remembered Emser sheets are always fetchable, and the
+    // live-session pool never applies (sheetSesid short-circuits on this).
+    sessionless: true,
+    rules: {
+      uid: /^\d{1,10}$/,
+      user: /^\d{1,10}$/,
+      sesid: /^$/, // token-free by design — a non-empty sesid is a bad entry
+      filename: /^\d{1,10}-[\w.\- ]{1,80}\.(xlsx?|csv|pdf)$/i,
+    },
   },
 };
 
-const DANCIK_RULES = {
-  uid: /^\d{1,10}$/,
-  user: /^[A-Za-z0-9]{1,24}$/,
-  sesid: /^[A-Za-z0-9]{1,64}$/,
-  filename: /^[\w .\-&()]{1,120}$/,
-};
+export const sessionlessVendor = (vendor) => !!VENDORS[vendor]?.sessionless;
 
 // A portal link (from the bookmarklet, a pasted URL, or the address bar) ->
 // structured entry, or null when it isn't a recognized price-list link.
@@ -38,6 +60,14 @@ export function parseVendorLink(href) {
   for (const [vendor, cfg] of Object.entries(VENDORS)) {
     if (!cfg.hosts.includes(u.hostname)) continue;
     if (!u.pathname.includes(cfg.linkMark)) continue;
+    if (vendor === "emser") {
+      // The whole identity is the path's final segment; the dealer account is
+      // its leading digit run. A filename without one fails the uid rule and
+      // the caller drops the entry.
+      const filename = decodeURIComponent(u.pathname.split("/").pop() || "");
+      const acct = (/^(\d{1,10})-/.exec(filename) || [])[1] || "";
+      return { vendor, host: u.hostname, uid: acct, filename, user: acct, sesid: "" };
+    }
     const p = u.searchParams;
     return {
       vendor,
@@ -57,7 +87,7 @@ export function entryProblems(entry) {
   const cfg = entry && VENDORS[entry.vendor];
   if (!cfg) return "unknown vendor";
   if (!cfg.hosts.includes(entry.host)) return "host not allowlisted";
-  for (const [k, re] of Object.entries(DANCIK_RULES)) {
+  for (const [k, re] of Object.entries(cfg.rules)) {
     const v = String(entry[k] ?? "");
     if (!re.test(v)) return `bad ${k}`;
   }
@@ -67,6 +97,7 @@ export function entryProblems(entry) {
 // Server-side only: rebuild the portal download URL from a validated entry.
 export function buildVendorUrl(entry) {
   const cfg = VENDORS[entry.vendor];
+  if (entry.vendor === "emser") return `https://${entry.host}${cfg.path}${encodeURIComponent(entry.filename)}`;
   const q = new URLSearchParams({
     d24_uid: entry.uid,
     d24_filename: entry.filename,
@@ -103,7 +134,7 @@ export function entryKey(entry) {
 // inline handler code instead of links. Entity-decode (&amp;) and resolve
 // against the frame's base URL so relative URLs still parse.
 
-const LINK_MARK_RE = /[^\s"'<>()]*getPrettyPriceList[^\s"'<>()]*/g;
+const LINK_MARK_RE = /[^\s"'<>()]*(?:getPrettyPriceList|customerDocuments)[^\s"'<>()]*/g;
 
 export function harvestVendorLinks(html, base) {
   const out = new Set();
@@ -144,8 +175,10 @@ export function mergeRecords(prev, next) {
   return [...(prev || []).filter((r) => !fresh.has(recordKey(r))), ...(next || []).map(sheetRecord)];
 }
 
+// A sessionless vendor's entries always go to the relay token-free, whatever
+// sentinel the caller's live-session pool handed over.
 export function applySesid(record, sesid) {
-  return { ...sheetRecord(record), sesid };
+  return { ...sheetRecord(record), sesid: sessionlessVendor(record?.vendor) ? "" : sesid };
 }
 
 // ---- sign-in groups ------------------------------------------------------
@@ -341,7 +374,7 @@ export function stripHandoffMark(text) {
 // same as the old URL-fragment hand-off. A textarea+execCommand fallback covers
 // portals served without a secure context, and a prompt() covers a hard failure.
 export function bookmarkletSource() {
-  const src = `(()=>{var L=new Set();var H="";var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";H+=h;(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1)L.add(location.href);var gv=function(n){try{return localStorage.getItem(n)||sessionStorage.getItem(n)}catch(e){return null}};var sid=gv("d24sesid");var usr=gv("d24user");if(!sid){var ms=H.match(/d24sesid=([A-Za-z0-9]{1,64})/);if(ms)sid=ms[1]}if(!usr){var mu=H.match(/d24user=([A-Za-z0-9]{1,24})/);if(mu)usr=mu[1]}var S=sid?{host:location.hostname,user:usr||"",sesid:sid}:null;if(!L.size&&!S){alert("Couldn't find your vendor sign-in on this page. Make sure you're logged into the portal, then click the bookmark again.");return}var payload={v:1,links:Array.from(L)};if(S)payload.session=S;var TXT=${JSON.stringify(HANDOFF_MARK)}+btoa(JSON.stringify(payload));var ok=function(){alert("FloorTrack \\u2713 sign-in copied.\\n\\nSwitch to your FloorTrack tab and click \\u201CPaste sign-in\\u201D.")};var no=function(){window.prompt("FloorTrack: copy this text, then paste it into \\u201CPaste sign-in\\u201D:",TXT)};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(TXT).then(ok,no)}else{try{var t=document.createElement("textarea");t.value=TXT;t.style.position="fixed";t.style.top="-1000px";document.body.appendChild(t);t.focus();t.select();var c=document.execCommand("copy");document.body.removeChild(t);c?ok():no()}catch(e){no()}}})()`;
+  const src = `(()=>{var L=new Set();var H="";var RE=new RegExp(${JSON.stringify(LINK_MARK_RE.source)},"g");var scan=function(d){try{d.querySelectorAll('a[href*="getPrettyPriceList"],a[href*="customerDocuments"]').forEach(function(a){L.add(a.href)});var h=d.documentElement?d.documentElement.outerHTML:"";H+=h;(h.match(RE)||[]).forEach(function(u){try{L.add(new URL(u.replace(/&amp;/g,"&"),d.baseURI).href)}catch(e){}});d.querySelectorAll("iframe,frame").forEach(function(f){try{if(f.contentDocument)scan(f.contentDocument)}catch(e){}})}catch(e){}};scan(document);if(location.href.indexOf("getPrettyPriceList")>-1||location.href.indexOf("customerDocuments")>-1)L.add(location.href);var gv=function(n){try{return localStorage.getItem(n)||sessionStorage.getItem(n)}catch(e){return null}};var sid=gv("d24sesid");var usr=gv("d24user");if(!sid){var ms=H.match(/d24sesid=([A-Za-z0-9]{1,64})/);if(ms)sid=ms[1]}if(!usr){var mu=H.match(/d24user=([A-Za-z0-9]{1,24})/);if(mu)usr=mu[1]}var S=sid?{host:location.hostname,user:usr||"",sesid:sid}:null;if(!L.size&&!S){alert("Couldn't find your vendor sign-in on this page. Make sure you're logged into the portal, then click the bookmark again.");return}var payload={v:1,links:Array.from(L)};if(S)payload.session=S;var TXT=${JSON.stringify(HANDOFF_MARK)}+btoa(JSON.stringify(payload));var ok=function(){alert("FloorTrack \\u2713 sign-in copied.\\n\\nSwitch to your FloorTrack tab and click \\u201CPaste sign-in\\u201D.")};var no=function(){window.prompt("FloorTrack: copy this text, then paste it into \\u201CPaste sign-in\\u201D:",TXT)};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(TXT).then(ok,no)}else{try{var t=document.createElement("textarea");t.value=TXT;t.style.position="fixed";t.style.top="-1000px";document.body.appendChild(t);t.focus();t.select();var c=document.execCommand("copy");document.body.removeChild(t);c?ok():no()}catch(e){no()}}})()`;
   return `javascript:${src}`;
 }
 
@@ -376,8 +409,11 @@ export function normSession(raw) {
   const sesid = String(raw.sesid || "");
   const vendor = vendorForHost(host);
   if (!vendor) return null;
-  if (!DANCIK_RULES.sesid.test(sesid)) return null;
-  if (user && !DANCIK_RULES.user.test(user)) return null;
+  // A session IS a token — a sessionless vendor (whose sesid rule is /^$/)
+  // can never pool one, and an empty grab is meaningless for anyone.
+  const rules = VENDORS[vendor].rules;
+  if (!sesid || !rules.sesid.test(sesid)) return null;
+  if (user && !rules.user.test(user)) return null;
   return { vendor, host, user, sesid };
 }
 
