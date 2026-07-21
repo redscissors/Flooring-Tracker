@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabase.js";
 import { AUTO_KEEP } from "./uiconst.js";
 import { uid, catSig, normA } from "./model.js";
 
-export function useVersions({ user, ping, flashSaved, sel, setData, dataRef, baselineRef, updateProject, selId }) {
+export function useVersions({ ping, flashSaved, sel, setData, dataRef, baselineRef, updateProject }) {
   const [showVersions, setShowVersions] = useState(false);
   const [namingVersion, setNamingVersion] = useState(false);
   const [versionName, setVersionName] = useState("");

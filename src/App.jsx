@@ -1,9 +1,9 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, Lock, AlertTriangle, Copy, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { LIST_SELECT, lightRow, SHARED_SETTINGS_ID, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
-import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, withDerived, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -19,6 +19,7 @@ import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, Gr
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { useToast } from "./usetoast.js";
+import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
@@ -65,18 +66,7 @@ function gridEnterNav(e, addRow) {
   else if (i === cards.length - 1) { e.preventDefault(); addRow(); }
 }
 
-// Version metadata as held in memory — snapshots stay on the server until a
-// restore actually needs one.
-const vMeta = (r) => ({ id: r.id, label: r.label || "Version", auto: !!r.auto, savedAt: r.saved_at ? new Date(r.saved_at).getTime() : Date.now() });
-const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
-
 export default function App({ user, onSignOut }) {
-  const [data, setData] = useState(() => ({ projects: [], people: [], builders: [], settings: normalizeSettings() }));
-  const [loading, setLoading] = useState(true);
-  // selId = the open Project (drives the estimate pane). selCustId = the open
-  // Customer (person) when no project is selected (drives the customer view).
-  const [selId, setSelId] = useState(null);
-  const [selCustId, setSelCustId] = useState(null);
   // Which customers are expanded in the sidebar tree.
   const [openCust, setOpenCust] = useState({});
   // Sidebar folder state: the "Customers" library folder, each age bucket
@@ -95,13 +85,22 @@ export default function App({ user, onSignOut }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
-  // Per-user profile (name/phone/email), printed on the estimate header.
-  const [profile, setProfile] = useState(normProfile());
-  // The rest of this user's app_data blob, kept so profile saves don't clobber
-  // anything else stored there.
-  const appBlobRef = useRef({});
   const [confirm, setConfirm] = useState(null);
+  const [focusName, setFocusName] = useState(false);
+  const [focusProd, setFocusProd] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast, saveOk, ping, flashSaved } = useToast();
+  const {
+    data, setData, loading, setLoading, hydrateDirectory,
+    selId, setSelId, selCustId, setSelCustId, sel, selCust,
+    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject,
+    promoteProject, promoteToNewCustomer,
+    addPerson, updatePerson, delPerson, addBuilderFor,
+    builderNameOf, projectsOf, migrateLegacyCustomers,
+    setSettings, saveProfile, profile, setProfile, appBlobRef,
+    dataRef, baselineRef, prevSelRef, custData,
+  } = useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusProd, setFocusName, setConfirm, setPromoteId, setPromoteQ });
+  const settings = data.settings;
   const {
     books, hydrateBooks, orderItems, setOrderItems,
     loadBookItems, addBook, updateBook, delBook, applyBookImport,
@@ -113,12 +112,10 @@ export default function App({ user, onSignOut }) {
   const [printMode, setPrintMode] = useState(null);
   useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
-  const [focusName, setFocusName] = useState(false);
   // Keyboard-flow focus targets (product id): after Add product, land on the
   // new row's type; after a SKU pick, land on the Sq Ft box (so the footage
   // still gets keyed) then Tab carries on to the materials; when that line
   // expands via Enter, land on its first checkbox.
-  const [focusProd, setFocusProd] = useState(null);
   const [focusQty, setFocusQty] = useState(null);
   const [focusProdBox, setFocusProdBox] = useState(null); // after a row goes manual, land in its product box
   // Empty rows render as a price-book search; these hold the transient search
@@ -149,7 +146,6 @@ export default function App({ user, onSignOut }) {
     const t = setTimeout(() => el.classList.remove("ft-theming"), 600);
     return () => clearTimeout(t);
   }, [theme]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
@@ -187,13 +183,6 @@ export default function App({ user, onSignOut }) {
   const prodRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
-  // Auto-version bookkeeping: { id, json } — the open customer's categories as
-  // of open / last snapshot. dataRef mirrors state so the deselect effect and
-  // sign-out handler compare against the latest edits, not a stale closure.
-  const baselineRef = useRef(null);
-  const dataRef = useRef(data);
-  dataRef.current = data;
-  const prevSelRef = useRef(null);
 
   // FLIP: slide the flooring-type labels (and product cards) to their new spots
   // when a render reorders them. Offset coords (not getBoundingClientRect) so
@@ -278,7 +267,7 @@ export default function App({ user, onSignOut }) {
         const now = Date.now();
         const swept = projects.filter((p) => p.quick && p.customerId == null && now - (p.updatedAt || p.createdAt || now) > sweepMs);
         const kept = swept.length ? projects.filter((p) => !swept.some((s) => s.id === p.id)) : projects;
-        setData({ projects: kept, people, builders, settings });
+        hydrateDirectory({ projects: kept, people, builders, settings });
         for (const p of swept) supabase.from("projects").delete().eq("id", p.id).then(() => {}, () => {});
       } catch (e) { coreOk = false; ping("Could not load your data — check connection"); }
       setLoading(false);
@@ -312,67 +301,6 @@ export default function App({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
-  // Lazy-load one customer's full record on open, merging it into the light row.
-  // Version metadata (never snapshots) loads alongside; snapshots are fetched
-  // one at a time on restore.
-  const loadDetail = async (id) => {
-    const existing = data.projects.find((c) => c.id === id);
-    if (!existing || existing._full) return;
-    try {
-      const [{ data: row, error }, { data: vRows, error: vErr }] = await Promise.all([
-        supabase.from("projects").select("data").eq("id", id).maybeSingle(),
-        supabase.from("versions").select("id, label, auto, saved_at").eq("customer_id", id).order("saved_at", { ascending: false }),
-      ]);
-      if (error) throw error;
-      if (vErr) throw vErr;
-      const full = normC(row?.data || {});
-      let versions = (vRows || []).map(vMeta);
-      // Safety net for a client deployed before the schema migration ran: lift
-      // any versions still embedded in this blob into the table (idempotent);
-      // custData strips them from the blob on the next content write.
-      if (full.versions.length) {
-        try {
-          await supabase.from("versions").upsert(full.versions.map((v) => ({
-            id: v.id || uid(), customer_id: id, label: v.label || "Version", auto: false,
-            saved_at: new Date(v.savedAt || Date.now()).toISOString(), snapshot: v.snapshot || [],
-          })), { onConflict: "id", ignoreDuplicates: true });
-          const have = new Set(versions.map((v) => v.id));
-          versions = [...versions, ...full.versions.filter((v) => !have.has(v.id)).map((v) => vMeta({ id: v.id, label: v.label, auto: false, saved_at: v.savedAt ? new Date(v.savedAt).toISOString() : null }))].sort((a, b) => b.savedAt - a.savedAt);
-        } catch (x) { /* best-effort */ }
-      }
-      setData((prev) => ({
-        ...prev,
-        projects: prev.projects.map((c) => c.id === id
-          ? { ...c, ...full, customerId: c.customerId, versions, id: c.id, createdAt: c.createdAt, _full: true }
-          : c),
-      }));
-      baselineRef.current = { id, json: catSig(full.categories) };
-    } catch (e) { ping("Could not open customer — check connection"); }
-  };
-
-  const migrateLegacyCustomers = async (legacy) => {
-    for (const c of legacy) {
-      // Move attachment files from <user_id>/<file_id> to <customer_id>/<file_id>.
-      for (const m of (c.attachments || [])) {
-        try {
-          const { data: blob } = await supabase.storage.from(ATT_BUCKET).download(`${user.id}/${m.id}`);
-          if (!blob) continue;
-          await supabase.storage.from(ATT_BUCKET).upload(`${c.id}/${m.id}`, blob, { contentType: m.type, upsert: true });
-          await supabase.storage.from(ATT_BUCKET).remove([`${user.id}/${m.id}`]);
-        } catch (x) { /* best-effort */ }
-      }
-      const { ownerId, visibility, archived, customerId, ...rest } = c;
-      // Late legacy-blob migration lands as an unassigned project (customer_id
-      // null); the owner links it to a customer from the sidebar.
-      await supabase.from("projects").upsert(
-        { id: c.id, owner_id: user.id, data: rest, created_at: new Date(c.createdAt || Date.now()).toISOString() },
-        { onConflict: "id", ignoreDuplicates: true }
-      );
-    }
-    // Drop the migrated array from the blob, keeping what still lives there
-    // (the user's profile).
-    await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" });
-  };
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
@@ -408,26 +336,6 @@ export default function App({ user, onSignOut }) {
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
 
-  // Strip the in-memory-only fields before writing to jsonb (versions live in
-  // their own table; _full is load state; updatedAt mirrors the updated_at
-  // column; ownerId/visibility/archived are legacy fields old records may carry).
-  // customerId is the projects.customer_id column, not part of the data blob.
-  const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, customerId, ...rest }) => rest;
-
-  // Settings live in one shared record (ADR 0002) — last-write-wins across the
-  // whole team, the same as a Public customer's data.
-  const setSettings = (patch) => {
-    const next = { ...data, settings: withDerived({ ...data.settings, ...patch }) };
-    setData(next);
-    (async () => { try { const { error } = await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(next.settings) }, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
-  };
-  const saveProfile = (patch) => {
-    const next = { ...profile, ...patch };
-    setProfile(next);
-    appBlobRef.current = { ...appBlobRef.current, profile: next };
-    (async () => { try { const { error } = await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Couldn't save your info"); } })();
-  };
-  const settings = data.settings;
   const {
     stock, stockReady, stockFailed,
     hydrateStock, markStockReady, markStockFailed,
@@ -447,10 +355,6 @@ export default function App({ user, onSignOut }) {
   // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
   // at edit time only (color dropdowns, Settings linking), never at calc time.
   const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
-  const sel = data.projects.find((c) => c.id === selId) || null;
-  const selCust = data.people.find((c) => c.id === selCustId) || null;
-  const builderNameOf = (id) => data.builders.find((b) => b.id === id)?.name || "";
-  const projectsOf = (customerId) => data.projects.filter((p) => p.customerId === customerId);
   const fmtAgo = (ts) => {
     if (!ts) return "";
     const d = Math.floor((Date.now() - ts) / 86400000);
@@ -486,133 +390,6 @@ export default function App({ user, onSignOut }) {
     }));
   }, [sel?.id, sel?._full, sel?.categories, manualRows]);
 
-  // Every project-content mutation goes through here: optimistic state update +
-  // an UPDATE of that one row's data blob. customer_id is a column, moved via
-  // linkProject — never through here.
-  const updateProject = (id, patch) => {
-    const next = { ...data, projects: data.projects.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
-    setData(next);
-    const cust = next.projects.find((c) => c.id === id);
-    (async () => { try { const { error } = await supabase.from("projects").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
-  };
-
-  const addProject = (customerId = null, name = "New Project", opts = {}) => {
-    const c = { ...newProject(customerId, name, { ...opts, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
-    setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
-    baselineRef.current = { id: c.id, json: catSig(c.categories) };
-    setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false);
-    // Quick prices land straight in product search (the seeded area's blank
-    // adder row); named projects focus the name field as before.
-    if (opts.quick) setFocusProd(c.categories[0]?.products[0]?.id); else setFocusName(true);
-    (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
-    return c;
-  };
-  const startQuickPrice = () => addProject(null, "Quick price", { quick: true, seedArea: true });
-  const pickProject = (id) => { const p = data.projects.find((c) => c.id === id); setSelId(id); if (p) setSelCustId(p.customerId || null); setSidebarOpen(false); loadDetail(id); };
-  // Return to the landing screen from anywhere (the ned logo / mobile mark).
-  // The open project is a real, autosaved row, so leaving never loses it — it
-  // just deselects. The one exception: an untouched quick-price draft (all
-  // rows still blank) is worthless, so discard it rather than let it linger the
-  // 30 days until the sweep. Only ever deletes a `quick` + fully-blank draft.
-  const goHome = () => {
-    const cur = sel;
-    setSelId(null); setSelCustId(null);
-    if (cur && cur._full && cur.quick && cur.categories.every((a) => (a.products || []).every(rowBlank))) delProject(cur.id);
-  };
-  const delProject = async (id) => {
-    const cust = data.projects.find((c) => c.id === id);
-    if (cust) { for (const m of (cust.attachments || [])) { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(id, m.id)]); } catch (x) { } } }
-    setData((prev) => ({ ...prev, projects: prev.projects.filter((c) => c.id !== id) }));
-    if (selId === id) setSelId(null);
-    setConfirm(null);
-    try { const { error } = await supabase.from("projects").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
-  };
-  // Move a project to a different customer (or unassign with null).
-  // Dormant sanctioned write path (CLAUDE.md conventions); moves into useDirectory in phase 2.
-  // eslint-disable-next-line no-unused-vars
-  const linkProject = (id, customerId) => {
-    setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId: customerId || null, updatedAt: Date.now() } : c) }));
-    (async () => { try { const { error } = await supabase.from("projects").update({ customer_id: customerId || null }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
-  };
-  // Promote a quick-price draft (or any unassigned job) into a normal job under
-  // a customer (ADR 0022): set the customer_id column AND clear the quick flag
-  // in the data blob in one write, so the pair never races (linkProject and
-  // updateProject each own only their own field). custData needs the FULL
-  // record — guard on _full so a light row is never serialized (that would wipe
-  // its categories); promotion is only ever offered on the open project, which
-  // is always full.
-  const promoteProject = (id, customerId) => {
-    const cur = data.projects.find((c) => c.id === id);
-    if (!cur || !customerId) return;
-    setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId, quick: false, updatedAt: Date.now() } : c) }));
-    (async () => {
-      try {
-        const upd = cur._full ? { customer_id: customerId, data: custData({ ...cur, customerId, quick: false }) } : { customer_id: customerId };
-        const { error } = await supabase.from("projects").update(upd).eq("id", id);
-        if (error) throw error; flashSaved();
-      } catch (e) { ping("Save failed — check connection"); }
-    })();
-    setSelCustId(customerId);
-    setPromoteId(null); setPromoteQ("");
-  };
-  // Create a customer and file the draft under it. The customer INSERT is
-  // awaited before promoteProject's customer_id UPDATE so the FK
-  // (projects.customer_id -> customers.id) is always satisfied — same ordering
-  // as addBuilderFor. Optimistic add up front so the name shows instantly.
-  const promoteToNewCustomer = async (id, name) => {
-    const c = { ...newPerson(String(name || "").trim()), updatedAt: Date.now() };
-    if (!c.name) return;
-    setData((prev) => ({ ...prev, people: [c, ...prev.people] }));
-    try {
-      const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: null, data: personData(c), created_at: new Date(c.createdAt).toISOString() });
-      if (error) throw error;
-    } catch (x) { ping("Save failed — export a backup"); return; }
-    promoteProject(id, c.id);
-  };
-
-  // --- Customers (people): the person/account that owns projects (ADR 0005). ---
-  const addPerson = (name = "") => {
-    const c = { ...newPerson(name), updatedAt: Date.now() };
-    setData((prev) => ({ ...prev, people: [c, ...prev.people] }));
-    setSidebarOpen(false);
-    (async () => { try { const { error } = await supabase.from("customers").insert({ id: c.id, owner_id: user.id, builder_id: null, data: personData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); } })();
-    return c;
-  };
-  const updatePerson = (id, patch) => {
-    // Functional update: setting a builder right after adding one (BuilderCombo)
-    // must not clobber the freshly-added builder from a stale closure.
-    setData((prev) => ({ ...prev, people: prev.people.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) }));
-    const merged = { ...(data.people.find((x) => x.id === id) || {}), ...patch };
-    const upd = {};
-    if ("builderId" in patch) upd.builder_id = patch.builderId || null;
-    if (Object.keys(patch).some((k) => k !== "builderId")) upd.data = personData(merged);
-    (async () => { try { const { error } = await supabase.from("customers").update(upd).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
-  };
-  const delPerson = async (id) => {
-    // Projects survive — the FK nulls their customer_id (on delete set null), so
-    // they resurface under "Unassigned" rather than being deleted.
-    setData((prev) => ({ ...prev, people: prev.people.filter((c) => c.id !== id), projects: prev.projects.map((p) => p.customerId === id ? { ...p, customerId: null } : p) }));
-    if (selCustId === id) setSelCustId(null);
-    setConfirm(null);
-    try { const { error } = await supabase.from("customers").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); }
-  };
-
-  // --- Builders: a canonical name list customers link to by id. ---
-  // Create a new builder and assign it to a customer in one flow. The builder
-  // INSERT is awaited before the customer's builder_id UPDATE so the FK
-  // (customers.builder_id -> builders.id) is always satisfied.
-  const addBuilderFor = async (personId, name) => {
-    const b = newBuilder(String(name || "").trim());
-    setData((prev) => ({ ...prev, builders: [...prev.builders, b], people: prev.people.map((c) => c.id === personId ? { ...c, builderId: b.id, updatedAt: Date.now() } : c) }));
-    try {
-      const { error: be } = await supabase.from("builders").insert({ id: b.id, owner_id: user.id, name: b.name });
-      if (be) throw be;
-      const { error: ce } = await supabase.from("customers").update({ builder_id: b.id }).eq("id", personId);
-      if (ce) throw ce;
-      flashSaved();
-    } catch (e) { ping("Save failed — run supabase/migrate-hierarchy.sql?"); }
-    return b;
-  };
   const addArea = () => { const a = newArea(); updateProject(sel.id, { categories: [...sel.categories, a] }); setFocusArea(a.id); };
   const tabTo = (ref) => (e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); ref.current?.focus(); ref.current?.select?.(); } };
   const updArea = (aid, patch) => updateProject(sel.id, { categories: sel.categories.map((a) => a.id === aid ? { ...a, ...patch } : a) });
@@ -825,7 +602,6 @@ export default function App({ user, onSignOut }) {
     setDrag({ pid: p.id, fromAid: aid, to: null });
   };
 
-  const attPath = (custId, fileId) => `${custId}/${fileId}`;
   const addAttachment = async (e) => { const f = e.target.files?.[0]; if (!f) return; const id = uid(); try { const { error } = await supabase.storage.from(ATT_BUCKET).upload(attPath(sel.id, id), f, { contentType: f.type, upsert: true }); if (error) throw error; updateProject(sel.id, { attachments: [...(sel.attachments || []), { id, name: f.name, type: f.type, size: f.size }] }); ping("Attachment added"); } catch (x) { ping("Upload failed — file may be too large"); } e.target.value = ""; };
   const openAttachment = async (m) => { try { const { data: blob, error } = await supabase.storage.from(ATT_BUCKET).download(attPath(sel.id, m.id)); if (error) throw error; const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = m.name; a.click(); URL.revokeObjectURL(u); } catch (x) { ping("Could not load attachment"); } };
   const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(sel.id, m.id)]); } catch (x) { } updateProject(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
@@ -833,7 +609,7 @@ export default function App({ user, onSignOut }) {
   const {
     showVersions, setShowVersions, namingVersion, setNamingVersion, versionName, setVersionName,
     startVersionName, confirmVersion, loadVersion, delVersion, autoSnapshot,
-  } = useVersions({ user, ping, flashSaved, sel, setData, dataRef, baselineRef, updateProject, selId });
+  } = useVersions({ ping, flashSaved, sel, setData, dataRef, baselineRef, updateProject });
   useEffect(() => {
     const prev = prevSelRef.current;
     prevSelRef.current = selId;
