@@ -249,7 +249,7 @@ export const MODES = [
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
   if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: null, slatLen: "", chevron: false };
-  if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, tex: false, damper: false, frame: false, qty: 1 };
+  if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
 }
@@ -393,6 +393,10 @@ export const ventDims = (sz) => sz.split("×").map((x) => (x === "2¼" ? 2.25 : 
 // Frame lineal inches = L + 2W per the vent sheet's note.
 export const frameLineal = (sz) => { const [a, b] = ventDims(sz); return Math.max(a, b) + 2 * Math.min(a, b); };
 
+// The vent sheet's option adders are flat regardless of which scrape or stain —
+// `scrape` (a TEXTURES id) and `stain` only name the choice on the order.
+export const ventScrape = (v) => (v.tex ? TEXTURES.find((t) => t.id === v.scrape && t.id !== "smooth") || null : null);
+
 export function calcVent(v) {
   const cat = VENT_CATS.find((c) => c.id === v.cat);
   const g = VENT_GROUP[v.sp];
@@ -400,11 +404,14 @@ export function calcVent(v) {
   const row = cat.list().find((r) => r[0] === v.size);
   if (!row) return null;
   const base = row[cat.col(g)];
+  const scrape = ventScrape(v);
+  const scrapeName = scrape ? scrape.name.replace(" (standard)", "") : null;
+  const stain = v.prefin && v.stain ? String(v.stain).trim() : "";
   const rows = [[`${cat.name} vent ${v.size}" — group ${g} (${v.sp})`, fm(base) + " ea"]];
   let cost = base;
   if (v.cubed && cat.cubed) { cost += VENT_CUBED; rows.push(["Cubed grille", "+$10.00"]); }
-  if (v.prefin) { cost += VENT_PREFIN; rows.push(["Prefinished", "+$28.25"]); }
-  if (v.tex) { cost += VENT_TEX; rows.push(["Textured", "+$8.00"]); }
+  if (v.prefin) { cost += VENT_PREFIN; rows.push([`Prefinished${stain ? ` — ${stain}` : ""}`, "+$28.25"]); }
+  if (v.tex) { cost += VENT_TEX; rows.push([`Textured${scrapeName ? ` — ${scrapeName}` : ""}`, "+$8.00"]); }
   if (v.damper && DAMPERS[v.size]) {
     const d = DAMPERS[v.size][1] + DAMPER_ATTACH;
     cost += d;
@@ -416,7 +423,8 @@ export function calcVent(v) {
     cost += fc;
     rows.push([`Frame — ${li}" lineal @ $0.40`, `+${fm(fc)}`]);
   }
-  const rest = `${cat.name} vent · ${v.sp}${v.cubed && cat.cubed ? " · Cubed" : ""}${v.prefin ? " · Prefinished" : ""}${v.tex ? " · Textured" : ""}${v.damper && DAMPERS[v.size] ? " · w/ damper" : ""}${v.frame && cat.frame ? " · w/ frame" : ""}`;
+  const prefinTxt = v.prefin ? ` · Prefinished${stain ? (stain === "Natural" ? " Natural" : ` ${stain} stain`) : ""}` : "";
+  const rest = `${cat.name} vent · ${v.sp}${v.cubed && cat.cubed ? " · Cubed" : ""}${prefinTxt}${v.tex ? ` · ${scrapeName || "Textured"}` : ""}${v.damper && DAMPERS[v.size] ? " · w/ damper" : ""}${v.frame && cat.frame ? " · w/ frame" : ""}`;
   return {
     desc: `${v.size}" ${rest}`, size: `${v.size}"`, rest, name: `Sheoga vent ${v.size}" ${v.sp}`, rows, cost, per: "ea", qty: v.qty || 1,
     warn: cat.id === "framed" ? ['Overall size adds 2¾" all around the duct size'] : [], fees: [],
@@ -434,6 +442,31 @@ export function calcDamper(d) {
     desc: `${d.size}" vent damper (loose)`, size: `${d.size}"`, rest: "vent damper (loose)", name: `Sheoga damper ${d.size}"`, rows, cost: t[1], per: "ea", qty: d.qty || 1,
     warn: ["Attached-to-vent price is damper + $5.00 (use the vent tab)"], fees: [],
   };
+}
+
+// "Copy floor" — the vent options that make a grille match the floor being
+// quoted (species, scrape, prefinish stain), mapped from a floor / stocked /
+// herringbone configuration. The vent sheet sells eight species: Maple is
+// listed as Hard Maple and Live Sawn is plain White Oak; a species with no
+// vent twin leaves the vent's species untouched. Returns a vent-cfg patch.
+const VENT_SP_MAP = { Maple: "Hard Maple", [LIVE_SAWN_SP]: "White Oak" };
+export function ventFromFloor(snap) {
+  if (!snap || !snap.cfg) return null;
+  const f = snap.cfg;
+  const mapped = VENT_SP_MAP[f.sp] || f.sp;
+  const out = VENT_GROUP[mapped] ? { sp: mapped } : {};
+  if (snap.mode === "hb") return out;
+  if (snap.mode === "stocked") {
+    // A stocked color can pair a stain with a texture ("Cattail · Sawcut").
+    const [color, texName] = String(f.color || "").split(" · ");
+    const tex = texName ? TEXTURES.find((t) => t.name.replace(/\s+/g, "").toLowerCase() === texName.replace(/\s+/g, "").toLowerCase()) : null;
+    return { ...out, prefin: true, stain: color || "", stainCustom: false, tex: !!tex, scrape: tex ? tex.id : "" };
+  }
+  if (snap.mode !== "floor") return null;
+  const scraped = !!f.tex && f.tex !== "smooth";
+  const prefin = !!f.finish && f.finish !== "unf";
+  const stain = !prefin ? "" : f.finish === "nat" ? "Natural" : String(f.stain || "").trim();
+  return { ...out, prefin, stain, stainCustom: !!stain && !STAIN_COLORS.includes(stain), tex: scraped, scrape: scraped ? f.tex : "" };
 }
 
 // One configuration snapshot { mode, cfg } → its build, or null.
