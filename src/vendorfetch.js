@@ -554,3 +554,11 @@ export function classifySheetBytes(bytes) {
   if (/(password|login|log in|sign in|session)/.test(head)) return "login";
   return "unknown";
 }
+
+// A response status that means "the portal wants its sign-in", not "the portal
+// broke": Dancik bounces a dead session as a redirect to its login page, while
+// Emser's document API answers a hard 401 (verified 2026-07-21 — the URL
+// errors logged-out, so its downloads DO require emser.com's login). Both
+// relays route these to the 409 session-expired shape the browser already
+// maps to per-vendor advice, instead of the raw "vendor portal answered N".
+export const deadSessionStatus = (status) => status === 401 || status === 403 || (status >= 300 && status < 400);

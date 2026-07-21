@@ -206,6 +206,34 @@ is sound. The Edge Function twin gained the same adapter — re-paste it in the
 dashboard (Edge Functions → vendor-fetch) to update the deployed copy; the
 Netlify fallback ships with the site build as usual.
 
+### Verification outcome (2026-07-21, same day): the URL is NOT public
+
+The owner ran the incognito test: the document URL **errors logged-out**.
+Emser's `customerDocuments` endpoint requires the emser.com login after all —
+it answers the relay's cookie-less fetch with a hard **401**, which the
+relays passed through as the raw "vendor portal answered 401" instead of the
+soft note this amendment promised (401 is neither a redirect nor a login-page
+body, so both classifiers missed it).
+
+Consequences, applied with this note:
+
+- Portal 401/403 now classify as the sign-in bounce (`deadSessionStatus` in
+  `src/vendorfetch.js`, mirrored inline in the Edge twin) — same 409
+  `session-expired` shape the browser already maps per vendor.
+- The sessionless-vendor note now points at **download-and-drop** ("grab the
+  sheet from their site while signed in and drop the file on this page") —
+  the old "paste its fresh link" advice was wrong, since no Emser link works
+  without the login the relay can't send. Remembered Emser sheets still show
+  on the board as the book's identity; their fetch button just always lands
+  on this note until real auth exists.
+- **One-click Emser fetch is future work gated on recon**, not on code: with
+  a signed-in emser.com session, check the download request's headers in
+  DevTools. An `Authorization: Bearer …` header means a bookmarklet can
+  capture the token and this adapter can carry it (Dancik-style). Cookie-only
+  auth (HttpOnly) is unreachable from a bookmarklet by browser design — then
+  the options grow server-side credentials, a decision the owner must make
+  deliberately (secrets storage, spend, liability), not an adapter tweak.
+
 Boundary unchanged: the relay still accepts only structured params behind a
 FloorTrack JWT and rebuilds the URL from the allowlisted host + fixed path —
 `customerDocuments/<validated filename>` — so it still can't proxy anything

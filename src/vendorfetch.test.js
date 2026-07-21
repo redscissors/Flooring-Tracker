@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
   decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries,
-  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes,
+  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes, deadSessionStatus,
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
@@ -224,6 +224,15 @@ test("classifySheetBytes tells sheets from login bounces", () => {
   assert.equal(classifySheetBytes(enc("<html><body><table><tr><td>1</td></tr></table>")), "sheet"); // HTML export
   assert.equal(classifySheetBytes(enc("<html><form>Please LOGIN with your password")), "login");
   assert.equal(classifySheetBytes(enc("random bytes")), "unknown");
+});
+
+test("deadSessionStatus: redirects and auth statuses are the sign-in bounce, real errors are not", () => {
+  assert.equal(deadSessionStatus(302), true);  // Dancik login redirect
+  assert.equal(deadSessionStatus(401), true);  // Emser's document API, logged out
+  assert.equal(deadSessionStatus(403), true);
+  assert.equal(deadSessionStatus(200), false);
+  assert.equal(deadSessionStatus(404), false); // missing sheet is not an auth problem
+  assert.equal(deadSessionStatus(500), false); // portal broke — retryable, different advice
 });
 
 // --- sign-in groups ---------------------------------------------------------

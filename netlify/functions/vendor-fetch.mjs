@@ -6,7 +6,7 @@
 // FloorTrack user, so it can't serve as an open proxy. The portal session
 // token passes through per-request and is never stored or logged.
 import { createClient } from "@supabase/supabase-js";
-import { entryProblems, buildVendorUrl, entryFileName, classifySheetBytes } from "../../src/vendorfetch.js";
+import { entryProblems, buildVendorUrl, entryFileName, classifySheetBytes, deadSessionStatus } from "../../src/vendorfetch.js";
 
 // Fallbacks are the committed values from netlify.toml — public by design
 // (they ship in the browser bundle); [build.environment] vars don't reach the
@@ -42,9 +42,10 @@ export default async function handler(req) {
     const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
     return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });
   }
-  // Dancik answers a dead session with a redirect or its login page, not an
-  // error status — classify instead of trusting res.ok alone.
-  if (res.status >= 300 && res.status < 400) return json(409, { error: "session-expired" });
+  // Dancik answers a dead session with a redirect or its login page; Emser's
+  // document API answers a hard 401 — classify all of them as the sign-in
+  // bounce instead of trusting res.ok alone (deadSessionStatus).
+  if (deadSessionStatus(res.status)) return json(409, { error: "session-expired" });
   if (!res.ok) return json(502, { error: `vendor portal answered ${res.status}` });
 
   const bytes = new Uint8Array(await res.arrayBuffer());
