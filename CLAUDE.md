@@ -67,6 +67,24 @@ src/
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
                     # `MobileProductRow`, `MobileRowSheet`
   TeamTodos.jsx     # the team issue/to-do modal (issue 006)
+  EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
+                    # component behind both call sites so they can never drift. STATIC import only:
+                    # `window.print()` fires right after the print-mode render, so a `React.lazy`
+                    # chunk here would still be loading and print a blank page
+  usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)
+  usedirectory.js   # `useDirectory` — the project/people/builder directory: state, selection,
+                    # and their write paths (`updateProject`/`addProject`/`setSettings`/`saveProfile`…);
+                    # `migrateLegacyCustomers` (ADR 0004)
+  usebooks.js       # `useBooks` — price book registry state + write paths (ADR 0009): addBook/
+                    # updateBook/delBook/applyBookImport/reviewBookItemFlags/setBookItemsDisabled
+  usestock.js       # `useStock` — the shop stock price book (ADR 0003): stock state + import/
+                    # rollback/disable write paths
+  usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006)
+  uselabels.js      # `useLabels` — Apps hub label-set state + write paths
+  useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
+                    # order-row drift fetch
+  useversions.js    # `useVersions` — saved/auto version write paths: insertVersion/loadVersion/
+                    # delVersion/autoSnapshot
   vendorpanel.jsx   # the vendor-sheet board: `useVendorFetch`, `VendorFetchPage`,
                     # sign-in group cards, `StaleChip`/`FLAG_SEMANTICS`
   pricebooklib.jsx  # the price-book library (`PriceBookLibrary` + book detail,
