@@ -375,6 +375,32 @@ test("parseMapped: real MFG-Data shape — code columns stay out of the label, p
   assert.equal(t.mfg, "ADX");
 });
 
+test("parseMapped: a description leading with the ABBREVIATED product line isn't doubled (Marazzi)", () => {
+  // The MRZ EFT sheet abbreviates the series inside the description
+  // ("MOROCCAN CONC CHARCOAL…") while the Product Line column spells it out
+  // ("MOROCCAN CONCRETE"), which used to import as
+  // "Moroccan Concrete Moroccan Conc Charcoal Rect". The abbreviation counts
+  // as the series already leading, and the label keeps the full spelling.
+  const rows = [
+    ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "", "Product Line Name", "", "", "Dealer", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", ""],
+    ["", "MRZ", "MC57", "1224RN", "MRZMC571224RN", "MOROCCAN CONC CHARCOAL 12X24 RECT *NEW PKG", "MOROCCAN CONCRETE             ", "", "", 3.27, "SF", "CT", 9, 17.02, ""],
+    ["", "MRZ", "MS01", "WL", "MRZMS01WL", "MIDDLETON SQ WALL LATTE GLOSS", "MIDDLETON SQUARE", "", "", 2.9, "SF", "CT", 10, 12.5, ""],
+    ["", "ADX", "EARI", "312", "ADXEARI312", "EARTHEN RIDGE 3X12", "EARTH", "", "", 11.64, "SF", "PC", 50, 12.5, ""],
+  ];
+  const mapping = {
+    headerRow: 0, skuPattern: "^[A-Z0-9]{6,20}$", defaultType: "tile",
+    columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 5: "description", 6: "productLine", 9: "cost", 10: "priceUnit", 11: "orderUnit", 12: "pcPerUnit", 13: "sfPerUnit" },
+  };
+  const { items } = parseMapped(rows, mapping);
+  assert.equal(bySku(items, "MRZMC571224RN").description, "Moroccan Concrete Charcoal Rect *New Pkg");
+  assert.equal(bySku(items, "MRZMC571224RN").size, "12x24");
+  // A 2-letter abbreviation counts once the lead word has anchored the match.
+  assert.equal(bySku(items, "MRZMS01WL").description, "Middleton Square Wall Latte Gloss");
+  // A shared stem is NOT an abbreviation — "Earthen" doesn't lead with "Earth",
+  // so that product line still fronts the label.
+  assert.equal(bySku(items, "ADXEARI312").description, "Earth Earthen Ridge");
+});
+
 test("parseMapped: with no description column, color + style are the fallback name", () => {
   const rows = [
     ["", "VTC MFG", "Color", "Pattern", "VTC Item Code", "", "Product Line", "", "", "Dealer", "U/M", "", "", "", ""],

@@ -636,12 +636,21 @@ const PENNY_DIM_INCH_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})`, "i");
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
 const smartCase = (s) => { const v = str(s); return v && !/[a-z]/.test(v) ? titleCase(v) : v; };
 
-// True when `text` begins with `prefix` on a word boundary (case-insensitive).
-// Lets us see that "Earth Ash Gray" already starts with the product line
-// "Earth" (so it isn't doubled), while "Earthen Ridge" does not.
-const startsWithWord = (text, prefix) => {
-  const t = str(text).toLowerCase(), p = str(prefix).toLowerCase();
-  return !!p && (t === p || t.startsWith(p + " "));
+// How many leading words of `label` are the product line `pl`, spelled out or
+// abbreviated: word i must equal pl's word i, or be a prefix of it — so
+// "Earth Ash Gray" leads with "EARTH", "Moroccan Conc Charcoal" leads with
+// "MOROCCAN CONCRETE" (Marazzi abbreviates the series in its descriptions),
+// but "Earthen Ridge" does not lead with "EARTH". The first word's prefix must
+// be ≥3 letters; later words allow ≥2 ("Middleton Sq" → "MIDDLETON SQUARE")
+// because the exact lead word already anchors the match. 0 when it doesn't lead.
+const seriesLeadWords = (label, pl) => {
+  const lw = str(label).toLowerCase().split(/\s+/).filter(Boolean);
+  const pw = str(pl).toLowerCase().split(/\s+/).filter(Boolean);
+  if (!pw.length || lw.length < pw.length) return 0;
+  for (let i = 0; i < pw.length; i++) {
+    if (lw[i] !== pw[i] && !(lw[i].length >= (i ? 2 : 3) && pw[i].startsWith(lw[i]))) return 0;
+  }
+  return pw.length;
 };
 
 export function splitSizeFromDescription(desc) {
@@ -807,11 +816,16 @@ function mappedItem(mapping, raw, sku, sem) {
   // Pattern stay their own fields and never join the label: on the real sheet
   // they are internal codes (EAAS / 312), not words, so gluing them on reads as
   // noise. When a book carries no description column, color+style is the
-  // fallback name. The product line is dropped when it already leads the
-  // description, so VTC's "EARTH" line doesn't read "Earth Earth Ash Gray".
+  // fallback name. A description already leading with the product line —
+  // spelled out or abbreviated — has that lead replaced by the full spelling,
+  // so VTC's "EARTH" line doesn't read "Earth Earth Ash Gray" and Marazzi's
+  // "MOROCCAN CONC …" doesn't read "Moroccan Concrete Moroccan Conc …".
   const pl = smartCase(str(raw.productLine));
   const label = descText || [smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean).join(" ");
-  const name = pl && !startsWithWord(label, pl) ? [pl, label].filter(Boolean).join(" ") : label;
+  const lead = seriesLeadWords(label, pl);
+  const name = lead
+    ? [pl, smartCase(label.split(/\s+/).slice(lead).join(" "))].filter(Boolean).join(" ")
+    : [pl, label].filter(Boolean).join(" ");
   const it = normOrderItem({
     sku,
     mfg,
