@@ -24,10 +24,11 @@ const VENDOR_PREFIX = /^Sheoga\s*—\s*/;
 // from known enums (descParts); everything else is arbitrary vendor text with no
 // short form, so it either fits or splits.
 //
-// The SKU trails when the row has one, at rank 1 — handy in the same paste when
-// there's room, first to go when there isn't, because a SKU is an item code
-// rather than part of the description. Trailing keeps every paste reading
-// description-first whether or not the SKU made the cut.
+// A line always flows size · product/color · SKU · coverage. The SKU and
+// coverage trail because neither is part of the description proper — they're
+// handy in the same paste when there's room, and when the field is tight the
+// least identifying goes first: coverage (rank 2), then the SKU (rank 1). Both
+// always survive into the extended text.
 export function orderDescription(r, limit) {
   const body = String(r.name || "").replace(VENDOR_PREFIX, "").trim();
   const spec = [r.sizePlain, body].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
@@ -35,7 +36,10 @@ export function orderDescription(r, limit) {
   // (descfit.test.js asserts the join matches across every configuration) but
   // carry the per-category short forms that make the abbreviated rung possible.
   const parts = (r.sheoga && descParts(r.sheoga)) || textParts(spec);
-  return fitDescription(r.sku ? [...parts, { full: String(r.sku), rank: 1 }] : parts, limit);
+  const tail = [];
+  if (r.sku) tail.push({ full: String(r.sku), rank: 1 });
+  if (r.coverage) tail.push({ full: String(r.coverage), rank: 2 });
+  return fitDescription([...parts, ...tail], limit);
 }
 
 // What a special line's copy button puts on the clipboard: the description

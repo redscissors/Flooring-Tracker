@@ -46,10 +46,10 @@ const book = { tag: "CT", sizePlain: '12" × 24"', name: "Anatolia Carrara Bianc
 const sheogaRow = (cfg) => ({ tag: "CT", sizePlain: '5¼"', name: "Sheoga — ignored, parts win", sku: "", sheoga: { mode: "floor", cfg } });
 const floorCfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" };
 
-test("orderDescription: with no limit the description is the plain full text", () => {
+test("orderDescription: with no limit the line flows size · product · SKU · coverage", () => {
   const d = orderDescription(book, 0);
   assert.equal(d.tier, "full");
-  assert.equal(d.main, '12" × 24" Anatolia Carrara Bianco ANA-CAR-1224');
+  assert.equal(d.main, '12" × 24" Anatolia Carrara Bianco ANA-CAR-1224 15.5 SF/CT');
   assert.equal(d.ext, null);
 });
 
@@ -58,7 +58,6 @@ test("orderDescription: the copy button carries the description field, nothing e
   const copied = orderCopyText(r);
   assert.equal(copied, r.desc.main);
   assert.ok(!copied.includes("20 CT"), "quantity is its own ERP field");
-  assert.ok(!copied.includes("15.5 SF/CT"), "coverage is not part of a description");
 });
 
 test("orderDescription: a Sheoga row abbreviates from its configuration, dropping the vendor prefix", () => {
@@ -81,12 +80,17 @@ test("orderDescription: a long Sheoga build splits, and ext holds every category
   }
 });
 
-test("orderDescription: a SKU trails but is the first thing dropped when tight", () => {
-  assert.ok(orderDescription(book, 60).main.endsWith("ANA-CAR-1224"));
+test("orderDescription: SKU and coverage trail — coverage drops first, then the SKU", () => {
+  assert.ok(orderDescription(book, 60).main.endsWith("ANA-CAR-1224 15.5 SF/CT"));
+  const mid = orderDescription(book, 50);
+  assert.equal(mid.tier, "split");
+  assert.ok(mid.main.includes("ANA-CAR-1224"), "the SKU survives while there's room");
+  assert.ok(!mid.main.includes("15.5 SF/CT"), "coverage is the least identifying, first to go");
   const tight = orderDescription(book, 24);
   assert.equal(tight.tier, "split");
   assert.ok(!tight.main.includes("ANA-CAR-1224"), "a SKU is an item code, not a description");
   assert.ok(tight.ext.includes("ANA-CAR-1224"), "but it is never lost");
+  assert.ok(tight.ext.includes("15.5 SF/CT"), "and neither is coverage");
 });
 
 test("orderDescription: a fee line has no structured parts and falls back to its text", () => {
