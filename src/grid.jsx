@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Plus, ChevronDown, Check, Settings } from "lucide-react";
 import { TYPES, TLBL, TYPE_ACCENT, THICK, TIER_COLOR, TIER_LONG } from "./uiconst.js";
@@ -154,17 +154,68 @@ export function GridSizeInput({ p, onCommit }) {
 // Product cell: typed text is the row's brand/color; matches from the stock
 // price book drop down beneath (same search the SKU cell uses) and picking
 // one fills the row exactly like a SKU pick.
-export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef }) {
+//
+// A long description wraps to a second line INSIDE the row instead of
+// scrolling out of sight — the box is capped at two lines (the height the
+// price cell's tier/retail stack already gives a row) and never grows past it.
+// An <input> can't wrap or color part of its text, so the field is a
+// transparent-text textarea over a painted mirror: the mirror sizes the box,
+// draws the glyphs, and paints everything past `budget` red — the characters
+// that stop the row's order description (size · product · SKU · coverage,
+// nameBudget in orderentry.js) from fitting the ERP field in one piece. A
+// count chip shows the would-be paste length against descLimit while over.
+const CELL_LINE = 14;              // px line-height; two lines + pad = 34px cap
+const OVER_RED = "#dc2626";
+export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0 }) {
   const [open, setOpen] = useState(false);
+  const [twoLine, setTwoLine] = useState(false);
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
+  const mirrorRef = useRef(null);
   const { results: matches } = useMergedResults(open, stock, value, searchOrder);
   const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  // Measured, not guessed, so the single/two-line toggle survives any column
+  // width — single-line text keeps today's centered look. scrollHeight includes
+  // the mode's own padding, so subtract it or a shrink could never toggle back.
+  useLayoutEffect(() => {
+    const el = mirrorRef.current;
+    if (el) setTwoLine(el.scrollHeight - (twoLine ? 6 : 12) > CELL_LINE + 1);
+  }, [value, twoLine]);
+  const over = Number.isFinite(budget) && String(value || "").length > budget;
+  const text = {
+    fontWeight: 700, lineHeight: `${CELL_LINE}px`, padding: twoLine ? "3px 8px" : "6px 8px",
+    whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden",
+  };
   return (
-    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex">
-      <input ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
-        data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder} title="Brand / color — or search the price book and pick a match to fill the row" />
+    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex items-center">
+      <div className="relative w-full" style={{ minHeight: CELL_LINE + 12, maxHeight: 2 * CELL_LINE + 6 }}>
+        {/* zIndex 1: the mirror paints ABOVE the textarea — the focused cell's
+            opaque .ft-cell:focus background would otherwise hide the glyphs.
+            Caret, selection and focus ring show through its transparent body.
+            No minHeight here: the wrapper carries it, so the line measurement
+            reads pure content height and a trimmed row can drop back to one. */}
+        <div ref={mirrorRef} aria-hidden style={{ ...text, position: "relative", zIndex: 1, maxHeight: 2 * CELL_LINE + 6, pointerEvents: "none" }}>
+          {over ? (
+            <>
+              {String(value).slice(0, budget)}
+              <span style={{ color: OVER_RED, textDecoration: "underline", textDecorationThickness: 1, textUnderlineOffset: 2 }}>{String(value).slice(budget)}</span>
+            </>
+          ) : value}
+        </div>
+        <textarea ref={inputRef} value={value} rows={1}
+          onChange={(e) => { onChange(e.target.value.replace(/\r?\n/g, " ")); setOpen(true); }}
+          onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
+          onScroll={(e) => { if (mirrorRef.current) mirrorRef.current.scrollTop = e.target.scrollTop; }}
+          data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder}
+          style={{ ...text, position: "absolute", inset: 0, height: "100%", resize: "none", color: "transparent", caretColor: "var(--ft-text)" }}
+          title="Brand / color — or search the price book and pick a match to fill the row" />
+        {over && descLimit > 0 && (
+          <span style={{ position: "absolute", right: 2, bottom: 1, zIndex: 2, fontSize: 8.5, fontWeight: 700, padding: "0 3px", borderRadius: 4, background: "var(--ft-card)", color: OVER_RED, border: "1px solid color-mix(in oklab, #dc2626 40%, transparent)", pointerEvents: "none" }}
+            title={`The order-entry description would be ${String(value).length + (descLimit - budget)} characters — the ERP field holds ${descLimit}. Trim the red tail to fit in one piece.`}>
+            {String(value).length + (descLimit - budget)}/{descLimit}
+          </span>
+        )}
+      </div>
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">

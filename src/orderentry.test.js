@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription, nameBudget } from "./orderentry.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), sp: "White Oak", w: 5.25, ...over });
@@ -91,6 +91,16 @@ test("orderDescription: SKU and coverage trail — coverage drops first, then th
   assert.ok(!tight.main.includes("ANA-CAR-1224"), "a SKU is an item code, not a description");
   assert.ok(tight.ext.includes("ANA-CAR-1224"), "but it is never lost");
   assert.ok(tight.ext.includes("15.5 SF/CT"), "and neither is coverage");
+});
+
+test("nameBudget: what the limit leaves the product text after size, SKU and coverage", () => {
+  // size 9 + SKU 12 + coverage 10, each costing one joining space = 34
+  assert.equal(nameBudget(book, 70), 36);
+  // "Anatolia Carrara Bianco" is 23 chars: at limit 57 the whole flow fits exactly
+  assert.equal(nameBudget(book, 57), "Anatolia Carrara Bianco".length);
+  assert.equal(nameBudget(book, 0), Infinity, "no limit configured — nothing to trim against");
+  assert.equal(nameBudget({ sizePlain: "", sku: "", coverage: "" }, 30), 30);
+  assert.equal(nameBudget({ sizePlain: "0.5x10", sku: "WOWPOWIEDGEG", coverage: "10 PC/CT" }, 20), 0, "never negative");
 });
 
 test("orderDescription: a fee line has no structured parts and falls back to its text", () => {
