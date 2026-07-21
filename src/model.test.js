@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newProject, areaLabel, money, catSig } from "./model.js";
+import { normP, normC, rowBlank, newProduct, newProject, areaLabel, money, catSig } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });

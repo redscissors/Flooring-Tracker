@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  LABEL_FIELDS, VARIANT_KEYS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
+  LABEL_FIELDS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
   normPreset, normLabelPresets, customLabelPresets, normLabel, newDraftFromPreset,
   perLetterSheet, sheetsForLabels,
   faceSizeText, stockToLabelFields, escapeHtml, labelCardHTML, normLabel as _normLabel,

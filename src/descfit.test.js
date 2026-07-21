@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fitDescription, textParts, DEFAULT_DESC_LIMIT } from "./descfit.js";
-import { descParts, calcConfig, defaultConfig, SPECIES, WIDTHS, TEXTURES, EDGES, LENGTHS, FINISHES, STOCKED, STOCKED_WIDTHS } from "./sheoga.js";
+import { descParts, calcConfig, defaultConfig, SPECIES, WIDTHS, TEXTURES, FINISHES, STOCKED, STOCKED_WIDTHS } from "./sheoga.js";
 
 const P = [
   { full: "White Oak", short: "WO", rank: 0 },

@@ -325,7 +325,7 @@ test("getCarton never applies to misc lines, count rows, or rows without a carto
 
 // --- Slice 04: enabled checkboxes drive dropdown eligibility -----------------
 
-import { isOffered, offeredGrouts, offeredMortars, resolveMaterialDefault, normDefaults, setCatalogDefault } from "./catalog.js";
+import { isOffered, offeredGrouts, resolveMaterialDefault, normDefaults, setCatalogDefault } from "./catalog.js";
 
 test("resolveMaterialDefault keeps the row's own pick when it is still offered", () => {
   assert.equal(resolveMaterialDefault(["ProLite", "AcrylPro"], "AcrylPro", "ProLite"), "AcrylPro");
@@ -1209,7 +1209,7 @@ test("offeredCategories floor-scopes and honors enabled", () => {
 });
 
 test("attachedList aggregates one line per (category, product), ceiling once", () => {
-  const { s, catId, cat } = withCategory({ math: "coverage", coverage: 40, price: 12 });
+  const { s, catId } = withCategory({ math: "coverage", coverage: 40, price: 12 });
   // Two tile rows of RENO-U: 5.5 + 2.75 = 8.25 exact → 9 ordered (ceil once).
   const j = job(attachRow(catId), { ...attachRow(catId), qty: "100" });
   const list = attachedList(j, s);
@@ -1225,7 +1225,7 @@ test("attachedList aggregates one line per (category, product), ceiling once", (
 });
 
 test("materialWarnings flags a checked add-on whose product no longer resolves", () => {
-  const { s, catId, cat } = withCategory({ math: "coverage", coverage: 40 });
+  const { s, catId } = withCategory({ math: "coverage", coverage: 40 });
   assert.deepEqual(materialWarnings(attachRow(catId), s), []);
   assert.deepEqual(materialWarnings(attachRow(catId, { product: "Ghost Trim" }), s), [`attach:${catId}`]);
   // A coverage product with no coverage set can't compute → warns.

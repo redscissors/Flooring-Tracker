@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import {
   WIDTHS, WIDTH_LABEL, CARTON_SF, UNFINISHED, LIVE_SAWN, LIVE_SAWN_SP, SPECIES,
   TEXTURES, FINISHES, STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE,
-  VENT_GROUP, VENT_STD, VENT_FRAMED, VENT_CAR, VENT_3D, VENT_CATS, DAMPERS,
+  VENT_GROUP, VENT_STD, VENT_FRAMED, VENT_CAR, VENT_3D, VENT_CATS,
   MODES, defaultConfig, floorWidths, floorBase, gradeName, finishName,
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal,
-  redistributeShares, multiWidthBuild, multiWidthLineItems, CUSTOM_FINISHES, SAMPLE_FEE, SHEEN_FEE,
+  redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
 } from "./sheoga.js";
 
