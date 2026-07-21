@@ -23,9 +23,9 @@ const MINI_STYLE = { border: "1px solid var(--ft-border-strong)" };
 // Vertical SegBar: same options shape ({ v, label, color, title, input }), the
 // active row pressed in. Default active paints ink (the .bg-indigo-600 theme
 // override), tier rows paint their tier color.
-function VertBar({ header, headerIcon, value, onChange, options, inputValue, onInput }) {
+function VertBar({ header, headerIcon, value, onChange, options, inputValue, onInput, width }) {
   return (
-    <div className="ft-hcol shrink-0">
+    <div className="ft-hcol shrink-0" style={width ? { width } : undefined}>
       <div className="ft-hhead">{headerIcon}{header}</div>
       {options.map((o) => {
         const active = value === o.v;
@@ -35,7 +35,7 @@ function VertBar({ header, headerIcon, value, onChange, options, inputValue, onI
           <label key={o.v} className={cls + " cursor-text gap-1"} style={fill} title={o.title}>
             <span>{o.label}</span>
             <input type="number" min="0" max="100" value={inputValue} onFocus={() => onChange(o.v)} onChange={(e) => onInput(e.target.value)}
-              className={"w-8 ml-auto bg-transparent text-right focus:outline-none " + (active ? "" : "text-slate-500")} />
+              className={"w-7 ml-auto bg-transparent text-right focus:outline-none " + (active ? "" : "text-slate-500")} />
             <span>%</span>
           </label>
         );
@@ -118,12 +118,12 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
   const idbox = { background: "transparent", border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "5px 10px 6px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 };
-  const prim = "rounded-md flex flex-col items-center justify-center text-[13.5px] font-bold text-white bg-indigo-600";
+  const prim = "rounded-md flex flex-col items-center justify-center text-[13.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700";
   return (
     <>
       <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
       <div className="rounded-lg border mb-4" style={{ padding: 10, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 8, alignItems: "stretch" }}>
-        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 188 }}>
+        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 150 }}>
           <div style={idbox}>
             <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Customer</div>
             {cust ? (
@@ -167,14 +167,14 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             style={{ flex: "1 1 0", minHeight: 0, background: "var(--ft-cream)", border: "1px solid var(--ft-border-strong)" }} />
         </div>
 
-        <VertBar header="Estimate shows" value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
+        <VertBar header="Estimate shows" width={108} value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
           options={[
             { v: "full", label: "All prices", title: "Print every price and total" },
             { v: "unit", label: "Unit only", title: "Print unit prices only — no line or job totals" },
             { v: "none", label: "No prices", title: "Print no pricing" },
           ]} />
 
-        <VertBar header="Price level" value={sel.priceTier || "retail"} inputValue={sel.customPct}
+        <VertBar header="Price level" width={108} value={sel.priceTier || "retail"} inputValue={sel.customPct}
           onChange={(v) => updateProject(sel.id, { priceTier: v })}
           onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
           options={[
