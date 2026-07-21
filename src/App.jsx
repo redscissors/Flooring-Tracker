@@ -11,7 +11,7 @@ import { normPrintPricing, tierView, tierUnitPrice, employeeNoCost, tierTag, nor
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 import { STOCK_LOADING_MSG, STOCK_FAILED_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, THICK, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, wasteMeta, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normA, normC, personData } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, wasteMeta, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData } from "./model.js";
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1, printMatList, orderEntryRow } from "./print.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, FilesPop, ThemeSwitch, MarginLine, Modal } from "./widgets.jsx";
 import { SkuPicker } from "./search.jsx";
@@ -24,6 +24,7 @@ import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
+import { useVersions } from "./useversions.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -99,7 +100,6 @@ export default function App({ user, onSignOut }) {
   // The rest of this user's app_data blob, kept so profile saves don't clobber
   // anything else stored there.
   const appBlobRef = useRef({});
-  const [showVersions, setShowVersions] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const { toast, saveOk, ping, flashSaved } = useToast();
   const {
@@ -151,8 +151,6 @@ export default function App({ user, onSignOut }) {
   }, [theme]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
-  const [namingVersion, setNamingVersion] = useState(false);
-  const [versionName, setVersionName] = useState("");
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -832,63 +830,10 @@ export default function App({ user, onSignOut }) {
   const openAttachment = async (m) => { try { const { data: blob, error } = await supabase.storage.from(ATT_BUCKET).download(attPath(sel.id, m.id)); if (error) throw error; const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = m.name; a.click(); URL.revokeObjectURL(u); } catch (x) { ping("Could not load attachment"); } };
   const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(sel.id, m.id)]); } catch (x) { } updateProject(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
 
-  // Versions are their own rows (issue 003) — saving/deleting one never touches
-  // the customer's data blob. In memory a customer carries version metadata
-  // only; the snapshot is fetched when a restore needs it.
-  const insertVersion = async (custId, label, auto, categories) => {
-    const v = { id: uid(), label, auto, savedAt: Date.now() };
-    const { error } = await supabase.from("versions").insert({ id: v.id, customer_id: custId, label, auto, saved_at: new Date(v.savedAt).toISOString(), snapshot: categories });
-    if (error) throw error;
-    return v;
-  };
-  const namedCount = (c) => (c.versions || []).filter((v) => !v.auto).length;
-  const startVersionName = () => { setVersionName(`Version ${namedCount(sel) + 1}`); setNamingVersion(true); };
-  const confirmVersion = async () => {
-    const label = versionName.trim() || `Version ${namedCount(sel) + 1}`;
-    const cust = sel;
-    setNamingVersion(false); setVersionName("");
-    try {
-      const v = await insertVersion(cust.id, label, false, cust.categories);
-      setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === cust.id ? { ...c, versions: [v, ...(c.versions || [])] } : c) }));
-      baselineRef.current = { id: cust.id, json: catSig(cust.categories) };
-      flashSaved(); ping("Version saved");
-    } catch (e) { ping("Save failed — check connection"); }
-  };
-  const loadVersion = async (v) => {
-    try {
-      const { data: row, error } = await supabase.from("versions").select("snapshot").eq("id", v.id).maybeSingle();
-      if (error || !row) throw error || new Error("missing");
-      updateProject(sel.id, { categories: (Array.isArray(row.snapshot) ? row.snapshot : []).map(normA) });
-      setShowVersions(false); ping("Version loaded");
-    } catch (e) { ping("Could not load version — check connection"); }
-  };
-  const delVersion = async (vid) => {
-    setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === sel.id ? { ...c, versions: (c.versions || []).filter((v) => v.id !== vid) } : c) }));
-    try { const { error } = await supabase.from("versions").delete().eq("id", vid); if (error) throw error; } catch (e) { ping("Delete failed"); }
-  };
-
-  // The safety net: when a work session on a customer ends (they get deselected,
-  // or the user signs out) and the selections changed since open / last
-  // snapshot, save an automatic version. Autos beyond the newest AUTO_KEEP are
-  // pruned; named versions are never touched. Baseline advances only on a
-  // successful save so a failed attempt is retried at the next deselect.
-  const autoSnapshot = async (id) => {
-    const c = dataRef.current.projects.find((x) => x.id === id);
-    const base = baselineRef.current;
-    if (!c || !c._full || !base || base.id !== id) return;
-    // Quick-price drafts are throwaway until promoted — don't spawn version rows.
-    if (c.quick) return;
-    const json = catSig(c.categories);
-    if (json === base.json) return;
-    const label = "Auto — " + new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    try {
-      const v = await insertVersion(id, label, true, c.categories);
-      baselineRef.current = { id, json };
-      const drop = [v, ...(c.versions || []).filter((x) => x.auto)].sort((a, b) => b.savedAt - a.savedAt).slice(AUTO_KEEP).map((x) => x.id);
-      setData((prev) => ({ ...prev, projects: prev.projects.map((x) => x.id === id ? { ...x, versions: [v, ...(x.versions || [])].filter((vv) => !drop.includes(vv.id)) } : x) }));
-      if (drop.length) await supabase.from("versions").delete().in("id", drop);
-    } catch (e) { /* best-effort — the live data is already saved */ }
-  };
+  const {
+    showVersions, setShowVersions, namingVersion, setNamingVersion, versionName, setVersionName,
+    startVersionName, confirmVersion, loadVersion, delVersion, autoSnapshot,
+  } = useVersions({ user, ping, flashSaved, sel, setData, dataRef, baselineRef, updateProject, selId });
   useEffect(() => {
     const prev = prevSelRef.current;
     prevSelRef.current = selId;
