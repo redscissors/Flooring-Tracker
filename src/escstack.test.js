@@ -35,15 +35,33 @@ test("popping a middle entry leaves the rest in order", () => {
   assert.deepEqual(hits, ["c", "a"]);
 });
 
-test("a text-entry target blurs instead of closing a layer", () => {
+test("a text-entry target blurs AND closes the top layer in one press", () => {
   const hits = [];
   let blurred = false;
   const pop = escPush(() => hits.push("layer"));
   handleEscKey(esc({ tagName: "INPUT", blur: () => { blurred = true; } }));
   assert.equal(blurred, true);
-  assert.deepEqual(hits, []);
-  handleEscKey(esc({ tagName: "DIV" }));
   assert.deepEqual(hits, ["layer"]);
+  handleEscKey(esc({ tagName: "TEXTAREA", blur: () => { } }));
+  assert.deepEqual(hits, ["layer", "layer"]);
+  pop();
+});
+
+test("a SELECT target only blurs — its native dropdown owns Escape", () => {
+  const hits = [];
+  let blurred = false;
+  const pop = escPush(() => hits.push("layer"));
+  handleEscKey(esc({ tagName: "SELECT", blur: () => { blurred = true; } }));
+  assert.equal(blurred, true);
+  assert.deepEqual(hits, []);
+  pop();
+});
+
+test("a field-local handler that preventDefault()s keeps the ladder out", () => {
+  const hits = [];
+  const pop = escPush(() => hits.push("layer"));
+  handleEscKey({ key: "Escape", repeat: false, defaultPrevented: true, target: { tagName: "INPUT", blur: () => { } } });
+  assert.deepEqual(hits, []);
   pop();
 });
 

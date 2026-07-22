@@ -149,10 +149,13 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, bookStock = {}, bookStockReady, refreshBookStock }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
-  const [section, setSection] = useState("materials");
+  // initialSection/onSectionChange: the refresh-restore hooks (App's
+  // ft-open-layer) — a reload reopens the workspace on the section it closed on.
+  const [section, setSectionState] = useState(initialSection || "materials");
+  const setSection = (id) => { setSectionState(id); onSectionChange?.(id); };
   const [cat, setCat] = useState("grout"); // which Materials & add-ons category is open
   // Master→detail selection: an existing product, or (via `adding`) an
   // add-draft under a company. View state only, never persisted.
@@ -314,7 +317,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
       {box(co.enabled, () => setCompany(co.id, { enabled: !co.enabled }), co.enabled ? "Hide all of this company's products" : "Show this company's products")}
       {coRename?.id === co.id ? (
         <input autoFocus value={coRename.value} onChange={(e) => setCoRename({ id: co.id, value: e.target.value })}
-          onKeyDown={(e) => { if (e.key === "Enter") { const n = coRename.value.trim(); if (n) setCompany(co.id, { name: n }); setCoRename(null); } if (e.key === "Escape") setCoRename(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { const n = coRename.value.trim(); if (n) setCompany(co.id, { name: n }); setCoRename(null); } if (e.key === "Escape") { e.preventDefault(); setCoRename(null); } }}
           onBlur={() => setCoRename(null)} placeholder="Enter to save" className={inp + " flex-1 min-w-0 !py-0.5 !text-xs"} />
       ) : (
         <span className={`ft-eyebrow text-[9px] flex-1 truncate ${co.enabled ? "" : "opacity-50"}`}>{co.name}</span>
@@ -345,7 +348,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           {rename ? (
             <div className="max-w-md">
               <div className="flex items-center gap-2">
-                <input autoFocus value={rename.value} onChange={(e) => setRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitRename(); if (e.key === "Escape") setRename(null); }} className={inp + " font-medium"} />
+                <input autoFocus value={rename.value} onChange={(e) => setRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitRename(); if (e.key === "Escape") { e.preventDefault(); setRename(null); } }} className={inp + " font-medium"} />
                 <button onClick={submitRename} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700 shrink-0">Save</button>
                 <button onClick={() => setRename(null)} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 shrink-0">Cancel</button>
               </div>
@@ -419,7 +422,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         {catRename ? (
           <div className="max-w-md mt-1">
             <div className="flex items-center gap-2">
-              <input autoFocus value={catRename.value} onChange={(e) => setCatRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitCatRename(); if (e.key === "Escape") setCatRename(null); }} className={inp + " font-medium"} />
+              <input autoFocus value={catRename.value} onChange={(e) => setCatRename({ value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitCatRename(); if (e.key === "Escape") { e.preventDefault(); setCatRename(null); } }} className={inp + " font-medium"} />
               <button onClick={submitCatRename} className="text-sm rounded-md bg-indigo-600 text-white px-3 py-1.5 hover:bg-indigo-700 shrink-0">Save</button>
               <button onClick={() => setCatRename(null)} className="text-sm rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50 shrink-0">Cancel</button>
             </div>
@@ -650,7 +653,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
       <h2 className="ft-serif text-3xl leading-tight">New {kindLabel(adding.kind)}</h2>
       <div className="mt-4 space-y-2">
         {bookItems.length > 0 && <StockSearch stock={bookItems} onPick={fillFromStock} inp={inp} />}
-        <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp} />
+        <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") { e.preventDefault(); cancelAdd(); } }} className={inp} />
         {draft.link && (
           <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
             <Link2 size={12} className="shrink-0" /><span className="flex-1">Linked to <b>{bookName(draft.link.bookId)}</b> · <span className="ft-mono">{draft.link.sku}</span> — re-imports refresh the price</span>

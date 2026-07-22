@@ -377,7 +377,7 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
       <div className="px-2.5 py-2 border-b border-slate-100">
         <div className="flex items-center gap-1">
           {editName ? (
-            <input autoFocus value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onBlur={commitName} onKeyDown={(e) => { if (e.key === "Enter") commitName(); if (e.key === "Escape") { setNameDraft(group.name); setEditName(false); } }} className={inp + " text-sm font-medium"} />
+            <input autoFocus value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onBlur={commitName} onKeyDown={(e) => { if (e.key === "Enter") commitName(); if (e.key === "Escape") { e.preventDefault(); setNameDraft(group.name); setEditName(false); } }} className={inp + " text-sm font-medium"} />
           ) : (
             <h3 className="text-[13px] font-semibold truncate flex-1 min-w-0" title={group.name}>{group.name}</h3>
           )}
@@ -395,7 +395,7 @@ function VendorGroupCard({ group, groups, books, sheetSesid, sheetInfo, progress
           <span className="truncate">{group.sheets.length} sheet{group.sheets.length === 1 ? "" : "s"}</span>
         </div>
         {editUrl && (
-          <input autoFocus value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} onBlur={commitUrl} onKeyDown={(e) => { if (e.key === "Enter") commitUrl(); if (e.key === "Escape") setEditUrl(false); }} placeholder="https://portal-sign-in…" className={inp + " text-[11px] mt-1.5"} />
+          <input autoFocus value={urlDraft} onChange={(e) => setUrlDraft(e.target.value)} onBlur={commitUrl} onKeyDown={(e) => { if (e.key === "Enter") commitUrl(); if (e.key === "Escape") { e.preventDefault(); setEditUrl(false); } }} placeholder="https://portal-sign-in…" className={inp + " text-[11px] mt-1.5"} />
         )}
       </div>
       {confirmDel && (

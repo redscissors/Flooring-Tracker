@@ -172,7 +172,10 @@ export function SkuPicker({ value, stock, stockReady, onChange, onPick, onPickMa
     if (e.key === "ArrowUp" && results.length) { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
     if (e.key === "Enter") { e.preventDefault(); commitFromKey(); }
     if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
-    if (e.key === "Escape") close();
+    // Claim Escape only while the panel is actually showing — otherwise the
+    // press falls through to the global ladder (escstack.js) and closes the
+    // surrounding layer in the same stroke.
+    if (e.key === "Escape" && open && (results.length || picked.length || (loadingOnly && value))) { e.preventDefault(); close(); }
   };
   // Pick/toggle on mousedown (not click): the results list re-renders as the
   // debounced order matches stream in, and a click that spans that re-render is
@@ -234,7 +237,7 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
   return (
     <div ref={wrapRef} className="relative mb-1.5">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape" && open && results.length) { e.preventDefault(); setOpen(false); } }}
         className={inp} placeholder={placeholder} />
       {open && pos && results.length > 0 && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
@@ -278,7 +281,7 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
       <input value={q} autoFocus onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (series.length || results.length)) { e.preventDefault(); series.length ? pickSeries(series[0]) : pickRow(results[0]); }
-          if (e.key === "Escape") setOpen(false);
+          if (e.key === "Escape" && open && (series.length || results.length || q.trim().length >= 2)) { e.preventDefault(); setOpen(false); }
         }}
         className={inp} placeholder={placeholder} />
       {open && pos && (series.length > 0 || results.length > 0 || q.trim().length >= 2) && createPortal(
@@ -333,7 +336,7 @@ export function FamilySearch({ families, onPick, inp }) {
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape") setOpen(false); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } }}
         className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 overflow-y-auto">

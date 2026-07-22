@@ -87,6 +87,9 @@ export default function App({ user, onSignOut }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
+  // Which left-nav section Settings is on — lifted here so the refresh
+  // restore (ft-open-layer below) can reopen the workspace on it.
+  const [settingsSection, setSettingsSection] = useState("materials");
   const [confirm, setConfirm] = useState(null);
   const [focusName, setFocusName] = useState(false);
   const [focusProd, setFocusProd] = useState(null);
@@ -425,6 +428,45 @@ export default function App({ user, onSignOut }) {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
   } = useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings });
+
+  // Which overlay was on screen, per device ("ft-open-layer", beside
+  // ft-last-open): a refresh reopens the popup/workspace it interrupted —
+  // Settings on its last section (so the price book stays open), the Apps
+  // hub, the customer browser, the issues list, and the Sheoga configurator
+  // (whose live { mode, cfg } rides along via onConfigChange, so it reopens
+  // mid-configuration). Restored once, after the last-open spot above; the
+  // Sheoga layer additionally waits for the restored project's full record so
+  // the row it was opened from exists again. A layer that can't be re-created
+  // (its project/row is gone) is simply dropped.
+  const [restoreLayer, setRestoreLayer] = useState(() => { try { return JSON.parse(localStorage.getItem("ft-open-layer") || "null"); } catch { return null; } });
+  useEffect(() => {
+    if (loading || restoreSpot || !restoreLayer) return;
+    const L = restoreLayer;
+    if (L.kind === "sheoga") {
+      if (!sel) { setRestoreLayer(null); return; } // the spot restore didn't land a project
+      if (!sel._full) return; // full record still loading — re-runs on sel
+      setRestoreLayer(null);
+      const row = sel.categories.find((a) => a.id === L.aid)?.products.find((p) => p.id === L.pid);
+      if (row) setSheogaPop({ aid: L.aid, pid: L.pid, seed: L.seed || null });
+      return;
+    }
+    setRestoreLayer(null);
+    if (L.kind === "settings") { setSettingsSection(["profile", "general", "book", "materials", "backup"].includes(L.section) ? L.section : "materials"); setShowSettings(true); }
+    else if (L.kind === "apps") setShowApps(true);
+    else if (L.kind === "browser") setShowBrowser(true);
+    else if (L.kind === "todos") setShowTodos(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot post-boot restore
+  }, [loading, restoreSpot, restoreLayer, sel]);
+  useEffect(() => {
+    if (loading || restoreLayer) return;
+    const layer = sheogaPop ? { kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: sheogaPop.seed || null }
+      : showSettings ? { kind: "settings", section: settingsSection }
+        : showApps ? { kind: "apps" }
+          : showBrowser ? { kind: "browser" }
+            : showTodos ? { kind: "todos" }
+              : null;
+    try { localStorage.setItem("ft-open-layer", JSON.stringify(layer)); } catch (x) { }
+  }, [sheogaPop, showSettings, settingsSection, showApps, showBrowser, showTodos, loading, restoreLayer]);
   // The row search's instant in-memory tier: every active stock-kind book's
   // items, flattened from the ADR 0026 background cache (the ERP exports that
   // replaced the shop workbook, ADR 0027). stockKind marks a hit as shop
@@ -1037,7 +1079,7 @@ export default function App({ user, onSignOut }) {
               <button onClick={openApps} title="Apps — shop tools" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><LayoutGrid size={15} /> Apps</button>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => { setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
+              <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
               <button onClick={openTodos} title="Team issues & to-do list" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
                 <ListTodo size={15} /> Issues
                 {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
@@ -1229,7 +1271,7 @@ export default function App({ user, onSignOut }) {
                         </div>
                         {namingVersion ? (
                           <div className="flex items-center gap-1.5">
-                            <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[34px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") { e.preventDefault(); setNamingVersion(false); } }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[34px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             <button onClick={confirmVersion} className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
                             <button onClick={() => setNamingVersion(false)} className="h-[34px] w-[34px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 text-slate-400"><X size={15} /></button>
                           </div>
@@ -2051,6 +2093,7 @@ export default function App({ user, onSignOut }) {
         <LazyBoundary>
         <Suspense fallback={null}>
         <SettingsWorkspace onClose={() => setShowSettings(false)}
+          initialSection={settingsSection} onSectionChange={setSettingsSection}
           settings={settings} setSettings={setSettings} gFamilies={gFamilies}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
@@ -2113,6 +2156,7 @@ export default function App({ user, onSignOut }) {
             onMove={(lines) => addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines)}
             onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
+            onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setSheogaPop(null)} />
           </Suspense>
           </LazyBoundary>
@@ -2186,7 +2230,7 @@ export default function App({ user, onSignOut }) {
           <Modal onClose={close} title="File under customer">
             <p className="text-sm text-slate-500 mb-3">Filing <b>{proj.name || "this quote"}</b> under a customer turns it into a normal job{proj.quick ? " — it leaves Quick Prices and starts keeping versions" : ""}.</p>
             <input autoFocus value={promoteQ} onChange={(e) => setPromoteQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Escape") close(); if (e.key === "Enter" && term && !exact) promoteToNewCustomer(promoteId, term); }}
+              onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); close(); } if (e.key === "Enter" && term && !exact) promoteToNewCustomer(promoteId, term); }}
               placeholder="Search customers, or type a new name…" className={inp} />
             {list.length > 0 && (
               <div className="mt-3 rounded-md border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
@@ -2242,7 +2286,7 @@ export default function App({ user, onSignOut }) {
           <Modal onClose={() => setNewCust(null)} title="New customer">
             <p className="text-sm text-slate-500 mb-3">Type the customer's name. If they already exist, jump straight to them instead of making a duplicate.</p>
             <input autoFocus value={newCust} onChange={(e) => setNewCust(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { if (m) pickExisting(m.item.id); else if (newCust.trim()) create(); } if (e.key === "Escape") setNewCust(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { if (m) pickExisting(m.item.id); else if (newCust.trim()) create(); } if (e.key === "Escape") { e.preventDefault(); setNewCust(null); } }}
               placeholder="e.g. Sarah Jones" className={inp} />
             {m && (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-800">
