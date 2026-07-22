@@ -323,6 +323,7 @@ const B1_ITEMS = [
   { sku: "ASKU", active: true, price: 9.5, unit: "EA", description: "Attached main" },
   { sku: "TG10", active: true, price: 5, unit: "EA", description: "9LB TESTGROUT 10 RED PART C" },
   { sku: "TG20", active: true, price: 6, unit: "EA", description: "9LB TESTGROUT 20 BLUE PART C" },
+  { sku: "INACTIVE-SKU", active: false, price: 99, unit: "EA", description: "Inactive item" },
 ];
 
 function makeSyncCatalog() {
@@ -338,6 +339,9 @@ function makeSyncCatalog() {
           { id: "g-unlinked", name: "Unlinked Grout", price: "7.00", unit: "EA", sku: "", link: null },
           { id: "g-eps", name: "Epsilon Grout", price: "10.000", unit: "EA", sku: "EPSKU", link: { bookId: "b1", sku: "EPSKU" } },
           { id: "g-eps2", name: "Epsilon Grout 2", price: "10.000", unit: "EA", sku: "EPSKU2", link: { bookId: "b1", sku: "EPSKU2" } },
+          { id: "g-base-unlinked", name: "Unlinked Base Grout", price: "9.00", unit: "EA", sku: "", link: null,
+            base: { sku: "BASE-SKU", name: "Full Unit", unit: "EA", price: "150.00", per: 1 } },
+          { id: "g-inactive-link", name: "Inactive Link Grout", price: "6.00", unit: "EA", sku: "OLDSKU2", link: { bookId: "b1", sku: "INACTIVE-SKU" } },
         ],
         mortars: [
           { id: "m-ok", name: "Mortar One", price: "30.00", unit: "bags", sku: "MOLD", link: { bookId: "b1", sku: "MSKU" } },
@@ -370,6 +374,12 @@ function makeSyncCatalog() {
         baseSkus: { default: "", variant: "" }, caulk: null,
         cache: [],
       },
+      {
+        id: "fresh-family", name: "Fresh Family", bookId: "b1",
+        rule: { prefix: "9LB TESTGROUT", suffix: "PART C" },
+        baseSkus: { default: "", variant: "" }, caulk: null,
+        cache: [], // first population: never seeded before
+      },
     ],
   };
 }
@@ -391,7 +401,7 @@ test("syncLinkedCatalog leaves a product with an absent linked SKU untouched and
   assert.equal(g.unit, "EA");
   assert.equal(g.sku, "OLDSKU");
   assert.equal(g.name, "Lost Grout");
-  assert.deepEqual(lost, [{ name: "Lost Grout", sku: "GONE-SKU" }]);
+  assert.ok(lost.some((l) => l.name === "Lost Grout" && l.sku === "GONE-SKU"));
 });
 
 test("syncLinkedCatalog leaves an unlinked product completely untouched", () => {
@@ -461,6 +471,37 @@ test("syncLinkedCatalog refreshes the matching family's cache and counts newColo
   assert.deepEqual(other, makeSyncCatalog().bookFamilies[1]);
 });
 
+// Plan-mandated (adjudicated 2026-07-22): base.sku refresh is NOT gated on the
+// product's own link — a book-family grout carries a base companion but no
+// item link at all, and every stock book exports from the same ERP, so a SKU
+// identifies one item globally. Pinned here so this stays explicit.
+test("syncLinkedCatalog refreshes a base companion even when the product itself carries no link", () => {
+  const { catalog, changes } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-base-unlinked");
+  assert.equal(g.link, null);
+  assert.equal(g.base.price, 215);
+  assert.equal(g.base.sku, "BASE-SKU");
+  assert.equal(g.name, "Unlinked Base Grout");
+  assert.ok(changes.some((c) => c.name === "Unlinked Base Grout — base" && c.from === 150 && c.to === 215 && c.sku === "BASE-SKU"));
+});
+
+test("syncLinkedCatalog treats a linked SKU that exists but is inactive as lost (keep-and-warn), product untouched", () => {
+  const { catalog, lost } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-inactive-link");
+  assert.equal(g.price, "6.00");
+  assert.equal(g.unit, "EA");
+  assert.equal(g.sku, "OLDSKU2");
+  assert.equal(g.name, "Inactive Link Grout");
+  assert.ok(lost.some((l) => l.name === "Inactive Link Grout" && l.sku === "INACTIVE-SKU"));
+});
+
+test("syncLinkedCatalog does not report newColors on a family's first population (empty cache)", () => {
+  const { catalog, newColors } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const fam = catalog.bookFamilies.find((f) => f.id === "fresh-family");
+  assert.deepEqual(fam.cache.map((c) => c.sku).sort(), ["TG10", "TG20"]); // colors DID fill in
+  assert.ok(!newColors.some((n) => n.family === "Fresh Family")); // but none reported as "new"
+});
+
 test("linkedItemState covers null/ok/inactive/missing", () => {
   const itemsByBook = { b1: [{ sku: "OK1", active: true }, { sku: "INACT1", active: false }] };
   assert.equal(linkedItemState(null, itemsByBook), null);
@@ -477,11 +518,13 @@ const PROPOSE_BOOKS = [
   { id: "b1", name: "Book One", kind: "stock" },
   { id: "b2", name: "Book Two", kind: "stock" },
   { id: "b3", name: "Order Book", kind: "order" },
+  { id: "b4", name: "Inactive Stock Book", kind: "stock", active: false },
 ];
 const PROPOSE_ITEMS_BY_BOOK = {
   b1: [{ sku: "U1", active: true }, { sku: "A1", active: true }],
   b2: [{ sku: "A1", active: true }],
   b3: [{ sku: "O1", active: true }],
+  b4: [{ sku: "IN1", active: true }],
 };
 
 function makeProposeCatalog() {
@@ -495,6 +538,7 @@ function makeProposeCatalog() {
         { id: "p-order-only", name: "Order-book Product", price: "1.00", unit: "EA", sku: "O1", link: null },
         { id: "p-linked", name: "Already Linked Product", price: "1.00", unit: "EA", sku: "X1", link: { bookId: "b1", sku: "X1" } },
         { id: "p-nosku", name: "No SKU Product", price: "1.00", unit: "EA", sku: "", link: null },
+        { id: "p-inactive-book", name: "Inactive-book Product", price: "1.00", unit: "EA", sku: "IN1", link: null },
       ],
       mortars: [], underlayments: [], attached: [],
     }],
@@ -530,6 +574,12 @@ test("proposeLinks skips products that already carry a link or have no SKU", () 
   assert.ok(!unmatched.some((u) => u.name === "Already Linked Product"));
   assert.ok(!proposals.some((p) => p.productId === "p-nosku"));
   assert.ok(!unmatched.some((u) => u.name === "No SKU Product"));
+});
+
+test("proposeLinks never proposes a match from a stock book flagged inactive", () => {
+  const { proposals, unmatched } = proposeLinks(makeProposeCatalog(), PROPOSE_ITEMS_BY_BOOK, PROPOSE_BOOKS);
+  assert.ok(!proposals.some((p) => p.productId === "p-inactive-book"));
+  assert.ok(unmatched.some((u) => u.name === "Inactive-book Product" && u.sku === "IN1" && u.reason === "none"));
 });
 
 test("applyProposals stamps link on proposed products only, round-tripping through proposeLinks", () => {
