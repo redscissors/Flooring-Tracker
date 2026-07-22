@@ -125,6 +125,16 @@ export default function App({ user, onSignOut }) {
   }, [booksHydrated]);
   const applyBookImportSynced = async (bookId, diff, opts) => {
     await applyBookImport(bookId, diff, opts);
+    // The row-drift cache (useOrderSearch) still holds this book's items as
+    // fetched BEFORE the import; open rows would chide against stale values
+    // ("now sells per piece") until a reload. Drop the book's entries so the
+    // drift fetch re-resolves them against what was just written.
+    setOrderItems((prev) => {
+      if (!prev[bookId]) return prev;
+      const next = { ...prev };
+      delete next[bookId];
+      return next;
+    });
     if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
     try {
       const items = await refreshBookStock(bookId);
