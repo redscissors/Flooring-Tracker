@@ -47,13 +47,16 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
     }
   };
 
-  const th = "text-left px-2 py-1.5 ft-eyebrow text-[9px] whitespace-nowrap";
+  // w-px + nowrap: every column shrinks to its widest content (plus the small
+  // cell padding); the trailing filler column absorbs the leftover width so
+  // the free space sits after the last column instead of stretching them.
+  const th = "text-left px-1.5 py-1.5 ft-eyebrow text-[9px] whitespace-nowrap w-px";
   const sortBtn = (key, label) => (
     <button onClick={() => setSortKey(key)} className={`inline-flex items-center gap-0.5 uppercase tracking-[.16em] hover:text-slate-700 ${sortKey === key ? "text-slate-700" : ""}`}>
       {label}{sortKey === key && <span className="normal-case tracking-normal">{key === "name" ? "↓" : "▾"}</span>}
     </button>
   );
-  const td = "px-2 py-[5px] border-b border-slate-100 truncate";
+  const td = "px-1.5 py-[5px] border-b border-slate-100 truncate w-px";
 
   // The draggable columns (Customer stays pinned — the row's identity).
   // Per-key head config + cell renderer, laid out in `cols` order.
@@ -116,6 +119,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
           <span className="ft-item-name font-semibold text-[12.5px]">{r.name || "Unnamed customer"}</span>
         </td>
         {cols.map((k) => CELL[k](r))}
+        <td className="border-b border-slate-100" aria-hidden />
       </tr>
     );
   };
@@ -169,6 +173,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                     {HEAD[k].sort ? sortBtn(HEAD[k].sort, HEAD[k].label) : HEAD[k].label}
                   </th>
                 ))}
+                <th className="w-full" aria-hidden />
               </tr>
             </thead>
             <tbody>
@@ -219,8 +224,8 @@ function FragmentRows({ group, rowEl }) {
     <>
       {group.sales != null && (
         <tr>
-          {/* 10 ≥ the widest layout; browsers clamp the span when email hides */}
-          <td colSpan={10} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
+          {/* 11 ≥ the widest layout (incl. filler); browsers clamp the span */}
+          <td colSpan={11} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
             <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
               <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
               {group.sales}

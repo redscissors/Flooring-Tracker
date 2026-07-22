@@ -46,6 +46,11 @@ name/phone/address 4. open to more ideas."
   to the user's own `app_data` blob (`ui.browserCols`, via `saveUiPref` in
   usedirectory.js), so it follows the login to any machine; `normColOrder`
   keeps stale saves valid as columns come and go.
+- **Shrink-to-fit columns** (2026-07-22 follow-up #3): every column sizes to
+  its widest content plus small padding (`w-px` + nowrap cells, long
+  address/email still capped + truncated); an empty trailing filler column
+  takes the leftover width, so free space sits after the last column instead
+  of being spread between them.
 - Pure logic (rows/filter/sort/group) lives in `custbrowser.js` with
   `custbrowser.test.js` coverage; quick-price drafts never count against a
   customer.
