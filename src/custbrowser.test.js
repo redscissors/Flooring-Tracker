@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, browserRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
+import { salesNameOf, browserRows, quickRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -37,6 +37,19 @@ test("browserRows: one row per customer with builder, activity, salesperson", ()
   // projects newest-first, quick prices never counted against a customer
   assert.deepEqual(r1.projs.map((p) => p.id), ["p2", "p1"]);
   assert.equal(rows().every((r) => r.projs.every((p) => !p.quick)), true);
+});
+
+test("quickRows: customer-less quick drafts only, newest edit first, searched", () => {
+  const projs = [
+    ...projects,
+    { id: "p6", customerId: null, name: "Q-Arctic White-7/20", quick: true, updatedAt: 500, sales: "Gina Boyd" },
+    { id: "p7", customerId: "c1", name: "Promoted job", quick: true, updatedAt: 800 },
+  ];
+  assert.deepEqual(quickRows(projs).map((p) => p.id), ["p4", "p6"]);
+  assert.deepEqual(quickRows(projs, "arctic").map((p) => p.id), ["p6"]);
+  assert.deepEqual(quickRows(projs, "gina").map((p) => p.id), ["p6"]);
+  assert.equal(quickRows(projs, "zzz").length, 0);
+  assert.equal(quickRows().length, 0);
 });
 
 test("filterRows spans name, phone, address, builder, and project names", () => {

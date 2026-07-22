@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normC, rowBlank, newProduct, newProject, areaLabel, money, catSig } from "./model.js";
+import { normP, normC, rowBlank, newProduct, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -52,6 +52,25 @@ test("newProject seeds the ADR 0018 pricing fields and quick-flag", () => {
   assert.equal(pr.priceTier, "retail");
   assert.equal(pr.quick, true);
   assert.equal(pr.categories.length, 1);
+});
+
+test("quickAutoName: Q-<first line item>-<M/D> from the first non-blank row", () => {
+  const createdAt = new Date(2026, 6, 22).getTime();
+  const proj = { createdAt, categories: [{ products: [newProduct(), { ...newProduct(), brandColor: "Daltile / Arctic White", priceSqft: "4" }] }] };
+  assert.equal(quickAutoName(proj), "Q-Daltile / Arctic White-7/22");
+  // no brand/color → the SKU, then the type label
+  assert.equal(quickAutoName({ createdAt, categories: [{ products: [{ ...newProduct(), sku: "TL-100", priceSqft: "2" }] }] }), "Q-TL-100-7/22");
+  assert.equal(quickAutoName({ createdAt, categories: [{ products: [{ ...newProduct(), type: "vinyl", priceSqft: "2" }] }] }), "Q-Vinyl-7/22");
+  // still all blank → the default name
+  assert.equal(quickAutoName({ createdAt, categories: [{ products: [newProduct()] }] }), QUICK_DEFAULT_NAME);
+});
+
+test("isQuickAutoName: default/auto/blank regenerate, hand-typed names never", () => {
+  assert.equal(isQuickAutoName(QUICK_DEFAULT_NAME), true);
+  assert.equal(isQuickAutoName(""), true);
+  assert.equal(isQuickAutoName("Q-Daltile / Arctic White-7/22"), true);
+  assert.equal(isQuickAutoName("Smith backsplash"), false);
+  assert.equal(isQuickAutoName("Q-Special"), false);
 });
 
 test("areaLabel falls back to a 1-based index", () => {

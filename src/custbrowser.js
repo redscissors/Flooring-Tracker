@@ -38,6 +38,17 @@ export function browserRows({ people = [], projects = [], builders = [] }) {
   });
 }
 
+// Quick-price drafts for the browser's "Quick prices" strip. They have no
+// customer to group under, so they're their own list — newest edit first
+// ("the one you were working on" is on top), narrowed by the same search box.
+export function quickRows(projects = [], q) {
+  const s = (q || "").trim().toLowerCase();
+  return projects
+    .filter((p) => p.quick && !p.customerId)
+    .filter((p) => !s || (p.name || "").toLowerCase().includes(s) || salesNameOf(p).toLowerCase().includes(s))
+    .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+}
+
 // Substring search over the row's own contact fields, its builder, and its
 // project names — the same span as the sidebar search (ADR 0005).
 export function filterRows(rows, q) {
