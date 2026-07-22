@@ -97,10 +97,13 @@ export function normOrderItem(f = {}) {
     // enumerate its own trims, which prose in `description` could never support.
     // The description still carries a "· fits …" note for search_text.
     fits: normFits(f.fits),
-    // Order items store COST, never a selling price — price/priceSqft are
-    // derived at display via the book's markup (pricedItem), never persisted.
-    price: null,
-    priceSqft: null,
+    // Order items store COST — price/priceSqft derive at display via the
+    // book's markup (pricedItem) and are never persisted for them. Stock-kind
+    // items (the shop's own ERP exports) are the exception: they carry the
+    // shop's real retail beside the cost, and that explicit price is persisted
+    // and outranks any markup derivation (pricedItem passes it through).
+    price: round2(numOr(f.price)),
+    priceSqft: numOr(f.priceSqft),
     sfPerUnit: numOr(f.sfPerUnit),
     pcPerUnit: numOr(f.pcPerUnit),
     coverage: numOr(f.coverage),
@@ -216,10 +219,12 @@ export const rowCostSqft = (item) => {
 // A stock-shaped item with price/priceSqft filled from cost × markup, so
 // search results and the pick-snapshot can treat it exactly like a stock item.
 // Also carries the resolved markupPct for display and the pick snapshot. A
-// stock-kind registry item (no cost) passes through with its own price.
+// stock-kind registry item passes through with its own price — whether it has
+// no cost at all, or (the ERP stock exports) an explicit retail beside the
+// cost, which is the shop's real shelf price, not something to re-derive.
 export function pricedItem(item, markups) {
   const pct = resolveMarkup(markups, item);
-  if (!item || item.cost == null) return { ...item, markupPct: pct };
+  if (!item || item.cost == null || item.price != null) return { ...item, markupPct: pct };
   const csf = costSqft(item);
   return {
     ...item,

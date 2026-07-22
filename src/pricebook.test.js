@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectStockWorkbook } from "./pricebook.js";
+import { parsePriceBook, parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectStockWorkbook, detectVendorSkuAnalysis } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const parse = (...sheets) => parsePriceBook(sheets);
@@ -698,4 +698,72 @@ test("detectStockWorkbook: two distinctive sheet names ⇒ true; a lone vendor s
 test("detectVtcEft: returns null when the signature is absent", () => {
   assert.equal(detectVtcEft([{ name: "Sheet1", rows: [["Name", "Price"], ["Oak", 5]] }]), null);
   assert.equal(guessHeaderRow([["nope"], ["still nope"]]), -1);
+});
+
+// --- the ERP "Vendor SKU Analysis" stock exports ------------------------------
+// One flat sheet per supplier (DOIT / SHEOG / MANMI…), header on row 1: shop
+// Product Code (the SKU), Full Description, Base Price (Cost), Retail Price,
+// Unit of Stock. No SF/CT column — coverage rides in the description text.
+
+const VSA_WORKBOOK = [sheet("Vendor SKU Analysis", [
+  ["Product Code", "Full Description", "Base Price (Cost)", "Retail Price", "Unit of Stock", "Supplier Prod Code", "Mfg Product Code", "Product Group", "Free Stock", "Total Stock"],
+  ["05153", "Slip Tongue Flooring Spline", 0.3, 0.48, "LF", "05153", "05153", "C29AEAC", 4, 4],
+  ["1517410", "7x60 Mannington AduraMax - Preservation Fossil 23.76 sf", 85.34, 141.45, "CT", "MPB823", "MPB823", "", 2, 2],
+  ["94593", "6x48 Mann AduraMax Plank - Napa Dry Cork MAX060", 82.42, 136.61, "CT", "MAX742", "MAX742", "", 1, 1],
+])];
+
+test("detectVendorSkuAnalysis: recognizes the export, maps the five known columns", () => {
+  const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
+  assert.ok(m, "signature recognized");
+  assert.equal(m.sheet, "Vendor SKU Analysis");
+  assert.equal(m.headerRow, 0);
+  assert.equal(m.columns[0], "sku");
+  assert.equal(m.columns[1], "description");
+  assert.equal(m.columns[2], "cost");
+  assert.equal(m.columns[3], "price");
+  assert.equal(m.columns[4], "unit");
+  // supplier / mfg codes ride in the description already; the stock counts are
+  // point-in-time — none of them become item fields
+  assert.equal(Object.keys(m.columns).length, 5);
+  assert.ok(m.sfFromDescription);
+  assert.ok(mappedSkuRe(m.skuPattern).test("05153"));     // leading zero
+  assert.ok(mappedSkuRe(m.skuPattern).test("29500-LF"));  // unit-suffixed code
+  assert.ok(mappedSkuRe(m.skuPattern).test("29SHEOGAW")); // category placeholder
+  assert.ok(!mappedSkuRe(m.skuPattern).test("Product Code")); // never the header
+});
+
+test("detectVendorSkuAnalysis: null without the signature", () => {
+  assert.equal(detectVendorSkuAnalysis([sheet("Sheet1", [["Name", "Price"], ["Oak", 5]])]), null);
+  assert.equal(detectVendorSkuAnalysis([]), null);
+});
+
+test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled from the description", () => {
+  const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
+  const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
+  assert.equal(items.length, 3);
+  const spline = items.find((i) => i.sku === "05153"); // leading zero survives
+  assert.equal(spline.price, 0.48);
+  assert.equal(spline.cost, 0.3);
+  assert.equal(spline.unit, "LF");
+  assert.equal(spline.sfPerUnit, null);
+  const max = items.find((i) => i.sku === "1517410");
+  assert.equal(max.sfPerUnit, 23.76);            // "23.76 sf" from the text
+  assert.equal(max.size, "7x60");                // size split keeps working
+  assert.match(max.description, /Preservation Fossil/);
+  assert.ok(!/23\.76/.test(max.description), "coverage token stripped from the name");
+  assert.equal(max.priceSqft, 5.9533);           // 141.45 / 23.76, per sqft
+  const cork = items.find((i) => i.sku === "94593");
+  assert.equal(cork.sfPerUnit, null);            // no sf in its text — flagged, not invented
+  assert.equal(cork.priceSqft, null);
+});
+
+test("guessBookField: the ERP export headers, without disturbing the EFT guesses", () => {
+  assert.equal(guessBookField("Product Code"), "sku");
+  assert.equal(guessBookField("Full Description"), "description");
+  assert.equal(guessBookField("Base Price (Cost)"), "cost");
+  assert.equal(guessBookField("Retail Price"), "price");
+  assert.equal(guessBookField("Unit of Stock"), "unit");
+  assert.equal(guessBookField("CONSUMER LEVEL PRICE (Dealer to Consumer)"), "msrp");
+  assert.equal(guessBookField("DEALER PRICE (VTC to Dealer)"), "cost");
+  assert.equal(guessBookField("Price U/M"), "priceUnit");
 });
