@@ -1264,3 +1264,55 @@ test("serializeSettings persists only custom label presets", () => {
   assert.deepEqual(ids, ["c1"]);
   assert.ok(!ids.some((id) => BUILTIN_IDS.has(id)));
 });
+
+// --- ERP stock-book links & families (spec 2026-07-21) -----------------------
+
+test("normalizeCatalog keeps a valid link on one product of each kind and drops an incomplete one", () => {
+  const raw = {
+    companies: [{
+      id: "co1", name: "Test Co", enabled: true,
+      grouts: [{ id: "g1", name: "G", link: { bookId: "b1", sku: "SKU-G" } }],
+      mortars: [{ id: "m1", name: "M", link: { bookId: "b1", sku: "SKU-M" } }],
+      underlayments: [{ id: "u1", name: "U", link: { bookId: "", sku: "SKU-U" } }],
+      attached: [{ id: "a1", name: "A", categoryId: "cat1", link: { bookId: "b1", sku: "SKU-A" } }],
+    }],
+  };
+  const co = normalizeCatalog(raw).companies[0];
+  assert.deepEqual(co.grouts[0].link, { bookId: "b1", sku: "SKU-G" });
+  assert.deepEqual(co.mortars[0].link, { bookId: "b1", sku: "SKU-M" });
+  assert.equal(co.underlayments[0].link, null);
+  assert.deepEqual(co.attached[0].link, { bookId: "b1", sku: "SKU-A" });
+  // No link at all normalizes to null, not undefined.
+  assert.equal(normalizeCatalog({ companies: [{ grouts: [{ name: "Bare" }], mortars: [], underlayments: [], attached: [] }] }).companies[0].grouts[0].link, null);
+});
+
+test("normalizeCatalog defaults bookFamilies to [] and normalizes a stored family", () => {
+  assert.deepEqual(normalizeCatalog(undefined).bookFamilies, []);
+  const out = normalizeCatalog({ bookFamilies: [{ name: "Fam", bookId: "b1", rule: { prefix: "P" } }] });
+  assert.equal(out.bookFamilies.length, 1);
+  const fam = out.bookFamilies[0];
+  assert.ok(fam.id);
+  assert.deepEqual(fam.cache, []);
+  assert.equal(fam.name, "Fam");
+});
+
+test("seedCatalog returns an empty bookFamilies array", () => {
+  assert.deepEqual(seedCatalog(undefined).bookFamilies, []);
+});
+
+test("resolveCatalog surfaces link on the flattened grout/mortar/underlayment/attached maps", () => {
+  const raw = {
+    companies: [{
+      id: "co1", name: "Test Co", enabled: true,
+      grouts: [{ id: "g1", name: "TestGrout", link: { bookId: "b1", sku: "SKU-G" } }],
+      mortars: [{ id: "m1", name: "TestMortar", link: { bookId: "b1", sku: "SKU-M" } }],
+      underlayments: [{ id: "u1", name: "TestUnderlay", link: { bookId: "b1", sku: "SKU-U" } }],
+      attached: [{ id: "a1", name: "TestAttached", categoryId: "cat1", link: { bookId: "b1", sku: "SKU-A" } }],
+    }],
+  };
+  const resolved = resolveCatalog(normalizeCatalog(raw));
+  assert.deepEqual(resolved.grouts["TestGrout"].link, { bookId: "b1", sku: "SKU-G" });
+  assert.deepEqual(resolved.mortars["TestMortar"].link, { bookId: "b1", sku: "SKU-M" });
+  assert.deepEqual(resolved.underlayments["TestUnderlay"].link, { bookId: "b1", sku: "SKU-U" });
+  assert.deepEqual(resolved.attached["cat1"]["TestAttached"].link, { bookId: "b1", sku: "SKU-A" });
+});

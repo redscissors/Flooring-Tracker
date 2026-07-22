@@ -217,7 +217,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, stockReady, stockFailed, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, stockFailed, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -243,13 +243,18 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, stockR
   // Book-linked picks snapshot from the stock cache at click time (ADR 0007,
   // groutSnapshotPatch) — while the background stock load is in flight (or
   // after it failed) that would blank an existing snapshot, so refuse loudly
-  // instead (ADR 0026).
-  const stockBusy = (book) => { if (book && (!stockReady || stockFailed)) { notify?.(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; } return false; };
-  const pickGroutColor = (color) => { if (stockBusy(gBook)) return; onPatch({ grout: { ...p.grout, color, ...groutSnapshotPatch(stock, gBook, color) } }); };
-  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, product, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
+  // instead (ADR 0026). A book-backed family (ADR 0009) waits on its own cache.
+  const stockBusy = (book) => {
+    if (!book) return false;
+    if (isBookFam(book)) { if (!bookStockReady) { notify?.(STOCK_LOADING_MSG); return true; } return false; }
+    if (!stockReady || stockFailed) { notify?.(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; }
+    return false;
+  };
+  const pickGroutColor = (color) => { if (stockBusy(gBook)) return; onPatch({ grout: { ...p.grout, color, ...groutSnapshotPatch(groutStock, gBook, color) } }); };
+  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, product, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
   const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
   const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
+  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
   const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
   const U = getUnderlay(p, settings), uEx = underlayExact(p, settings);
   const installDefs = settings.underlayments[p.underlay.product]?.install || [];

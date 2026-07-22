@@ -413,6 +413,11 @@ export function syncCatalogPrices(catalog, items) {
   const bySku = new Map(priced.map((it) => [it.sku, it]));
   const companies = (catalog?.companies || []).map((co) => {
     const syncKind = (list) => (list || []).map((p) => {
+      // ADR 0027: a product carrying an ERP stock-book `link` is superseded by
+      // syncLinkedCatalog (booklink.js) — this legacy text-match sync must
+      // never clobber it. `link` normalizes to null-or-complete, so a plain
+      // truthiness check is enough (no need to import booklink.js here).
+      if (p.link) return p;
       // A product that carries a SKU (ADR 0006) refreshes from that exact item;
       // otherwise fall back to the conservative unique-name match.
       let to, sku;
