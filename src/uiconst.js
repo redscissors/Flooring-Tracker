@@ -1,7 +1,6 @@
-// Stage-2 messages for actions that need the stock cache (ADR 0026): one
-// string per state so the grid and mobile surfaces can't drift apart.
+// Stage-2 message for actions that need the stock-book cache (ADR 0026): one
+// string so the grid and mobile surfaces can't drift apart.
 export const STOCK_LOADING_MSG = "Price book still loading — try again in a moment";
-export const STOCK_FAILED_MSG = "Price book couldn't load — reload the page and try again";
 // One place decides whether the SKU cell is a search field (vs a plain input):
 // the desktop grid and the mobile row sheet must never disagree.
 export const skuSearchable = (stock, searchOrder, stockReady) => stock.length > 0 || !!searchOrder || !stockReady;
@@ -68,6 +67,3 @@ export const AUTO_KEEP = 5;
 export const QUICK_SWEEP_DAYS = 30;
 // Price-book import versions kept per book (pinned rows are never pruned).
 export const BOOK_VERSION_KEEP = 3;
-// Reserved pricebook_versions.book_id for the shop workbook (its items live in
-// stock_items, not price_book_items — ADR 0009 §5).
-export const STOCK_BOOK_ID = "stock";

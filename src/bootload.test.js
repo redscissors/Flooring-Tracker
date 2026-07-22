@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadProjects, loadStock, loadTodos, resolveSharedSettings, loadSettingsRow } from "./bootload.js";
+import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow } from "./bootload.js";
 
 // Chainable thenable standing in for the supabase query builder (same idea as
 // fetchall.test.js): select/eq/order return the builder; awaiting it resolves
@@ -26,13 +26,6 @@ test("loadProjects maps light rows and coerces the projected quick flag", async 
   assert.equal(rows[0].id, "p1");
   assert.equal(rows[0].quick, true);
   assert.equal(rows[0]._full, false);
-});
-
-test("loadStock pages past the 1000-row cap and normalizes items", async () => {
-  const many = Array.from({ length: 1001 }, (_, i) => ({ sku: `S${String(i).padStart(4, "0")}`, active: true, data: {} }));
-  const rows = await loadStock(fakeDb({ stock_items: many }));
-  assert.equal(rows.length, 1001);
-  assert.equal(typeof rows[0].sku, "string");
 });
 
 test("loadTodos maps row shape", async () => {

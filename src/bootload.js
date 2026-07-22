@@ -4,7 +4,6 @@
 // that file reads import.meta.env at evaluation (Vite-only) and would crash
 // node --test, besides dragging the client SDK into a dependency-free suite.
 import { fetchAllRows } from "./fetchall.js";
-import { normStockItem } from "./stock.js";
 import { normLabel } from "./labels.js";
 import { normalizeSettings, serializeSettings, catalogHasSeedUnderlayments } from "./catalog.js";
 
@@ -76,14 +75,6 @@ export const resolveSharedSettings = async (db, row, fallbackRaw) => {
     Promise.resolve(db.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(settings) }, { onConflict: "id" })).then(() => { }, () => { });
   }
   return settings;
-};
-
-export const loadStock = async (db) => {
-  // select * so the app keeps working whether or not the disabled column
-  // exists yet (pricebook-disabled.sql); a named select of a missing column
-  // errors and would silently kill the SKU picker.
-  const rows = await fetchAllRows(() => db.from("stock_items").select("*").order("sku"));
-  return rows.map(normStockItem);
 };
 
 export const normBook = (row) => ({

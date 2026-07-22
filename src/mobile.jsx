@@ -5,7 +5,7 @@ import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExac
 import { groutSnapshotPatch } from "./stock.js";
 import { tierUnitPrice, employeeNoCost } from "./pricing.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
-import { STOCK_LOADING_MSG, STOCK_FAILED_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
+import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { FitSelect } from "./widgets.jsx";
@@ -217,7 +217,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, stockFailed, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -240,14 +240,13 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
   const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
   const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
   const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
-  // Book-linked picks snapshot from the stock cache at click time (ADR 0007,
-  // groutSnapshotPatch) — while the background stock load is in flight (or
-  // after it failed) that would blank an existing snapshot, so refuse loudly
-  // instead (ADR 0026). A book-backed family (ADR 0009) waits on its own cache.
+  // Book-linked picks snapshot from the stock-book cache at click time
+  // (ADR 0007 mechanics, groutSnapshotPatch) — while that cache is still
+  // loading the pick would blank an existing snapshot, so refuse loudly
+  // instead (ADR 0026).
   const stockBusy = (book) => {
-    if (!book) return false;
-    if (isBookFam(book)) { if (!bookStockReady) { notify?.(STOCK_LOADING_MSG); return true; } return false; }
-    if (!stockReady || stockFailed) { notify?.(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; }
+    if (!book || !isBookFam(book)) return false;
+    if (!bookStockReady) { notify?.(STOCK_LOADING_MSG); return true; }
     return false;
   };
   const pickGroutColor = (color) => { if (stockBusy(gBook)) return; onPatch({ grout: { ...p.grout, color, ...groutSnapshotPatch(groutStock, gBook, color) } }); };

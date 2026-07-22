@@ -82,11 +82,10 @@ src/
                     # `migrateLegacyCustomers` (ADR 0004)
   usebooks.js       # `useBooks` — price book registry state + write paths (ADR 0009): addBook/
                     # updateBook/delBook/applyBookImport/reviewBookItemFlags/setBookItemsDisabled
-  usebookstock.js   # `useBookStock` — stock-kind registry books' items, cached like the ADR 0003
-                    # stock cache (bounded, background-loaded per ADR 0026); feeds the grout
-                    # family projection, the Settings picker, and link warnings (ADR 0027)
-  usestock.js       # `useStock` — the shop stock price book (ADR 0003): stock state + import/
-                    # rollback/disable write paths
+  usebookstock.js   # `useBookStock` — stock-kind registry books' items, a bounded cache
+                    # background-loaded after the books metadata (ADR 0026); feeds the row
+                    # search's instant stock tier, the grout family projection, the Settings
+                    # picker, and link warnings (ADR 0027)
   usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006)
   uselabels.js      # `useLabels` — Apps hub label-set state + write paths
   useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
@@ -100,8 +99,10 @@ src/
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here
   catalog.js        # settings normalization + material math + shared catalog
-  pricebook.js      # stock price book .xlsx -> flat stock items (ADR 0003);
-                    # + generic mapped import for order/registry books (ADR 0009)
+  pricebook.js      # generic mapped import for registry books (ADR 0009) +
+                    # vendor template recognizers (VTC EFT, ERP Vendor SKU
+                    # Analysis); the retired shop workbook's hand-built
+                    # parsers (ADR 0003) lived here until 2026-07-22
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
                     # header-driven per page, feeds the mapped import (ADR 0010)
   manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,
@@ -109,7 +110,9 @@ src/
                     # floors keyed by Color Code, trims imported as their own
                     # transition products keyed by Catalog #, flagged `trim` so
                     # the book can mark trims up separately from floors (ADR 0012)
-  stock.js          # stock search / SKU fill / drift / import diff / catalog sync
+  stock.js          # stock-item search / SKU fill snapshot / drift / base
+                    # companions / grout families, over stock-shaped items
+                    # (the ADR 0027 book items + projected family rows)
   booklink.js       # catalog ↔ ERP stock-book links (ADR 0027): link/family rule shapes,
                     # series-rule + color-token parsing, family resolution + projection into
                     # stock-shaped items, import-time sync, migration link proposals
@@ -214,8 +217,7 @@ src/
                     # the price-book sidebar list are retired
   dropimport.js     # multi-file drop routing (ADR 0009 PR C): `fileFormat` /
                     # `computeFingerprint` / `routeFile` map each dropped file to
-                    # its book — shop workbook by sheet-name signature
-                    # (`detectStockWorkbook` in pricebook.js), VTC/Mannington by
+                    # its book — VTC/Mannington by
                     # format tag PLUS the EFT brand-title line above the header
                     # ("Virginia Tile Core" / "Anatolia Tile" / …), since VTC
                     # reuses one template for every brand it distributes — a
@@ -244,7 +246,9 @@ netlify/
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies
-  stock.sql         # run once: stock_items table + RLS (stock price book)
+  stock.sql         # run once: stock_items table + RLS — RETIRED with the shop
+                    # workbook (ADR 0027 amendment 2026-07-22); the table and its
+                    # data are kept but no code reads or writes it
   todos.sql         # run once: todos table + RLS (team issue / to-do list)
   labels.sql        # run once: labels table + RLS (Apps hub label set)
   pricebooks.sql    # run once: price book registry + items + versions tables
@@ -285,9 +289,6 @@ customers row : { id (text), owner_id (uuid, nullable "created by"),
 
 versions row  : { id (text), customer_id, label, auto (bool), saved_at,
                   snapshot: Area[] }            // one row per saved version
-
-stock row     : { sku (text pk), active (bool), data: StockItem, updated_at }
-                  // one row per price book SKU; imports upsert, never delete
 
 todo row      : { id (text pk), position (float — open-item order, smaller = higher),
                   data: { text, done, doneAt, createdBy, createdAt } }
@@ -361,28 +362,32 @@ customer is deselected (or the user signs out) with its `categories` changed
 since open — the newest 5 autos per customer are kept, autos never evict named
 versions. Versions, like customers, are open to every signed-in user.
 
-**Stock price book** (issue 004, ADR 0003). The shop's price book workbook is
-imported (Settings, browser-side parse with a diff preview) into `stock_items`,
-shared team-wide. Typing/picking a SKU on a product row **snapshots** the
-item's values onto the row — nothing reads the stock table at calc time, so
-re-imports never change saved estimates. Items sold by the carton/sheet (U/M
-`CT`/`SH`) fill their real flooring type even when the book has only a
+**Stock price books** (issue 004, ADR 0003 → ADR 0027). The shop's stock is a
+set of per-supplier ERP "Vendor SKU Analysis" exports (DOIT, GLATI, GUNDL,
+MANMI, OHIVA, SHEOG…), each its own stock-kind registry book, dropped into the
+Price book library like any vendor sheet (whole-book diff on re-drop, retired
+SKUs marked `active=false`, never deleted). Their items are the row search's
+instant in-memory tier (the bounded `useBookStock` cache), badged "stock" and
+ranked ahead of the streamed special-order results. Typing/picking a SKU on a
+product row **snapshots** the item's values onto the row — nothing reads a
+book at calc time, so re-imports never change saved estimates. Items sold by
+the carton/sheet fill their real flooring type even when the book has only a
 per-carton price ($/sqft derives as price ÷ sf-per-carton) and snapshot their
-SF/CT coverage onto the row (`cartonSf`), so quantities and totals compute in
-whole cartons. The row keeps `sku` so the UI can
-flag price drift ("price book now $X") and retired SKUs. Items missing from a
-re-import are marked `active=false`, never deleted. The import also updates
-ADR-0002 catalog prices when a catalog product name uniquely matches one book
-price. The SKU box searches by SKU prefix or words ("transition" is a synonym
-for the book's trim labels — reducer, t-mold, end cap, stairnose…); shift-click
-selects several matches and adds each as its own product row, and the Settings
-catalog's add-product form can pre-fill name/price/coverage from a price book
-search. A Laticrete pigment (Spectralock Part C, Permacolor Color Kit) is only
-the color; picking one **auto-adds its default base unit** as an extra product
-row (Spectralock → Full, Permacolor → Sanded), and that base row carries a chip
-to toggle the alternate variant (Comm. Unit / Unsanded). The pairing is
-data-driven off the book's "Bulk & Base Units" section
-(`stockCompanionBase`/`stockBaseVariant`), so no SKUs are hardcoded.
+coverage onto the row (`cartonSf`), so quantities and totals compute in whole
+cartons. The row keeps `sku` + `bookId` so the UI can flag price drift
+("price book now $X") via the on-demand item fetch. The SKU box searches by
+SKU prefix or words ("transition" is a synonym for trim labels — reducer,
+t-mold, end cap, stairnose…); shift-click selects several matches and adds
+each as its own product row, and the Settings catalog's add-product form can
+pre-fill name/price/coverage from a price book search. A Laticrete pigment
+(Spectralock Part C, Permacolor Color Kit) is only the color; picking one
+**auto-adds its default base unit** as an extra product row (Spectralock →
+Full, Permacolor → Sanded), and that base row carries a chip to toggle the
+alternate variant (Comm. Unit / Unsanded) — the pairing resolves against the
+projected grout-family rows (`stockCompanionBase`/`stockBaseVariant`), no
+hardcoded SKUs. The original hand-kept shop workbook and its `stock_items`
+table were retired 2026-07-22 (ADR 0027 amendment); the table's data is kept
+but unread.
 
 **Catalog SKU link & grout base units** (ADR 0006). Catalog grout/mortar/
 underlayment products carry an optional price-book `sku` — a display/refresh
@@ -395,8 +400,8 @@ the two-part grout's base unit — ordered from the **consolidated** kit counts
 shown with the grout family in the order summary, estimate breakdown, and
 order sheet. The Settings add-product pre-fill keeps the picked item's SKU and
 auto-attaches a Laticrete pigment's default base. The hand-kept stock workbook
-this pairing came from is being replaced by linked ERP stock books
-(`product.link`, ADR 0027) — the base-companion mechanics carry over unchanged.
+this pairing came from was replaced by linked ERP stock books (`product.link`,
+ADR 0027) — the base-companion mechanics carried over unchanged.
 
 **Grout colors from the book & the Settings workspace** (issue 007, ADR 0007).
 A catalog grout can carry a `book` field naming a price-book grout *family*
@@ -411,10 +416,11 @@ the matrix section's caulk column in that color), shown on caulk lines in
 the summary, order sheet, and print breakdown, with tubes × price counted
 into the estimate totals; caulk itself never lives in the catalog.
 Unlinked grouts keep the code-defined standard color list. Custom
-underlayment install items also carry an optional `sku`. This workbook-sourced
-family is being superseded by `catalog.bookFamilies` — a matching rule over
-linked ERP stock books, projected into the same stock-shaped items so this
-resolution logic runs unchanged (ADR 0027).
+underlayment install items also carry an optional `sku`. Families are defined
+by `catalog.bookFamilies` — a matching rule over linked ERP stock books,
+projected into the same stock-shaped items the retired workbook's parser
+produced, so this resolution logic runs unchanged (ADR 0027); a grout whose
+`book` names a family with no rule resolves like an unlinked grout.
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
 `SettingsWorkspace.jsx`): left-nav sections (General · Price book · Materials & add-ons ·
 Backup & restore; the built-in Grout / Mortar / Underlayment categories
@@ -481,9 +487,9 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   `addCustomer`/`delCustomer`, versions use
   `insertVersion`/`delVersion`/`loadVersion` (their own table, never the blob),
   settings use `setSettings`, and to-do items use `addTodo`/`updateTodo`/
-  `delTodo`/`reorderTodos`/`clearDoneTodos`. Stock rows are written only by
-  the import flow (`importPriceBook` -> preview -> `applyImport`: upserts +
-  `active=false` marks — no deletes). Registry-item enable/disable flips only
+  `delTodo`/`reorderTodos`/`clearDoneTodos`. Book items are written only by
+  the import flow (`applyBookImport`: upserts + `active=false` marks — no
+  deletes). Registry-item enable/disable flips only
   the `disabled` column via `setBookItemsDisabled` — never through the import
   upserts. Flag-review verdicts (ADR 0017) write only through
   `reviewBookItemFlags` (data jsonb, no edited stamp); `applyBookImport`
@@ -495,8 +501,8 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   of what the first screen draws; bounded caches (stock, todos, books) load in
   the background after paint; unbounded data is never eagerly loaded; a dataset
   a surface re-fetches on open doesn't also load at boot; new full-screen
-  surfaces ship as `React.lazy` chunks. Anything that diffs against or
-  snapshots from the stock cache checks `stockReady` first.
+  surfaces ship as `React.lazy` chunks. Anything that snapshots from the
+  stock-book cache checks `bookStockReady` first.
 - The theme ("the ned" Moss kit: ink & paper UI, single moss-green accent,
   moss data ramp, Manrope only) works by **overriding Tailwind's slate/indigo
   classes**. These overrides live in `src/index.css` so the login screen

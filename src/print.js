@@ -121,7 +121,7 @@ export const ORDER_UNIT_CODE = { ct: "CT", sh: "SH", sf: "SF", units: "PC", ea: 
 // dropped, spaces only. Carton/sheet rows lead with a CT/SH tag (also in the
 // copied text) since the order-entry system can't be switched off "each".
 // Read-only; no math is mutated.
-export function orderEntryRow(p, s, area, descLimit) {
+export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   const c = printProduct(p, s);
   const isMisc = p.type === "misc";
   // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
@@ -142,7 +142,7 @@ export function orderEntryRow(p, s, area, descLimit) {
   // Sheoga sells by description, not SKU — the description IS the order.
   const byDesc = !!p.sheoga && !p.sku;
   const r = {
-    id: p.id, special: isSpecialOrder(p), byDesc, area,
+    id: p.id, special: isSpecialOrder(p, stockBookIds), byDesc, area,
     tag, sizePlain, name, sku: p.sku, coverage, sheoga: p.sheoga,
     qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,

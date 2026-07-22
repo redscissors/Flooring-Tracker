@@ -146,7 +146,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, bookStock = {}, bookStockReady, refreshBookStock }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, bookStock = {}, bookStockReady, refreshBookStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("materials");
@@ -227,7 +227,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     sku: it.sku,
     ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
     ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
-    ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, stock) } : {}),
+    ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, bookItems) } : {}),
     // A pick from the Grout & Caulk color matrix also suggests the color
     // family link (ADR 0007) — the grout offers that family's colors.
     ...(adding.kind === "grouts" && it.sheet === "Grout & Caulk" && it.product && it.color ? { book: it.product } : {}),
@@ -268,11 +268,10 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     );
   };
   const floorTypeList = types.filter((t) => t !== "misc");
-  // The ERP stock books, flattened, join the shop's own stock as a search
-  // source (spec 2026-07-21) — picking a book row stamps a link on the
-  // product so re-imports can refresh its price.
+  // The ERP stock books, flattened, are the price-book search source
+  // (spec 2026-07-21) — picking a book row stamps a link on the product so
+  // re-imports can refresh its price.
   const bookItems = Object.values(bookStock).flat();
-  const pickerItems = [...stock, ...bookItems];
   // Cheap opener gate — proposeLinks itself is the source of truth once the
   // modal is open, this is just "is it worth offering the pass at all".
   const hasUnlinkedSku = catalog.companies.some((co) =>
@@ -302,7 +301,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
   const SECTIONS = [
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
-    { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${1 + books.length} books` : stock.length ? `${stock.filter((s) => s.active).length} SKUs` : "empty" },
+    { id: "book", label: "Price book", icon: BookOpen, hint: books.length ? `${books.length} book${books.length === 1 ? "" : "s"}` : "empty" },
     { id: "materials", label: "Materials & add-ons", icon: Layers, hint: String(catalog.companies.reduce((n, c) => n + c.grouts.length + c.mortars.length + (c.underlayments?.length || 0) + (c.attached?.length || 0), 0)) },
     { id: "backup", label: "Backup & restore", icon: Database, hint: settings.ops?.lastBackup ? new Date(settings.ops.lastBackup.at).toLocaleDateString() : "" },
   ];
@@ -556,7 +555,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
             </div>
           ) : (
             <div>
-              {stock.length > 0 && <StockSearch stock={stock} inp={inp} placeholder="Search the book for the base unit…" onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, per: 1 } })} />}
+              {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Search the stock books for the base unit…" onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, per: 1 } })} />}
               <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
             </div>
           )}
@@ -623,7 +622,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
             <button onClick={() => addInstallItem(co.id, u, "mortar")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Mortar</button>
             <button onClick={() => addInstallItem(co.id, u, "custom")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Other (screws, tape…)</button>
           </div>
-          {stock.length > 0 && <StockSearch stock={stock} inp={inp} placeholder="Add from the price book — screws, tape, sealer… (keeps the SKU for the order summary)" onPick={(it) => setProduct(co.id, "underlayments", u.id, { install: [...(u.install || []), { id: uid(), kind: "custom", name: it.description || it.product, coverage: it.coverage != null ? String(it.coverage) : "", unit: it.unit || "units", price: it.price != null ? String(it.price) : "", sku: it.sku }] })} />}
+          {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Add from the price book — screws, tape, sealer… (keeps the SKU for the order summary)" onPick={(it) => setProduct(co.id, "underlayments", u.id, { install: [...(u.install || []), { id: uid(), kind: "custom", name: it.description || it.product, coverage: it.coverage != null ? String(it.coverage) : "", unit: it.unit || "units", price: it.price != null ? String(it.price) : "", sku: it.sku }] })} />}
         </div>
       </div>
     </div>
@@ -647,7 +646,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
       <div className="ft-eyebrow text-[9px] mb-1">{addCo.name}</div>
       <h2 className="ft-serif text-3xl leading-tight">New {kindLabel(adding.kind)}</h2>
       <div className="mt-4 space-y-2">
-        {pickerItems.length > 0 && <StockSearch stock={pickerItems} onPick={fillFromStock} inp={inp} />}
+        {bookItems.length > 0 && <StockSearch stock={bookItems} onPick={fillFromStock} inp={inp} />}
         <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp} />
         {draft.link && (
           <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
@@ -847,7 +846,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
             </div>
           </div>
         ) : section === "book" ? (
-          <PriceBookLibrary books={books} stock={stock} stockReady={stockReady} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef} settings={settings} setSettings={setSettings} gFamilies={gFamilies} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+          <PriceBookLibrary books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} settings={settings} setSettings={setSettings} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>

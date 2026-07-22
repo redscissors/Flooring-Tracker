@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
-import { normStockItem, diffStock, priceUnitOf, orderUnitOf } from "./stock.js";
+import { priceUnitOf, orderUnitOf } from "./stock.js";
 import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSession, recordKey, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
@@ -12,7 +12,7 @@ import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
 import { normBookItem, diffBookItems, markupGroups, pricedItem, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
-import { BOOK_VERSION_KEEP, STOCK_BOOK_ID } from "./uiconst.js";
+import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages } from "./fileread.js";
 import { Modal } from "./widgets.jsx";
@@ -20,11 +20,11 @@ import { InHouseColumn, PasteSignInPopover, StaleChip, FLAG_SEMANTICS, useVendor
 
 // --- Price book library (ADR 0009, Phase 1) ---------------------------------
 //
-// The Settings "Price book" section grown into a library: the stock workbook
-// plus registry books (stock- and order-kind). Order books import via a saved
-// column mapping and store a vendor COST; a flat default markup turns that into
-// a browse-time selling price (the markup editor and pick snapshot are Phase 2).
-// A session-local "hide costs" toggle masks every cost/margin figure for
+// The Settings "Price book" section grown into a library of registry books
+// (stock- and order-kind). Order books import via a saved column mapping and
+// store a vendor COST; a flat default markup turns that into a browse-time
+// selling price (the markup editor and pick snapshot are Phase 2). A
+// session-local "hide costs" toggle masks every cost/margin figure for
 // over-the-shoulder moments — presentation only, never stored, never printed.
 
 const bookFieldOptions = [
@@ -44,10 +44,9 @@ const bookFieldOptions = [
 const NEW_BOOK = "__new__";
 
 // The multi-file drop router (ADR 0009 PR C). Reads each dropped file once,
-// routes it to a book (or the shop workbook), lets the user fix unmatched files,
-// then steps through each file's normal import preview one at a time. Registry
-// files reuse BookImportWizard (pre-read); the shop workbook reuses the App-level
-// stock preview. No new write path — each apply is the book's existing one.
+// routes it to a book, lets the user fix unmatched files, then steps through
+// each file's normal import preview one at a time via BookImportWizard
+// (pre-read). No new write path — each apply is the book's existing one.
 // One book's completeness gap at the routing step (ADR 0025): what it is short
 // of, a place to drop it, and what happens if you go ahead without it. Exported
 // for the preview harness.
@@ -85,7 +84,7 @@ function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, addBook, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, addBook, applyBookImport, updateBook, loadBookItems, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -158,9 +157,8 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   // Items collected from the earlier files of the current book's bundle.
   const [carry, setCarry] = useState([]);
 
-  // Drive the queue: stock rows go through the App stock preview (a separate
-  // modal — we render nothing until it calls back); registry rows load their
-  // book's items and render the wizard. Past the end, close the router.
+  // Drive the queue: each row loads its book's items and renders the wizard.
+  // Past the end, close the router.
   useEffect(() => {
     if (phase !== "run") return;
     if (qi >= runnable.length) { onClose(); return; }
@@ -171,7 +169,6 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     const step = runnable[qi];
     const { row, bundle } = step;
     if (bundle.index === 0) setCarry([]); // first file of a book's bundle
-    if (row.target === "stock") { setActive(null); importStockFile(row.file, (applied) => { onFileDone && onFileDone(row.file, applied); advance(); }); return; }
     let ok = true;
     setActive(null);
     loadBookItems(row.target).then((items) => { if (ok) setActive({ ...step, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
@@ -195,7 +192,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   };
 
   if (phase === "route") {
-    const bookOpts = [["skip", "Skip this file"], ...(addBook ? [[NEW_BOOK, "➕ New book from this file"]] : []), ["stock", "Shop workbook (stock)"], ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
+    const bookOpts = [["skip", "Skip this file"], ...(addBook ? [[NEW_BOOK, "➕ New book from this file"]] : []), ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
     // Completeness check (ADR 0025). A book that has been fed several files before
     // says so in its manifest, so an import that is short of one can name it —
     // and either take it here, or go ahead knowing the absent file's rows retire.
@@ -264,8 +261,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     );
   }
 
-  // Run phase: the stock step is handled by the App stock preview; render nothing
-  // until a registry step has its book + items loaded.
+  // Run phase: render nothing until a step has its book + items loaded.
   if (!active) return null;
   const multi = active.bundle.total > 1;
   // A joined vendor's files are read together, so the step names all of them
@@ -313,108 +309,10 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   );
 }
 
-// The shop workbook's item list with the same enable/disable controls the order
-// books get in BookDetail — search, an All/Enabled/Disabled filter, a per-row
-// toggle, select-all + bulk disable/enable of the selected rows, and a one-click
-// "re-enable all disabled" reset. Stock rows carry no cost/markup, so the table
-// is trimmed to SKU · description · type · U/M · price. Writes go through
-// setStockItemsDisabled (optimistic, disabled-column only), matching the
-// registry-book path.
-function StockItems({ stock, setStockItemsDisabled, inp, typeLabels }) {
-  const [q, setQ] = useState("");
-  const [show, setShow] = useState("all"); // all | enabled | disabled
-  const [selected, setSelected] = useState(() => new Set());
-  const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
-  const [confirmReset, setConfirmReset] = useState(false);
-  const items = stock || [];
-  const query = q.trim().toLowerCase();
-  const filtered = items
-    .filter((it) => (show === "disabled" ? it.disabled : show === "enabled" ? !it.disabled : true))
-    .filter((it) => !query || `${it.sku} ${it.description} ${it.brand} ${it.color} ${it.product}`.toLowerCase().includes(query));
-  const shown = filtered.slice(0, 300);
-  const disabledCount = items.filter((it) => it.disabled).length;
-  const price = (it) => (it.priceSqft != null ? it.priceSqft : it.price);
-  // Bulk enable/disable acts on the SELECTED rows still in the current filter;
-  // the select-all box covers all filtered matches, not the 300-row slice.
-  const selectedIn = filtered.filter((it) => selected.has(it.sku));
-  const allSelected = filtered.length > 0 && selectedIn.length === filtered.length;
-  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(filtered.map((it) => it.sku)));
-  const toggleSelect = (sku) => setSelected((s) => { const n = new Set(s); n.has(sku) ? n.delete(sku) : n.add(sku); return n; });
-
-  return (
-    <div className="mt-5">
-      <div className="flex items-center gap-2 flex-wrap">
-        <input className={`${inp} max-w-sm`} placeholder="Search stock items…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs">
-          {[["all", "All"], ["enabled", "Enabled"], ["disabled", disabledCount ? `Disabled (${disabledCount})` : "Disabled"]].map(([v, label]) => (
-            <button key={v} onClick={() => setShow(v)} className={`px-2.5 py-1.5 ${show === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
-          ))}
-        </div>
-        {selectedIn.length > 0 && (
-          <>
-            <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable selected ({selectedIn.length})</button>
-            <button onClick={() => setConfirmBulk({ disabled: false })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Enable selected ({selectedIn.length})</button>
-          </>
-        )}
-        {disabledCount > 0 && (
-          <button onClick={() => setConfirmReset(true)} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50 ml-auto" title="Turn every disabled stock SKU back on">Re-enable all disabled ({disabledCount})</button>
-        )}
-      </div>
-      {confirmBulk && (
-        <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-          <span className="text-amber-700 flex-1">{confirmBulk.disabled ? "Disable" : "Enable"} the {selectedIn.length} selected stock item{selectedIn.length === 1 ? "" : "s"}? Disabled items stop showing in SKU search for everyone; estimates that already picked them keep their prices.</span>
-          <button onClick={() => { setStockItemsDisabled(selectedIn.map((it) => it.sku), confirmBulk.disabled); setConfirmBulk(null); setSelected(new Set()); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">{confirmBulk.disabled ? "Disable" : "Enable"} {selectedIn.length}</button>
-          <button onClick={() => setConfirmBulk(null)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
-        </div>
-      )}
-      {confirmReset && (
-        <div className="mt-2 flex items-center gap-2 flex-wrap rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-          <span className="text-amber-700 flex-1">Re-enable all {disabledCount} disabled stock item{disabledCount === 1 ? "" : "s"}, regardless of the current filter? They'll show in SKU search again for everyone.</span>
-          <button onClick={() => { setStockItemsDisabled(items.filter((it) => it.disabled).map((it) => it.sku), false); setConfirmReset(false); setShow("all"); }} className="rounded-md bg-indigo-600 text-white px-2.5 py-1 font-medium shrink-0">Re-enable all {disabledCount}</button>
-          <button onClick={() => setConfirmReset(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
-        </div>
-      )}
-      <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
-            <tr>
-              <th className="px-2 py-1.5 w-8"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select / deselect all filtered rows" /></th>
-              <th className="text-left px-2 py-1.5">SKU</th>
-              <th className="text-left px-2 py-1.5">Description</th>
-              <th className="text-left px-2 py-1.5">Type</th>
-              <th className="text-left px-2 py-1.5">U/M</th>
-              <th className="text-right px-2 py-1.5">Price</th>
-              <th className="px-2 py-1.5 w-8"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((it) => (
-              <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
-                <td className="px-2 py-1.5"><input type="checkbox" checked={selected.has(it.sku)} onChange={() => toggleSelect(it.sku)} title="Select for bulk enable / disable" /></td>
-                <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
-                <td className="px-2 py-1.5">
-                  {it.description || it.product || "—"}
-                  {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
-                  {it.disabled && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">off</span>}
-                </td>
-                <td className="px-2 py-1.5 text-xs">{it.type ? (typeLabels?.[it.type] || it.type) : "—"}</td>
-                <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums">{price(it) != null ? money(price(it)) : "—"}</td>
-                <td className="px-2 py-1.5 text-right"><button onClick={() => setStockItemsDisabled([it.sku], !it.disabled)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} className="text-slate-300 hover:text-slate-600">{it.disabled ? <Eye size={13} /> : <EyeOff size={13} />}</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {(filtered.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {filtered.length}.</p>}
-    </div>
-  );
-}
-
-export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, importing, importPriceBook, importStockFile, pbRef, settings, setSettings, gFamilies, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
-  const [sel, setSel] = useState("library"); // "library" | "stock" | bookId
+  const [sel, setSel] = useState("library"); // "library" | bookId
   const [adding, setAdding] = useState(false);
   const [newKind, setNewKind] = useState("order");
   const [newName, setNewName] = useState("");
@@ -467,14 +365,11 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
   const bookFetchSlots = (bookId) =>
     sheetsForBook(vf.groups, bookId).map(({ sheet }) => sourceSlot({ recordKey: recordKey(sheet), name: entryFileName(sheet) }));
 
-  const selBook = sel === "stock" ? null : books.find((b) => b.id === sel);
-  const stockCount = stock.filter((s) => s.active).length;
+  const selBook = books.find((b) => b.id === sel);
 
   // Staleness (§8.3): flag a book whose last import predates the owner-set
-  // threshold. The shop workbook stamps settings.ops.lastImport; registry books
-  // stamp book.data.lastImport.
+  // threshold (book.data.lastImport).
   const staleDays = settings.ops?.staleDays || DEFAULT_STALE_DAYS;
-  const stockStale = bookStaleness(settings.ops?.lastImport?.at, staleDays);
   const bookStale = (b) => bookStaleness(b.data?.lastImport?.at, staleDays);
   const setStaleDays = (v) => { const n = Math.round(Number(v)); setSettings({ ops: { ...(settings.ops || {}), staleDays: n > 0 ? n : null } }); };
 
@@ -491,7 +386,7 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
   );
   const sourcePendingOf = (sheet) => pendingForSheet(pendingReviews, sheet);
   const sourceLiveOf = (sheet) => !!vf.sheetSesid(sheet);
-  const inHouseCol = <InHouseColumn books={books} groups={vf.groups} stockCount={stockCount} stockStale={stockStale} bookStale={bookStale} onOpen={setSel} />;
+  const inHouseCol = <InHouseColumn books={books} groups={vf.groups} bookStale={bookStale} onOpen={setSel} />;
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -537,7 +432,7 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
                 onClick={() => dropRef.current?.click()}
                 className={`flex-1 rounded-lg border border-dashed px-2 text-[11px] cursor-pointer flex flex-col items-center justify-center text-center gap-0.5 ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-300 text-slate-400 hover:bg-slate-50"}`}
-                title="Drop vendor sheets or the shop workbook here — each file routes to its book"
+                title="Drop vendor sheets or ERP stock exports here — each file routes to its book"
               >
                 <Upload size={15} className="shrink-0" />
                 <span className="font-semibold text-slate-600 leading-tight">Drop sheets</span>
@@ -599,35 +494,13 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
 
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
-      ) : sel === "stock" ? (
-        <>{backBtn}
-          <div className="mt-3">
-            <p className="text-xs text-slate-400 max-w-xl">
-              {stockCount > 0
-                ? `${stockCount} stock items loaded${(() => { const t = Math.max(0, ...stock.map((s) => s.updatedAt || 0)); return t ? ` · updated ${new Date(t).toLocaleDateString()}` : ""; })()}. `
-                : !stockReady
-                  ? "Price book still loading… "
-                  : "No stock items yet — run supabase/stock.sql once, then import the workbook. "}
-              The shop workbook keeps its hand-built import; a SKU on a product row copies that item's values onto the row, and later price changes never rewrite saved selections.
-            </p>
-            {settings.ops?.lastImport && <p className="text-xs text-slate-400 mt-1 flex items-center gap-2 flex-wrap">Last imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}{settings.ops.lastImport.skus ? ` · ${settings.ops.lastImport.skus} SKUs` : ""}{stockStale.stale && <StaleChip days={stockStale.days} />}</p>}
-            {gFamilies.length > 0 && <p className="text-xs text-slate-400 mt-1 max-w-xl">Grout &amp; caulk: {gFamilies.length} color families · {gFamilies.reduce((n, f) => n + f.colors.length, 0)} color SKUs.</p>}
-            <button onClick={() => pbRef.current?.click()} disabled={importing} className="mt-4 flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600 disabled:opacity-50"><Upload size={14} /> {importing ? "Reading…" : "Import shop workbook (.xlsx)"}</button>
-            <input ref={pbRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={importPriceBook} className="hidden" />
-            <ImportHistory bookId={STOCK_BOOK_ID} refreshKey={settings.ops?.lastImport?.at || 0} currentItems={stock}
-              loadVersions={loadBookVersions} loadSnapshot={loadBookVersionSnapshot} pinVersion={pinBookVersion}
-              snapshotToItems={(snap) => snap.map((r) => normStockItem({ sku: r.sku, active: true, data: r.data || {} }))}
-              computeDiff={diffStock} onRollback={rollbackStock} noun="the shop workbook" />
-            {stockCount > 0 && <StockItems stock={stock} setStockItemsDisabled={setStockItemsDisabled} inp={inp} typeLabels={typeLabels} />}
-          </div>
-        </>
       ) : selBook ? (
         <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
       {pendingReviews.length > 0 && !dropped && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
@@ -641,7 +514,7 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
         <Modal title="New price book" onClose={() => setAdding(false)}>
           <label className={lbl}>Type</label>
           <div className="flex gap-2 mb-3">
-            {[["order", "Special order", "Vendor cost list — a markup makes the selling price"], ["stock", "Stock", "Shop-priced sheet, like the main workbook"]].map(([k, t, d]) => (
+            {[["order", "Special order", "Vendor cost list — a markup makes the selling price"], ["stock", "Stock", "Shop-priced sheet — the ERP stock exports"]].map(([k, t, d]) => (
               <button key={k} onClick={() => setNewKind(k)} className={`flex-1 text-left rounded-lg border px-3 py-2 ${newKind === k ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
                 <div className="text-sm font-medium">{t}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{d}</div>
@@ -660,9 +533,9 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
   );
 }
 
-// Import history + rollback for any versioned price book — a registry book
-// (BookDetail) or the shop workbook (the stock panel). Owns its version list;
-// the parent bumps refreshKey after an import so it re-fetches. Rollback diffs a
+// Import history + rollback for a versioned registry book (BookDetail). Owns
+// its version list; the parent bumps refreshKey after an import so it
+// re-fetches. Rollback diffs a
 // version's snapshot against the current items and hands the diff to onRollback,
 // which replays it through that book's normal apply path (never a blind
 // overwrite) — the apply writes a fresh version, so the rollback is the newest.

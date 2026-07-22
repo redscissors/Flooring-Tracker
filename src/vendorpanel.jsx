@@ -653,9 +653,9 @@ export function VendorFetchPage({ vf, books, pending, onReview, onOpenBook, lead
   );
 }
 
-// Books with no portal sheet — the shop workbook plus hand-kept/unlinked
-// registry books. First column of the library board (ADR 0024).
-export function InHouseColumn({ books, groups, stockCount, stockStale, bookStale, onOpen }) {
+// Books with no portal sheet — hand-kept/unlinked registry books (the ERP
+// stock exports among them). First column of the library board (ADR 0024).
+export function InHouseColumn({ books, groups, bookStale, onOpen }) {
   const linkedIds = new Set();
   for (const g of groups) for (const s of g.sheets || []) if (s.bookId) linkedIds.add(s.bookId);
   const inHouse = books.filter((b) => !linkedIds.has(b.id));
@@ -666,14 +666,6 @@ export function InHouseColumn({ books, groups, stockCount, stockStale, bookStale
         <div className="text-[11px] text-slate-400 mt-0.5">no portal — imported by hand</div>
       </div>
       <div className="divide-y divide-slate-100">
-        <button onClick={() => onOpen("stock")} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
-          <BookOpen size={14} className="text-slate-400 shrink-0" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[12.5px] font-medium truncate">Shop workbook</span>
-            <span className="block text-[10px] text-slate-400">{stockCount || "—"} items</span>
-          </span>
-          {stockStale.stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${stockStale.days} days ago`} />}
-        </button>
         {inHouse.map((b) => (
           <button key={b.id} onClick={() => onOpen(b.id)} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
             <Database size={14} className="text-slate-400 shrink-0" />

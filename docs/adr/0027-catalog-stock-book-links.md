@@ -55,6 +55,19 @@ one hand-kept sheet that is going away.
    grout family is set up and every SKU-bearing product is linked or
    consciously left unlinked.
 
+   *Amendment 2026-07-22 — the cleanup happened.* With every stock item in the
+   ERP books and the migration done, the shop workbook was removed end to end:
+   the hand-built parsers and `detectStockWorkbook` (pricebook.js), the drop
+   router's "stock" target, `useStock`/`loadStock` and the `stock_items`
+   read/write paths, `syncCatalogPrices`, and the library's Shop workbook
+   panel. The row search's instant "stock" tier is now the flattened
+   stock-kind book cache (`useBookStock`), whose hits badge as stock and pick
+   through `orderPatch` (bookId provenance, on-demand drift). A catalog grout
+   whose `book` still names a workbook family resolves like an unlinked grout
+   until a `bookFamilies` rule is set up. `stock_items` data is retained,
+   unread (hide-never-delete); old workbook-sourced rows keep their snapshots
+   but no longer show drift/retired chips.
+
 ## Why
 
 - **IDs over text match:** `syncCatalogPrices`'s name/SKU text match is
