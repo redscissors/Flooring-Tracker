@@ -56,16 +56,22 @@ export function deriveSeriesRule(description, descriptions) {
     const prefix = toks.slice(0, n).join(" ");
     const hits = (descriptions || []).filter((d) => low(d).startsWith(low(prefix)));
     if (hits.length < 3) continue;
-    const rows = [seed, ...hits.map((d) => squish(d))];
+    const sq = hits.map((d) => squish(d));
     const maxLen = seed.length - prefix.length - 1;
-    let suffix = "";
+    // The suffix needs only a MAJORITY (≥3) of the prefix-siblings, not all of
+    // them: a one-word prefix catches unrelated rows (OHIVA's "Custom …"
+    // primers beside the CEG-Lite colorants, whose real frame is the suffix
+    // "Part A - Ceg-Lite Colorant"), and demanding every sibling share the
+    // tail erased it. Highest share wins; the longest such suffix breaks ties.
+    let suffix = "", best = 0;
     for (let i = 1; i <= maxLen; i++) {
-      const cand = seed.slice(seed.length - i);
-      if (!rows.every((d) => d.toLowerCase().endsWith(cand.toLowerCase()))) break;
-      suffix = cand;
+      const cand = seed.slice(seed.length - i).toLowerCase();
+      const share = sq.reduce((k, d) => k + (d.toLowerCase().endsWith(cand) ? 1 : 0), 0);
+      if (share >= 3 && share * 2 >= hits.length && share >= best) { best = share; suffix = seed.slice(seed.length - i); }
     }
+    const sharers = suffix ? sq.filter((d) => d.toLowerCase().endsWith(suffix.toLowerCase())) : sq;
     if (/^\s/.test(suffix)) suffix = suffix.trim();
-    else if (suffix && !rows.some((d) => d.length === suffix.length || d[d.length - suffix.length - 1] === " "))
+    else if (suffix && !sharers.some((d) => d.length === suffix.length || d[d.length - suffix.length - 1] === " "))
       suffix = suffix.includes(" ") ? suffix.slice(suffix.indexOf(" ") + 1).trim() : "";
     return { prefix, suffix };
   }
@@ -123,7 +129,9 @@ export function suggestSeries(hits, itemsByBook) {
   const out = [];
   for (const it of hits || []) {
     const bookId = str(it?.bookId), d = squish(it?.description);
-    if (!bookId || !d) continue;
+    // A base row never seeds a color series — its frame is the kit wording,
+    // not the color family's (it stays pickable as a single row).
+    if (!bookId || !d || looksLikeBase(d)) continue;
     if (!descCache.has(bookId)) descCache.set(bookId, (itemsByBook?.[bookId] || []).map((x) => x.description));
     const rule = deriveSeriesRule(d, descCache.get(bookId));
     const key = [bookId, low(rule.prefix), low(rule.suffix)].join("\n");
@@ -141,7 +149,12 @@ export function suggestSeries(hits, itemsByBook) {
       if (num) numSkus.push(row.sku);
     }
     if (colors.length < 2) continue;
-    out.push({ bookId, rule, name: proposeFamilyName(rule.prefix), count: colors.length, sample: colors.slice(0, 4), seedDescription: d, skus, numSkus });
+    // A one-word prefix alone makes a blank name ("Custom") — fold the
+    // suffix's identity words in, minus the part-letter noise.
+    const pName = proposeFamilyName(rule.prefix);
+    const tail = rule.suffix.replace(/\bpart [a-c]\b/gi, " ").replace(/^[\s\-–·:]+/, "").trim();
+    const name = pName.includes(" ") || !tail ? pName : proposeFamilyName(squish(`${rule.prefix} ${tail}`));
+    out.push({ bookId, rule, name, count: colors.length, sample: colors.slice(0, 4), seedDescription: d, skus, numSkus });
   }
   // A frame-only sibling (a base row) seeds a LOOSE rule that swallows a more
   // specific series plus itself ("PERMACOLOR SELECT" ⊃ "PERMACOLOR SELECT
@@ -149,10 +162,11 @@ export function suggestSeries(hits, itemsByBook) {
   // but ONLY when the specific frame still covers every numbered color, so a
   // tight sub-series (CEG-Lite's PART A&B kits before the base filter above)
   // can never kill the real color family it sits inside.
+  const frameLen = (x) => x.rule.prefix.length + x.rule.suffix.length;
   const kept = out.filter((a) => {
     const set = new Set(a.skus);
     return !out.some((b) => {
-      if (b === a || b.bookId !== a.bookId || b.rule.prefix.length <= a.rule.prefix.length) return false;
+      if (b === a || b.bookId !== a.bookId || frameLen(b) <= frameLen(a)) return false;
       const bset = new Set(b.skus);
       return b.skus.every((s) => set.has(s)) && a.numSkus.every((s) => bset.has(s));
     });

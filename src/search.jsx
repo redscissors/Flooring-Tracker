@@ -259,8 +259,9 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
 // cluster (e.g. DOIT's premixed grout).
 export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPickSeries, onPickRow, inp, initialQuery = "", placeholder = "Search the stock books…" }) {
   // The seed is often a retired-workbook family name whose brand word the ERP
-  // descriptions never carry — relax it once so the box never opens dead.
-  const [q, setQ] = useState(() => relaxSearchWords(stock, initialQuery));
+  // descriptions never carry — relax it once (aiming for ≥2 rows, one hit is
+  // usually just the base) so the box never opens dead.
+  const [q, setQ] = useState(() => relaxSearchWords(stock, initialQuery, 2));
   const [open, setOpen] = useState(!!initialQuery.trim());
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
