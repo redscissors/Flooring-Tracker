@@ -95,3 +95,9 @@ one hand-kept sheet that is going away.
   forward so old records without either field load and behave exactly as
   before (no link = today's name-resolved behavior; no families = the
   code-list/legacy-workbook grout colors).
+- Rollout order matters: a still-deployed `main` client's `normalizeCatalog`
+  rebuilds a product from its own fixed field list, dropping any `link` or
+  `bookFamilies` it doesn't know about, and settings saves are last-write-wins
+  — so this PR must merge and deploy, and every open tab must reload, before
+  the migration pass is run or any family is created; until then a settings
+  edit from a stale tab silently strips links and families.
