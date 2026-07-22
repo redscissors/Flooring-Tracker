@@ -254,8 +254,8 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { committedRef.current = true; onPick(it); close(); };
-  // Keep the whole hit (see SkuPicker): order items have no in-memory list to
-  // re-resolve from, and the snapshot survives changing the search words.
+  // Keep the whole hit: order items have no in-memory list to re-resolve
+  // from, and the snapshot survives changing the search words.
   const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const goManual = () => { committedRef.current = true; onManual(); };
   const commit = () => {

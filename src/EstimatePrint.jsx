@@ -243,7 +243,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                         <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
                           {inline.map((m, i) => (
                             <span key={i} style={{ fontSize: 10, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "2px 10px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                              <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}`}
+                              <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
                             </span>
                           ))}
                         </div>
@@ -283,7 +283,9 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                       <div key={i} className="flex justify-between" style={{ gap: 14, alignItems: "baseline", marginBottom: 6, breakInside: "avoid" }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 11.5, fontWeight: 800 }}>{m.name}{m.spec ? ` — ${m.spec}` : ""}</div>
-                          {(m.detail || m.sku) && <div style={{ fontSize: 10, color: "var(--ft-muted)", marginTop: 1 }}>{[m.detail, m.sku ? `SKU ${m.sku}` : ""].filter(Boolean).join(" · ")}</div>}
+                          {/* A grout's detail (joint width) prints on its product's puck above,
+                              where the joint was chosen — not repeated down here. */}
+                          {((m.kind !== "Grout" && m.detail) || m.sku) && <div style={{ fontSize: 10, color: "var(--ft-muted)", marginTop: 1 }}>{[m.kind !== "Grout" ? m.detail : "", m.sku ? `SKU ${m.sku}` : ""].filter(Boolean).join(" · ")}</div>}
                         </div>
                         <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
                           {(showTotals && m.order > 0) || (showUnit && m.price > 0) ? (
