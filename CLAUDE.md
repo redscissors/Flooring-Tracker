@@ -72,6 +72,12 @@ src/
                     # `ProjectHeaderClassic` (the print-sheet original, kept
                     # whole so the team can flip back without a revert)
   TeamTodos.jsx     # the team issue/to-do modal (issue 006)
+  custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
+                    # group-by-salesman over the boot's light rows (custbrowser.test.js)
+  CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
+                    # near-fullscreen ERP-style directory grid — dense customer
+                    # rows grouped by salesman over a bottom project-lines panel —
+                    # opened from the sidebar's Customers folder (issue 040)
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
                     # `window.print()` fires right after the print-mode render, so a `React.lazy`
@@ -459,8 +465,8 @@ the bottom of the Settings modal.
 see, edit, and delete any customer (last-write-wins). `owner_id` only records
 who created the row — it grants no special rights and is nulled (not cascaded)
 if that account is deleted. There is no private/public split and no archive
-flag; old jobs sit behind the sidebar's age buckets ("This month" / "This
-year" / "Older") and search. Attachment files are stored at
+flag; old jobs sit behind the customer browser (the sidebar's Customers folder
+opens the ERP-style directory grid, issue 040) and search. Attachment files are stored at
 `<customer_id>/<file_id>` in a bucket open to any signed-in user. Existing data
 is migrated out of the old `app_data` blob on first load
 (`migrateLegacyCustomers`); installs created before ADR 0004 run
