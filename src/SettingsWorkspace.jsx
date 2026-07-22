@@ -26,6 +26,11 @@ const MATERIAL_CATEGORIES = [
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
 
+// Escapes regex metacharacters out of a book-row word before it's used to
+// build a live RegExp — rule.prefix is user-editable text (e.g. "(RTU)",
+// "A&B+"), and an unescaped metachar there throws on every render.
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Turns one picked stock-book row into a saved color family (spec 2026-07-21):
 // derives a series rule from sibling descriptions, previews the matched
 // colors, and offers a base-unit pairing and a matched caulk line before
@@ -46,7 +51,7 @@ function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl, onSave
     .map((x) => ({ ...parseColorToken(x.token), sku: x.it.sku, price: x.it.price }));
   // Base candidates: same book, share the rule's prefix words but DON'T match as
   // a color row and smell like a base (the Laticrete wordings).
-  const baseCandidates = items.filter((it) => !matchRule(rule, it.description) && /part a&b|grout base|full unit|commercial unit|sanded/i.test(it.description) && new RegExp((rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
+  const baseCandidates = items.filter((it) => !matchRule(rule, it.description) && /part a&b|grout base|full unit|commercial unit|sanded/i.test(it.description) && new RegExp(escRe(rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
   const caulkBook = caulkSeed ? caulkSeed.bookId : seed.bookId;
   const caulkRule = caulkSeed ? deriveSeriesRule(caulkSeed.description, (bookStock[caulkSeed.bookId] || []).map((i) => i.description)) : null;
   const caulkMatches = caulkRule ? (bookStock[caulkBook] || []).filter((it) => matchRule(caulkRule, it.description)).length : 0;
@@ -595,10 +600,10 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
         {draft.link && (
           <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
             <Link2 size={12} className="shrink-0" /><span className="flex-1">Linked to <b>{bookName(draft.link.bookId)}</b> · <span className="ft-mono">{draft.link.sku}</span> — re-imports refresh the price</span>
-            <button onClick={() => setDraft({ ...draft, link: null })} title="Don't link" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
+            <button onClick={() => setDraft({ ...draft, link: null, _desc: undefined })} title="Don't link" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
           </div>
         )}
-        {adding.kind === "grouts" && draft._desc && (
+        {adding.kind === "grouts" && draft._desc && draft.link && (
           <button onClick={() => setFamSeed({ bookId: draft.link.bookId, description: draft._desc, forDraft: true })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Set up color family…</button>
         )}
         {adding.kind === "attached" ? (
