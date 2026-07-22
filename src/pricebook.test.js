@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
+import { parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectVendorSkuAnalysis, floorTypeFromDescription } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const bySku = (items, sku) => items.find((i) => i.sku === sku);
@@ -438,6 +438,12 @@ const VSA_WORKBOOK = [sheet("Vendor SKU Analysis", [
   ["05153", "Slip Tongue Flooring Spline", 0.3, 0.48, "LF", "05153", "05153", "C29AEAC", 4, 4],
   ["1517410", "7x60 Mannington AduraMax - Preservation Fossil 23.76 sf", 85.34, 141.45, "CT", "MPB823", "MPB823", "", 2, 2],
   ["94593", "6x48 Mann AduraMax Plank - Napa Dry Cork MAX060", 82.42, 136.61, "CT", "MAX742", "MAX742", "", 1, 1],
+  ["28920", "6\" Mann AduraMax Plank - Acacia Tiger's Eye 27.39 sf/ct", 79.43, 131.2, "CT", "MAX011", "MAX011", "", 3, 3],
+  ["05068", "2-1/4\" Sheoga Clear RO Flr - Unfinished 22sf/ct (BDL)", 68.2, 94.38, "BL", "05068", "05068", "", 6, 6],
+  ["1518929", "2x10 Glazzio Sarsen Essex Satin 7.53 sf/ct - SAN1173", 39.65, 61.75, "CT", "SAN1173", "SAN1173", "", 2, 2],
+  ["1518213", "94\" Mann AduraMax T-Mold - Noble Oak Dry Leaf TMG820", 30.14, 46.8, "EA", "TMG820", "TMG820", "", 2, 2],
+  ["29965", "3/16\" x 1/4\" x 3/8\" Stauf #5 - Notched Trowel for Eng Flr", 9.54, 15.49, "EA", "STAXTR5", "STAXTR5", "", 1, 1],
+  ["07879", "Aquabar B Underlayment  - 500sf/roll 3'x167'", 26.8, 42.89, "EA", "348423", "348423", "", 9, 9],
 ])];
 
 test("detectVendorSkuAnalysis: recognizes the export, maps the five known columns", () => {
@@ -454,6 +460,8 @@ test("detectVendorSkuAnalysis: recognizes the export, maps the five known column
   // point-in-time — none of them become item fields
   assert.equal(Object.keys(m.columns).length, 5);
   assert.ok(m.sfFromDescription);
+  assert.ok(m.leadWidthSize);
+  assert.ok(m.typeFromDescription);
   assert.ok(mappedSkuRe(m.skuPattern).test("05153"));     // leading zero
   assert.ok(mappedSkuRe(m.skuPattern).test("29500-LF"));  // unit-suffixed code
   assert.ok(mappedSkuRe(m.skuPattern).test("29SHEOGAW")); // category placeholder
@@ -468,7 +476,7 @@ test("detectVendorSkuAnalysis: null without the signature", () => {
 test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled from the description", () => {
   const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
   const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
-  assert.equal(items.length, 3);
+  assert.equal(items.length, 9);
   const spline = items.find((i) => i.sku === "05153"); // leading zero survives
   assert.equal(spline.price, 0.48);
   assert.equal(spline.cost, 0.3);
@@ -483,6 +491,63 @@ test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled fro
   const cork = items.find((i) => i.sku === "94593");
   assert.equal(cork.sfPerUnit, null);            // no sf in its text — flagged, not invented
   assert.equal(cork.priceSqft, null);
+});
+
+// The Unit of Stock column names the sell basis: a carton/bundle-sold row with
+// real coverage is flooring — it gets a type (read from the description's
+// wording) so the pick fills a sqft line ordering whole cartons at the carton
+// price, instead of a per-piece count line quoting the carton price each.
+test("Vendor SKU Analysis: carton-sold rows with coverage become typed flooring", () => {
+  const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
+  const { items, warnings } = parseMapped(VSA_WORKBOOK[0].rows, m);
+  const plank = items.find((i) => i.sku === "28920");
+  assert.equal(plank.type, "vinyl");             // "AduraMax" — LVP despite the wood color name
+  assert.equal(plank.sfPerUnit, 27.39);
+  assert.equal(plank.priceSqft, 4.7901);         // 131.20/CT ÷ 27.39 SF/CT
+  assert.equal(items.find((i) => i.sku === "1517410").type, "vinyl");
+  const sheoga = items.find((i) => i.sku === "05068");
+  assert.equal(sheoga.type, "hardwood");         // BL bundles count as carton-sold
+  assert.equal(sheoga.sfPerUnit, 22);
+  const glazzio = items.find((i) => i.sku === "1518929");
+  assert.equal(glazzio.type, "tile");            // no type word — the 2x10 L×W decides
+  assert.equal(glazzio.size, "2x10");
+  // The U/M gate: EA/LF rows never type, whatever their words or coverage say.
+  assert.equal(items.find((i) => i.sku === "05153").type, null);   // LF, "Flooring" word
+  assert.equal(items.find((i) => i.sku === "1518213").type, null); // EA trim stick
+  assert.equal(items.find((i) => i.sku === "07879").type, null);   // EA underlayment, 500sf/roll
+  // A carton-sold row with no sf in its text can't do sqft math — named, not silent.
+  assert.ok(warnings.some((w) => /carton-sold/.test(w) && /94593/.test(w)), warnings.join(" | "));
+});
+
+// The export leads flooring descriptions with the bare plank width — it lands
+// in the size field (not the name), and consuming the whole mixed fraction
+// keeps THICK_FRAC_RE from reading the 1/4" of a 2-1/4" width as a thickness.
+test("Vendor SKU Analysis: a leading bare width becomes the size", () => {
+  const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
+  const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
+  const plank = items.find((i) => i.sku === "28920");
+  assert.equal(plank.size, '6"');
+  assert.match(plank.description, /^Mann AduraMax Plank/);
+  const sheoga = items.find((i) => i.sku === "05068");
+  assert.equal(sheoga.size, '2-1/4"');
+  assert.equal(sheoga.thickness, "");
+  assert.match(sheoga.description, /^Sheoga Clear RO Flr/);
+  const trim = items.find((i) => i.sku === "1518213");
+  assert.equal(trim.size, '94"');                // stick length off the name, into Size
+  assert.match(trim.description, /^Mann AduraMax T-Mold/);
+  // A leading dimension followed by ×-something is an L×W, not a bare width.
+  const trowel = items.find((i) => i.sku === "29965");
+  assert.notEqual(trowel.size, '3/16"');
+});
+
+test("floorTypeFromDescription: word ladder, then the size decides", () => {
+  assert.equal(floorTypeFromDescription("Mann AduraMax Plank - Noble Oak Bark", '6"'), "vinyl"); // vinyl outranks species words
+  assert.equal(floorTypeFromDescription("Mirage Red Oak Classic - Carmel", '4-1/4"'), "hardwood");
+  assert.equal(floorTypeFromDescription("Pergo Outlast Waterproof Laminate", ""), "laminate");
+  assert.equal(floorTypeFromDescription("Glazzio Sarsen Essex Satin", "2x10"), "tile");    // short L×W
+  assert.equal(floorTypeFromDescription("Brandless Plank Line", "7x60"), "vinyl");         // plank-long L×W
+  assert.equal(floorTypeFromDescription("Mann Riverwalk Dew - RVWK07DEW1", '6.5"'), "hardwood"); // bare width = wood
+  assert.equal(floorTypeFromDescription("Mystery Product", ""), null);
 });
 
 test("guessBookField: the ERP export headers, without disturbing the EFT guesses", () => {
