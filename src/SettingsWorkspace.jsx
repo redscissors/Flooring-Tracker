@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion } from "./stock.js";
+import { linkedItemState } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal } from "./widgets.jsx";
 import { StockSearch, FamilySearch } from "./search.jsx";
@@ -25,7 +26,7 @@ const MATERIAL_CATEGORIES = [
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, bookStock = {}, bookStockReady, refreshBookStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [section, setSection] = useState("materials");
@@ -108,6 +109,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     // A pick from the Grout & Caulk color matrix also suggests the color
     // family link (ADR 0007) — the grout offers that family's colors.
     ...(adding.kind === "grouts" && it.sheet === "Grout & Caulk" && it.product && it.color ? { book: it.product } : {}),
+    ...(it.bookId ? { link: { bookId: it.bookId, sku: it.sku } } : {}),
   }));
 
   const box = (on, onClick, title) => (
@@ -141,6 +143,12 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     );
   };
   const floorTypeList = types.filter((t) => t !== "misc");
+  // The ERP stock books, flattened, join the shop's own stock as a search
+  // source (spec 2026-07-21) — picking a book row stamps a link on the
+  // product so re-imports can refresh its price.
+  const bookItems = Object.values(bookStock).flat();
+  const pickerItems = [...stock, ...bookItems];
+  const bookName = (id) => books.find((b) => b.id === id)?.name || "book";
   const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
   const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
   const addCo = adding ? catalog.companies.find((c) => c.id === adding.companyId) : null;
@@ -156,10 +164,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
   // section the same way.
   const inSection = (co) => kindsFor.some((k) => prodsOf(co, k).length > 0);
   const famFor = (g) => (g.book ? gFamilies.find((f) => f.product.toLowerCase() === g.book.toLowerCase()) : null);
-  const masterHint = (kind, p) => kind === "grouts"
+  const masterHint = (kind, p) => (kind === "grouts"
     ? (p.book ? (famFor(p) ? `${famFor(p).colors.length} colors · book` : "book link missing") : "standard colors")
     : kind === "mortars" || kind === "attached" ? [p.unit, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ")
-      : ((p.types || []).length ? p.types.map((t) => typeLabels[t]).join(", ") : "all types") + ((p.install || []).length ? ` · ${p.install.length} install` : "");
+      : ((p.types || []).length ? p.types.map((t) => typeLabels[t]).join(", ") : "all types") + ((p.install || []).length ? ` · ${p.install.length} install` : "")
+  ) + (p.link ? " · linked" : "");
   const SECTIONS = [
     { id: "profile", label: "Your details", icon: User, hint: profile.name || "salesperson" },
     { id: "general", label: "General", icon: Percent, hint: "waste %" },
@@ -329,12 +338,40 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     );
   };
 
+  // A product picked from a stock book (spec 2026-07-21) shows its link and,
+  // once the book row goes stale (removed or a re-import moves the SKU),
+  // warns instead of silently keeping the last-known price.
+  const linkStrip = (co, kind, p) => {
+    if (!p.link) return null;
+    const state = linkedItemState(p.link, bookStock);
+    const unlink = () => setProduct(co.id, kind, p.id, { link: null });
+    return (
+      <>
+        <div className={`mt-3 flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5 max-w-xl ${state === "ok" ? "border-slate-200 text-slate-500" : "border-amber-200 text-amber-600"}`}>
+          {state === "ok" ? <Link2 size={12} className="shrink-0" /> : <Link2Off size={12} className="shrink-0" />}
+          <span className="flex-1">
+            {bookName(p.link.bookId)} · <span className="ft-mono">{p.link.sku}</span>
+            {state === "inactive" && " — no longer in this book's stock; keeping last known price"}
+            {state === "missing" && " — book or SKU not found; keeping last known price"}
+          </span>
+          <button onClick={unlink} className="text-slate-400 hover:text-red-500 shrink-0">Unlink</button>
+        </div>
+        {state !== "ok" && bookItems.length > 0 && (
+          <div className="mt-1.5 max-w-xl">
+            <StockSearch stock={bookItems} inp={inp} placeholder="Relink — search the stock books…"
+              onPick={(it) => it.bookId && setProduct(co.id, kind, p.id, { link: { bookId: it.bookId, sku: it.sku }, sku: it.sku, ...(it.price != null ? { price: String(it.price) } : {}) })} />
+          </div>
+        )}
+      </>
+    );
+  };
   const renderGroutDetail = (co, g) => {
     const family = famFor(g);
     return (
       <div key={g.id}>
         {detailHeader(co, "grouts", g, "Grout")}
         {delConfirm(co, "grouts", g)}
+        {linkStrip(co, "grouts", g)}
         <div className="flex flex-wrap items-end gap-2.5 mt-4">
           <div className="w-36">{numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}</div>
           <div className="w-24">{txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}</div>
@@ -393,6 +430,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     <div key={m.id}>
       {detailHeader(co, "mortars", m, "Mortar")}
       {delConfirm(co, "mortars", m)}
+      {linkStrip(co, "mortars", m)}
       <div className="flex flex-wrap items-end gap-2.5 mt-4">
         <div className="w-28">{numField('Tile < 8"', m.tier1, (v) => setProduct(co.id, "mortars", m.id, { tier1: v }))}</div>
         <div className="w-28">{numField('8"–15"', m.tier2, (v) => setProduct(co.id, "mortars", m.id, { tier2: v }))}</div>
@@ -409,6 +447,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     <div key={u.id}>
       {detailHeader(co, "underlayments", u, "Underlayment")}
       {delConfirm(co, "underlayments", u)}
+      {linkStrip(co, "underlayments", u)}
       <div className="flex flex-wrap items-end gap-2.5 mt-4">
         <div className="w-36">{numField("Cov. sq ft/unit", u.coverage, (v) => setProduct(co.id, "underlayments", u.id, { coverage: v }))}</div>
         <div className="w-24">{txtField("Unit", u.unit, (v) => setProduct(co.id, "underlayments", u.id, { unit: v }))}</div>
@@ -454,6 +493,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     <div key={p.id}>
       {detailHeader(co, "attached", p, customCat?.name || "Add-on")}
       {delConfirm(co, "attached", p)}
+      {linkStrip(co, "attached", p)}
       <div className="flex flex-wrap items-end gap-2.5 mt-4">
         {customCat?.math === "coverage" && <div className="w-36">{numField("Cov. sq ft/unit", p.coverage, (v) => setProduct(co.id, "attached", p.id, { coverage: v }))}</div>}
         <div className="w-24">{txtField("Unit", p.unit, (v) => setProduct(co.id, "attached", p.id, { unit: v }))}</div>
@@ -468,8 +508,14 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
       <div className="ft-eyebrow text-[9px] mb-1">{addCo.name}</div>
       <h2 className="ft-serif text-3xl leading-tight">New {kindLabel(adding.kind)}</h2>
       <div className="mt-4 space-y-2">
-        {stock.length > 0 && <StockSearch stock={stock} onPick={fillFromStock} inp={inp} />}
+        {pickerItems.length > 0 && <StockSearch stock={pickerItems} onPick={fillFromStock} inp={inp} />}
         <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") cancelAdd(); }} className={inp} />
+        {draft.link && (
+          <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
+            <Link2 size={12} className="shrink-0" /><span className="flex-1">Linked to <b>{bookName(draft.link.bookId)}</b> · <span className="ft-mono">{draft.link.sku}</span> — re-imports refresh the price</span>
+            <button onClick={() => setDraft({ ...draft, link: null })} title="Don't link" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
+          </div>
+        )}
         {adding.kind === "attached" ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {customCat?.math === "coverage" && numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
