@@ -835,7 +835,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
@@ -859,6 +859,10 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
+  // Report the live { mode, cfg } upward in seed shape, so App's refresh
+  // restore (ft-open-layer) reopens the popup mid-configuration, not on the
+  // seed it was first opened with.
+  useEffect(() => { onConfigChange?.({ mode, cfg: cfgs[mode] }); }, [mode, cfgs]);
   // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
   // stocked / herringbone) the user last had open — seeded tab first.
   const [floorSrc, setFloorSrc] = useState(seed?.mode === "stocked" || seed?.mode === "hb" ? seed.mode : "floor");

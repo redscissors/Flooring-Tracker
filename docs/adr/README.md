@@ -31,3 +31,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0025](0025-import-source-provenance.md) | A book declares the files it is made of; imports are completeness-checked before review, and gaps are filled or consciously dropped | Accepted | 2026-07-19 |
 | [0026](0026-two-stage-boot-and-loading-policy.md) | Two-stage boot; unbounded data is never eagerly loaded; new surfaces ship as lazy chunks | Accepted | 2026-07-20 |
 | [0027](0027-catalog-stock-book-links.md) | Catalog products link to ERP stock-book rows; grout families are rule-projected book slices | Accepted | 2026-07-21 |
+| [0028](0028-open-layer-restore-and-one-press-escape.md) | Refresh restores the open overlay (`ft-open-layer`); Escape closes a layer in one press from inside a text field | Accepted | 2026-07-22 |

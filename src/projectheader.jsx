@@ -69,7 +69,7 @@ function WasteCard({ w, dflt, onChange }) {
   return (
     <div ref={wrap} className="ft-hcol flex-1"
       onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget)) setUnlocked(false); }}
-      onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setUnlocked(false); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && unlocked) e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setUnlocked(false); }}
       style={unlocked ? { borderColor: "var(--ft-brand)", boxShadow: "0 0 0 2px var(--ft-brand-soft)" } : undefined}>
       <div className="ft-hhead">
         Waste
@@ -119,7 +119,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
         <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width / 2 - W / 2, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
           <div className="ft-eyebrow text-[9px] mb-1.5">Save a version</div>
           <div className="flex items-center gap-1.5">
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onConfirm(); if (e.key === "Escape") onClose(); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onConfirm(); if (e.key === "Escape") { e.preventDefault(); onClose(); } }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             <button onClick={onConfirm} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
           </div>
         </div>, document.body)}
@@ -305,7 +305,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
         <div className="flex flex-col justify-between gap-1.5" style={{ height: 66 }}>
           {namingVersion ? (
             <div className="flex items-center gap-1.5">
-              <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") { e.preventDefault(); setNamingVersion(false); } }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <button onClick={confirmVersion} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
               <button onClick={() => setNamingVersion(false)} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 text-slate-400"><X size={15} /></button>
             </div>

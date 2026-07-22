@@ -204,7 +204,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
         </div>
         <textarea ref={inputRef} value={value} rows={1}
           onChange={(e) => { onChange(e.target.value.replace(/\r?\n/g, " ")); setOpen(true); }}
-          onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
+          onKeyDown={(e) => { if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
           onScroll={(e) => { if (mirrorRef.current) mirrorRef.current.scrollTop = e.target.scrollTop; }}
           data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder}
           style={{ ...text, position: "absolute", inset: 0, height: "100%", resize: "none", color: "transparent", caretColor: "var(--ft-text)" }}
@@ -294,7 +294,10 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
     // Tab adds the built-up selection (or the highlighted match) when the panel
     // is offering something; otherwise it stays plain field navigation.
     else if (e.key === "Tab" && open && (picked.length || results.length)) { e.preventDefault(); commitFromKey(); }
-    else if (e.key === "Escape") close();
+    // Claim Escape only while the panel is actually showing (same condition
+    // as its mount below) — otherwise the press falls through to the global
+    // ladder (escstack.js) and closes the surrounding layer in one stroke.
+    else if (e.key === "Escape" && panelShowing) { e.preventDefault(); close(); }
   };
   // Pick/toggle on mousedown, not click: streaming order matches re-render the
   // list mid-gesture, and a click spanning that re-render is dropped (pointerup
@@ -303,12 +306,13 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
   const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0;
   const bookLoading = !stockReady && query.trim() && results.length === 0;
+  const panelShowing = open && (results.length > 0 || picked.length > 0 || noHits || vendor || bookLoading);
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
-      {open && pos && (results.length > 0 || picked.length > 0 || noHits || vendor || bookLoading) && createPortal(
+      {panelShowing && pos && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           {results.length > 0 && (

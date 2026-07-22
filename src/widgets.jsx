@@ -194,7 +194,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
+        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
           <div className="ft-eyebrow text-[9px]">Salesperson</div>
           <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
           <input value={sp.phone} onChange={(e) => onChange({ ...sp, phone: e.target.value })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
@@ -250,7 +250,7 @@ export function WasteBar({ w, dflt, onChange, className = "" }) {
   return (
     <div ref={wrap} className={"flex h-[30px] shrink-0 rounded-md border overflow-hidden " + className}
       onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget)) setUnlocked(false); }}
-      onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") setUnlocked(false); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && unlocked) e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setUnlocked(false); }}
       style={{ borderColor: unlocked ? "var(--ft-brand)" : "var(--ft-border)", background: unlocked ? "var(--ft-card)" : "var(--ft-band)", boxShadow: unlocked ? "0 0 0 2px var(--ft-brand-soft)" : undefined }}>
       {cells.map((c, i) => {
         const on = !!w[c.flag], pct = num(w[c.k]);
