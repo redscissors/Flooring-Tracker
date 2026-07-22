@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion } from "./stock.js";
-import { linkedItemState } from "./booklink.js";
+import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal } from "./widgets.jsx";
 import { StockSearch, FamilySearch } from "./search.jsx";
@@ -25,6 +25,75 @@ const MATERIAL_CATEGORIES = [
   { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side" },
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
+
+// Turns one picked stock-book row into a saved color family (spec 2026-07-21):
+// derives a series rule from sibling descriptions, previews the matched
+// colors, and offers a base-unit pairing and a matched caulk line before
+// saving.
+function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl, onSave, onClose }) {
+  // seed: { bookId, description } — the picked grout row.
+  const items = bookStock[seed.bookId] || [];
+  const descs = items.map((it) => it.description);
+  const [name, setName] = useState("");
+  const [rule, setRule] = useState(() => deriveSeriesRule(seed.description, descs));
+  const [baseSkus, setBaseSkus] = useState({ default: "", variant: "" });
+  const [caulkSeed, setCaulkSeed] = useState(null); // a picked caulk row → rule derived from it
+  const [error, setError] = useState("");
+  const colors = items
+    .filter((it) => it.active !== false && !it.disabled && ![baseSkus.default, baseSkus.variant].includes(it.sku))
+    .map((it) => ({ it, token: matchRule(rule, it.description) }))
+    .filter((x) => x.token)
+    .map((x) => ({ ...parseColorToken(x.token), sku: x.it.sku, price: x.it.price }));
+  // Base candidates: same book, share the rule's prefix words but DON'T match as
+  // a color row and smell like a base (the Laticrete wordings).
+  const baseCandidates = items.filter((it) => !matchRule(rule, it.description) && /part a&b|grout base|full unit|commercial unit|sanded/i.test(it.description) && new RegExp((rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
+  const caulkBook = caulkSeed ? caulkSeed.bookId : seed.bookId;
+  const caulkRule = caulkSeed ? deriveSeriesRule(caulkSeed.description, (bookStock[caulkSeed.bookId] || []).map((i) => i.description)) : null;
+  const caulkMatches = caulkRule ? (bookStock[caulkBook] || []).filter((it) => matchRule(caulkRule, it.description)).length : 0;
+  const save = () => {
+    const n = name.trim();
+    if (!n) { setError("Family name is required."); return; }
+    if (existingNames.includes(n.toLowerCase())) { setError(`A family named "${n}" already exists.`); return; }
+    if (!colors.length) { setError("The rule matches no color rows — adjust the prefix/suffix."); return; }
+    onSave(normBookFamily({ name: n, bookId: seed.bookId, rule, baseSkus, caulk: caulkRule ? { bookId: caulkBook, ...caulkRule } : null, cache: colors.map((c) => ({ color: c.name || c.num, num: c.num, sku: c.sku, price: c.price })) }));
+  };
+  return (
+    <Modal title="New color family" onClose={onClose}>
+      <label className={lbl}>Family name (what jobs show, e.g. "SpectraLock Pro")</label>
+      <input className={inp} value={name} autoFocus onChange={(e) => setName(e.target.value)} />
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <div><label className={lbl}>Rows start with</label><input className={inp} value={rule.prefix} onChange={(e) => setRule({ ...rule, prefix: e.target.value })} /></div>
+        <div><label className={lbl}>…and end with</label><input className={inp} value={rule.suffix} onChange={(e) => setRule({ ...rule, suffix: e.target.value })} /></div>
+      </div>
+      <div className="mt-2 rounded-lg border border-slate-200 p-2.5 max-h-40 overflow-y-auto">
+        <div className="text-[11px] text-slate-400 mb-1">{colors.length} colors match — new colors in future re-imports join automatically</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{colors.map((c) => <div key={c.sku} className="flex items-baseline gap-2 text-xs"><span className="truncate">{c.name || c.num}</span><span className="ft-mono text-[10px] text-slate-400 ml-auto shrink-0">{c.sku}</span></div>)}</div>
+      </div>
+      {baseCandidates.length > 0 && (
+        <div className="mt-3">
+          <label className={lbl}>Base units (two-part grouts — ADR 0006)</label>
+          {baseCandidates.map((b) => (
+            <label key={b.sku} className="flex items-center gap-2 text-xs py-0.5">
+              <input type="radio" name="fam-base-d" checked={baseSkus.default === b.sku} onChange={() => setBaseSkus((s) => ({ default: b.sku, variant: s.variant === b.sku ? "" : s.variant }))} /> default
+              <input type="radio" name="fam-base-v" checked={baseSkus.variant === b.sku} onChange={() => setBaseSkus((s) => ({ default: s.default === b.sku ? "" : s.default, variant: b.sku }))} /> variant
+              <span className="truncate flex-1">{b.description}</span><span className="ft-mono text-[10px] text-slate-400">{b.sku}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="mt-3">
+        <label className={lbl}>Matched caulk line {caulkRule && <span className="text-slate-400 font-normal normal-case">— {caulkMatches} rows, matched to colors by number</span>}</label>
+        <StockSearch stock={Object.values(bookStock).flat().filter((it) => /caulk|latasil/i.test(it.description))} inp={inp} placeholder='Pick any one caulk row of the matching line (e.g. "latasil almond")…' onPick={(it) => setCaulkSeed({ bookId: it.bookId, description: it.description })} />
+        {caulkSeed && <button onClick={() => setCaulkSeed(null)} className="text-xs text-slate-400 hover:text-red-500 mt-1">No matched caulk</button>}
+      </div>
+      {error && <div className="text-xs text-red-500 mt-2">{error}</div>}
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+        <button onClick={save} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Create family</button>
+      </div>
+    </Modal>
+  );
+}
 
 export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, bookStock = {}, bookStockReady, refreshBookStock }) {
   const catalog = settings.catalog;
@@ -49,6 +118,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
   const [catError, setCatError] = useState("");
   const [catRename, setCatRename] = useState(null); // { value, error } — renaming the open custom category
   const [confirmDelCat, setConfirmDelCat] = useState(false);
+  const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick } | { bookId, description, forDraft|forProduct }
 
   // Spread the whole catalog, not just companies, so sibling fields
   // (defaults, removedSeeds) survive a company/product edit.
@@ -110,6 +180,9 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
     // family link (ADR 0007) — the grout offers that family's colors.
     ...(adding.kind === "grouts" && it.sheet === "Grout & Caulk" && it.product && it.color ? { book: it.product } : {}),
     ...(it.bookId ? { link: { bookId: it.bookId, sku: it.sku } } : {}),
+    // Transient seed for the "Set up color family…" chip below — never saved
+    // (addProduct's grout field shape whitelists fields, so this drops off).
+    ...(it.bookId ? { _desc: it.description } : {}),
   }));
 
   const box = (on, onClick, title) => (
@@ -367,6 +440,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
   };
   const renderGroutDetail = (co, g) => {
     const family = famFor(g);
+    // A book family's rule can go quiet after a re-drop (supplier reworded
+    // every row) — projectFamilies then serves the cached colors (booklink.js
+    // resolveFamily), so this warns instead of the color list silently going
+    // stale with no signal.
+    const zeroMatch = familyWarnings(catalog.bookFamilies, bookStock).some((w) => w.kind === "zero-match" && w.name.toLowerCase() === (g.book || "").toLowerCase());
     return (
       <div key={g.id}>
         {detailHeader(co, "grouts", g, "Grout")}
@@ -384,16 +462,19 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
           {family && <span className="text-[11px] text-slate-400">picking a color on a job stamps that color's SKU on the estimate</span>}
         </div>
         {g.book ? (family ? (
-          <div className="mt-2 rounded-lg border border-slate-200 p-3 max-h-72 overflow-y-auto">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-0.5">
-              {family.colors.map((c) => (
-                <div key={c.sku} className="flex items-baseline gap-2 text-xs py-0.5 min-w-0">
-                  <span className="truncate">{c.color}</span>
-                  <span className="ft-mono text-[10px] text-slate-400 ml-auto shrink-0">{c.sku}</span>
-                </div>
-              ))}
+          <>
+            {zeroMatch && <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 rounded-md border border-amber-200 px-3 py-2"><Link2Off size={12} className="shrink-0" /> This family's rule matched nothing in the last import — colors shown are the last known set. Re-check the rule.</div>}
+            <div className="mt-2 rounded-lg border border-slate-200 p-3 max-h-72 overflow-y-auto">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-0.5">
+                {family.colors.map((c) => (
+                  <div key={c.sku} className="flex items-baseline gap-2 text-xs py-0.5 min-w-0">
+                    <span className="truncate">{c.color}</span>
+                    <span className="ft-mono text-[10px] text-slate-400 ml-auto shrink-0">{c.sku}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         ) : (
           <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 rounded-md border border-amber-200 px-3 py-2"><Link2Off size={12} className="shrink-0" /> Linked to "{g.book}", which isn't in the imported book — re-import the price book or re-link below.</div>
         )) : (
@@ -402,6 +483,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
         <div className="mt-2 flex items-center gap-2 max-w-xl">
           {gFamilies.length > 0 ? <FamilySearch families={gFamilies} inp={inp} onPick={(f) => setProduct(co.id, "grouts", g.id, { book: f.product })} />
             : <p className="text-[11px] text-slate-400 flex-1">Import the price book to link a color family.</p>}
+          {bookItems.length > 0 && <button onClick={() => setFamSeed({ pick: true, forProduct: { coId: co.id, gId: g.id } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium shrink-0">New family from stock book…</button>}
           {g.book && <button onClick={() => setProduct(co.id, "grouts", g.id, { book: "" })} className="text-xs text-slate-400 hover:text-red-500 shrink-0">Unlink colors</button>}
         </div>
         <div className="mt-6 max-w-2xl">
@@ -515,6 +597,9 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
             <Link2 size={12} className="shrink-0" /><span className="flex-1">Linked to <b>{bookName(draft.link.bookId)}</b> · <span className="ft-mono">{draft.link.sku}</span> — re-imports refresh the price</span>
             <button onClick={() => setDraft({ ...draft, link: null })} title="Don't link" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
           </div>
+        )}
+        {adding.kind === "grouts" && draft._desc && (
+          <button onClick={() => setFamSeed({ bookId: draft.link.bookId, description: draft._desc, forDraft: true })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Set up color family…</button>
         )}
         {adding.kind === "attached" ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -733,6 +818,24 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
               <button onClick={submitCategory} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Create category</button>
             </div>
           </Modal>
+        )}
+        {famSeed?.pick && (
+          <Modal title="New color family" onClose={() => setFamSeed(null)}>
+            <label className={lbl}>Pick a book row to seed the family</label>
+            <StockSearch stock={bookItems} inp={inp} placeholder="Search the stock books for a color row…"
+              onPick={(it) => setFamSeed({ bookId: it.bookId, description: it.description, forProduct: famSeed.forProduct })} />
+          </Modal>
+        )}
+        {famSeed?.description && (
+          <FamilyConfirm seed={famSeed} bookStock={bookStock} books={books} inp={inp} lbl={lbl}
+            existingNames={[...gFamilies.map((f) => f.product.toLowerCase()), ...(catalog.bookFamilies || []).map((f) => f.name.toLowerCase())]}
+            onClose={() => setFamSeed(null)}
+            onSave={(fam) => {
+              const next = { ...catalog, bookFamilies: [...(catalog.bookFamilies || []), fam] };
+              if (famSeed.forProduct) onChange({ ...next, companies: next.companies.map((co) => co.id === famSeed.forProduct.coId ? { ...co, grouts: co.grouts.map((g) => g.id === famSeed.forProduct.gId ? { ...g, book: fam.name } : g) } : co) });
+              else { onChange(next); setDraft((d) => ({ ...d, book: fam.name })); }
+              setFamSeed(null);
+            }} />
         )}
       </div>
     </div>
