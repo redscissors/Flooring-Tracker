@@ -51,9 +51,10 @@ export function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl,
     .filter((x) => x.token)
     .map((x) => ({ ...parseColorToken(x.token), sku: x.it.sku, price: x.it.price }));
   // Base candidates: same book, share the rule's prefix words and smell like a
-  // base (the Laticrete wordings). A base can sit inside the color frame too —
-  // CEG-Lite's PART A&B kits match the rule — so rule mismatch isn't required.
-  const baseCandidates = items.filter((it) => (!matchRule(rule, it.description) || looksLikeBase(it.description)) && /part a&b|grout base|full unit|commercial unit|sanded/i.test(it.description) && new RegExp(escRe(rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
+  // base (looksLikeBase + the Laticrete "sanded" wording). A base can sit
+  // inside the color frame too — CEG-Lite's kits match the rule — so rule
+  // mismatch isn't required.
+  const baseCandidates = items.filter((it) => (!matchRule(rule, it.description) || looksLikeBase(it.description)) && (looksLikeBase(it.description) || /sanded/i.test(it.description)) && new RegExp(escRe(rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
   const caulkBook = caulkSeed ? caulkSeed.bookId : seed.bookId;
   const caulkRule = caulkSeed ? deriveSeriesRule(caulkSeed.description, (bookStock[caulkSeed.bookId] || []).map((i) => i.description)) : null;
   const caulkMatches = caulkRule ? (bookStock[caulkBook] || []).filter((it) => matchRule(caulkRule, it.description)).length : 0;

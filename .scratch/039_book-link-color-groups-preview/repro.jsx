@@ -22,19 +22,22 @@ const GLATI = [
   row("PSB-S", "25LB PERMACOLOR SELECT BASE SANDED", 27.5),
   row("PSB-NS", "PERMACOLOR SELECT NS BASE UNSANDED", 31.0),
 ];
-// CEG-Lite (field report): the PART A&B kits share the color rows' frame AND
-// form their own tighter series — the color family must still win.
-const DOIT = [
-  row("CL09", "CEG-LITE 09 NATURAL GRAY", 32.5),
-  row("CL10", "CEG-LITE 10 ANTIQUE WHITE", 32.5),
-  row("CL45", "CEG-LITE 45 SUMMER WHEAT", 32.5),
-  row("CL60", "CEG-LITE 60 CHARCOAL", 32.5),
-  row("CLB1", "CEG-LITE PART A&B FULL UNIT 1G", 118.0),
-  row("CLB2", "CEG-LITE PART A&B FULL UNIT 2G", 205.0),
-  row("CLB3", "CEG-LITE PART A&B COMMERCIAL UNIT", 380.0),
+// CEG-Lite, verbatim from the real OHIVA export (field file 2026-07-22): the
+// only shared lead-in is "Custom", the real frame is the SUFFIX, unrelated
+// Custom rows sit beside the colorants, and one row glues "Custom165".
+const OHIVA = [
+  row("1516863", "Custom 545 Bleached Wood Part A - Ceg-Lite Colorant", 33.29),
+  row("28865", "1G Custom CEG-Lite Part B Base - Epoxy Grout Need Part A", 97.64),
+  row("93774", "Custom 642 Ash Part A - Ceg-Lite Colorant", 33.29),
+  row("93776", "Custom 10 Antique White Part A - Ceg-Lite Colorant", 33.29),
+  row("93778", "Custom 544 Rolling Fog Part A - Ceg-Lite Colorant", 33.29),
+  row("93784", "Custom165 Delorean Gray Part A - Ceg-Lite Colorant", 33.29),
+  row("93798", "Custom 60 Charcoal Part A - Ceg-Lite Colorant", 33.29),
+  row("29193", "Custom MBP Bonding Primer - CUSCPMBP1", 45.0),
+  row("29505", "Custom Redgard Uncoupling Mat - 322 SF per Roll", 610.0),
 ];
-const bookStock = { glati: GLATI.map((it) => ({ ...it, bookId: "glati" })), doit: DOIT.map((it) => ({ ...it, bookId: "doit" })) };
-const books = [{ id: "glati", name: "GLATI" }, { id: "doit", name: "DOIT" }];
+const bookStock = { glati: GLATI.map((it) => ({ ...it, bookId: "glati" })), ohiva: OHIVA.map((it) => ({ ...it, bookId: "ohiva" })) };
+const books = [{ id: "glati", name: "GLATI" }, { id: "ohiva", name: "OHIVA" }];
 const bookName = (id) => books.find((b) => b.id === id)?.name || "book";
 const bookItems = Object.values(bookStock).flat();
 

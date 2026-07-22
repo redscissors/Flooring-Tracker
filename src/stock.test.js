@@ -281,11 +281,26 @@ test("relaxSearchWords drops the words the book never prints from a seeded query
   assert.ok(searchStock(items, relaxSearchWords(items, "Laticrete Permacolor Color Kit")).length > 0);
   // a query that already hits comes back untouched
   assert.equal(relaxSearchWords(items, "permacolor base"), "permacolor base");
-  // surviving words that jointly miss shed the least-specific until something matches
-  assert.equal(relaxSearchWords(items, "sanded kit"), "sanded");
+  // surviving words that jointly miss: greedily keep the words whose joint
+  // result recovers the most rows
+  assert.equal(relaxSearchWords(items, "sanded kit"), "kit");
   // nothing matches at all: leave the query alone (the empty-state hint shows)
   assert.equal(relaxSearchWords(items, "spectralock epoxy"), "spectralock epoxy");
   assert.equal(relaxSearchWords(items, ""), "");
+});
+
+test("relaxSearchWords minHits reopens a seed whose only joint hit is the base row", () => {
+  const items = [
+    item({ sku: "1516863", description: "Custom 545 Bleached Wood Part A - Ceg-Lite Colorant" }),
+    item({ sku: "93776", description: "Custom 10 Antique White Part A - Ceg-Lite Colorant" }),
+    item({ sku: "93798", description: "Custom 60 Charcoal Part A - Ceg-Lite Colorant" }),
+    item({ sku: "28865", description: "1G Custom CEG-Lite Part B Base - Epoxy Grout Need Part A" }),
+    item({ sku: "29193", description: "Custom MBP Bonding Primer - CUSCPMBP1" }),
+  ];
+  // "grout" appears only on the base row, so the full query "matches" 1 row —
+  // with minHits 2 the seed relaxes to the words that recover the colorants
+  assert.equal(relaxSearchWords(items, "Custom CEG Lite Grout", 2), "custom ceg lite");
+  assert.ok(searchStock(items, "custom ceg lite").length >= 4);
 });
 
 test("'transition' matches the book's trim profile labels", () => {

@@ -40,25 +40,31 @@ export function searchStock(items, query) {
 
 export const findStock = (items, sku) => (str(sku) ? items.find((it) => it.sku === str(sku)) : null) || null;
 
-// Relax a SEEDED query until it finds something: the retired workbook's family
-// names carry words the ERP exports never print ("Laticrete Permacolor Color
-// Kit" — the descriptions have no brand), and searchStock ANDs every word, so
-// seeding a search box with such a name silently finds nothing. Drop the words
-// that hit nothing on their own; if the survivors still miss jointly, shed the
-// least-specific (highest-hit) words until something matches. Only for
-// pre-filled queries — never applied while the user types.
-export function relaxSearchWords(items, query) {
+// Relax a SEEDED query until it finds at least minHits rows: the retired
+// workbook's family names carry words the ERP exports never print ("Laticrete
+// Permacolor Color Kit" — the descriptions have no brand; "… Grout" — only
+// the base row says grout), and searchStock ANDs every word, so seeding a
+// search box with such a name finds nothing or one useless row. Drop the
+// words that hit nothing on their own, then greedily shed whichever word's
+// removal recovers the most rows. Only for pre-filled queries — never applied
+// while the user types.
+export function relaxSearchWords(items, query, minHits = 1) {
   const q = str(query);
-  if (!q || searchStock(items, q).length) return q;
+  if (!q || searchStock(items, q).length >= minHits) return q;
   let words = [...new Set(q.toLowerCase().split(/\s+/).filter(Boolean))]
-    .map((w) => ({ w, n: searchStock(items, w).length }))
-    .filter((x) => x.n > 0);
+    .filter((w) => searchStock(items, w).length > 0);
   if (!words.length) return q;
-  while (words.length > 1 && !searchStock(items, words.map((x) => x.w).join(" ")).length) {
-    const worst = words.reduce((a, b) => (b.n >= a.n ? b : a));
-    words = words.filter((x) => x !== worst);
+  const joint = (ws) => searchStock(items, ws.join(" ")).length;
+  while (words.length > 1 && joint(words) < minHits) {
+    let best = null, bestN = -1;
+    for (let i = 0; i < words.length; i++) {
+      const rest = words.filter((_, j) => j !== i);
+      const n = joint(rest);
+      if (n > bestN) { bestN = n; best = rest; }
+    }
+    words = best;
   }
-  return words.map((x) => x.w).join(" ");
+  return words.join(" ");
 }
 
 // --- filling a product row ------------------------------------------------------

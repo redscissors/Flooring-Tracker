@@ -390,6 +390,38 @@ test("suggestSeries finds the color family when the base rows form their own tig
   assert.ok(!series[0].sample.some((c) => /part|unit/i.test(c)));
 });
 
+// The real OHIVA export (field file 2026-07-22): the only shared lead-in is
+// the word "Custom", the family's real frame is the SUFFIX ("Part A -
+// Ceg-Lite Colorant"), and unrelated "Custom …" rows sit beside the colorants
+// — the suffix must survive on a majority share, not unanimity.
+const OHIVA_ROWS = [
+  ["1516863", "Custom 545 Bleached Wood Part A - Ceg-Lite Colorant"],
+  ["93776", "Custom 10 Antique White Part A - Ceg-Lite Colorant"],
+  ["93784", "Custom165 Delorean Gray Part A - Ceg-Lite Colorant"], // the export's glued typo row
+  ["93798", "Custom 60 Charcoal Part A - Ceg-Lite Colorant"],
+  ["28865", "1G Custom CEG-Lite Part B Base - Epoxy Grout Need Part A"],
+  ["29193", "Custom MBP Bonding Primer - CUSCPMBP1"],
+  ["29505", "Custom Redgard Uncoupling Mat - 322 SF per Roll"],
+].map(([sku, description]) => ({ sku, description, active: true, price: 30, unit: "EA" }));
+
+test("deriveSeriesRule finds a majority-shared suffix frame past unrelated prefix-siblings", () => {
+  const r = deriveSeriesRule(OHIVA_ROWS[0].description, OHIVA_ROWS.map((i) => i.description));
+  assert.equal(r.prefix, "Custom");
+  assert.equal(r.suffix, "Part A - Ceg-Lite Colorant");
+});
+
+test("suggestSeries offers the real OHIVA CEG-Lite colorants as one clean collection", () => {
+  const hits = OHIVA_ROWS.filter((i) => /ceg/i.test(i.description)).map((it) => ({ ...it, bookId: "ohiva" }));
+  const series = suggestSeries(hits, { ohiva: OHIVA_ROWS });
+  assert.equal(series.length, 1);
+  const s = series[0];
+  assert.deepEqual(s.rule, { prefix: "Custom", suffix: "Part A - Ceg-Lite Colorant" });
+  assert.equal(s.name, "Custom Ceg-Lite Colorant"); // one-word prefix folds the suffix identity in
+  assert.equal(s.count, 4);
+  assert.ok(s.sample.includes("Delorean Gray")); // the glued "Custom165" row still parses
+  assert.ok(!s.sample.some((c) => /primer|redgard|base/i.test(c)));
+});
+
 test("resolveFamily never lists base-smelling rows as colors even when they match the rule", () => {
   const fam = normBookFamily({
     id: "ceg-lite", name: "CEG-Lite", bookId: "doit",
