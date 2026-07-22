@@ -502,6 +502,61 @@ test("syncLinkedCatalog does not report newColors on a family's first population
   assert.ok(!newColors.some((n) => n.family === "Fresh Family")); // but none reported as "new"
 });
 
+// --- dirty flag (persistence gate) -------------------------------------------
+
+test("syncLinkedCatalog reports dirty on a unit-only refresh even though it logs no changes entry", () => {
+  const catalog = {
+    companies: [{
+      id: "co1", name: "Co",
+      grouts: [{ id: "g1", name: "Unit Only Grout", price: "10.00", unit: "EA", sku: "OLD", link: { bookId: "b1", sku: "USKU" } }],
+      mortars: [], underlayments: [], attached: [],
+    }],
+    bookFamilies: [],
+  };
+  const items = [{ sku: "USKU", active: true, price: 10, unit: "BX", description: "Unit only" }];
+  const { catalog: next, changes, dirty } = syncLinkedCatalog(catalog, "b1", items);
+  assert.equal(dirty, true);
+  assert.equal(changes.length, 0);
+  assert.equal(next.companies[0].grouts[0].unit, "BX");
+});
+
+test("syncLinkedCatalog reports dirty on a family cache rewrite with no newColors (first population)", () => {
+  const catalog = {
+    companies: [{ id: "co1", name: "Co", grouts: [], mortars: [], underlayments: [], attached: [] }],
+    bookFamilies: [{
+      id: "fam1", name: "Fresh Family", bookId: "b1",
+      rule: { prefix: "9LB TESTGROUT", suffix: "PART C" },
+      baseSkus: { default: "", variant: "" }, caulk: null,
+      cache: [], // first population: never seeded before
+    }],
+  };
+  const items = [
+    { sku: "TG10", active: true, price: 5, unit: "EA", description: "9LB TESTGROUT 10 RED PART C" },
+    { sku: "TG20", active: true, price: 6, unit: "EA", description: "9LB TESTGROUT 20 BLUE PART C" },
+  ];
+  const { catalog: next, newColors, dirty } = syncLinkedCatalog(catalog, "b1", items);
+  assert.equal(dirty, true);
+  assert.deepEqual(newColors, []);
+  assert.deepEqual(next.bookFamilies[0].cache.map((c) => c.sku).sort(), ["TG10", "TG20"]);
+});
+
+test("syncLinkedCatalog reports dirty:false when there is nothing to sync", () => {
+  const catalog = {
+    companies: [{
+      id: "co1", name: "Co",
+      grouts: [{ id: "g1", name: "Untouched Grout", price: "10.00", unit: "EA", sku: "", link: null }],
+      mortars: [], underlayments: [], attached: [],
+    }],
+    bookFamilies: [],
+  };
+  const items = [{ sku: "X", active: true, price: 1, unit: "EA", description: "irrelevant" }];
+  const { dirty, changes, lost, newColors } = syncLinkedCatalog(catalog, "b1", items);
+  assert.equal(dirty, false);
+  assert.equal(changes.length, 0);
+  assert.equal(lost.length, 0);
+  assert.equal(newColors.length, 0);
+});
+
 test("linkedItemState covers null/ok/inactive/missing", () => {
   const itemsByBook = { b1: [{ sku: "OK1", active: true }, { sku: "INACT1", active: false }] };
   assert.equal(linkedItemState(null, itemsByBook), null);

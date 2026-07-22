@@ -171,6 +171,7 @@ export function syncLinkedCatalog(catalog, bookId, items) {
   const live = new Map(liveRows(items).map((it) => [it.sku, it]));
   const all = new Map((items || []).map((it) => [it.sku, it]));
   const changes = [], lost = [];
+  let dirty = false;
   const syncKind = (list) => (list || []).map((p) => {
     let next = p;
     const l = normLink(p.link);
@@ -193,6 +194,7 @@ export function syncLinkedCatalog(catalog, bookId, items) {
         next = { ...next, base: { ...next.base, price: numOr(b.price, 0) } };
       }
     }
+    if (next !== p) dirty = true;
     return next;
   });
   const companies = (catalog?.companies || []).map((co) => ({
@@ -209,9 +211,10 @@ export function syncLinkedCatalog(catalog, bookId, items) {
     const had = new Set(fam.cache.map((c) => c.sku));
     const fresh = colors.filter((c) => !had.has(c.sku)).length;
     if (fresh && fam.cache.length) newColors.push({ family: fam.name, count: fresh });
+    dirty = true;
     return { ...fam, cache: colors };
   });
-  return { catalog: { ...catalog, companies, bookFamilies }, changes, lost, newColors };
+  return { catalog: { ...catalog, companies, bookFamilies }, changes, lost, newColors, dirty };
 }
 
 export function proposeLinks(catalog, itemsByBook, books) {

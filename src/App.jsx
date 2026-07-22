@@ -126,15 +126,21 @@ export default function App({ user, onSignOut }) {
   const applyBookImportSynced = async (bookId, diff, opts) => {
     await applyBookImport(bookId, diff, opts);
     if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
-    const items = await refreshBookStock(bookId);
-    const { catalog, changes, lost, newColors } = syncLinkedCatalog(settings.catalog, bookId, items);
-    if (changes.length || newColors.length) setSettings({ catalog });
-    const parts = [
-      changes.length ? `${changes.length} linked product${changes.length === 1 ? "" : "s"} updated` : "",
-      lost.length ? `${lost.length} link${lost.length === 1 ? "" : "s"} lost` : "",
-      ...newColors.map((n) => `${n.count} new color${n.count === 1 ? "" : "s"} in ${n.family}`),
-    ].filter(Boolean);
-    if (parts.length) ping(parts.join(", "));
+    try {
+      const items = await refreshBookStock(bookId);
+      const { catalog, changes, lost, newColors, dirty } = syncLinkedCatalog(settings.catalog, bookId, items);
+      if (dirty) setSettings({ catalog });
+      const parts = [
+        changes.length ? `${changes.length} linked product${changes.length === 1 ? "" : "s"} updated` : "",
+        lost.length ? `${lost.length} link${lost.length === 1 ? "" : "s"} lost` : "",
+        ...newColors.map((n) => `${n.count} new color${n.count === 1 ? "" : "s"} in ${n.family}`),
+      ].filter(Boolean);
+      if (parts.length) ping(parts.join(", "));
+    } catch (x) {
+      // The import already landed (applyBookImport above succeeded) — a failure
+      // here is only the linked-catalog refresh, never the import itself.
+      ping("Import applied; linked-catalog refresh failed — reopen Settings to retry");
+    }
   };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
