@@ -104,6 +104,12 @@ export function normBookFamily(f) {
 
 const liveRows = (items) => (items || []).filter((it) => it.active !== false && !it.disabled && !it.discontinued);
 
+// A row that reads like a two-part grout's base/kit unit, never a color —
+// CEG-Lite's "PART A&B" kits share the color rows' frame, so rule matching
+// alone can't keep them out of a color list. "Sanded" is deliberately absent:
+// classic Permacolor's color bags say sanded and ARE colors.
+export const looksLikeBase = (d) => /part a\s*&\s*b|grout base|full unit|commercial unit|\bbase\b/i.test(str(d));
+
 // Candidate color collections for the family-seed picker: each query hit
 // proposes the series it belongs to (deriveSeriesRule), deduped by frame so
 // one entry stands for the whole collection ("Permacolor Select — 40 colors").
@@ -123,25 +129,33 @@ export function suggestSeries(hits, itemsByBook) {
     const key = [bookId, low(rule.prefix), low(rule.suffix)].join("\n");
     if (seen.has(key)) continue;
     seen.add(key);
-    const colors = [], skus = [];
+    const colors = [], skus = [], numSkus = [];
     for (const row of liveRows(itemsByBook?.[bookId])) {
+      if (looksLikeBase(row.description)) continue;
       const token = matchRule(rule, row.description);
       if (!token) continue;
       const { num, name } = parseColorToken(token);
       if (!name && !num) continue;
       colors.push(name || num);
       skus.push(row.sku);
+      if (num) numSkus.push(row.sku);
     }
     if (colors.length < 2) continue;
-    out.push({ bookId, rule, name: proposeFamilyName(rule.prefix), count: colors.length, sample: colors.slice(0, 4), seedDescription: d, skus });
+    out.push({ bookId, rule, name: proposeFamilyName(rule.prefix), count: colors.length, sample: colors.slice(0, 4), seedDescription: d, skus, numSkus });
   }
   // A frame-only sibling (a base row) seeds a LOOSE rule that swallows a more
   // specific series plus itself ("PERMACOLOR SELECT" ⊃ "PERMACOLOR SELECT
-  // COLOR KIT" + the base). Keep the specific frame, drop its loose superset.
+  // COLOR KIT" + the base). Keep the specific frame, drop its loose superset —
+  // but ONLY when the specific frame still covers every numbered color, so a
+  // tight sub-series (CEG-Lite's PART A&B kits before the base filter above)
+  // can never kill the real color family it sits inside.
   const kept = out.filter((a) => {
     const set = new Set(a.skus);
-    return !out.some((b) => b !== a && b.bookId === a.bookId && b.skus.length < a.skus.length &&
-      b.rule.prefix.length > a.rule.prefix.length && b.skus.every((s) => set.has(s)));
+    return !out.some((b) => {
+      if (b === a || b.bookId !== a.bookId || b.rule.prefix.length <= a.rule.prefix.length) return false;
+      const bset = new Set(b.skus);
+      return b.skus.every((s) => set.has(s)) && a.numSkus.every((s) => bset.has(s));
+    });
   });
   return kept.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
@@ -150,7 +164,9 @@ export function resolveFamily(fam, itemsByBook) {
   const baseSet = new Set([fam.baseSkus.default, fam.baseSkus.variant].filter(Boolean));
   const colors = [];
   for (const it of liveRows(itemsByBook?.[fam.bookId])) {
-    if (baseSet.has(it.sku)) continue;
+    // looksLikeBase mirrors suggestSeries: CEG-Lite's PART A&B kits match the
+    // color rows' frame, and only two baseSkus slots exist to exclude them by.
+    if (baseSet.has(it.sku) || looksLikeBase(it.description)) continue;
     const token = matchRule(fam.rule, it.description);
     if (!token) continue;
     const { num, name } = parseColorToken(token);
