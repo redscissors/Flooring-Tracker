@@ -24,6 +24,16 @@ const numOr = (v, d = null) => {
 const round2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 const round4 = (n) => (n == null ? null : Math.round(n * 10000) / 10000);
 
+// ERP stock-keeping words that mean nothing on a selection ("NOMINAL" size
+// qualifiers, "NEW PACKAGE" repack notes) — dropped from the description here,
+// the one point both the import parse and the DB-row load pass through, so
+// already-imported items clean up on load without a re-import.
+// Parenthesized form first, so "(Nominal)" goes whole — a generic empty-paren
+// sweep would also hide the residue the name-litter advisory exists to flag.
+const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?";
+const DESC_NOISE_RE = new RegExp(`\\(\\s*(?:${DESC_NOISE})\\s*\\)|\\b(?:${DESC_NOISE})\\b`, "gi");
+const cleanDescription = (v) => str(v).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim();
+
 // Per-flag-code review verdicts ({ [code]: { state, by, at } }) — only the two
 // known states survive normalization, so junk in the jsonb can't invent one.
 const normFlagReview = (v) => {
@@ -62,7 +72,7 @@ export function normOrderItem(f = {}) {
     sheet: str(f.sheet),
     section: str(f.section),
     brand: str(f.brand),
-    description: str(f.description),
+    description: cleanDescription(f.description),
     product: str(f.product),
     color: str(f.color),
     style: str(f.style),

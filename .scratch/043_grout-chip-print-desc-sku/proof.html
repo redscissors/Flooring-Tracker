@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Four fixes — preview proof (2026-07-22)</title>
+<style>
+  body{margin:0;background:#26231F;padding:26px 22px 60px;font-family:Manrope,ui-sans-serif,system-ui,sans-serif}
+  h1{font-size:17px;font-weight:800;margin:0 0 4px;color:#F6F3EC}
+  h2{font-size:13px;font-weight:800;margin:26px 0 8px;color:#F6F3EC}
+  .sub{font-size:12px;color:#A8A29A;margin:0 0 18px;max-width:860px;line-height:1.5}
+  .paper{background:#fff;border-radius:3px;box-shadow:0 8px 30px rgba(0,0,0,.45);padding:30px 32px;max-width:820px}
+  table{border-collapse:collapse;background:#fff;border-radius:3px;overflow:hidden;font-size:12px}
+  th,td{padding:6px 12px;border-bottom:1px solid #e5e1d8;text-align:left}
+  th{background:#EFEBE0;font-size:10px;text-transform:uppercase;letter-spacing:.12em}
+</style>
+</head>
+<body>
+  <h1>Four fixes — preview proof</h1>
+  <p class="sub">Section 1 is the <b>real EstimatePaper component</b> (cards layout) rendered with a sample job:
+  the grout puck on the tile line now carries the joint width ("1/8&quot; joint") where the joint was chosen,
+  and the Extras block's grout row no longer repeats it. Section 2 is the <b>live output of normOrderItem</b>'s
+  description cleaning (Nominal / New Package dropped).</p>
+  <h2>1 · Printed estimate — joint width on the grout puck</h2>
+  <div class="paper" id="paper"></div>
+  <h2>2 · Description cleaning (live normOrderItem output)</h2>
+  <table><thead><tr><th>ERP description (stored)</th><th>Shown / snapshotted as</th></tr></thead><tbody id="desc"></tbody></table>
+  <script type="module" src="./proof-entry.jsx"></script>
+</body>
+</html>

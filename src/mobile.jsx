@@ -343,15 +343,10 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           <input value={p.brandColor} onChange={(e) => onPatch({ brandColor: e.target.value })} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} className={fi} />
         </div>
         <div>
-          <label className={fl}>SKU {canSearch && <span className="text-slate-400 font-normal normal-case tracking-normal">· price book</span>}</label>
-          {canSearch ? (
-            <button onClick={() => setSearching(true)} className={fi + " flex items-center gap-1.5 text-left"} title="Search the price book — a pick fills this row">
-              <Search size={13} className="shrink-0 text-slate-400" />
-              {p.sku ? <span className="ft-mono text-[12px] truncate">{p.sku}</span> : <span className="truncate text-slate-300">Search…</span>}
-            </button>
-          ) : (
-            <input value={p.sku} onChange={(e) => onPatch({ sku: e.target.value })} placeholder="SKU" className={fi + " ft-mono text-[12px]"} />
-          )}
+          <label className={fl}>SKU</label>
+          {/* Plain field by request (2026-07-22): the SKU is typed or snapshotted,
+              never searched from here — the search button above is the entry. */}
+          <input value={p.sku} onChange={(e) => onPatch({ sku: e.target.value })} placeholder="SKU" className={fi + " ft-mono text-[12px]"} />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 mt-2.5">
@@ -435,10 +430,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
                   <div className="pb-2.5 -mt-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                      <span className="inline-flex items-center gap-1 min-w-0">
-                        <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
-                        <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
-                      </span>
+                      <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
                       {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
                     </div>
                     <div className="flex items-center gap-2">

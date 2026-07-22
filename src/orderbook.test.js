@@ -57,6 +57,15 @@ test("normOrderItem defaults every field and never stores a selling price", () =
   assert.equal(it.tierPrices, null);
 });
 
+test("normOrderItem drops ERP noise words from the description", () => {
+  assert.equal(normOrderItem({ sku: "X1", description: "Bright White 4x4 Nominal Wall Tile" }).description, "Bright White 4x4 Wall Tile");
+  assert.equal(normOrderItem({ sku: "X2", description: "Silverado Sanded Grout NEW PACKAGE 25LB" }).description, "Silverado Sanded Grout 25LB");
+  assert.equal(normOrderItem({ sku: "X3", description: "Snow White (Nominal)" }).description, "Snow White");
+  assert.equal(normOrderItem({ sku: "X4", description: "New Packaging Mosaic Sheet" }).description, "Mosaic Sheet");
+  // never inside a word
+  assert.equal(normOrderItem({ sku: "X5", description: "Phenominally Blue" }).description, "Phenominally Blue");
+});
+
 test("normBookItem reads the book_id/active/updated_at columns and the data blob", () => {
   const it = normBookItem({ sku: "V9", active: false, updated_at: "2026-07-12T00:00:00Z", data: { cost: 4.5, mfg: "CER", freightFlag: true } }, "book_1");
   assert.equal(it.bookId, "book_1");

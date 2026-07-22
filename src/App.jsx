@@ -11,12 +11,11 @@ import { isSpecialOrder, nameBudget } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
-import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
+import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, KSHORT, u1, printMatList, orderEntryRow } from "./print.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
-import { SkuPicker } from "./search.jsx";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
@@ -1596,16 +1595,10 @@ export default function App({ user, onSignOut }) {
                                   budget={descLimit > 0 && isSpecialOrder(p, stockBookIds) ? nameBudget(orderEntryRow(p, wSet, "", descLimit, stockBookIds), descLimit) : Infinity} descLimit={descLimit} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
-                                {skuSearchable(stockItems, searchOrder, bookStockReady) ? (
-                                  <SkuPicker value={p.sku || ""} stock={stockItems} stockReady={bookStockReady} tabIndex={-1}
-                                    onChange={(v) => updProduct(a.id, p.id, { sku: v })}
-                                    onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
-                                    onPickMany={(items) => addStockProducts(a.id, p.id, items)}
-                                    searchOrder={searchOrder} bookName={bookName}
-                                    wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
-                                ) : (
-                                  <input tabIndex={-1} value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
-                                )}
+                                {/* Plain field by request (2026-07-22): the SKU is typed or
+                                    snapshotted, never searched from here — the omni search
+                                    and product cell are the search entries. */}
+                                <input tabIndex={-1} value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (<>
@@ -1717,10 +1710,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                        <span className="inline-flex items-center gap-1 min-w-0">
-                                          <span className="shrink-0" style={{ width: 10, height: 10, borderRadius: 999, background: p.grout.color ? "#C9B79D" : "#F4F2EC", border: "1px solid #B3A38D" }} />
-                                          <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
-                                        </span>
+                                        <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
                                         {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
                                         <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{j.label}</button>)}</div>
                                       </div>
@@ -1729,7 +1719,7 @@ export default function App({ user, onSignOut }) {
                                     </div>
                                     <div className="mt-1.5 pl-7 flex items-center gap-2 text-xs text-slate-500">
                                       <span className="text-slate-400">Matching caulk</span>
-                                      {p.grout.color && <span className="inline-flex items-center gap-1"><span className="shrink-0" style={{ width: 9, height: 9, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D" }} />{p.grout.color} match</span>}
+                                      {p.grout.color && <span>{p.grout.color} match</span>}
                                       {p.grout.caulkSku && <span className="ft-mono text-[10px] text-slate-400">{p.grout.caulkSku}</span>}
                                       <span className="ml-auto flex items-center gap-1"><input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
                                     </div>
@@ -1879,7 +1869,7 @@ export default function App({ user, onSignOut }) {
                               <button data-mats-pill onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
                                 {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
-                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
+                                    <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
                                   </span>
                                 ))}
                                 {warns.map((w) => (
