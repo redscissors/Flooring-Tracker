@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ArrowUpRight } from "lucide-react";
-import { browserRows, filterRows, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES } from "./custbrowser.js";
+import { browserRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES } from "./custbrowser.js";
 import { useEscClose } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -9,16 +9,19 @@ import { useEscClose } from "./widgets.jsx";
 // reads all day). Replaces the sidebar's expanding age-bucket folders. Pure
 // UI over the boot's light rows; opening it fetches nothing, and every action
 // routes back through App's existing handlers.
-export default function CustomerBrowser({ people, projects, builders, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject }) {
+export default function CustomerBrowser({ people, projects, builders, myName, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject }) {
   const [q, setQ] = useState("");
+  // The salesperson box (the ERP order screen's Salesperson filter): typed
+  // name narrows to that salesman's customers; "Me" fills the signed-in
+  // profile's name.
+  const [salesQ, setSalesQ] = useState("");
   const [sortKey, setSortKey] = useState("created");
-  const [bySales, setBySales] = useState(true);
   const [selId, setSelId] = useState(null);
   useEscClose(true, onClose);
 
   const rows = useMemo(() => browserRows({ people, projects, builders }), [people, projects, builders]);
-  const shown = useMemo(() => sortRows(filterRows(rows, q), sortKey), [rows, q, sortKey]);
-  const groups = useMemo(() => bySales ? groupBySales(shown) : [{ sales: null, rows: shown }], [bySales, shown]);
+  const shown = useMemo(() => sortRows(filterBySales(filterRows(rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey]);
+  const groups = useMemo(() => groupBySales(shown), [shown]);
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
   const sel = flat.find((r) => r.id === selId) || null;
   const projCount = rows.reduce((n, r) => n + r.projs.length, 0);
@@ -55,7 +58,6 @@ export default function CustomerBrowser({ people, projects, builders, onClose, o
         <td className={`${td} max-w-[220px]`}>
           <span className="ft-item-name font-semibold text-[12.5px]">{r.name || "Unnamed customer"}</span>
         </td>
-        {!bySales && <td className={`${td} max-w-[130px] text-slate-500`}>{r.sales}</td>}
         <td className={`${td} max-w-[160px] text-slate-500`}>{r.builderName}</td>
         <td className={`${td} ft-mono whitespace-nowrap text-slate-600`}>{r.phone}</td>
         <td className={`${td} max-w-[240px] text-slate-500`}>{r.address}</td>
@@ -88,10 +90,20 @@ export default function CustomerBrowser({ people, projects, builders, onClose, o
               <button key={key} onClick={() => setSortKey(key)} className={`px-2 flex items-center font-medium ${sortKey === key ? "ft-seg-on" : "ft-seg-off"}`}>{label}</button>
             ))}
           </div>
-          <button onClick={() => setBySales((v) => !v)} title="Group the list by salesman"
-            className={`h-[26px] flex items-center gap-1 rounded-md border border-slate-200 px-2 text-xs font-medium shrink-0 ${bySales ? "ft-seg-on" : "ft-seg-off hover:bg-slate-50"}`}>
-            <Users size={13} /> By salesman
-          </button>
+          <div className="flex items-stretch rounded-md border border-slate-200 overflow-hidden shrink-0 h-[26px]">
+            <div className="relative">
+              <Users size={13} className="absolute left-1.5 top-[6px] text-slate-400" />
+              <input value={salesQ} onChange={(e) => setSalesQ(e.target.value)} placeholder="Salesperson"
+                className="ft-field h-full w-[118px] border-0 pl-6 pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            {salesQ ? (
+              <button onClick={() => setSalesQ("")} title="Show every salesperson" className="px-1.5 flex items-center border-l border-slate-200 text-slate-400 hover:text-slate-600"><X size={12} /></button>
+            ) : (
+              <button onClick={() => myName && setSalesQ(myName)} disabled={!myName}
+                title={myName ? `My customers — ${myName}` : "Set your name in Settings → General first"}
+                className="px-2 flex items-center border-l border-slate-200 text-xs font-semibold text-indigo-600 hover:bg-slate-50 disabled:text-slate-300">Me</button>
+            )}
+          </div>
           <button onClick={onNewCustomer} className="ft-spark-btn h-[26px] flex items-center gap-1 text-xs font-semibold px-2.5 shrink-0"><Plus size={14} className="-ml-0.5" /> New customer</button>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0 ml-auto"><X size={18} /></button>
         </div>
@@ -102,7 +114,6 @@ export default function CustomerBrowser({ people, projects, builders, onClose, o
             <thead className="sticky top-0 z-10" style={{ background: "var(--ft-card, #fff)", boxShadow: "0 1px 0 var(--ft-border, #e2e8f0)" }}>
               <tr>
                 {thBtn("name", "Customer")}
-                {!bySales && <th className={th}>Salesman</th>}
                 <th className={th}>Builder</th>
                 <th className={th}>Phone</th>
                 <th className={th}>Address</th>
@@ -114,7 +125,7 @@ export default function CustomerBrowser({ people, projects, builders, onClose, o
             </thead>
             <tbody>
               {groups.map((g) => (
-                <FragmentRows key={g.sales ?? "all"} group={g} bySales={bySales} rowEl={rowEl} />
+                <FragmentRows key={g.sales} group={g} rowEl={rowEl} />
               ))}
             </tbody>
           </table>
@@ -153,23 +164,20 @@ export default function CustomerBrowser({ people, projects, builders, onClose, o
   );
 }
 
-// One salesperson band + its customer rows (or the whole flat list when
-// grouping is off).
-function FragmentRows({ group, bySales, rowEl }) {
+// One salesperson band + its customer rows.
+function FragmentRows({ group, rowEl }) {
   return (
     <>
-      {bySales && (
-        <tr>
-          {/* 9 ≥ the widest layout; browsers clamp the span when email hides */}
-          <td colSpan={9} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
-            <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
-              <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
-              {group.sales}
-              <span className="normal-case tracking-normal font-normal text-slate-400">· {group.rows.length}</span>
-            </span>
-          </td>
-        </tr>
-      )}
+      <tr>
+        {/* 9 ≥ the widest layout; browsers clamp the span when email hides */}
+        <td colSpan={9} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
+          <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
+            <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
+            {group.sales}
+            <span className="normal-case tracking-normal font-normal text-slate-400">· {group.rows.length}</span>
+          </span>
+        </td>
+      </tr>
       {group.rows.map(rowEl)}
     </>
   );

@@ -2033,6 +2033,7 @@ export default function App({ user, onSignOut }) {
         <LazyBoundary>
         <Suspense fallback={null}>
         <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
+          myName={profile.name || ""}
           onClose={() => setShowBrowser(false)}
           onOpenCustomer={(id) => { setSelId(null); setSelCustId(id); setShowBrowser(false); }}
           onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}

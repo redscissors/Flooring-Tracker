@@ -48,7 +48,7 @@ function Harness() {
       <p className="text-xs p-2" style={{ color: "var(--ft-faint)" }}>
         Customer browser — real component, fake directory. Last action: <b style={{ color: "var(--ft-brand-deep)" }}>{log}</b>
       </p>
-      <CustomerBrowser people={people} projects={projects} builders={BUILDERS}
+      <CustomerBrowser people={people} projects={projects} builders={BUILDERS} myName="Marcus Mast"
         onClose={() => setLog("close")}
         onOpenCustomer={(id) => setLog(`open customer ${id} (${people.find((c) => c.id === id)?.name})`)}
         onOpenProject={(id) => setLog(`open project ${id}`)}

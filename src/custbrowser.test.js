@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, browserRows, filterRows, sortRows, groupBySales, NO_SALES, shortDate } from "./custbrowser.js";
+import { salesNameOf, browserRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -48,6 +48,21 @@ test("filterRows spans name, phone, address, builder, and project names", () => 
   assert.deepEqual(filterRows(all, "master bath").map((r) => r.id), ["c1"]);
   assert.equal(filterRows(all, "").length, 3);
   assert.equal(filterRows(all, "zzz").length, 0);
+});
+
+test("filterBySales matches any project's salesperson, case-blind substring", () => {
+  const all = rows();
+  assert.deepEqual(filterBySales(all, "marcus").map((r) => r.id), ["c1"]);
+  assert.deepEqual(filterBySales(all, "gina boyd").map((r) => r.id), ["c2"]);
+  // c1's derived sales is Marcus (latest named project), but an older project's
+  // salesperson still matches
+  const shared = browserRows({
+    people, builders,
+    projects: [...projects, { id: "p5", customerId: "c1", name: "Porch", updatedAt: 1, sales: "Gina Boyd" }],
+  });
+  assert.deepEqual(filterBySales(shared, "gina").map((r) => r.id), ["c1", "c2"]);
+  assert.equal(filterBySales(all, "").length, 3);
+  assert.equal(filterBySales(all, "nobody").length, 0);
 });
 
 test("sortRows: created/modified newest-first, name A–Z case-blind", () => {

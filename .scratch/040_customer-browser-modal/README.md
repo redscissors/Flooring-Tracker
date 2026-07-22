@@ -15,10 +15,14 @@ name/phone/address 4. open to more ideas."
   customer: name, builder, phone, address, email, job count, created,
   modified) over a bottom "project lines" panel for the selected customer,
   exactly like the ERP's Order Lines pane.
-- **Grouped by salesman** by default — band rows per salesperson (A–Z, "No
-  salesperson" last), toggleable off, which swaps in a Salesman column
-  instead. A customer's salesman is the salesperson snapshot (ADR 0008) of
+- **Grouped by salesman** — band rows per salesperson (A–Z, "No salesperson"
+  last). A customer's salesman is the salesperson snapshot (ADR 0008) of
   their most recently touched project.
+- **Salesperson box + "Me"** (2026-07-22 follow-up, replacing the earlier
+  "By salesman" toggle): type a salesman's name to see only their
+  customers/projects; the "Me" button to its right fills the signed-in
+  profile's name (Settings → General), then swaps to an × to clear. Matches
+  ANY of a customer's projects — a shared customer shows for both salesmen.
 - **Sorts**: Created (newest first, the default) / Modified / A–Z — as the
   segmented control or by clicking the Customer/Created/Modified column
   headers.
@@ -40,8 +44,11 @@ name/phone/address 4. open to more ideas."
 ## Preview
 
 - `browser-desktop.png` — grouped grid + project-lines panel (Chris Beauchamp
-  selected)
+  selected), empty Salesperson box with its Me button
+- `browser-me-filter.png` — Me pressed: only Marcus Mast's 6 customers
+- `browser-sales-typed.png` — "gina" typed: 13 of 26, incl. shared customers
+  whose older projects are Gina's
 - `browser-search.png` — "mast" narrowing to 5 of 26 across three salesmen
-- `browser-mobile.png` — 390px: header wraps, grid scrolls horizontally
+- `browser-mobile.png` — 390px with the Me filter on; grid scrolls horizontally
 
 Harness: `preview.html` / `src/preview.jsx` (real component, fake directory).

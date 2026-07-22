@@ -49,6 +49,18 @@ export function filterRows(rows, q) {
     r.projs.some((p) => has(p.name)));
 }
 
+// The salesperson box (the ERP order screen's Salesperson filter + "Me"
+// button): only customers any of whose projects carry a matching salesperson
+// name — not just the row's derived latest one, so a shared customer still
+// shows for both salesmen.
+export function filterBySales(rows, name) {
+  const s = (name || "").trim().toLowerCase();
+  if (!s) return rows;
+  return rows.filter((r) =>
+    (r.sales || "").toLowerCase().includes(s) ||
+    r.projs.some((p) => salesNameOf(p).toLowerCase().includes(s)));
+}
+
 // Each key carries its natural direction: dates newest-first, names A–Z.
 export const SORTS = [["created", "Created"], ["modified", "Modified"], ["name", "A–Z"]];
 export function sortRows(rows, key) {
