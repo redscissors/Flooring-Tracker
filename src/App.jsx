@@ -27,6 +27,9 @@ import { useBooks } from "./usebooks.js";
 import { useBookStock } from "./usebookstock.js";
 import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
 import { useOrderSearch } from "./useordersearch.js";
+import { useTrims } from "./usetrims.js";
+import { seedTrimPlan, applyTrimPlan, existingTrimRows } from "./trims.js";
+import TrimsPopup from "./TrimsPopup.jsx";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
@@ -111,6 +114,7 @@ export default function App({ user, onSignOut }) {
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
   } = useBooks({ user, profile, ping, flashSaved });
   const { bookStock, bookStockReady, loadAllBookStock, refreshBookStock } = useBookStock({ books, loadBookItems });
+  const { trimsFor, ensureTrims, clearTrims } = useTrims({ books });
   // Flips once the boot's stage-2 books fetch has landed (success OR
   // failure — books may legitimately hydrate to [], no pricebooks.sql yet).
   // State, not a ref: setBooks (in the boot's .then) is committed no later
@@ -135,6 +139,7 @@ export default function App({ user, onSignOut }) {
       delete next[bookId];
       return next;
     });
+    clearTrims(bookId);
     if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
     try {
       const items = await refreshBookStock(bookId);
@@ -170,6 +175,9 @@ export default function App({ user, onSignOut }) {
   // Sheoga vendor configurator popup (issue 023), tied to the product row it
   // was opened from: { aid, pid, seed } — seed is the { mode, cfg } it opens on.
   const [sheogaPop, setSheogaPop] = useState(null);
+  // Trims popup (2026-07-22 spec), tied to the floor row it was opened from:
+  // { aid, pid }. Opens from the materials drawer's Trims row.
+  const [trimsPop, setTrimsPop] = useState(null);
   // Appearance: "system" | "light" | "dark", per-device (localStorage, not
   // Supabase). index.html applies the saved class pre-paint; this keeps <html>
   // in sync when the user changes it. "system" clears both classes and lets the
@@ -220,6 +228,16 @@ export default function App({ user, onSignOut }) {
   // outside the drawer or its note). Collapsed rows show fine-print summaries of
   // the checked materials. See the matExpanded overlay in the grid below.
   const [matOpen, setMatOpen] = useState({});
+  // Opening a bookId row's drawer prefetches its trims (the `fits` relation),
+  // so the drawer's Trims row renders — or stays hidden — without a spinner.
+  useEffect(() => {
+    const pid = Object.keys(matOpen)[0];
+    if (!pid) return;
+    for (const a of sel?.categories || []) {
+      const p = a.products.find((x) => x.id === pid);
+      if (p) { if (p.bookId && p.sku) ensureTrims(p.bookId, p.sku); return; }
+    }
+  }, [matOpen, sel, ensureTrims]);
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const mainRef = useRef(null);
@@ -1844,6 +1862,21 @@ export default function App({ user, onSignOut }) {
                                     </div>
                                   );
                                 })}
+                                {(() => {
+                                  // Trims the price book lists for this floor (`fits`,
+                                  // ADR 0012) — prefetched on drawer open, shown only
+                                  // once trims are known to exist.
+                                  const tList = p.bookId && p.sku ? trimsFor(p.bookId, p.sku) : null;
+                                  if (!tList?.length) return null;
+                                  const onJob = existingTrimRows(a.products, p.id, tList).size;
+                                  return (
+                                    <button tabIndex={-1} onClick={() => { closeMats(); setTrimsPop({ aid: a.id, pid: p.id }); }} title="Trims & transitions for this floor — added as lines below it" className="w-full px-2.5 py-1 flex items-center gap-2 text-left hover:bg-slate-50">
+                                      <span className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field flex items-center justify-center text-slate-400"><Plus size={12} /></span>
+                                      <span className="text-sm text-slate-500">Trims</span>
+                                      <span className="text-xs text-slate-400 truncate">{tList.length} for this floor{onJob ? ` · ${onJob} on job` : ""}</span>
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               {noteInput}
                               </div>
@@ -2139,6 +2172,30 @@ export default function App({ user, onSignOut }) {
           </Suspense>
           </LazyBoundary>
         );
+      })()}
+
+      {/* Trims popup (2026-07-22 spec): the floor's book-listed trims as lines
+          right below it. Seeded from the area so reopening adjusts quantities
+          instead of appending; new picks snapshot through the sanctioned pick
+          patch (patchFor) like any search pick — nothing reprices later. */}
+      {trimsPop && sel && (() => {
+        const area = sel.categories.find((x) => x.id === trimsPop.aid);
+        const floor = area?.products.find((x) => x.id === trimsPop.pid);
+        const list = floor ? trimsFor(floor.bookId, floor.sku) : null;
+        if (!floor || !list?.length) return null;
+        const seed = seedTrimPlan(area.products, floor, list);
+        return <TrimsPopup floorName={floor.brandColor || floor.sku} trims={list} seed={seed} onClose={() => setTrimsPop(null)}
+          onApply={(qtys) => {
+            const entries = list.map((it) => {
+              const s = seed.find((e) => e.sku === it.sku);
+              const qty = qtys[it.sku] || 0;
+              const fresh = !s?.rowId && qty > 0;
+              const np = fresh ? newProduct() : null;
+              return { rowId: s?.rowId || null, qty, row: fresh ? { ...np, ...patchFor(it, np), qtyType: "count", qty: String(qty) } : null };
+            });
+            updArea(trimsPop.aid, { products: applyTrimPlan(area.products, floor.id, entries) });
+            setTrimsPop(null);
+          }} />;
       })()}
 
       {showOrderCopy && sel && sel._full && (() => {
