@@ -2,15 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 
-const stockSheets = [{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }];
 const vtcSheets = [{ name: "EFT", rows: [
   ["Item Code", "VTC Mfg", "Description", "Dealer Price"],
   ["ABC123", "Marazzi", "Oak 12X24", 3.29],
 ] }];
 const vtcMapping = { sheet: "EFT", headerRow: 0, columns: { 0: "sku", 1: "mfg", 2: "description", 3: "cost" }, skuPattern: "^[A-Z0-9]{6,20}$" };
 
-test("fileFormat: stock signature, VTC EFT, generic xlsx, generic pdf", () => {
-  assert.equal(fileFormat({ sheets: stockSheets }), "stock");
+test("fileFormat: VTC EFT, generic xlsx, generic pdf", () => {
   assert.equal(fileFormat({ sheets: vtcSheets }), "vtc-eft");
   assert.equal(fileFormat({ sheets: [{ name: "S", rows: [["Name", "Price"], ["Oak", 5]] }] }), "generic");
   assert.equal(fileFormat({ pages: [], isPdf: true }), "generic");
@@ -82,10 +80,6 @@ test("mappingMatchesFile: a saved VTC mapping parses the VTC file; a wrong sheet
   assert.equal(mappingMatchesFile(vtcMapping, vtcSheets), true);
   assert.equal(mappingMatchesFile({ ...vtcMapping, sheet: "Nope" }, vtcSheets), false);
   assert.equal(mappingMatchesFile(null, vtcSheets), false);
-});
-
-test("routeFile: stock is deterministic and needs no book", () => {
-  assert.equal(routeFile({ format: "stock", headerSig: "", sheets: stockSheets }, []).target, "stock");
 });
 
 test("routeFile: one VTC book by fingerprint ⇒ confident; two ⇒ ask", () => {
@@ -204,17 +198,6 @@ test("bundleByBook leaves the single-file case exactly as it was", () => {
   assert.deepEqual(steps.map((s) => s.bundle), [{ index: 0, total: 1 }, { index: 0, total: 1 }]);
   assert.deepEqual(bundleByBook([]), []);
   assert.deepEqual(bundleByBook(null), []);
-});
-
-// Stock files share the reserved "stock" target, so they group like any book.
-// NOTE: grouping is all they get — the stock path (importStockFile) applies each
-// file on its own, so two shop workbooks in one drop still retire each other.
-// Out of scope for ADR 0025, which covers price books; recorded so the grouping
-// here isn't mistaken for a fix.
-test("bundleByBook groups stock files too, though the stock path still applies per file", () => {
-  const steps = bundleByBook([dropRow("shop.xlsx", "stock"), dropRow("x.xls", "bkA"), dropRow("shop2.xlsx", "stock")]);
-  assert.deepEqual(steps.map((s) => s.row.target), ["stock", "stock", "bkA"]);
-  assert.deepEqual(steps.map((s) => s.bundle.total), [2, 2, 1]);
 });
 
 // --- the book's source manifest (ADR 0025) -----------------------------------
@@ -397,7 +380,6 @@ const vsaSheets = [{ name: "Vendor SKU Analysis", rows: [
 
 test("fileFormat: the ERP Vendor SKU Analysis export gets its own tag", () => {
   assert.equal(fileFormat({ sheets: vsaSheets }), "vendor-sku");
-  assert.equal(fileFormat({ sheets: stockSheets }), "stock"); // untouched
 });
 
 test("computeFingerprint: a vendor-sku file is titled by its filename stem", () => {

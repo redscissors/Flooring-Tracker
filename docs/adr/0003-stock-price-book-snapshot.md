@@ -1,9 +1,14 @@
 # ADR 0003 — Stock price book: shared `stock_items` table, SKU fills by snapshot, re-imports never rewrite estimates
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR 0027 (2026-07-22) — the hand-kept shop
+  workbook was retired in favor of ERP "Vendor SKU Analysis" stock-kind
+  registry books, and the workbook's code paths (parser, import, `useStock`
+  cache, library panel) were removed. The `stock_items` table and its data are
+  KEPT (nothing is ever deleted); no code reads or writes it anymore. The
+  snapshot doctrine decided here lives on unchanged in the registry books.
 - **Date:** 2026-07-03
 - **Scope:** system-wide (new stock_items table + product row data model + import pipeline)
-- **Related:** `.scratch/004_stock-price-book/ticket.md`, ADR 0002
+- **Related:** `.scratch/004_stock-price-book/ticket.md`, ADR 0002, ADR 0027
 
 ## Context
 

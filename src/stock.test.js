@@ -1,8 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normStockItem, stockData, searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, diffStock, syncCatalogPrices, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
+import { searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
+import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
+// Stock-shaped item factory, same DB-row-ish call shape the old workbook
+// normalizer took so the cases below read unchanged (column-backed fields
+// outrank the data payload, like the real row loaders).
+const normStockItem = (row) => normOrderItem({
+  ...(row.data || {}),
+  sku: row.sku,
+  ...(row.active !== undefined ? { active: row.active } : {}),
+  ...(row.disabled !== undefined ? { disabled: row.disabled } : {}),
+});
 const item = (over = {}) => normStockItem({ sku: over.sku || "12345", active: over.active, data: { description: "Test item", price: 10, ...over } });
 
 // --- size / thickness parsing -------------------------------------------------
@@ -272,79 +282,6 @@ test("'transition' matches the book's trim profile labels", () => {
   assert.deepEqual(searchStock(items, "napa transition").map((i) => i.sku), ["13137", "13165"]);
 });
 
-// --- import diff ------------------------------------------------------------------
-
-test("diffStock: added / changed / missing / unchanged, and re-activation counts as a change", () => {
-  const existing = [
-    item({ sku: "1", price: 10 }),
-    item({ sku: "2", price: 20 }),
-    item({ sku: "3", price: 30 }),
-    normStockItem({ sku: "4", active: false, data: { description: "Test item", price: 40 } }),
-  ];
-  const parsed = [
-    item({ sku: "1", price: 10 }), // unchanged
-    item({ sku: "2", price: 25 }), // price change
-    item({ sku: "4", price: 40 }), // back in the book
-    item({ sku: "5", price: 50 }), // new
-  ];
-  const d = diffStock(existing, parsed);
-  assert.deepEqual(d.added.map((i) => i.sku), ["5"]);
-  assert.deepEqual(d.changed.map((c) => c.item.sku), ["2", "4"]);
-  assert.deepEqual(d.changed[0].fields, ["price"]);
-  assert.deepEqual(d.missing.map((i) => i.sku), ["3"]); // sku 4 was already inactive
-  assert.deepEqual(d.unchanged.map((i) => i.sku), ["1"]);
-});
-
-test("stockData strips the column-backed fields from what goes into jsonb", () => {
-  const d = stockData(item({ sku: "9", price: 1 }));
-  assert.equal(d.sku, undefined);
-  assert.equal(d.active, undefined);
-  assert.equal(d.updatedAt, undefined);
-  assert.equal(d.price, 1);
-});
-
-// --- catalog price sync ---------------------------------------------------------------
-
-const catalog = () => ({ companies: [{
-  id: "c1", name: "Co", enabled: true,
-  grouts: [{ id: "g1", name: "Tec Power Grout", enabled: true, coverage: 100, unit: "bags", price: 30 }],
-  mortars: [
-    { id: "m1", name: "ProLite", enabled: true, tier1: 90, tier2: 60, tier3: 45, unit: "bags", price: 35 },
-    { id: "m2", name: "Schluter All Set", enabled: true, tier1: 90, tier2: 60, tier3: 45, unit: "bags", price: 0 },
-  ],
-  underlayments: [{ id: "u1", name: "FloorMuffler UltraSeal", enabled: true, coverage: 100, unit: "rolls", price: 0, types: [], install: [] }],
-}] });
-
-test("syncCatalogPrices updates on a unique price, skips ambiguous name matches", () => {
-  const items = [
-    // many colors, one price → counts as a unique price for Tec Power Grout
-    item({ sku: "26742", product: "TEC Power Grout", description: "TEC Power Grout — Birch", price: 33.53 }),
-    item({ sku: "26736", product: "TEC Power Grout", description: "TEC Power Grout — Bright White", price: 33.53 }),
-    // "ProLite" matches two differently-priced mortars → left alone
-    item({ sku: "29438", description: "Custom Prolite Mortar White", price: 39.99 }),
-    item({ sku: "29177", description: "Custom Prolite Rapid Set Gray", price: 58.04 }),
-    item({ sku: "23051", description: "Schluter All Set White", price: 39.21 }),
-    // space-insensitive match: "FloorMuffler" ~ "Floor Muffler"
-    item({ sku: "28882", description: "Floor Muffler w/ Ultraseal", price: 45 }),
-  ];
-  const { catalog: next, changes } = syncCatalogPrices(catalog(), items);
-  const co = next.companies[0];
-  assert.equal(co.grouts[0].price, 33.53);
-  assert.equal(co.mortars[0].price, 35); // ProLite untouched (ambiguous)
-  assert.equal(co.mortars[1].price, 39.21);
-  assert.equal(co.underlayments[0].price, 45);
-  assert.deepEqual(changes.map((c) => c.name).sort(), ["FloorMuffler UltraSeal", "Schluter All Set", "Tec Power Grout"]);
-});
-
-test("syncCatalogPrices ignores discontinued/inactive items and no-ops on equal prices", () => {
-  const items = [
-    item({ sku: "1", product: "TEC Power Grout", description: "TEC Power Grout — Birch", price: 99, discontinued: true }),
-    item({ sku: "2", description: "Schluter All Set White", price: 39.21, active: false }),
-  ];
-  const { changes } = syncCatalogPrices(catalog(), items);
-  assert.equal(changes.length, 0);
-});
-
 // --- Laticrete base-unit companions ---------------------------------------------
 
 const baseStock = () => [
@@ -383,7 +320,7 @@ test("stockBaseVariant toggles to the sibling base variant", () => {
   assert.equal(stockBaseVariant(pigment("Spectralock Part C"), stock), null); // not a base
 });
 
-// --- ADR 0006: base companion for the catalog, exact-SKU price sync -------------
+// --- ADR 0006: base companion for the catalog ------------------------------------
 
 test("stockBaseCompanion builds the catalog base at a 1:1 ratio, null when none", () => {
   const stock = baseStock();
@@ -393,58 +330,6 @@ test("stockBaseCompanion builds the catalog base at a 1:1 ratio, null when none"
   assert.equal(c.per, 1);
   assert.equal(c.price, 132.99);
   assert.equal(stockBaseCompanion(pigment("Latasil Caulk"), stock), null);
-});
-
-test("syncCatalogPrices refreshes attached (custom category) products by exact SKU", () => {
-  const cat = {
-    companies: [{ id: "co1", name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [], attached: [
-      { id: "p1", categoryId: "cat1", name: "RENO-U", enabled: true, sku: "T-114", unit: "pieces", price: 15, coverage: 0 },
-    ] }],
-    categories: [{ id: "cat1", name: "Trim", floorTypes: [], math: "manual", default: "", enabled: true }],
-  };
-  const items = [item({ sku: "T-114", description: "RENO-U transition", price: 18.4 })];
-  const { catalog: next, changes } = syncCatalogPrices(cat, items);
-  assert.equal(next.companies[0].attached[0].price, 18.4);
-  assert.deepEqual(changes, [{ name: "RENO-U", from: 15, to: 18.4, sku: "T-114" }]);
-  // untouched fields survive
-  assert.equal(next.companies[0].attached[0].categoryId, "cat1");
-  assert.deepEqual(next.categories, cat.categories);
-});
-
-test("syncCatalogPrices leaves companies without an attached key alone", () => {
-  const cat = { companies: [{ id: "co1", name: "Tec", enabled: true, grouts: [], mortars: [], underlayments: [] }] };
-  const { catalog: next } = syncCatalogPrices(cat, []);
-  assert.equal("attached" in next.companies[0], false);
-});
-
-test("syncCatalogPrices skips a product carrying an ERP link (ADR 0027 supersession), still reprices an unlinked one", () => {
-  const items = [
-    item({ sku: "26742", description: "TEC Power Grout — Birch", price: 33.53 }),
-  ];
-  const cat = { companies: [{ id: "c", name: "Co", enabled: true,
-    grouts: [
-      { id: "g-linked", name: "Tec Power Grout", enabled: true, coverage: 100, unit: "bags", price: 30, sku: "26742", link: { bookId: "b1", sku: "26742" } },
-      { id: "g-unlinked", name: "Tec Power Grout Two", enabled: true, coverage: 100, unit: "bags", price: 30, sku: "26742", link: null },
-    ], mortars: [], underlayments: [] }] };
-  const { catalog: next, changes } = syncCatalogPrices(cat, items);
-  assert.equal(next.companies[0].grouts[0].price, 30); // linked product untouched
-  assert.equal(next.companies[0].grouts[1].price, 33.53); // unlinked product still reprices by SKU
-  assert.deepEqual(changes.map((c) => c.name), ["Tec Power Grout Two"]);
-});
-
-test("syncCatalogPrices refreshes a SKU-linked product from that exact item", () => {
-  const items = [
-    item({ sku: "1519025", description: "85 Almond Permacolor Color Kit", price: 5.39 }),
-    item({ sku: "9999", description: "Permacolor Color Kit other color", price: 99 }), // same words, different price
-  ];
-  const cat = { companies: [{ id: "c", name: "Laticrete", enabled: true,
-    grouts: [{ id: "g", name: "PermaColor Color Kit", enabled: true, coverage: 100, unit: "units", price: 0, sku: "1519025" }],
-    mortars: [], underlayments: [] }] };
-  const { catalog: next, changes } = syncCatalogPrices(cat, items);
-  // The SKU wins over the ambiguous name match (name alone would no-op here).
-  assert.equal(next.companies[0].grouts[0].price, 5.39);
-  assert.equal(changes.length, 1);
-  assert.equal(changes[0].sku, "1519025");
 });
 
 // --- ADR 0007: grout color families ----------------------------------------------
@@ -515,14 +400,6 @@ test("groutSnapshotPatch bundles color SKU + caulk SKU/price; empty on a miss", 
 
 // --- disabled switch (importer-upgrades spec, PR A) ----------------------------
 
-test("normStockItem maps the disabled column legacy-safe; stockData strips it", () => {
-  const off = normStockItem({ sku: "22222", disabled: true, data: { description: "Blue tile" } });
-  const legacy = normStockItem({ sku: "11111", data: { description: "Blue tile" } });
-  assert.equal(off.disabled, true);
-  assert.equal(legacy.disabled, false);
-  assert.equal("disabled" in stockData(off), false); // never lands in the jsonb payload
-});
-
 test("searchStock skips disabled items", () => {
   const on = normStockItem({ sku: "11111", data: { description: "Blue glass tile" } });
   const off = normStockItem({ sku: "22222", disabled: true, data: { description: "Blue glass tile" } });
@@ -539,11 +416,4 @@ test("grout family colors and their caulk skip disabled SKUs", () => {
   const powerGrout = fams.find((f) => f.product === "TEC Power Grout");
   assert.deepEqual(powerGrout.colors.map((c) => c.color), ["Charcoal"]); // Bone is disabled
   assert.equal(groutCaulkItem(stock, "TEC Power Grout", "Charcoal"), null); // its caulk is disabled
-});
-
-test("syncCatalogPrices ignores disabled items", () => {
-  const items = [normStockItem({ sku: "50001", disabled: true, data: { description: "ProLite Mortar", price: 44 } })];
-  const catalog = { companies: [{ id: "c1", name: "TEC", grouts: [], mortars: [{ id: "m1", name: "ProLite Mortar", price: "30" }], underlayments: [] }] };
-  const { changes } = syncCatalogPrices(catalog, items);
-  assert.equal(changes.length, 0);
 });

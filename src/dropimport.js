@@ -3,23 +3,22 @@
 // component, then fingerprinted and matched to a book here. No I/O — the caller
 // hands in parsed sheets (xlsx) or pages (pdf).
 
-import { detectVtcEft, detectStockWorkbook, detectVendorSkuAnalysis, parseMapped } from "./pricebook.js";
+import { detectVtcEft, detectVendorSkuAnalysis, parseMapped } from "./pricebook.js";
 import { isManningtonCartons } from "./manningtonbook.js";
 import { isHallmarkWood, isTarkettLvt, isOvfSundries } from "./ovfbook.js";
 import { isMirageChart, mirageFileKind } from "./miragebook.js";
 import { isEmserIspl } from "./emserbook.js";
 
 // The strongest format tag we can read straight off the file. Priority follows
-// the spec: stock signature → VTC EFT → OVF books → Emser ISPL → Mannington
-// PDF → generic. The OVF banded flooring lists are tested before the sundries
-// section-table, mirroring parseOvf's own routing order.
+// the spec: VTC EFT → OVF books → Emser ISPL → Mannington PDF → generic. The
+// OVF banded flooring lists are tested before the sundries section-table,
+// mirroring parseOvf's own routing order.
 export function fileFormat({ sheets, pages, isPdf }) {
   // Mirage ships one hand-supplied PDF (its product chart). It needs its own tag
   // or it fingerprints as plain "generic", and ADR 0025's manual source slots —
   // which key on the format tag, PDFs having no header signature — would accept
   // any unrelated PDF as the missing chart.
   if (isPdf) return isManningtonCartons(pages || []) ? "mannington" : isMirageChart(pages || []) ? "mirage-chart" : "generic";
-  if (detectStockWorkbook(sheets || [])) return "stock";
   if (detectVtcEft(sheets || [])) return "vtc-eft";
   if (isHallmarkWood(sheets || [])) return "ovf-hallmark";
   if (isTarkettLvt(sheets || [])) return "ovf-tarkett";
@@ -117,11 +116,10 @@ const reasonFor = (format, title) =>
     : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} — pick which book`
       : "Unrecognized layout — pick a book";
 
-// Route one parsed file to a target book. Stock is deterministic; registry
-// formats match a book by stored fingerprint format OR a saved mapping that
-// parses the file (so pre-PR-C books, which have a saved mapping but no
-// fingerprint, still match). Exactly one candidate ⇒ confident target; zero or
-// several ⇒ null target and the routing UI asks.
+// Route one parsed file to a target book: match by stored fingerprint format
+// OR a saved mapping that parses the file (so pre-PR-C books, which have a
+// saved mapping but no fingerprint, still match). Exactly one candidate ⇒
+// confident target; zero or several ⇒ null target and the routing UI asks.
 //
 // Sibling-template rule: when both the file and a book's fingerprint carry a
 // title (the EFT brand line), a matching title outranks every other signal and
@@ -130,7 +128,6 @@ const reasonFor = (format, title) =>
 // book's mapping. Books stamped before titles existed keep matching by format
 // alone until their next import stamps one.
 export function routeFile({ format, headerSig, titleSig, title, sheets }, books) {
-  if (format === "stock") return { target: "stock", candidates: [], reason: "Shop workbook (sheet names matched)" };
   const byTitle = new Set(), cand = new Set();
   for (const b of books || []) {
     const fp = b.data?.importFingerprint;

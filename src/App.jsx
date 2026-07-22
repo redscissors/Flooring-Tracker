@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadStock, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
@@ -11,7 +11,7 @@ import { isSpecialOrder, nameBudget } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
-import { STOCK_LOADING_MSG, STOCK_FAILED_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
+import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData } from "./model.js";
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, KSHORT, u1, printMatList, orderEntryRow } from "./print.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal } from "./widgets.jsx";
@@ -26,7 +26,6 @@ import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useBookStock } from "./usebookstock.js";
 import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
-import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
@@ -106,7 +105,6 @@ export default function App({ user, onSignOut }) {
   const {
     books, hydrateBooks, orderItems, setOrderItems,
     loadBookItems, addBook, updateBook, delBook, applyBookImport,
-    appliedFromDiff, snapshotBookVersion,
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
   } = useBooks({ user, profile, ping, flashSaved });
@@ -316,19 +314,16 @@ export default function App({ user, onSignOut }) {
       // A failed core load must LOOK failed — populating the caches over an
       // app running on default settings and an empty project list would read
       // as "that ping was noise" and invite quoting against default rates.
-      if (!coreOk) { markStockFailed(true); markStockReady(true); return; }
+      if (!coreOk) return;
 
       // Stage 2 (ADR 0026) — bounded shared caches; nothing here blocks first
       // paint, and each cache applies the moment its OWN fetch lands (no
-      // barrier: a slow price_books query must not hold the stock cache — or a
-      // stale todos snapshot — hostage). Best-effort per load: an install that
-      // hasn't run that table's SQL file just doesn't get the feature
-      // (stock.sql → SKU picker, todos.sql → team list, pricebooks.sql →
-      // registry affordances). Labels load when the Apps hub opens, not here.
+      // barrier: a slow price_books query must not hold a stale todos snapshot
+      // hostage). Best-effort per load: an install that hasn't run that
+      // table's SQL file just doesn't get the feature (todos.sql → team list,
+      // pricebooks.sql → registry affordances + SKU picker). Labels load when
+      // the Apps hub opens, not here.
       await Promise.allSettled([
-        trace.span("stock", () => loadStock(supabase))
-          .then((rows) => hydrateStock(rows), () => markStockFailed(true))
-          .finally(() => markStockReady(true)),
         trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
         trace.span("books", () => loadBooks(supabase))
           .then((rows) => hydrateBooks(rows), () => { })
@@ -402,13 +397,6 @@ export default function App({ user, onSignOut }) {
   }, [search]);
 
   const {
-    stock, stockReady, stockFailed,
-    hydrateStock, markStockReady, markStockFailed,
-    importing, importPreview, setImportPreview, pbRef,
-    importStockFile, importPriceBook, applyImport, rollbackStock,
-    setStockItemsDisabled,
-  } = useStock({ user, ping, flashSaved, profile, settings, setSettings, appliedFromDiff, snapshotBookVersion });
-  const {
     todos, hydrateTodos,
     showTodos, setShowTodos,
     openTodos, addTodo, toggleTodo, delTodo, clearDoneTodos, reorderTodos,
@@ -417,15 +405,25 @@ export default function App({ user, onSignOut }) {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
   } = useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings });
-  // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
-  // at edit time only (color dropdowns, Settings linking), never at calc time.
-  // groutStock merges the shop stock book with book-linked family rows
-  // projected from the price-book cache (ADR 0007/0009) — edit-time surfaces
-  // only, never the calc-time path.
-  const groutStock = useMemo(() => [...stock, ...projectFamilies(settings.catalog.bookFamilies, bookStock)], [stock, settings.catalog.bookFamilies, bookStock]);
+  // The row search's instant in-memory tier: every active stock-kind book's
+  // items, flattened from the ADR 0026 background cache (the ERP exports that
+  // replaced the shop workbook, ADR 0027). stockKind marks a hit as shop
+  // stock so the pickers badge it "stock", not "special order" — picks still
+  // route through orderPatch (the items carry bookId), so rows keep book
+  // provenance and the on-demand drift fetch covers them.
+  const stockItems = useMemo(
+    () => Object.values(bookStock).flat().map((it) => ({ ...it, stockKind: true })),
+    [bookStock]);
+  // Stock-kind book ids, so order entry can file their rows as stock lines
+  // (their SKUs are the shop's own) despite the bookId provenance.
+  const stockBookIds = useMemo(() => new Set(books.filter((b) => b.kind === "stock").map((b) => b.id)), [books]);
+  // Grout color families (ADR 0007 mechanics over ADR 0027 rules): family rows
+  // projected from the stock-book cache — read at edit time only (color
+  // dropdowns, Settings linking), never at calc time.
+  const groutStock = useMemo(() => projectFamilies(settings.catalog.bookFamilies, bookStock), [settings.catalog.bookFamilies, bookStock]);
   const gFamilies = useMemo(() => groutFamilies(groutStock), [groutStock]);
-  // A grout's linked book is book-backed (ADR 0009) vs. the legacy shop-stock
-  // family (ADR 0007) — the two wait on different caches (stockBusy below).
+  // A grout linked to a book-backed family (ADR 0009/0027) waits on the
+  // stock-book cache before a pick may snapshot (stockBusy below).
   const isBookFam = (book) => !!book && (settings.catalog.bookFamilies || []).some((f) => f.name.toLowerCase() === book.toLowerCase());
   const fmtAgo = (ts) => {
     if (!ts) return "";
@@ -1293,15 +1291,13 @@ export default function App({ user, onSignOut }) {
                         const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
                         const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
                         const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
-                        // A book-linked pick snapshots from the stock cache at click
-                        // time (ADR 0007, groutSnapshotPatch) — while stage 2 is in
-                        // flight (or after it failed) that would blank an existing
-                        // snapshot, so refuse loudly instead (ADR 0026). A book-backed
-                        // family (ADR 0009) waits on its own cache instead.
+                        // A book-linked pick snapshots from the stock-book cache at
+                        // click time (ADR 0007 mechanics, groutSnapshotPatch) — while
+                        // that cache is still loading the pick would blank an existing
+                        // snapshot, so refuse loudly instead (ADR 0026).
                         const stockBusy = (book) => {
-                          if (!book) return false;
-                          if (isBookFam(book)) { if (!bookStockReady) { ping(STOCK_LOADING_MSG); return true; } return false; }
-                          if (!stockReady || stockFailed) { ping(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; }
+                          if (!book || !isBookFam(book)) return false;
+                          if (!bookStockReady) { ping(STOCK_LOADING_MSG); return true; }
                           return false;
                         };
                         const pickGroutColor = (color) => { if (stockBusy(gBook)) return; updProduct(a.id, p.id, { grout: { ...p.grout, color, ...groutSnapshotPatch(groutStock, gBook, color) } }); };
@@ -1366,7 +1362,12 @@ export default function App({ user, onSignOut }) {
                         const oDrift = oItem && oBook ? orderDrift(oItem, oBook, p) : null;
                         const stockItem = orderRow ? null : findStock(groutStock, p.sku);
                         const drift = stockDrift(stockItem, p);
-                        const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
+                        // Retired = the row's SKU is discontinued/inactive in its source —
+                        // the book item for a bookId row (imports retire, never delete),
+                        // the projected family row otherwise.
+                        const stockRetired = p.sku && (orderRow
+                          ? oItem && (oItem.discontinued || oItem.active === false)
+                          : stockItem && (stockItem.discontinued || !stockItem.active));
                         const baseAlt = stockItem && stockBaseVariant(stockItem, groutStock);
                         // The type accent stays on the small type button and the material
                         // chips; the row itself carries the page tone (constant — it does
@@ -1436,12 +1437,12 @@ export default function App({ user, onSignOut }) {
                             {baseAlt && (
                               <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, stockPatch(baseAlt, p))} className="rounded-full border border-slate-300 text-slate-600 px-2 py-0.5 hover:bg-slate-50 font-medium">Use {baseAlt.style || baseAlt.description}</button>
                             )}
-                            {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the stock price book</span>}
+                            {stockRetired && <span className="text-slate-400">SKU {p.sku} is no longer in the price book</span>}
                           </div>
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
-                            settings={wSet} stock={stock} groutStock={groutStock} stockReady={stockReady} stockFailed={stockFailed} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping}
+                            settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
@@ -1480,7 +1481,7 @@ export default function App({ user, onSignOut }) {
                                 <span className="w-1 shrink-0" />
                               </div>
                               <div style={gridCell}>
-                                <GridOmniSearch stock={stock} stockReady={stockReady} query={omniText}
+                                <GridOmniSearch stock={stockItems} stockReady={bookStockReady} query={omniText}
                                   onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
                                   onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
                                   onManual={() => goManual()} onAbandon={clearOmni}
@@ -1513,12 +1514,12 @@ export default function App({ user, onSignOut }) {
                                 )}
                               </div>
                               <div style={gridCell}>
-                                <GridProductBox value={p.brandColor} stock={stock} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }}
-                                  budget={descLimit > 0 && isSpecialOrder(p) ? nameBudget(orderEntryRow(p, wSet, "", descLimit), descLimit) : Infinity} descLimit={descLimit} />
+                                <GridProductBox value={p.brandColor} stock={stockItems} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }}
+                                  budget={descLimit > 0 && isSpecialOrder(p, stockBookIds) ? nameBudget(orderEntryRow(p, wSet, "", descLimit, stockBookIds), descLimit) : Infinity} descLimit={descLimit} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
-                                {skuSearchable(stock, searchOrder, stockReady) ? (
-                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady} tabIndex={-1}
+                                {skuSearchable(stockItems, searchOrder, bookStockReady) ? (
+                                  <SkuPicker value={p.sku || ""} stock={stockItems} stockReady={bookStockReady} tabIndex={-1}
                                     onChange={(v) => updProduct(a.id, p.id, { sku: v })}
                                     onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                                     onPickMany={(items) => addStockProducts(a.id, p.id, items)}
@@ -1998,14 +1999,13 @@ export default function App({ user, onSignOut }) {
         <LazyBoundary>
         <Suspense fallback={null}>
         <SettingsWorkspace onClose={() => setShowSettings(false)}
-          settings={settings} setSettings={setSettings} stock={stock} stockReady={stockReady} gFamilies={gFamilies}
-          importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef}
+          settings={settings} setSettings={setSettings} gFamilies={gFamilies}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
           bookStock={bookStock} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} />
         </Suspense>
         </LazyBoundary>
       )}
@@ -2015,7 +2015,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <AppsWorkspace
           onClose={() => setShowApps(false)}
-          stock={stock}
+          stock={stockItems}
           labels={labels}
           presets={settings.apps?.labels?.presets || []}
           onAddLabel={addLabel}
@@ -2074,7 +2074,7 @@ export default function App({ user, onSignOut }) {
         const oeProj = tv.tier === "employee" ? tv.proj : sel;
         const descLimit = normPricing(settings.pricing).descLimit;
         const rows = [];
-        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit)); }));
+        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds)); }));
         const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
         return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
       })()}
@@ -2156,60 +2156,6 @@ export default function App({ user, onSignOut }) {
             {term && m && !exact && <div className="mt-2 text-[12px] text-slate-400 px-1">Did you mean <b>{m.item.name}</b>? Pick it above to avoid a duplicate.</div>}
             {!term && list.length === 0 && <div className="mt-3 text-sm text-slate-400 rounded-md border border-dashed border-slate-200 px-3 py-2.5">No customers yet — type a name above to create one.</div>}
             <div className="flex justify-end mt-4"><button onClick={close} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button></div>
-          </Modal>
-        );
-      })()}
-
-      {importPreview && (() => {
-        const { parsed, diff, warnings, sync, onDone } = importPreview;
-        const total = diff.added.length + diff.changed.length + diff.missing.length;
-        const money2 = (n) => (n == null ? "—" : money(n));
-        const itemPrice = (it) => (it.priceSqft != null && it.type ? it.priceSqft : it.price);
-        // Cancelling still advances the drop router's queue, but reports applied=false so a pooled file isn't dropped as if imported.
-        const closePreview = () => { setImportPreview(null); onDone?.(false); };
-        return (
-          <Modal onClose={closePreview} title="Import price book">
-            <p className="text-sm text-slate-600 mb-3"><b>{parsed.length}</b> items read · <b>{diff.added.length}</b> new · <b>{diff.changed.length}</b> changed · <b>{diff.missing.length}</b> no longer listed · {diff.unchanged.length} unchanged</p>
-            {total === 0 && sync.changes.length === 0 && <p className="text-sm text-slate-400 mb-3">Everything already matches the current stock list — nothing to apply.</p>}
-            {diff.changed.length > 0 && (
-              <div className="mb-3">
-                <label className={lbl}>Changed items</label>
-                <div className="max-h-44 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100 text-xs">
-                  {diff.changed.slice(0, 60).map(({ item, prev, fields }) => (
-                    <div key={item.sku} className="px-2.5 py-1.5 flex items-baseline gap-2">
-                      <span className="ft-mono text-slate-400 shrink-0">{item.sku}</span>
-                      <span className="truncate flex-1">{item.description}</span>
-                      <span className="shrink-0 ft-mono">{fields.includes("price") || fields.includes("priceSqft") ? <>{money2(itemPrice(prev))} → <b>{money2(itemPrice(item))}</b></> : <span className="text-slate-400">{fields.join(", ") || "re-activated"}</span>}</span>
-                    </div>
-                  ))}
-                  {diff.changed.length > 60 && <div className="px-2.5 py-1.5 text-slate-400">…and {diff.changed.length - 60} more</div>}
-                </div>
-              </div>
-            )}
-            {diff.missing.length > 0 && (
-              <div className="mb-3">
-                <label className={lbl}>No longer listed (marked inactive, never deleted)</label>
-                <div className="text-xs text-slate-500 max-h-24 overflow-y-auto rounded-md border border-slate-200 px-2.5 py-1.5">{diff.missing.slice(0, 30).map((it) => it.sku).join(", ")}{diff.missing.length > 30 ? ` …and ${diff.missing.length - 30} more` : ""}</div>
-              </div>
-            )}
-            {sync.changes.length > 0 && (
-              <div className="mb-3">
-                <label className={lbl}>Catalog price updates (grout / mortar / underlayment)</label>
-                <div className="max-h-32 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100 text-xs">
-                  {sync.changes.map((c) => <div key={c.name} className="px-2.5 py-1.5 flex items-baseline gap-2"><span className="truncate flex-1">{c.name}</span><span className="shrink-0 ft-mono">{money(c.from)} → <b>{money(c.to)}</b></span><span className="ft-mono text-slate-400 shrink-0">SKU {c.sku}</span></div>)}
-                </div>
-              </div>
-            )}
-            {warnings.length > 0 && (
-              <div className="mb-3">
-                <label className={lbl}>Warnings</label>
-                <div className="text-xs text-amber-600 space-y-1 max-h-28 overflow-y-auto">{warnings.slice(0, 12).map((w, i) => <div key={i}>{w}</div>)}{warnings.length > 12 && <div>…and {warnings.length - 12} more</div>}</div>
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button onClick={closePreview} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-              <button onClick={applyImport} disabled={total === 0 && sync.changes.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply import{total > 0 ? ` — ${diff.added.length} new · ${diff.changed.length} changed · ${diff.missing.length} retired` : ""}</button>
-            </div>
           </Modal>
         );
       })()}

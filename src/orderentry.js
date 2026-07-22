@@ -12,7 +12,10 @@ import { descParts } from "./sheoga.js";
 // order: it came from a price-book "order" book (bookId), or it came from the
 // Sheoga configurator (sheoga — the floor line and its at-cost fee lines, which
 // carry the marker without a cfg). Neither is a stock SKU the shop holds.
-export const isSpecialOrder = (p) => !!p.bookId || !!p.sheoga;
+// `stockBookIds` (a Set of stock-kind book ids) carves out the ERP stock
+// books' rows — they carry a bookId for provenance/drift but their SKUs are
+// the shop's own, so they file as stock lines (SKU ⇥ qty).
+export const isSpecialOrder = (p, stockBookIds) => (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga;
 
 // The vendor prefix the configurator writes into the row name. It's worth ~9 of
 // a 30-character field and the PO already says who it's going to, so it stays on

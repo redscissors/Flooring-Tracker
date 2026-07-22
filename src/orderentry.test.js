@@ -11,6 +11,13 @@ test("isSpecialOrder: a price-book order item is special, a stock SKU is not", (
   assert.equal(isSpecialOrder({}), false);
 });
 
+test("isSpecialOrder: a stock-kind book's row files as stock despite its bookId", () => {
+  const stockBookIds = new Set(["bkDOIT"]);
+  assert.equal(isSpecialOrder({ bookId: "bkDOIT", sku: "05153" }, stockBookIds), false);
+  assert.equal(isSpecialOrder({ bookId: "bkVTC", sku: "ANA-1224" }, stockBookIds), true);
+  assert.equal(isSpecialOrder({ bookId: "bkDOIT", sku: "", sheoga: { mode: "floor" } }, stockBookIds), true);
+});
+
 test("isSpecialOrder: every Sheoga line is special — the floor AND its fee lines", () => {
   // Custom colour on a small job drags two fees along; all three must file
   // together under Special order, or the fees strand in Stock as "no SKU".

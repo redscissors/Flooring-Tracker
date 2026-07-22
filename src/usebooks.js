@@ -116,16 +116,14 @@ export function useBooks({ user, profile, ping, flashSaved }) {
   };
 
   // The active set an apply leaves the book in: added + changed + unchanged
-  // (retired SKUs are excluded — they were just marked inactive). Both diff
-  // shapes (diffBookItems / diffStock) match, so this serves stock and registry.
+  // (retired SKUs are excluded — they were just marked inactive).
   const appliedFromDiff = (diff) => [...diff.added, ...diff.changed.map((c) => c.item), ...(diff.unchanged || [])];
 
   // Snapshot a book's applied active set as a pricebook_versions row (values as
   // applied — cost/price, never derived sell), then prune unpinned to newest 3.
-  // Shared by the registry-book import and the stock-workbook import/rollback.
   // Best-effort: the items are already applied, so a version-write failure must
   // not surface as an import failure. `toData` strips the row's column-backed
-  // fields (bookItemData for registry items, stockData for stock items).
+  // fields (bookItemData).
   const snapshotBookVersion = async (bookId, appliedItems, toData) => {
     try {
       const snapshot = appliedItems.map((it) => ({ sku: it.sku, data: toData(it) }));
@@ -208,7 +206,6 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     books, hydrateBooks: setBooks,
     orderItems, setOrderItems,
     loadBookItems, addBook, updateBook, delBook, applyBookImport,
-    appliedFromDiff, snapshotBookVersion,
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
   };

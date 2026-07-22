@@ -1,45 +1,14 @@
-// Stock price book — app-side helpers (ADR 0003).
-//
-// Stock items live in their own shared `stock_items` table, one row per SKU.
-// A product row that picks a SKU gets the item's values COPIED in (snapshot) —
-// nothing resolves against the stock table at calculation time, so estimates
-// keep the price they were quoted at. The row remembers its `sku`, which lets
-// the UI flag price drift against the current stock list and offer a refresh.
+// Stock-item helpers: search, row-fill snapshot, drift, base companions, and
+// grout color families over stock-shaped items — the ADR 0027 stock-kind
+// registry books' items and the grout-family rows projected from them
+// (booklink.js projectFamilies). Picking an item COPIES its values onto the
+// product row (snapshot, ADR 0003); nothing here resolves at calculation
+// time, so estimates keep the price they were quoted at. The row remembers
+// its `sku`, which lets the UI flag price drift and offer a refresh.
 
 const str = (v) => (v == null ? "" : String(v).trim());
-const numOr = (v, d = null) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const round2 = (n) => Math.round(n * 100) / 100;
 const round4 = (n) => Math.round(n * 10000) / 10000;
-
-export const normStockItem = (row) => ({
-  sku: str(row.sku),
-  active: row.active !== false,
-  disabled: row.disabled === true,
-  updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
-  sheet: str(row.data?.sheet),
-  section: str(row.data?.section),
-  brand: str(row.data?.brand),
-  description: str(row.data?.description),
-  product: str(row.data?.product),
-  color: str(row.data?.color),
-  style: str(row.data?.style),
-  subtype: str(row.data?.subtype),
-  unit: str(row.data?.unit),
-  size: str(row.data?.size),
-  sheetSize: str(row.data?.sheetSize),
-  thickness: str(row.data?.thickness),
-  type: row.data?.type || null,
-  price: numOr(row.data?.price),
-  priceSqft: numOr(row.data?.priceSqft),
-  sfPerUnit: numOr(row.data?.sfPerUnit),
-  coverage: numOr(row.data?.coverage),
-  discontinued: !!row.data?.discontinued,
-  note: str(row.data?.note),
-});
-
-// The jsonb payload written back on import — everything except the column-backed
-// fields (sku, active, disabled, updated_at).
-export const stockData = ({ sku, active, updatedAt, disabled, ...data }) => data;
 
 // --- search -------------------------------------------------------------------
 
@@ -366,75 +335,3 @@ export function groutSnapshotPatch(stock, family, color) {
   return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" };
 }
 
-// --- import diff -----------------------------------------------------------------
-
-const FIELDS = ["description", "brand", "product", "color", "unit", "size", "thickness", "type", "price", "priceSqft", "sfPerUnit", "coverage", "discontinued"];
-
-// Compare freshly parsed items against the current table rows.
-//   added:   SKUs not in the table
-//   changed: SKUs whose data differs (with per-field before/after for price)
-//   missing: active table SKUs absent from this parse — marked inactive on
-//            apply, never deleted (rows referencing them keep working)
-export function diffStock(existing, parsed) {
-  const bySku = new Map(existing.map((it) => [it.sku, it]));
-  const seen = new Set();
-  const added = [], changed = [], unchanged = [];
-  for (const it of parsed) {
-    seen.add(it.sku);
-    const prev = bySku.get(it.sku);
-    if (!prev) { added.push(it); continue; }
-    const diffs = FIELDS.filter((f) => (prev[f] ?? null) !== (it[f] ?? null));
-    if (diffs.length || !prev.active) changed.push({ item: it, prev, fields: diffs });
-    else unchanged.push(it);
-  }
-  const missing = existing.filter((it) => it.active && !seen.has(it.sku));
-  return { added, changed, missing, unchanged };
-}
-
-// --- catalog price sync ------------------------------------------------------------
-
-const squash = (s) => str(s).toLowerCase().replace(/[^a-z0-9]/g, "");
-
-// A catalog product matches a stock item when every word of its name appears
-// in the item's text (spaces ignored, so "FloorMuffler" finds "Floor Muffler").
-const itemMatches = (name, it) => {
-  const target = squash([it.description, it.product, it.brand, it.section, it.note].join(" "));
-  const words = str(name).toLowerCase().split(/\s+/).filter(Boolean);
-  return words.length > 0 && words.every((w) => target.includes(squash(w)));
-};
-
-// Update ADR-0002 catalog prices from the price book, by name — the same link
-// jobs use. Deliberately conservative: a product only updates when its matches
-// all agree on one price (several colors of one grout are fine; "ProLite"
-// matching both ProLite and ProLite Rapid Set is not).
-export function syncCatalogPrices(catalog, items) {
-  const changes = [];
-  const priced = items.filter((it) => it.active !== false && !it.discontinued && !it.disabled && it.price != null);
-  const bySku = new Map(priced.map((it) => [it.sku, it]));
-  const companies = (catalog?.companies || []).map((co) => {
-    const syncKind = (list) => (list || []).map((p) => {
-      // ADR 0027: a product carrying an ERP stock-book `link` is superseded by
-      // syncLinkedCatalog (booklink.js) — this legacy text-match sync must
-      // never clobber it. `link` normalizes to null-or-complete, so a plain
-      // truthiness check is enough (no need to import booklink.js here).
-      if (p.link) return p;
-      // A product that carries a SKU (ADR 0006) refreshes from that exact item;
-      // otherwise fall back to the conservative unique-name match.
-      let to, sku;
-      const linked = str(p.sku) ? bySku.get(str(p.sku)) : null;
-      if (linked) { to = linked.price; sku = linked.sku; }
-      else {
-        const matches = priced.filter((it) => itemMatches(p.name, it));
-        const prices = [...new Set(matches.map((it) => it.price))];
-        if (prices.length !== 1) return p;
-        to = prices[0]; sku = matches[0].sku;
-      }
-      const from = parseFloat(p.price) || 0;
-      if (Math.abs(from - to) <= 0.005) return p;
-      changes.push({ name: p.name, from, to, sku });
-      return { ...p, price: to };
-    });
-    return { ...co, grouts: syncKind(co.grouts), mortars: syncKind(co.mortars), underlayments: syncKind(co.underlayments), ...(co.attached ? { attached: syncKind(co.attached) } : {}) };
-  });
-  return { catalog: { ...catalog, companies }, changes };
-}

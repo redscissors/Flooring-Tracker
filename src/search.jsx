@@ -43,10 +43,12 @@ const StockHit = ({ it }) => (
   </>
 );
 
-// A special-order search hit (ADR 0009 §6): StockHit's shape plus the book
-// badge, the lead time a salesperson needs before quoting, and a freight flag
-// (highlight only — no charge math, §3.6). The price shown is the live sell
-// (cost × book markup); the snapshot happens only on pick.
+// A book search hit (ADR 0009 §6): StockHit's shape plus the book badge, the
+// lead time a salesperson needs before quoting, and a freight flag (highlight
+// only — no charge math, §3.6). A stock-kind book's item (it.stockKind, the
+// ERP exports that replaced the shop workbook — ADR 0027) badges as stock at
+// its real shelf price; an order item's price is the live sell (cost × book
+// markup). The snapshot happens only on pick.
 const OrderHit = ({ it, bookName }) => (
   <>
     <div className="flex items-baseline gap-2">
@@ -57,18 +59,24 @@ const OrderHit = ({ it, bookName }) => (
     </div>
     <div className="flex items-baseline gap-1.5 text-[11px]">
       <span className="md:hidden ft-mono text-slate-400 shrink-0">{it.sku}</span>
-      <span className="shrink-0 rounded px-1 bg-indigo-50 text-indigo-600 font-medium">{bookName(it.bookId)} · special order</span>
+      <span className={`shrink-0 rounded px-1 font-medium ${it.stockKind ? "bg-slate-100 text-slate-500" : "bg-indigo-50 text-indigo-600"}`}>{bookName(it.bookId)}{it.stockKind ? " · stock" : " · special order"}</span>
       {it.leadTime && <span className="text-slate-400 truncate">{it.leadTime}</span>}
       {it.freightFlag && <span className="shrink-0 rounded px-1 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
     </div>
   </>
 );
 
-// One search-result body: an order item badges as special-order; a stock item
-// renders as today, plus an "also on {book}" note when the same SKU also lives
-// in an order book (the collision resolved to stock — mergeSearch §6).
+// One search-result body: a book item badges with its book (stock or special
+// order); an item with no book (a projected grout-family row) renders plain,
+// plus an "also on {book}" note when the same SKU also lives in an order book
+// (the collision resolved to stock — mergeSearch §6).
 export const Hit = ({ it, bookName = () => "special order" }) => (
-  it.bookId ? <OrderHit it={it} bookName={bookName} /> : (
+  it.bookId ? (
+    <>
+      <OrderHit it={it} bookName={bookName} />
+      {it.alsoOn?.length > 0 && <div className="text-[11px] text-slate-400">also on {it.alsoOn.map(bookName).join(", ")}</div>}
+    </>
+  ) : (
     <>
       <StockHit it={it} />
       {it.alsoOn?.length > 0 && <div className="text-[11px] text-slate-400">also on {it.alsoOn.map(bookName).join(", ")}</div>}
