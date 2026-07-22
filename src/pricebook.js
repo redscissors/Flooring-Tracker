@@ -775,9 +775,17 @@ function flagSemantics(cell, flags) {
   return out;
 }
 
+// The ERP stock exports carry no SF/CT column — coverage rides at the end of
+// the description ("… 23.76 sf", "…10.64sf/c"), per SELL unit (carton, bundle,
+// roll), which is exactly what sfPerUnit means. Only mappings that say so
+// (sfFromDescription) pull it out; a description without one stays uncovered
+// rather than invented.
+const SF_DESC_RE = /(\d+(?:\.\d+)?)\s*s\.?f\.?(?:\s*\/\s*c(?:t|tn)?)?\b/i;
+
 function mappedItem(mapping, raw, sku, sem) {
   const type = str(raw.type) || mapping.defaultType || null;
   const cost = numOrNull(raw.cost);
+  const price = numOrNull(raw.price);
   const noteBits = [str(raw.note)];
   if (raw.cost != null && cost == null) noteBits.push(str(raw.cost)); // "N/A" / "See vendor"
   if (sem.madeToOrder) noteBits.push("Made to order");
@@ -792,6 +800,10 @@ function mappedItem(mapping, raw, sku, sem) {
   // the tile L×W left to the chip size below.
   let sheetSize = str(raw.sheetSize) || "", sfPerUnit = numOrNull(raw.sfPerUnit);
   const coverage = numOrNull(raw.coverage);
+  if (mapping.sfFromDescription && sfPerUnit == null && descText) {
+    const sf = descText.match(SF_DESC_RE);
+    if (sf) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")); }
+  }
   if (!size && descText) {
     const split = splitSizeFromDescription(descText);
     if (split.size) size = split.size;
@@ -854,6 +866,11 @@ function mappedItem(mapping, raw, sku, sem) {
     // separated (ADR 0012 amendment). Only the trim-aware parsers emit it.
     fits: str(raw.fits),
     cost,
+    // The shop's own selling price, when the sheet carries one (the ERP stock
+    // exports do). Explicit retail outranks cost × markup downstream
+    // (pricedItem); $/sqft derives the same way the stock workbook's does.
+    price,
+    priceSqft: price != null && sfPerUnit > 0 ? round4(price / sfPerUnit) : null,
     sfPerUnit,
     pcPerUnit: numOrNull(raw.pcPerUnit),
     coverage: numOrNull(raw.coverage),
@@ -902,7 +919,11 @@ export const guessBookField = (header) => {
   if (!h) return "";
   if (/(itemcode|productcode|^sku$|vtcitem)/.test(h)) return "sku";
   if (/(consumer|msrp|list|suggested)/.test(h)) return "msrp";
-  if (/(dealer|^cost|netcost|yourcost)/.test(h)) return "cost";
+  if (/(dealer|^cost|netcost|yourcost|baseprice)/.test(h)) return "cost";
+  // Tested after cost so "Base Price (Cost)" claims cost, and anchored so
+  // "Price U/M" below keeps its unit slot. "Retail Price" is the ERP stock
+  // exports' selling price — a real item field, unlike the vendors' MSRP.
+  if (/(retail|^price$)/.test(h)) return "price";
   if (/(leadtime|lead|availab)/.test(h)) return "leadTime";
   if (/(productline|series|collection)/.test(h)) return "productLine";
   if (/(mfg|manufacturer|vendor|brandcode)/.test(h)) return "mfg";
@@ -1005,6 +1026,41 @@ export function detectVtcEft(sheets) {
         flags: { xx: "discontinued", "*": "freight", "†": "freight", "•": "madeToOrder", "◪": "transitioning" },
         groupBy: "mfg",
         defaultType: "tile",
+      };
+    }
+  }
+  return null;
+}
+
+// The ERP's "Vendor SKU Analysis" stock export: one flat sheet per supplier
+// (DOIT, SHEOG, MANMI…), header on the first row — shop Product Code (the SKU
+// the team sells off of), Full Description, Base Price (Cost), Retail Price,
+// Unit of Stock. Supplier/manufacturer codes already ride inside the
+// description, and the free/total stock counts are point-in-time — none of
+// them map. There is no SF/CT column: coverage rides in the description text,
+// which is what sfFromDescription tells parseMapped. Returns a mapping, or
+// null when no sheet carries the signature.
+export function detectVendorSkuAnalysis(sheets) {
+  for (const s of sheets || []) {
+    const rows = s.rows || [];
+    for (let r = 0; r < Math.min(rows.length, 10); r++) {
+      const labels = (rows[r] || []).map((c) => str(c).toLowerCase().replace(/[^a-z]/g, ""));
+      const at = (name) => labels.findIndex((l) => l.startsWith(name));
+      const sku = at("productcode"), desc = at("fulldescription"), unit = at("unitofstock");
+      if (sku < 0 || desc < 0 || unit < 0) continue;
+      const columns = { [sku]: "sku", [desc]: "description", [unit]: "unit" };
+      const cost = at("baseprice"), price = at("retailprice");
+      if (cost >= 0) columns[cost] = "cost";
+      if (price >= 0) columns[price] = "price";
+      return {
+        sheet: s.name,
+        headerRow: r,
+        columns,
+        // Shop product codes lead with a digit — usually all digits, leading
+        // zeros included (05153), but a few carry a tail: unit-suffixed codes
+        // (29500-LF) and category placeholders (29SHEOGAW).
+        skuPattern: "^\\d[A-Z0-9-]{2,15}$",
+        sfFromDescription: true,
       };
     }
   }

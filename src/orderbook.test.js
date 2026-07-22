@@ -815,3 +815,9 @@ test("flagReviewBySku maps only the rows that carry a review", () => {
   assert.equal(m.size, 1);
   assert.ok(m.get("A"));
 });
+
+test("pricedItem: an explicit retail price wins over cost × markup (ERP stock exports carry both)", () => {
+  const p = pricedItem(normOrderItem({ sku: "1517410", cost: 85.34, price: 141.45, sfPerUnit: 23.76, unit: "CT" }), { default: 45 });
+  assert.equal(p.price, 141.45); // the shop's retail, not 85.34 × 1.45
+  assert.equal(p.markupPct, 45);
+});

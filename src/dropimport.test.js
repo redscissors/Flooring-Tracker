@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
+import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 
 const stockSheets = [{ name: "Grout & Caulk", rows: [] }, { name: "Tile", rows: [] }, { name: "Index", rows: [] }];
 const vtcSheets = [{ name: "EFT", rows: [
@@ -383,4 +383,45 @@ test("two declared slots need two hand-supplied files", () => {
   assert.equal(missingSources(two, [fetchSlot("k", "a.xls")]).length, 2);
   assert.equal(missingSources(two, [fetchSlot("k", "a.xls"), chartSlot]).length, 1);
   assert.equal(undeclareManualSource(two, "manual:pending:2").length, 2);
+});
+
+// --- the ERP "Vendor SKU Analysis" stock exports ------------------------------
+// Every export names its one sheet "Vendor SKU Analysis" and carries no title
+// line — the FILENAME (DOIT / SHEOG / MANMI…) is the only thing that tells the
+// sibling files apart, so its stem plays the role the EFT brand line does.
+
+const vsaSheets = [{ name: "Vendor SKU Analysis", rows: [
+  ["Product Code", "Full Description", "Base Price (Cost)", "Retail Price", "Unit of Stock"],
+  ["05153", "Slip Tongue", 0.3, 0.48, "LF"],
+] }];
+
+test("fileFormat: the ERP Vendor SKU Analysis export gets its own tag", () => {
+  assert.equal(fileFormat({ sheets: vsaSheets }), "vendor-sku");
+  assert.equal(fileFormat({ sheets: stockSheets }), "stock"); // untouched
+});
+
+test("computeFingerprint: a vendor-sku file is titled by its filename stem", () => {
+  const fp = computeFingerprint({ sheets: vsaSheets, name: "DOIT.xlsx" });
+  assert.equal(fp.format, "vendor-sku");
+  assert.equal(fp.title, "DOIT");
+  assert.equal(fp.titleSig, "doit");
+  assert.ok(fp.headerSig.includes("productcode"));
+  // No filename (a pre-name caller) degrades to an untitled fingerprint.
+  assert.equal(computeFingerprint({ sheets: vsaSheets }).titleSig, "");
+});
+
+test("routeFile: sibling ERP exports route by filename stem, like EFT titles", () => {
+  const doit = { id: "doit", name: "DOIT", data: { importFingerprint: { format: "vendor-sku", titleSig: "doit", headerSig: "x" } } };
+  const sheog = { id: "sheog", name: "SHEOG", data: { importFingerprint: { format: "vendor-sku", titleSig: "sheog", headerSig: "x" } } };
+  const fp = computeFingerprint({ sheets: vsaSheets, name: "DOIT.xlsx" });
+  assert.equal(routeFile({ ...fp, sheets: vsaSheets }, [doit, sheog]).target, "doit");
+  // An export no book has claimed yet asks instead of guessing.
+  const fp2 = computeFingerprint({ sheets: vsaSheets, name: "GUNDL.xlsx" });
+  assert.equal(routeFile({ ...fp2, sheets: vsaSheets }, [doit, sheog]).target, null);
+});
+
+test("bookKindFor: ERP stock exports become stock-kind books, vendor lists order-kind", () => {
+  assert.equal(bookKindFor("vendor-sku"), "stock");
+  assert.equal(bookKindFor("vtc-eft"), "order");
+  assert.equal(bookKindFor("generic"), "order");
 });

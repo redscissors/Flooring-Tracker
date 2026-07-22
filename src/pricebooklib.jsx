@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
 import { normStockItem, diffStock, priceUnitOf, orderUnitOf } from "./stock.js";
-import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft } from "./pricebook.js";
-import { computeFingerprint, fileFormat, routeFile, bundleByBook, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
+import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
+import { computeFingerprint, fileFormat, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
 import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSession, recordKey, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
@@ -27,7 +27,7 @@ import { InHouseColumn, PasteSignInPopover, StaleChip, FLAG_SEMANTICS, useVendor
 // over-the-shoulder moments — presentation only, never stored, never printed.
 
 const bookFieldOptions = [
-  ["", "— ignore —"], ["sku", "SKU"], ["cost", "Cost"], ["description", "Description"],
+  ["", "— ignore —"], ["sku", "SKU"], ["cost", "Cost"], ["price", "Retail price"], ["description", "Description"],
   ["mfg", "Manufacturer"], ["productLine", "Product line"], ["color", "Color"], ["style", "Style"],
   ["unit", "Unit (U/M)"], ["priceUnit", "Price unit (cost basis)"], ["orderUnit", "Order unit (No Broken)"],
   ["size", "Size"], ["thickness", "Thickness"], ["sfPerUnit", "SF per carton"], ["pcPerUnit", "Pieces per carton"],
@@ -37,6 +37,10 @@ const bookFieldOptions = [
 
 // guessBookField / guessHeaderRow moved to src/pricebook.js (pure + tested);
 // bookFieldOptions / FLAG_SEMANTICS above stay here as UI dropdown lists.
+
+// A routing choice, not a book id: resolved into a real (freshly created) book
+// when the user commits to reviewing, so canceling the route step makes nothing.
+const NEW_BOOK = "__new__";
 
 // The multi-file drop router (ADR 0009 PR C). Reads each dropped file once,
 // routes it to a book (or the shop workbook), lets the user fix unmatched files,
@@ -80,7 +84,7 @@ function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, addBook, applyBookImport, updateBook, loadBookItems, importStockFile, onClose, types, typeLabels, inp, lbl, hideCosts }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -93,7 +97,9 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
     try {
       const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
-      const fp = computeFingerprint(parsed);
+      // The filename rides along for formats whose sibling files it alone tells
+      // apart (the ERP stock exports — one identical template per supplier).
+      const fp = computeFingerprint({ ...parsed, name: file.name });
       let r = routeFile({ ...fp, sheets: parsed.sheets }, registryBooks);
       // Explicit intent outranks any fingerprint match to another book:
       // preferTarget = "Create price book from this sheet"; targets = files
@@ -135,7 +141,11 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   };
 
   const setTarget = (i, target) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, target } : r)));
-  const flat = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip");
+  // "New book from this file" rows count as one bundle EACH (a pseudo-target
+  // per row) until startRun materializes their books — grouping them under the
+  // shared marker would read seven new-book files as one seven-file bundle.
+  const flat = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip")
+    .map((r, i) => (r.target === NEW_BOOK ? { ...r, target: `${NEW_BOOK}:${i}` } : r));
   // Several files can name the same book (ADR 0025): a vendor that splits its
   // price list, or a batch download of a book's sheets. Importing them one after
   // another would be silently destructive — each apply diffs against the whole
@@ -167,8 +177,24 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     return () => { ok = false; };
   }, [phase, qi]);
 
+  // Materialize any "new book" choices, then run. Creation waits until here so
+  // canceling the route step leaves no empty book rows behind. Each file gets
+  // its own book, named by its filename stem — stock-kind for the ERP's own
+  // exports, order-kind for vendor lists (bookKindFor).
+  const startRun = async () => {
+    const made = new Map();
+    for (let i = 0; i < (rows || []).length; i++) {
+      const r = rows[i];
+      if (r.error || r.target !== NEW_BOOK) continue;
+      const name = String(r.file?.name || "").replace(/\.[a-z0-9]+$/i, "").trim() || "New book";
+      made.set(i, await addBook({ kind: bookKindFor(r.format), name }));
+    }
+    if (made.size) setRows((cur) => cur.map((r, i) => (made.has(i) ? { ...r, target: made.get(i), reason: "new book from this file" } : r)));
+    setQi(0); setPhase("run");
+  };
+
   if (phase === "route") {
-    const bookOpts = [["skip", "Skip this file"], ["stock", "Shop workbook (stock)"], ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
+    const bookOpts = [["skip", "Skip this file"], ...(addBook ? [[NEW_BOOK, "➕ New book from this file"]] : []), ["stock", "Shop workbook (stock)"], ...registryBooks.map((b) => [b.id, b.name || "Untitled"])];
     // Completeness check (ADR 0025). A book that has been fed several files before
     // says so in its manifest, so an import that is short of one can name it —
     // and either take it here, or go ahead knowing the absent file's rows retire.
@@ -226,7 +252,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
 
           <div className="flex justify-between items-center pt-4">
             <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-            <button onClick={() => { setQi(0); setPhase("run"); }} disabled={!runnable.length} className={"text-sm rounded-lg text-white px-4 py-2 disabled:opacity-50 " + (gaps.length ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700")}>
+            <button onClick={startRun} disabled={!runnable.length} className={"text-sm rounded-lg text-white px-4 py-2 disabled:opacity-50 " + (gaps.length ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700")}>
               {gaps.length
                 ? `Review anyway — ${gaps.reduce((n, g) => n + g.missing.length, 0)} file${gaps.reduce((n, g) => n + g.missing.length, 0) === 1 ? "" : "s"} short →`
                 : `Review ${runnable.length} file${runnable.length === 1 ? "" : "s"} →`}
@@ -600,7 +626,7 @@ export function PriceBookLibrary({ books, stock, stockReady, addBook, updateBook
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} importStockFile={importStockFile} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
 
       {pendingReviews.length > 0 && !dropped && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
@@ -1274,6 +1300,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   const [flags, setFlags] = useState(saved?.flags || {});
   const [groupBy, setGroupBy] = useState(saved?.groupBy || (book.kind === "order" ? "mfg" : ""));
   const [defaultType, setDefaultType] = useState(saved?.defaultType || "");
+  // SF-per-carton lives inside the description text on the ERP stock exports
+  // (no SF/CT column) — set by their detector, carried on the saved mapping.
+  const [sfDesc, setSfDesc] = useState(!!saved?.sfFromDescription);
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
   const [srcName, setSrcName] = useState(""); // the chosen file name — a source slot label
@@ -1352,7 +1381,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       // quality and guess its columns.
       if (saved?.sheet && parsed.find((s) => s.name === saved.sheet)) { applySheet(parsed.find((s) => s.name === saved.sheet)); }
       else {
-        const detected = detectVtcEft(parsed);
+        const detected = detectVtcEft(parsed) || detectVendorSkuAnalysis(parsed);
         if (detected) applyDetected(detected);
         else applySheet(bestDataSheet(parsed));
       }
@@ -1374,6 +1403,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     if (m.flags) setFlags(m.flags);
     if (m.groupBy) setGroupBy(m.groupBy);
     if (m.defaultType) setDefaultType(m.defaultType);
+    setSfDesc(!!m.sfFromDescription);
   };
 
   // Choosing a sheet (auto or manual): if we have no saved mapping, guess the
@@ -1394,7 +1424,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     return next;
   });
 
-  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined };
+  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined, sfFromDescription: sfDesc || undefined };
   // Flag verdicts already on the book's rows (confirmed / ignored) mute those
   // codes in the parse warnings and the problem list below — a reviewed row
   // must not re-nag on every re-import of the same file.
@@ -1448,7 +1478,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // Stamp the book with what this file looks like so the drop router matches the
   // next drop of the same vendor sheet (format tag + header signature + the EFT
   // brand-title line, which is what tells Virginia Tile's sibling files apart).
-  const fingerprint = sheet ? (({ headerSig, titleSig }) => ({ format: fmt, headerSig, titleSig }))(computeFingerprint({ sheets: sheets || [] })) : null;
+  const fingerprint = sheet ? (({ headerSig, titleSig }) => ({ format: fmt, headerSig, titleSig }))(computeFingerprint({ sheets: sheets || [], name: srcName })) : null;
   // Adding a file names it as one of the book's sources. Matched on content, not
   // filename — re-adding next quarter's re-dated copy is the same slot, not a new
   // one (ADR 0025).

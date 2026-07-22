@@ -3,7 +3,7 @@
 // component, then fingerprinted and matched to a book here. No I/O — the caller
 // hands in parsed sheets (xlsx) or pages (pdf).
 
-import { detectVtcEft, detectStockWorkbook, parseMapped } from "./pricebook.js";
+import { detectVtcEft, detectStockWorkbook, detectVendorSkuAnalysis, parseMapped } from "./pricebook.js";
 import { isManningtonCartons } from "./manningtonbook.js";
 import { isHallmarkWood, isTarkettLvt, isOvfSundries } from "./ovfbook.js";
 import { isMirageChart, mirageFileKind } from "./miragebook.js";
@@ -25,8 +25,14 @@ export function fileFormat({ sheets, pages, isPdf }) {
   if (isOvfSundries(sheets || [])) return "ovf-sundries";
   const mirage = mirageFileKind({ sheets: sheets || [] });
   if (mirage) return mirage;
+  if (detectVendorSkuAnalysis(sheets || [])) return "vendor-sku";
   return "generic";
 }
+
+// What kind of book a file of this format creates: the ERP's Vendor SKU
+// Analysis exports are the shop's own STOCK lists (retail prices, no markup);
+// every vendor price list is special-order.
+export const bookKindFor = (format) => (format === "vendor-sku" ? "stock" : "order");
 
 // A vendor whose files must be parsed TOGETHER rather than one after another
 // (ADR 0025 rule 7). Mirage is the first: its chart carries identity with no
@@ -58,7 +64,7 @@ export const joinedFamily = (formats) =>
 // one cell that names the price list is the title line just above the header
 // row ("Virginia Tile Core" / "Anatolia Tile" / "VTC Home Collection") —
 // that's what tells the sibling files apart.
-export function computeFingerprint({ sheets, pages, isPdf }) {
+export function computeFingerprint({ sheets, pages, isPdf, name }) {
   const format = fileFormat({ sheets, pages, isPdf });
   let header = [], title = "";
   if (!isPdf) {
@@ -75,6 +81,11 @@ export function computeFingerprint({ sheets, pages, isPdf }) {
         const row = (s.rows || []).find((r) => (r || []).some((c) => c != null && String(c).trim()));
         if (row) { header = row; break; }
       }
+      // The ERP's Vendor SKU Analysis exports all name their one sheet the same
+      // and carry no title line — the FILENAME (DOIT / SHEOG / MANMI…) is the
+      // only thing that tells the sibling files apart, so its stem plays the
+      // role the EFT brand line does above.
+      if (format === "vendor-sku") title = String(name || "").replace(/\.[a-z0-9]+$/i, "").trim();
     }
   }
   const headerSig = header.map((c) => String(c ?? "").toLowerCase().replace(/\s+/g, "")).filter(Boolean).sort().join("|");
@@ -94,7 +105,7 @@ export function mappingMatchesFile(mapping, sheets) {
   catch { return false; }
 }
 
-const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries", "mirage-chart": "Mirage product chart", "mirage-flooring": "Mirage flooring list", "mirage-trim": "Mirage trim list" };
+const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries", "mirage-chart": "Mirage product chart", "mirage-flooring": "Mirage flooring list", "mirage-trim": "Mirage trim list", "vendor-sku": "ERP stock list" };
 const labelFor = (format, b, title) =>
   format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} → ${b?.name || "book"}`
     : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} → ${b?.name || "book"}`
