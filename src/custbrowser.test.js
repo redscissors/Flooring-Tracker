@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, browserRows, quickRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
+import { salesNameOf, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -50,6 +50,37 @@ test("quickRows: customer-less quick drafts only, newest edit first, searched", 
   assert.deepEqual(quickRows(projs, "gina").map((p) => p.id), ["p6"]);
   assert.equal(quickRows(projs, "zzz").length, 0);
   assert.equal(quickRows().length, 0);
+});
+
+test("quickRows/draftRows: the salesperson filter narrows like the grid's", () => {
+  const projs = [
+    ...projects,
+    { id: "p6", customerId: null, name: "Q-Arctic White-7/20", quick: true, updatedAt: 500, sales: "Gina Boyd" },
+    { id: "p8", customerId: null, name: "Smith house", updatedAt: 600, sales: "Gina Boyd" },
+    { id: "p9", customerId: null, name: "Barn floor", updatedAt: 400 },
+  ];
+  assert.deepEqual(quickRows(projs, "", "marcus").map((p) => p.id), ["p4"]);
+  assert.deepEqual(quickRows(projs, "", "gina").map((p) => p.id), ["p6"]);
+  // search and salesperson stack
+  assert.equal(quickRows(projs, "arctic", "marcus").length, 0);
+  assert.deepEqual(quickRows(projs, "arctic", "gina").map((p) => p.id), ["p6"]);
+  assert.deepEqual(draftRows(projs, "", "gina").map((p) => p.id), ["p8"]);
+  // no-salesperson drafts only show unfiltered
+  assert.deepEqual(draftRows(projs).map((p) => p.id), ["p8", "p9"]);
+  assert.equal(draftRows(projs, "", "marcus").length, 0);
+});
+
+test("draftRows: customer-less non-quick jobs, newest edit first, searched", () => {
+  const projs = [
+    ...projects,
+    { id: "p8", customerId: null, name: "Smith house", updatedAt: 600, sales: "Gina Boyd" },
+    { id: "p9", customerId: null, name: "Barn floor", createdAt: 650 },
+  ];
+  assert.deepEqual(draftRows(projs).map((p) => p.id), ["p9", "p8"]);
+  assert.deepEqual(draftRows(projs, "smith").map((p) => p.id), ["p8"]);
+  assert.deepEqual(draftRows(projs, "gina").map((p) => p.id), ["p8"]);
+  assert.equal(draftRows(projs, "zzz").length, 0);
+  assert.equal(draftRows().length, 0);
 });
 
 test("filterRows spans name, phone, address, builder, and project names", () => {
