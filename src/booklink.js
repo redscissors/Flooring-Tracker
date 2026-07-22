@@ -116,6 +116,10 @@ const liveRows = (items) => (items || []).filter((it) => it.active !== false && 
 // classic Permacolor's color bags say sanded and ARE colors.
 export const looksLikeBase = (d) => /part a\s*&\s*b|grout base|full unit|commercial unit|\bbase\b/i.test(str(d));
 
+// Words that describe what a grout IS rather than which line it belongs to —
+// ignored when a base row pivots to its sibling color rows (suggestSeries).
+const GENERIC_WORD_RE = /^(epoxy|grout|grouts|part|parts|unit|units|full|commercial|base|bases|need|needs|sanded|unsanded|kit|kits)$/i;
+
 // Candidate color collections for the family-seed picker: each query hit
 // proposes the series it belongs to (deriveSeriesRule), deduped by frame so
 // one entry stands for the whole collection ("Permacolor Select — 40 colors").
@@ -128,10 +132,21 @@ export function suggestSeries(hits, itemsByBook) {
   const seen = new Set();
   const out = [];
   for (const it of hits || []) {
-    const bookId = str(it?.bookId), d = squish(it?.description);
-    // A base row never seeds a color series — its frame is the kit wording,
-    // not the color family's (it stays pickable as a single row).
-    if (!bookId || !d || looksLikeBase(d)) continue;
+    const bookId = str(it?.bookId);
+    let d = squish(it?.description);
+    if (!bookId || !d) continue;
+    // A base row's frame is the kit wording, never the color family's — but
+    // words like "epoxy grout" live ONLY on the bases, so a base hit pivots
+    // to a sibling color row (matched on the base's distinctive words) and
+    // seeds from that instead of being skipped.
+    if (looksLikeBase(d)) {
+      const words = d.split(" ").filter((w) => w.length >= 4 && !/^[\d#.]/.test(w) && !GENERIC_WORD_RE.test(w)).map((w) => w.toLowerCase());
+      const sibs = liveRows(itemsByBook?.[bookId]).filter((r) => !looksLikeBase(r.description));
+      const sib = (words.length && sibs.find((r) => words.every((w) => low(r.description).includes(w)))) ||
+        (words.length && sibs.find((r) => low(r.description).includes([...words].sort((a, b) => b.length - a.length)[0])));
+      if (!sib) continue;
+      d = squish(sib.description);
+    }
     if (!descCache.has(bookId)) descCache.set(bookId, (itemsByBook?.[bookId] || []).map((x) => x.description));
     const rule = deriveSeriesRule(d, descCache.get(bookId));
     const key = [bookId, low(rule.prefix), low(rule.suffix)].join("\n");
