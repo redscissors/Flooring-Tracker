@@ -168,3 +168,73 @@ works until they re-drag the new one; the setup UI now hands out only the
 clipboard bookmarklet. Companion UI in the same change: the paste card shrank to
 a compact box, and a sheet whose sign-in is live now shows an emerald "ready"
 glow on its download button (`.ft-live`) until it's fetched (then the ✓).
+
+## Amendment (2026-07-21): Emser — the first sessionless adapter
+
+Emser Tile publishes each dealer's price list at a **stable per-account URL
+with no session token anywhere in it**:
+`https://www.emser.com/api/v1/custom/customerDocuments/<acct>-<period>-ISPL.xlsx`
+(e.g. `1374258-Jul2026-ISPL.xlsx`). That makes it the framework's first
+non-Dancik platform — and its first **sessionless** one, which the original
+decision's sesid mechanics didn't model.
+
+The `emser` adapter (`VENDORS.emser`) carries `sessionless: true` and
+per-vendor validation rules (rules moved from the module-level Dancik constants
+into each adapter):
+
+- **Identity is the filename.** uid and user are both the dealer account, read
+  off the filename's leading digit run, so recordKey/grouping work exactly like
+  Dancik's ("Emser Tile · 1374258" board column). The sesid rule is `/^$/` —
+  the relay rejects any entry that *carries* a token for this vendor.
+- **Always live.** `sheetSesid` returns a sentinel for sessionless vendors, so
+  remembered Emser sheets are permanently green/ready — no bookmarklet, no
+  session pool, no quarterly unlock. `applySesid` clamps the sentinel back to
+  `""` before the wire.
+- **Releases are period-stamped filenames.** A new release means pasting the
+  new link once ("Add to board" — it replaces its predecessor, recordKey
+  excludes the filename by design), the same gesture as a VTC quarterly. If a
+  cadence emerges, deriving candidate filenames (`<acct>-<Mon><YYYY>-ISPL.xlsx`)
+  is a possible later nicety; deliberately not built on one observed release.
+- **Failure stays soft.** If the URL turns out to require emser.com's login
+  after all (the relay sends no cookies), the login-bounce classifier surfaces
+  a per-sheet "the vendor declined the download" note — pointing at a fresh
+  link, not at the bookmarklet, which can't help a token-free vendor.
+
+**Owner verification required before trusting it:** open the URL in a private/
+incognito window. If it downloads logged-out (as Dancik's did), the relay path
+is sound. The Edge Function twin gained the same adapter — re-paste it in the
+dashboard (Edge Functions → vendor-fetch) to update the deployed copy; the
+Netlify fallback ships with the site build as usual.
+
+### Verification outcome (2026-07-21, same day): the URL is NOT public
+
+The owner ran the incognito test: the document URL **errors logged-out**.
+Emser's `customerDocuments` endpoint requires the emser.com login after all —
+it answers the relay's cookie-less fetch with a hard **401**, which the
+relays passed through as the raw "vendor portal answered 401" instead of the
+soft note this amendment promised (401 is neither a redirect nor a login-page
+body, so both classifiers missed it).
+
+Consequences, applied with this note:
+
+- Portal 401/403 now classify as the sign-in bounce (`deadSessionStatus` in
+  `src/vendorfetch.js`, mirrored inline in the Edge twin) — same 409
+  `session-expired` shape the browser already maps per vendor.
+- The sessionless-vendor note now points at **download-and-drop** ("grab the
+  sheet from their site while signed in and drop the file on this page") —
+  the old "paste its fresh link" advice was wrong, since no Emser link works
+  without the login the relay can't send. Remembered Emser sheets still show
+  on the board as the book's identity; their fetch button just always lands
+  on this note until real auth exists.
+- **One-click Emser fetch is future work gated on recon**, not on code: with
+  a signed-in emser.com session, check the download request's headers in
+  DevTools. An `Authorization: Bearer …` header means a bookmarklet can
+  capture the token and this adapter can carry it (Dancik-style). Cookie-only
+  auth (HttpOnly) is unreachable from a bookmarklet by browser design — then
+  the options grow server-side credentials, a decision the owner must make
+  deliberately (secrets storage, spend, liability), not an adapter tweak.
+
+Boundary unchanged: the relay still accepts only structured params behind a
+FloorTrack JWT and rebuilds the URL from the allowlisted host + fixed path —
+`customerDocuments/<validated filename>` — so it still can't proxy anything
+else on emser.com.

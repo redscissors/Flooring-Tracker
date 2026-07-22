@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
   decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries,
-  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes,
+  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes, deadSessionStatus,
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
@@ -226,6 +226,15 @@ test("classifySheetBytes tells sheets from login bounces", () => {
   assert.equal(classifySheetBytes(enc("random bytes")), "unknown");
 });
 
+test("deadSessionStatus: redirects and auth statuses are the sign-in bounce, real errors are not", () => {
+  assert.equal(deadSessionStatus(302), true);  // Dancik login redirect
+  assert.equal(deadSessionStatus(401), true);  // Emser's document API, logged out
+  assert.equal(deadSessionStatus(403), true);
+  assert.equal(deadSessionStatus(200), false);
+  assert.equal(deadSessionStatus(404), false); // missing sheet is not an auth problem
+  assert.equal(deadSessionStatus(500), false); // portal broke — retryable, different advice
+});
+
 // --- sign-in groups ---------------------------------------------------------
 
 const VT = sheetRecord(parseVendorLink(LINK)); // Virginia Tile · C00000XX
@@ -406,4 +415,56 @@ test("sheetsForBook returns every sheet feeding a book, across groups", () => {
   const hits = sheetsForBook(groups, "bkA");
   assert.deepEqual(hits.map((h) => h.sheet.uid), ["1", "3", "4"]);
   assert.deepEqual(hits.map((h) => h.group.id), ["g1", "g1", "g2"]); // each carries its own group
+});
+
+// ---- Emser (sessionless vendor, ADR 0019 Emser amendment) -------------------
+
+const EMSER_LINK = "https://www.emser.com/api/v1/custom/customerDocuments/1374258-Jul2026-ISPL.xlsx";
+
+test("parseVendorLink reads an Emser customer-document link — token-free", () => {
+  const e = parseVendorLink(EMSER_LINK);
+  assert.deepEqual(e, {
+    vendor: "emser",
+    host: "www.emser.com",
+    uid: "1374258",
+    filename: "1374258-Jul2026-ISPL.xlsx",
+    user: "1374258",
+    sesid: "",
+  });
+  assert.equal(entryProblems(e), null);
+  assert.equal(entryFileName(e), "1374258-Jul2026-ISPL.xlsx"); // keeps its own extension
+  assert.equal(buildVendorUrl(e), EMSER_LINK); // relay rebuilds the exact URL
+});
+
+test("Emser entries reject tokens, foreign hosts, and account-less filenames", () => {
+  const e = parseVendorLink(EMSER_LINK);
+  assert.equal(entryProblems({ ...e, sesid: "abc" }), "bad sesid"); // token-free by design
+  assert.equal(parseVendorLink(EMSER_LINK.replace("www.emser.com", "evil.example.com")), null);
+  assert.equal(entryProblems(parseVendorLink("https://www.emser.com/api/v1/custom/customerDocuments/pricelist.xlsx")), "bad uid");
+});
+
+test("applySesid keeps a sessionless vendor's entry token-free", () => {
+  const e = parseVendorLink(EMSER_LINK);
+  assert.equal(applySesid(e, "none-needed").sesid, ""); // the panel's liveness sentinel never reaches the relay
+  assert.equal(applySesid({ vendor: "dancik", host: "connect24.virginiatile.com", uid: "1", user: "U", filename: "F" }, "tok").sesid, "tok");
+});
+
+test("normSession never pools a session for a sessionless host", () => {
+  assert.equal(normSession({ host: "www.emser.com", user: "1374258", sesid: "sometoken" }), null);
+  assert.equal(normSession({ host: "www.emser.com", user: "1374258", sesid: "" }), null);
+});
+
+test("an Emser sign-in groups and labels by dealer account", () => {
+  assert.equal(groupName({ host: "www.emser.com", user: "1374258" }), "Emser Tile · 1374258");
+  assert.equal(vendorForHost("www.emser.com"), "emser");
+  const rec = sheetRecord(parseVendorLink(EMSER_LINK));
+  assert.equal(recordKey(rec), "emser:www.emser.com:1374258:1374258");
+  const groups = rememberIntoGroups([], [rec]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].portal, { host: "www.emser.com", user: "1374258" });
+});
+
+test("harvestVendorLinks picks up customerDocuments URLs", () => {
+  const html = '<a href="/api/v1/custom/customerDocuments/1374258-Jul2026-ISPL.xlsx">July price list</a>';
+  assert.deepEqual(harvestVendorLinks(html, "https://www.emser.com/account"), [EMSER_LINK]);
 });

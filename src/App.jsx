@@ -21,6 +21,7 @@ import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { useToast } from "./usetoast.js";
+import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useStock } from "./usestock.js";
@@ -130,6 +131,10 @@ export default function App({ user, onSignOut }) {
   // in sync when the user changes it. "system" clears both classes and lets the
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
+  // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" — per-device
+  // like the theme, switched in Settings → General.
+  const [headerLayout, setHeaderLayout] = useState(() => { try { return localStorage.getItem("ft-header") || "bar"; } catch { return "bar"; } });
+  useEffect(() => { try { localStorage.setItem("ft-header", headerLayout); } catch {} }, [headerLayout]);
   const themedOnce = useRef(false);
   useEffect(() => {
     try { localStorage.setItem("ft-theme", theme); } catch {}
@@ -182,6 +187,8 @@ export default function App({ user, onSignOut }) {
   const prodRefs = useRef({});
   const nameRef = useRef(null);
   const addAreaRef = useRef(null);
+  const orderEntryRef = useRef(null);
+  const matDrawerRef = useRef(null);
 
   // FLIP: slide the flooring-type labels (and product cards) to their new spots
   // when a render reorders them. Offset coords (not getBoundingClientRect) so
@@ -305,6 +312,29 @@ export default function App({ user, onSignOut }) {
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
   useEffect(() => { if (focusProdBox && prodRefs.current[focusProdBox]) { const el = prodRefs.current[focusProdBox]; el.focus(); el.select?.(); setFocusProdBox(null); } }, [focusProdBox, data]);
   useEffect(() => { if (focusName && nameRef.current) { nameRef.current.focus(); nameRef.current.select?.(); const t = setTimeout(() => setFocusName(false), 1500); return () => clearTimeout(t); } }, [focusName]);
+  // Tab flow (2026-07-21): opening a project starts the keyboard flow at the
+  // project name while it's still blank; a named project starts at the first
+  // area's name instead. Desktop only (the phone would pop its keyboard), and
+  // an addProject/quick-price open keeps its own focus target (focusName /
+  // focusProd set in the same commit).
+  const openedFocusRef = useRef(null);
+  useEffect(() => {
+    if (!selId) { openedFocusRef.current = null; return; }
+    if (!isWide || !sel?._full || openedFocusRef.current === selId) return;
+    openedFocusRef.current = selId;
+    if (focusName || focusProd) return;
+    if (!sel.name) setFocusName(true);
+    else areaRefs.current[sel.categories[0]?.id]?.focus();
+  }, [selId, sel?._full, isWide]);
+  // While a materials drawer is open, the keyboard lives inside it: focus its
+  // first dropdown (or the caulk box) on open — the drawer itself as fallback
+  // so Enter-to-close always has a target.
+  useEffect(() => {
+    const pid = Object.keys(matOpen)[0];
+    const el = matDrawerRef.current;
+    if (!pid || !el) return;
+    (el.querySelector("select, input:not([tabindex='-1'])") || el).focus();
+  }, [matOpen]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
 
   // Server-side search (debounced): ask the backend which customers match and
@@ -1016,126 +1046,26 @@ export default function App({ user, onSignOut }) {
               </div>
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              {/* Header card, print-sheet style: customer | project | salesperson
-                  up top, then builder + attachments | notes | actions, then a
-                  full-width Add-area row. The middle (project) column is the
-                  widest, like the estimate paper's header. Desktop only — the
-                  mobile shell (2026-07-16) collapses it to the stat strip +
-                  project sheet below. */}
-              {isWide && <div className="rounded-lg border mb-4" style={{ padding: "clamp(10px,1.5vw,15px)", background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
-                {(() => {
-                  const cust = data.people.find((c) => c.id === sel.customerId);
-                  const bn = cust ? builderNameOf(cust.builderId) : "";
-                  const sp = sel.salesperson || profile;
-                  const cols = isWide ? { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 } : { display: "grid", gridTemplateColumns: "1fr", gap: 12 };
-                  const midPad = isWide ? { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" } : {};
-                  return (
-                    <>
-                      <div style={cols}>
-                        <div className="min-w-0">
-                          <div className="ft-eyebrow text-[9px] mb-1">Customer</div>
-                          {cust ? (
-                            <>
-                              <button onClick={() => setCustModal(cust.id)} title="Open customer details" className="ft-serif flex items-center gap-1 min-w-0 max-w-full text-indigo-600 hover:text-indigo-700" style={{ fontSize: 19, lineHeight: 1.15 }}>
-                                <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={14} className="shrink-0" />
-                              </button>
-                              <div className="text-xs text-slate-500 mt-1 truncate">{cust.address || " "}</div>
-                              {bn && <div className="text-xs text-slate-500 mt-0.5 truncate flex items-center gap-1"><Building2 size={11} className="shrink-0 text-slate-400" /> {bn}</div>}
-                            </>
-                          ) : (
-                            <button onClick={() => { setPromoteId(sel.id); setPromoteQ(""); }} title="File this job under a customer" className="flex items-center gap-2 text-amber-600 hover:text-amber-700 transition" style={{ lineHeight: 1.6 }}>
-                              <span className="text-sm font-semibold">{sel.quick ? "Quick price" : "Unassigned"}</span>
-                              <span className="text-[10.5px] font-semibold rounded border border-amber-300 px-1.5 py-0.5">File under customer ▾</span>
-                            </button>
-                          )}
-                        </div>
-                        <div className="min-w-0 relative" style={midPad}>
-                          {isWide && <div className="absolute top-0 flex flex-col items-end" style={{ right: 16 }}>
-                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
-                            {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-                          </div>}
-                          {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: isWide ? 16 : 0, color: "var(--ft-brand)" }}>Saved ✓</span>}
-                          <div className={"ft-eyebrow text-[9px] mb-1" + (isWide ? " text-center" : "")}>Project</div>
-                          <input ref={nameRef} onKeyDown={tabTo(addAreaRef)} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition" + (isWide ? " text-center" : "") + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
-                          <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={"w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" + (isWide ? " text-center" : "")} />
-                          {!isWide && <div className="mt-1">
-                            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
-                            {tierBadgeText(tv.tier, tv.pct) && <span className="inline-block rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-                          </div>}
-                        </div>
-                        <div className={"min-w-0 flex flex-col" + (isWide ? " items-end text-right" : " items-start")}>
-                          <div className="ft-eyebrow text-[9px] mb-1 flex items-center gap-1"><Lock size={10} /> Salesperson</div>
-                          <SalespersonPop value={sel.salesperson} fallback={profile} alignRight={isWide} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
-                          <div className="text-xs text-slate-500 mt-1 truncate max-w-full">{sp.phone || " "}</div>
-                        </div>
-                      </div>
-                      <div className="ft-noprint mt-2 pt-2 border-t" style={{ ...cols, borderColor: "var(--ft-border)" }}>
-                        <div className="flex flex-col gap-1.5 min-w-0" style={isWide ? { height: 66 } : {}}>
-                          {(() => { const pcts = normPricing(settings.pricing); return (
-                            <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
-                              onChange={(v) => updateProject(sel.id, { priceTier: v })}
-                              onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
-                              options={[
-                                { v: "retail", label: "Retail", title: "Retail pricing" },
-                                { v: "builder", label: "Bldr", color: TIER_COLOR.builder.main, title: `Builder pricing — ${pcts.builderPct}% off retail` },
-                                { v: "employee", label: "Emp", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
-                                { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${pcts.salePct}% off retail` },
-                                { v: "custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
-                              ]} />
-                          ); })()}
-                          {/* Printed pricing shares its row with the waste
-                              toggles; the tier bar above keeps the full width. */}
-                          <div className="flex gap-1.5 min-w-0">
-                            <div className="flex-1 min-w-0">
-                              <SegBar value={sel.printPricing || "full"}
-                                onChange={(v) => updateProject(sel.id, { printPricing: v })}
-                                options={[
-                                  { v: "full", label: "All $", title: "Print every price and total" },
-                                  { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
-                                  { v: "none", label: "No $", title: "Print no pricing" },
-                                ]} />
-                            </div>
-                            <WasteBar w={jobWasteUI} dflt={settings.waste} className="w-[134px]"
-                              onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
-                          </div>
-                        </div>
-                        <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ height: 66, background: "var(--ft-cream)" }} />
-                        <div className="flex flex-col justify-between gap-1.5" style={isWide ? { height: 66 } : {}}>
-                          {namingVersion ? (
-                            <div className="flex items-center gap-1.5">
-                              <input autoFocus value={versionName} onChange={(e) => setVersionName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmVersion(); if (e.key === "Escape") setNamingVersion(false); }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                              <button onClick={confirmVersion} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
-                              <button onClick={() => setNamingVersion(false)} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 text-slate-400"><X size={15} /></button>
-                            </div>
-                          ) : (
-                            <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-                              <div className="flex gap-1.5">
-                                <button onClick={startVersionName} title="Save a version" className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><Save size={14} /></button>
-                                <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
-                                <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                                <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
-                              </div>
-                              <div className="flex gap-1.5">
-                                <button onClick={() => setPrintMode("order")} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
-                                <button onClick={() => setConfirm({ id: sel.id })} title="Delete project" className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-500 text-slate-400"><Trash2 size={14} /></button>
-                              </div>
-                            </div>
-                          )}
-                          {/* Non-retail tiers repaint both buttons in the tier's color —
-                              the pricing state is visible right where you commit to it. */}
-                          <div className="grid gap-1.5" style={{ gridTemplateColumns: "1fr 132px" }}>
-                            <button onClick={() => setShowOrderCopy(true)} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Copy size={14} /> Order entry</button>
-                            <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Ink row — same action as the dashed Add-area bar that
-                          trails the areas list; both stay on purpose. */}
-                      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-2 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
-                    </>
-                  );
-                })()}
-              </div>}
+              {/* Header card (desktop): two layouts behind a per-device switch
+                  (Settings → General, "ft-header") — the one-bar (2026-07-21,
+                  .scratch/mockups/header-redesign-2026-07-21.html) and the
+                  print-sheet classic it replaced, both in projectheader.jsx.
+                  Mobile keeps the stat strip + project sheet below. */}
+              {isWide && (() => {
+                const cust = data.people.find((c) => c.id === sel.customerId);
+                // Tab out of the header lands on the first area's name; with no
+                // areas yet it falls back to the header's Add-area button.
+                const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
+                const hp = {
+                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject,
+                  onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
+                  nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
+                  namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
+                  openAttachment, delAttachment, attRef, addAttachment,
+                  setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea,
+                };
+                return headerLayout === "classic" ? <ProjectHeaderClassic {...hp} /> : <ProjectHeaderBar {...hp} />;
+              })()}
 
               {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2): the
                   header card collapses to a horizontally scrolling stat strip;
@@ -1409,7 +1339,7 @@ export default function App({ user, onSignOut }) {
                         // The note lives inside the tinted wrap, hugging the chip's
                         // bottom edge; rows with no wrap fall back to a cream note row.
                         const noteInput = (
-                          <input value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
+                          <input tabIndex={-1} value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
                         );
                         const searchMode = rowBlank(p) && !manualRows[p.id];
                         // The last row of an area is the permanent inline "adder";
@@ -1521,10 +1451,14 @@ export default function App({ user, onSignOut }) {
                                 {/* no expand carrot — the materials pill opens the drawer,
                                     clicking anywhere outside folds it */}
                                 <span className="w-1 shrink-0" />
+                                {/* Tab flow: a book-filled row (sku set) tabs product → SF →
+                                    extras; size/SKU/price stay click targets. A manual row
+                                    keeps size/coverage/price in the tab order — they must be
+                                    typed there. */}
                                 {p.type === "tile" ? (
-                                  <GridSizeInput p={p} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
+                                  <GridSizeInput p={p} tabIndex={p.sku ? -1 : 0} onCommit={(patch) => updProduct(a.id, p.id, patch)} />
                                 ) : (
-                                  <input value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : p.type === "misc" ? "Size (opt.)" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
+                                  <input tabIndex={p.sku ? -1 : 0} value={p.sizeText} onChange={(e) => updProduct(a.id, p.id, { sizeText: e.target.value })} data-c="size" className="ft-cell" style={{ padding: "6px 4px" }} placeholder={p.type === "hardwood" ? "Width" : p.type === "misc" ? "Size (opt.)" : "Size"} title={p.type === "hardwood" ? "Plank width (in)" : "Size"} />
                                 )}
                               </div>
                               <div style={gridCell}>
@@ -1533,14 +1467,14 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {skuSearchable(stock, searchOrder, stockReady) ? (
-                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady}
+                                  <SkuPicker value={p.sku || ""} stock={stock} stockReady={stockReady} tabIndex={-1}
                                     onChange={(v) => updProduct(a.id, p.id, { sku: v })}
                                     onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }}
                                     onPickMany={(items) => addStockProducts(a.id, p.id, items)}
                                     searchOrder={searchOrder} bookName={bookName}
                                     wrapClass="relative flex-1 min-w-0 self-stretch flex" wrapStyle={{}} inputClass="ft-cell" />
                                 ) : (
-                                  <input value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
+                                  <input tabIndex={-1} value={p.sku} onChange={(e) => updProduct(a.id, p.id, { sku: e.target.value })} data-c="sku" className="ft-cell" placeholder="SKU" />
                                 )}
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
@@ -1561,7 +1495,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} tabIndex={p.sku ? -1 : 0} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
@@ -1622,7 +1556,29 @@ export default function App({ user, onSignOut }) {
                             {matExpanded && p.type !== "misc" && (
                               <>
                               <div className="ft-noprint" style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(20,15,10,.14)", backdropFilter: "blur(0.6px)", WebkitBackdropFilter: "blur(0.6px)" }} onClick={closeMats} />
-                              <div style={{ position: "absolute", left: 0, top: 0, zIndex: 45, width: "100%", background: rowTint, padding: "4px 8px 7px 26px", borderLeft: matBorder, borderRight: matBorder, borderBottom: matBorder, boxShadow: "0 10px 24px rgba(20,15,10,.16)" }}>
+                              {/* Keyboard contract (tab-flow cleanup 2026-07-21): Tab walks the
+                                  checked extras' dropdowns plus the caulk box (totals stay
+                                  click-to-override), Enter or Escape folds the drawer back to
+                                  its pill, and tabbing/clicking out folds it too. */}
+                              <div ref={(el) => { matDrawerRef.current = el; }} tabIndex={-1}
+                                onKeyDown={(e) => {
+                                  if (e.key !== "Enter" && e.key !== "Escape") return;
+                                  e.preventDefault();
+                                  const card = e.currentTarget.closest("[data-prod-card]");
+                                  closeMats();
+                                  requestAnimationFrame(() => card?.querySelector("[data-mats-pill]")?.focus());
+                                }}
+                                onBlur={() => {
+                                  // Deferred + body-tolerant: a toggle click unmounts the focused
+                                  // button (focus falls to body) and must NOT fold the drawer;
+                                  // tabbing or clicking to a real control outside does.
+                                  setTimeout(() => {
+                                    const el = matDrawerRef.current;
+                                    const ae = document.activeElement;
+                                    if (el && ae && ae !== document.body && !el.contains(ae)) closeMats();
+                                  }, 0);
+                                }}
+                                style={{ position: "absolute", left: 0, top: 0, zIndex: 45, width: "100%", background: rowTint, padding: "4px 8px 7px 26px", borderLeft: matBorder, borderRight: matBorder, borderBottom: matBorder, boxShadow: "0 10px 24px rgba(20,15,10,.16)", outline: "none" }}>
                               <div className="ft-mats" style={{ background: matBoxBg, border: chipBorder, overflow: "hidden", "--mat-acc": accent }}>
                                 {p.type === "tile" && p.grout.checked && (
                                   <div className="px-2.5 py-1.5" style={{ background: rowTint }}>
@@ -1645,7 +1601,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="text-slate-400">Matching caulk</span>
                                       {p.grout.color && <span className="inline-flex items-center gap-1"><span className="shrink-0" style={{ width: 9, height: 9, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D" }} />{p.grout.color} match</span>}
                                       {p.grout.caulkSku && <span className="ft-mono text-[10px] text-slate-400">{p.grout.caulkSku}</span>}
-                                      <span className="ml-auto flex items-center gap-1"><input tabIndex={-1} type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
+                                      <span className="ml-auto flex items-center gap-1"><input type="number" value={p.grout.caulk} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, caulk: e.target.value } })} placeholder="—" title="Matching caulk for this grout color — tubes to order; leave blank for none" className={`w-10 text-right rounded border px-1 py-0.5 ft-field focus:border-indigo-500 focus:outline-none ${p.grout.caulk ? "border-indigo-300 text-indigo-700 font-semibold" : "border-slate-200"}`} /><span>tubes</span></span>
                                     </div>
                                   </div>
                                 )}
@@ -1694,9 +1650,9 @@ export default function App({ user, onSignOut }) {
                                     {installDefs.length > 0 && (
                                       <div className="mt-1.5 pt-1.5" style={{ borderTop: "1px solid var(--ft-border)" }}>
                                   <div className="flex items-center gap-2">
-                                    <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{p.underlay.install && <Check size={10} />}</button>
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, install: !p.underlay.install } })} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${p.underlay.install ? "" : "border border-slate-300"}`} style={p.underlay.install ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{p.underlay.install && <Check size={10} />}</button>
                                     {p.underlay.install ? (
-                                      <button onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
+                                      <button tabIndex={-1} onClick={() => setInsOpen((o) => ({ ...o, [p.id]: !insExpanded }))} className="flex items-center gap-1 text-xs min-w-0">
                                         {insExpanded ? <ChevronDown size={12} className="text-slate-400 shrink-0" /> : <ChevronRight size={12} className="text-slate-400 shrink-0" />}
                                         Install materials
                                         <span className="text-[10px] text-slate-400 whitespace-nowrap">{insIncluded < installDefs.length ? `${insIncluded} of ${installDefs.length}` : `${installDefs.length} item${installDefs.length === 1 ? "" : "s"}`}</span>
@@ -1721,7 +1677,7 @@ export default function App({ user, onSignOut }) {
                                         const opts = cur && !mortarNames.includes(cur) ? [cur, ...mortarNames] : mortarNames;
                                         return (
                                           <div key={d.id} className="flex items-center gap-2">
-                                            <button onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : ""}`} style={skipped ? undefined : { background: accent, color: "var(--ft-type-ink)" }}>{!skipped && <Check size={10} />}</button>
+                                            <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, installSkip: { ...(p.underlay.installSkip || {}), [d.id]: !skipped } } })} title={skipped ? "Skipped — click to include" : "Included — click to skip"} className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${skipped ? "border border-slate-300" : ""}`} style={skipped ? undefined : { background: accent, color: "var(--ft-type-ink)" }}>{!skipped && <Check size={10} />}</button>
                                             {d.kind === "mortar" && !skipped ? (
                                               <FitSelect sm value={cur} display={cur || "Select mortar…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, installMortars: { ...(p.underlay.installMortars || {}), [d.id]: e.target.value } } })} title="Mortar used to set the underlayment — combines with this job's other mortar totals">
                                                 {!cur && <option value="">Select mortar…</option>}{opts.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -1790,7 +1746,7 @@ export default function App({ user, onSignOut }) {
                             )}
                             {(stripMats.length > 0 || warns.length > 0) && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
+                              <button data-mats-pill onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
                                 {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — <span className="shrink-0" style={{ width: 8, height: 8, borderRadius: 999, background: "#C9B79D", border: "1px solid #B3A38D", display: m.kind === "Grout" ? "inline-block" : "none" }} /> {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -1809,7 +1765,7 @@ export default function App({ user, onSignOut }) {
                             )}
                             {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
+                              <button data-mats-pill onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
                                 ＋ {addables.join(" · ")}…
                               </button>
                               {p.note ? noteInput : null}
@@ -1835,7 +1791,9 @@ export default function App({ user, onSignOut }) {
 
               {/* Mobile gets its + Area in the bottom add bar instead. */}
               {isWide && sel.categories.length > 0 && (
-                <button onClick={addArea} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
+                // Tab flow: after the last area's search row this Add-area bar is
+                // the next stop; Tab from it jumps back up to Order entry → Print.
+                <button onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0) && (
@@ -1992,7 +1950,7 @@ export default function App({ user, onSignOut }) {
           settings={settings} setSettings={setSettings} stock={stock} stockReady={stockReady} gFamilies={gFamilies}
           importing={importing} importPriceBook={importPriceBook} importStockFile={importStockFile} pbRef={pbRef}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
-          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme}
+          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />

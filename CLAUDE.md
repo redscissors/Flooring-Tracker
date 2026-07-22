@@ -66,6 +66,11 @@ src/
                     # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
                     # `MobileProductRow`, `MobileRowSheet`
+  projectheader.jsx # the desktop project header, two layouts behind a per-device
+                    # switch (Settings → General, localStorage "ft-header"):
+                    # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
+                    # `ProjectHeaderClassic` (the print-sheet original, kept
+                    # whole so the team can flip back without a revert)
   TeamTodos.jsx     # the team issue/to-do modal (issue 006)
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
@@ -131,6 +136,12 @@ src/
                     # (each with a Custom… entry). Stocked tab is species -> color
                     # -> grade -> width -> sheen, and an off-standard sheen there
                     # adds a $250 flat fee line (free on the custom/floor tab).
+                    # Vent tab: the Prefinished/Textured toggles reveal stain-color
+                    # and scrape pickers (order text only — the sheet's adders are
+                    # flat), and a "Copy floor" button maps the last-open floor/
+                    # stocked/herringbone tab's config onto the vent
+                    # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
+                    # -> White Oak, finish -> prefin+stain, texture -> scrape).
                     # Opened from a row's search (the pinned "Vendor configurators"
                     # row in GridOmniSearch or MobileSearchSheet — "she" is enough)
                     # or its "Sheoga — reconfigure" chip; Add fills the row via

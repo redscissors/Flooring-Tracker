@@ -34,7 +34,7 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
   return (
     <div className={`relative shrink-0 ${compact ? "self-stretch flex" : ""}`}>
       {compact ? (
-        <button ref={setBtn} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={blank ? "Pick a material type" : `Product type — ${TLBL[type]} (click to change)`}
+        <button ref={setBtn} tabIndex={-1} onClick={() => setOpen((o) => !o)} onKeyDown={pickByLetter} title={blank ? "Pick a material type" : `Product type — ${TLBL[type]} (click to change)`}
           className="ft-mat-toggle shrink-0 flex items-center justify-center font-bold leading-none"
           style={blank
             ? { width: 18, background: "var(--ft-field, #fff)", color: "var(--ft-muted)", fontSize: 10, margin: "6px 0", border: "1px dashed var(--ft-border)" }
@@ -76,9 +76,9 @@ export const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px
 // input's spot (color-coded like the tier chips) and the editable retail
 // slides beneath as a micro field — the GridSizeInput footnote pattern.
 // Retail stays the stored value; the top line is derived, never typed.
-export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title }) {
+export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title, tabIndex }) {
   if (tierPrice == null && !noCost) return (
-    <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" placeholder="0.00" title={title} />
+    <input type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" placeholder="0.00" title={title} />
   );
   const color = TIER_COLOR[tier]?.main || "var(--ft-brand-deep)";
   return (
@@ -90,7 +90,7 @@ export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title }) {
       )}
       <div className="flex items-center justify-end" style={{ gap: 2, padding: "0 4px 2px" }}>
         <span style={{ fontSize: 8.5, color: "var(--ft-faint)" }}>retail</span>
-        <input type="number" value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={noCost ? `${title} — the estimate uses this retail price (no cost on the line)` : `${title} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
+        <input type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onRetail(e.target.value)} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={noCost ? `${title} — the estimate uses this retail price (no cost on the line)` : `${title} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
       </div>
     </div>
   );
@@ -102,7 +102,7 @@ export function GridPriceCell({ p, tier, tierPrice, noCost, onRetail, title }) {
 // ticket 009 Variant A), that vendor string is the primary field and the
 // derived square L×W it computes grout/mortar from is a quiet, correctable
 // footnote beneath — never presented as the size itself.
-export function GridSizeInput({ p, onCommit }) {
+export function GridSizeInput({ p, onCommit, tabIndex }) {
   const [editDims, setEditDims] = useState(false);
   const shown = p.L || p.W ? `${p.L}×${p.W}${p.thickness ? `×${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : ""}` : "";
   const commit = (raw) => {
@@ -122,21 +122,21 @@ export function GridSizeInput({ p, onCommit }) {
     const micro = { width: 26, fontSize: 9, padding: "1px 2px" };
     return (
       <div className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
-        <input value={p.sizeText} onChange={(e) => onCommit({ sizeText: e.target.value })} data-c="size"
+        <input tabIndex={tabIndex} value={p.sizeText} onChange={(e) => onCommit({ sizeText: e.target.value })} data-c="size"
           className="ft-cell" style={{ padding: "3px 4px 1px" }} placeholder="Size"
           title="Vendor size — grout & mortar compute from the L×W below" />
         {editDims ? (
           <div className="flex items-center" style={{ gap: 2, padding: "0 4px 2px" }}>
-            <input value={p.L} onChange={(e) => onCommit({ L: e.target.value.replace(/[^\d.]/g, "") })} className="ft-cell" style={micro} title="Length (in) grout/mortar compute from" />
+            <input tabIndex={tabIndex} value={p.L} onChange={(e) => onCommit({ L: e.target.value.replace(/[^\d.]/g, "") })} className="ft-cell" style={micro} title="Length (in) grout/mortar compute from" />
             <span style={{ fontSize: 9, color: "var(--ft-faint)" }}>×</span>
-            <input value={p.W} onChange={(e) => onCommit({ W: e.target.value.replace(/[^\d.]/g, "") })} className="ft-cell" style={micro} title="Width (in) grout/mortar compute from" />
+            <input tabIndex={tabIndex} value={p.W} onChange={(e) => onCommit({ W: e.target.value.replace(/[^\d.]/g, "") })} className="ft-cell" style={micro} title="Width (in) grout/mortar compute from" />
           </div>
         ) : p.L && p.W ? (
-          <button type="button" onClick={() => setEditDims(true)} className="text-left"
+          <button type="button" tabIndex={-1} onClick={() => setEditDims(true)} className="text-left"
             style={{ fontSize: 8.5, color: "var(--ft-brand)", padding: "0 4px 2px", lineHeight: 1.1, background: "none", border: 0, cursor: "pointer" }}
             title="Correct the L×W grout & mortar compute from">▦ computes as {p.L}×{p.W}</button>
         ) : (
-          <button type="button" onClick={() => setEditDims(true)} className="text-left"
+          <button type="button" tabIndex={-1} onClick={() => setEditDims(true)} className="text-left"
             style={{ fontSize: 8.5, color: "var(--ft-faint)", padding: "0 4px 2px", lineHeight: 1.1, background: "none", border: 0, cursor: "pointer" }}
             title="No coverage yet — add an L×W for grout & mortar">＋ add size for grout</button>
         )}
@@ -144,7 +144,7 @@ export function GridSizeInput({ p, onCommit }) {
     );
   }
   return (
-    <input key={shown} defaultValue={shown} data-c="size"
+    <input key={shown} defaultValue={shown} data-c="size" tabIndex={tabIndex}
       onBlur={(e) => { if (e.target.value !== shown) commit(e.target.value); }}
       onKeyDown={(e) => { if (e.key === "Enter" && e.target.value !== shown) commit(e.target.value); }}
       className="ft-cell" style={{ padding: "6px 4px" }} placeholder="L×W" title='Tile size — type "12×24" or "12×24×3/8"' />
