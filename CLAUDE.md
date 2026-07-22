@@ -82,6 +82,9 @@ src/
                     # `migrateLegacyCustomers` (ADR 0004)
   usebooks.js       # `useBooks` — price book registry state + write paths (ADR 0009): addBook/
                     # updateBook/delBook/applyBookImport/reviewBookItemFlags/setBookItemsDisabled
+  usebookstock.js   # `useBookStock` — stock-kind registry books' items, cached like the ADR 0003
+                    # stock cache (bounded, background-loaded per ADR 0026); feeds the grout
+                    # family projection, the Settings picker, and link warnings (ADR 0027)
   usestock.js       # `useStock` — the shop stock price book (ADR 0003): stock state + import/
                     # rollback/disable write paths
   usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006)
@@ -107,6 +110,9 @@ src/
                     # transition products keyed by Catalog #, flagged `trim` so
                     # the book can mark trims up separately from floors (ADR 0012)
   stock.js          # stock search / SKU fill / drift / import diff / catalog sync
+  booklink.js       # catalog ↔ ERP stock-book links (ADR 0027): link/family rule shapes,
+                    # series-rule + color-token parsing, family resolution + projection into
+                    # stock-shaped items, import-time sync, migration link proposals
   orderbook.js      # special-order ("order") book helpers (ADR 0009): item shape,
                     # cost/markup/sell, pick snapshot, drift, import diff, and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
@@ -388,7 +394,9 @@ the two-part grout's base unit — ordered from the **consolidated** kit counts
 (`ceil(total kits / per)`, Commercial unit = per 4) via `groutBaseList`, and
 shown with the grout family in the order summary, estimate breakdown, and
 order sheet. The Settings add-product pre-fill keeps the picked item's SKU and
-auto-attaches a Laticrete pigment's default base.
+auto-attaches a Laticrete pigment's default base. The hand-kept stock workbook
+this pairing came from is being replaced by linked ERP stock books
+(`product.link`, ADR 0027) — the base-companion mechanics carry over unchanged.
 
 **Grout colors from the book & the Settings workspace** (issue 007, ADR 0007).
 A catalog grout can carry a `book` field naming a price-book grout *family*
@@ -403,7 +411,10 @@ the matrix section's caulk column in that color), shown on caulk lines in
 the summary, order sheet, and print breakdown, with tubes × price counted
 into the estimate totals; caulk itself never lives in the catalog.
 Unlinked grouts keep the code-defined standard color list. Custom
-underlayment install items also carry an optional `sku`.
+underlayment install items also carry an optional `sku`. This workbook-sourced
+family is being superseded by `catalog.bookFamilies` — a matching rule over
+linked ERP stock books, projected into the same stock-shaped items so this
+resolution logic runs unchanged (ADR 0027).
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
 `SettingsWorkspace.jsx`): left-nav sections (General · Price book · Materials & add-ons ·
 Backup & restore; the built-in Grout / Mortar / Underlayment categories
