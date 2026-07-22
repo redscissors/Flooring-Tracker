@@ -98,7 +98,10 @@ export function useOrderSearch({ books, sel, orderItems, setOrderItems }) {
       });
     })();
     return () => { stale = true; };
-  }, [orderRowKeys]);
+    // orderItems is a dependency so an import invalidation (App clears the
+    // book's entries) re-resolves the open rows' keys; the cached-key guard
+    // above keeps the effect from looping on its own writes.
+  }, [orderRowKeys, orderItems]);
 
   return { searchOrder, orderRowKeys, bookName };
 }
