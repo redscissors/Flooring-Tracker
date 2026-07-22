@@ -159,3 +159,86 @@ export function familyWarnings(bookFamilies, itemsByBook) {
   }
   return out;
 }
+
+export function linkedItemState(link, itemsByBook) {
+  const l = normLink(link);
+  if (!l) return null;
+  const it = (itemsByBook?.[l.bookId] || []).find((x) => x.sku === l.sku);
+  return !it ? "missing" : it.active === false ? "inactive" : "ok";
+}
+
+export function syncLinkedCatalog(catalog, bookId, items) {
+  const live = new Map(liveRows(items).map((it) => [it.sku, it]));
+  const all = new Map((items || []).map((it) => [it.sku, it]));
+  const changes = [], lost = [];
+  const syncKind = (list) => (list || []).map((p) => {
+    let next = p;
+    const l = normLink(p.link);
+    if (l && l.bookId === bookId) {
+      const it = live.get(l.sku);
+      if (!it) { lost.push({ name: p.name, sku: l.sku }); return p; }
+      const to = numOr(it.price, numOr(parseFloat(p.price), 0));
+      const from = parseFloat(p.price) || 0;
+      const unit = str(it.unit) || p.unit;
+      if (Math.abs(from - to) > 0.005 || unit !== p.unit || str(p.sku) !== it.sku) {
+        if (Math.abs(from - to) > 0.005) changes.push({ name: p.name, from, to, sku: it.sku });
+        next = { ...next, price: to, unit, sku: it.sku };
+      }
+    }
+    // A grout base companion linked into this book rides the same refresh.
+    if (next.base && str(next.base.sku) && all.has(str(next.base.sku))) {
+      const b = live.get(str(next.base.sku));
+      if (b && Math.abs((parseFloat(next.base.price) || 0) - numOr(b.price, 0)) > 0.005) {
+        changes.push({ name: `${next.name} — base`, from: parseFloat(next.base.price) || 0, to: numOr(b.price, 0), sku: b.sku });
+        next = { ...next, base: { ...next.base, price: numOr(b.price, 0) } };
+      }
+    }
+    return next;
+  });
+  const companies = (catalog?.companies || []).map((co) => ({
+    ...co,
+    grouts: syncKind(co.grouts), mortars: syncKind(co.mortars),
+    underlayments: syncKind(co.underlayments), attached: syncKind(co.attached),
+  }));
+  const newColors = [];
+  const bookFamilies = (catalog?.bookFamilies || []).map((raw) => {
+    const fam = normBookFamily(raw);
+    if (fam.bookId !== bookId) return raw;
+    const { colors, usedCache } = resolveFamily(fam, { [bookId]: items });
+    if (usedCache || !colors.length) return raw;
+    const had = new Set(fam.cache.map((c) => c.sku));
+    const fresh = colors.filter((c) => !had.has(c.sku)).length;
+    if (fresh && fam.cache.length) newColors.push({ family: fam.name, count: fresh });
+    return { ...fam, cache: colors };
+  });
+  return { catalog: { ...catalog, companies, bookFamilies }, changes, lost, newColors };
+}
+
+export function proposeLinks(catalog, itemsByBook, books) {
+  const stockBooks = (books || []).filter((b) => b.kind === "stock" && b.active !== false);
+  const proposals = [], unmatched = [];
+  for (const co of (catalog?.companies || [])) {
+    for (const kind of ["grouts", "mortars", "underlayments", "attached"]) {
+      for (const p of (co[kind] || [])) {
+        const sku = str(p.sku);
+        if (!sku || normLink(p.link)) continue;
+        const hits = stockBooks.filter((b) => liveRows(itemsByBook?.[b.id]).some((it) => it.sku === sku));
+        if (hits.length === 1) proposals.push({ companyId: co.id, companyName: co.name, kind, productId: p.id, name: p.name, sku, bookId: hits[0].id, bookName: hits[0].name });
+        else unmatched.push({ name: p.name, sku, reason: hits.length ? "ambiguous" : "none" });
+      }
+    }
+  }
+  return { proposals, unmatched };
+}
+
+export function applyProposals(catalog, proposals) {
+  const byProduct = new Map((proposals || []).map((pr) => [pr.productId, pr]));
+  const companies = (catalog?.companies || []).map((co) => {
+    const stamp = (list) => (list || []).map((p) => {
+      const pr = byProduct.get(p.id);
+      return pr ? { ...p, link: { bookId: pr.bookId, sku: pr.sku } } : p;
+    });
+    return { ...co, grouts: stamp(co.grouts), mortars: stamp(co.mortars), underlayments: stamp(co.underlayments), attached: stamp(co.attached) };
+  });
+  return { ...catalog, companies };
+}

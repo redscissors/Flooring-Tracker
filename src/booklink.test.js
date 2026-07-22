@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   matchRule, parseColorToken, deriveSeriesRule, normLink,
   normBookFamily, resolveFamily, projectFamilies, familyWarnings,
+  syncLinkedCatalog, linkedItemState, proposeLinks, applyProposals,
 } from "./booklink.js";
 import {
   groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch,
@@ -304,4 +305,244 @@ test("projectFamilies output works unchanged through stock.js's grout & base-uni
   assert.ok(commercial);
   assert.equal(commercial.sku, "SL-COMM");
   assert.match(commercial.description, /commercial/i);
+});
+
+// --- Task 3: import-time sync + migration proposals ------------------------
+
+// One book's (b1) live items covering every kind, plus a base companion, an
+// epsilon pair, and two rows for the family cache-refresh case. GONE-SKU is
+// deliberately absent (a linked SKU the ERP dropped).
+const B1_ITEMS = [
+  { sku: "GSKU", active: true, price: 12, unit: "BX", description: "Grout main" },
+  { sku: "GSKU2", active: true, price: 20, unit: "EA", description: "Grout w/ base" },
+  { sku: "BASE-SKU", active: true, price: 215, unit: "EA", description: "Base unit" },
+  { sku: "EPSKU", active: true, price: 10.004, unit: "EA", description: "Epsilon grout" },
+  { sku: "EPSKU2", active: true, price: 10.006, unit: "EA", description: "Epsilon grout 2" },
+  { sku: "MSKU", active: true, price: 33, unit: "bg", description: "Mortar main" },
+  { sku: "USKU", active: true, price: 15, unit: "roll", description: "Underlayment main" },
+  { sku: "ASKU", active: true, price: 9.5, unit: "EA", description: "Attached main" },
+  { sku: "TG10", active: true, price: 5, unit: "EA", description: "9LB TESTGROUT 10 RED PART C" },
+  { sku: "TG20", active: true, price: 6, unit: "EA", description: "9LB TESTGROUT 20 BLUE PART C" },
+];
+
+function makeSyncCatalog() {
+  return {
+    companies: [
+      {
+        id: "co1", name: "Company One",
+        grouts: [
+          { id: "g-ok", name: "Ocean Grout", price: "10.00", unit: "EA", sku: "G-OLD", link: { bookId: "b1", sku: "GSKU" } },
+          { id: "g-base", name: "Base Grout", price: "20.00", unit: "EA", sku: "", link: { bookId: "b1", sku: "GSKU2" },
+            base: { sku: "BASE-SKU", name: "Full Unit", unit: "EA", price: "200.00", per: 1 } },
+          { id: "g-lost", name: "Lost Grout", price: "5.00", unit: "EA", sku: "OLDSKU", link: { bookId: "b1", sku: "GONE-SKU" } },
+          { id: "g-unlinked", name: "Unlinked Grout", price: "7.00", unit: "EA", sku: "", link: null },
+          { id: "g-eps", name: "Epsilon Grout", price: "10.000", unit: "EA", sku: "EPSKU", link: { bookId: "b1", sku: "EPSKU" } },
+          { id: "g-eps2", name: "Epsilon Grout 2", price: "10.000", unit: "EA", sku: "EPSKU2", link: { bookId: "b1", sku: "EPSKU2" } },
+        ],
+        mortars: [
+          { id: "m-ok", name: "Mortar One", price: "30.00", unit: "bags", sku: "MOLD", link: { bookId: "b1", sku: "MSKU" } },
+        ],
+        underlayments: [
+          { id: "u-ok", name: "Underlay One", price: "15.00", unit: "rolls", sku: "UOLD", link: { bookId: "b1", sku: "USKU" } },
+        ],
+        attached: [
+          { id: "a-ok", name: "Attached One", price: "8.00", unit: "EA", sku: "AOLD", categoryId: "cat1", link: { bookId: "b1", sku: "ASKU" } },
+        ],
+      },
+      {
+        id: "co2", name: "Company Two",
+        grouts: [
+          { id: "g-other", name: "Other Book Grout", price: "50.00", unit: "EA", sku: "OSKU", link: { bookId: "b2", sku: "OSKU" } },
+        ],
+        mortars: [], underlayments: [], attached: [],
+      },
+    ],
+    bookFamilies: [
+      {
+        id: "test-family", name: "Test Family", bookId: "b1",
+        rule: { prefix: "9LB TESTGROUT", suffix: "PART C" },
+        baseSkus: { default: "", variant: "" }, caulk: null,
+        cache: [{ color: "Red", num: "10", sku: "TG10", price: 5, unit: "EA" }],
+      },
+      {
+        id: "other-book-family", name: "Other Book Family", bookId: "b2",
+        rule: { prefix: "X", suffix: "" },
+        baseSkus: { default: "", variant: "" }, caulk: null,
+        cache: [],
+      },
+    ],
+  };
+}
+
+test("syncLinkedCatalog refreshes a linked product's price+unit and logs a change entry", () => {
+  const { catalog, changes } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-ok");
+  assert.equal(g.price, 12);
+  assert.equal(g.unit, "BX");
+  assert.equal(g.sku, "GSKU");
+  assert.equal(g.name, "Ocean Grout"); // name never changes
+  assert.deepEqual(changes.find((c) => c.name === "Ocean Grout"), { name: "Ocean Grout", from: 10, to: 12, sku: "GSKU" });
+});
+
+test("syncLinkedCatalog leaves a product with an absent linked SKU untouched and reports it lost", () => {
+  const { catalog, lost } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-lost");
+  assert.equal(g.price, "5.00");
+  assert.equal(g.unit, "EA");
+  assert.equal(g.sku, "OLDSKU");
+  assert.equal(g.name, "Lost Grout");
+  assert.deepEqual(lost, [{ name: "Lost Grout", sku: "GONE-SKU" }]);
+});
+
+test("syncLinkedCatalog leaves an unlinked product completely untouched", () => {
+  const before = makeSyncCatalog().companies[0].grouts.find((p) => p.id === "g-unlinked");
+  const { catalog } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const after = catalog.companies[0].grouts.find((p) => p.id === "g-unlinked");
+  assert.deepEqual(after, before);
+});
+
+test("syncLinkedCatalog leaves a product linked into a DIFFERENT book untouched and doesn't mark it lost", () => {
+  const before = makeSyncCatalog().companies[1].grouts.find((p) => p.id === "g-other");
+  const { catalog, lost } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const after = catalog.companies[1].grouts.find((p) => p.id === "g-other");
+  assert.deepEqual(after, before);
+  assert.ok(!lost.some((l) => l.name === "Other Book Grout"));
+});
+
+test("syncLinkedCatalog syncs mortars, underlayments, and attached products too", () => {
+  const { catalog, changes } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const m = catalog.companies[0].mortars.find((p) => p.id === "m-ok");
+  assert.equal(m.price, 33);
+  assert.equal(m.unit, "bg");
+  assert.equal(m.sku, "MSKU");
+  assert.ok(changes.some((c) => c.name === "Mortar One" && c.from === 30 && c.to === 33));
+
+  // underlayment: price unchanged, unit differs — refreshes silently, no change entry
+  const u = catalog.companies[0].underlayments.find((p) => p.id === "u-ok");
+  assert.equal(u.price, 15);
+  assert.equal(u.unit, "roll");
+  assert.ok(!changes.some((c) => c.name === "Underlay One"));
+
+  const a = catalog.companies[0].attached.find((p) => p.id === "a-ok");
+  assert.equal(a.price, 9.5);
+  assert.equal(a.unit, "EA");
+  assert.equal(a.name, "Attached One");
+  assert.ok(changes.some((c) => c.name === "Attached One" && c.from === 8 && c.to === 9.5 && c.sku === "ASKU"));
+});
+
+test("syncLinkedCatalog refreshes a grout's base companion price via base.sku", () => {
+  const { catalog, changes } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-base");
+  assert.equal(g.base.price, 215);
+  assert.equal(g.base.sku, "BASE-SKU");
+  assert.equal(g.base.name, "Full Unit"); // base identity fields untouched
+  assert.ok(changes.some((c) => c.name === "Base Grout — base" && c.from === 200 && c.to === 215 && c.sku === "BASE-SKU"));
+});
+
+test("syncLinkedCatalog honors the 0.005 epsilon: a smaller diff is not a change and doesn't touch price", () => {
+  const { catalog, changes } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-eps");
+  assert.equal(g.price, "10.000"); // untouched: 10.004 - 10.000 = 0.004, not > epsilon
+  assert.ok(!changes.some((c) => c.name === "Epsilon Grout"));
+
+  const g2 = catalog.companies[0].grouts.find((p) => p.id === "g-eps2");
+  assert.equal(g2.price, 10.006); // 10.006 - 10.000 = 0.006 > epsilon: refreshed
+  assert.ok(changes.some((c) => c.name === "Epsilon Grout 2" && c.from === 10 && c.to === 10.006));
+});
+
+test("syncLinkedCatalog refreshes the matching family's cache and counts newColors", () => {
+  const { catalog, newColors } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const fam = catalog.bookFamilies.find((f) => f.id === "test-family");
+  assert.deepEqual(fam.cache.map((c) => c.sku).sort(), ["TG10", "TG20"]);
+  assert.deepEqual(newColors, [{ family: "Test Family", count: 1 }]);
+
+  // a family bound to a different book is untouched by this sync call
+  const other = catalog.bookFamilies.find((f) => f.id === "other-book-family");
+  assert.deepEqual(other, makeSyncCatalog().bookFamilies[1]);
+});
+
+test("linkedItemState covers null/ok/inactive/missing", () => {
+  const itemsByBook = { b1: [{ sku: "OK1", active: true }, { sku: "INACT1", active: false }] };
+  assert.equal(linkedItemState(null, itemsByBook), null);
+  assert.equal(linkedItemState({ bookId: "", sku: "OK1" }, itemsByBook), null);
+  assert.equal(linkedItemState({ bookId: "b1", sku: "OK1" }, itemsByBook), "ok");
+  assert.equal(linkedItemState({ bookId: "b1", sku: "INACT1" }, itemsByBook), "inactive");
+  assert.equal(linkedItemState({ bookId: "b1", sku: "MISSING1" }, itemsByBook), "missing");
+  assert.equal(linkedItemState({ bookId: "b2", sku: "OK1" }, itemsByBook), "missing");
+});
+
+// --- proposeLinks / applyProposals ------------------------------------------
+
+const PROPOSE_BOOKS = [
+  { id: "b1", name: "Book One", kind: "stock" },
+  { id: "b2", name: "Book Two", kind: "stock" },
+  { id: "b3", name: "Order Book", kind: "order" },
+];
+const PROPOSE_ITEMS_BY_BOOK = {
+  b1: [{ sku: "U1", active: true }, { sku: "A1", active: true }],
+  b2: [{ sku: "A1", active: true }],
+  b3: [{ sku: "O1", active: true }],
+};
+
+function makeProposeCatalog() {
+  return {
+    companies: [{
+      id: "co1", name: "Company One",
+      grouts: [
+        { id: "p-unique", name: "Unique Product", price: "1.00", unit: "EA", sku: "U1", link: null },
+        { id: "p-none", name: "No-match Product", price: "1.00", unit: "EA", sku: "N1", link: null },
+        { id: "p-ambig", name: "Ambiguous Product", price: "1.00", unit: "EA", sku: "A1", link: null },
+        { id: "p-order-only", name: "Order-book Product", price: "1.00", unit: "EA", sku: "O1", link: null },
+        { id: "p-linked", name: "Already Linked Product", price: "1.00", unit: "EA", sku: "X1", link: { bookId: "b1", sku: "X1" } },
+        { id: "p-nosku", name: "No SKU Product", price: "1.00", unit: "EA", sku: "", link: null },
+      ],
+      mortars: [], underlayments: [], attached: [],
+    }],
+  };
+}
+
+test("proposeLinks finds a unique stock-book match", () => {
+  const { proposals } = proposeLinks(makeProposeCatalog(), PROPOSE_ITEMS_BY_BOOK, PROPOSE_BOOKS);
+  const p = proposals.find((pr) => pr.productId === "p-unique");
+  assert.ok(p);
+  assert.deepEqual(p, {
+    companyId: "co1", companyName: "Company One", kind: "grouts",
+    productId: "p-unique", name: "Unique Product", sku: "U1",
+    bookId: "b1", bookName: "Book One",
+  });
+});
+
+test("proposeLinks reports 'none' when no stock book carries the SKU (order-book-only counts as none)", () => {
+  const { unmatched } = proposeLinks(makeProposeCatalog(), PROPOSE_ITEMS_BY_BOOK, PROPOSE_BOOKS);
+  assert.ok(unmatched.some((u) => u.name === "No-match Product" && u.sku === "N1" && u.reason === "none"));
+  assert.ok(unmatched.some((u) => u.name === "Order-book Product" && u.sku === "O1" && u.reason === "none"));
+});
+
+test("proposeLinks reports 'ambiguous' when more than one stock book carries the SKU", () => {
+  const { unmatched, proposals } = proposeLinks(makeProposeCatalog(), PROPOSE_ITEMS_BY_BOOK, PROPOSE_BOOKS);
+  assert.ok(unmatched.some((u) => u.name === "Ambiguous Product" && u.sku === "A1" && u.reason === "ambiguous"));
+  assert.ok(!proposals.some((p) => p.productId === "p-ambig"));
+});
+
+test("proposeLinks skips products that already carry a link or have no SKU", () => {
+  const { proposals, unmatched } = proposeLinks(makeProposeCatalog(), PROPOSE_ITEMS_BY_BOOK, PROPOSE_BOOKS);
+  assert.ok(!proposals.some((p) => p.productId === "p-linked"));
+  assert.ok(!unmatched.some((u) => u.name === "Already Linked Product"));
+  assert.ok(!proposals.some((p) => p.productId === "p-nosku"));
+  assert.ok(!unmatched.some((u) => u.name === "No SKU Product"));
+});
+
+test("applyProposals stamps link on proposed products only, round-tripping through proposeLinks", () => {
+  const catalog = makeProposeCatalog();
+  const { proposals } = proposeLinks(catalog, PROPOSE_ITEMS_BY_BOOK, PROPOSE_BOOKS);
+  const next = applyProposals(catalog, proposals);
+  const unique = next.companies[0].grouts.find((p) => p.id === "p-unique");
+  assert.deepEqual(unique.link, { bookId: "b1", sku: "U1" });
+  assert.equal(unique.name, "Unique Product"); // name untouched
+
+  // an untouched product (no proposal) keeps its original link value
+  const none = next.companies[0].grouts.find((p) => p.id === "p-none");
+  assert.equal(none.link, null);
+  const alreadyLinked = next.companies[0].grouts.find((p) => p.id === "p-linked");
+  assert.deepEqual(alreadyLinked.link, { bookId: "b1", sku: "X1" });
 });
