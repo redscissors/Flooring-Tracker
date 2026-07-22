@@ -25,7 +25,7 @@ import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useBookStock } from "./usebookstock.js";
-import { syncLinkedCatalog } from "./booklink.js";
+import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
 import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTodos } from "./usetodos.js";
@@ -413,7 +413,14 @@ export default function App({ user, onSignOut }) {
   } = useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings });
   // Grout color families from the book's Grout & Caulk sheet (ADR 0007) — read
   // at edit time only (color dropdowns, Settings linking), never at calc time.
-  const gFamilies = useMemo(() => groutFamilies(stock), [stock]);
+  // groutStock merges the shop stock book with book-linked family rows
+  // projected from the price-book cache (ADR 0007/0009) — edit-time surfaces
+  // only, never the calc-time path.
+  const groutStock = useMemo(() => [...stock, ...projectFamilies(settings.catalog.bookFamilies, bookStock)], [stock, settings.catalog.bookFamilies, bookStock]);
+  const gFamilies = useMemo(() => groutFamilies(groutStock), [groutStock]);
+  // A grout's linked book is book-backed (ADR 0009) vs. the legacy shop-stock
+  // family (ADR 0007) — the two wait on different caches (stockBusy below).
+  const isBookFam = (book) => !!book && (settings.catalog.bookFamilies || []).some((f) => f.name.toLowerCase() === book.toLowerCase());
   const fmtAgo = (ts) => {
     if (!ts) return "";
     const d = Math.floor((Date.now() - ts) / 86400000);
@@ -503,8 +510,10 @@ export default function App({ user, onSignOut }) {
   const patchFor = (it, p) => it.bookId ? orderPatch(it, books.find((b) => b.id === it.bookId), p) : stockPatch(it, p);
   const addStockProducts = (aid, pid, items) => {
     if (!items.length) return;
-    // Only stock items carry a companion base unit (Laticrete pigment → base).
-    const expanded = items.flatMap((it) => { const base = it.bookId ? null : stockCompanionBase(it, stock); return base ? [it, base] : [it]; });
+    // A book row's pigment description matches the same regexes as a stock
+    // row's; non-pigment rows (including order-book rows) return null, so the
+    // lookup runs unconditionally instead of short-circuiting on bookId.
+    const expanded = items.flatMap((it) => { const base = stockCompanionBase(it, groutStock); return base ? [it, base] : [it]; });
     const a = sel.categories.find((x) => x.id === aid);
     const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
       { ...p, ...patchFor(expanded[0], p) },
@@ -1281,10 +1290,16 @@ export default function App({ user, onSignOut }) {
                         // A book-linked pick snapshots from the stock cache at click
                         // time (ADR 0007, groutSnapshotPatch) — while stage 2 is in
                         // flight (or after it failed) that would blank an existing
-                        // snapshot, so refuse loudly instead (ADR 0026).
-                        const stockBusy = (book) => { if (book && (!stockReady || stockFailed)) { ping(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; } return false; };
-                        const pickGroutColor = (color) => { if (stockBusy(gBook)) return; updProduct(a.id, p.id, { grout: { ...p.grout, color, ...groutSnapshotPatch(stock, gBook, color) } }); };
-                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, product, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
+                        // snapshot, so refuse loudly instead (ADR 0026). A book-backed
+                        // family (ADR 0009) waits on its own cache instead.
+                        const stockBusy = (book) => {
+                          if (!book) return false;
+                          if (isBookFam(book)) { if (!bookStockReady) { ping(STOCK_LOADING_MSG); return true; } return false; }
+                          if (!stockReady || stockFailed) { ping(stockFailed ? STOCK_FAILED_MSG : STOCK_LOADING_MSG); return true; }
+                          return false;
+                        };
+                        const pickGroutColor = (color) => { if (stockBusy(gBook)) return; updProduct(a.id, p.id, { grout: { ...p.grout, color, ...groutSnapshotPatch(groutStock, gBook, color) } }); };
+                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, product, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
                         // Turning a material on: keep the row's pick when the catalog
                         // still offers it, else the team's catalog default, else the
                         // first offered — so "click to choose" never activates a
@@ -1293,7 +1308,7 @@ export default function App({ user, onSignOut }) {
                         // option, as before.
                         const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
                         const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(stock, book, p.grout.color) } }); };
+                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
@@ -1343,10 +1358,10 @@ export default function App({ user, onSignOut }) {
                         const oBook = orderRow ? books.find((b) => b.id === p.bookId) : null;
                         const oItem = orderRow && p.sku ? orderItems[p.bookId]?.[p.sku] : null;
                         const oDrift = oItem && oBook ? orderDrift(oItem, oBook, p) : null;
-                        const stockItem = orderRow ? null : findStock(stock, p.sku);
+                        const stockItem = orderRow ? null : findStock(groutStock, p.sku);
                         const drift = stockDrift(stockItem, p);
                         const stockRetired = p.sku && stockItem && (stockItem.discontinued || !stockItem.active);
-                        const baseAlt = stockItem && stockBaseVariant(stockItem, stock);
+                        const baseAlt = stockItem && stockBaseVariant(stockItem, groutStock);
                         // The type accent stays on the small type button and the material
                         // chips; the row itself carries the page tone (constant — it does
                         // not deepen when the materials box expands), and the Price and
@@ -1420,7 +1435,7 @@ export default function App({ user, onSignOut }) {
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
-                            settings={wSet} stock={stock} stockReady={stockReady} stockFailed={stockFailed} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping}
+                            settings={wSet} stock={stock} groutStock={groutStock} stockReady={stockReady} stockFailed={stockFailed} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
