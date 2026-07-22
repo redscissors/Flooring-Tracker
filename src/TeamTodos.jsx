@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Plus, Hand, Check, Trash2 } from "lucide-react";
+import { escPush } from "./escstack.js";
 
 // The shared team issue / to-do list (issue 006). Open items are ordered by
 // priority — drag the handle to put the most important on top; done items drop
@@ -43,7 +44,7 @@ export function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClear
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onUp);
       handle.removeEventListener("pointercancel", onCancel);
-      window.removeEventListener("keydown", onKey);
+      popEsc();
       document.body.style.userSelect = "";
       Object.assign(row.style, { position: "", zIndex: "", scale: "", boxShadow: "", translate: "" });
       setTo(null);
@@ -51,11 +52,10 @@ export function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClear
     };
     const onUp = () => finish(true);
     const onCancel = () => finish(false);
-    const onKey = (ev) => { if (ev.key === "Escape") finish(false); };
+    const popEsc = escPush(() => finish(false));
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
     handle.addEventListener("pointercancel", onCancel);
-    window.addEventListener("keydown", onKey);
   };
 
   return (

@@ -14,7 +14,8 @@ import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData } from "./model.js";
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, KSHORT, u1, printMatList, orderEntryRow } from "./print.js";
-import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal } from "./widgets.jsx";
+import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose } from "./widgets.jsx";
+import { escPush } from "./escstack.js";
 import { SkuPicker } from "./search.jsx";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
@@ -338,6 +339,25 @@ export default function App({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
+  // Last-open spot, per device ("ft-last-open", like the theme): a refresh
+  // reopens the project or customer that was on screen instead of dropping to
+  // the landing page. Restored once after boot — through pickProject, so the
+  // full record loads exactly as if it had been clicked — then the key just
+  // tracks the selection; a spot that no longer exists falls back to home.
+  const [restoreSpot, setRestoreSpot] = useState(() => { try { return JSON.parse(localStorage.getItem("ft-last-open") || "null"); } catch { return null; } });
+  useEffect(() => {
+    if (loading || !restoreSpot) return;
+    setRestoreSpot(null);
+    if (selId || selCustId) return; // something was opened while booting
+    if (restoreSpot.projectId && data.projects.some((p) => p.id === restoreSpot.projectId)) { pickProject(restoreSpot.projectId); return; }
+    if (restoreSpot.customerId && data.people.some((c) => c.id === restoreSpot.customerId)) setSelCustId(restoreSpot.customerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot post-boot restore
+  }, [loading, restoreSpot]);
+  useEffect(() => {
+    if (loading || restoreSpot) return;
+    try { localStorage.setItem("ft-last-open", JSON.stringify({ projectId: selId, customerId: selCustId })); } catch (x) { }
+  }, [selId, selCustId, loading, restoreSpot]);
+
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
   useEffect(() => { if (focusQty && qtyRefs.current[focusQty]) { const el = qtyRefs.current[focusQty]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusQty(null); } }, [focusQty, data]);
@@ -654,7 +674,7 @@ export default function App({ user, onSignOut }) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
-      window.removeEventListener("keydown", onKey);
+      popEsc();
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       const rect = node.getBoundingClientRect();
@@ -666,11 +686,10 @@ export default function App({ user, onSignOut }) {
     };
     const onUp = () => finish(true);
     const onCancel = () => finish(false);
-    const onKey = (ev) => { if (ev.key === "Escape") finish(false); };
+    const popEsc = escPush(() => finish(false));
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
-    window.addEventListener("keydown", onKey);
     setDrag({ pid: p.id, fromAid: aid, to: null });
   };
 
@@ -689,6 +708,30 @@ export default function App({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId]);
   const handleSignOut = async () => { await autoSnapshot(selId); onSignOut(); };
+
+  // The Escape ladder's app-owned layers (escstack.js — modals, menus, and
+  // popovers register themselves in widgets.jsx). Bottom-most is navigation:
+  // with nothing else open, Esc steps project → customer view → home, the
+  // same paths the logo/back buttons take. Priority is open order — the most
+  // recently opened layer closes first.
+  useEscClose(true, () => {
+    if (selId) {
+      const cid = sel?.customerId;
+      if (cid) { setSelId(null); setSelCustId(cid); } else goHome();
+      return;
+    }
+    if (selCustId) goHome();
+  });
+  useEscClose(!!custChip, () => setCustChip(null));
+  useEscClose(viewTab === "preview", () => setViewTab("edit"));
+  useEscClose(!!confirmArea, () => setConfirmArea(null));
+  useEscClose(!!confirmProd, () => setConfirmProd(null));
+  useEscClose(Object.keys(matOpen).length > 0, () => setMatOpen({}));
+  useEscClose(sidebarOpen && !isWide, () => setSidebarOpen(false));
+  useEscClose(namingVersion, () => setNamingVersion(false));
+  useEscClose(showOrderCopy, () => setShowOrderCopy(false));
+  useEscClose(showSettings, () => setShowSettings(false));
+  useEscClose(showApps, () => setShowApps(false));
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportBackup = async () => {

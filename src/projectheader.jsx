@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Plus, Check, X } from "lucide-react";
-import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos } from "./widgets.jsx";
+import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 import { money } from "./model.js";
@@ -62,6 +62,7 @@ function VertBar({ header, headerIcon, value, onChange, options, inputValue, onI
 // locked, edit the rate when the header padlock is open.
 function WasteCard({ w, dflt, onChange }) {
   const [unlocked, setUnlocked] = useState(false);
+  useEscClose(unlocked, () => setUnlocked(false));
   const wrap = useRef(null);
   const cells = [{ k: "tile", flag: "tileOn", label: "Tile", of: "tile" }, { k: "floor", flag: "floorOn", label: "Flooring", of: "other flooring" }];
   const n = (v) => Number(v) || 0;
