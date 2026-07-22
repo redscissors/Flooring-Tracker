@@ -894,8 +894,14 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
             onClose={() => setFamSeed(null)}
             onSave={(fam) => {
               const next = { ...catalog, bookFamilies: [...(catalog.bookFamilies || []), fam] };
-              if (famSeed.forProduct) onChange({ ...next, companies: next.companies.map((co) => co.id === famSeed.forProduct.coId ? { ...co, grouts: co.grouts.map((g) => g.id === famSeed.forProduct.gId ? { ...g, book: fam.name } : g) } : co) });
-              else { onChange(next); setDraft((d) => ({ ...d, book: fam.name })); }
+              // A fresh-from-ERP-pick grout needs its base companion stamped
+              // here too — groutBaseList only ever reads product.base, and
+              // this is the family's one save moment (base-companion shape
+              // mirrors stockBaseCompanion in stock.js).
+              const baseRow = fam.baseSkus.default ? (bookStock[fam.bookId] || []).find((it) => it.sku === fam.baseSkus.default) : null;
+              const base = baseRow ? { sku: baseRow.sku, name: baseRow.description || baseRow.product, unit: baseRow.unit || "units", price: baseRow.price ?? 0, per: 1 } : null;
+              if (famSeed.forProduct) onChange({ ...next, companies: next.companies.map((co) => co.id === famSeed.forProduct.coId ? { ...co, grouts: co.grouts.map((g) => g.id === famSeed.forProduct.gId ? { ...g, book: fam.name, ...(base ? { base } : {}) } : g) } : co) });
+              else { onChange(next); setDraft((d) => ({ ...d, book: fam.name, ...(base ? { base } : {}) })); }
               setFamSeed(null);
             }} />
         )}
