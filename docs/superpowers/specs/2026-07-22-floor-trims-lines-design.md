@@ -1,0 +1,101 @@
+# Floor trims as lines — design
+
+**Date:** 2026-07-22 · **Status:** prototype on `claude/price-book-trims-ui-890mju`
+
+## Problem
+
+Picking a floor from a price book is one search-and-click, but the trims that
+go with it (reducer, T-mold, stairnose, end cap, quarter round…) are each a
+separate search today. The books already know the relation: trim items carry
+`fits` — the floor SKUs they belong to (ADR 0012 amendment) — and
+`trimsForFloor` (orderbook.js) answers the reverse direction exactly. Nothing
+in the selection grid uses it yet.
+
+The owner's ask (2026-07-22, voice): a button on the floor row — living in the
+materials drawer, "the depth you open up where you find underlayments and
+mortars" — that pops up everything associated with that floor, lets you pick
+what and how many, and lands them **as product rows directly below the floor**,
+not as aggregated extras at the bottom. Quantities stay adjustable on the rows,
+and reopening the popup should adjust rather than blindly append ("it would
+probably just add new lines versus adjusting the quantity … which is a little
+bit weird").
+
+## Approaches considered
+
+1. **Add-on material category** (ADR 0016 style): trims as a checked material
+   on the floor row, aggregated into the materials estimate. Rejected — trims
+   are real SKU'd order lines with their own per-piece prices, carton
+   rounding, drift chips, and order-entry copy. They belong in the grid, and
+   the owner explicitly wants rows.
+2. **Popup + rows below the floor, idempotent** *(chosen)*: a Trims row in the
+   materials drawer opens a popup listing `trimsForFloor` with a quantity per
+   trim; Apply inserts rows right below the floor. The popup **seeds from rows
+   already on the area** (matched by `bookId`+`sku`), so reopening adjusts
+   quantities in place instead of duplicating — the popup mirrors the floor's
+   trim lines. Clearing a seeded quantity to 0 removes that line.
+3. **Inline suggestion strip** under the floor row (no popup). Rejected — no
+   room for per-trim quantities, and it clutters every book row whether or not
+   trims are wanted.
+
+## Design
+
+### Data flow
+
+- **Fetch:** `useTrims` (new hook, `src/usetrims.js`) queries
+  `price_book_items` for the row's book with `data->fits` containing the
+  floor's SKU (`filter cs`), then filters exactly with `trimsForFloor`
+  (hidden/retired rows stay out) and prices each hit with the book's markups
+  (`pricedItem`) — the same normalize/price path the order search uses. One
+  registry serves both order and stock books, so one query covers both.
+  Results cache per `bookId`+`sku` for the session; an applied import clears
+  the book's entries (same spot the row-drift cache is cleared).
+- **Prefetch:** opening a row's materials drawer calls `ensureTrims` for a
+  `bookId`+`sku` row. The drawer's Trims row renders only once trims are known
+  to exist, with a count — no dead button on floors with none, and the popup
+  never opens onto a spinner.
+- **Rows are snapshots:** picked trims go through the sanctioned
+  `patchFor` (orderPatch/stockPatch) exactly like a search pick — count lines
+  (`type:"misc"`, `qtyType:"count"`), per-piece price, `cartonPc` rounding,
+  `bookId`+`sku` provenance so drift chips work. Nothing reprices later
+  (ADR 0003 doctrine).
+
+### Apply semantics (pure, `src/trims.js`)
+
+- `seedTrimPlan(products, floor, trims)` — per trim: the existing row's id and
+  quantity (first row in the area matching `bookId`+`sku`, floor excluded), or
+  qty 0.
+- `applyTrimPlan(products, floorId, entries)` — one pass:
+  - seeded row, qty > 0 → update `qty` only (hand-edited prices/notes stay);
+  - seeded row, qty 0 → remove the line;
+  - new pick, qty > 0 → prebuilt row inserted directly below the floor, after
+    any of its existing trim rows so the block stays grouped.
+  - floor row untouched; floor missing → no-op.
+
+### UI
+
+- **Drawer row** (below the add-on categories): `＋ Trims — N for this floor`,
+  with an `· k on job` note when lines exist. Click closes the drawer and
+  opens the popup. Only on rows with `sku` + `bookId` whose book lists trims
+  for that SKU.
+- **Popup** (`src/TrimsPopup.jsx`, `Modal`): one line per trim — name (the
+  "· fits …" note stripped, as on the order panel), size, SKU, sell price
+  `/ea`, carton note when sold in cartons — with a quantity box. Seeded lines
+  show an "on job" badge; clearing one to 0 shows "removes its line". Footer
+  totals the picked pieces/dollars and the button reads **Add to job** (or
+  **Update lines** when anything was seeded).
+
+### Out of scope (this prototype)
+
+- The mobile row sheet (`MobileRowSheet`) — same popup can mount there later.
+- Auto-adding a default trim set on floor pick.
+- Books whose sheets carry no `fits` relation (nothing to list — the button
+  simply never shows). Backfilling `fits` for more vendors is an import-side
+  task.
+
+## Testing
+
+`src/trims.test.js` (node --test): seeding from empty and existing areas,
+insert-below placement, grouping after existing trim rows, qty-only updates
+preserving hand-edited prices, remove-on-zero, floor-missing no-op.
+UI proof: prototype screenshots (drawer row → popup → rows below the floor)
+attached to the PR per the no-preview-no-merge rule.
