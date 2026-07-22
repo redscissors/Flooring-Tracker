@@ -63,7 +63,7 @@ familyLink: {
 Hook: immediately after `applyBookImport` upserts a book's items, refresh that book's linked catalog products:
 
 - **Price/cost changed** → update automatically. Jobs are unaffected (they snapshot at pick time; existing drift chip already covers divergence).
-- **Description/unit changed** → refresh product display name and unit. Company/category assignment never changes from an import.
+- **Description/unit changed** → refresh the product's unit; the linked row's current description shows beside the link tag in Settings. The catalog product's **name is never auto-renamed**: jobs resolve materials by name at calc time (ADR 0002/0016), so a rename from an import would silently stop saved jobs calculating — the one thing imports must never do. Company/category assignment never changes from an import either.
 - **Linked SKU inactive** (dropped from the file) → **keep + warn**: product stays selectable at last known price; Settings shows a warning chip ("no longer in MANMI stock") with relink / keep / disable actions.
 - **Family links** → membership recomputed by rule: new colors appear, dropped colors keep-and-warn, price changes flow to colors, bases, and caulk.
 - **Import summary** gains one line, e.g. "3 linked products updated, 1 link lost, 2 new colors in SpectraLock Pro."
