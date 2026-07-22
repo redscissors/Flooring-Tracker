@@ -37,6 +37,7 @@ import { useVersions } from "./useversions.js";
 const SheogaConfigurator = lazy(() => import("./SheogaConfigurator.jsx"));
 const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ default: m.AppsWorkspace })));
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
+const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
 
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
@@ -71,12 +72,11 @@ function gridEnterNav(e, addRow) {
 export default function App({ user, onSignOut }) {
   // Which customers are expanded in the sidebar tree.
   const [openCust, setOpenCust] = useState({});
-  // Sidebar folder state: the "Customers" library folder, each age bucket
-  // inside it, and the merged "Estimates & drafts" folder. All start collapsed
-  // so only the pinned recents show until the user opens a folder.
-  const [openLib, setOpenLib] = useState(false);
-  const [openBuckets, setOpenBuckets] = useState({});
+  // Sidebar folder state: the merged "Estimates & drafts" folder, collapsed
+  // until opened. The Customers folder itself opens the browser overlay
+  // (issue 040) instead of expanding in place.
   const [openDrafts, setOpenDrafts] = useState(false);
+  const [showBrowser, setShowBrowser] = useState(false);
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
   const [custModal, setCustModal] = useState(null); // customer id whose details box is open
@@ -99,7 +99,7 @@ export default function App({ user, onSignOut }) {
     promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
-    setSettings, saveProfile, profile, setProfile, appBlobRef,
+    setSettings, saveProfile, saveUiPref, profile, setProfile, appBlobRef,
     dataRef, baselineRef, prevSelRef, custData,
   } = useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusProd, setFocusName, setConfirm, setPromoteId, setPromoteQ });
   const settings = data.settings;
@@ -874,17 +874,11 @@ export default function App({ user, onSignOut }) {
   const quickPrices = unassignedAll.filter((p) => p.quick);
   const unassigned = unassignedAll.filter((p) => !p.quick);
 
-  // Customer column layout (customer-column-redesign): with more than a rail's
-  // worth of customers, pin the 5 most-recent up top and tuck the full list
-  // into a "Customers" folder that opens into age buckets. Small lists and any
-  // active search fall back to a flat, fully-visible list.
+  // Customer column layout: with more than a rail's worth of customers, pin
+  // the 5 most-recent up top; the full list lives in the customer browser
+  // overlay (issue 040). Small lists and any active search show flat.
   const showFolders = !q && data.people.length > 5;
   const recents = showFolders ? [...data.people].sort((a, b) => personActivity(b) - personActivity(a)).slice(0, 5) : [];
-  const DAY = 86400000, nowMs = Date.now();
-  const BUCKETS = [["month", "This month", 31], ["quarter", "Last 3 months", 92], ["year", "This year", 366], ["older", "Older", Infinity]];
-  const bucketKey = (c) => { const age = (nowMs - personActivity(c)) / DAY; return (BUCKETS.find(([, , max]) => age <= max) || BUCKETS[BUCKETS.length - 1])[0]; };
-  const bucketMembers = {};
-  if (showFolders) data.people.forEach((c) => { (bucketMembers[bucketKey(c)] ||= []).push(c); });
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
@@ -989,33 +983,29 @@ export default function App({ user, onSignOut }) {
             {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
             {q && peopleList.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No matches</div>}
 
-            {/* Long list: pinned recents + the Customers folder of age buckets */}
+            {/* Long list: pinned recents; the full list lives in the browser */}
             {showFolders && (<>
               <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Recent</div>
               {recents.map((c) => renderPersonRow(c))}
-              <div className="mt-2">
-                {folderRow(openLib, () => setOpenLib((o) => !o), <Folder size={14} className="text-indigo-500 shrink-0" />, "Customers", data.people.length)}
-                {acc(openLib, (
-                  <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">
-                    {BUCKETS.map(([key, label]) => {
-                      const members = sortPeople(bucketMembers[key] || []);
-                      if (!members.length) return null;
-                      const bopen = !!openBuckets[key];
-                      return (
-                        <div key={key} className="mb-0.5">
-                          {folderRow(bopen, () => setOpenBuckets((s) => ({ ...s, [key]: !s[key] })), <Clock size={13} className="text-slate-400 shrink-0" />, label, members.length)}
-                          {acc(bopen, <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">{members.map((c) => renderPersonRow(c))}</div>)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
             </>)}
 
             {/* Small list or active search: flat, fully-visible customer list */}
             {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
             {!showFolders && peopleList.map((c) => renderPersonRow(c))}
+
+            {/* The Customers folder opens the browser overlay — the compact
+                ERP-style directory grid (issue 040) — instead of expanding */}
+            {data.people.length > 0 && !q && (
+              <div className="mt-2">
+                <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
+                  className="w-full rounded-md flex items-center gap-1.5 py-1.5 pl-2 pr-2 border border-transparent hover:bg-slate-50 text-left">
+                  <Folder size={14} className="text-indigo-500 shrink-0" />
+                  <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1">Customers</span>
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{data.people.length}</span>
+                  <ChevronRight size={13} className="text-slate-300 shrink-0" />
+                </button>
+              </div>
+            )}
 
             {/* Quick Prices + Unassigned jobs, merged into one folder (open on search) */}
             {(quickPrices.length + unassigned.length) > 0 && (
@@ -2035,6 +2025,25 @@ export default function App({ user, onSignOut }) {
           </div>
         ) : <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />)}
       </div>
+
+      {/* Customer browser (issue 040) — the ERP-style directory grid over the
+          boot's light rows; every action routes back through the existing
+          handlers, and the New-customer modal stacks above it. */}
+      {showBrowser && (
+        <LazyBoundary>
+        <Suspense fallback={null}>
+        <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
+          myName={profile.name || ""}
+          initialCols={appBlobRef.current?.ui?.browserCols}
+          onColOrder={(order) => saveUiPref({ browserCols: order })}
+          onClose={() => setShowBrowser(false)}
+          onOpenCustomer={(id) => { setSelId(null); setSelCustId(id); setShowBrowser(false); }}
+          onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}
+          onNewCustomer={() => setNewCust("")}
+          onNewProject={(cid) => { addProject(cid); setShowBrowser(false); }} />
+        </Suspense>
+        </LazyBoundary>
+      )}
 
       {/* Settings — PC-first workspace (issue 007); all writes still flow
           through setSettings / the import + backup handlers. */}

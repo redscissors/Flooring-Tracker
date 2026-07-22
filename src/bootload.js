@@ -11,13 +11,16 @@ export const SHARED_SETTINGS_ID = "singleton";
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
-export const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick";
+export const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick, sales:data->salesperson->>name";
 export const lightRow = (r) => ({
   id: r.id,
   customerId: r.customer_id ?? null,
   createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
   updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
+  // The salesperson snapshot's name only (ADR 0008) — the customer browser
+  // groups by salesman without loading full blobs.
+  sales: r.sales || "",
   // ->> projects the jsonb boolean out as text "true"/"false" (or null).
   quick: r.quick === true || r.quick === "true",
   _full: false,
