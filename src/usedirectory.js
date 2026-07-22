@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabase.js";
 import { SHARED_SETTINGS_ID } from "./bootload.js";
 import { normalizeSettings, withDerived, serializeSettings } from "./catalog.js";
 import { ATT_BUCKET } from "./uiconst.js";
-import { uid, catSig, rowBlank, newProject, newPerson, newBuilder, normC, personData } from "./model.js";
+import { uid, catSig, rowBlank, newProject, newPerson, newBuilder, normC, personData, isQuickAutoName, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 
 export const attPath = (custId, fileId) => `${custId}/${fileId}`;
 export const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
@@ -129,6 +129,14 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   // an UPDATE of that one row's data blob. customer_id is a column, moved via
   // linkProject — never through here.
   const updateProject = (id, patch) => {
+    // A quick draft renames itself from its first line item on content saves
+    // while its name still looks auto-generated ("Quick price" / Q-…-M/D) —
+    // a hand-typed rename is never overwritten. See model.js quickAutoName.
+    const cur = data.projects.find((c) => c.id === id);
+    if (cur?.quick && !cur.customerId && patch.categories && !("name" in patch) && isQuickAutoName(cur.name)) {
+      const auto = quickAutoName({ ...cur, ...patch });
+      if (auto !== cur.name) patch = { ...patch, name: auto };
+    }
     const next = { ...data, projects: data.projects.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
     setData(next);
     const cust = next.projects.find((c) => c.id === id);
@@ -146,7 +154,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
     return c;
   };
-  const startQuickPrice = () => addProject(null, "Quick price", { quick: true, seedArea: true });
+  const startQuickPrice = () => addProject(null, QUICK_DEFAULT_NAME, { quick: true, seedArea: true });
   const pickProject = (id) => { const p = data.projects.find((c) => c.id === id); setSelId(id); if (p) setSelCustId(p.customerId || null); setSidebarOpen(false); loadDetail(id); };
   // Return to the landing screen from anywhere (the ned logo / mobile mark).
   // The open project is a real, autosaved row, so leaving never loses it — it

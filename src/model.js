@@ -1,7 +1,7 @@
 import { num } from "./catalog.js";
 import { normTier, normPrintPricing } from "./pricing.js";
 import { normBasketEntry } from "./sheoga.js";
-import { TYPES } from "./uiconst.js";
+import { TYPES, TLBL } from "./uiconst.js";
 
 export const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 export const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -42,6 +42,22 @@ export const rowBlank = (p) => !p.sku && !p.brandColor && !p.L && !p.W && !p.siz
 // detection for auto-versions compares categories with blank rows stripped —
 // otherwise the adder would look like an edit on every open.
 export const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, products: (a.products || []).filter((p) => !rowBlank(p)) })));
+// Quick-price drafts all start life named "Quick price", which makes the
+// drafts list impossible to tell apart. While a draft's name still looks
+// auto-generated it renames itself from its content on every save:
+// "Q-<first line item>-<M/D>" (the M/D is the day the quote was started).
+// A hand-typed name never matches isQuickAutoName, so one rename stops the
+// auto-updates for good.
+export const QUICK_DEFAULT_NAME = "Quick price";
+const QUICK_AUTO_RE = /^Q-.*-\d{1,2}\/\d{1,2}$/;
+export const isQuickAutoName = (name) => { const s = String(name || "").trim(); return !s || s === QUICK_DEFAULT_NAME || QUICK_AUTO_RE.test(s); };
+export const quickAutoName = (proj) => {
+  const first = (proj.categories || []).flatMap((a) => a.products || []).find((p) => !rowBlank(p));
+  if (!first) return QUICK_DEFAULT_NAME;
+  const item = (first.brandColor || "").trim() || (first.sku || "").trim() || TLBL[first.type] || "Item";
+  const d = new Date(proj.createdAt || Date.now());
+  return `Q-${item.slice(0, 30).trim()}-${d.getMonth() + 1}/${d.getDate()}`;
+};
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
 // column). See ADR 0005.

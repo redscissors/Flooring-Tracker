@@ -12,7 +12,7 @@ import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, KSHORT, u1, printMatList, orderEntryRow } from "./print.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
@@ -623,8 +623,9 @@ export default function App({ user, onSignOut }) {
   // already in it and insert ONCE — applying the lines via updateProject after
   // creation would hit the stale-`data` closure and silently drop them.
   const createQuickWithSheoga = (lines) => {
-    const c = { ...newProject(null, "Quick price", { quick: true, seedArea: true, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+    const c = { ...newProject(null, QUICK_DEFAULT_NAME, { quick: true, seedArea: true, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
     c.categories = applySheogaToFirstArea(c.categories, lines);
+    c.name = quickAutoName(c);
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(null); setSidebarOpen(false);
@@ -1036,8 +1037,10 @@ export default function App({ user, onSignOut }) {
             {!showFolders && peopleList.map((c) => renderPersonRow(c))}
 
             {/* The Customers folder opens the browser overlay — the compact
-                ERP-style directory grid (issue 040) — instead of expanding */}
-            {data.people.length > 0 && !q && (
+                ERP-style directory grid (issue 040) — instead of expanding.
+                Quick prices live behind its Quick-prices toggle now, so the
+                row also shows when only drafts exist. */}
+            {(data.people.length > 0 || quickPrices.length > 0) && !q && (
               <div className="mt-2">
                 <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
                   className="w-full rounded-md flex items-center gap-1.5 py-1.5 pl-2 pr-2 border border-transparent hover:bg-slate-50 text-left">
@@ -1049,17 +1052,17 @@ export default function App({ user, onSignOut }) {
               </div>
             )}
 
-            {/* Quick Prices + Unassigned jobs, merged into one folder (open on search) */}
-            {(quickPrices.length + unassigned.length) > 0 && (
+            {/* Unassigned jobs folder (open on search). Quick prices folded
+                into the Customers folder's Quick-prices strip — they surface
+                here only while a search is active, so the sidebar search can
+                still land on a draft. */}
+            {(unassigned.length + (q ? quickPrices.length : 0)) > 0 && (
               <div className="mt-2">
-                {folderRow(openDrafts || !!q, () => setOpenDrafts((o) => !o), <Clock size={14} className="text-indigo-500 shrink-0" />, "Estimates & drafts", quickPrices.length + unassigned.length)}
+                {folderRow(openDrafts || !!q, () => setOpenDrafts((o) => !o), <Clock size={14} className="text-indigo-500 shrink-0" />, "Estimates & drafts", unassigned.length + (q ? quickPrices.length : 0))}
                 {acc(openDrafts || !!q, (
                   <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">
-                    {quickPrices.length > 0 && (<>
-                      <div className="mt-1 mb-1 px-2.5 flex items-center justify-between gap-2">
-                        <span className="ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</span>
-                        <span className="text-[8.5px] text-slate-400 whitespace-nowrap">clears in 30d</span>
-                      </div>
+                    {q && quickPrices.length > 0 && (<>
+                      <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
                       {quickPrices.map((p) => renderProjRow(p))}
                     </>)}
                     {unassigned.length > 0 && (<>
