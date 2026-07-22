@@ -38,16 +38,22 @@ export function browserRows({ people = [], projects = [], builders = [] }) {
   });
 }
 
-// Quick-price drafts for the browser's "Quick prices" strip. They have no
-// customer to group under, so they're their own list — newest edit first
-// ("the one you were working on" is on top), narrowed by the same search box.
-export function quickRows(projects = [], q) {
+// The browser's "Estimates & drafts" strip: customer-less projects, split
+// quick-price drafts vs. regular unassigned jobs. Neither has a customer to
+// group under, so they're their own lists — newest edit first ("the one you
+// were working on" is on top), narrowed by the same search box and the
+// salesperson filter the grid uses.
+function unfiledRows(projects, wantQuick, q, sales) {
   const s = (q || "").trim().toLowerCase();
+  const sp = (sales || "").trim().toLowerCase();
   return projects
-    .filter((p) => p.quick && !p.customerId)
+    .filter((p) => !p.customerId && !!p.quick === wantQuick)
     .filter((p) => !s || (p.name || "").toLowerCase().includes(s) || salesNameOf(p).toLowerCase().includes(s))
+    .filter((p) => !sp || salesNameOf(p).toLowerCase().includes(sp))
     .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
 }
+export const quickRows = (projects = [], q, sales) => unfiledRows(projects, true, q, sales);
+export const draftRows = (projects = [], q, sales) => unfiledRows(projects, false, q, sales);
 
 // Substring search over the row's own contact fields, its builder, and its
 // project names — the same span as the sidebar search (ADR 0005).

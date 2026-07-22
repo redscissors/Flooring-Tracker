@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ArrowUpRight, Zap } from "lucide-react";
-import { browserRows, quickRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
+import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ArrowUpRight, Zap, Clock } from "lucide-react";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
 import { useEscClose } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -22,14 +22,19 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const [salesQ, setSalesQ] = useState("");
   const [sortKey, setSortKey] = useState("created");
   const [selId, setSelId] = useState(null);
-  // Quick-price drafts live folded into this folder (they have no customer
-  // row), hidden until the header's Quick-prices toggle shows the strip.
+  // The customer-less projects — quick-price drafts and unassigned estimates —
+  // live folded into this folder (they have no customer row), hidden until the
+  // header's Estimates & drafts toggle shows the strip. Both lists narrow with
+  // the search box AND the salesperson filter, like the grid.
   const [showQuick, setShowQuick] = useState(false);
   useEscClose(true, onClose);
 
   const rows = useMemo(() => browserRows({ people, projects, builders }), [people, projects, builders]);
-  const quick = useMemo(() => quickRows(projects, q), [projects, q]);
+  const quick = useMemo(() => quickRows(projects, q, salesQ), [projects, q, salesQ]);
+  const drafts = useMemo(() => draftRows(projects, q, salesQ), [projects, q, salesQ]);
   const quickCount = useMemo(() => quickRows(projects).length, [projects]);
+  const draftCount = useMemo(() => draftRows(projects).length, [projects]);
+  const unfiledCount = quickCount + draftCount;
   const shown = useMemo(() => sortRows(filterBySales(filterRows(rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey]);
   // Flat list by default; the salesman bands appear only while the
   // salesperson box narrows the list (they show which salesmen matched).
@@ -115,6 +120,17 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const dropMark = (key) => overCol && overCol.key === key && dragCol && dragCol !== key
     ? { boxShadow: `inset ${overCol.after ? "-2px" : "2px"} 0 0 var(--ft-brand)` } : undefined;
 
+  const unfiledRow = (p, Icon, fallbackName) => (
+    <button key={p.id} onClick={() => onOpenProject(p.id)}
+      className="w-full text-left rounded-md px-2 py-1 flex items-center gap-2 border border-transparent hover:bg-slate-50 group">
+      <Icon size={13} className="text-slate-300 shrink-0" />
+      <span className="ft-item-name text-[12.5px] truncate">{p.name || fallbackName}</span>
+      {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
+      <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
+      <ChevronRight size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
+    </button>
+  );
+
   const rowEl = (r) => {
     const on = r.id === selId;
     return (
@@ -162,38 +178,43 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                 className="px-2 flex items-center border-l border-slate-200 text-xs font-semibold text-indigo-600 hover:bg-slate-50 disabled:text-slate-300">Me</button>
             )}
           </div>
-          {quickCount > 0 && (
+          {unfiledCount > 0 && (
             <button onClick={() => setShowQuick((s) => !s)}
-              title={showQuick ? "Hide quick prices" : "Show quick prices"}
+              title={showQuick ? "Hide estimates & drafts" : "Show estimates & drafts"}
               className={`h-[26px] flex items-center gap-1 rounded-md border px-2 text-xs font-semibold shrink-0 ${showQuick ? "ft-seg-on border-slate-200" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-              <Zap size={13} /> Quick prices
-              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-4">{quickCount}</span>
+              <Clock size={13} /> Estimates &amp; drafts
+              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-4">{unfiledCount}</span>
             </button>
           )}
           <button onClick={onNewCustomer} className="ft-spark-btn h-[26px] flex items-center gap-1 text-xs font-semibold px-2.5 shrink-0"><Plus size={14} className="-ml-0.5" /> New customer</button>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0 ml-auto"><X size={18} /></button>
         </div>
 
-        {/* Quick prices strip — customer-less drafts (ADR 0022), shown only on
-            demand so they never crowd the directory itself */}
-        {showQuick && quickCount > 0 && (
+        {/* Estimates & drafts strip — the customer-less projects: quick-price
+            drafts (ADR 0022) and unassigned estimates, shown only on demand so
+            they never crowd the directory itself */}
+        {showQuick && unfiledCount > 0 && (
           <div className="border-b border-slate-200 shrink-0 flex flex-col" style={{ maxHeight: "34%" }}>
-            <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 shrink-0" style={{ background: "var(--ft-band)" }}>
-              <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quick.length === quickCount ? quickCount : `${quick.length} of ${quickCount}`}</span></span>
-              <span className="ml-auto text-[9.5px] text-slate-400 whitespace-nowrap">unfiled drafts clear 30 days after their last edit</span>
-            </div>
-            <div className="overflow-y-auto px-1.5 py-1">
-              {quick.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
-              {quick.map((p) => (
-                <button key={p.id} onClick={() => onOpenProject(p.id)}
-                  className="w-full text-left rounded-md px-2 py-1 flex items-center gap-2 border border-transparent hover:bg-slate-50 group">
-                  <Zap size={13} className="text-slate-300 shrink-0" />
-                  <span className="ft-item-name text-[12.5px] truncate">{p.name || "Quick price"}</span>
-                  {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
-                  <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
-                  <ChevronRight size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
-                </button>
-              ))}
+            <div className="overflow-y-auto">
+              {quickCount > 0 && (<>
+                <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 sticky top-0" style={{ background: "var(--ft-band)" }}>
+                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quick.length === quickCount ? quickCount : `${quick.length} of ${quickCount}`}</span></span>
+                  <span className="ml-auto text-[9.5px] text-slate-400 whitespace-nowrap">unfiled drafts clear 30 days after their last edit</span>
+                </div>
+                <div className="px-1.5 py-1">
+                  {quick.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
+                  {quick.map((p) => unfiledRow(p, Zap, "Quick price"))}
+                </div>
+              </>)}
+              {draftCount > 0 && (<>
+                <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 sticky top-0" style={{ background: "var(--ft-band)" }}>
+                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><FileText size={11} className="text-indigo-500" /> Unassigned jobs <span className="normal-case tracking-normal font-normal text-slate-400">· {drafts.length === draftCount ? draftCount : `${drafts.length} of ${draftCount}`}</span></span>
+                </div>
+                <div className="px-1.5 py-1">
+                  {drafts.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
+                  {drafts.map((p) => unfiledRow(p, FileText, "Untitled project"))}
+                </div>
+              </>)}
             </div>
           </div>
         )}

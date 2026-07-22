@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, Clock, LayoutGrid } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -71,10 +71,9 @@ function gridEnterNav(e, addRow) {
 export default function App({ user, onSignOut }) {
   // Which customers are expanded in the sidebar tree.
   const [openCust, setOpenCust] = useState({});
-  // Sidebar folder state: the merged "Estimates & drafts" folder, collapsed
-  // until opened. The Customers folder itself opens the browser overlay
-  // (issue 040) instead of expanding in place.
-  const [openDrafts, setOpenDrafts] = useState(false);
+  // The sidebar's Customers button opens the browser overlay (issue 040);
+  // estimates, drafts, and quick prices all live behind its
+  // Estimates & drafts strip.
   const [showBrowser, setShowBrowser] = useState(false);
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
@@ -970,18 +969,8 @@ export default function App({ user, onSignOut }) {
       </div>
     );
   };
-  // Smooth-height accordion body + a folder header row (Customers / age bucket /
-  // Estimates), sharing the sidebar's row styling.
+  // Smooth-height accordion body, sharing the sidebar's row styling.
   const acc = (open, children) => (<div className="ft-acc" data-open={open ? "true" : "false"}><div className="ft-acc-in">{children}</div></div>);
-  const folderRow = (open, onClick, icon, label, count, tiny) => (
-    <button onClick={onClick} title={open ? "Collapse" : "Expand"} className="w-full rounded-md flex items-center gap-1.5 py-1.5 pl-1.5 pr-2 border border-transparent hover:bg-slate-50 text-left">
-      <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-      {icon}
-      <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1">{label}</span>
-      {tiny && <span className="text-[8.5px] text-slate-400 whitespace-nowrap">{tiny}</span>}
-      <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{count}</span>
-    </button>
-  );
 
   return (
     <div className="ft-vh bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
@@ -1020,6 +1009,17 @@ export default function App({ user, onSignOut }) {
               </div>
               <button onClick={() => setNewCust("")} className="ft-spark-btn flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} className="-ml-1" /> New Customer</button>
             </div>
+            {/* The Customers button opens the browser overlay — the compact
+                ERP-style directory grid (issue 040). Quick prices AND the
+                unassigned estimates/drafts live behind its Estimates & drafts
+                toggle, so this is the everyday door to all of them. */}
+            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
+              className="w-full flex items-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 px-2.5 text-slate-600">
+              <Folder size={15} className="text-indigo-500 shrink-0" />
+              <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1 text-left">Customers</span>
+              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{data.people.length}</span>
+              <ChevronRight size={13} className="text-slate-300 shrink-0" />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
@@ -1035,43 +1035,18 @@ export default function App({ user, onSignOut }) {
             {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
             {!showFolders && peopleList.map((c) => renderPersonRow(c))}
 
-            {/* The Customers folder opens the browser overlay — the compact
-                ERP-style directory grid (issue 040) — instead of expanding.
-                Quick prices live behind its Quick-prices toggle now, so the
-                row also shows when only drafts exist. */}
-            {(data.people.length > 0 || quickPrices.length > 0) && !q && (
-              <div className="mt-2">
-                <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
-                  className="w-full rounded-md flex items-center gap-1.5 py-1.5 pl-2 pr-2 border border-transparent hover:bg-slate-50 text-left">
-                  <Folder size={14} className="text-indigo-500 shrink-0" />
-                  <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1">Customers</span>
-                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{data.people.length}</span>
-                  <ChevronRight size={13} className="text-slate-300 shrink-0" />
-                </button>
-              </div>
-            )}
-
-            {/* Unassigned jobs folder (open on search). Quick prices folded
-                into the Customers folder's Quick-prices strip — they surface
+            {/* Quick prices and unassigned estimates/drafts live in the
+                Customers browser's Estimates & drafts strip now — they surface
                 here only while a search is active, so the sidebar search can
-                still land on a draft. */}
-            {(unassigned.length + (q ? quickPrices.length : 0)) > 0 && (
-              <div className="mt-2">
-                {folderRow(openDrafts || !!q, () => setOpenDrafts((o) => !o), <Clock size={14} className="text-indigo-500 shrink-0" />, "Estimates & drafts", unassigned.length + (q ? quickPrices.length : 0))}
-                {acc(openDrafts || !!q, (
-                  <div className="ml-3 border-l border-slate-200 pl-1.5 mt-0.5">
-                    {q && quickPrices.length > 0 && (<>
-                      <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
-                      {quickPrices.map((p) => renderProjRow(p))}
-                    </>)}
-                    {unassigned.length > 0 && (<>
-                      <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
-                      {unassigned.map((p) => renderProjRow(p))}
-                    </>)}
-                  </div>
-                ))}
-              </div>
-            )}
+                still land on one. */}
+            {q && quickPrices.length > 0 && (<>
+              <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
+              {quickPrices.map((p) => renderProjRow(p))}
+            </>)}
+            {q && unassigned.length > 0 && (<>
+              <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
+              {unassigned.map((p) => renderProjRow(p))}
+            </>)}
           </div>
           <div className="p-2.5 border-t border-slate-100">
             <div className="flex mb-2">
