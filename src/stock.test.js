@@ -71,6 +71,19 @@ test("a hardwood item fills sizeText; brand prefixes when not already in the des
   assert.equal(patch.cartonUnit, "CT"); // no U/M column on the Hardwood sheet — default
 });
 
+test("an ERP carton-sold plank (carton price + SF/CT) sells whole cartons by the sqft, not per piece", () => {
+  // The VSA-export shape after import typing: Unit of Stock CT, retail is the
+  // CARTON price, coverage from the description — the reported 28920 case.
+  const it = normStockItem({ sku: "28920", data: { type: "vinyl", unit: "CT", size: '6"', description: "Mann AduraMax Plank - Acacia Tiger's Eye", price: 131.2, priceSqft: 4.7901, sfPerUnit: 27.39 } });
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "vinyl");     // not a misc count line
+  assert.equal(patch.qtyType, "sqft");
+  assert.equal(patch.priceSqft, "4.79"); // 131.20/CT ÷ 27.39 SF/CT, never 131.20/pc
+  assert.equal(patch.cartonSf, "27.39");
+  assert.equal(patch.cartonUnit, "CT");
+  assert.equal(patch.sizeText, '6"');
+});
+
 test("a mosaic sold by the sheet (only a sheet price) still fills as tile, deriving $/sqft", () => {
   const it = normStockItem({ sku: "1504051", data: { type: "tile", unit: "SH", size: "2x2", description: "Historic Limestone Native", price: 27.99, sfPerUnit: 2 } });
   const patch = stockPatch(it, {});

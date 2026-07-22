@@ -48,6 +48,13 @@ const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCas
 //                'transitioning' } — the sheet's status-flag legend
 //   defaultType: <'tile'|'hardwood'|'vinyl'|...>|undefined — the flooring type
 //                items fill on a product row when no per-item type column exists
+//   sfFromDescription: true|undefined — coverage rides in the description text
+//                ("… 23.76 sf/ct"), per sell unit (see SF_DESC_RE)
+//   leadWidthSize: true|undefined — a description leading with a bare width
+//                ('6" Mann AduraMax Plank') puts that width in the size field
+//   typeFromDescription: true|undefined — a carton/bundle-sold item with real
+//                coverage gets its flooring type read from the description's
+//                wording (see floorTypeFromDescription)
 // }
 
 // A single fixed pattern can't serve every vendor (VTC codes run 9-16 alnum
@@ -141,6 +148,15 @@ const PENNY_RE = /\bpenny\b/i;
 const PENNY_STRIP_RE = /\b(penny|round|rnd)\b/gi;
 const PENNY_DIM_BEFORE_RE = new RegExp(`(${DIM})\\s*["']?\\s*(?=(?:penny|round|rnd)\\b)`, "i");
 const PENNY_DIM_INCH_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})`, "i");
+// The ERP stock exports lead a description with the bare width — '6" Mann
+// AduraMax Plank', '2-1/4" Sheoga Clear RO Flr', '94" … T-Mold' — where the
+// vendor sheets leave a bare 6" in the name (see the SHAPE_SIZE_RE note), so
+// only mappings that say so (leadWidthSize) pull it into the size field. The
+// lookahead leaves a leading L×W ('1/4"x1/2" Slip Tongue', '3/16" x 1/4" x…')
+// to SIZE_RE. Consuming the whole mixed fraction here also stops
+// THICK_FRAC_RE from reading the 1/4" of a leading 2-1/4" width as a
+// thickness, which left "2-" litter in the name.
+const LEAD_WIDTH_RE = new RegExp(`^\\s*(${DIM})\\s*["'](?!\\s*[x×])\\s*`);
 
 // SHOUTING vendor text → Title Case; already-cased text is left alone (so an
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
@@ -163,7 +179,7 @@ const seriesLeadWords = (label, pl) => {
   return pw.length;
 };
 
-export function splitSizeFromDescription(desc) {
+export function splitSizeFromDescription(desc, opts) {
   let s = str(desc);
   if (!s) return { size: "", thickness: "", name: "", sheetSize: "" };
   let size = "", thickness = "", sheetSize = "";
@@ -188,6 +204,10 @@ export function splitSizeFromDescription(desc) {
     if (dim) size = `${dim}" Penny`;          // chip size → grout computes from it
     else if (!sheetSize) sheetSize = "Penny";  // no printed chip size → a "Penny sheet"
     s = s.replace(PENNY_STRIP_RE, " ");
+  } else if (opts?.leadWidth && LEAD_WIDTH_RE.test(s)) {
+    const lead = s.match(LEAD_WIDTH_RE);
+    size = `${lead[1]}"`;
+    s = s.slice(lead[0].length);
   } else {
     const sz = s.match(SIZE_RE);
     // Take the first L×W as the size, then strip EVERY L×W token from the name —
@@ -269,6 +289,16 @@ export function parseMapped(rows, mapping, review) {
   // pricing code has never been taught get named here, not silently mispriced
   // (the VTC bullnose lesson — see unitComboWarnings).
   warnings.push(...unitComboWarnings(deduped, review));
+  // A carton-sold row whose description carries no "sf/ct" can't do sqft math —
+  // it stays a count line quoting the carton price each. Named so the team can
+  // fix the ERP description rather than wonder why one color sells by the pc.
+  if (m.sfFromDescription) {
+    const bare = deduped.filter((i) => COVERAGE_SOLD_RE.test(str(i.unit)) && !(i.sfPerUnit > 0) && !i.trim);
+    if (bare.length) {
+      const skus = bare.slice(0, 3).map((i) => i.sku);
+      warnings.push(`${bare.length} carton-sold row${bare.length === 1 ? "" : "s"} carry no sf/ct in the description — they'll quote the carton price per piece (${skus.join(", ")}${bare.length > skus.length ? ", …" : ""}).`);
+    }
+  }
   // Parse-quality advisories (mis-split sizes, name litter, trim-as-area, price
   // outliers) — non-blocking FYI lines so a silent bad parse gets surfaced.
   warnings.push(...importSanityWarnings(deduped, review));
@@ -292,8 +322,35 @@ function flagSemantics(cell, flags) {
 // rather than invented.
 const SF_DESC_RE = /(\d+(?:\.\d+)?)\s*s\.?f\.?(?:\s*\/\s*c(?:t|tn)?)?\b/i;
 
+// Units of Stock that bundle coverage — the item is sold in whole cartons/
+// bundles of so-many square feet, never loose pieces. This is the sell basis
+// the ERP's U/M column names; EA/RL/GL accessories stay count lines.
+const COVERAGE_SOLD_RE = /^(ct|ctn|carton|bx|box|cs|case|bl|bdl|bundle)s?$/i;
+
+// The ERP stock exports carry no type column, but a carton/bundle-sold item
+// with real sf-per-carton coverage IS flooring — the description's wording
+// says which kind. Vinyl is tested first because LVP names carry wood species
+// ("AduraMax Noble Oak Bark"). When no word decides, the size does: an L×W is
+// tile-shaped unless it is plank-long, and a bare width is how these sheets
+// spell wood (Mirage, Sheoga, Riverwalk). Callers gate on COVERAGE_SOLD_RE +
+// coverage, so accessories and EA trim sticks are never typed by this.
+const TYPE_VINYL_RE = /\b(lvp|lvt|vinyl|spc|wpc)\b|adura|realta/i;
+const TYPE_TILE_RE = /\b(tile|porcelain|ceramic|mosaic)\b/i;
+const TYPE_WOOD_RE = /\b(hardwood|oak|hickory|maple|walnut|cherry|birch|acacia|ash|pine|ro|wo|flr|floor(?:ing|s)?|unfinished|prefinished|pf)\b/i;
+export function floorTypeFromDescription(text, size) {
+  const t = str(text);
+  if (TYPE_VINYL_RE.test(t)) return "vinyl";
+  if (/\blaminate\b/i.test(t)) return "laminate";
+  if (/\bcarpet\b/i.test(t)) return "carpet";
+  if (TYPE_TILE_RE.test(t)) return "tile";
+  if (TYPE_WOOD_RE.test(t)) return "hardwood";
+  const lw = str(size).match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
+  if (lw) return Math.max(+lw[1], +lw[2]) >= 36 ? "vinyl" : "tile";
+  return str(size) ? "hardwood" : null;
+}
+
 function mappedItem(mapping, raw, sku, sem) {
-  const type = str(raw.type) || mapping.defaultType || null;
+  let type = str(raw.type) || mapping.defaultType || null;
   const cost = numOrNull(raw.cost);
   const price = numOrNull(raw.price);
   const noteBits = [str(raw.note)];
@@ -315,13 +372,16 @@ function mappedItem(mapping, raw, sku, sem) {
     if (sf) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")); }
   }
   if (!size && descText) {
-    const split = splitSizeFromDescription(descText);
+    const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize });
     if (split.size) size = split.size;
     if (split.thickness && !thickness) thickness = split.thickness;
     // A sheet dimension only stands in when the description gave no chip size —
     // a real chip size (e.g. "2\" Hexagon") always wins for the tile L×W.
     if (split.sheetSize && !size && !sheetSize) sheetSize = split.sheetSize;
     if (split.size || split.thickness || split.sheetSize) descText = split.name;
+  }
+  if (!type && mapping.typeFromDescription && sfPerUnit > 0 && COVERAGE_SOLD_RE.test(str(raw.unit))) {
+    type = floorTypeFromDescription(descText, size);
   }
   // Mosaic sold by the sheet with SF/CT left blank (Milestone marble hexes): the
   // sheet's own L×W gives its area, so coverage-per-carton = sheet SF × pieces-
@@ -571,6 +631,12 @@ export function detectVendorSkuAnalysis(sheets) {
         // (29500-LF) and category placeholders (29SHEOGAW).
         skuPattern: "^\\d[A-Z0-9-]{2,15}$",
         sfFromDescription: true,
+        // The export leads flooring descriptions with the bare plank width
+        // ('6" Mann AduraMax Plank') and names no flooring type anywhere, so
+        // both come out of the description text (the U/M column gates the type:
+        // only carton/bundle-sold rows with coverage are flooring).
+        leadWidthSize: true,
+        typeFromDescription: true,
       };
     }
   }

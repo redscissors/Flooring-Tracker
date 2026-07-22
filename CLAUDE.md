@@ -380,7 +380,11 @@ book at calc time, so re-imports never change saved estimates. Items sold by
 the carton/sheet fill their real flooring type even when the book has only a
 per-carton price ($/sqft derives as price ÷ sf-per-carton) and snapshot their
 coverage onto the row (`cartonSf`), so quantities and totals compute in whole
-cartons. The row keeps `sku` + `bookId` so the UI can flag price drift
+cartons. The exports carry no type column: the Unit of Stock column gates the
+sell basis, and the type is read from the description's wording/size at import
+(carton/bundle-sold rows with sf/ct coverage only); a leading bare plank width
+(`6"`) lands in the size field, not the name (ADR 0029). The row keeps `sku` +
+`bookId` so the UI can flag price drift
 ("price book now $X") via the on-demand item fetch. The SKU box searches by
 SKU prefix or words ("transition" is a synonym for trim labels — reducer,
 t-mold, end cap, stairnose…); shift-click selects several matches and adds
