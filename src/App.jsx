@@ -24,6 +24,8 @@ import { useToast } from "./usetoast.js";
 import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
+import { useBookStock } from "./usebookstock.js";
+import { syncLinkedCatalog } from "./booklink.js";
 import { useStock } from "./usestock.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTodos } from "./usetodos.js";
@@ -108,6 +110,35 @@ export default function App({ user, onSignOut }) {
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
   } = useBooks({ user, profile, ping, flashSaved });
+  const { bookStock, bookStockReady, loadAllBookStock, refreshBookStock } = useBookStock({ books, loadBookItems });
+  // Set true once the boot's stage-2 books fetch has landed (success or
+  // failure) — books may legitimately hydrate to [] (no pricebooks.sql yet),
+  // so "ready to load stock-kind items" can't be inferred from books.length.
+  const booksHydratedRef = useRef(false);
+  // Fires loadAllBookStock exactly once, the render after books first
+  // hydrates — NOT tied into the boot effect's own promise chain, since that
+  // effect's closures (and loadAllBookStock's) are captured at mount with
+  // books still [], before hydrateBooks lands the real list.
+  const bookStockBootedRef = useRef(false);
+  useEffect(() => {
+    if (!booksHydratedRef.current || bookStockBootedRef.current) return;
+    bookStockBootedRef.current = true;
+    loadAllBookStock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books]);
+  const applyBookImportSynced = async (bookId, diff, opts) => {
+    await applyBookImport(bookId, diff, opts);
+    if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
+    const items = await refreshBookStock(bookId);
+    const { catalog, changes, lost, newColors } = syncLinkedCatalog(settings.catalog, bookId, items);
+    if (changes.length || newColors.length) setSettings({ catalog });
+    const parts = [
+      changes.length ? `${changes.length} linked product${changes.length === 1 ? "" : "s"} updated` : "",
+      lost.length ? `${lost.length} link${lost.length === 1 ? "" : "s"} lost` : "",
+      ...newColors.map((n) => `${n.count} new color${n.count === 1 ? "" : "s"} in ${n.family}`),
+    ].filter(Boolean);
+    if (parts.length) ping(parts.join(", "));
+  };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
   useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); }, [printMode]);
@@ -296,7 +327,9 @@ export default function App({ user, onSignOut }) {
           .then((rows) => hydrateStock(rows), () => markStockFailed(true))
           .finally(() => markStockReady(true)),
         trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
-        trace.span("books", () => loadBooks(supabase)).then(hydrateBooks, () => { }),
+        trace.span("books", () => loadBooks(supabase))
+          .then((rows) => hydrateBooks(rows), () => { })
+          .finally(() => { booksHydratedRef.current = true; }),
       ]);
       trace.done();
       // Production-readable trace so the ADR 0026 stage-2 trigger is observable
@@ -1952,7 +1985,8 @@ export default function App({ user, onSignOut }) {
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
-          books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport}
+          books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
+          bookStock={bookStock} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setStockItemsDisabled={setStockItemsDisabled} rollbackStock={rollbackStock} />
         </Suspense>
         </LazyBoundary>
