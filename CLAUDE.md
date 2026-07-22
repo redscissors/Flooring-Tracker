@@ -492,7 +492,8 @@ The un-rounded "exact" value is always shown next to the rounded order quantity.
   an `UPDATE` of that one row's `data`. Create/delete use
   `addCustomer`/`delCustomer`, versions use
   `insertVersion`/`delVersion`/`loadVersion` (their own table, never the blob),
-  settings use `setSettings`, and to-do items use `addTodo`/`updateTodo`/
+  settings use `setSettings`, per-user UI prefs (e.g. the customer browser's
+  column order) use `saveUiPref`, and to-do items use `addTodo`/`updateTodo`/
   `delTodo`/`reorderTodos`/`clearDoneTodos`. Book items are written only by
   the import flow (`applyBookImport`: upserts + `active=false` marks — no
   deletes). Registry-item enable/disable flips only

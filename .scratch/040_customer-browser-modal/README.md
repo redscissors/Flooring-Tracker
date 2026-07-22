@@ -37,6 +37,12 @@ name/phone/address 4. open to more ideas."
 - **Light rows carry the salesman**: `LIST_SELECT` now projects
   `data->salesperson->>name` (`sales` on the light row) so the browser groups
   without fetching any full blobs — opening it costs zero round trips.
+- **Drag-to-rearrange columns, saved per salesperson** (2026-07-22 follow-up):
+  the header cells drag — left half of a target inserts before it, right half
+  after. Customer stays pinned (row identity / A–Z anchor). The order writes
+  to the user's own `app_data` blob (`ui.browserCols`, via `saveUiPref` in
+  usedirectory.js), so it follows the login to any machine; `normColOrder`
+  keeps stale saves valid as columns come and go.
 - Pure logic (rows/filter/sort/group) lives in `custbrowser.js` with
   `custbrowser.test.js` coverage; quick-price drafts never count against a
   customer.
@@ -48,6 +54,8 @@ name/phone/address 4. open to more ideas."
 - `browser-me-filter.png` — Me pressed: only Marcus Mast's 6 customers
 - `browser-sales-typed.png` — "gina" typed: 13 of 26, incl. shared customers
   whose older projects are Gina's
+- `browser-cols-dragged.png` — Modified dragged to sit first after Customer
+  (harness log at top shows the saved order)
 - `browser-search.png` — "mast" narrowing to 5 of 26 across three salesmen
 - `browser-mobile.png` — 390px with the Me filter on; grid scrolls horizontally
 

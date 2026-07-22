@@ -107,6 +107,13 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     setData(next);
     (async () => { try { const { error } = await supabase.from("shared_settings").upsert({ id: SHARED_SETTINGS_ID, data: serializeSettings(next.settings) }, { onConflict: "id" }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
+  // Per-user UI prefs (e.g. the customer browser's column order) live in the
+  // same app_data blob as the profile, so they follow the login rather than
+  // the device. Best-effort: a lost layout pref isn't worth a failure toast.
+  const saveUiPref = (patch) => {
+    appBlobRef.current = { ...appBlobRef.current, ui: { ...(appBlobRef.current.ui || {}), ...patch } };
+    (async () => { try { await supabase.from("app_data").upsert({ user_id: user.id, data: appBlobRef.current }, { onConflict: "user_id" }); } catch (e) { } })();
+  };
   const saveProfile = (patch) => {
     const next = { ...profile, ...patch };
     setProfile(next);
@@ -254,7 +261,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     linkProject, promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
-    setSettings, saveProfile, profile, setProfile, appBlobRef,
+    setSettings, saveProfile, saveUiPref, profile, setProfile, appBlobRef,
     dataRef, baselineRef, prevSelRef, custData,
   };
 }

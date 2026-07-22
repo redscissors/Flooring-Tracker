@@ -99,7 +99,7 @@ export default function App({ user, onSignOut }) {
     promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
-    setSettings, saveProfile, profile, setProfile, appBlobRef,
+    setSettings, saveProfile, saveUiPref, profile, setProfile, appBlobRef,
     dataRef, baselineRef, prevSelRef, custData,
   } = useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusProd, setFocusName, setConfirm, setPromoteId, setPromoteQ });
   const settings = data.settings;
@@ -2034,6 +2034,8 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
           myName={profile.name || ""}
+          initialCols={appBlobRef.current?.ui?.browserCols}
+          onColOrder={(order) => saveUiPref({ browserCols: order })}
           onClose={() => setShowBrowser(false)}
           onOpenCustomer={(id) => { setSelId(null); setSelCustId(id); setShowBrowser(false); }}
           onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}

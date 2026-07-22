@@ -87,6 +87,31 @@ export function groupBySales(rows) {
       : a.sales.localeCompare(b.sales, undefined, { sensitivity: "base" }));
 }
 
+// The grid's draggable columns (the Customer column is pinned first — it's
+// the row's identity and the A–Z sort anchor). Saved per user in their
+// app_data blob (ui.browserCols), so each salesperson's arrangement follows
+// their login.
+export const BROWSER_COLS = ["builder", "phone", "address", "email", "jobs", "created", "modified"];
+
+// Sanitize a saved order: unknown keys drop, duplicates collapse, columns
+// added since the save append in default position.
+export function normColOrder(saved) {
+  if (!Array.isArray(saved)) return BROWSER_COLS;
+  const kept = [];
+  for (const k of saved) if (BROWSER_COLS.includes(k) && !kept.includes(k)) kept.push(k);
+  return [...kept, ...BROWSER_COLS.filter((k) => !kept.includes(k))];
+}
+
+// Move `key` to sit just before `beforeKey` (null → the end).
+export function moveCol(order, key, beforeKey) {
+  if (!order.includes(key) || key === beforeKey) return order;
+  const rest = order.filter((k) => k !== key);
+  const i = beforeKey ? rest.indexOf(beforeKey) : rest.length;
+  if (i < 0) return order;
+  rest.splice(i, 0, key);
+  return rest;
+}
+
 export const shortDate = (ms) => {
   if (!ms) return "";
   const d = new Date(ms);

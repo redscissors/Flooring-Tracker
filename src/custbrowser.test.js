@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, browserRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate } from "./custbrowser.js";
+import { salesNameOf, browserRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -76,6 +76,26 @@ test("groupBySales: salespeople A–Z, no-salesperson group last, row order kept
   assert.deepEqual(groups.map((g) => g.sales), ["Gina Boyd", "Marcus Mast", NO_SALES]);
   assert.deepEqual(groups[1].rows.map((r) => r.id), ["c1"]);
   assert.deepEqual(groups[2].rows.map((r) => r.id), ["c3"]);
+});
+
+test("normColOrder: defaults on junk, drops unknowns/dupes, appends new columns", () => {
+  assert.deepEqual(normColOrder(null), BROWSER_COLS);
+  assert.deepEqual(normColOrder("phone"), BROWSER_COLS);
+  assert.deepEqual(
+    normColOrder(["phone", "ghost", "phone", "builder"]),
+    ["phone", "builder", ...BROWSER_COLS.filter((k) => k !== "phone" && k !== "builder")]);
+  // A full saved order round-trips untouched
+  const shuffled = [...BROWSER_COLS].reverse();
+  assert.deepEqual(normColOrder(shuffled), shuffled);
+});
+
+test("moveCol inserts before a key, null moves to the end, bad moves no-op", () => {
+  const order = ["a", "b", "c", "d"];
+  assert.deepEqual(moveCol(order, "d", "b"), ["a", "d", "b", "c"]);
+  assert.deepEqual(moveCol(order, "a", null), ["b", "c", "d", "a"]);
+  assert.equal(moveCol(order, "a", "a"), order);
+  assert.equal(moveCol(order, "ghost", "b"), order);
+  assert.equal(moveCol(order, "a", "ghost"), order);
 });
 
 test("shortDate renders M/D/YY and empty for missing", () => {

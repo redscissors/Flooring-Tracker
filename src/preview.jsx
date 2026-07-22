@@ -49,6 +49,8 @@ function Harness() {
         Customer browser — real component, fake directory. Last action: <b style={{ color: "var(--ft-brand-deep)" }}>{log}</b>
       </p>
       <CustomerBrowser people={people} projects={projects} builders={BUILDERS} myName="Marcus Mast"
+        initialCols={null}
+        onColOrder={(order) => setLog(`columns: ${order.join(" · ")}`)}
         onClose={() => setLog("close")}
         onOpenCustomer={(id) => setLog(`open customer ${id} (${people.find((c) => c.id === id)?.name})`)}
         onOpenProject={(id) => setLog(`open project ${id}`)}

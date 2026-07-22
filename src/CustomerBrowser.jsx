@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ArrowUpRight } from "lucide-react";
-import { browserRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES } from "./custbrowser.js";
+import { browserRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
 import { useEscClose } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -9,8 +9,13 @@ import { useEscClose } from "./widgets.jsx";
 // reads all day). Replaces the sidebar's expanding age-bucket folders. Pure
 // UI over the boot's light rows; opening it fetches nothing, and every action
 // routes back through App's existing handlers.
-export default function CustomerBrowser({ people, projects, builders, myName, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject }) {
+export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject }) {
   const [q, setQ] = useState("");
+  // Column order: seeded from the salesperson's saved arrangement, edited by
+  // dragging the header cells; every change flows up through onColOrder.
+  const [cols, setCols] = useState(() => normColOrder(initialCols));
+  const [dragCol, setDragCol] = useState(null);
+  const [overCol, setOverCol] = useState(null); // { key, after } while a drag hovers
   // The salesperson box (the ERP order screen's Salesperson filter): typed
   // name narrows to that salesman's customers; "Me" fills the signed-in
   // profile's name.
@@ -41,14 +46,62 @@ export default function CustomerBrowser({ people, projects, builders, myName, on
   };
 
   const th = "text-left px-2 py-1.5 ft-eyebrow text-[9px] whitespace-nowrap";
-  const thBtn = (key, label, extra = "") => (
-    <th className={`${th} ${extra}`}>
-      <button onClick={() => setSortKey(key)} className={`inline-flex items-center gap-0.5 uppercase tracking-[.16em] hover:text-slate-700 ${sortKey === key ? "text-slate-700" : ""}`}>
-        {label}{sortKey === key && <span className="normal-case tracking-normal">{key === "name" ? "↓" : "▾"}</span>}
-      </button>
-    </th>
+  const sortBtn = (key, label) => (
+    <button onClick={() => setSortKey(key)} className={`inline-flex items-center gap-0.5 uppercase tracking-[.16em] hover:text-slate-700 ${sortKey === key ? "text-slate-700" : ""}`}>
+      {label}{sortKey === key && <span className="normal-case tracking-normal">{key === "name" ? "↓" : "▾"}</span>}
+    </button>
   );
   const td = "px-2 py-[5px] border-b border-slate-100 truncate";
+
+  // The draggable columns (Customer stays pinned — the row's identity).
+  // Per-key head config + cell renderer, laid out in `cols` order.
+  const HEAD = {
+    builder: { label: "Builder" },
+    phone: { label: "Phone" },
+    address: { label: "Address" },
+    email: { label: "Email", cls: "hidden lg:table-cell" },
+    jobs: { label: "Jobs", cls: "text-center" },
+    created: { label: "Created", sort: "created", cls: "text-right" },
+    modified: { label: "Modified", sort: "modified", cls: "text-right" },
+  };
+  const CELL = {
+    builder: (r) => <td key="builder" className={`${td} max-w-[160px] text-slate-500`}>{r.builderName}</td>,
+    phone: (r) => <td key="phone" className={`${td} ft-mono whitespace-nowrap text-slate-600`}>{r.phone}</td>,
+    address: (r) => <td key="address" className={`${td} max-w-[240px] text-slate-500`}>{r.address}</td>,
+    email: (r) => <td key="email" className={`${td} max-w-[180px] text-slate-500 hidden lg:table-cell`}>{r.email}</td>,
+    jobs: (r) => (
+      <td key="jobs" className={`${td} text-center`}>
+        {r.projs.length > 0 && <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 rounded-full px-1.5 leading-4 inline-block">{r.projs.length}</span>}
+      </td>
+    ),
+    created: (r) => <td key="created" className={`${td} ft-mono whitespace-nowrap text-right text-slate-500`}>{shortDate(r.createdAt)}</td>,
+    modified: (r) => <td key="modified" className={`${td} ft-mono whitespace-nowrap text-right text-slate-500`}>{shortDate(r.activity)}</td>,
+  };
+
+  // HTML5 drag on the header cells: drop on a column's left half inserts
+  // before it, right half after — so any arrangement is one drag away.
+  const dragProps = (key) => ({
+    draggable: true,
+    onDragStart: (e) => { setDragCol(key); e.dataTransfer.effectAllowed = "move"; },
+    onDragEnd: () => { setDragCol(null); setOverCol(null); },
+    onDragOver: (e) => {
+      if (!dragCol) return;
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      setOverCol({ key, after: e.clientX > rect.left + rect.width / 2 });
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      if (dragCol && overCol) {
+        const before = overCol.after ? cols[cols.indexOf(overCol.key) + 1] || null : overCol.key;
+        const next = moveCol(cols, dragCol, before);
+        if (next !== cols) { setCols(next); onColOrder(next); }
+      }
+      setDragCol(null); setOverCol(null);
+    },
+  });
+  const dropMark = (key) => overCol && overCol.key === key && dragCol && dragCol !== key
+    ? { boxShadow: `inset ${overCol.after ? "-2px" : "2px"} 0 0 var(--ft-brand)` } : undefined;
 
   const rowEl = (r) => {
     const on = r.id === selId;
@@ -58,15 +111,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, on
         <td className={`${td} max-w-[220px]`}>
           <span className="ft-item-name font-semibold text-[12.5px]">{r.name || "Unnamed customer"}</span>
         </td>
-        <td className={`${td} max-w-[160px] text-slate-500`}>{r.builderName}</td>
-        <td className={`${td} ft-mono whitespace-nowrap text-slate-600`}>{r.phone}</td>
-        <td className={`${td} max-w-[240px] text-slate-500`}>{r.address}</td>
-        <td className={`${td} max-w-[180px] text-slate-500 hidden lg:table-cell`}>{r.email}</td>
-        <td className={`${td} text-center`}>
-          {r.projs.length > 0 && <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 rounded-full px-1.5 leading-4 inline-block">{r.projs.length}</span>}
-        </td>
-        <td className={`${td} ft-mono whitespace-nowrap text-right text-slate-500`}>{shortDate(r.createdAt)}</td>
-        <td className={`${td} ft-mono whitespace-nowrap text-right text-slate-500`}>{shortDate(r.activity)}</td>
+        {cols.map((k) => CELL[k](r))}
       </tr>
     );
   };
@@ -113,14 +158,13 @@ export default function CustomerBrowser({ people, projects, builders, myName, on
           <table className="w-full text-[12px] border-collapse" style={{ minWidth: 780 }}>
             <thead className="sticky top-0 z-10" style={{ background: "var(--ft-card, #fff)", boxShadow: "0 1px 0 var(--ft-border, #e2e8f0)" }}>
               <tr>
-                {thBtn("name", "Customer")}
-                <th className={th}>Builder</th>
-                <th className={th}>Phone</th>
-                <th className={th}>Address</th>
-                <th className={`${th} hidden lg:table-cell`}>Email</th>
-                <th className={`${th} text-center`}>Jobs</th>
-                {thBtn("created", "Created", "text-right")}
-                {thBtn("modified", "Modified", "text-right")}
+                <th className={th}>{sortBtn("name", "Customer")}</th>
+                {cols.map((k) => (
+                  <th key={k} {...dragProps(k)} style={dropMark(k)} title="Drag to rearrange columns"
+                    className={`${th} ${HEAD[k].cls || ""} cursor-grab select-none ${dragCol === k ? "opacity-40" : ""}`}>
+                    {HEAD[k].sort ? sortBtn(HEAD[k].sort, HEAD[k].label) : HEAD[k].label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
