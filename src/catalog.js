@@ -6,6 +6,7 @@
 // module dependency is the equally pure vendorfetch.js (no React either).
 import { normVendorGroups } from "./vendorfetch.js";
 import { normLabelPresets, customLabelPresets } from "./labels.js";
+import { normLink, normBookFamily } from "./booklink.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -354,14 +355,14 @@ const baseCompanion = (b) => {
 const skuField = (p) => String(p?.sku ?? "").trim();
 // `book` (ADR 0007): the price-book grout family this product offers its
 // colors from — the stock items' `product` name. Empty = standard color list.
-const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), base: baseCompanion(g?.base) });
-const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m) });
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), base: baseCompanion(g?.base), link: normLink(g?.link) });
+const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m), link: normLink(m?.link) });
 // Items stored before the mortar link existed have no `kind` — they normalize
 // to "custom" with their fields intact.
 const installItem = (m) => m?.kind === "mortar"
   ? ({ id: m?.id || cid(), kind: "mortar", product: String(m?.product ?? "").trim(), coverage: m?.coverage ?? 0 })
   : ({ id: m?.id || cid(), kind: "custom", name: String(m?.name ?? "").trim(), coverage: m?.coverage ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m) });
-const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, sku: skuField(u), types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem) });
+const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, sku: skuField(u), types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem), link: normLink(u?.link) });
 const seedInstallFor = (name) => SEED_UNDERLAYMENTS.find((u) => u.install && normName(u.name) === normName(name))?.install;
 const seedUnderlay = (u) => ({ id: cid(), name: u.name, enabled: true, ...underlayFields(u) });
 const seedUnderlaysFor = (companyName) => SEED_UNDERLAYMENTS.filter((u) => u.company === companyName).map(seedUnderlay);
@@ -393,7 +394,7 @@ export function seedCatalog(flat) {
       attached: [],
     });
   }
-  return { companies, categories: [], defaults: normDefaults() };
+  return { companies, categories: [], defaults: normDefaults(), bookFamilies: [] };
 }
 
 // The team's chosen chip defaults, one per material kind. Stored names are kept
@@ -450,7 +451,7 @@ export function normalizeCatalog(catalog) {
     underlayments: (co?.underlayments || []).map(normUnderlayProduct),
     attached: (co?.attached || []).map(normAttachedProduct),
   }));
-  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, categories: (Array.isArray(catalog?.categories) ? catalog.categories : []).map(normCategory), defaults: normDefaults(catalog?.defaults) };
+  return { companies: backfillUnderlayments(companies, removedSeeds), removedSeeds, categories: (Array.isArray(catalog?.categories) ? catalog.categories : []).map(normCategory), defaults: normDefaults(catalog?.defaults), bookFamilies: (Array.isArray(catalog?.bookFamilies) ? catalog.bookFamilies : []).map(normBookFamily) };
 }
 
 // True when the stored catalog already contains every starter underlayment
@@ -613,7 +614,7 @@ export function updateCategory(catalog, categoryId, patch) {
   return { ...catalog, categories: (catalog?.categories || []).map((c) => c.id === categoryId ? normCategory({ ...c, ...patch, id: c.id }) : c) };
 }
 
-const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, sku: skuField(p) });
+const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, sku: skuField(p), link: normLink(p?.link) });
 const normAttachedProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...attachedFields(p) });
 
 // Attached names are unique within their category (a "RENO-U" trim and a
