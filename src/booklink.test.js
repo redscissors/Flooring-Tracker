@@ -58,6 +58,11 @@ test("deriveSeriesRule proposes the shared frame from a picked row", () => {
   const d = deriveSeriesRule("Gal Custom Premixed Grout - Delorean Gray Sanded",
     ["Gal Custom Premixed Grout - Delorean Gray Sanded", "Gal Custom Premixed Grout - Natural Gray Sanded"]);
   assert.equal(d.prefix, "Gal Custom Premixed Grout - Delorean Gray Sanded");
+  // sibling order never changes the derived rule (exports have no guaranteed order)
+  const shuffled = [LATASIL[3], LATASIL[0], LATASIL[1], LATASIL[2]];
+  const c2 = deriveSeriesRule(LATASIL[0], shuffled);
+  assert.equal(c2.prefix, "10.3 OZ LATASIL");
+  assert.equal(c2.suffix, "- 100% SILICONE CAULK");
 });
 
 test("normLink keeps only a complete bookId+sku pair", () => {

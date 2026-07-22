@@ -43,9 +43,12 @@ export function parseColorToken(token) {
 // Propose a series rule from one picked row: the longest token-prefix shared by
 // ≥3 sibling descriptions, then the longest character-suffix common to those
 // siblings — character-based so a messy row that glues punctuation
-// ("…10.3 OZ- 100%…") still shares the frame — cut back to a whole-token
-// boundary. Under 3 siblings the whole description becomes the prefix — the
-// confirm UI is where messy families (DOIT's premixed grout) get hand-fixed.
+// ("…10.3 OZ- 100%…") still shares the frame. The seed row anchors both the
+// slicing and the length cap, so sibling order never changes the result; the
+// suffix is kept whole when any one sibling shows a clean token boundary
+// before it (glued rows are typos — the clean rows define the frame). Under 3
+// siblings the whole description becomes the prefix — the confirm UI is where
+// messy families (DOIT's premixed grout) get hand-fixed.
 export function deriveSeriesRule(description, descriptions) {
   const seed = squish(description);
   const toks = seed.split(" ");
@@ -53,18 +56,18 @@ export function deriveSeriesRule(description, descriptions) {
     const prefix = toks.slice(0, n).join(" ");
     const hits = (descriptions || []).filter((d) => low(d).startsWith(low(prefix)));
     if (hits.length < 3) continue;
-    const sq = hits.map((d) => squish(d));
+    const rows = [seed, ...hits.map((d) => squish(d))];
     const maxLen = seed.length - prefix.length - 1;
     let suffix = "";
-    for (let i = 1; i <= Math.min(sq[0].length, maxLen); i++) {
-      const cand = sq[0].slice(sq[0].length - i);
-      if (!sq.every((d) => d.toLowerCase().endsWith(cand.toLowerCase()))) break;
+    for (let i = 1; i <= maxLen; i++) {
+      const cand = seed.slice(seed.length - i);
+      if (!rows.every((d) => d.toLowerCase().endsWith(cand.toLowerCase()))) break;
       suffix = cand;
     }
-    const pos = sq[0].length - suffix.length;
-    if (suffix && pos > 0 && sq[0][pos - 1] !== " ")
-      suffix = suffix.includes(" ") ? suffix.slice(suffix.indexOf(" ") + 1) : "";
-    return { prefix, suffix: suffix.trim() };
+    if (/^\s/.test(suffix)) suffix = suffix.trim();
+    else if (suffix && !rows.some((d) => d.length === suffix.length || d[d.length - suffix.length - 1] === " "))
+      suffix = suffix.includes(" ") ? suffix.slice(suffix.indexOf(" ") + 1).trim() : "";
+    return { prefix, suffix };
   }
   return { prefix: seed, suffix: "" };
 }
