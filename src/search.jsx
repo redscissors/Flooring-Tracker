@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
-import { searchStock } from "./stock.js";
+import { searchStock, relaxSearchWords } from "./stock.js";
 import { suggestSeries } from "./booklink.js";
 import { mergeSearch } from "./orderbook.js";
 import { useAnchoredPanel, vPos } from "./widgets.jsx";
@@ -258,7 +258,9 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
 // below stay the escape hatch for messy families the rule derivation can't
 // cluster (e.g. DOIT's premixed grout).
 export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPickSeries, onPickRow, inp, initialQuery = "", placeholder = "Search the stock books…" }) {
-  const [q, setQ] = useState(initialQuery);
+  // The seed is often a retired-workbook family name whose brand word the ERP
+  // descriptions never carry — relax it once so the box never opens dead.
+  const [q, setQ] = useState(() => relaxSearchWords(stock, initialQuery));
   const [open, setOpen] = useState(!!initialQuery.trim());
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
@@ -278,9 +280,12 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
           if (e.key === "Escape") setOpen(false);
         }}
         className={inp} placeholder={placeholder} />
-      {open && pos && (series.length > 0 || results.length > 0) && createPortal(
+      {open && pos && (series.length > 0 || results.length > 0 || q.trim().length >= 2) && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
           <div className="max-h-72 min-h-0 overflow-y-auto">
+            {series.length === 0 && results.length === 0 && (
+              <div className="px-2.5 py-2 text-[11px] text-slate-400">No stock rows match — try fewer or different words (the exports rarely carry brand names, e.g. just "permacolor").</div>
+            )}
             {series.map((s) => (
               <button key={`${s.bookId}|${s.rule.prefix}|${s.rule.suffix}`} onMouseDown={(e) => { e.preventDefault(); pickSeries(s); }}
                 className="w-full text-left px-2.5 py-1.5 hover:bg-indigo-50/60 border-b border-slate-100">
@@ -303,9 +308,11 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
               </button>
             ))}
           </div>
-          <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
-            {series.length > 0 && `${series.length} collection${series.length === 1 ? "" : "s"} · `}{matchSummary(results.length, matches.length)}
-          </div>
+          {(series.length > 0 || results.length > 0) && (
+            <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+              {series.length > 0 && `${series.length} collection${series.length === 1 ? "" : "s"} · `}{matchSummary(results.length, matches.length)}
+            </div>
+          )}
         </div>, document.body)}
     </div>
   );

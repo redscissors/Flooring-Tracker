@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
+import { searchStock, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -267,6 +267,25 @@ test("searchStock matches SKU prefixes and word queries, skipping retired items"
 test("searchStock returns every match — display code does the truncating", () => {
   const items = Array.from({ length: 40 }, (_, i) => item({ sku: String(10000 + i), description: "Napa Tannin — Stairnose" }));
   assert.equal(searchStock(items, "stairnose").length, 40);
+});
+
+test("relaxSearchWords drops the words the book never prints from a seeded query", () => {
+  const items = [
+    item({ sku: "1519001", description: "PERMACOLOR SELECT COLOR KIT 24 NATURAL GREY" }),
+    item({ sku: "1519002", description: "PERMACOLOR SELECT COLOR KIT 44 BRIGHT WHITE" }),
+    item({ sku: "1519003", description: "PERMACOLOR SELECT COLOR KIT 60 DUSTY GREY" }),
+    item({ sku: "1519065", description: "25LB PERMACOLOR SELECT BASE SANDED" }),
+  ];
+  // the retired workbook's family name carries the brand; the ERP rows don't
+  assert.equal(relaxSearchWords(items, "Laticrete Permacolor Color Kit"), "permacolor color kit");
+  assert.ok(searchStock(items, relaxSearchWords(items, "Laticrete Permacolor Color Kit")).length > 0);
+  // a query that already hits comes back untouched
+  assert.equal(relaxSearchWords(items, "permacolor base"), "permacolor base");
+  // surviving words that jointly miss shed the least-specific until something matches
+  assert.equal(relaxSearchWords(items, "sanded kit"), "sanded");
+  // nothing matches at all: leave the query alone (the empty-state hint shows)
+  assert.equal(relaxSearchWords(items, "spectralock epoxy"), "spectralock epoxy");
+  assert.equal(relaxSearchWords(items, ""), "");
 });
 
 test("'transition' matches the book's trim profile labels", () => {
