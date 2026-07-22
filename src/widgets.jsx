@@ -4,6 +4,19 @@ import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff } from "lu
 import { num } from "./catalog.js";
 import { money } from "./model.js";
 import { normName, matchName } from "./names.js";
+import { escPush } from "./escstack.js";
+
+// Register onClose as the Escape action while `active` (escstack.js). Later
+// registrations sit above earlier ones, so the most recently opened layer
+// closes first.
+export function useEscClose(active, onClose) {
+  const ref = useRef(onClose);
+  ref.current = onClose;
+  useEffect(() => {
+    if (!active) return;
+    return escPush((ev) => ref.current(ev));
+  }, [active]);
+}
 
 // A lazy chunk can fail to fetch — an offline blip, or a tab open from before
 // a deploy whose hashed chunk no longer exists (main auto-deploys, Netlify
@@ -99,6 +112,7 @@ export const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos
 export function DotMenu({ open, onClose, anchorRef, width = 224, children }) {
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
+  useEscClose(open, onClose);
   if (!open || !pos) return null;
   const left = Math.max(8, Math.min(pos.left + pos.width - width, window.innerWidth - width - 8));
   return createPortal(
@@ -170,6 +184,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  useEscClose(open, () => setOpen(false));
   const sp = { name: "", phone: "", email: "", ...(value || fallback || {}) };
   const fld = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
   const W = 240;
@@ -229,6 +244,7 @@ export function SegBar({ value, onChange, options, inputValue, onInput }) {
 // leaves. Text inputs (not number) for the same reason — no wheel, no spinner.
 export function WasteBar({ w, dflt, onChange, className = "" }) {
   const [unlocked, setUnlocked] = useState(false);
+  useEscClose(unlocked, () => setUnlocked(false));
   const wrap = useRef(null);
   const cells = [{ k: "tile", flag: "tileOn", label: "Tile", of: "tile" }, { k: "floor", flag: "floorOn", label: "Flr", of: "other flooring" }];
   return (
@@ -278,6 +294,7 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  useEscClose(open, () => setOpen(false));
   const n = (attachments || []).length;
   const W = 260;
   return (
@@ -365,6 +382,7 @@ export function MarginLine({ margin, show, onToggle }) {
 }
 
 export function Modal({ title, children, onClose }) {
+  useEscClose(true, onClose);
   return (
     <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>

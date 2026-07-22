@@ -8,7 +8,7 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
-import { FitSelect } from "./widgets.jsx";
+import { FitSelect, useEscClose } from "./widgets.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults } from "./search.jsx";
 import { GridSizeInput } from "./grid.jsx";
 
@@ -26,6 +26,7 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
   const panelRef = useRef(null);
   const bodyRef = useRef(null);
   const drag = useRef(null);
+  useEscClose(open, onClose);
   useEffect(() => { if (!open) setTall(false); }, [open]);
   // Swipe-down to dismiss. Native listeners because React registers touchmove
   // as passive, which blocks the preventDefault that keeps the pull from also

@@ -5,6 +5,7 @@
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
+import { useEscClose } from "./widgets.jsx";
 import {
   MODES, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
@@ -854,11 +855,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [sheetUp, setSheetUp] = useState(false); // mobile: pull-up build sheet
   const [basketOpen, setBasketOpen] = useState(false);
   const [basketSel, setBasketSel] = useState({}); // basket entry id -> selected
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); } };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, grid, sheetUp, basketOpen]);
+  useEscClose(true, () => { if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
