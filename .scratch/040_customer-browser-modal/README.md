@@ -15,9 +15,12 @@ name/phone/address 4. open to more ideas."
   customer: name, builder, phone, address, email, job count, created,
   modified) over a bottom "project lines" panel for the selected customer,
   exactly like the ERP's Order Lines pane.
-- **Grouped by salesman** — band rows per salesperson (A–Z, "No salesperson"
-  last). A customer's salesman is the salesperson snapshot (ADR 0008) of
-  their most recently touched project.
+- **Flat by default, banded when filtered** (2026-07-22 follow-up #2): the
+  default list is flat in the chosen sort order with a draggable Salesman
+  column; the per-salesperson band rows (A–Z, "No salesperson" last) appear
+  only while the salesperson box narrows the list — they show which salesmen
+  a partial name matched. A customer's salesman is the salesperson snapshot
+  (ADR 0008) of their most recently touched project.
 - **Salesperson box + "Me"** (2026-07-22 follow-up, replacing the earlier
   "By salesman" toggle): type a salesman's name to see only their
   customers/projects; the "Me" button to its right fills the signed-in
@@ -49,8 +52,11 @@ name/phone/address 4. open to more ideas."
 
 ## Preview
 
-- `browser-desktop.png` — grouped grid + project-lines panel (Chris Beauchamp
-  selected), empty Salesperson box with its Me button
+- `browser-flat-default.png` — the default flat list (Created sort) with the
+  Salesman column
+- `browser-desktop.png` — grid + project-lines panel (Chris Beauchamp
+  selected), empty Salesperson box with its Me button (pre-follow-up-2 shot
+  showing the always-banded layout)
 - `browser-me-filter.png` — Me pressed: only Marcus Mast's 6 customers
 - `browser-sales-typed.png` — "gina" typed: 13 of 26, incl. shared customers
   whose older projects are Gina's
