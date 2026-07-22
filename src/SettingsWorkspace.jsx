@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion } from "./stock.js";
-import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState } from "./booklink.js";
+import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal } from "./widgets.jsx";
 import { StockSearch, FamilySearch } from "./search.jsx";
@@ -100,6 +100,52 @@ function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl, onSave
   );
 }
 
+// Assisted migration pass (spec 2026-07-21 §5): proposes a link for every
+// catalog product that carries a SKU but no link yet, matching it against the
+// imported stock books. All proposals start checked; unmatched rows (no book
+// carries the SKU, or more than one does) are listed but never auto-linked.
+function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
+  const [{ proposals, unmatched }] = useState(() => proposeLinks(catalog, bookStock, books));
+  const [checked, setChecked] = useState(() => new Set(proposals.map((_, i) => i)));
+  const toggle = (i) => setChecked((s) => { const next = new Set(s); if (next.has(i)) next.delete(i); else next.add(i); return next; });
+  const selected = proposals.filter((_, i) => checked.has(i));
+  const byCompany = new Map();
+  proposals.forEach((pr, i) => { if (!byCompany.has(pr.companyName)) byCompany.set(pr.companyName, []); byCompany.get(pr.companyName).push({ ...pr, idx: i }); });
+  return (
+    <Modal title="Link products to stock books" onClose={onClose}>
+      <p className="text-xs text-slate-500 mb-2">Matched by SKU against the imported stock books — uncheck any you don't want linked.</p>
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+        {[...byCompany.entries()].map(([companyName, rows]) => (
+          <div key={companyName} className="p-2">
+            <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">{companyName}</div>
+            {rows.map((pr) => (
+              <label key={pr.idx} className="flex items-center gap-2 text-xs py-1">
+                <input type="checkbox" checked={checked.has(pr.idx)} onChange={() => toggle(pr.idx)} />
+                <span className="truncate">{pr.companyName} · {pr.name} → {pr.bookName} · <span className="ft-mono">{pr.sku}</span></span>
+              </label>
+            ))}
+          </div>
+        ))}
+        {!proposals.length && <p className="p-3 text-xs text-slate-400">No matches found.</p>}
+      </div>
+      {unmatched.length > 0 && (
+        <div className="mt-3">
+          <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">Unmatched</div>
+          <div className="max-h-32 overflow-y-auto space-y-0.5">
+            {unmatched.map((u, i) => (
+              <div key={`${u.sku}-${i}`} className="text-xs text-slate-500">{u.name} · <span className="ft-mono">{u.sku}</span> — {u.reason === "none" ? "not in any stock book" : "in several books — link it from the product page"}</div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+        <button onClick={() => onApply(selected)} disabled={!selected.length} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">Apply {selected.length} links</button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function SettingsWorkspace({ onClose, settings, setSettings, stock, stockReady, gFamilies, importing, importPriceBook, importStockFile, pbRef, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setStockItemsDisabled, rollbackStock, bookStock = {}, bookStockReady, refreshBookStock }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
@@ -124,6 +170,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
   const [catRename, setCatRename] = useState(null); // { value, error } — renaming the open custom category
   const [confirmDelCat, setConfirmDelCat] = useState(false);
   const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick } | { bookId, description, forDraft|forProduct }
+  const [showLinkMigration, setShowLinkMigration] = useState(false); // LinkMigration opener
 
   // Spread the whole catalog, not just companies, so sibling fields
   // (defaults, removedSeeds) survive a company/product edit.
@@ -226,6 +273,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
   // product so re-imports can refresh its price.
   const bookItems = Object.values(bookStock).flat();
   const pickerItems = [...stock, ...bookItems];
+  // Cheap opener gate — proposeLinks itself is the source of truth once the
+  // modal is open, this is just "is it worth offering the pass at all".
+  const hasUnlinkedSku = catalog.companies.some((co) =>
+    ["grouts", "mortars", "underlayments", "attached"].some((kind) => (co[kind] || []).some((p) => p.sku && !p.link))
+  );
   const bookName = (id) => books.find((b) => b.id === id)?.name || "book";
   const selCo = sel ? catalog.companies.find((c) => c.id === sel.companyId) : null;
   const selProd = selCo ? (selCo[sel.kind] || []).find((p) => p.id === sel.productId) : null;
@@ -740,6 +792,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
                 <input placeholder="New company" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitCompany(); }} className={inp + " flex-1"} />
                 <button onClick={submitCompany} className="text-xs rounded-md border border-slate-200 px-2 py-2 hover:bg-slate-50 flex items-center gap-1 shrink-0"><Plus size={12} /> Add</button>
               </div>
+              {bookStockReady && hasUnlinkedSku && (
+                <div className="px-3 pt-2">
+                  <button onClick={() => setShowLinkMigration(true)} className="w-full text-xs rounded-md border border-dashed border-indigo-200 px-2 py-1.5 text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-1"><Link2 size={12} /> Link products to stock books…</button>
+                </div>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-5 md:p-6">
               {adding ? renderAddForm()
@@ -841,6 +898,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, stoc
               else { onChange(next); setDraft((d) => ({ ...d, book: fam.name })); }
               setFamSeed(null);
             }} />
+        )}
+        {showLinkMigration && (
+          <LinkMigration catalog={catalog} bookStock={bookStock} books={books}
+            onClose={() => setShowLinkMigration(false)}
+            onApply={(selected) => { onChange(applyProposals(catalog, selected)); setShowLinkMigration(false); }} />
         )}
       </div>
     </div>
