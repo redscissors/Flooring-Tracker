@@ -90,8 +90,9 @@ export function groupBySales(rows) {
 // The grid's draggable columns (the Customer column is pinned first — it's
 // the row's identity and the A–Z sort anchor). Saved per user in their
 // app_data blob (ui.browserCols), so each salesperson's arrangement follows
-// their login.
-export const BROWSER_COLS = ["builder", "phone", "address", "email", "jobs", "created", "modified"];
+// their login. `sales` carries the salesman in the default flat view — the
+// band grouping only kicks in once the salesperson box has a name.
+export const BROWSER_COLS = ["sales", "builder", "phone", "address", "email", "jobs", "created", "modified"];
 
 // Sanitize a saved order: unknown keys drop, duplicates collapse, columns
 // added since the save append in default position.

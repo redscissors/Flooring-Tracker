@@ -26,7 +26,9 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
 
   const rows = useMemo(() => browserRows({ people, projects, builders }), [people, projects, builders]);
   const shown = useMemo(() => sortRows(filterBySales(filterRows(rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey]);
-  const groups = useMemo(() => groupBySales(shown), [shown]);
+  // Flat list by default; the salesman bands appear only while the
+  // salesperson box narrows the list (they show which salesmen matched).
+  const groups = useMemo(() => salesQ.trim() ? groupBySales(shown) : [{ sales: null, rows: shown }], [salesQ, shown]);
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
   const sel = flat.find((r) => r.id === selId) || null;
   const projCount = rows.reduce((n, r) => n + r.projs.length, 0);
@@ -56,6 +58,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   // The draggable columns (Customer stays pinned — the row's identity).
   // Per-key head config + cell renderer, laid out in `cols` order.
   const HEAD = {
+    sales: { label: "Salesman" },
     builder: { label: "Builder" },
     phone: { label: "Phone" },
     address: { label: "Address" },
@@ -65,6 +68,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
     modified: { label: "Modified", sort: "modified", cls: "text-right" },
   };
   const CELL = {
+    sales: (r) => <td key="sales" className={`${td} max-w-[130px] text-slate-500`}>{r.sales}</td>,
     builder: (r) => <td key="builder" className={`${td} max-w-[160px] text-slate-500`}>{r.builderName}</td>,
     phone: (r) => <td key="phone" className={`${td} ft-mono whitespace-nowrap text-slate-600`}>{r.phone}</td>,
     address: (r) => <td key="address" className={`${td} max-w-[240px] text-slate-500`}>{r.address}</td>,
@@ -169,7 +173,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
             </thead>
             <tbody>
               {groups.map((g) => (
-                <FragmentRows key={g.sales} group={g} rowEl={rowEl} />
+                <FragmentRows key={g.sales ?? "all"} group={g} rowEl={rowEl} />
               ))}
             </tbody>
           </table>
@@ -208,20 +212,23 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   );
 }
 
-// One salesperson band + its customer rows.
+// One salesperson band + its customer rows (band suppressed for the flat,
+// unfiltered list — group.sales is null there).
 function FragmentRows({ group, rowEl }) {
   return (
     <>
-      <tr>
-        {/* 9 ≥ the widest layout; browsers clamp the span when email hides */}
-        <td colSpan={9} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
-          <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
-            <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
-            {group.sales}
-            <span className="normal-case tracking-normal font-normal text-slate-400">· {group.rows.length}</span>
-          </span>
-        </td>
-      </tr>
+      {group.sales != null && (
+        <tr>
+          {/* 10 ≥ the widest layout; browsers clamp the span when email hides */}
+          <td colSpan={10} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
+            <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
+              <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
+              {group.sales}
+              <span className="normal-case tracking-normal font-normal text-slate-400">· {group.rows.length}</span>
+            </span>
+          </td>
+        </tr>
+      )}
       {group.rows.map(rowEl)}
     </>
   );
