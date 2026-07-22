@@ -111,21 +111,18 @@ export default function App({ user, onSignOut }) {
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
   } = useBooks({ user, profile, ping, flashSaved });
   const { bookStock, bookStockReady, loadAllBookStock, refreshBookStock } = useBookStock({ books, loadBookItems });
-  // Set true once the boot's stage-2 books fetch has landed (success or
-  // failure) — books may legitimately hydrate to [] (no pricebooks.sql yet),
-  // so "ready to load stock-kind items" can't be inferred from books.length.
-  const booksHydratedRef = useRef(false);
-  // Fires loadAllBookStock exactly once, the render after books first
-  // hydrates — NOT tied into the boot effect's own promise chain, since that
-  // effect's closures (and loadAllBookStock's) are captured at mount with
-  // books still [], before hydrateBooks lands the real list.
-  const bookStockBootedRef = useRef(false);
+  // Flips once the boot's stage-2 books fetch has landed (success OR
+  // failure — books may legitimately hydrate to [], no pricebooks.sql yet).
+  // State, not a ref: setBooks (in the boot's .then) is committed no later
+  // than the render where this becomes true, so the effect below always
+  // closes over whatever books the boot delivered — populated on success,
+  // [] on failure — either way loadAllBookStock runs and bookStockReady
+  // stops being permanently false.
+  const [booksHydrated, setBooksHydrated] = useState(false);
   useEffect(() => {
-    if (!booksHydratedRef.current || bookStockBootedRef.current) return;
-    bookStockBootedRef.current = true;
-    loadAllBookStock();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [books]);
+    if (booksHydrated) loadAllBookStock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot boot load
+  }, [booksHydrated]);
   const applyBookImportSynced = async (bookId, diff, opts) => {
     await applyBookImport(bookId, diff, opts);
     if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
@@ -329,7 +326,7 @@ export default function App({ user, onSignOut }) {
         trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
         trace.span("books", () => loadBooks(supabase))
           .then((rows) => hydrateBooks(rows), () => { })
-          .finally(() => { booksHydratedRef.current = true; }),
+          .finally(() => setBooksHydrated(true)),
       ]);
       trace.done();
       // Production-readable trace so the ADR 0026 stage-2 trigger is observable
