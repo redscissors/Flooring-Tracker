@@ -417,6 +417,21 @@ test("syncCatalogPrices leaves companies without an attached key alone", () => {
   assert.equal("attached" in next.companies[0], false);
 });
 
+test("syncCatalogPrices skips a product carrying an ERP link (ADR 0027 supersession), still reprices an unlinked one", () => {
+  const items = [
+    item({ sku: "26742", description: "TEC Power Grout — Birch", price: 33.53 }),
+  ];
+  const cat = { companies: [{ id: "c", name: "Co", enabled: true,
+    grouts: [
+      { id: "g-linked", name: "Tec Power Grout", enabled: true, coverage: 100, unit: "bags", price: 30, sku: "26742", link: { bookId: "b1", sku: "26742" } },
+      { id: "g-unlinked", name: "Tec Power Grout Two", enabled: true, coverage: 100, unit: "bags", price: 30, sku: "26742", link: null },
+    ], mortars: [], underlayments: [] }] };
+  const { catalog: next, changes } = syncCatalogPrices(cat, items);
+  assert.equal(next.companies[0].grouts[0].price, 30); // linked product untouched
+  assert.equal(next.companies[0].grouts[1].price, 33.53); // unlinked product still reprices by SKU
+  assert.deepEqual(changes.map((c) => c.name), ["Tec Power Grout Two"]);
+});
+
 test("syncCatalogPrices refreshes a SKU-linked product from that exact item", () => {
   const items = [
     item({ sku: "1519025", description: "85 Almond Permacolor Color Kit", price: 5.39 }),
