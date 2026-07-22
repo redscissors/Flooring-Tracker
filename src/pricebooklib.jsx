@@ -1174,9 +1174,16 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   const [flags, setFlags] = useState(saved?.flags || {});
   const [groupBy, setGroupBy] = useState(saved?.groupBy || (book.kind === "order" ? "mfg" : ""));
   const [defaultType, setDefaultType] = useState(saved?.defaultType || "");
-  // SF-per-carton lives inside the description text on the ERP stock exports
-  // (no SF/CT column) — set by their detector, carried on the saved mapping.
-  const [sfDesc, setSfDesc] = useState(!!saved?.sfFromDescription);
+  // The description-convention flags (ERP stock exports, ADR 0029): coverage,
+  // the leading bare plank width, and the flooring type all live inside the
+  // description text — set by their detector, carried on the saved mapping.
+  // One object, so a detector growing a flag can't be silently dropped by a
+  // missing piece of wizard state again.
+  const [descFlags, setDescFlags] = useState(() => ({
+    sfFromDescription: !!saved?.sfFromDescription,
+    leadWidthSize: !!saved?.leadWidthSize,
+    typeFromDescription: !!saved?.typeFromDescription,
+  }));
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
   const [srcName, setSrcName] = useState(""); // the chosen file name — a source slot label
@@ -1260,15 +1267,17 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
         return;
       }
       setSheets(parsed);
-      // A saved mapping wins; else recognize the VTC "EFT" template (fills the
-      // whole mapping in one step); else pick the best data sheet by header
-      // quality and guess its columns.
-      if (saved?.sheet && parsed.find((s) => s.name === saved.sheet)) { applySheet(parsed.find((s) => s.name === saved.sheet)); }
-      else {
-        const detected = detectVtcEft(parsed) || detectVendorSkuAnalysis(parsed);
-        if (detected) applyDetected(detected);
-        else applySheet(bestDataSheet(parsed));
-      }
+      // A recognized template (VTC EFT / ERP Vendor SKU Analysis) wins even
+      // over a saved mapping: the detector is the canonical, code-versioned
+      // mapping for these fixed layouts, and preferring the book's saved copy
+      // froze detector improvements out of every re-drop (the ADR 0029 flags
+      // never reached books stamped before them). A saved mapping still wins
+      // for everything else — that's the hand-tuned generic case; else pick
+      // the best data sheet by header quality and guess its columns.
+      const detected = detectVtcEft(parsed) || detectVendorSkuAnalysis(parsed);
+      if (detected) applyDetected(detected);
+      else if (saved?.sheet && parsed.find((s) => s.name === saved.sheet)) { applySheet(parsed.find((s) => s.name === saved.sheet)); }
+      else applySheet(bestDataSheet(parsed));
     } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls, or a text-based .pdf?"); }
     setReading(false);
   };
@@ -1287,7 +1296,11 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     if (m.flags) setFlags(m.flags);
     if (m.groupBy) setGroupBy(m.groupBy);
     if (m.defaultType) setDefaultType(m.defaultType);
-    setSfDesc(!!m.sfFromDescription);
+    setDescFlags({
+      sfFromDescription: !!m.sfFromDescription,
+      leadWidthSize: !!m.leadWidthSize,
+      typeFromDescription: !!m.typeFromDescription,
+    });
   };
 
   // Choosing a sheet (auto or manual): if we have no saved mapping, guess the
@@ -1308,7 +1321,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     return next;
   });
 
-  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined, sfFromDescription: sfDesc || undefined };
+  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined, sfFromDescription: descFlags.sfFromDescription || undefined, leadWidthSize: descFlags.leadWidthSize || undefined, typeFromDescription: descFlags.typeFromDescription || undefined };
   // Flag verdicts already on the book's rows (confirmed / ignored) mute those
   // codes in the parse warnings and the problem list below — a reviewed row
   // must not re-nag on every re-import of the same file.
