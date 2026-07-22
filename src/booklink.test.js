@@ -367,6 +367,40 @@ test("suggestSeries drops a base-row-seeded loose superset of a more specific se
   assert.ok(!series[0].sample.some((c) => /base/i.test(c)));
 });
 
+// CEG-Lite (field report 2026-07-22): the PART A&B kits form their OWN tight
+// series (long shared prefix) while the colors only cluster under the short
+// "CEG-LITE" frame — the superset filter must not let the kit series kill the
+// color family, and the kits must never count as colors.
+const CEG_ROWS = [
+  ["CL09", "CEG-LITE 09 NATURAL GRAY"],
+  ["CL10", "CEG-LITE 10 ANTIQUE WHITE"],
+  ["CL45", "CEG-LITE 45 SUMMER WHEAT"],
+  ["CL60", "CEG-LITE 60 CHARCOAL"],
+  ["CLB1", "CEG-LITE PART A&B FULL UNIT 1G"],
+  ["CLB2", "CEG-LITE PART A&B FULL UNIT 2G"],
+  ["CLB3", "CEG-LITE PART A&B COMMERCIAL UNIT"],
+].map(([sku, description]) => ({ sku, description, active: true, price: 30, unit: "EA" }));
+
+test("suggestSeries finds the color family when the base rows form their own tighter series", () => {
+  const series = suggestSeries(CEG_ROWS.map((it) => ({ ...it, bookId: "doit" })), { doit: CEG_ROWS });
+  assert.equal(series.length, 1);
+  assert.equal(series[0].rule.prefix, "CEG-LITE");
+  assert.equal(series[0].count, 4);
+  assert.ok(series[0].sample.includes("Natural Gray"));
+  assert.ok(!series[0].sample.some((c) => /part|unit/i.test(c)));
+});
+
+test("resolveFamily never lists base-smelling rows as colors even when they match the rule", () => {
+  const fam = normBookFamily({
+    id: "ceg-lite", name: "CEG-Lite", bookId: "doit",
+    rule: { prefix: "CEG-LITE", suffix: "" }, baseSkus: { default: "CLB1" }, cache: [],
+  });
+  const r = resolveFamily(fam, { doit: CEG_ROWS });
+  assert.deepEqual(r.colors.map((c) => c.sku).sort(), ["CL09", "CL10", "CL45", "CL60"]);
+  assert.equal(r.usedCache, false);
+  assert.deepEqual(r.bases.map((b) => b.sku), ["CLB1"]); // marked bases still resolve
+});
+
 // --- Task 3: import-time sync + migration proposals ------------------------
 
 // One book's (b1) live items covering every kind, plus a base companion, an

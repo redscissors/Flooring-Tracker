@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion } from "./stock.js";
-import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals } from "./booklink.js";
+import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
@@ -46,13 +46,14 @@ export function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl,
   const [caulkSeed, setCaulkSeed] = useState(null); // a picked caulk row → rule derived from it
   const [error, setError] = useState("");
   const colors = items
-    .filter((it) => it.active !== false && !it.disabled && ![baseSkus.default, baseSkus.variant].includes(it.sku))
+    .filter((it) => it.active !== false && !it.disabled && ![baseSkus.default, baseSkus.variant].includes(it.sku) && !looksLikeBase(it.description))
     .map((it) => ({ it, token: matchRule(rule, it.description) }))
     .filter((x) => x.token)
     .map((x) => ({ ...parseColorToken(x.token), sku: x.it.sku, price: x.it.price }));
-  // Base candidates: same book, share the rule's prefix words but DON'T match as
-  // a color row and smell like a base (the Laticrete wordings).
-  const baseCandidates = items.filter((it) => !matchRule(rule, it.description) && /part a&b|grout base|full unit|commercial unit|sanded/i.test(it.description) && new RegExp(escRe(rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
+  // Base candidates: same book, share the rule's prefix words and smell like a
+  // base (the Laticrete wordings). A base can sit inside the color frame too —
+  // CEG-Lite's PART A&B kits match the rule — so rule mismatch isn't required.
+  const baseCandidates = items.filter((it) => (!matchRule(rule, it.description) || looksLikeBase(it.description)) && /part a&b|grout base|full unit|commercial unit|sanded/i.test(it.description) && new RegExp(escRe(rule.prefix.split(/\s+/).find((w) => w.length > 4) || " "), "i").test(it.description));
   const caulkBook = caulkSeed ? caulkSeed.bookId : seed.bookId;
   const caulkRule = caulkSeed ? deriveSeriesRule(caulkSeed.description, (bookStock[caulkSeed.bookId] || []).map((i) => i.description)) : null;
   const caulkMatches = caulkRule ? (bookStock[caulkBook] || []).filter((it) => matchRule(caulkRule, it.description)).length : 0;

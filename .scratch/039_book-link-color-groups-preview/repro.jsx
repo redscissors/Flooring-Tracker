@@ -22,8 +22,19 @@ const GLATI = [
   row("PSB-S", "25LB PERMACOLOR SELECT BASE SANDED", 27.5),
   row("PSB-NS", "PERMACOLOR SELECT NS BASE UNSANDED", 31.0),
 ];
-const bookStock = { glati: GLATI.map((it) => ({ ...it, bookId: "glati" })) };
-const books = [{ id: "glati", name: "GLATI" }];
+// CEG-Lite (field report): the PART A&B kits share the color rows' frame AND
+// form their own tighter series — the color family must still win.
+const DOIT = [
+  row("CL09", "CEG-LITE 09 NATURAL GRAY", 32.5),
+  row("CL10", "CEG-LITE 10 ANTIQUE WHITE", 32.5),
+  row("CL45", "CEG-LITE 45 SUMMER WHEAT", 32.5),
+  row("CL60", "CEG-LITE 60 CHARCOAL", 32.5),
+  row("CLB1", "CEG-LITE PART A&B FULL UNIT 1G", 118.0),
+  row("CLB2", "CEG-LITE PART A&B FULL UNIT 2G", 205.0),
+  row("CLB3", "CEG-LITE PART A&B COMMERCIAL UNIT", 380.0),
+];
+const bookStock = { glati: GLATI.map((it) => ({ ...it, bookId: "glati" })), doit: DOIT.map((it) => ({ ...it, bookId: "doit" })) };
+const books = [{ id: "glati", name: "GLATI" }, { id: "doit", name: "DOIT" }];
 const bookName = (id) => books.find((b) => b.id === id)?.name || "book";
 const bookItems = Object.values(bookStock).flat();
 
