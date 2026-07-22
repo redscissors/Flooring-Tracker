@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { searchStock } from "./stock.js";
+import { suggestSeries } from "./booklink.js";
 import { mergeSearch } from "./orderbook.js";
 import { useAnchoredPanel, vPos } from "./widgets.jsx";
 
@@ -245,6 +246,66 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
             ))}
           </div>
           <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
+// Collection-first picker for the family-seed modal: the query's stock-book
+// matches cluster into candidate color series ("Permacolor Select — 40
+// colors", booklink.js suggestSeries) listed above the plain rows, so a
+// grout's color link grabs a whole collection in one pick. The single rows
+// below stay the escape hatch for messy families the rule derivation can't
+// cluster (e.g. DOIT's premixed grout).
+export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPickSeries, onPickRow, inp, initialQuery = "", placeholder = "Search the stock books…" }) {
+  const [q, setQ] = useState(initialQuery);
+  const [open, setOpen] = useState(!!initialQuery.trim());
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const matches = useMemo(() => (open ? searchStock(stock, q) : []), [open, stock, q]);
+  // Series derive off a slice of the hits: one query's matches overwhelmingly
+  // share a frame, and deriveSeriesRule per hit is the costly part.
+  const series = useMemo(() => suggestSeries(matches.slice(0, 12), itemsByBook), [matches, itemsByBook]);
+  const results = matches.slice(0, SKU_SHOW);
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  const pickSeries = (s) => { onPickSeries(s); setOpen(false); };
+  const pickRow = (it) => { onPickRow(it); setOpen(false); };
+  return (
+    <div ref={wrapRef} className="relative mb-1.5">
+      <input value={q} autoFocus onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (series.length || results.length)) { e.preventDefault(); series.length ? pickSeries(series[0]) : pickRow(results[0]); }
+          if (e.key === "Escape") setOpen(false);
+        }}
+        className={inp} placeholder={placeholder} />
+      {open && pos && (series.length > 0 || results.length > 0) && createPortal(
+        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          <div className="max-h-72 min-h-0 overflow-y-auto">
+            {series.map((s) => (
+              <button key={`${s.bookId}|${s.rule.prefix}|${s.rule.suffix}`} onMouseDown={(e) => { e.preventDefault(); pickSeries(s); }}
+                className="w-full text-left px-2.5 py-1.5 hover:bg-indigo-50/60 border-b border-slate-100">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-medium truncate flex-1">{s.name}</span>
+                  <span className="ft-mono text-[11px] text-indigo-600 shrink-0">{s.count} colors</span>
+                </div>
+                <div className="flex items-baseline gap-2 text-[11px] text-slate-400">
+                  <span className="truncate">{s.sample.join(" · ")}{s.count > s.sample.length ? " · …" : ""}</span>
+                  <span className="ml-auto shrink-0">{bookName(s.bookId)}</span>
+                </div>
+              </button>
+            ))}
+            {series.length > 0 && results.length > 0 && (
+              <div className="px-2.5 py-1 text-[10px] font-medium text-slate-400 uppercase tracking-wide bg-slate-50/60 border-b border-slate-100">Single rows — seed a family by hand</div>
+            )}
+            {results.map((it) => (
+              <button key={hitKey(it)} onMouseDown={(e) => { e.preventDefault(); pickRow(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <StockHit it={it} />
+              </button>
+            ))}
+          </div>
+          <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
+            {series.length > 0 && `${series.length} collection${series.length === 1 ? "" : "s"} · `}{matchSummary(results.length, matches.length)}
+          </div>
         </div>, document.body)}
     </div>
   );

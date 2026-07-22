@@ -5,6 +5,7 @@ import {
   matchRule, parseColorToken, deriveSeriesRule, normLink,
   normBookFamily, resolveFamily, projectFamilies, familyWarnings,
   syncLinkedCatalog, linkedItemState, proposeLinks, applyProposals,
+  proposeFamilyName, suggestSeries,
 } from "./booklink.js";
 import {
   groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch,
@@ -305,6 +306,65 @@ test("projectFamilies output works unchanged through stock.js's grout & base-uni
   assert.ok(commercial);
   assert.equal(commercial.sku, "SL-COMM");
   assert.match(commercial.description, /commercial/i);
+});
+
+// --- collection picker: proposeFamilyName / suggestSeries -------------------
+
+test("proposeFamilyName drops size/unit lead-ins and trailing separators", () => {
+  assert.equal(proposeFamilyName("9LB SPECTRALOCK PRO"), "Spectralock Pro");
+  assert.equal(proposeFamilyName("10.3 OZ LATASIL"), "Latasil");
+  assert.equal(proposeFamilyName("10# Tec Power Grout -"), "Tec Power Grout");
+  assert.equal(proposeFamilyName("PERMACOLOR SELECT"), "Permacolor Select");
+  // an all-junk prefix falls back to itself rather than an empty name
+  assert.equal(proposeFamilyName("0.8 GAL"), "0.8 Gal");
+});
+
+test("suggestSeries clusters query hits into one entry per collection", () => {
+  const hits = ["PC24", "PC85"].map((sku) => ({ ...SHEET1_ITEMS.find((it) => it.sku === sku), bookId: "sheet1" }));
+  const series = suggestSeries(hits, ITEMS_BY_BOOK);
+  assert.equal(series.length, 1); // two hits, one shared frame — deduped
+  const s = series[0];
+  assert.equal(s.bookId, "sheet1");
+  assert.deepEqual(s.rule, { prefix: "9LB SPECTRALOCK PRO", suffix: "PART C" });
+  assert.equal(s.name, "Spectralock Pro");
+  assert.equal(s.count, 4); // 85/24/53 + Clear; base rows don't fit the frame
+  assert.ok(s.sample.includes("Natural Grey"));
+  assert.equal(s.seedDescription, hits[0].description);
+});
+
+test("suggestSeries drops under-clustered hits and never counts dead rows as colors", () => {
+  // TEC has only 2 rows in the book — deriveSeriesRule can't find ≥3 siblings,
+  // the whole-description fallback matches nothing, so no collection is
+  // offered (the picker's single-row list covers it).
+  const tec = { ...SHEET1_ITEMS.find((it) => it.sku === "TEC910"), bookId: "sheet1" };
+  assert.deepEqual(suggestSeries([tec], ITEMS_BY_BOOK), []);
+  // a hit without a bookId (a projected family row) proposes nothing
+  assert.deepEqual(suggestSeries([{ sku: "X", description: "whatever" }], ITEMS_BY_BOOK), []);
+  const withDead = {
+    sheet1: [...SHEET1_ITEMS,
+      { sku: "PC99", active: false, disabled: false, description: "9LB SPECTRALOCK PRO 99 GHOST PART C", price: 1, unit: "EA" }],
+  };
+  const seed = { ...SHEET1_ITEMS.find((it) => it.sku === "PC24"), bookId: "sheet1" };
+  assert.equal(suggestSeries([seed], withDead)[0].count, 4);
+});
+
+test("suggestSeries drops a base-row-seeded loose superset of a more specific series", () => {
+  // The NS base shares the "PERMACOLOR SELECT" lead-in, so seeding from it
+  // derives a loose rule that swallows the color kits PLUS itself — the
+  // specific COLOR KIT frame must win and the base must not read as a color.
+  const rows = [
+    ["PSC24", "PERMACOLOR SELECT COLOR KIT 24 NATURAL GREY"],
+    ["PSC44", "PERMACOLOR SELECT COLOR KIT 44 BRIGHT WHITE"],
+    ["PSC60", "PERMACOLOR SELECT COLOR KIT 60 DUSTY GREY"],
+    ["PSC93", "PERMACOLOR SELECT COLOR KIT 93FOSSIL"],
+    ["PSB-NS", "PERMACOLOR SELECT NS BASE UNSANDED"],
+    ["PSB-S", "25LB PERMACOLOR SELECT BASE SANDED"],
+  ].map(([sku, description]) => ({ sku, description, active: true, price: 20, unit: "EA" }));
+  const series = suggestSeries(rows.map((it) => ({ ...it, bookId: "glati" })), { glati: rows });
+  assert.equal(series.length, 1);
+  assert.equal(series[0].rule.prefix, "PERMACOLOR SELECT COLOR KIT");
+  assert.equal(series[0].count, 4);
+  assert.ok(!series[0].sample.some((c) => /base/i.test(c)));
 });
 
 // --- Task 3: import-time sync + migration proposals ------------------------

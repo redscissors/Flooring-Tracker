@@ -5,7 +5,7 @@ import { stockBaseCompanion } from "./stock.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal } from "./widgets.jsx";
-import { StockSearch, FamilySearch } from "./search.jsx";
+import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 
 // The shared grout/mortar catalog editor: a Company → Product tree. Each company
@@ -34,13 +34,14 @@ const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Turns one picked stock-book row into a saved color family (spec 2026-07-21):
 // derives a series rule from sibling descriptions, previews the matched
 // colors, and offers a base-unit pairing and a matched caulk line before
-// saving.
-function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl, onSave, onClose }) {
-  // seed: { bookId, description } — the picked grout row.
+// saving. Exported for the .scratch preview harnesses only.
+export function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl, onSave, onClose }) {
+  // seed: { bookId, description, rule?, name? } — the picked grout row; a
+  // collection pick (SeriesSearch) arrives with its rule and name pre-derived.
   const items = bookStock[seed.bookId] || [];
   const descs = items.map((it) => it.description);
-  const [name, setName] = useState("");
-  const [rule, setRule] = useState(() => deriveSeriesRule(seed.description, descs));
+  const [name, setName] = useState(seed.name || "");
+  const [rule, setRule] = useState(() => seed.rule || deriveSeriesRule(seed.description, descs));
   const [baseSkus, setBaseSkus] = useState({ default: "", variant: "" });
   const [caulkSeed, setCaulkSeed] = useState(null); // a picked caulk row → rule derived from it
   const [error, setError] = useState("");
@@ -169,7 +170,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   const [catError, setCatError] = useState("");
   const [catRename, setCatRename] = useState(null); // { value, error } — renaming the open custom category
   const [confirmDelCat, setConfirmDelCat] = useState(false);
-  const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick } | { bookId, description, forDraft|forProduct }
+  const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick, query? } | { bookId, description, rule?, name?, forDraft|forProduct }
   const [showLinkMigration, setShowLinkMigration] = useState(false); // LinkMigration opener
 
   // Spread the whole catalog, not just companies, so sibling fields
@@ -539,7 +540,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="mt-2 flex items-center gap-2 max-w-xl">
           {gFamilies.length > 0 ? <FamilySearch families={gFamilies} inp={inp} onPick={(f) => setProduct(co.id, "grouts", g.id, { book: f.product })} />
             : <p className="text-[11px] text-slate-400 flex-1">Import the price book to link a color family.</p>}
-          {bookItems.length > 0 && <button onClick={() => setFamSeed({ pick: true, forProduct: { coId: co.id, gId: g.id } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium shrink-0">New family from stock book…</button>}
+          {bookItems.length > 0 && <button onClick={() => setFamSeed({ pick: true, query: g.book || "", forProduct: { coId: co.id, gId: g.id } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium shrink-0">New family from stock book…</button>}
           {g.book && <button onClick={() => setProduct(co.id, "grouts", g.id, { book: "" })} className="text-xs text-slate-400 hover:text-red-500 shrink-0">Unlink colors</button>}
         </div>
         <div className="mt-6 max-w-2xl">
@@ -882,9 +883,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         )}
         {famSeed?.pick && (
           <Modal title="New color family" onClose={() => setFamSeed(null)}>
-            <label className={lbl}>Pick a book row to seed the family</label>
-            <StockSearch stock={bookItems} inp={inp} placeholder="Search the stock books for a color row…"
-              onPick={(it) => setFamSeed({ bookId: it.bookId, description: it.description, forProduct: famSeed.forProduct })} />
+            <label className={lbl}>Pick a color collection — or a single row to seed one by hand</label>
+            <SeriesSearch stock={bookItems} itemsByBook={bookStock} bookName={bookName} inp={inp}
+              initialQuery={famSeed.query || ""} placeholder='Search the stock books — "permacolor", "spectralock"…'
+              onPickSeries={(s) => setFamSeed({ bookId: s.bookId, description: s.seedDescription, rule: s.rule, name: s.name, forProduct: famSeed.forProduct })}
+              onPickRow={(it) => setFamSeed({ bookId: it.bookId, description: it.description, forProduct: famSeed.forProduct })} />
           </Modal>
         )}
         {famSeed?.description && (

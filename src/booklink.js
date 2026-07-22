@@ -72,6 +72,18 @@ export function deriveSeriesRule(description, descriptions) {
   return { prefix: seed, suffix: "" };
 }
 
+// "9LB SPECTRALOCK PRO" → "Spectralock Pro": the family name a rule's prefix
+// suggests — leading size/unit tokens dropped, trailing separators trimmed.
+const UNIT_TOKEN_RE = /^(lb|lbs|oz|gal|gals|kg|qt|pt|ml|l|ct|pk|pc|pcs|ea|box|bag|bags)\.?$/i;
+export function proposeFamilyName(prefix) {
+  const toks = squish(prefix).split(" ").filter(Boolean);
+  const numish = (t) => /^[#\d.]/.test(t);
+  let i = 0;
+  while (i < toks.length && (numish(toks[i]) || (i > 0 && numish(toks[i - 1]) && UNIT_TOKEN_RE.test(toks[i])))) i++;
+  const rest = toks.slice(i).join(" ").replace(/[\s\-–·:]+$/g, "");
+  return titleWords(rest || squish(prefix));
+}
+
 const numOr = (v, d = null) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
 export function normBookFamily(f) {
@@ -91,6 +103,48 @@ export function normBookFamily(f) {
 }
 
 const liveRows = (items) => (items || []).filter((it) => it.active !== false && !it.disabled && !it.discontinued);
+
+// Candidate color collections for the family-seed picker: each query hit
+// proposes the series it belongs to (deriveSeriesRule), deduped by frame so
+// one entry stands for the whole collection ("Permacolor Select — 40 colors").
+// The caller passes already-matched, capped hits — deriving a rule per hit
+// scans the whole book, so the cap is the cost bound. A series under 2 colors
+// is dropped; the picker's single-row list stays the escape hatch for messy
+// families the derivation can't cluster.
+export function suggestSeries(hits, itemsByBook) {
+  const descCache = new Map();
+  const seen = new Set();
+  const out = [];
+  for (const it of hits || []) {
+    const bookId = str(it?.bookId), d = squish(it?.description);
+    if (!bookId || !d) continue;
+    if (!descCache.has(bookId)) descCache.set(bookId, (itemsByBook?.[bookId] || []).map((x) => x.description));
+    const rule = deriveSeriesRule(d, descCache.get(bookId));
+    const key = [bookId, low(rule.prefix), low(rule.suffix)].join("\n");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const colors = [], skus = [];
+    for (const row of liveRows(itemsByBook?.[bookId])) {
+      const token = matchRule(rule, row.description);
+      if (!token) continue;
+      const { num, name } = parseColorToken(token);
+      if (!name && !num) continue;
+      colors.push(name || num);
+      skus.push(row.sku);
+    }
+    if (colors.length < 2) continue;
+    out.push({ bookId, rule, name: proposeFamilyName(rule.prefix), count: colors.length, sample: colors.slice(0, 4), seedDescription: d, skus });
+  }
+  // A frame-only sibling (a base row) seeds a LOOSE rule that swallows a more
+  // specific series plus itself ("PERMACOLOR SELECT" ⊃ "PERMACOLOR SELECT
+  // COLOR KIT" + the base). Keep the specific frame, drop its loose superset.
+  const kept = out.filter((a) => {
+    const set = new Set(a.skus);
+    return !out.some((b) => b !== a && b.bookId === a.bookId && b.skus.length < a.skus.length &&
+      b.rule.prefix.length > a.rule.prefix.length && b.skus.every((s) => set.has(s)));
+  });
+  return kept.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
 
 export function resolveFamily(fam, itemsByBook) {
   const baseSet = new Set([fam.baseSkus.default, fam.baseSkus.variant].filter(Boolean));
