@@ -422,6 +422,18 @@ test("suggestSeries offers the real OHIVA CEG-Lite colorants as one clean collec
   assert.ok(!s.sample.some((c) => /primer|redgard|base/i.test(c)));
 });
 
+test("suggestSeries pivots a base-row hit to its color family — generic 'epoxy grout' searches", () => {
+  // "epoxy grout part" matches ONLY base rows (the color rows never say
+  // epoxy/grout) — the collections must still surface via their bases.
+  const hits = [
+    { ...SHEET1_ITEMS.find((it) => it.sku === "SL-FULL"), bookId: "sheet1" },
+    { ...OHIVA_ROWS.find((it) => it.sku === "28865"), bookId: "ohiva" },
+  ];
+  const series = suggestSeries(hits, { sheet1: SHEET1_ITEMS, ohiva: OHIVA_ROWS });
+  assert.deepEqual(series.map((s) => s.rule.prefix).sort(), ["9LB SPECTRALOCK PRO", "Custom"]);
+  assert.ok(series.every((s) => s.count >= 4));
+});
+
 test("resolveFamily never lists base-smelling rows as colors even when they match the rule", () => {
   const fam = normBookFamily({
     id: "ceg-lite", name: "CEG-Lite", bookId: "doit",
