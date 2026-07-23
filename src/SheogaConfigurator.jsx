@@ -13,7 +13,7 @@ import {
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
-  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, ventScrape,
+  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
@@ -344,7 +344,7 @@ function StockedRail({ k, set, sf, markup, onGrid, multi, mwWidths, onMultiToggl
   </>);
 }
 
-function HbRail({ h, set, markup, onGrid }) {
+function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
   const snap = (next) => {
     const t = HERRINGBONE[next.cons === "solid" ? "solid" : "eng"][next.sp];
     return t.ws.includes(next.w) ? next : { ...next, w: t.ws[Math.min(2, t.ws.length - 1)] };
@@ -352,7 +352,17 @@ function HbRail({ h, set, markup, onGrid }) {
   const table = HERRINGBONE[h.cons === "solid" ? "solid" : "eng"][h.sp];
   const len = hbSlatLen(h);
   const band = len != null ? hbBandForLen(len) : (Number.isFinite(h.band) ? h.band : null);
+  const custom = CUSTOM_FINISHES.includes(h.finish);
+  const established = h.finish === "est";
+  const prefin = h.finish && h.finish !== "unf";
+  const stained = established || custom;
   return (<>
+    {onCopyFloor && (
+      <div className="mb-4 flex items-center gap-2.5 rounded-lg p-2.5" style={{ border: "1px dashed var(--ft-brand)", background: "var(--ft-tint)" }}>
+        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Match the floor — copy species, scrape &amp; stain from the <b>{copySrc}</b> tab.</span>
+        <button onClick={onCopyFloor} className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)" }}>⤺ Copy floor</button>
+      </div>
+    )}
     <Sect title="Species">
       <Chips cur={h.sp} onPick={(sp) => set(snap({ ...h, sp }))}
         items={Object.keys(HERRINGBONE.solid).map((sp) => {
@@ -399,6 +409,37 @@ function HbRail({ h, set, markup, onGrid }) {
     <Sect title="Pattern">
       <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />
     </Sect>
+    {/* Scrape + finishing, same options and $/sf adders as the custom floor tab.
+        A prefinished finish drops its stain/sheen detail in below (sheen free);
+        established/custom colors owe the $750 sample. */}
+    <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
+      <Dropdown label="Texture / scrape" value={h.tex || "smooth"} onChange={(tex) => set({ ...h, tex })}
+        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
+      <Dropdown label="Finishing" hint="fee under 500 sf" value={h.finish || "unf"} onChange={(finish) => set({ ...h, finish })}
+        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(h), markup))}`) }))} />
+    </div>
+    {prefin && (
+      <div className="mb-3 rounded-lg border-2 p-3" style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)" }}>
+        <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
+          {stained && <StainPicker cfg={h} set={set} custom={custom} />}
+          <SheenPicker cfg={h} set={set} note="· included, no charge" />
+        </div>
+      </div>
+    )}
+    {custom && (
+      <Sect title="Custom color sample">
+        <div className="w-full flex items-center gap-2.5 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800">
+          <span className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-extrabold text-white shrink-0 bg-indigo-600">✓</span>
+          <span className="flex-1">Color-match sample — required for custom colors</span>
+          <span className="text-[11.5px] font-bold text-slate-500 tabular-nums">+$750 flat</span>
+        </div>
+      </Sect>
+    )}
+    {established && (
+      <Sect title="Color-match sample">
+        <Toggle label="Color-match sample — approval bundle (optional)" on={h.sample} onClick={() => set({ ...h, sample: !h.sample })} add="+$750 flat" />
+      </Sect>
+    )}
   </>);
 }
 
@@ -866,8 +907,19 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
   // stocked / herringbone) the user last had open — seeded tab first.
   const [floorSrc, setFloorSrc] = useState(seed?.mode === "stocked" || seed?.mode === "hb" ? seed.mode : "floor");
-  const pickMode = (id) => { setMode(id); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); };
+  // The herringbone tab copies from a real floor config, so it tracks the last-
+  // open unfinished/stocked tab (never hb itself — that would be a no-op).
+  const [flatSrc, setFlatSrc] = useState(seed?.mode === "stocked" ? "stocked" : "floor");
+  const pickMode = (id) => { setMode(id); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
   const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
+  const copyFloorToHb = () => {
+    const patch = hbFromFloor({ mode: flatSrc, cfg: cfgs[flatSrc] });
+    if (!patch) return;
+    const next = { ...cfg, ...patch };
+    const t = HERRINGBONE[next.cons === "solid" ? "solid" : "eng"][next.sp];
+    if (t && !t.ws.includes(next.w)) next.w = t.ws[Math.min(2, t.ws.length - 1)];
+    set(next);
+  };
 
   // Multi-width entry (floor + stocked only): a job split across several plank
   // widths, sharing every other option. Lifted here so Task 9's MultiWidthCard
@@ -937,7 +989,8 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
       {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
-      {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)} />}
+      {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)}
+        onCopyFloor={copyFloorToHb} copySrc={MODES.find((m) => m.id === flatSrc).label} />}
       {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)}
         onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}

@@ -181,6 +181,10 @@ src/
                     # stocked/herringbone tab's config onto the vent
                     # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
                     # -> White Oak, finish -> prefin+stain, texture -> scrape).
+                    # Herringbone tab: the same Texture/scrape + Finishing dropdowns
+                    # (+ stain/sheen + sample) as the custom tab, priced the same
+                    # $/sf way; its own "Copy floor" pulls species/scrape/prefinish
+                    # from the last-open custom/stocked tab (hbFromFloor).
                     # Opened from a row's search (the pinned "Vendor configurators"
                     # row in GridOmniSearch or MobileSearchSheet — "she" is enough)
                     # or its "Sheoga — reconfigure" chip; Add fills the row via
