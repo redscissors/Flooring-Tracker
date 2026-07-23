@@ -51,7 +51,7 @@ export function vendorCodeCandidates(description) {
 // Mannington's flush stairnose system (one word, so \bnose\b alone would miss
 // it).
 const STOCK_TRIM_RE = /\b(end ?cap|t-?mold(?:ing)?|(?:multi-?)?reducer|stair ?nose|nosing|one ?nose|quarter ?round|threshold|transition|overlap)\b/i;
-const ONENOSE_RE = /one ?nose/i;
+const ONENOSE_RE = /one[-\s]?nose/i;
 const MDF_FILL_RE = /mdf\s*fill/i;
 
 // The color phrase a stock trim names after its " - " separator, trailing code
