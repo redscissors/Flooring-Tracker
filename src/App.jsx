@@ -28,7 +28,7 @@ import { useBookStock } from "./usebookstock.js";
 import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
-import { seedTrimPlan, applyTrimPlan, existingTrimRows, preferStockTrims, vendorKeys } from "./trims.js";
+import { seedTrimPlan, applyTrimPlan, existingTrimRows, mergeTrimOptions, vendorKeys } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
@@ -502,12 +502,24 @@ export default function App({ user, onSignOut }) {
   // never appears in a vendor book's `fits`, the manufacturer's does. A stock
   // row waits for the stock cache (null = not knowable yet, the effect below
   // refires).
+  // The stock-book item behind an ERP stock row, once the cache is up.
+  const floorStockItem = (p) => (p?.sku && stockBookIds.has(p?.bookId) && bookStockReady ? (bookStock[p.bookId] || []).find((x) => x.sku === p.sku) : null);
   const trimKeys = (p) => {
     if (!p?.bookId || !p.sku) return null;
     if (!stockBookIds.has(p.bookId)) return [p.sku];
     if (!bookStockReady) return null;
-    const it = (bookStock[p.bookId] || []).find((x) => x.sku === p.sku);
+    const it = floorStockItem(p);
     return it ? vendorKeys(it) : [p.sku];
+  };
+  // Everything the Trims popup offers for a floor row: the fetched `fits`
+  // trims (stock twins swapped in), the stock book's color-name tier (the
+  // shelf shows even when the vendor book lacks the piece — OneNose), and the
+  // OneNose MDF fill companion. Undefined while nothing is knowable yet.
+  const trimOptions = (p) => {
+    const raw = trimsFor(trimKeys(p));
+    if (!bookStockReady && !raw) return undefined;
+    const list = mergeTrimOptions(raw || [], floorStockItem(p), bookStockReady ? stockItems : []);
+    return list.length ? list : undefined;
   };
   // Opening a bookId row's drawer prefetches its trims (the `fits` relation),
   // so the drawer's Trims row renders — or stays hidden — without a spinner.
@@ -1879,12 +1891,11 @@ export default function App({ user, onSignOut }) {
                                   );
                                 })}
                                 {(() => {
-                                  // Trims the price books list for this floor (`fits`,
-                                  // ADR 0012 — stated in the vendor's order book, looked
-                                  // up by the row's exact key set whichever book it was
-                                  // picked from) — prefetched on drawer open, shown only
-                                  // once trims are known to exist.
-                                  const tList = trimsFor(trimKeys(p));
+                                  // Everything the books offer this floor (fits +
+                                  // color-name stock tier + companions) — the fits
+                                  // fetch prefetched on drawer open, the row shown
+                                  // only once trims are known to exist.
+                                  const tList = trimOptions(p);
                                   if (!tList?.length) return null;
                                   const onJob = existingTrimRows(a.products, p.id, tList).size;
                                   return (
@@ -2199,11 +2210,8 @@ export default function App({ user, onSignOut }) {
       {trimsPop && sel && (() => {
         const area = sel.categories.find((x) => x.id === trimsPop.aid);
         const floor = area?.products.find((x) => x.id === trimsPop.pid);
-        const raw = floor ? trimsFor(trimKeys(floor)) : null;
-        if (!floor || !raw?.length) return null;
-        // The shop's shelf outranks the vendor: a trim the stock books carry
-        // under the same SKU swaps to the stock item (its shelf retail).
-        const list = preferStockTrims(raw, bookStockReady ? stockItems : []);
+        const list = floor ? trimOptions(floor) : null;
+        if (!floor || !list?.length) return null;
         const seed = seedTrimPlan(area.products, floor, list);
         return <TrimsPopup floorName={floor.brandColor || floor.sku} trims={list} seed={seed} onClose={() => setTrimsPop(null)}
           onApply={(qtys) => {

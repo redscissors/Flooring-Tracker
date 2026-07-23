@@ -41,6 +41,7 @@ export default function TrimsPopup({ floorName, trims, seed, onApply, onClose })
                   {it.price != null && <span className="text-slate-500">{money(it.price)}/ea</span>}
                   {carton && <span title="Ordered quantities round up to whole cartons">cartons of {it.pcPerUnit}</span>}
                   <span className={`rounded px-1 py-px font-medium ${it.stockKind ? "bg-slate-100 text-slate-500" : "bg-indigo-50 text-indigo-600"}`}>{it.stockKind ? "stock" : "special order"}</span>
+                  {it.pairNote && <span className="rounded px-1 py-px bg-amber-50 text-amber-700 font-medium">{it.pairNote}</span>}
                   {s?.rowId && (q > 0
                     ? <span className="rounded px-1 py-px bg-slate-100 text-slate-500 font-medium">on job</span>
                     : <span className="rounded px-1 py-px bg-red-50 text-red-600 font-medium">removes its line</span>)}

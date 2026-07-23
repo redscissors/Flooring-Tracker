@@ -112,8 +112,11 @@ src/
                     # exact keys (vendorKeys: SKU, the sheet's manufacturer-code
                     # columns, description-tail fallback; a shop-suffixed
                     # "589571E" matches its base) — outranks the special-order
-                    # item (mergeSearch doctrine, exact equality only)
-                    # (trims.test.js)
+                    # item (mergeSearch doctrine, exact equality only); and
+                    # mergeTrimOptions: fits trims + the stock book's color-name
+                    # tier (the shelf shows even when the vendor book lacks the
+                    # piece — OneNose) + the OneNose MDF-fill companion, matched
+                    # by name (trims.test.js)
   TrimsPopup.jsx    # the floor row's Trims popup, opened from the materials drawer's
                     # Trims row: a quantity per book-listed trim; Apply lands the picks
                     # as count-line product rows through the sanctioned pick patch
