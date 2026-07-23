@@ -1,5 +1,5 @@
 ---
-name: floortrack-sheet-imports
+name: sheetimport
 description: The process for adding or changing a price-sheet import — a new vendor sheet, a new ERP export shape, a new coverage/size spelling, or a new unit combination. Encodes the accumulated lessons (VTC bullnose audit, .43X12 mis-split, Milestone blank-SF/CT mosaics, Mannington fixed-grid PDF, the .969sf/sh mis-parse) as a checklist: hunt the odd rows in the real file first, truth-table any new unit combo before teaching the pricing code, reuse the description-parsing conventions, land real rows as test goldens, and gate the merge on an old-vs-new diff of the entire real sheet with every wizard warning accounted for. Read this before touching src/pricebook.js, src/pdfbook.js, src/manningtonbook.js, src/dropimport.js, or the import paths of src/orderbook.js / src/stock.js. Not for how imports are reviewed in the UI (pricebooklib.jsx) or for change-control gates (see floortrack-change-control).
 ---
 

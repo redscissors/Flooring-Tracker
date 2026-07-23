@@ -9,9 +9,9 @@
 // import diff preview) rather than garbage rows.
 //
 // Adding or changing a sheet import? Read
-// docs/skills-reference/floortrack-sheet-imports/SKILL.md first — the
-// checklist (truth-table new unit combos, real-row goldens, the old-vs-new
-// diff gate) that keeps the lessons encoded below from repeating.
+// docs/skills-reference/sheetimport/SKILL.md first — the checklist
+// (truth-table new unit combos, real-row goldens, the old-vs-new diff gate)
+// that keeps the lessons encoded below from repeating.
 //
 // The hand-built adapters for the retired shop workbook (ADR 0003) lived here
 // until 2026-07-22; the ERP "Vendor SKU Analysis" stock exports replaced that
