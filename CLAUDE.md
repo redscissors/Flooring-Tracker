@@ -96,13 +96,18 @@ src/
   uselabels.js      # `useLabels` — Apps hub label-set state + write paths
   useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
                     # order-row drift fetch
-  usetrims.js       # `useTrims` — session cache of a book floor's trims (the ADR 0012
-                    # `fits` relation read floor→trims), fetched when a bookId row's
-                    # materials drawer opens, cleared per book when an import applies
+  usetrims.js       # `useTrims` — session cache of a floor's trims (the ADR 0012
+                    # `fits` relation read floor→trims), keyed by floor SKU and
+                    # queried across every active registry book — an ERP stock
+                    # floor finds the vendor order book's relation under the same
+                    # SKU — fetched when a bookId row's materials drawer opens,
+                    # cleared whole when an import applies
   trims.js          # trims-as-lines pure logic (2026-07-22 spec): seedTrimPlan/
                     # applyTrimPlan — the Trims popup mirrors the floor's existing trim
                     # rows, so reopening adjusts/removes instead of appending duplicates,
-                    # and new picks insert directly below the floor (trims.test.js)
+                    # and new picks insert directly below the floor — plus
+                    # preferStockTrims: an exact-SKU live stock twin outranks the
+                    # special-order item (mergeSearch doctrine) (trims.test.js)
   TrimsPopup.jsx    # the floor row's Trims popup, opened from the materials drawer's
                     # Trims row: a quantity per book-listed trim; Apply lands the picks
                     # as count-line product rows through the sanctioned pick patch

@@ -84,6 +84,30 @@ bit weird").
   totals the picked pieces/dollars and the button reads **Add to job** (or
   **Update lines** when anything was seeded).
 
+### Amendment 2026-07-23 — ERP stock floors & the stock-over-order preference
+
+The ERP stock exports carry no `fits` column, but they share the vendor's SKU
+space (the mergeSearch doctrine: exact SKU equality across the stock and order
+spaces is the same product — "also on {book}"). So:
+
+- The trims fetch is keyed by the **floor's SKU** and spans **every active
+  registry book**, not just the floor's own — a floor picked from an ERP stock
+  export finds the vendor order book's `fits` relation under the same SKU.
+- At render, `preferStockTrims` swaps in an exact-SKU **live stock item**
+  (shelf retail, "stock" badge) over its special-order twin; the vendor item
+  stays only when the shop doesn't stock that trim ("special order" badge).
+  Retired/disabled/discontinued stock never swaps in. Applied at render, not
+  at fetch, so the swap works whenever the background stock cache lands
+  (`bookStockReady`).
+- Seeding matches existing lines by SKU (not bookId+SKU), so a line added as
+  one space's item seeds when the popup later lists the other's.
+- Cache invalidation on import clears the whole trims cache (entries span
+  books).
+
+If the ERP's SKUs turn out not to be the vendor's own for some supplier,
+exact matching finds nothing for that book's floors — a mapping would need
+sample sheets (see the issue thread).
+
 ### Out of scope (this prototype)
 
 - The mobile row sheet (`MobileRowSheet`) — same popup can mount there later.
