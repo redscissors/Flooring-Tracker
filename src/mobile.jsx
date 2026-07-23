@@ -23,11 +23,26 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
   // stay reachable above the keyboard. It stays tall until closed (shrinking
   // on blur would bounce the layout between every field).
   const [tall, setTall] = useState(false);
+  const [kb, setKb] = useState(0);
   const panelRef = useRef(null);
   const bodyRef = useRef(null);
   const drag = useRef(null);
   useEscClose(open, onClose);
   useEffect(() => { if (!open) setTall(false); }, [open]);
+  // Keyboard-follow footer (mobile layout 2026-07-23): iOS Safari overlays the
+  // keyboard on the layout viewport instead of resizing it, so a bottom-pinned
+  // footer vanishes behind the keys. visualViewport reports the visible
+  // height; the gap below it is the keyboard — translate the footer up by that
+  // amount so Done / Search price book stay reachable while typing.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!open || !vv) return;
+    const update = () => setKb(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { setKb(0); vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, [open]);
   // Swipe-down to dismiss. Native listeners because React registers touchmove
   // as passive, which blocks the preventDefault that keeps the pull from also
   // scrolling. A pull starting inside the scroll body only grabs the sheet
@@ -85,8 +100,8 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
           {badge}
           <button onClick={onClose} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400"><X size={14} /></button>
         </div>
-        <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto px-4 pb-3">{children}</div>
-        {footer && <div className="flex items-center gap-2 px-4 pt-2.5 border-t border-slate-200 shrink-0" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>{footer}</div>}
+        <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto px-4 pb-3" style={kb ? { paddingBottom: kb + 12 } : undefined}>{children}</div>
+        {footer && <div className="flex items-center gap-2 px-4 pt-2.5 border-t border-slate-200 shrink-0" style={{ paddingBottom: kb ? 10 : "max(12px, env(safe-area-inset-bottom))", background: "var(--ft-cream)", transform: kb ? `translateY(-${kb}px)` : undefined, boxShadow: kb ? "0 -6px 16px rgba(28,26,23,.12)" : undefined }}>{footer}</div>}
       </div>
     </div>,
     document.body
@@ -302,10 +317,10 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
   const stepper = (val, unit, set, note) => (
     <div>
       <div className="flex items-stretch h-[38px] rounded-md border border-slate-200 overflow-hidden bg-white">
-        <button onClick={() => set(String(Math.max(0, val - 1)))} className="w-10 shrink-0 text-lg font-bold text-slate-400" title="One less">−</button>
+        <button onClick={() => set(String(Math.max(0, val - 1)))} className="w-7 shrink-0 text-lg font-bold text-slate-400" title="One less">−</button>
         <input type="number" inputMode="numeric" value={String(val)} onChange={(e) => set(e.target.value)} className="ft-field min-w-0 flex-1 text-center text-[13.5px] font-extrabold focus:outline-none" style={{ border: 0 }} />
         <span className="flex items-center shrink-0 text-[10px] font-bold text-slate-400">{unit}</span>
-        <button onClick={() => set(String(val + 1))} className="w-10 shrink-0 text-lg font-bold text-slate-400" title="One more">+</button>
+        <button onClick={() => set(String(val + 1))} className="w-7 shrink-0 text-lg font-bold text-slate-400" title="One more">+</button>
       </div>
       {note && <div className="mt-0.5 text-[9.5px]" style={{ color: "var(--ft-faint)" }}>{note}</div>}
     </div>
@@ -315,40 +330,37 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
     <MobileSheet open onClose={onClose}
       title={blank ? "New product" : p.brandColor || TLBL[p.type]}
       badge={areaName ? <span className="shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold" style={{ background: "var(--ft-band)", color: "var(--ft-muted)" }}>{areaName}</span> : null}
-      footer={<>
-        <div className="flex-1 min-w-0" style={{ lineHeight: 1.15 }}>
-          <div className="ft-eyebrow text-[8.5px]">Line total{matsCost > 0 ? <span className="normal-case tracking-normal font-normal" style={{ color: "var(--ft-faint)" }}> · + {money(matsCost)} materials</span> : ""}</div>
-          <div className="ft-mono text-[17px] font-bold" style={tierPrice != null && tLine > 0 ? { color: TIER_COLOR[tv.tier]?.main } : undefined}>{money(tLine)}</div>
-          {tierPrice != null && tLine > 0 && <div className="text-[9px]" style={{ color: "var(--ft-faint)" }}>retail {money(line)}</div>}
+      footer={<div className="flex-1 min-w-0">
+        {/* Mobile layout prototype 2026-07-23: the type pucks + price-book
+            search live at the bottom with Done, so the fill-in flow reads
+            top-down and the two actions ride the keyboard-follow footer. */}
+        <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
+          {TYPES.map((t) => (
+            <button key={t} onClick={() => onPatch({ type: t })}
+              className={`shrink-0 flex items-center gap-1.5 rounded-full border pl-1.5 pr-3 py-1 text-[11px] font-bold ${p.type === t ? "border-slate-400" : "border-slate-200 text-slate-500"}`}
+              style={p.type === t ? { background: "var(--ft-band)" } : { background: "var(--ft-card, #fff)" }}>
+              <span className="rounded flex items-center justify-center font-extrabold" style={{ width: 16, height: 16, fontSize: 8.5, background: TYPE_ACCENT[t], color: "var(--ft-type-ink)" }}>{TLBL[t][0]}</span>
+              {t === "misc" ? "Misc" : TLBL[t]}
+            </button>
+          ))}
         </div>
-        <button onClick={onClose} className="h-[38px] shrink-0 rounded-md px-8 text-[13px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>Done</button>
-      </>}>
-      {blank && canSearch && (
-        <button onClick={() => setSearching(true)} className="w-full h-[44px] mb-3 rounded-md flex items-center justify-center gap-2 text-[13.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
-          <Search size={15} /> Search the price book
-        </button>
-      )}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
-        {TYPES.map((t) => (
-          <button key={t} onClick={() => onPatch({ type: t })}
-            className={`shrink-0 flex items-center gap-1.5 rounded-full border pl-1.5 pr-3 py-1 text-[11px] font-bold ${p.type === t ? "border-slate-400" : "border-slate-200 text-slate-500"}`}
-            style={p.type === t ? { background: "var(--ft-band)" } : { background: "var(--ft-card, #fff)" }}>
-            <span className="rounded flex items-center justify-center font-extrabold" style={{ width: 16, height: 16, fontSize: 8.5, background: TYPE_ACCENT[t], color: "var(--ft-type-ink)" }}>{TLBL[t][0]}</span>
-            {t === "misc" ? "Misc" : TLBL[t]}
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2 mt-1.5">
-        <div>
-          <label className={fl}>{p.type === "misc" ? "Description" : "Product / color"}</label>
-          <input value={p.brandColor} onChange={(e) => onPatch({ brandColor: e.target.value })} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} className={fi} />
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0" style={{ lineHeight: 1.15 }}>
+            <div className="ft-eyebrow text-[8.5px]">Line total{matsCost > 0 ? <span className="normal-case tracking-normal font-normal" style={{ color: "var(--ft-faint)" }}> · + {money(matsCost)} materials</span> : ""}</div>
+            <div className="ft-mono text-[15px] font-bold" style={tierPrice != null && tLine > 0 ? { color: TIER_COLOR[tv.tier]?.main } : undefined}>{money(tLine)}</div>
+            {tierPrice != null && tLine > 0 && <div className="text-[9px]" style={{ color: "var(--ft-faint)" }}>retail {money(line)}</div>}
+          </div>
+          {canSearch && (
+            <button onClick={() => setSearching(true)} className="h-[38px] shrink-0 rounded-md border border-slate-300 px-3 text-[12.5px] font-bold flex items-center gap-1.5" style={{ background: "var(--ft-card, #fff)" }}>
+              <Search size={14} /> Price book
+            </button>
+          )}
+          <button onClick={onClose} className="h-[38px] shrink-0 rounded-md px-6 text-[13px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>Done</button>
         </div>
-        <div>
-          <label className={fl}>SKU</label>
-          {/* Plain field by request (2026-07-22): the SKU is typed or snapshotted,
-              never searched from here — the search button above is the entry. */}
-          <input value={p.sku} onChange={(e) => onPatch({ sku: e.target.value })} placeholder="SKU" className={fi + " ft-mono text-[12px]"} />
-        </div>
+      </div>}>
+      <div className="mt-1.5">
+        <label className={fl}>{p.type === "misc" ? "Description" : "Product / color"}</label>
+        <input value={p.brandColor} onChange={(e) => onPatch({ brandColor: e.target.value })} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} className={fi} />
       </div>
       <div className="grid grid-cols-3 gap-2 mt-2.5">
         <div>
@@ -360,6 +372,12 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
               <input value={p.sizeText} onChange={(e) => onPatch({ sizeText: e.target.value })} className="ft-cell" placeholder={p.type === "hardwood" ? "Width" : "Size"} />
             )}
           </div>
+        </div>
+        <div>
+          <label className={fl}>SKU</label>
+          {/* Plain field by request (2026-07-22): the SKU is typed or snapshotted,
+              never searched from here — the footer's search button is the entry. */}
+          <input value={p.sku} onChange={(e) => onPatch({ sku: e.target.value })} placeholder="SKU" className={fi + " ft-mono text-[12px]"} />
         </div>
         <div>
           <label className={fl}>{p.type === "misc" ? "Pieces / carton" : "Coverage"}</label>
@@ -377,6 +395,8 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
             <div className={fi + " flex items-center justify-end"} style={{ color: "var(--ft-faint)" }}>—</div>
           )}
         </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-2.5">
         <div>
           <label className={fl}>{p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price / SF"}</label>
           {tierPrice == null && !tierNoCost ? (
@@ -395,8 +415,6 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
             </div>
           )}
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2 mt-2.5">
         <div>
           <label className={fl}>{p.type === "misc" ? "Quantity (EA)" : p.qtyType === "count" ? "Quantity (EA)" : "Square feet"}</label>
           <div className="relative">
