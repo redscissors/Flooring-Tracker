@@ -13,7 +13,7 @@ import {
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
-  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape,
+  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape, ventDims,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
@@ -36,16 +36,23 @@ function Sect({ title, hint, extra, children }) {
   );
 }
 
+// An item may carry `bg` (a light fill applied only when it isn't the selected
+// chip) — used to shade the vent sizes by duct width so groups read at a glance.
 function Chips({ items, cur, onPick }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {items.map((it) => (
-        <button key={String(it.id)} disabled={it.dis} onClick={() => onPick(it.id)}
-          className={`rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center ${it.id === cur ? "bg-slate-900 border-slate-900 text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"} ${it.dis ? "opacity-30 cursor-not-allowed line-through" : ""}`}>
-          {it.label}
-          {it.sub != null && <span className={`block text-[10px] font-semibold no-underline ${it.id === cur ? "text-white/70" : "text-slate-400"}`}>{it.sub}</span>}
-        </button>
-      ))}
+      {items.map((it) => {
+        const on = it.id === cur;
+        const tinted = !on && it.bg;
+        return (
+          <button key={String(it.id)} disabled={it.dis} onClick={() => onPick(it.id)}
+            style={tinted ? { background: it.bg } : undefined}
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center ${on ? "bg-slate-900 border-slate-900 text-white" : tinted ? "border-slate-300 text-slate-800 hover:brightness-95" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"} ${it.dis ? "opacity-30 cursor-not-allowed line-through" : ""}`}>
+            {it.label}
+            {it.sub != null && <span className={`block text-[10px] font-semibold no-underline ${on ? "text-white/70" : "text-slate-500"}`}>{it.sub}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -359,7 +366,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
   return (<>
     {onCopyFloor && (
       <div className="mb-4 flex items-center gap-2.5 rounded-lg p-2.5" style={{ border: "1px dashed var(--ft-brand)", background: "var(--ft-tint)" }}>
-        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Match the floor — copy species, scrape &amp; stain from the <b>{copySrc}</b> tab.</span>
+        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Match the floor — copy species, grade, construction, width, scrape &amp; stain from the <b>{copySrc}</b> tab.</span>
         <button onClick={onCopyFloor} className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)" }}>⤺ Copy floor</button>
       </div>
     )}
@@ -371,9 +378,17 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
           return { id: sp, label: sp, sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" };
         })} />
     </Sect>
-    <Sect title="Construction">
-      <Seg opts={[{ id: "solid", label: "Solid" }, { id: "eng", label: "Engineered" }]} cur={h.cons} onPick={(cons) => set(snap({ ...h, cons }))} />
-    </Sect>
+    <div className="mb-4 flex items-end gap-4 flex-wrap">
+      <div>
+        <div className="ft-eyebrow text-[10px] mb-1.5">Construction</div>
+        <Seg opts={[{ id: "solid", label: "Solid" }, { id: "eng", label: "Engineered" }]} cur={h.cons} onPick={(cons) => set(snap({ ...h, cons }))} />
+      </div>
+      <div>
+        {/* Grade is order text only — no clear/char price split in the sheet. */}
+        <div className="ft-eyebrow text-[10px] mb-1.5">Grade</div>
+        <Seg opts={[{ id: "clear", label: "Clear" }, { id: "char", label: "Char." }]} cur={h.grade === "clear" ? "clear" : "char"} onPick={(grade) => set({ ...h, grade })} />
+      </div>
+    </div>
     <Sect title="Width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full price grid →</button>}>
       {/* Every width in the run stays pickable — before a length is typed there
           is no price yet, but the width choice must not be blocked on it. */}
@@ -443,6 +458,11 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
   </>);
 }
 
+// Light-green shades per duct width, so the size buttons group visually (all the
+// 6"-wide sizes share one tint, the 8"-wide another…). Deeper as the duct widens.
+const VENT_W_TINT = { 2.25: "#eff5e6", 4: "#e6f0d5", 6: "#dcebc7", 8: "#d3e6ba", 10: "#cbe1ae", 12: "#c2dca1" };
+const ventWidthTint = (size) => VENT_W_TINT[ventDims(size)[0]] || undefined;
+
 function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
   const cat = VENT_CATS.find((c) => c.id === v.cat);
   const snapSize = (next) => {
@@ -464,9 +484,9 @@ function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
       <RadioList cur={v.cat} onPick={(id) => set(snapSize({ ...v, cat: id }))}
         items={VENT_CATS.map((c) => ({ id: c.id, label: c.name }))} />
     </Sect>
-    <Sect title="Size (duct W × L)" hint="sell, each, with options" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full grid →</button>}>
+    <Sect title="Size (duct W × L)" hint="shaded by duct width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full grid →</button>}>
       <Chips cur={v.size} onPick={(size) => set({ ...v, size })}
-        items={cat.list().map((row) => { const c = calcVent({ ...v, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(sellOf(c.cost, markup)) : "—" }; })} />
+        items={cat.list().map((row) => { const c = calcVent({ ...v, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(sellOf(c.cost, markup)) : "—", bg: ventWidthTint(row[0]) }; })} />
     </Sect>
     <Sect title="Options">
       {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(sellOf(VENT_CUBED, markup))}`} />}

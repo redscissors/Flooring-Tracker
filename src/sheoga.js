@@ -248,7 +248,7 @@ export const MODES = [
 
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
-  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
+  if (mode === "hb") return { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
@@ -402,7 +402,10 @@ export function calcHerringbone(h, sf) {
   const finBits = [];
   if (tex.id !== "smooth") finBits.push(tex.name.replace(" (standard)", ""));
   if (prefin) finBits.push(`${finishName(h)} ${h.sheen || "30"} sheen`);
-  const rest = `${h.sp} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${slatLabel}${finBits.length ? " · " + finBits.join(" · ") : ""}`;
+  // Grade (clear/character) is descriptive order text — the herringbone sheet has
+  // no clear/char price split, so it never changes cost, only what's read to Sheoga.
+  const grade = h.grade === "clear" ? "Clear" : "Character";
+  const rest = `${h.sp} ${grade} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${slatLabel}${finBits.length ? " · " + finBits.join(" · ") : ""}`;
   const warn = ["Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding"];
   if (len != null && (len < HB_SLAT_MIN || len > HB_SLAT_MAX)) warn.unshift(`Slat length ${h.slatLen}" is outside the standard ${HB_SLAT_MIN}–${HB_SLAT_MAX}" range — confirm with Sheoga`);
   return {
@@ -477,14 +480,15 @@ export function ventFromFloor(snap) {
   const f = snap.cfg;
   const mapped = VENT_SP_MAP[f.sp] || f.sp;
   const out = VENT_GROUP[mapped] ? { sp: mapped } : {};
-  if (snap.mode === "hb") return out;
   if (snap.mode === "stocked") {
     // A stocked color can pair a stain with a texture ("Cattail · Sawcut").
     const [color, texName] = String(f.color || "").split(" · ");
     const tex = texName ? TEXTURES.find((t) => t.name.replace(/\s+/g, "").toLowerCase() === texName.replace(/\s+/g, "").toLowerCase()) : null;
     return { ...out, prefin: true, stain: color || "", stainCustom: false, tex: !!tex, scrape: tex ? tex.id : "" };
   }
-  if (snap.mode !== "floor") return null;
+  // Floor and herringbone share the same tex/finish/stain shape, so a grille
+  // matches either one the same way.
+  if (snap.mode !== "floor" && snap.mode !== "hb") return null;
   const scraped = !!f.tex && f.tex !== "smooth";
   const prefin = !!f.finish && f.finish !== "unf";
   const stain = !prefin ? "" : f.finish === "nat" ? "Natural" : String(f.stain || "").trim();
@@ -493,11 +497,12 @@ export function ventFromFloor(snap) {
 
 // "Copy floor" for the herringbone tab — mirror the vent copy, but land on the
 // herringbone's floor-style finishing fields (tex/finish/stain/sheen). Pulls
-// species + scrape + prefinished stain from the last-open unfinished/custom or
-// stocked tab. Herringbone sells the same eight base species as unfinished
-// flooring except Live Sawn (→ plain White Oak); a species with no herringbone
-// twin leaves it untouched. Returns an hb-cfg patch (never a width — the popup
-// snaps the width into the new species' run).
+// species + grade + construction + width + scrape + prefinished stain from the
+// last-open unfinished/custom or stocked tab. Herringbone sells the same eight
+// base species as unfinished flooring except Live Sawn (→ plain White Oak); a
+// species with no herringbone twin leaves it untouched. Width is carried through
+// too — the popup snaps it into the new species/construction run when the run
+// doesn't offer it. Stocked prefinished is always solid.
 const HB_SP_MAP = { [LIVE_SAWN_SP]: "White Oak" };
 export function hbFromFloor(snap) {
   if (!snap || !snap.cfg) return null;
@@ -510,10 +515,10 @@ export function hbFromFloor(snap) {
     const [color, texName] = String(f.color || "").split(" · ");
     const tex = texName ? TEXTURES.find((t) => t.name.replace(/\s+/g, "").toLowerCase() === texName.replace(/\s+/g, "").toLowerCase()) : null;
     const natural = color === "Natural";
-    return { ...out, tex: tex ? tex.id : "smooth", finish: natural ? "nat" : "est", stain: natural ? "" : (color || ""), stainCustom: false, sheen: String(f.sheen ?? "30"), sheenCustom: false, sample: false };
+    return { ...out, cons: "solid", grade: f.grade === "clear" ? "clear" : "char", w: f.w, tex: tex ? tex.id : "smooth", finish: natural ? "nat" : "est", stain: natural ? "" : (color || ""), stainCustom: false, sheen: String(f.sheen ?? "30"), sheenCustom: false, sample: false };
   }
   if (snap.mode !== "floor") return null;
-  return { ...out, tex: f.tex || "smooth", finish: f.finish || "unf", stain: f.stain || "", stainCustom: !!f.stainCustom, sheen: String(f.sheen ?? "30"), sheenCustom: !!f.sheenCustom, sample: !!f.sample };
+  return { ...out, cons: f.cons === "eng" ? "eng" : "solid", grade: f.grade === "clear" ? "clear" : "char", w: f.w, tex: f.tex || "smooth", finish: f.finish || "unf", stain: f.stain || "", stainCustom: !!f.stainCustom, sheen: String(f.sheen ?? "30"), sheenCustom: !!f.sheenCustom, sample: !!f.sample };
 }
 
 // One configuration snapshot { mode, cfg } → its build, or null.
