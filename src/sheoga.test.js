@@ -203,11 +203,15 @@ test("calcHerringbone: band × width, chevron +$3.00", () => {
   const c = calcHerringbone(h);
   assert.equal(c.cost, 8.40);
   assert.equal(c.cartonSf, undefined); // made to order — no carton rounding
-  assert.equal(c.desc, '4¼" White Oak · Solid Herringbone · 18¼"–28" slats');
+  assert.equal(c.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats');
   const ch = calcHerringbone({ ...h, chevron: true });
   assert.equal(ch.cost, 11.40);
   assert.ok(ch.desc.includes("Chevron"));
   assert.ok(ch.name.includes("Chevron"));
+  // Grade is order text only — it changes the description, never the price.
+  const clear = calcHerringbone({ ...h, grade: "clear" });
+  assert.equal(clear.cost, 8.40);
+  assert.equal(clear.desc, '4¼" White Oak Clear · Solid Herringbone · 18¼"–28" slats');
 });
 
 test("calcHerringbone: width runs differ by construction/species", () => {
@@ -221,7 +225,7 @@ test("calcHerringbone: exact slat length snaps to its tier and prints the real l
   // 24" lands in the 18¼–28 tier: same price as band 1, but the order reads 24" slats.
   const c = calcHerringbone({ ...base, band: 0, slatLen: "24" });
   assert.equal(c.cost, 8.40);
-  assert.equal(c.desc, '4¼" White Oak · Solid Herringbone · 24" slats');
+  assert.equal(c.desc, '4¼" White Oak Character · Solid Herringbone · 24" slats');
   assert.ok(c.rows[0][0].includes('24" slats (18¼"–28" slats tier)'));
   // Tier mapping by upper bound 18 / 28 / 38 / 48.
   const costFor = (l) => calcHerringbone({ ...base, slatLen: String(l) }).cost;
@@ -232,7 +236,7 @@ test("calcHerringbone: exact slat length snaps to its tier and prints the real l
   // Outside 9–48" still prices (nearest tier) but warns.
   assert.ok(calcHerringbone({ ...base, slatLen: "60" }).warn.some((w) => w.includes("outside the standard")));
   // Blank length falls back to the tier index (backward compatible with saved configs).
-  assert.equal(calcHerringbone({ ...base, band: 2, slatLen: "" }).desc, '4¼" White Oak · Solid Herringbone · 28¼"–38" slats');
+  assert.equal(calcHerringbone({ ...base, band: 2, slatLen: "" }).desc, '4¼" White Oak Character · Solid Herringbone · 28¼"–38" slats');
   // No length and no legacy tier — nothing to price yet (the popup's default state).
   assert.equal(calcHerringbone({ ...base, band: null, slatLen: "" }), null);
   assert.equal(calcHerringbone(base), null);
@@ -243,11 +247,11 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   const plain = calcHerringbone(base, 1000);
   assert.equal(plain.cost, 8.40); // unchanged from the bare band × width
   assert.deepEqual(plain.fees, []);
-  assert.equal(plain.desc, '4¼" White Oak · Solid Herringbone · 18¼"–28" slats');
+  assert.equal(plain.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats');
   // Saw Cut scrape (+1.50) + Established stain on a deep scrape (+2.85).
   const fin = calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail" }, 1000);
   assert.equal(fin.cost, 8.40 + 1.5 + 2.85);
-  assert.equal(fin.desc, '4¼" White Oak · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30 sheen');
+  assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30 sheen');
   assert.ok(fin.rows.some(([l]) => l === "Texture — Saw Cut"));
   // Small-order fee follows sf, imports as its own flat line, never in the $/sf.
   const small = calcHerringbone({ ...base, finish: "nat" }, 200);
@@ -264,23 +268,30 @@ test("calcHerringbone: a pre-finishing saved config (no tex/finish) prices uncha
   const c = calcHerringbone(legacy, 1000);
   assert.equal(c.cost, 8.40);
   assert.deepEqual(c.fees, []);
-  assert.equal(c.desc, '4¼" White Oak · Solid Herringbone · 18¼"–28" slats');
+  // No grade on a legacy config reads as Character, the default.
+  assert.equal(c.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats');
 });
 
-test("hbFromFloor copies species/scrape/prefinished from a floor or stocked config", () => {
-  const f = floor({ sp: "Maple", tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" });
+test("hbFromFloor copies species/grade/construction/width/scrape/prefinished from a floor or stocked config", () => {
+  const f = floor({ sp: "Maple", grade: "clear", cons: "eng", w: 6.25, tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" });
   assert.deepEqual(hbFromFloor({ mode: "floor", cfg: f }),
-    { sp: "Maple", tex: "sawcut", finish: "est", stain: "Cattail", stainCustom: false, sheen: "20", sheenCustom: false, sample: false });
+    { sp: "Maple", cons: "eng", grade: "clear", w: 6.25, tex: "sawcut", finish: "est", stain: "Cattail", stainCustom: false, sheen: "20", sheenCustom: false, sample: false });
   // Live Sawn has no herringbone twin → maps to plain White Oak.
   assert.equal(hbFromFloor({ mode: "floor", cfg: floor({ sp: LIVE_SAWN_SP }) }).sp, "White Oak");
-  // Unfinished smooth floor lands unfinished/smooth.
+  // Unfinished smooth floor lands unfinished/smooth; solid + character + width carry.
   const unf = hbFromFloor({ mode: "floor", cfg: floor({ sp: "Hickory" }) });
   assert.equal(unf.finish, "unf");
   assert.equal(unf.tex, "smooth");
-  // Stocked: always prefinished; Natural is a clear finish (no stain), a
-  // "color · texture" pair splits into stain + scrape.
-  const st = hbFromFloor({ mode: "stocked", cfg: { ...defaultConfig("stocked"), sp: "Red Oak", color: "Cattail · Sawcut" } });
+  assert.equal(unf.cons, "solid");
+  assert.equal(unf.grade, "char");
+  assert.equal(unf.w, 5.25); // the floor default width, carried through
+  // Stocked: always prefinished + solid; Natural is a clear finish (no stain), a
+  // "color · texture" pair splits into stain + scrape; the stocked grade carries.
+  const st = hbFromFloor({ mode: "stocked", cfg: { ...defaultConfig("stocked"), sp: "Red Oak", grade: "clear", w: 4.25, color: "Cattail · Sawcut" } });
   assert.equal(st.sp, "Red Oak");
+  assert.equal(st.cons, "solid");
+  assert.equal(st.grade, "clear");
+  assert.equal(st.w, 4.25);
   assert.equal(st.finish, "est");
   assert.equal(st.stain, "Cattail");
   assert.equal(st.tex, "sawcut");
@@ -349,8 +360,14 @@ test("ventFromFloor copies species/scrape/stain from a floor, stocked or herring
   // Stocked: always prefinished; a "color · texture" pair splits into stain + scrape.
   assert.deepEqual(ventFromFloor({ mode: "stocked", cfg: { ...defaultConfig("stocked"), sp: "Red Oak", color: "Cattail · Sawcut" } }),
     { sp: "Red Oak", prefin: true, stain: "Cattail", stainCustom: false, tex: true, scrape: "sawcut" });
-  // Herringbone: species only — it has no finish options to carry.
-  assert.deepEqual(ventFromFloor({ mode: "hb", cfg: defaultConfig("hb") }), { sp: "White Oak" });
+  // Herringbone shares the floor's tex/finish/stain shape, so a grille matches it
+  // the same way. A plain (unfinished, smooth) herringbone clears the options.
+  assert.deepEqual(ventFromFloor({ mode: "hb", cfg: defaultConfig("hb") }),
+    { sp: "White Oak", prefin: false, stain: "", stainCustom: false, tex: false, scrape: "" });
+  // A prefinished, scraped herringbone carries its finish onto the vent; Maple
+  // maps to the vent sheet's Hard Maple.
+  assert.deepEqual(ventFromFloor({ mode: "hb", cfg: { ...defaultConfig("hb"), sp: "Maple", tex: "sawcut", finish: "est", stain: "Cattail" } }),
+    { sp: "Hard Maple", prefin: true, stain: "Cattail", stainCustom: false, tex: true, scrape: "sawcut" });
   assert.equal(ventFromFloor(null), null);
 });
 
