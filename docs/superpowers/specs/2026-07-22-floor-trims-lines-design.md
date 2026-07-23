@@ -108,6 +108,26 @@ If the ERP's SKUs turn out not to be the vendor's own for some supplier,
 exact matching finds nothing for that book's floors — a mapping would need
 sample sheets (see the issue thread).
 
+### Amendment 2026-07-23 (2) — the ERP's codes are the shop's own
+
+Owner clarification: the ERP product codes are internal ("RSKU…"); the
+manufacturer's code rides in the ERP **description**, generally at the very
+end ("… NOBLE OAK ACORN REDUCER 384421"). So exact same-SKU pairing never
+fires between spaces. The bridge stays exact anyway:
+
+- `vendorCodeCandidates(description)` (trims.js) takes the last few
+  code-shaped tokens of an ERP description (has a digit, not a size, 3–16
+  chars, punctuation shed). A wrong candidate is harmless — every use is an
+  exact-membership test against codes the vendor books actually state, never
+  a fuzzy match.
+- **Lookup:** a floor row resolves to a key set — its own SKU plus, for a
+  stock floor, its ERP item's extracted codes (waiting on `bookStockReady`).
+  `useTrims` runs one exact `fits`-containment query per key (≤4) and merges.
+- **Stock preference:** `preferStockTrims` indexes stock items under their
+  own SKU *and* their extracted codes, so the vendor-book trim "384421" finds
+  the shop's "RSKU…" shelf item. A swapped item keeps the vendor code as
+  `orderSku`, and seeding matches lines added under either code.
+
 ### Out of scope (this prototype)
 
 - The mobile row sheet (`MobileRowSheet`) — same popup can mount there later.

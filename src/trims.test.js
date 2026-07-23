@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existingTrimRows, seedTrimPlan, applyTrimPlan, preferStockTrims } from "./trims.js";
+import { existingTrimRows, seedTrimPlan, applyTrimPlan, preferStockTrims, vendorCodeCandidates } from "./trims.js";
 
 const trim = (sku, over = {}) => ({ sku, bookId: "b1", trim: true, ...over });
 const row = (id, over = {}) => ({ id, sku: "", bookId: "", qty: "", ...over });
@@ -27,6 +27,14 @@ test("existingTrimRows: a line added from the other space still seeds (SKU, not 
 test("existingTrimRows: bookId-less rows never match — a hand-typed row isn't a book line", () => {
   const hand = row("h1", { sku: "384421", qty: "3" });
   assert.equal(existingTrimRows([floor, hand], "f", trims).size, 0);
+});
+
+test("existingTrimRows: a swapped stock trim seeds lines added under either code", () => {
+  const swapped = { sku: "RSKU0417", orderSku: "384421", bookId: "stock-manmi", trim: true };
+  const asOrder = row("o1", { sku: "384421", bookId: "order1", qty: "2" });
+  const asStock = row("s1", { sku: "RSKU0417", bookId: "stock-manmi", qty: "4" });
+  assert.equal(existingTrimRows([floor, asOrder], "f", [swapped]).get("RSKU0417").id, "o1");
+  assert.equal(existingTrimRows([floor, asStock], "f", [swapped]).get("RSKU0417").id, "s1");
 });
 
 test("seedTrimPlan: on-job quantities seed, the rest start at 0", () => {
@@ -81,12 +89,34 @@ test("applyTrimPlan: a 0-qty new pick never inserts; a missing floor is a no-op"
   assert.equal(applyTrimPlan(list, "gone", [{ rowId: null, qty: 2, row: row("n1") }]), list);
 });
 
+test("vendorCodeCandidates: the manufacturer's code at the tail of an ERP description", () => {
+  assert.deepEqual(vendorCodeCandidates("MANN ADURA NOBLE OAK ACORN REDUCER 384421"), ["384421"]);
+  assert.deepEqual(vendorCodeCandidates("Adura Max Noble Oak Acorn APX020"), ["APX020"]);
+  // A trailing size or wordy tail is not a code; punctuation is shed.
+  assert.deepEqual(vendorCodeCandidates("NOBLE OAK PLANK 6X48"), []);
+  // Punctuation is shed either side of the code.
+  assert.deepEqual(vendorCodeCandidates("QUARTER ROUND (384533)"), ["384533"]);
+  assert.deepEqual(vendorCodeCandidates("QUARTER ROUND 384533."), ["384533"]);
+  assert.deepEqual(vendorCodeCandidates(""), []);
+});
+
 test("preferStockTrims: an exact-SKU live stock item outranks the special-order twin", () => {
   const order = { sku: "384421", bookId: "order1", trim: true, fits: ["APX020"], price: 42.16 };
   const stock = { sku: "384421", bookId: "stock1", stockKind: true, price: 39.99, active: true };
   const out = preferStockTrims([order, trim("384469")], [stock]);
   assert.deepEqual(out[0], { ...stock, trim: true, fits: ["APX020"] });
   assert.equal(out[1].sku, "384469"); // no twin — the special-order item stays
+});
+
+test("preferStockTrims: a stock item matches by the manufacturer code in its ERP description", () => {
+  // The ERP keys the reducer under the shop's own RSKU code; the Mannington
+  // code rides at the end of the description (2026-07-23 spec amendment).
+  const order = { sku: "384421", bookId: "order1", trim: true, fits: ["APX020"], price: 42.16 };
+  const stock = { sku: "RSKU0417", bookId: "stock-manmi", stockKind: true, active: true, price: 39.99, description: "MANN ADURA NOBLE OAK ACORN REDUCER 384421" };
+  const out = preferStockTrims([order], [stock]);
+  assert.equal(out[0].sku, "RSKU0417");
+  assert.equal(out[0].orderSku, "384421"); // the vendor code, kept for seeding
+  assert.equal(out[0].trim, true);
 });
 
 test("preferStockTrims: retired/disabled/discontinued stock never swaps in", () => {

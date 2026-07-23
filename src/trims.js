@@ -6,36 +6,66 @@
 
 import { num } from "./catalog.js";
 
-// The floor's existing trim lines in its area, keyed by SKU: the first row
-// (other than the floor itself) whose SKU matches a trim's. SKU alone, not
-// bookId+sku — the same vendor SKU in the stock and special-order spaces is
-// the same product (the mergeSearch doctrine), and a line added as one can be
-// seeded when the popup now lists the other. First match wins so a
-// hand-duplicated line never gets double-adjusted.
+// The ERP's product codes are the shop's own; the manufacturer's code rides in
+// the ERP description, generally at the very end ("… NOBLE OAK ACORN REDUCER
+// 384421"). Candidates are the last few code-shaped tokens — a wrong guess is
+// harmless because every use is an exact-membership test against codes the
+// vendor books actually state (`fits` / SKU), never a fuzzy match.
+export function vendorCodeCandidates(description) {
+  const toks = String(description || "").trim().split(/\s+/).slice(-3);
+  const out = [];
+  for (const t of toks) {
+    const s = t.replace(/[.,;:)]+$/, "").replace(/^[.,;:(]+/, "");
+    if (!/\d/.test(s)) continue;                          // a code carries a digit
+    if (s.length < 3 || s.length > 16) continue;
+    if (/^\d+(\.\d+)?["']?[x×]\d/i.test(s)) continue;     // a size, not a code
+    if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(s)) continue;
+    out.push(s);
+  }
+  return [...new Set(out)];
+}
+
+// The floor's existing trim lines in its area, keyed by the trim's canonical
+// SKU: the first row (other than the floor itself) whose SKU matches a trim's
+// own SKU or its special-order twin's (`orderSku`, set by preferStockTrims).
+// SKU alone, not bookId+sku — the same product across the stock and
+// special-order spaces is one line (the mergeSearch doctrine), so a line added
+// as one space's item still seeds when the popup lists the other's. First
+// match wins so a hand-duplicated line never gets double-adjusted.
 export function existingTrimRows(products, floorId, trims) {
-  const want = new Set((trims || []).map((it) => it.sku));
+  const want = new Map();
+  for (const it of trims || []) {
+    want.set(it.sku, it.sku);
+    if (it.orderSku) want.set(it.orderSku, it.sku);
+  }
   const rows = new Map();
   for (const p of products || []) {
     if (p.id === floorId || !p.sku || !p.bookId) continue;
-    if (want.has(p.sku) && !rows.has(p.sku)) rows.set(p.sku, p);
+    const sku = want.get(p.sku);
+    if (sku && !rows.has(sku)) rows.set(sku, p);
   }
   return rows;
 }
 
-// Prefer the shop's shelf over the vendor: a trim whose exact SKU is live in a
-// stock-kind book swaps to that stock item (its own retail, `stockKind` badge),
-// keeping the special-order row only when the shop doesn't stock it. Exact SKU
-// equality only — the same no-fuzzy-guessing rule as mergeSearch.
+// Prefer the shop's shelf over the vendor: a trim that a stock-kind book
+// carries live swaps to that stock item (its own retail, `stockKind` badge),
+// keeping the special-order item only when the shop doesn't stock it. A stock
+// item matches on its own SKU or on a manufacturer code extracted from its
+// ERP description (vendorCodeCandidates) — exact equality either way. A
+// swapped item keeps the vendor code as `orderSku` so seeding still finds
+// lines added under either code.
 export function preferStockTrims(trims, stockItems) {
   if (!trims?.length || !stockItems?.length) return trims || [];
-  const bySku = new Map();
+  const byKey = new Map();
   for (const it of stockItems) {
     if (it.active === false || it.disabled || it.discontinued || !it.sku) continue;
-    if (!bySku.has(it.sku)) bySku.set(it.sku, it);
+    for (const k of [it.sku, ...vendorCodeCandidates(it.description)])
+      if (!byKey.has(k)) byKey.set(k, it);
   }
   return trims.map((t) => {
-    const twin = bySku.get(t.sku);
-    return twin ? { ...twin, trim: true, fits: t.fits } : t;
+    const twin = byKey.get(t.sku);
+    if (!twin) return t;
+    return { ...twin, trim: true, fits: t.fits, ...(twin.sku !== t.sku ? { orderSku: t.sku } : {}) };
   });
 }
 
