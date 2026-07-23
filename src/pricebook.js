@@ -316,16 +316,20 @@ function flagSemantics(cell, flags) {
 }
 
 // The ERP stock exports carry no SF/CT column — coverage rides at the end of
-// the description ("… 23.76 sf", "…10.64sf/c"), per SELL unit (carton, bundle,
-// roll), which is exactly what sfPerUnit means. Only mappings that say so
-// (sfFromDescription) pull it out; a description without one stays uncovered
-// rather than invented.
-const SF_DESC_RE = /(\d+(?:\.\d+)?)\s*s\.?f\.?(?:\s*\/\s*c(?:t|tn)?)?\b/i;
+// the description ("… 23.76 sf", "…10.64sf/c", "….969sf/sh"), per SELL unit
+// (carton, bundle, roll, sheet), which is exactly what sfPerUnit means. A
+// mosaic's sub-square-foot coverage prints with no leading zero (".969") —
+// the leading-decimal alt claims it from the dot (the DIM convention) so the
+// bare "969" can't read as the coverage with a stray "." left in the name.
+// Only mappings that say so (sfFromDescription) pull it out; a description
+// without one stays uncovered rather than invented.
+const SF_DESC_RE = /(\d+(?:\.\d+)?|\.\d+)\s*s\.?f\.?(?:\s*\/\s*(?:c(?:t|tn)?|sh(?:t|eet)?s?))?\b/i;
 
 // Units of Stock that bundle coverage — the item is sold in whole cartons/
-// bundles of so-many square feet, never loose pieces. This is the sell basis
-// the ERP's U/M column names; EA/RL/GL accessories stay count lines.
-const COVERAGE_SOLD_RE = /^(ct|ctn|carton|bx|box|cs|case|bl|bdl|bundle)s?$/i;
+// bundles/sheets of so-many square feet, never loose pieces. This is the sell
+// basis the ERP's U/M column names; EA/RL/GL accessories stay count lines.
+// Sheet-sold mosaics ride the same path (orderbook's SHEET_UNIT_RE forms).
+const COVERAGE_SOLD_RE = /^(ct|ctn|carton|bx|box|cs|case|bl|bdl|bundle|sh|sht|sheet)s?$/i;
 
 // The ERP stock exports carry no type column, but a carton/bundle-sold item
 // with real sf-per-carton coverage IS flooring — the description's wording
@@ -335,10 +339,14 @@ const COVERAGE_SOLD_RE = /^(ct|ctn|carton|bx|box|cs|case|bl|bdl|bundle)s?$/i;
 // spell wood (Mirage, Sheoga, Riverwalk). Callers gate on COVERAGE_SOLD_RE +
 // coverage, so accessories and EA trim sticks are never typed by this.
 const TYPE_VINYL_RE = /\b(lvp|lvt|vinyl|spc|wpc)\b|adura|realta/i;
-const TYPE_TILE_RE = /\b(tile|porcelain|ceramic|mosaic)\b/i;
+// Shape words are tile: a sheet-sold hexagon chip leads with its bare width
+// ('2" Anatolia Soho Hexagon'), which the wood fallback would otherwise claim.
+const TYPE_TILE_RE = /\b(tile|porcelain|ceramic|mosaic|hex(?:agon)?|penny|octagon)\b/i;
 const TYPE_WOOD_RE = /\b(hardwood|oak|hickory|maple|walnut|cherry|birch|acacia|ash|pine|ro|wo|flr|floor(?:ing|s)?|unfinished|prefinished|pf)\b/i;
 export function floorTypeFromDescription(text, size) {
   const t = str(text);
+  // A sheet-sold membrane (Ditra Heat) has real sf coverage but is no floor.
+  if (/\bmembranes?\b/i.test(t)) return null;
   if (TYPE_VINYL_RE.test(t)) return "vinyl";
   if (/\blaminate\b/i.test(t)) return "laminate";
   if (/\bcarpet\b/i.test(t)) return "carpet";
