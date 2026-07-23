@@ -7,17 +7,36 @@
 import { num } from "./catalog.js";
 
 // The floor's existing trim lines in its area, keyed by SKU: the first row
-// (other than the floor itself) matching a trim's bookId+sku. First match wins
-// so a hand-duplicated line never gets double-adjusted.
+// (other than the floor itself) whose SKU matches a trim's. SKU alone, not
+// bookId+sku — the same vendor SKU in the stock and special-order spaces is
+// the same product (the mergeSearch doctrine), and a line added as one can be
+// seeded when the popup now lists the other. First match wins so a
+// hand-duplicated line never gets double-adjusted.
 export function existingTrimRows(products, floorId, trims) {
-  const want = new Map((trims || []).map((it) => [`${it.bookId}\n${it.sku}`, it.sku]));
+  const want = new Set((trims || []).map((it) => it.sku));
   const rows = new Map();
   for (const p of products || []) {
     if (p.id === floorId || !p.sku || !p.bookId) continue;
-    const sku = want.get(`${p.bookId}\n${p.sku}`);
-    if (sku && !rows.has(sku)) rows.set(sku, p);
+    if (want.has(p.sku) && !rows.has(p.sku)) rows.set(p.sku, p);
   }
   return rows;
+}
+
+// Prefer the shop's shelf over the vendor: a trim whose exact SKU is live in a
+// stock-kind book swaps to that stock item (its own retail, `stockKind` badge),
+// keeping the special-order row only when the shop doesn't stock it. Exact SKU
+// equality only — the same no-fuzzy-guessing rule as mergeSearch.
+export function preferStockTrims(trims, stockItems) {
+  if (!trims?.length || !stockItems?.length) return trims || [];
+  const bySku = new Map();
+  for (const it of stockItems) {
+    if (it.active === false || it.disabled || it.discontinued || !it.sku) continue;
+    if (!bySku.has(it.sku)) bySku.set(it.sku, it);
+  }
+  return trims.map((t) => {
+    const twin = bySku.get(t.sku);
+    return twin ? { ...twin, trim: true, fits: t.fits } : t;
+  });
 }
 
 // Per trim: the on-job row (id + quantity) or a fresh qty-0 entry — the

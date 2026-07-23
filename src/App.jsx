@@ -28,7 +28,7 @@ import { useBookStock } from "./usebookstock.js";
 import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
-import { seedTrimPlan, applyTrimPlan, existingTrimRows } from "./trims.js";
+import { seedTrimPlan, applyTrimPlan, existingTrimRows, preferStockTrims } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
@@ -139,7 +139,7 @@ export default function App({ user, onSignOut }) {
       delete next[bookId];
       return next;
     });
-    clearTrims(bookId);
+    clearTrims();
     if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
     try {
       const items = await refreshBookStock(bookId);
@@ -235,7 +235,7 @@ export default function App({ user, onSignOut }) {
     if (!pid) return;
     for (const a of sel?.categories || []) {
       const p = a.products.find((x) => x.id === pid);
-      if (p) { if (p.bookId && p.sku) ensureTrims(p.bookId, p.sku); return; }
+      if (p) { if (p.bookId && p.sku) ensureTrims(p.sku); return; }
     }
   }, [matOpen, sel, ensureTrims]);
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
@@ -1863,10 +1863,12 @@ export default function App({ user, onSignOut }) {
                                   );
                                 })}
                                 {(() => {
-                                  // Trims the price book lists for this floor (`fits`,
-                                  // ADR 0012) — prefetched on drawer open, shown only
-                                  // once trims are known to exist.
-                                  const tList = p.bookId && p.sku ? trimsFor(p.bookId, p.sku) : null;
+                                  // Trims the price books list for this floor (`fits`,
+                                  // ADR 0012 — stated in the vendor's order book, keyed
+                                  // by the floor's SKU whichever book it was picked
+                                  // from) — prefetched on drawer open, shown only once
+                                  // trims are known to exist.
+                                  const tList = p.bookId && p.sku ? trimsFor(p.sku) : null;
                                   if (!tList?.length) return null;
                                   const onJob = existingTrimRows(a.products, p.id, tList).size;
                                   return (
@@ -2181,8 +2183,11 @@ export default function App({ user, onSignOut }) {
       {trimsPop && sel && (() => {
         const area = sel.categories.find((x) => x.id === trimsPop.aid);
         const floor = area?.products.find((x) => x.id === trimsPop.pid);
-        const list = floor ? trimsFor(floor.bookId, floor.sku) : null;
-        if (!floor || !list?.length) return null;
+        const raw = floor ? trimsFor(floor.sku) : null;
+        if (!floor || !raw?.length) return null;
+        // The shop's shelf outranks the vendor: a trim the stock books carry
+        // under the same SKU swaps to the stock item (its shelf retail).
+        const list = preferStockTrims(raw, bookStockReady ? stockItems : []);
         const seed = seedTrimPlan(area.products, floor, list);
         return <TrimsPopup floorName={floor.brandColor || floor.sku} trims={list} seed={seed} onClose={() => setTrimsPop(null)}
           onApply={(qtys) => {
