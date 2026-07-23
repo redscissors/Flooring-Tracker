@@ -27,6 +27,16 @@ export function vendorKeys(item) {
   return [...new Set([item.sku, ...codes].filter(Boolean).flatMap(codeVariants))].slice(0, 6);
 }
 
+// A code-shaped token: carries a digit, isn't a size, 3–16 chars.
+const codeToken = (t) => {
+  const s = String(t || "").replace(/[.,;:)]+$/, "").replace(/^[.,;:(]+/, "");
+  if (!/\d/.test(s)) return "";                           // a code carries a digit
+  if (s.length < 3 || s.length > 16) return "";
+  if (/^\d+(\.\d+)?["']?[x×]\d/i.test(s)) return "";      // a size, not a code
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(s)) return "";
+  return s;
+};
+
 // The ERP's product codes are the shop's own; the manufacturer's code rides in
 // the ERP description, generally at the very end ("… NOBLE OAK ACORN REDUCER
 // 384421"). Candidates are the last few code-shaped tokens — a wrong guess is
@@ -34,16 +44,76 @@ export function vendorKeys(item) {
 // vendor books actually state (`fits` / SKU), never a fuzzy match.
 export function vendorCodeCandidates(description) {
   const toks = String(description || "").trim().split(/\s+/).slice(-3);
+  return [...new Set(toks.map(codeToken).filter(Boolean))];
+}
+
+// Trim-profile words a stock book's untyped trim rows lead with. "OneNose" is
+// Mannington's flush stairnose system (one word, so \bnose\b alone would miss
+// it).
+const STOCK_TRIM_RE = /\b(end ?cap|t-?mold(?:ing)?|(?:multi-?)?reducer|stair ?nose|nosing|one ?nose|quarter ?round|threshold|transition|overlap)\b/i;
+const ONENOSE_RE = /one ?nose/i;
+const MDF_FILL_RE = /mdf\s*fill/i;
+
+// The color phrase a stock trim names after its " - " separator, trailing code
+// tokens shed ("Endcap - Noble Oak Bark EDM823" → "noble oak bark"). null when
+// there is no separator or fewer than two words survive — a one-word "color"
+// is too weak to match on.
+const trimColorPhrase = (desc) => {
+  const m = /-\s*([^-]*)$/.exec(String(desc || ""));
+  if (!m) return null;
+  const words = m[1].trim().split(/\s+/).filter(Boolean);
+  while (words.length && codeToken(words[words.length - 1])) words.pop();
+  return words.length >= 2 ? words.join(" ").toLowerCase() : null;
+};
+
+const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const livable = (it) => it.active !== false && !it.disabled && !it.discontinued;
+
+// The floor's own stock book read by COLOR NAME: untyped trim-worded rows
+// whose " - " color phrase appears whole in the floor item's description
+// ("OneNose - Noble Oak Bark" → the Bark floor). This is the tier that shows
+// the shop's shelf even when the vendor book's `fits` lacks the piece —
+// OneNose is the newer colors' stairnose and must surface (2026-07-23).
+// Name-resolution over one vendor's own book, the mortar convention.
+export function stockTrimOptions(floorItem, stockItems) {
+  if (!floorItem?.description) return [];
+  const floorDesc = String(floorItem.description);
   const out = [];
-  for (const t of toks) {
-    const s = t.replace(/[.,;:)]+$/, "").replace(/^[.,;:(]+/, "");
-    if (!/\d/.test(s)) continue;                          // a code carries a digit
-    if (s.length < 3 || s.length > 16) continue;
-    if (/^\d+(\.\d+)?["']?[x×]\d/i.test(s)) continue;     // a size, not a code
-    if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(s)) continue;
-    out.push(s);
+  for (const it of stockItems || []) {
+    if (it.bookId !== floorItem.bookId || it.sku === floorItem.sku) continue;
+    if (!livable(it) || it.type) continue;
+    const desc = String(it.description || "");
+    if (!STOCK_TRIM_RE.test(desc)) continue;
+    const phrase = trimColorPhrase(desc);
+    if (!phrase) continue;
+    if (!new RegExp(`(^|[^a-z0-9])${reEscape(phrase)}([^a-z0-9]|$)`, "i").test(floorDesc)) continue;
+    out.push({ ...it, trim: true });
   }
-  return [...new Set(out)];
+  return out;
+}
+
+// The popup's one list: the `fits`-derived trims with stock twins swapped in
+// (preferStockTrims), then the stock color-name tier's additions, then — when
+// a OneNose is on the list — the shelf's OneNose MDF fill (the flush-nose
+// filler board OneNose installs need), matched by name, never by a hardcoded
+// SKU. Deduped on every item's exact keys.
+export function mergeTrimOptions(fitsTrims, floorItem, stockItems) {
+  const list = preferStockTrims(fitsTrims || [], stockItems);
+  const seen = new Set(list.flatMap((t) => [...vendorKeys(t), t.orderSku].filter(Boolean)));
+  for (const it of stockTrimOptions(floorItem, stockItems)) {
+    if (vendorKeys(it).some((k) => seen.has(k))) continue;
+    for (const k of vendorKeys(it)) seen.add(k);
+    list.push(it);
+  }
+  if (list.some((t) => ONENOSE_RE.test(t.description || ""))) {
+    for (const it of stockItems || []) {
+      if (!livable(it) || it.type || !MDF_FILL_RE.test(it.description || "")) continue;
+      if (vendorKeys(it).some((k) => seen.has(k))) continue;
+      for (const k of vendorKeys(it)) seen.add(k);
+      list.push({ ...it, trim: true, pairNote: "installs with OneNose" });
+    }
+  }
+  return list;
 }
 
 // The floor's existing trim lines in its area, keyed by the trim's canonical

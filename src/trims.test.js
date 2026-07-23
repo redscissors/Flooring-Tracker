@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existingTrimRows, seedTrimPlan, applyTrimPlan, preferStockTrims, vendorCodeCandidates, vendorKeys } from "./trims.js";
+import { existingTrimRows, seedTrimPlan, applyTrimPlan, preferStockTrims, vendorCodeCandidates, vendorKeys, stockTrimOptions, mergeTrimOptions } from "./trims.js";
 
 const trim = (sku, over = {}) => ({ sku, bookId: "b1", trim: true, ...over });
 const row = (id, over = {}) => ({ id, sku: "", bookId: "", qty: "", ...over });
@@ -136,6 +136,51 @@ test("preferStockTrims: description fallback still pairs items imported before t
   const out = preferStockTrims([order], [stock]);
   assert.equal(out[0].sku, "RSKU0417");
   assert.equal(out[0].orderSku, "384421");
+});
+
+// --- the stock color-name tier + OneNose companion (2026-07-23) ---------------
+
+const barkFloor = { sku: "1517410", bookId: "manmi", vendorSkus: ["MPB823"], type: "vinyl", active: true, description: "Mannington AduraMax MPB820 Noble Oak Bark" };
+const shelf = [
+  { sku: "1518224", bookId: "manmi", stockKind: true, active: true, vendorSkus: ["589579"], description: "Mann AduraMax Endcap - Noble Oak Bark EDM823" },
+  { sku: "1518227", bookId: "manmi", stockKind: true, active: true, vendorSkus: ["589629"], description: "Mannington OneNose - Noble Oak Bark" },
+  { sku: "1518220", bookId: "manmi", stockKind: true, active: true, vendorSkus: ["589575"], description: "Mann AduraMax Endcap - Noble Oak Branch EDM822" }, // sibling color
+  { sku: "1519319", bookId: "manmi", stockKind: true, active: true, vendorSkus: ["439199"], description: "OneNose MDF Fill 47in RND001" },
+  barkFloor, // the floor itself is never its own trim
+];
+
+test("stockTrimOptions: the floor's own book read by color name — sibling colors stay out", () => {
+  const out = stockTrimOptions(barkFloor, shelf);
+  assert.deepEqual(out.map((t) => t.sku), ["1518224", "1518227"]);
+  assert.ok(out.every((t) => t.trim));
+});
+
+test("stockTrimOptions: a one-word color phrase is too weak to match on", () => {
+  const dewFloor = { sku: "f", bookId: "b", active: true, description: "Mann Riverwalk - Dew" };
+  const trim = { sku: "t", bookId: "b", active: true, description: "Mann Reducer - Dew" };
+  assert.deepEqual(stockTrimOptions(dewFloor, [trim]), []);
+});
+
+test("mergeTrimOptions: fits trims lead, the color tier adds what fits missed, no duplicates", () => {
+  // The vendor book lists the endcap (catalog 589579 → twin-swaps to the shelf
+  // item) but not the OneNose; the color tier adds it, and the MDF fill rides
+  // along as its companion.
+  const fitsTrims = [{ sku: "589579", bookId: "mann-order", trim: true, fits: ["MPB823"], price: 41.5 }];
+  const out = mergeTrimOptions(fitsTrims, barkFloor, shelf);
+  assert.deepEqual(out.map((t) => t.sku), ["1518224", "1518227", "1519319"]);
+  assert.equal(out[0].orderSku, "589579");                  // the twin swap
+  assert.equal(out[2].pairNote, "installs with OneNose");   // the companion
+});
+
+test("mergeTrimOptions: no OneNose on the list → no MDF fill", () => {
+  const noNose = shelf.filter((t) => t.sku !== "1518227");
+  const out = mergeTrimOptions([], barkFloor, noNose);
+  assert.deepEqual(out.map((t) => t.sku), ["1518224"]);
+});
+
+test("mergeTrimOptions: works with no fits trims at all — the shelf alone carries the popup", () => {
+  const out = mergeTrimOptions([], barkFloor, shelf);
+  assert.deepEqual(out.map((t) => t.sku), ["1518224", "1518227", "1519319"]);
 });
 
 test("vendorKeys: the code columns are authoritative — the description is ignored when they exist", () => {

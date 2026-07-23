@@ -153,6 +153,26 @@ correctly said `MPB823`). So:
 Verified against the real sheet: 236/236 items carry codes; the Bark floor
 resolves `MPB823`; order trim `589579` pairs with shop item `1518224`.
 
+### Amendment 2026-07-23 (4) — the color-name stock tier + OneNose MDF fill
+
+OneNose is Mannington's stairnose for the newer colors and must surface even
+when the vendor book's `fits` doesn't list it. So the popup's list
+(`mergeTrimOptions`) now has three parts:
+
+1. the `fits`-derived trims, stock twins swapped in (as before);
+2. **the stock color-name tier** (`stockTrimOptions`): untyped, trim-worded
+   rows of the floor's own stock book whose " - " color phrase (≥2 words,
+   trailing codes shed — "OneNose - Noble Oak Bark") appears whole in the
+   floor item's description. Name resolution over one vendor's own book — the
+   mortar convention — so the shelf shows regardless of the vendor sheet;
+3. **the OneNose MDF fill companion**: when a OneNose is on the list, the
+   shelf's "OneNose MDF Fill" item (matched by name, never a hardcoded SKU)
+   joins it, chipped "installs with OneNose".
+
+All three dedupe on `vendorKeys`. Verified on the real MANMI export with no
+vendor book at all: 24/55 floors get shelf trims (20 with a OneNose), and the
+Bark floor lists endcap + T-mold + multi-reducer + OneNose + MDF fill.
+
 ### Out of scope (this prototype)
 
 - The mobile row sheet (`MobileRowSheet`) — same popup can mount there later.
