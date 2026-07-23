@@ -248,7 +248,7 @@ export const MODES = [
 
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
-  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: null, slatLen: "", chevron: false };
+  if (mode === "hb") return { sp: "White Oak", cons: "solid", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
@@ -360,7 +360,7 @@ export function calcStocked(k) {
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: p, per: "sf", warn, fees };
 }
 
-export function calcHerringbone(h) {
+export function calcHerringbone(h, sf) {
   const t = HERRINGBONE[h.cons === "solid" ? "solid" : "eng"][h.sp];
   if (!t) return null;
   const i = t.ws.indexOf(h.w);
@@ -379,13 +379,35 @@ export function calcHerringbone(h) {
     cost += CHEVRON_ADD;
     rows.push(["Chevron pattern (slip tongue included)", "+$3.00/sf"]);
   }
+  // Finishing mirrors the custom floor tab: the scrape (texture) and the
+  // prefinished/stain program add the same $/sf as straight flooring, and the
+  // small-order / color-match sample fees import as their own flat lines.
+  // Missing fields (pre-finishing saved configs) read as unfinished + smooth.
+  const tex = TEXTURES.find((x) => x.id === h.tex) || TEXTURES[0];
+  const fin = FINISHES.find((x) => x.id === h.finish) || FINISHES[0];
+  const prefin = fin.id !== "unf";
+  if (tex.add) { cost += tex.add; rows.push([`Texture — ${tex.name}`, `+${fm(tex.add)}/sf`]); }
+  const finAdd = fin.add(h);
+  if (finAdd) { cost += finAdd; rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]); }
+  const fees = [];
+  if (prefin) { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+  const custom = CUSTOM_FINISHES.includes(fin.id);
+  const established = fin.id === "est";
+  if (custom || (established && h.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
+  fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
   const size = WIDTH_LABEL[h.w];
-  const rest = `${h.sp} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${slatLabel}`;
+  // Herringbone descriptions already use " · " separators; the finish (scrape,
+  // then the prefinished name + sheen) appends the same way. Unfinished/smooth
+  // add nothing, so plain-herringbone descriptions are unchanged.
+  const finBits = [];
+  if (tex.id !== "smooth") finBits.push(tex.name.replace(" (standard)", ""));
+  if (prefin) finBits.push(`${finishName(h)} ${h.sheen || "30"} sheen`);
+  const rest = `${h.sp} · ${h.cons === "solid" ? "Solid" : "Engineered"} ${h.chevron ? "Chevron" : "Herringbone"} · ${slatLabel}${finBits.length ? " · " + finBits.join(" · ") : ""}`;
   const warn = ["Deposit required · subject to 10% overrun · no returns · made to order, no carton rounding"];
   if (len != null && (len < HB_SLAT_MIN || len > HB_SLAT_MAX)) warn.unshift(`Slat length ${h.slatLen}" is outside the standard ${HB_SLAT_MIN}–${HB_SLAT_MAX}" range — confirm with Sheoga`);
   return {
     desc: `${size} ${rest}`, size, rest, name: `Sheoga ${size} ${h.chevron ? "Chevron" : "Herringbone"} ${h.sp}`, rows, cost, per: "sf",
-    warn, fees: [],
+    warn, fees,
   };
 }
 
@@ -469,12 +491,37 @@ export function ventFromFloor(snap) {
   return { ...out, prefin, stain, stainCustom: !!stain && !STAIN_COLORS.includes(stain), tex: scraped, scrape: scraped ? f.tex : "" };
 }
 
+// "Copy floor" for the herringbone tab — mirror the vent copy, but land on the
+// herringbone's floor-style finishing fields (tex/finish/stain/sheen). Pulls
+// species + scrape + prefinished stain from the last-open unfinished/custom or
+// stocked tab. Herringbone sells the same eight base species as unfinished
+// flooring except Live Sawn (→ plain White Oak); a species with no herringbone
+// twin leaves it untouched. Returns an hb-cfg patch (never a width — the popup
+// snaps the width into the new species' run).
+const HB_SP_MAP = { [LIVE_SAWN_SP]: "White Oak" };
+export function hbFromFloor(snap) {
+  if (!snap || !snap.cfg) return null;
+  const f = snap.cfg;
+  const mapped = HB_SP_MAP[f.sp] || f.sp;
+  const out = HERRINGBONE.solid[mapped] ? { sp: mapped } : {};
+  if (snap.mode === "hb") return out;
+  if (snap.mode === "stocked") {
+    // A stocked color can pair a stain with a texture ("Cattail · Sawcut").
+    const [color, texName] = String(f.color || "").split(" · ");
+    const tex = texName ? TEXTURES.find((t) => t.name.replace(/\s+/g, "").toLowerCase() === texName.replace(/\s+/g, "").toLowerCase()) : null;
+    const natural = color === "Natural";
+    return { ...out, tex: tex ? tex.id : "smooth", finish: natural ? "nat" : "est", stain: natural ? "" : (color || ""), stainCustom: false, sheen: String(f.sheen ?? "30"), sheenCustom: false, sample: false };
+  }
+  if (snap.mode !== "floor") return null;
+  return { ...out, tex: f.tex || "smooth", finish: f.finish || "unf", stain: f.stain || "", stainCustom: !!f.stainCustom, sheen: String(f.sheen ?? "30"), sheenCustom: !!f.sheenCustom, sample: !!f.sample };
+}
+
 // One configuration snapshot { mode, cfg } → its build, or null.
 export function calcConfig(snap, sf) {
   if (!snap || !snap.cfg) return null;
   if (snap.mode === "floor") return calcFloor(snap.cfg, sf);
   if (snap.mode === "stocked") return calcStocked(snap.cfg);
-  if (snap.mode === "hb") return calcHerringbone(snap.cfg);
+  if (snap.mode === "hb") return calcHerringbone(snap.cfg, sf);
   if (snap.mode === "vent") return calcVent(snap.cfg);
   if (snap.mode === "damper") return calcDamper(snap.cfg);
   return null;
