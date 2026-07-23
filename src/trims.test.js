@@ -190,6 +190,29 @@ test("mergeTrimOptions: works with no fits trims at all — the shelf alone carr
   assert.deepEqual(out.map((t) => t.sku), ["1518224", "1518227", "1519319"]);
 });
 
+test("vendorKeys: an ERP VN-marker code expands to the bare Mannington color code", () => {
+  // The MANMI export suffixes vinyl floors' manufacturer codes ("MPB770VN1",
+  // "APX040VN"); the Mannington book's `fits` state the bare code, so the
+  // floor's key set must carry both spellings.
+  const fossil = { sku: "1509245", vendorSkus: ["MPB770VN1"], description: "7x48 Mann Aduramax MPB770 - Preservation Fossil 23.76 sf" };
+  assert.deepEqual(vendorKeys(fossil), ["1509245", "MPB770VN1", "MPB770"]);
+  assert.deepEqual(vendorKeys({ sku: "s", vendorSkus: ["APX040VN"] }), ["s", "APX040VN", "APX040"]);
+  // A code that merely ends in a digit-letter tail is not a VN marker.
+  assert.deepEqual(vendorKeys({ sku: "s", vendorSkus: ["HPLY07NAT1"] }), ["s", "HPLY07NAT1"]);
+});
+
+test("stockTrimOptions: a code-first color phrase still matches (\"Reducer - 531996 Preservation Fossil\")", () => {
+  const fossilFloor = { sku: "1509245", bookId: "manmi", active: true, vendorSkus: ["MPB770VN1"], type: "vinyl", description: "7x48 Mann Aduramax MPB770 - Preservation Fossil 23.76 sf" };
+  const shelf = [
+    { sku: "1510330", bookId: "manmi", active: true, vendorSkus: ["531996"], description: '94" Mann Aduramax Reducer - 531996 Preservation Fossil' },
+    { sku: "1510333", bookId: "manmi", active: true, vendorSkus: ["532008"], description: '94" Mann Aduramax Stairnose - 532008 Preservation Fossil' },
+    { sku: "1518735", bookId: "manmi", active: true, vendorSkus: ["592410"], description: '94" Mannington OneNose - Preservation Fossil' },
+    { sku: "1510334", bookId: "manmi", active: true, vendorSkus: ["531997"], description: '94" Mann Aduramax Reducer - 531997 Preservation Relic' }, // sibling color
+    fossilFloor,
+  ];
+  assert.deepEqual(stockTrimOptions(fossilFloor, shelf).map((t) => t.sku), ["1510330", "1510333", "1518735"]);
+});
+
 test("vendorKeys: the code columns are authoritative — the description is ignored when they exist", () => {
   // A real MANMI floor: the description carries a sibling color's code
   // (MPB820 = Dry Leaf) while the column has the right one (MPB823 = Bark).

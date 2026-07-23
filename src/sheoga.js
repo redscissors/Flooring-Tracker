@@ -248,7 +248,7 @@ export const MODES = [
 
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
-  if (mode === "hb") return { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
+  if (mode === "hb") return { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", edge: "square", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
@@ -379,14 +379,17 @@ export function calcHerringbone(h, sf) {
     cost += CHEVRON_ADD;
     rows.push(["Chevron pattern (slip tongue included)", "+$3.00/sf"]);
   }
-  // Finishing mirrors the custom floor tab: the scrape (texture) and the
+  // Finishing mirrors the custom floor tab: the scrape (texture), edge and the
   // prefinished/stain program add the same $/sf as straight flooring, and the
   // small-order / color-match sample fees import as their own flat lines.
-  // Missing fields (pre-finishing saved configs) read as unfinished + smooth.
+  // Missing fields (pre-edge/finishing saved configs) read as smooth + square
+  // edge + unfinished.
   const tex = TEXTURES.find((x) => x.id === h.tex) || TEXTURES[0];
+  const edge = EDGES.find((x) => x.id === h.edge) || EDGES[0];
   const fin = FINISHES.find((x) => x.id === h.finish) || FINISHES[0];
   const prefin = fin.id !== "unf";
   if (tex.add) { cost += tex.add; rows.push([`Texture — ${tex.name}`, `+${fm(tex.add)}/sf`]); }
+  if (edge.add) { cost += edge.add; rows.push([`Edge — ${edge.name}`, `+${fm(edge.add)}/sf`]); }
   const finAdd = fin.add(h);
   if (finAdd) { cost += finAdd; rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]); }
   const fees = [];
@@ -401,6 +404,7 @@ export function calcHerringbone(h, sf) {
   // add nothing, so plain-herringbone descriptions are unchanged.
   const finBits = [];
   if (tex.id !== "smooth") finBits.push(tex.name.replace(" (standard)", ""));
+  if (edge.id !== "square") finBits.push(edge.name);
   if (prefin) finBits.push(`${finishName(h)} ${h.sheen || "30"} sheen`);
   // Grade (clear/character) is descriptive order text — the herringbone sheet has
   // no clear/char price split, so it never changes cost, only what's read to Sheoga.
@@ -496,8 +500,8 @@ export function ventFromFloor(snap) {
 }
 
 // "Copy floor" for the herringbone tab — mirror the vent copy, but land on the
-// herringbone's floor-style finishing fields (tex/finish/stain/sheen). Pulls
-// species + grade + construction + width + scrape + prefinished stain from the
+// herringbone's floor-style finishing fields (tex/edge/finish/stain/sheen). Pulls
+// species + grade + construction + width + scrape + edge + prefinished stain from the
 // last-open unfinished/custom or stocked tab. Herringbone sells the same eight
 // base species as unfinished flooring except Live Sawn (→ plain White Oak); a
 // species with no herringbone twin leaves it untouched. Width is carried through
@@ -515,10 +519,11 @@ export function hbFromFloor(snap) {
     const [color, texName] = String(f.color || "").split(" · ");
     const tex = texName ? TEXTURES.find((t) => t.name.replace(/\s+/g, "").toLowerCase() === texName.replace(/\s+/g, "").toLowerCase()) : null;
     const natural = color === "Natural";
-    return { ...out, cons: "solid", grade: f.grade === "clear" ? "clear" : "char", w: f.w, tex: tex ? tex.id : "smooth", finish: natural ? "nat" : "est", stain: natural ? "" : (color || ""), stainCustom: false, sheen: String(f.sheen ?? "30"), sheenCustom: false, sample: false };
+    // Stocked prefinished is always micro bevel (its program's one edge).
+    return { ...out, cons: "solid", grade: f.grade === "clear" ? "clear" : "char", w: f.w, tex: tex ? tex.id : "smooth", edge: "bevel", finish: natural ? "nat" : "est", stain: natural ? "" : (color || ""), stainCustom: false, sheen: String(f.sheen ?? "30"), sheenCustom: false, sample: false };
   }
   if (snap.mode !== "floor") return null;
-  return { ...out, cons: f.cons === "eng" ? "eng" : "solid", grade: f.grade === "clear" ? "clear" : "char", w: f.w, tex: f.tex || "smooth", finish: f.finish || "unf", stain: f.stain || "", stainCustom: !!f.stainCustom, sheen: String(f.sheen ?? "30"), sheenCustom: !!f.sheenCustom, sample: !!f.sample };
+  return { ...out, cons: f.cons === "eng" ? "eng" : "solid", grade: f.grade === "clear" ? "clear" : "char", w: f.w, tex: f.tex || "smooth", edge: f.edge || "square", finish: f.finish || "unf", stain: f.stain || "", stainCustom: !!f.stainCustom, sheen: String(f.sheen ?? "30"), sheenCustom: !!f.sheenCustom, sample: !!f.sample };
 }
 
 // One configuration snapshot { mode, cfg } → its build, or null.
@@ -573,13 +578,12 @@ export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP
     qtyType: "sqft", qty: l.sf > 0 ? String(l.sf) : "",
     priceSqft: String(sellOf(l.cost, markupPct)), costSqft: String(round2(l.cost)), markupPct: String(markupPct),
     ...(l.cartonSf ? { cartonSf: String(l.cartonSf) } : {}),
-    note: "Sheoga multi-width — one floor in mixed widths",
     sheoga: { mode: base.mode, cfg: JSON.parse(JSON.stringify({ ...base.cfg, w: l.w })), multiWidth: true },
   }));
   const fees = b.fees.map((x) => ({
     type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
     priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
-    note: "Sheoga vendor fee — passed through at cost (shared across the multi-width set)", sheoga: FEE_MARK,
+    sheoga: FEE_MARK,
   }));
   return [...rows, ...fees];
 }
@@ -621,18 +625,18 @@ export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
       ? {
           type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga — ${c.rest || c.desc}`, qtyType: "count", qty: String(c.qty || 1),
           priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
-          note: "Sheoga special order — by description, no SKU", sheoga,
+          sheoga,
         }
       : {
           type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga — ${c.rest || c.desc}`, qtyType: "sqft", qty: sf > 0 ? String(sf) : "",
           priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
           ...(c.cartonSf ? { cartonSf: String(c.cartonSf) } : {}),
-          note: "Sheoga special order — 5-10% overrun, no returns", sheoga,
+          sheoga,
         };
   const fees = (c.fees || []).map((x) => ({
     type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
     priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
-    note: "Sheoga vendor fee — passed through at cost", sheoga: FEE_MARK,
+    sheoga: FEE_MARK,
   }));
   return [main, ...fees];
 }

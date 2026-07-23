@@ -6,12 +6,18 @@
 
 import { num } from "./catalog.js";
 
-// A shop-modified code and its manufacturer base ("589571E" ↔ "589571"): the
-// team suffixes a single letter onto a numeric vendor code to mark an internal
-// variant, so matching tries both spellings. Anything else passes unchanged.
+// A suffixed code and its manufacturer base, so matching tries both spellings:
+// the team suffixes a single letter onto a numeric vendor code to mark an
+// internal variant ("589571E" ↔ "589571"), and the ERP exports append a
+// "VN"/"VN1" vinyl marker to a Mannington color code ("MPB770VN1" ↔ "MPB770" —
+// the vendor book's `fits` state the bare code). Anything else passes
+// unchanged; a wrong extra candidate is harmless because every use is an
+// exact-membership test against codes the books actually state.
 const codeVariants = (code) => {
   const m = /^(\d{3,})[A-Za-z]$/.exec(code || "");
-  return m ? [code, m[1]] : [code];
+  if (m) return [code, m[1]];
+  const vn = /^([A-Za-z]+\d+)VN\d?$/.exec(code || "");
+  return vn ? [code, vn[1]] : [code];
 };
 
 // The exact keys an item is known by across the spaces: its own SKU plus the
@@ -54,15 +60,17 @@ const STOCK_TRIM_RE = /\b(end ?cap|t-?mold(?:ing)?|(?:multi-?)?reducer|stair ?no
 const ONENOSE_RE = /one[-\s]?nose/i;
 const MDF_FILL_RE = /mdf\s*fill/i;
 
-// The color phrase a stock trim names after its " - " separator, trailing code
-// tokens shed ("Endcap - Noble Oak Bark EDM823" → "noble oak bark"). null when
-// there is no separator or fewer than two words survive — a one-word "color"
-// is too weak to match on.
+// The color phrase a stock trim names after its " - " separator, code tokens
+// shed from either end — the sheet writes them both ways ("Endcap - Noble Oak
+// Bark EDM823", "Reducer - 531996 Preservation Fossil"). null when there is no
+// separator or fewer than two words survive — a one-word "color" is too weak
+// to match on.
 const trimColorPhrase = (desc) => {
   const m = /-\s*([^-]*)$/.exec(String(desc || ""));
   if (!m) return null;
   const words = m[1].trim().split(/\s+/).filter(Boolean);
   while (words.length && codeToken(words[words.length - 1])) words.pop();
+  while (words.length && codeToken(words[0])) words.shift();
   return words.length >= 2 ? words.join(" ").toLowerCase() : null;
 };
 
