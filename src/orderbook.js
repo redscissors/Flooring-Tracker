@@ -366,6 +366,23 @@ export function diffBookItems(existing, parsed) {
   return { added, changed, missing, unchanged };
 }
 
+// Recast a diff so a forced re-import rewrites every row, not just the deltas
+// (the wizard's "Force full re-import" toggle). Every `unchanged` row becomes a
+// `changed` write — same shape diffBookItems produces, so applyBookImport upserts
+// it through the existing changed path (preserving each row's disabled/flagReview
+// from `prev`) and the version snapshot's active set stays complete. `added` and
+// `missing` pass through untouched: forcing rewrites what's present and still
+// retires what's genuinely gone.
+export function forceDiff(diff, existing) {
+  const bySku = new Map((existing || []).map((it) => [it.sku, it]));
+  return {
+    added: diff.added,
+    changed: [...diff.changed, ...(diff.unchanged || []).map((it) => ({ item: it, prev: bySku.get(it.sku), fields: [] }))],
+    missing: diff.missing,
+    unchanged: [],
+  };
+}
+
 // The hand-edited items (editedAt set) a re-import would overwrite: their SKU is
 // in the incoming sheet with a differing field, so they land in the diff's
 // "changed" bucket and their manual fix is lost. Powers the wizard's "N items
