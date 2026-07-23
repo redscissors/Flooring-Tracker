@@ -99,12 +99,12 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
 // search as the grid pickers; tapping a row picks it, the leading checkbox
 // builds a multi-selection (the shift-click stand-in), and a no-match query
 // can be handed to manual entry.
-export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onVendor, onClose }) {
+export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onVendor, onClose, strictness }) {
   const [q, setQ] = useState(initial);
   const [picked, setPicked] = useState([]);
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select?.(); }, []);
-  const { results, total } = useMergedResults(true, stock, q, searchOrder);
+  const { results, total } = useMergedResults(true, stock, q, searchOrder, strictness);
   const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const commit = () => { if (picked.length === 1) onPick(picked[0]); else if (picked.length) onPickMany(picked); };
   // Sheoga has no SKUs, so it never book-matches — pin the same vendor row the
@@ -218,7 +218,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify, strictness }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -570,7 +570,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
       ))}
       <div style={{ height: 6 }} />
       {searching && (
-        <MobileSearchSheet stock={stock} stockReady={stockReady} searchOrder={searchOrder} bookName={bookName} initial={p.sku || ""}
+        <MobileSearchSheet stock={stock} stockReady={stockReady} searchOrder={searchOrder} bookName={bookName} initial={p.sku || ""} strictness={strictness}
           onPick={(it) => { setSearching(false); onPickStock([it]); }}
           onPickMany={(items) => { setSearching(false); onPickStock(items); }}
           onManual={(t) => { setSearching(false); if (t && !p.brandColor) onPatch({ brandColor: t }); }}

@@ -728,7 +728,13 @@ const pctMarkup = (v, dflt) => { const n = parseFloat(v); return Number.isFinite
 // description, as before). Capped well above any real field so a typo can't
 // silently make every line "fit".
 const chars = (v, dflt) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(200, Math.max(0, n)) : dflt; };
-export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), descLimit: chars(raw?.descLimit, 30) });
+// How forgiving the price-book item search is (trigram threshold, ADR 0009 §6):
+// the special-order RPC's p_threshold and the in-memory stock tier's fuzzy
+// cutoff, one team-wide value. Lower catches typos/near-misses, higher demands
+// near-exact words. Clamped to a usable band — below ~0.1 everything matches,
+// above ~0.9 only exact hits survive. Default 0.3 keeps the prior RPC behavior.
+const frac = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(0.9, Math.max(0.1, n)) : dflt; };
+export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), descLimit: chars(raw?.descLimit, 30), searchStrictness: frac(raw?.searchStrictness, 0.3) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.

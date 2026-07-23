@@ -30,12 +30,12 @@ export function useOrderSearch({ books, sel, orderItems, setOrderItems }) {
     // it in explicitly — that keeps size searchable ("12x24 white") without a
     // SQL re-run (search_text already covers the rest, index-backed).
     const fields = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color", "data->>size"];
-    return async (q) => {
+    return async (q, threshold = 0.3) => {
       const words = q.replace(/[%_,()"\\]/g, " ").trim().split(/\s+/).filter(Boolean);
       if (!words.length) return [];
       const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
       if (fuzzyRpc.current) {
-        const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: 0.3, p_limit: SKU_SHOW * 2 });
+        const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: threshold, p_limit: SKU_SHOW * 2 });
         // The client-side disabled guard (both paths) also covers installs
         // where the RPC/column migrations haven't been re-run yet.
         if (!error) return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);

@@ -1236,16 +1236,16 @@ test("materialWarnings flags a checked add-on whose product no longer resolves",
 // --- Pricing tiers (spec 2026-07-16): settings carry the tier percentages ----
 
 test("normalizeSettings attaches pricing defaults and keeps stored values", () => {
-  assert.deepEqual(normalizeSettings().pricing, { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
-  const s = normalizeSettings({ pricing: { builderPct: 12, salePct: 25, sheogaMarkupPct: 55, sheogaVentMarkupPct: 65, descLimit: 30 } });
-  assert.deepEqual(s.pricing, { builderPct: 12, salePct: 25, sheogaMarkupPct: 55, sheogaVentMarkupPct: 65, descLimit: 30 });
+  assert.deepEqual(normalizeSettings().pricing, { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
+  const s = normalizeSettings({ pricing: { builderPct: 12, salePct: 25, sheogaMarkupPct: 55, sheogaVentMarkupPct: 65, descLimit: 30, searchStrictness: 0.45 } });
+  assert.deepEqual(s.pricing, { builderPct: 12, salePct: 25, sheogaMarkupPct: 55, sheogaVentMarkupPct: 65, descLimit: 30, searchStrictness: 0.45 });
 });
 
 test("serializeSettings persists pricing and round-trips", () => {
   const s = normalizeSettings({ pricing: { builderPct: 6 } });
   const out = serializeSettings(s);
-  assert.deepEqual(out.pricing, { builderPct: 6, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
-  assert.deepEqual(normalizeSettings(out).pricing, { builderPct: 6, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30 });
+  assert.deepEqual(out.pricing, { builderPct: 6, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
+  assert.deepEqual(normalizeSettings(out).pricing, { builderPct: 6, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
 });
 
 // --- Apps hub: Label Generator presets (issue: label-generator-integration) -

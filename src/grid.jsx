@@ -166,13 +166,13 @@ export function GridSizeInput({ p, onCommit, tabIndex }) {
 // count chip shows the would-be paste length against descLimit while over.
 const CELL_LINE = 14;              // px line-height; two lines + pad = 34px cap
 const OVER_RED = "#dc2626";
-export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0 }) {
+export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0, strictness }) {
   const [open, setOpen] = useState(false);
   const [twoLine, setTwoLine] = useState(false);
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
   const mirrorRef = useRef(null);
-  const { results: matches } = useMergedResults(open, stock, value, searchOrder);
+  const { results: matches } = useMergedResults(open, stock, value, searchOrder, strictness);
   const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   // Measured, not guessed, so the single/two-line toggle survives any column
   // width — single-line text keeps today's centered look. scrollHeight includes
@@ -235,7 +235,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
 // price book by SKU or product words. Picking a match fills the whole row
 // (like the SKU/product cells do); shift-click adds several as their own rows;
 // Enter with no match — or a double-click — hands the row to manual entry.
-export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef }) {
+export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef, strictness }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
@@ -250,7 +250,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const blurTimer = useRef(null);
   useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
-  const { results, total } = useMergedResults(open, stock, query, searchOrder);
+  const { results, total } = useMergedResults(open, stock, query, searchOrder, strictness);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { committedRef.current = true; onPick(it); close(); };

@@ -20,22 +20,72 @@ const hay = (it) => [it.sku, it.description, it.brand, it.product, it.color, it.
 const TRANSITION_RE = /transition|reducer|t-mold|end cap|stairnos|threshold/;
 const wordHit = (h, w) => (/^transitions?$/.test(w) ? TRANSITION_RE.test(h) : h.includes(w));
 
+// Trigram word-similarity, a JS twin of the special-order search's
+// word_similarity (supabase/pricebook-fuzzy.sql). pg_trgm pads each word to
+// "  w " and takes the 3-char windows; word_similarity(query, text) is the best
+// coverage of the query token's trigrams by any single word of the text. Kept
+// here so ONE strictness threshold governs both this in-memory stock tier and
+// the streamed special-order tier — otherwise a slider would tighten only half
+// the merged list (the stock tier matched exact substrings, the order tier
+// fuzzy, so they never answered to the same knob).
+const triSet = (word) => {
+  const w = "  " + word + " ";
+  const set = new Set();
+  for (let i = 0; i <= w.length - 3; i++) set.add(w.slice(i, i + 3));
+  return set;
+};
+const tokens = (h) => h.split(/[^a-z0-9]+/).filter(Boolean);
+const wordSim = (word, toks) => {
+  const q = triSet(word);
+  if (!q.size) return 0;
+  let best = 0;
+  for (const t of toks) {
+    const ts = triSet(t);
+    let hit = 0;
+    for (const g of q) if (ts.has(g)) hit++;
+    const s = hit / q.size;
+    if (s > best) best = s;
+  }
+  return best;
+};
+
+const live = (it) => it.active && !it.discontinued && !it.disabled;
+
 // SKU prefix or every word somewhere in the item's text. Active items only —
 // a discontinued/removed item shouldn't be offered for new selections (rows
 // that already hold its SKU keep their snapshot regardless). Returns every
 // match; display code slices and says how many more there are.
-export function searchStock(items, query) {
+//
+// `threshold` opts the whole query into fuzzy matching: every typed word must
+// clear it on trigram word-similarity (a typo like "reducar" still finds
+// "Reducer"), and matches sort best-similarity first. Omitted / 0 keeps the
+// original exact word-inclusion — the Settings and Apps pickers rely on that,
+// only the selection-row search (via the strictness setting) passes a value.
+// A numeric query stays an exact SKU-prefix lookup at any threshold.
+export function searchStock(items, query, threshold = 0) {
   const q = str(query).toLowerCase();
   if (q.length < 2) return [];
   const words = q.split(/\s+/).filter(Boolean);
-  const out = [];
+  if (/^\d+$/.test(q)) return items.filter((it) => live(it) && it.sku.startsWith(q));
+  if (!(threshold > 0)) return items.filter((it) => live(it) && words.every((w) => wordHit(hay(it), w)));
+  const scored = [];
   for (const it of items) {
-    if (!it.active || it.discontinued || it.disabled) continue;
+    if (!live(it)) continue;
     const h = hay(it);
-    const ok = /^\d+$/.test(q) ? it.sku.startsWith(q) : words.every((w) => wordHit(h, w));
-    if (ok) out.push(it);
+    const toks = tokens(h);
+    let ok = true, score = 0;
+    for (const w of words) {
+      // The "transition" synonym is a trade label, not a spelling — keep it an
+      // exact family test and score a hit as a perfect word.
+      if (/^transitions?$/.test(w)) { if (TRANSITION_RE.test(h)) { score += 1; continue; } ok = false; break; }
+      const s = wordSim(w, toks);
+      if (s < threshold) { ok = false; break; }
+      score += s;
+    }
+    if (ok) scored.push([score, it]);
   }
-  return out;
+  scored.sort((a, b) => b[0] - a[0]);
+  return scored.map(([, it]) => it);
 }
 
 export const findStock = (items, sku) => (str(sku) ? items.find((it) => it.sku === str(sku)) : null) || null;

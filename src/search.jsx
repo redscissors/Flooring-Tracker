@@ -101,18 +101,18 @@ export const searchPanelBox = (pos) => {
 // instant from the in-memory list; special-order matches stream in behind them
 // from a debounced server query (searchOrder — null when no order books exist,
 // which keeps the whole feature inert until one is imported).
-function useOrderResults(query, searchOrder) {
+function useOrderResults(query, searchOrder, strictness) {
   const [items, setItems] = useState([]);
   useEffect(() => {
     const q = (query || "").trim();
     if (!q || !searchOrder) { setItems([]); return; }
     let stale = false;
     const t = setTimeout(async () => {
-      try { const r = await searchOrder(q); if (!stale) setItems(r); }
+      try { const r = await searchOrder(q, strictness); if (!stale) setItems(r); }
       catch { if (!stale) setItems([]); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [query, searchOrder]);
+  }, [query, searchOrder, strictness]);
   return items;
 }
 
@@ -120,9 +120,9 @@ function useOrderResults(query, searchOrder) {
 // exact-SKU collision resolved to stock (mergeSearch), then capped for display.
 // Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
 // the shared in-memory stock objects.
-export function useMergedResults(active, stock, query, searchOrder) {
-  const orderRaw = useOrderResults(active ? query : "", searchOrder);
-  const stockMatches = active ? searchStock(stock, query) : [];
+export function useMergedResults(active, stock, query, searchOrder, strictness) {
+  const orderRaw = useOrderResults(active ? query : "", searchOrder, strictness);
+  const stockMatches = active ? searchStock(stock, query, strictness) : [];
   const { stock: sMatches, order: oMatches } = mergeSearch(stockMatches.map((it) => ({ ...it })), orderRaw);
   const combined = [...sMatches, ...oMatches];
   return { results: combined.slice(0, SKU_SHOW), total: combined.length };
