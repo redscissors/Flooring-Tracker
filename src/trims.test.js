@@ -172,6 +172,13 @@ test("mergeTrimOptions: fits trims lead, the color tier adds what fits missed, n
   assert.equal(out[2].pairNote, "installs with OneNose");   // the companion
 });
 
+test("mergeTrimOptions: a vendor book's hyphenated \"One-Nose\" still pulls the MDF fill", () => {
+  const fitsTrims = [{ sku: "589629", bookId: "mann-order", trim: true, fits: ["MPB823"], description: 'Adura One-Nose Noble Oak Bark 94"' }];
+  const fill = shelf.find((t) => t.sku === "1519319");
+  const out = mergeTrimOptions(fitsTrims, null, [fill]);
+  assert.deepEqual(out.map((t) => t.sku), ["589629", "1519319"]);
+});
+
 test("mergeTrimOptions: no OneNose on the list → no MDF fill", () => {
   const noNose = shelf.filter((t) => t.sku !== "1518227");
   const out = mergeTrimOptions([], barkFloor, noNose);
