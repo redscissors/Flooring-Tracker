@@ -435,6 +435,11 @@ function mappedItem(mapping, raw, sku, sem) {
     // A mapped "Fits" column: the floor SKUs this trim belongs to, space
     // separated (ADR 0012 amendment). Only the trim-aware parsers emit it.
     fits: str(raw.fits),
+    // Manufacturer code column(s) — the ERP exports carry two that usually
+    // agree (Supplier Prod Code / Mfg Product Code); both are kept, the rare
+    // disagreement being a vendor reissue where either code may be the one a
+    // vendor book states.
+    vendorSkus: [str(raw.vendorSku), str(raw.vendorSku2)].filter(Boolean).join(" "),
     cost,
     // The shop's own selling price, when the sheet carries one (the ERP stock
     // exports do). Explicit retail outranks cost × markup downstream
@@ -487,6 +492,10 @@ function dedupeMapped(items, warnings) {
 export const guessBookField = (header) => {
   const h = String(header || "").toLowerCase().replace(/[^a-z]/g, "");
   if (!h) return "";
+  // Before the sku rule ("Mfg Product Code" contains "productcode") and the
+  // mfg rule: a supplier/manufacturer code column is a vendor code, not the
+  // shop SKU or the markup-group axis (the ERP stock exports, 2026-07-23).
+  if (/(supplierprod|mfgproduct|vendorsku|vendorprod)/.test(h)) return "vendorSku";
   if (/(itemcode|productcode|^sku$|vtcitem)/.test(h)) return "sku";
   if (/(consumer|msrp|list|suggested)/.test(h)) return "msrp";
   if (/(dealer|^cost|netcost|yourcost|baseprice)/.test(h)) return "cost";
@@ -622,6 +631,13 @@ export function detectVendorSkuAnalysis(sheets) {
       const cost = at("baseprice"), price = at("retailprice");
       if (cost >= 0) columns[cost] = "cost";
       if (price >= 0) columns[price] = "price";
+      // The manufacturer's own codes (2026-07-23): the exact floor↔trim
+      // bridge to the vendor order books — the description is NOT a safe
+      // source (a MANMI floor's description carried a sibling color's code
+      // while the column had the right one).
+      const sup = at("supplierprod"), mfgCode = at("mfgproduct");
+      if (sup >= 0) columns[sup] = "vendorSku";
+      if (mfgCode >= 0) columns[mfgCode] = "vendorSku2";
       return {
         sheet: s.name,
         headerRow: r,

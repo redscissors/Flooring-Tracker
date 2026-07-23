@@ -444,9 +444,12 @@ const VSA_WORKBOOK = [sheet("Vendor SKU Analysis", [
   ["1518213", "94\" Mann AduraMax T-Mold - Noble Oak Dry Leaf TMG820", 30.14, 46.8, "EA", "TMG820", "TMG820", "", 2, 2],
   ["29965", "3/16\" x 1/4\" x 3/8\" Stauf #5 - Notched Trowel for Eng Flr", 9.54, 15.49, "EA", "STAXTR5", "STAXTR5", "", 1, 1],
   ["07879", "Aquabar B Underlayment  - 500sf/roll 3'x167'", 26.8, 42.89, "EA", "348423", "348423", "", 9, 9],
+  // A real MANMI row where the two code columns disagree (a vendor reissue) —
+  // both are kept, either may be the one a vendor book states.
+  ["13192", "94\" Mann AduraMax T-Molding - Acacia Tiger's Eye 011", 27.87, 46.8, "EA", "389118", "449406", "", 1, 1],
 ])];
 
-test("detectVendorSkuAnalysis: recognizes the export, maps the five known columns", () => {
+test("detectVendorSkuAnalysis: recognizes the export, maps the known columns", () => {
   const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
   assert.ok(m, "signature recognized");
   assert.equal(m.sheet, "Vendor SKU Analysis");
@@ -456,9 +459,12 @@ test("detectVendorSkuAnalysis: recognizes the export, maps the five known column
   assert.equal(m.columns[2], "cost");
   assert.equal(m.columns[3], "price");
   assert.equal(m.columns[4], "unit");
-  // supplier / mfg codes ride in the description already; the stock counts are
-  // point-in-time — none of them become item fields
-  assert.equal(Object.keys(m.columns).length, 5);
+  // The manufacturer-code columns are the exact floor↔trim bridge to the
+  // vendor books (2026-07-23) — the description is not a safe source for them.
+  assert.equal(m.columns[5], "vendorSku");
+  assert.equal(m.columns[6], "vendorSku2");
+  // The stock counts are point-in-time — never item fields.
+  assert.equal(Object.keys(m.columns).length, 7);
   assert.ok(m.sfFromDescription);
   assert.ok(m.leadWidthSize);
   assert.ok(m.typeFromDescription);
@@ -476,7 +482,7 @@ test("detectVendorSkuAnalysis: null without the signature", () => {
 test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled from the description", () => {
   const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
   const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
-  assert.equal(items.length, 9);
+  assert.equal(items.length, 10);
   const spline = items.find((i) => i.sku === "05153"); // leading zero survives
   assert.equal(spline.price, 0.48);
   assert.equal(spline.cost, 0.3);
@@ -491,6 +497,11 @@ test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled fro
   const cork = items.find((i) => i.sku === "94593");
   assert.equal(cork.sfPerUnit, null);            // no sf in its text — flagged, not invented
   assert.equal(cork.priceSqft, null);
+  // The manufacturer codes land structured; agreeing columns dedupe, a
+  // disagreement (vendor reissue) keeps both.
+  assert.deepEqual(max.vendorSkus, ["MPB823"]);
+  assert.deepEqual(items.find((i) => i.sku === "1518213").vendorSkus, ["TMG820"]);
+  assert.deepEqual(items.find((i) => i.sku === "13192").vendorSkus, ["389118", "449406"]);
 });
 
 // The Unit of Stock column names the sell basis: a carton/bundle-sold row with
@@ -559,4 +570,7 @@ test("guessBookField: the ERP export headers, without disturbing the EFT guesses
   assert.equal(guessBookField("CONSUMER LEVEL PRICE (Dealer to Consumer)"), "msrp");
   assert.equal(guessBookField("DEALER PRICE (VTC to Dealer)"), "cost");
   assert.equal(guessBookField("Price U/M"), "priceUnit");
+  assert.equal(guessBookField("Supplier Prod Code"), "vendorSku");
+  assert.equal(guessBookField("Mfg Product Code"), "vendorSku"); // a vendor code, not the markup-group axis
+  assert.equal(guessBookField("MFG"), "mfg");                    // the EFT group column keeps its slot
 });

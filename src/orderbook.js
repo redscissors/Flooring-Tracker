@@ -107,6 +107,13 @@ export function normOrderItem(f = {}) {
     // enumerate its own trims, which prose in `description` could never support.
     // The description still carries a "· fits …" note for search_text.
     fits: normFits(f.fits),
+    // The manufacturer's own code(s) for this item, when the sheet states them
+    // as columns (the ERP stock exports' Supplier Prod Code / Mfg Product
+    // Code, 2026-07-23). The shop's internal SKU never appears in a vendor
+    // book, so these are the exact bridge between the stock and special-order
+    // spaces — a stock floor's trims lookup and the trim twin swap key on
+    // them. Same normalized shape as fits (deduped, sorted).
+    vendorSkus: normFits(f.vendorSkus),
     // Order items store COST — price/priceSqft derive at display via the
     // book's markup (pricedItem) and are never persisted for them. Stock-kind
     // items (the shop's own ERP exports) are the exception: they carry the
@@ -348,7 +355,7 @@ export function orderFloorFirst(results, query) {
 
 // The item fields whose change makes a re-import a "changed" row. Order books
 // track cost (not sell) plus the vendor attributes a re-issue can move.
-const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "fits", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "fits", "vendorSkus", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
 
 // Field equality for the diff. `fits` is an array, so identity comparison would
 // mark every trim changed on every re-import; compare by value instead.
