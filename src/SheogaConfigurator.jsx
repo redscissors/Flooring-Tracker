@@ -366,7 +366,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
   return (<>
     {onCopyFloor && (
       <div className="mb-4 flex items-center gap-2.5 rounded-lg p-2.5" style={{ border: "1px dashed var(--ft-brand)", background: "var(--ft-tint)" }}>
-        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Match the floor — copy species, grade, construction, width, scrape &amp; stain from the <b>{copySrc}</b> tab.</span>
+        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Match the floor — copy species, grade, construction, width, scrape, edge &amp; stain from the <b>{copySrc}</b> tab.</span>
         <button onClick={onCopyFloor} className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)" }}>⤺ Copy floor</button>
       </div>
     )}
@@ -424,9 +424,9 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
     <Sect title="Pattern">
       <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />
     </Sect>
-    {/* Scrape + finishing, same options and $/sf adders as the custom floor tab.
-        A prefinished finish drops its stain/sheen detail in below (sheen free);
-        established/custom colors owe the $750 sample. */}
+    {/* Scrape + finishing + edge, same options and $/sf adders as the custom
+        floor tab. A prefinished finish drops its stain/sheen detail in below
+        (sheen free); established/custom colors owe the $750 sample. */}
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={h.tex || "smooth"} onChange={(tex) => set({ ...h, tex })}
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
@@ -441,6 +441,10 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
         </div>
       </div>
     )}
+    <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
+      <Dropdown label="Edge" value={h.edge || "square"} onChange={(edge) => set({ ...h, edge })}
+        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(sellOf(e.add, markup))}` : "") }))} />
+    </div>
     {custom && (
       <Sect title="Custom color sample">
         <div className="w-full flex items-center gap-2.5 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800">

@@ -111,7 +111,9 @@ src/
                     # preferStockTrims: a live stock twin — matched on any of its
                     # exact keys (vendorKeys: SKU, the sheet's manufacturer-code
                     # columns, description-tail fallback; a shop-suffixed
-                    # "589571E" matches its base) — outranks the special-order
+                    # "589571E" matches its base, an ERP VN-marker code its bare
+                    # Mannington color code "MPB770VN1" ↔ "MPB770") — outranks
+                    # the special-order
                     # item (mergeSearch doctrine, exact equality only); and
                     # mergeTrimOptions: fits trims + the stock book's color-name
                     # tier (the shelf shows even when the vendor book lacks the
@@ -181,10 +183,11 @@ src/
                     # stocked/herringbone tab's config onto the vent
                     # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
                     # -> White Oak, finish -> prefin+stain, texture -> scrape).
-                    # Herringbone tab: the same Texture/scrape + Finishing dropdowns
-                    # (+ stain/sheen + sample) as the custom tab, priced the same
-                    # $/sf way; its own "Copy floor" pulls species/scrape/prefinish
-                    # from the last-open custom/stocked tab (hbFromFloor).
+                    # Herringbone tab: the same Texture/scrape + Finishing + Edge
+                    # dropdowns (+ stain/sheen + sample) as the custom tab, priced
+                    # the same $/sf way; its own "Copy floor" pulls species/scrape/
+                    # edge/prefinish from the last-open custom/stocked tab
+                    # (hbFromFloor; a stocked source reads as Micro bevel).
                     # Opened from a row's search (the pinned "Vendor configurators"
                     # row in GridOmniSearch or MobileSearchSheet — "she" is enough)
                     # or its "Sheoga — reconfigure" chip; Add fills the row via

@@ -263,6 +263,20 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   assert.deepEqual(calcHerringbone({ ...base, finish: "est", sample: true }, 1000).fees.at(-1), { label: "Custom color-match sample — approval bundle shipped", amt: 750 });
 });
 
+test("calcHerringbone: edge options price and describe like the custom tab", () => {
+  const base = { sp: "White Oak", cons: "solid", w: 4.25, band: 1, chevron: false };
+  const plain = calcHerringbone(base);
+  const pillow = calcHerringbone({ ...base, edge: "pillow" });
+  assert.equal(pillow.cost, plain.cost + 1.00);
+  assert.ok(pillow.rows.some(([l]) => l === "Edge — Hand pillowed"));
+  assert.ok(pillow.desc.includes("Hand pillowed"));
+  // Micro bevel is free but still order text; square stays out of the description.
+  const bevel = calcHerringbone({ ...base, edge: "bevel" });
+  assert.equal(bevel.cost, plain.cost);
+  assert.ok(bevel.desc.includes("Micro bevel"));
+  assert.ok(!plain.desc.includes("Square"));
+});
+
 test("calcHerringbone: a pre-finishing saved config (no tex/finish) prices unchanged", () => {
   const legacy = { sp: "White Oak", cons: "solid", w: 4.25, band: 1, chevron: false };
   const c = calcHerringbone(legacy, 1000);
@@ -272,10 +286,10 @@ test("calcHerringbone: a pre-finishing saved config (no tex/finish) prices uncha
   assert.equal(c.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats');
 });
 
-test("hbFromFloor copies species/grade/construction/width/scrape/prefinished from a floor or stocked config", () => {
-  const f = floor({ sp: "Maple", grade: "clear", cons: "eng", w: 6.25, tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" });
+test("hbFromFloor copies species/grade/construction/width/scrape/edge/prefinished from a floor or stocked config", () => {
+  const f = floor({ sp: "Maple", grade: "clear", cons: "eng", w: 6.25, tex: "sawcut", edge: "pillow", finish: "est", stain: "Cattail", sheen: "20" });
   assert.deepEqual(hbFromFloor({ mode: "floor", cfg: f }),
-    { sp: "Maple", cons: "eng", grade: "clear", w: 6.25, tex: "sawcut", finish: "est", stain: "Cattail", stainCustom: false, sheen: "20", sheenCustom: false, sample: false });
+    { sp: "Maple", cons: "eng", grade: "clear", w: 6.25, tex: "sawcut", edge: "pillow", finish: "est", stain: "Cattail", stainCustom: false, sheen: "20", sheenCustom: false, sample: false });
   // Live Sawn has no herringbone twin → maps to plain White Oak.
   assert.equal(hbFromFloor({ mode: "floor", cfg: floor({ sp: LIVE_SAWN_SP }) }).sp, "White Oak");
   // Unfinished smooth floor lands unfinished/smooth; solid + character + width carry.
@@ -295,6 +309,7 @@ test("hbFromFloor copies species/grade/construction/width/scrape/prefinished fro
   assert.equal(st.finish, "est");
   assert.equal(st.stain, "Cattail");
   assert.equal(st.tex, "sawcut");
+  assert.equal(st.edge, "bevel"); // the stocked program's one edge
   assert.equal(hbFromFloor({ mode: "stocked", cfg: { ...defaultConfig("stocked"), sp: "White Oak", color: "Natural" } }).finish, "nat");
   // A species with no herringbone twin (there is none among floor species besides
   // Live Sawn) — hb copying itself yields species only.
@@ -438,6 +453,7 @@ test("lineItems: sq-ft build → one hardwood row, size-first, carton-aware", ()
   assert.equal(main.markupPct, "40");
   assert.equal(main.cartonSf, "20.5");
   assert.equal(main.sku, "");
+  assert.equal(main.note, undefined); // the payload never writes the row's note
   assert.deepEqual(main.sheoga, { mode: "floor", cfg: floor() });
 });
 
@@ -455,6 +471,7 @@ test("lineItems: fees land as their own misc lines at cost", () => {
     // Sheoga-sourced (so it files under Special order) but with no cfg to reopen
     assert.deepEqual(f.sheoga, { fee: true });
     assert.equal(f.sheoga.cfg, undefined);
+    assert.equal(f.note, undefined);
   }
   assert.equal(fee.brandColor, "Sheoga — Small-order fee — prefinished job under 250 sf");
   assert.equal(sample.priceSqft, "750");
