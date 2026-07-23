@@ -688,6 +688,31 @@ test("rowAdvisories: area-below-piece-cost catches a square-footed trim the lexi
   assert.ok(!codes({ sku: "M2", type: "tile", description: "Peacock Blue", priceUnit: "SH", orderUnit: "SH", pcPerUnit: 1, sfPerUnit: 1.02, cost: 23.04 }).includes("area-below-piece-cost"));
 });
 
+test("rowAdvisories: implausible sf-per-sheet coverage (the 22974 mis-parse shape)", () => {
+  // What 22974 looked like when ".969sf/sh" read as 969: sheet-sold, 969
+  // sf/sheet, $0.019/sqft. Both new checks catch it — the coverage claim and,
+  // untyped-but-sheet-sold, the $/sqft outlier the typed-only psf used to skip.
+  const c = codes({ sku: "22974", description: "Atlas Concorde Mosaic - Rid Bg", unit: "SH", cost: 12.15, sfPerUnit: 969 });
+  assert.ok(c.includes("sheet-coverage"));
+  assert.ok(c.includes("psf-outlier"));
+  // The team rule: even 3+ sf/sheet is not a thing.
+  assert.ok(codes({ sku: "S1", description: "Big Claim Mosaic", unit: "SH", cost: 20, sfPerUnit: 3.5 }).includes("sheet-coverage"));
+  // A real mosaic sheet (~1 sqft) is quiet; so is the same coverage on a carton.
+  assert.deepEqual(codes({ sku: "S2", type: "tile", description: "Honest Mosaic", unit: "SH", cost: 20, sfPerUnit: 0.969 }), []);
+  assert.deepEqual(codes({ sku: "S3", type: "tile", description: "Field Tile", unit: "CT", cost: 46, sfPerUnit: 15.5 }), []);
+});
+
+test("rowAdvisories: the $/sqft outlier reads untyped carton/sheet rows, not accessories", () => {
+  // Untyped but carton-sold with coverage — a flooring row the type reader
+  // missed still gets its absurd derived cost flagged.
+  assert.ok(codes({ sku: "U1", description: "Mystery Carton Goods", unit: "CT", cost: 3, sfPerUnit: 500 }).includes("psf-outlier"));
+  // A roll/EA accessory legitimately derives pennies per sqft — stays quiet
+  // (Aquabar B: 500 sf/roll at $26.80).
+  assert.deepEqual(codes({ sku: "U2", description: "Aquabar B Underlayment", unit: "EA", cost: 26.8, sfPerUnit: 500 }), []);
+  // A reclassified trim's coverage is ignored at pick time — no outlier noise.
+  assert.deepEqual(codes({ sku: "U3", trim: true, description: "Reducer Stick", unit: "CT", cost: 22, sfPerUnit: 121.1 }), []);
+});
+
 test("importSanityWarnings: aggregates by message with ≤3 sample SKUs", () => {
   const items = [
     normOrderItem({ sku: "L1", description: "Foo . Bar" }),

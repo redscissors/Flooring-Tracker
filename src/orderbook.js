@@ -463,6 +463,9 @@ export function unitComboWarnings(items, review) {
 // torello = rounded edge, zoccolo = skirting, fascia/listello = border strips).
 const TRIM_WORD_RE = /reducer|t-?mold|bull ?nose|stair ?nos|threshold|transition|pencil|quarter ?round|\bliner\b|\bedge\b|\btrim\b|\bcap\b|\bcove\b|\btread\b|\briser\b|nosing|skirting|\bcorner\b|\bcrn\b|\bstep\b|v-?cap|\bogee\b|molding|moulding|gradino|gradone|scalino|angolo|angolare|\bango\b|battiscopa|torello|zoccolo|fascia|listello/i;
 const SHEET_UNIT_RE = /^(sh|sht|sheet)s?$/i;
+// The most a real mosaic backing sheet covers (they run ~1 sqft) — anything
+// claiming more mis-parsed its coverage.
+const SHEET_SF_MAX = 3;
 // Stated SF/CT against the footprint the parsed size implies (piece area ×
 // pieces per carton): ≈1 says the vendor's coverage is real — the piece is a
 // genuine area product however it's priced. null when the size doesn't parse.
@@ -503,6 +506,12 @@ export function rowAdvisories(item) {
   else if (RESIDUAL_SIZE_RE.test(name)) out.push({ code: "name-size", msg: "still showing a size in the product name — the size column may be unmapped or an unrecognized spelling" });
   else if (clean.length <= 1) out.push({ code: "name-empty", msg: "parsing to an empty or one-character name — check the description column" });
   if (fillsFlooring(it) && TRIM_WORD_RE.test(`${name} ${str(it.size)}`)) out.push({ code: "trim-as-area", msg: "a trim/molding line priced by the square foot — confirm it should cover area, not sell per piece" });
+  const sheetUnit = SHEET_UNIT_RE.test(priceUnitOf(it)) || SHEET_UNIT_RE.test(orderUnitOf(it));
+  // No mosaic backing sheet covers over ~3 sqft (team rule, 2026-07-23) — a
+  // bigger claim is a mis-parsed coverage riding the description (the 22974
+  // lesson: ".969sf/sh" once read as 969 sf/sheet). A genuine oversized sheet
+  // good (Ditra Heat membrane, 8.4 sf) trips it once and gets review-muted.
+  if (sheetUnit && it.sfPerUnit > SHEET_SF_MAX) out.push({ code: "sheet-coverage", msg: `claiming ${it.sfPerUnit} sf per SHEET — over ${SHEET_SF_MAX} sf isn't a real mosaic sheet, so the coverage likely mis-parsed from the description` });
   const psf = it.type ? costSqft(it) : null;
   // Cost-inversion: a piece-priced row being sold by the square foot whose
   // derived $/sqft cost sits BELOW its own per-piece cost — i.e. the piece
@@ -514,12 +523,18 @@ export function rowAdvisories(item) {
   // covers ~1 sqft, so its marginal inversion is real area product, not a trim —
   // un-guarded they are ~1/3 of the hits. The fix for a real hit is reclassifying
   // the row to a per-piece count line; this only flags it.
-  const sheetUnit = SHEET_UNIT_RE.test(priceUnitOf(it)) || SHEET_UNIT_RE.test(orderUnitOf(it));
   // Geometry-confirmed coverage (a 24x48 deco panel honestly covering 8 sqft)
   // is a real area product priced per piece — under water only in the
   // unit-blind read, so it doesn't warn.
   if (psf != null && psf < it.cost && isPieceUnit(priceUnitOf(it)) && !sheetUnit && !AREA_PIECE_RE.test(`${name} ${str(it.size)}`) && !coverageConfirmed(it)) out.push({ code: "area-below-piece-cost", msg: `priced $${it.cost}/${priceUnitOf(it).toUpperCase()} but its derived cost is only $${psf}/sqft — a piece that covers over a square foot being sold by the foot, so it prices below cost; likely a trim (check its SF/CT)` });
-  if (psf != null && (psf > 150 || psf < 0.25)) out.push({ code: "psf-outlier", msg: `an unusual per-sq-ft cost (about $${psf}) — double-check the unit and coverage (premium goods can legitimately run high)` });
+  // The outlier check also reads UNTYPED carton/sheet-sold rows: the 22974
+  // lesson — a mis-parsed 969 sf/sheet derived $0.02/sqft, but the row was
+  // untyped so the typed-only psf skipped it. Trims stay out (their coverage
+  // is ignored at pick time), as do roll/EA accessories (a 500 sf roll
+  // legitimately derives pennies per sqft).
+  const psfAny = psf != null ? psf
+    : !it.trim && (sheetUnit || isCartonUnit(priceUnitOf(it)) || isCartonUnit(orderUnitOf(it))) ? costSqft(it) : null;
+  if (psfAny != null && (psfAny > 150 || psfAny < 0.25)) out.push({ code: "psf-outlier", msg: `an unusual per-sq-ft cost (about $${psfAny}) — double-check the unit and coverage (premium goods can legitimately run high)` });
   return out;
 }
 
@@ -551,6 +566,7 @@ const FLAG_LABELS = {
   "pc-sf-mismatch": "unit mix", "unfamiliar-unit": "odd unit",
   "name-litter": "name?", "name-size": "name?", "name-empty": "name?",
   "trim-as-area": "trim as sqft", "area-below-piece-cost": "under water", "psf-outlier": "$/sqft?",
+  "sheet-coverage": "sf/sh?",
 };
 const TRIM_SIGNAL_MSG = {
   lexicon: "Named as a trim (bullnose, gradino, end cap…) — quotes per piece, not by the square foot.",

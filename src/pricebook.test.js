@@ -447,6 +447,9 @@ const VSA_WORKBOOK = [sheet("Vendor SKU Analysis", [
   // A real MANMI row where the two code columns disagree (a vendor reissue) —
   // both are kept, either may be the one a vendor book states.
   ["13192", "94\" Mann AduraMax T-Molding - Acacia Tiger's Eye 011", 27.87, 46.8, "EA", "389118", "449406", "", 1, 1],
+  // A real OHIVA mosaic sold by the SHEET, coverage printed with no leading
+  // zero (".969sf/sh") — the "969" must not read as the coverage.
+  ["22974", "2x2 Atlas Concorde Mosaic - 600110000217 Rid Bg .969sf/sh", 12.15, 18.22, "SH", "AUSRIBEMOS22", "600110000217", "C29AOAL", 2, 2],
 ])];
 
 test("detectVendorSkuAnalysis: recognizes the export, maps the known columns", () => {
@@ -482,7 +485,7 @@ test("detectVendorSkuAnalysis: null without the signature", () => {
 test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled from the description", () => {
   const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
   const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
-  assert.equal(items.length, 10);
+  assert.equal(items.length, 11);
   const spline = items.find((i) => i.sku === "05153"); // leading zero survives
   assert.equal(spline.price, 0.48);
   assert.equal(spline.cost, 0.3);
@@ -530,6 +533,25 @@ test("Vendor SKU Analysis: carton-sold rows with coverage become typed flooring"
   assert.ok(warnings.some((w) => /carton-sold/.test(w) && /94593/.test(w)), warnings.join(" | "));
 });
 
+// SKU 22974: a sheet-sold mosaic whose coverage prints with no leading zero
+// (".969sf/sh"). The old regex read the bare "969" as 969 sf/sheet and left
+// "./sh" litter in the name; SH wasn't a coverage-sold unit, so the row never
+// typed as flooring — though pricing already handled SH + per-sheet coverage
+// (the unitcombos truth table).
+test("Vendor SKU Analysis: a sheet-sold mosaic with .Nsf/sh coverage", () => {
+  const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
+  const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
+  const mosaic = items.find((i) => i.sku === "22974");
+  assert.equal(mosaic.sfPerUnit, 0.969);
+  assert.equal(mosaic.type, "tile");             // "Mosaic", sold by the sheet
+  assert.equal(mosaic.size, "2x2");
+  assert.equal(mosaic.unit, "SH");
+  assert.equal(mosaic.priceSqft, 18.8029);       // 18.22/SH ÷ .969 SF/SH
+  assert.match(mosaic.description, /Atlas Concorde Mosaic/);
+  assert.ok(!/969|\/sh|\./i.test(mosaic.description), `no coverage litter: "${mosaic.description}"`);
+  assert.deepEqual(mosaic.vendorSkus, ["600110000217", "AUSRIBEMOS22"]);
+});
+
 // The export leads flooring descriptions with the bare plank width — it lands
 // in the size field (not the name), and consuming the whole mixed fraction
 // keeps THICK_FRAC_RE from reading the 1/4" of a 2-1/4" width as a thickness.
@@ -559,6 +581,11 @@ test("floorTypeFromDescription: word ladder, then the size decides", () => {
   assert.equal(floorTypeFromDescription("Brandless Plank Line", "7x60"), "vinyl");         // plank-long L×W
   assert.equal(floorTypeFromDescription("Mann Riverwalk Dew - RVWK07DEW1", '6.5"'), "hardwood"); // bare width = wood
   assert.equal(floorTypeFromDescription("Mystery Product", ""), null);
+  // A hexagon chip leads with its bare width — the shape word outranks the
+  // bare-width-means-wood fallback (sheet-sold OHIVA mosaics, SKU 1501219 kin).
+  assert.equal(floorTypeFromDescription("Anatolia Soho Hexagon - 4501-0467-0 Ret Blk M", '2"'), "tile");
+  // A sheet-sold membrane has real coverage but is no floor (Ditra Heat 23031).
+  assert.equal(floorTypeFromDescription("Schluter Ditra Heat - Membrane Sheet", '3"'), null);
 });
 
 test("guessBookField: the ERP export headers, without disturbing the EFT guesses", () => {
