@@ -482,16 +482,24 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
               </div>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[168px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Item search</span>
-              <div className="flex flex-col gap-1.5 text-[11px] text-slate-600" title="How forgiving the product-row price-book search is. Lower catches typos and near-misses (reducar → Reducer); higher demands near-exact words. Governs both the in-stock and special-order results.">
-                <div className="flex items-baseline justify-between gap-1.5">
-                  <span className="font-medium">Strictness</span>
-                  <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
+              <div className="flex flex-col gap-1 text-[11px] text-slate-600">
+                <div title="How forgiving the product-row price-book search is. Lower catches typos and near-misses (reducar → Reducer); higher demands near-exact words. Governs both the in-stock and special-order results.">
+                  <div className="flex items-baseline justify-between gap-1.5">
+                    <span className="font-medium">Strictness</span>
+                    <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
+                  </div>
+                  <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Item search strictness" />
+                  <div className="flex justify-between text-[10px] text-slate-400"><span>Loose</span><span>Strict</span></div>
                 </div>
-                <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Item search strictness" />
-                <div className="flex justify-between text-[10px] text-slate-400">
-                  <span>Loose</span><span>Strict</span>
+                <div className="mt-1 pt-1 border-t border-slate-100" title="When the strictness above finds nothing, the search retries at this looser cutoff and labels the hits as near-matches — so a typo never comes back empty. Drag it up to the strictness to switch the fallback off.">
+                  <div className="flex items-baseline justify-between gap-1.5">
+                    <span className="font-medium">Near-match fallback</span>
+                    <span className="ft-mono text-[10px] font-semibold text-slate-500">{pcts.searchFallback < pcts.searchStrictness ? pcts.searchFallback.toFixed(2) : "Off"}</span>
+                  </div>
+                  <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchFallback} onChange={(e) => setPct("searchFallback")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Near-match fallback" />
+                  <div className="flex justify-between text-[10px] text-slate-400"><span>Wider</span><span>Off</span></div>
                 </div>
               </div>
             </div>

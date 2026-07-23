@@ -26,10 +26,10 @@ test("normTier / normPrintPricing default invalid values", () => {
 });
 
 test("normPricing defaults builder 8 / sale 10 / Sheoga markup 40 / vent markup 50 and clamps", () => {
-  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
-  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
-  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
-  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3 });
+  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
   // Markup is a % over cost, not a discount — it may exceed 100.
   assert.equal(normPricing({ sheogaMarkupPct: 150 }).sheogaMarkupPct, 150);
   assert.equal(normPricing({ sheogaMarkupPct: -3 }).sheogaMarkupPct, 0);
@@ -46,6 +46,12 @@ test("normPricing defaults builder 8 / sale 10 / Sheoga markup 40 / vent markup 
   assert.equal(normPricing({ searchStrictness: 0.01 }).searchStrictness, 0.1);
   assert.equal(normPricing({ searchStrictness: 2 }).searchStrictness, 0.9);
   assert.equal(normPricing({ searchStrictness: "abc" }).searchStrictness, 0.3);
+  // Near-match fallback: its own clamped fraction, default looser than the primary.
+  assert.equal(normPricing(undefined).searchFallback, 0.18);
+  assert.equal(normPricing({ searchFallback: 0.25 }).searchFallback, 0.25);
+  assert.equal(normPricing({ searchFallback: 0.01 }).searchFallback, 0.1);
+  assert.equal(normPricing({ searchFallback: 5 }).searchFallback, 0.9);
+  assert.equal(normPricing({ searchFallback: "abc" }).searchFallback, 0.18);
 });
 
 // --- tierPct -------------------------------------------------------------------

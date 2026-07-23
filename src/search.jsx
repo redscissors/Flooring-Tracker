@@ -101,31 +101,52 @@ export const searchPanelBox = (pos) => {
 // instant from the in-memory list; special-order matches stream in behind them
 // from a debounced server query (searchOrder — null when no order books exist,
 // which keeps the whole feature inert until one is imported).
-function useOrderResults(query, searchOrder, strictness) {
-  const [items, setItems] = useState([]);
+function useOrderResults(query, searchOrder, strictness, fallback) {
+  const [state, setState] = useState({ primary: [], fallback: [] });
   useEffect(() => {
     const q = (query || "").trim();
-    if (!q || !searchOrder) { setItems([]); return; }
+    if (!q || !searchOrder) { setState({ primary: [], fallback: [] }); return; }
     let stale = false;
     const t = setTimeout(async () => {
-      try { const r = await searchOrder(q, strictness); if (!stale) setItems(r); }
-      catch { if (!stale) setItems([]); }
+      try {
+        const primary = await searchOrder(q, strictness);
+        // The looser retry costs a second query, so only when the strict pass
+        // came back empty and the fallback is genuinely looser (else it can't
+        // surface anything the primary didn't).
+        const fb = (!primary.length && fallback != null && strictness != null && fallback < strictness) ? await searchOrder(q, fallback) : [];
+        if (!stale) setState({ primary, fallback: fb });
+      } catch { if (!stale) setState({ primary: [], fallback: [] }); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [query, searchOrder, strictness]);
-  return items;
+  }, [query, searchOrder, strictness, fallback]);
+  return state;
 }
 
 // Instant stock matches + streamed order matches, merged stock-first with the
 // exact-SKU collision resolved to stock (mergeSearch), then capped for display.
 // Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
 // the shared in-memory stock objects.
-export function useMergedResults(active, stock, query, searchOrder, strictness) {
-  const orderRaw = useOrderResults(active ? query : "", searchOrder, strictness);
-  const stockMatches = active ? searchStock(stock, query, strictness) : [];
+const mergeCombined = (stockMatches, orderRaw) => {
   const { stock: sMatches, order: oMatches } = mergeSearch(stockMatches.map((it) => ({ ...it })), orderRaw);
-  const combined = [...sMatches, ...oMatches];
-  return { results: combined.slice(0, SKU_SHOW), total: combined.length };
+  return [...sMatches, ...oMatches];
+};
+
+// A quiet banner over the results when they came from the looser fallback pass
+// (the set strictness matched nothing), so a near-match is never mistaken for
+// an exact one. Amber is the app's "approximate/attention" semantic, not chrome.
+export const NearMatchNote = () => (
+  <div className="shrink-0 px-2.5 py-1 text-[10.5px] font-semibold border-b border-amber-200 bg-amber-50 text-amber-700">
+    No exact match — showing closest spellings
+  </div>
+);
+
+export function useMergedResults(active, stock, query, searchOrder, strictness, fallback) {
+  const order = useOrderResults(active ? query : "", searchOrder, strictness, fallback);
+  const primary = mergeCombined(active ? searchStock(stock, query, strictness) : [], order.primary);
+  if (primary.length) return { results: primary.slice(0, SKU_SHOW), total: primary.length, near: false };
+  const useFb = active && fallback != null && strictness != null && fallback < strictness;
+  const near = mergeCombined(useFb ? searchStock(stock, query, fallback) : [], order.fallback);
+  return { results: near.slice(0, SKU_SHOW), total: near.length, near: near.length > 0 };
 }
 
 // Price book lookup for the Settings catalog's add-product form: picking an
