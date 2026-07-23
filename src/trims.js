@@ -6,6 +6,27 @@
 
 import { num } from "./catalog.js";
 
+// A shop-modified code and its manufacturer base ("589571E" ↔ "589571"): the
+// team suffixes a single letter onto a numeric vendor code to mark an internal
+// variant, so matching tries both spellings. Anything else passes unchanged.
+const codeVariants = (code) => {
+  const m = /^(\d{3,})[A-Za-z]$/.exec(code || "");
+  return m ? [code, m[1]] : [code];
+};
+
+// The exact keys an item is known by across the spaces: its own SKU plus the
+// manufacturer codes its sheet stated as columns (`vendorSkus` — the ERP
+// exports' Supplier/Mfg Product Code, the authoritative source), falling back
+// to description-tail extraction only for items imported before those columns
+// were captured. The description is NOT trusted when columns exist: a real
+// MANMI floor's description carried a sibling color's code while the column
+// had the right one.
+export function vendorKeys(item) {
+  if (!item) return [];
+  const codes = item.vendorSkus?.length ? item.vendorSkus : vendorCodeCandidates(item.description);
+  return [...new Set([item.sku, ...codes].filter(Boolean).flatMap(codeVariants))].slice(0, 6);
+}
+
 // The ERP's product codes are the shop's own; the manufacturer's code rides in
 // the ERP description, generally at the very end ("… NOBLE OAK ACORN REDUCER
 // 384421"). Candidates are the last few code-shaped tokens — a wrong guess is
@@ -50,20 +71,20 @@ export function existingTrimRows(products, floorId, trims) {
 // Prefer the shop's shelf over the vendor: a trim that a stock-kind book
 // carries live swaps to that stock item (its own retail, `stockKind` badge),
 // keeping the special-order item only when the shop doesn't stock it. A stock
-// item matches on its own SKU or on a manufacturer code extracted from its
-// ERP description (vendorCodeCandidates) — exact equality either way. A
-// swapped item keeps the vendor code as `orderSku` so seeding still finds
-// lines added under either code.
+// item matches on any of its exact keys (vendorKeys: its SKU, its sheet's
+// manufacturer-code columns, the description-tail fallback), and a
+// shop-suffixed code matches its base ("589571E" ↔ "589571") — exact equality
+// throughout, never fuzzy. A swapped item keeps the vendor code as `orderSku`
+// so seeding still finds lines added under either code.
 export function preferStockTrims(trims, stockItems) {
   if (!trims?.length || !stockItems?.length) return trims || [];
   const byKey = new Map();
   for (const it of stockItems) {
     if (it.active === false || it.disabled || it.discontinued || !it.sku) continue;
-    for (const k of [it.sku, ...vendorCodeCandidates(it.description)])
-      if (!byKey.has(k)) byKey.set(k, it);
+    for (const k of vendorKeys(it)) if (!byKey.has(k)) byKey.set(k, it);
   }
   return trims.map((t) => {
-    const twin = byKey.get(t.sku);
+    const twin = codeVariants(t.sku).map((k) => byKey.get(k)).find(Boolean);
     if (!twin) return t;
     return { ...twin, trim: true, fits: t.fits, ...(twin.sku !== t.sku ? { orderSku: t.sku } : {}) };
   });

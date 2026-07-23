@@ -128,6 +128,31 @@ fires between spaces. The bridge stays exact anyway:
   the shop's "RSKU…" shelf item. A swapped item keeps the vendor code as
   `orderSku`, and seeding matches lines added under either code.
 
+### Amendment 2026-07-23 (3) — the code columns are the bridge (real MANMI sheet)
+
+The owner's real MANMI export settled it: the manufacturer's code is a
+**column** — Supplier Prod Code and Mfg Product Code, filled on every row —
+while the description is *not* a safe source (position: absent 180 / middle
+54 / tail 3 of 237; and one real floor's description carried a sibling
+color's code — Noble Oak Bark said `MPB820` (= Dry Leaf) while the column
+correctly said `MPB823`). So:
+
+- The ERP import now captures both columns as `vendorSkus` on the item
+  (normalized like `fits`; the recognizer maps them, `guessBookField` knows
+  them — ahead of the sku rule, since "Mfg Product Code" contains
+  "product code" — and the wizard offers them).
+- `vendorKeys(item)` is the one key-set builder: SKU + `vendorSkus` when
+  present (**exclusively** — no description guessing once columns exist),
+  description-tail extraction only for items imported before the columns were
+  captured. A shop-suffixed numeric code expands to its base
+  ("589571E" ↔ "589571" — the team marks internal variants that way).
+- Both the floor→trims lookup and the stock-twin swap key on `vendorKeys`.
+- **Requires a one-time re-drop of each ERP stock export** so existing items
+  pick up `vendorSkus`; until then the tail fallback applies.
+
+Verified against the real sheet: 236/236 items carry codes; the Bark floor
+resolves `MPB823`; order trim `589579` pairs with shop item `1518224`.
+
 ### Out of scope (this prototype)
 
 - The mobile row sheet (`MobileRowSheet`) — same popup can mount there later.

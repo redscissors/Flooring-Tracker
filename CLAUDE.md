@@ -99,19 +99,21 @@ src/
   usetrims.js       # `useTrims` — session cache of a floor's trims (the ADR 0012
                     # `fits` relation read floor→trims), looked up by an exact key
                     # set across every active registry book: the row's SKU plus,
-                    # for an ERP stock floor, the manufacturer codes extracted from
-                    # its ERP description (the ERP's own codes are internal; the
-                    # vendor's ride at the description's tail) — fetched when a
-                    # bookId row's materials drawer opens, cleared whole when an
-                    # import applies
+                    # for an ERP stock floor, its item's manufacturer codes
+                    # (`vendorSkus`, the export's Supplier/Mfg Product Code columns;
+                    # description-tail extraction only as a pre-column fallback) —
+                    # fetched when a bookId row's materials drawer opens, cleared
+                    # whole when an import applies
   trims.js          # trims-as-lines pure logic (2026-07-22 spec): seedTrimPlan/
                     # applyTrimPlan — the Trims popup mirrors the floor's existing trim
                     # rows, so reopening adjusts/removes instead of appending duplicates,
                     # and new picks insert directly below the floor — plus
-                    # preferStockTrims: a live stock twin — matched on its SKU or a
-                    # manufacturer code extracted from its ERP description
-                    # (vendorCodeCandidates) — outranks the special-order item
-                    # (mergeSearch doctrine, exact equality only) (trims.test.js)
+                    # preferStockTrims: a live stock twin — matched on any of its
+                    # exact keys (vendorKeys: SKU, the sheet's manufacturer-code
+                    # columns, description-tail fallback; a shop-suffixed
+                    # "589571E" matches its base) — outranks the special-order
+                    # item (mergeSearch doctrine, exact equality only)
+                    # (trims.test.js)
   TrimsPopup.jsx    # the floor row's Trims popup, opened from the materials drawer's
                     # Trims row: a quantity per book-listed trim; Apply lands the picks
                     # as count-line product rows through the sanctioned pick patch

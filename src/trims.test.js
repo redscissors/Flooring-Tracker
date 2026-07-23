@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existingTrimRows, seedTrimPlan, applyTrimPlan, preferStockTrims, vendorCodeCandidates } from "./trims.js";
+import { existingTrimRows, seedTrimPlan, applyTrimPlan, preferStockTrims, vendorCodeCandidates, vendorKeys } from "./trims.js";
 
 const trim = (sku, over = {}) => ({ sku, bookId: "b1", trim: true, ...over });
 const row = (id, over = {}) => ({ id, sku: "", bookId: "", qty: "", ...over });
@@ -108,15 +108,48 @@ test("preferStockTrims: an exact-SKU live stock item outranks the special-order 
   assert.equal(out[1].sku, "384469"); // no twin — the special-order item stays
 });
 
-test("preferStockTrims: a stock item matches by the manufacturer code in its ERP description", () => {
-  // The ERP keys the reducer under the shop's own RSKU code; the Mannington
-  // code rides at the end of the description (2026-07-23 spec amendment).
+test("preferStockTrims: a stock item matches by its sheet's manufacturer-code column", () => {
+  // The ERP keys the trim under the shop's own code (1518216); the Mannington
+  // catalog # rides in the Supplier/Mfg Product Code columns → vendorSkus.
+  const order = { sku: "589571", bookId: "order1", trim: true, fits: ["MPB821"], price: 42.16 };
+  const stock = { sku: "1518216", bookId: "stock-manmi", stockKind: true, active: true, price: 46.8, vendorSkus: ["589571"], description: "94\" Mann AduraMax Endcap - Noble Oak Acorn EDM821" };
+  const out = preferStockTrims([order], [stock]);
+  assert.equal(out[0].sku, "1518216");
+  assert.equal(out[0].orderSku, "589571"); // the vendor code, kept for seeding
+  assert.equal(out[0].trim, true);
+});
+
+test("preferStockTrims: a shop-suffixed code matches its manufacturer base", () => {
+  // The team marks an internal variant by suffixing a letter ("589571E") —
+  // either side of the pair may carry the suffix.
+  const order = { sku: "589571", bookId: "order1", trim: true, fits: [] };
+  const suffixed = { sku: "1518216", bookId: "s1", stockKind: true, active: true, vendorSkus: ["589571E"] };
+  assert.equal(preferStockTrims([order], [suffixed])[0].sku, "1518216");
+  const orderSuffixed = { sku: "589571E", bookId: "order1", trim: true, fits: [] };
+  const plain = { sku: "1518216", bookId: "s1", stockKind: true, active: true, vendorSkus: ["589571"] };
+  assert.equal(preferStockTrims([orderSuffixed], [plain])[0].sku, "1518216");
+});
+
+test("preferStockTrims: description fallback still pairs items imported before the code columns", () => {
   const order = { sku: "384421", bookId: "order1", trim: true, fits: ["APX020"], price: 42.16 };
   const stock = { sku: "RSKU0417", bookId: "stock-manmi", stockKind: true, active: true, price: 39.99, description: "MANN ADURA NOBLE OAK ACORN REDUCER 384421" };
   const out = preferStockTrims([order], [stock]);
   assert.equal(out[0].sku, "RSKU0417");
-  assert.equal(out[0].orderSku, "384421"); // the vendor code, kept for seeding
-  assert.equal(out[0].trim, true);
+  assert.equal(out[0].orderSku, "384421");
+});
+
+test("vendorKeys: the code columns are authoritative — the description is ignored when they exist", () => {
+  // A real MANMI floor: the description carries a sibling color's code
+  // (MPB820 = Dry Leaf) while the column has the right one (MPB823 = Bark).
+  const bark = { sku: "1517410", vendorSkus: ["MPB823"], description: "7x60 Mannington AduraMax MPB820 Noble Oak Bark 29.53 SF/CT" };
+  assert.deepEqual(vendorKeys(bark), ["1517410", "MPB823"]);
+  // No columns captured yet (pre-re-import) → the tail fallback.
+  const legacy = { sku: "RSKU0417", description: "MANN ADURA NOBLE OAK ACORN REDUCER 384421" };
+  assert.deepEqual(vendorKeys(legacy), ["RSKU0417", "384421"]);
+  // A suffixed code expands to its base alongside itself.
+  const suffixed = { sku: "1518216", vendorSkus: ["589571E"] };
+  assert.deepEqual(vendorKeys(suffixed), ["1518216", "589571E", "589571"]);
+  assert.deepEqual(vendorKeys(null), []);
 });
 
 test("preferStockTrims: retired/disabled/discontinued stock never swaps in", () => {

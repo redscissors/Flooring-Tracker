@@ -33,6 +33,7 @@ const bookFieldOptions = [
   ["unit", "Unit (U/M)"], ["priceUnit", "Price unit (cost basis)"], ["orderUnit", "Order unit (No Broken)"],
   ["size", "Size"], ["thickness", "Thickness"], ["sfPerUnit", "SF per carton"], ["pcPerUnit", "Pieces per carton"],
   ["coverage", "Coverage"], ["leadTime", "Lead time"], ["msrp", "MSRP / consumer"], ["brand", "Brand"],
+  ["vendorSku", "Vendor / mfg product code"], ["vendorSku2", "Vendor code (2nd column)"],
   ["section", "Section"], ["note", "Notes"], ["type", "Flooring type"], ["flag", "Status flag"],
 ];
 

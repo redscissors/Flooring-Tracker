@@ -28,7 +28,7 @@ import { useBookStock } from "./usebookstock.js";
 import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
-import { seedTrimPlan, applyTrimPlan, existingTrimRows, preferStockTrims, vendorCodeCandidates } from "./trims.js";
+import { seedTrimPlan, applyTrimPlan, existingTrimRows, preferStockTrims, vendorKeys } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
@@ -496,16 +496,18 @@ export default function App({ user, onSignOut }) {
   // (their SKUs are the shop's own) despite the bookId provenance.
   const stockBookIds = useMemo(() => new Set(books.filter((b) => b.kind === "stock").map((b) => b.id)), [books]);
   // The exact keys a floor row's trims are looked up under (usetrims.js): its
-  // own SKU plus, for an ERP stock floor, the manufacturer codes at the tail
-  // of its ERP description — the shop's internal code never appears in a
-  // vendor book's `fits`, the manufacturer's does. A stock row waits for the
-  // stock cache (null = not knowable yet, the effect below refires).
+  // own SKU plus, for an ERP stock floor, its item's manufacturer codes
+  // (vendorKeys — the export's Supplier/Mfg Product Code columns, with the
+  // description tail only as a legacy fallback) — the shop's internal code
+  // never appears in a vendor book's `fits`, the manufacturer's does. A stock
+  // row waits for the stock cache (null = not knowable yet, the effect below
+  // refires).
   const trimKeys = (p) => {
     if (!p?.bookId || !p.sku) return null;
     if (!stockBookIds.has(p.bookId)) return [p.sku];
     if (!bookStockReady) return null;
     const it = (bookStock[p.bookId] || []).find((x) => x.sku === p.sku);
-    return [p.sku, ...vendorCodeCandidates(it?.description)];
+    return it ? vendorKeys(it) : [p.sku];
   };
   // Opening a bookId row's drawer prefetches its trims (the `fits` relation),
   // so the drawer's Trims row renders — or stays hidden — without a spinner.
