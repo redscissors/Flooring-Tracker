@@ -5,7 +5,7 @@ import { TYPES, TLBL, TYPE_ACCENT, THICK, TIER_COLOR, TIER_LONG } from "./uicons
 import { money } from "./model.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
 import { useAnchoredPanel, vPos } from "./widgets.jsx";
-import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults } from "./search.jsx";
+import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
@@ -166,13 +166,13 @@ export function GridSizeInput({ p, onCommit, tabIndex }) {
 // count chip shows the would-be paste length against descLimit while over.
 const CELL_LINE = 14;              // px line-height; two lines + pad = 34px cap
 const OVER_RED = "#dc2626";
-export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0 }) {
+export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0, strictness, fallback }) {
   const [open, setOpen] = useState(false);
   const [twoLine, setTwoLine] = useState(false);
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
   const mirrorRef = useRef(null);
-  const { results: matches } = useMergedResults(open, stock, value, searchOrder);
+  const { results: matches, near } = useMergedResults(open, stock, value, searchOrder, strictness, fallback);
   const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   // Measured, not guessed, so the single/two-line toggle survives any column
   // width — single-line text keeps today's centered look. scrollHeight includes
@@ -219,6 +219,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
       {open && pos && matches.length > 0 && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          {near && <NearMatchNote />}
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {matches.map((it) => (
               <button key={(it.bookId || "stock") + "|" + it.sku} onMouseDown={(e) => { e.preventDefault(); onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
@@ -235,7 +236,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
 // price book by SKU or product words. Picking a match fills the whole row
 // (like the SKU/product cells do); shift-click adds several as their own rows;
 // Enter with no match — or a double-click — hands the row to manual entry.
-export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef }) {
+export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPickMany, onManual, onAbandon, onVendor, searchOrder, bookName, inputRef, strictness, fallback }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const [picked, setPicked] = useState([]); // picked hits (stock or order), in click order
@@ -250,7 +251,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const blurTimer = useRef(null);
   useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
-  const { results, total } = useMergedResults(open, stock, query, searchOrder);
+  const { results, total, near } = useMergedResults(open, stock, query, searchOrder, strictness, fallback);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { committedRef.current = true; onPick(it); close(); };
@@ -315,6 +316,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
       {panelShowing && pos && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
           className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          {near && results.length > 0 && <NearMatchNote />}
           {results.length > 0 && (
             <div className="max-h-72 min-h-0 overflow-y-auto">
               {results.map((it, i) => {

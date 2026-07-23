@@ -422,6 +422,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
         const pctInp = "ft-field w-12 text-center rounded-md border border-slate-200 px-1.5 py-px text-xs leading-5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
         const minus = <span className="inline-grid place-items-center w-4 h-4 shrink-0 rounded text-slate-500 bg-slate-100 text-[12px] font-extrabold leading-none">−</span>;
         const plus = <span className="inline-grid place-items-center w-4 h-4 shrink-0 rounded text-indigo-700 bg-indigo-50 text-[12px] font-extrabold leading-none">+</span>;
+        const strictWord = (t) => t <= 0.2 ? "Loose" : t <= 0.28 ? "Forgiving" : t <= 0.4 ? "Balanced" : t <= 0.55 ? "Tight" : "Strict";
         return (
         <>
           <div className="mt-3 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[720px] md:max-w-full md:pb-0 md:snap-none items-stretch">
@@ -480,9 +481,31 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
                 <p className="text-[10px] text-slate-400 leading-snug pl-[26px]">characters · 0 = no limit</p>
               </div>
             </div>
+
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[168px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+              <span className="ft-eyebrow text-[10px]">Item search</span>
+              <div className="flex flex-col gap-1 text-[11px] text-slate-600">
+                <div title="How forgiving the product-row price-book search is. Lower catches typos and near-misses (reducar → Reducer); higher demands near-exact words. Governs both the in-stock and special-order results.">
+                  <div className="flex items-baseline justify-between gap-1.5">
+                    <span className="font-medium">Strictness</span>
+                    <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
+                  </div>
+                  <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Item search strictness" />
+                  <div className="flex justify-between text-[10px] text-slate-400"><span>Loose</span><span>Strict</span></div>
+                </div>
+                <div className="mt-1 pt-1 border-t border-slate-100" title="When the strictness above finds nothing, the search retries at this looser cutoff and labels the hits as near-matches — so a typo never comes back empty. Drag it up to the strictness to switch the fallback off.">
+                  <div className="flex items-baseline justify-between gap-1.5">
+                    <span className="font-medium">Near-match fallback</span>
+                    <span className="ft-mono text-[10px] font-semibold text-slate-500">{pcts.searchFallback < pcts.searchStrictness ? pcts.searchFallback.toFixed(2) : "Off"}</span>
+                  </div>
+                  <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchFallback} onChange={(e) => setPct("searchFallback")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Near-match fallback" />
+                  <div className="flex justify-between text-[10px] text-slate-400"><span>Wider</span><span>Off</span></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup · Order entry</div>
+          <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup · Order entry · Item search</div>
 
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />

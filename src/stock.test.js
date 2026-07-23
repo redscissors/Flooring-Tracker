@@ -277,6 +277,26 @@ test("searchStock matches SKU prefixes and word queries, skipping retired items"
   assert.equal(findStock(items, "55006").sku, "55006"); // findStock still resolves retired SKUs
 });
 
+test("searchStock with a threshold matches fuzzily and ranks best-first", () => {
+  const items = [
+    item({ sku: "TR-01", description: "Reducer White Oak Natural" }),
+    item({ sku: "TR-02", description: "Stairnose White Oak" }),
+    item({ sku: "TL-01", description: "Carrara White Polished Porcelain" }),
+  ];
+  // exact (no threshold) is unchanged — a typo finds nothing
+  assert.deepEqual(searchStock(items, "reducar"), []);
+  // with a forgiving threshold the typo still finds Reducer
+  assert.deepEqual(searchStock(items, "reducar", 0.3).map((i) => i.sku), ["TR-01"]);
+  // "carara" -> Carrara only, oak trims stay out
+  assert.deepEqual(searchStock(items, "carara", 0.3).map((i) => i.sku), ["TL-01"]);
+  // crank strictness up and the near-miss drops
+  assert.deepEqual(searchStock(items, "reducar", 0.75), []);
+  // an exact word still matches at any threshold
+  assert.deepEqual(searchStock(items, "reducer", 0.3).map((i) => i.sku), ["TR-01"]);
+  // numeric queries stay exact SKU-prefix even with a threshold
+  assert.deepEqual(searchStock(items, "01", 0.3), []);
+});
+
 test("searchStock returns every match — display code does the truncating", () => {
   const items = Array.from({ length: 40 }, (_, i) => item({ sku: String(10000 + i), description: "Napa Tannin — Stairnose" }));
   assert.equal(searchStock(items, "stairnose").length, 40);
