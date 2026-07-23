@@ -243,3 +243,29 @@ choice *with* the consequence counted.
   source still cannot be told from another generic PDF. If manual PDF slots become
   common, `computeFingerprint` should learn a title signature from page-1 text —
   out of scope here, noted so it is a known limit rather than a surprise.
+
+## Amendment (2026-07-23) — forced full re-import
+
+A whole-book import that happens to be a **no-op** (the sheet is byte-identical to
+the book, so every row diffs as `unchanged`) had no way to run: the wizard's Apply
+button was disabled, and `applyBookImport` early-returned without writing. That is
+correct for an ordinary re-drop, but it left no way to *deliberately* re-run the
+pipeline when the downstream effects need refreshing — the import-date/staleness
+stamp, the drop-routing fingerprint, a version snapshot, and above all the ADR
+0027 linked-catalog / family / link sync, which only fires after a successful
+apply.
+
+The wizard gains a **"Force full re-import"** toggle (last file of a bundle only —
+earlier files still just bank their rows). When on, the apply's diff is passed
+through `forceDiff` (`orderbook.js`), which recasts every `unchanged` row as a
+`changed` write. Nothing else in the pipeline changes: the rows go through the
+existing `changed` upsert path (which already preserves each row's `disabled` and
+`flagReview`), and `missing` still retires by the rule above — so **retire
+semantics remain unchanged** and the completeness gate still guards a
+single-sheet-of-many drop. The forced pass is stamped `lastImport.forced` for the
+book history. Guarded on `items.length > 0` so a mis-parsed empty sheet can never
+force a mass-retire.
+
+This is the whole-book "rewrite everything" counterpart to the still-unbuilt
+targeted per-file replace (rule 6) — it does not need per-item provenance because
+it rewrites the entire book, not one file's slice.
