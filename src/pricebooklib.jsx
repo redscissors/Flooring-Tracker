@@ -10,7 +10,7 @@ import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, diffBookItems, markupGroups, pricedItem, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, diffBookItems, forceDiff, markupGroups, pricedItem, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
@@ -1196,6 +1196,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   const [ignored, setIgnored] = useState(() => new Set());   // SKUs the user chose to ignore (→ disabled)
   const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
   const [keepArea, setKeepArea] = useState(() => new Set()); // reclassified trims the user opted to KEEP as sqft
+  const [force, setForce] = useState(false); // "Force full re-import" — rewrite every row even with no changes
   const toggleSet = (setter) => (key) => setter((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleIgnored = toggleSet(setIgnored);
   const toggleKeepOld = toggleSet(setKeepOld);
@@ -1389,8 +1390,18 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // A book's bundle only writes on its last file; before that the button banks
   // this file's rows and moves to the next one.
   const lastOfBundle = !bundle || bundle.index >= bundle.total - 1;
+  // Force full re-import (last file only — earlier bundle files just bank rows):
+  // rewrite every parsed/accumulated row even when the diff is a no-op, so the
+  // whole pipeline (upserts, staleness date, fingerprint, version, ADR-0027 sync)
+  // re-runs. Guarded on items.length so a mis-parsed empty sheet can't force a
+  // mass-retire. rewriteCount is the rows a forced apply writes (unchanged
+  // included); missing still retires.
+  const rewriteCount = diff.added.length + diff.changed.length + diff.unchanged.length;
+  const forcing = force && lastOfBundle && items.length > 0;
   const applyLabel = !lastOfBundle
     ? `Next file — ${bundle.index + 2} of ${bundle.total}`
+    : forcing
+    ? `Force re-import — ${rewriteCount} row${rewriteCount === 1 ? "" : "s"}${diff.missing.length ? ` · ${diff.missing.length} retiring` : ""}${disableSkus.length ? ` · ${disableSkus.length} disabled` : ""}`
     : addMode
     ? `Add — ${diff.added.length} new · ${diff.changed.length} updated`
     : importCount === 0 && disableSkus.length
@@ -1495,6 +1506,15 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                 <span className="text-xs text-amber-600">{diff.changed.length} changed</span>
                 <span className="text-xs text-slate-400">{diff.missing.length} retiring · {diff.unchanged.length} unchanged</span>
               </div>
+              {lastOfBundle && sheet && (
+                <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer">
+                  <input type="checkbox" className="mt-0.5" checked={force} onChange={(e) => setForce(e.target.checked)} />
+                  <span className="min-w-0">
+                    <span className="font-medium text-slate-600">Force full re-import — rewrite every row &amp; re-sync</span>
+                    <span className="block text-[11px] text-slate-400">Pushes the whole sheet through even when nothing changed: rewrites all {rewriteCount} row{rewriteCount === 1 ? "" : "s"}, re-stamps the import date, and re-runs the linked-catalog / family sync. Rows missing from the sheet still retire.</span>
+                  </span>
+                </label>
+              )}
               {editedOverwritten.length > 0 && (
                 <p className="mt-1.5 text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 inline-block" title={editedOverwritten.map((i) => i.sku).join(", ")}>
                   <Pencil size={11} className="inline -mt-0.5 mr-1" />{editedOverwritten.length} item{editedOverwritten.length === 1 ? " you" : "s you"} hand-edited will be overwritten by this import.
@@ -1591,7 +1611,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot }, bundleItems); }} disabled={lastOfBundle && importCount + disableSkus.length === 0} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing }, bundleItems); }} disabled={lastOfBundle && importCount + disableSkus.length === 0 && !forcing} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>
