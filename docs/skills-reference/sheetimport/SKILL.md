@@ -22,6 +22,7 @@ endlessly creative. Each of these was a real incident:
 | **Mannington PDF grid** | "Cartons Detail" list has no header row at all — fixed x-band columns, leftmost is Pattern not the code | `manningtonbook.js` (ADR 0012), trims flagged `trim` for separate markup |
 | **`.969sf/sh` mis-parse** (2026-07-23, PR #251) | ERP stock export prints sub-sqft sheet coverage with no leading zero and a `/sh` tail; `SF_DESC_RE` read the bare "969" as 969 sf/sheet ($0.02/sqft), left "./sh" litter, and the un-recognized SH unit kept the row untyped — which also hid it from the $/sqft outlier check | `SF_DESC_RE` + `COVERAGE_SOLD_RE` in pricebook.js; `sheet-coverage` + untyped `psf-outlier` advisories in orderbook.js |
 | **EFT brand-title routing** | VTC reuses one workbook template for every brand it distributes, so format tag alone routes a dropped file to the wrong book | `dropimport.js` — the brand-title line above the header is part of the match, a mismatch is a hard "not this book" |
+| **MANMI VN-marker codes** (2026-07-23) | The ERP export suffixes vinyl floors' Supplier/Mfg Product Code with an ERP-local "VN"/"VN1" marker (`MPB770VN1`) the Mannington book never writes, so the exact-key trims lookup silently found nothing — an empty trim box that read as "no trims exist". Import parsed fine; the *matching layer* had never seen the spelling | `codeVariants`/`vendorKeys` in trims.js (a marker code expands to its bare base; matching stays exact-membership) |
 
 The common shape: a spelling or unit the parser had never seen, handled
 *partially* — which is worse than not at all, because partial output looks
@@ -46,7 +47,14 @@ workbook, so they stay testable without the xlsx dependency) and scan for:
   (`2-1/4"`), leading decimals (`.43X12`), shape words (hex/penny), sheet
   dims (`(9X11 SHEET)`), feet-and-inches (`3'3"x2'7"` — currently unhandled,
   lands in the name-size advisory);
-- rows that are *not products*: headers mid-sheet, legend blocks, subtotals.
+- rows that are *not products*: headers mid-sheet, legend blocks, subtotals;
+- every **code-column spelling** when the sheet has Supplier/Mfg Product Code
+  columns: ERP-local marker suffixes (`MPB770VN1` for `MPB770`), shop-suffixed
+  variants (`589571E`), and disagreements — between the two columns, and with
+  the code in the description (a real MANMI row carried the sibling color's
+  code in the description; another had it in one column but not the other).
+  These columns feed exact-key matching (trims.js `vendorKeys`), where an
+  unseen spelling fails silently, not loudly.
 
 The odd rows are the spec. A parser written from the common rows will
 half-match the odd ones.
