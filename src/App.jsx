@@ -28,7 +28,7 @@ import { useBookStock } from "./usebookstock.js";
 import { syncLinkedCatalog, projectFamilies } from "./booklink.js";
 import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
-import { seedTrimPlan, applyTrimPlan, existingTrimRows, preferStockTrims } from "./trims.js";
+import { seedTrimPlan, applyTrimPlan, existingTrimRows, preferStockTrims, vendorCodeCandidates } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
@@ -228,16 +228,6 @@ export default function App({ user, onSignOut }) {
   // outside the drawer or its note). Collapsed rows show fine-print summaries of
   // the checked materials. See the matExpanded overlay in the grid below.
   const [matOpen, setMatOpen] = useState({});
-  // Opening a bookId row's drawer prefetches its trims (the `fits` relation),
-  // so the drawer's Trims row renders — or stays hidden — without a spinner.
-  useEffect(() => {
-    const pid = Object.keys(matOpen)[0];
-    if (!pid) return;
-    for (const a of sel?.categories || []) {
-      const p = a.products.find((x) => x.id === pid);
-      if (p) { if (p.bookId && p.sku) ensureTrims(p.sku); return; }
-    }
-  }, [matOpen, sel, ensureTrims]);
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const mainRef = useRef(null);
@@ -505,6 +495,30 @@ export default function App({ user, onSignOut }) {
   // Stock-kind book ids, so order entry can file their rows as stock lines
   // (their SKUs are the shop's own) despite the bookId provenance.
   const stockBookIds = useMemo(() => new Set(books.filter((b) => b.kind === "stock").map((b) => b.id)), [books]);
+  // The exact keys a floor row's trims are looked up under (usetrims.js): its
+  // own SKU plus, for an ERP stock floor, the manufacturer codes at the tail
+  // of its ERP description — the shop's internal code never appears in a
+  // vendor book's `fits`, the manufacturer's does. A stock row waits for the
+  // stock cache (null = not knowable yet, the effect below refires).
+  const trimKeys = (p) => {
+    if (!p?.bookId || !p.sku) return null;
+    if (!stockBookIds.has(p.bookId)) return [p.sku];
+    if (!bookStockReady) return null;
+    const it = (bookStock[p.bookId] || []).find((x) => x.sku === p.sku);
+    return [p.sku, ...vendorCodeCandidates(it?.description)];
+  };
+  // Opening a bookId row's drawer prefetches its trims (the `fits` relation),
+  // so the drawer's Trims row renders — or stays hidden — without a spinner.
+  useEffect(() => {
+    const pid = Object.keys(matOpen)[0];
+    if (!pid) return;
+    for (const a of sel?.categories || []) {
+      const p = a.products.find((x) => x.id === pid);
+      if (p) { const keys = trimKeys(p); if (keys) ensureTrims(keys); return; }
+    }
+    // trimKeys is render-scoped; its inputs are the deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matOpen, sel, ensureTrims, bookStockReady, bookStock, stockBookIds]);
   // Grout color families (ADR 0007 mechanics over ADR 0027 rules): family rows
   // projected from the stock-book cache — read at edit time only (color
   // dropdowns, Settings linking), never at calc time.
@@ -1864,11 +1878,11 @@ export default function App({ user, onSignOut }) {
                                 })}
                                 {(() => {
                                   // Trims the price books list for this floor (`fits`,
-                                  // ADR 0012 — stated in the vendor's order book, keyed
-                                  // by the floor's SKU whichever book it was picked
-                                  // from) — prefetched on drawer open, shown only once
-                                  // trims are known to exist.
-                                  const tList = p.bookId && p.sku ? trimsFor(p.sku) : null;
+                                  // ADR 0012 — stated in the vendor's order book, looked
+                                  // up by the row's exact key set whichever book it was
+                                  // picked from) — prefetched on drawer open, shown only
+                                  // once trims are known to exist.
+                                  const tList = trimsFor(trimKeys(p));
                                   if (!tList?.length) return null;
                                   const onJob = existingTrimRows(a.products, p.id, tList).size;
                                   return (
@@ -2183,7 +2197,7 @@ export default function App({ user, onSignOut }) {
       {trimsPop && sel && (() => {
         const area = sel.categories.find((x) => x.id === trimsPop.aid);
         const floor = area?.products.find((x) => x.id === trimsPop.pid);
-        const raw = floor ? trimsFor(floor.sku) : null;
+        const raw = floor ? trimsFor(trimKeys(floor)) : null;
         if (!floor || !raw?.length) return null;
         // The shop's shelf outranks the vendor: a trim the stock books carry
         // under the same SKU swaps to the stock item (its shelf retail).
