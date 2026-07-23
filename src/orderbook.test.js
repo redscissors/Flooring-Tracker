@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
-  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, editedInDiff,
+  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
   flagReviewed, flagReviewBySku, trimsForFloor,
@@ -27,6 +27,45 @@ test("re-importing an unchanged trim doesn't churn the diff on its fits array", 
   assert.equal(diffBookItems([prev], [same]).changed.length, 0);
   const grew = oi({ sku: "384469", trim: true, fits: "APX020 APX040 APX060" });
   assert.deepEqual(diffBookItems([prev], [grew]).changed[0].fields, ["fits"]);
+});
+
+// --- forceDiff (force full re-import) -----------------------------------------
+
+test("forceDiff recasts every unchanged row into a changed write, prev resolved", () => {
+  const a = oi({ sku: "A1", cost: 10 });
+  const b = oi({ sku: "B2", cost: 20 });
+  const c = oi({ sku: "C3", cost: 30 });
+  const existing = [a, b, c];
+  // a changed, b & c re-parsed identically (unchanged bucket).
+  const parsed = [oi({ sku: "A1", cost: 11 }), oi({ sku: "B2", cost: 20 }), oi({ sku: "C3", cost: 30 })];
+  const diff = diffBookItems(existing, parsed);
+  assert.equal(diff.changed.length, 1);
+  assert.equal(diff.unchanged.length, 2);
+
+  const forced = forceDiff(diff, existing);
+  assert.equal(forced.unchanged.length, 0);
+  assert.equal(forced.changed.length, 3); // the real change + the two forced rows
+  // added / missing pass through untouched (same array reference).
+  assert.equal(forced.added, diff.added);
+  assert.equal(forced.missing, diff.missing);
+  // Each forced entry is a normal changed shape with prev from existing and no field deltas.
+  const forcedB = forced.changed.find((c) => c.item.sku === "B2");
+  assert.equal(forcedB.prev, b);
+  assert.deepEqual(forcedB.fields, []);
+});
+
+test("forceDiff on an all-unchanged diff writes the whole set", () => {
+  const existing = [oi({ sku: "A1" }), oi({ sku: "B2" })];
+  const parsed = [oi({ sku: "A1" }), oi({ sku: "B2" })];
+  const diff = diffBookItems(existing, parsed);
+  assert.equal(diff.changed.length, 0);
+  assert.equal(diff.unchanged.length, 2);
+
+  const forced = forceDiff(diff, existing);
+  assert.equal(forced.changed.length, 2);
+  assert.equal(forced.unchanged.length, 0);
+  assert.deepEqual(forced.changed.map((c) => c.item.sku).sort(), ["A1", "B2"]);
+  assert.deepEqual(forced.changed.map((c) => c.prev.sku).sort(), ["A1", "B2"]);
 });
 
 test("trimsForFloor answers the reverse direction, exactly", () => {

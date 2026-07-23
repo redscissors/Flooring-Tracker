@@ -106,6 +106,7 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
     if (opts.superseded?.length) li.superseded = opts.superseded;
     if (disable.size) li.disabled = disable.size;
+    if (opts.forced) li.forced = true; // a forced full re-import, not an ordinary delta import
     const dataPatch = { lastImport: li };
     // Remember what this file looks like so the drop router (PR C) matches the
     // next drop of the same vendor sheet to this book.
