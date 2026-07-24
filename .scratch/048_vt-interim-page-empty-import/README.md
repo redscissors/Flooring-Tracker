@@ -64,6 +64,19 @@ progress note saying "portal is still building this sheet". Other 5xx blips
 keep the quick 2.5s hops. Client-side only: **no Edge re-paste needed** for
 this part; the pasted 145s twin stays correct.
 
+## Follow-up 2 (same day): the streamed heartbeat envelope
+
+The patient retries still 504ed on CAE and SLR. Owner timed a direct browser
+download: **2m20s (~140s)** — right against Supabase's hard 150s
+answer-the-request clock (which also covers auth + streaming the body out),
+so the sync relay loses the photo finish every attempt and retries rebuild
+from zero. Fix: the Edge twin now answers instantly with a heartbeat stream
+and waits out the build inside it (360s budget), final line `OK <base64>` /
+`ERR <code>`; the browser branches on the stream content-type, shows a live
+"portal is building — Ns…" note, and doesn't re-ask after a streamed timeout.
+Full detail in ADR 0019's second 2026-07-24 amendment. **This one DOES need
+the Edge re-paste.**
+
 ## Owner actions
 
 - **Re-paste the Edge twin**: Dashboard → Edge Functions → vendor-fetch →

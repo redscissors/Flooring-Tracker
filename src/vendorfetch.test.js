@@ -9,6 +9,7 @@ import {
   setSheetBook, normSession, decodeHandoffSession, poolSession,
   HANDOFF_MARK, stripHandoffMark,
   poolPendingReview, removePendingReview, pendingForSheet, sheetsForBook,
+  isSheetStream, parseSheetStreamFinal, SHEET_STREAM_TYPE,
 } from "./vendorfetch.js";
 
 // Real link shape from connect24, with placeholder account/session values.
@@ -225,6 +226,23 @@ test("classifySheetBytes tells sheets from login bounces", () => {
   assert.equal(classifySheetBytes(enc("<html><body><table><tr><td>1</td></tr></table>")), "sheet"); // HTML export
   assert.equal(classifySheetBytes(enc("<html><form>Please LOGIN with your password")), "login");
   assert.equal(classifySheetBytes(enc("random bytes")), "unknown");
+});
+
+test("streamed relay envelope: heartbeats, payloads, errors, and dead streams", () => {
+  assert.equal(isSheetStream(SHEET_STREAM_TYPE), true);
+  assert.equal(isSheetStream("application/vnd.ms-excel"), false); // old relay's binary path
+  assert.equal(isSheetStream(null), false);
+  const payload = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 1, 2, 3]);
+  const b64 = Buffer.from(payload).toString("base64");
+  // Heartbeat newlines ahead of the final line are the point of the envelope.
+  const ok = parseSheetStreamFinal(`\n\n\n\nOK ${b64}\n`);
+  assert.deepEqual([...ok.bytes], [...payload]);
+  assert.equal(parseSheetStreamFinal("\n\nERR session-expired\n").error, "session-expired");
+  assert.equal(parseSheetStreamFinal("\nERR vendor portal answered 500\n").error, "vendor portal answered 500");
+  // A stream that just stops (worker clock ran out mid-build) is the timeout.
+  assert.equal(parseSheetStreamFinal("\n\n\n").error, "vendor-timeout");
+  assert.equal(parseSheetStreamFinal("").error, "vendor-timeout");
+  assert.equal(parseSheetStreamFinal("OK not*base64!").error, "bad stream payload");
 });
 
 test("classifySheetBytes: a tableless, loginless HTML page is the mid-build placeholder", () => {
