@@ -335,6 +335,10 @@ function VendorBookRow({ sheet, siblings = [], book, group, groups, books, prog,
           <div className={"ft-progress h-1" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
             {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
           </div>
+          {/* The fetch engine narrates the wait ("portal is building this sheet —
+              47s…", retry pacing) — without this line the note only ever showed
+              on errors, so a minutes-long build looked like a stalled bar. */}
+          {prog.note && <div className="pt-0.5 text-[10px] text-slate-500">{prog.note}</div>}
         </div>
       )}
       {prog?.state === "error" && <div className="pl-6 pt-0.5 text-[10px] text-red-600" title={prog.note}>{prog.note}</div>}
@@ -349,7 +353,7 @@ function VendorBookRow({ sheet, siblings = [], book, group, groups, books, prog,
 // icons flag a portal-account mismatch and a stale linked book (row tints amber
 // too). The ⋯ menu creates/unlinks a price book, moves the sheet to another
 // sign-in (collapsible list), or forgets it.
-function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onLinkBook, onUnlinkBook, pending, onReview }) {
+export function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, running, stale, bookName, checked, onToggle, onRedownload, onRemove, onMove, onCreateBook, onLinkBook, onUnlinkBook, pending, onReview }) {
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -408,6 +412,10 @@ function VendorSheetRow({ sheet, group, groups, books, prog, locked, mismatch, r
           <div className={"ft-progress h-1" + (prog.value == null ? " ft-progress-indeterminate" : "")}>
             {prog.value != null && <div className="ft-progress-fill" style={{ width: `${Math.round(prog.value * 100)}%` }} />}
           </div>
+          {/* The fetch engine narrates the wait ("portal is building this sheet —
+              47s…", retry pacing) — without this line the note only ever showed
+              on errors, so a minutes-long build looked like a stalled bar. */}
+          {prog.note && <div className="pt-0.5 text-[10px] text-slate-500">{prog.note}</div>}
         </div>
       )}
       {prog?.state === "error" && <div className="pl-6 pt-0.5 text-[10px] text-red-600" title={prog.note}>{prog.note}</div>}
