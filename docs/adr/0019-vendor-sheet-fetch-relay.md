@@ -271,3 +271,38 @@ Consequences, applied with this note:
 The Edge Function twin changed — re-paste `supabase/functions/vendor-fetch/
 index.ts` in the dashboard (Edge Functions → vendor-fetch) to update the
 deployed copy; the Netlify fallback ships with the site build as usual.
+
+### Amendment (2026-07-24, same day): the streamed heartbeat envelope
+
+The interim-page fix wasn't enough for the biggest sheets: two VT EFT lists
+(CAE, SLR) kept 504ing even through patient retries. The owner timed a direct
+browser download at **2m20s (~140s)** — and that exposed a platform clock the
+original "long window" note misread. Supabase's ~400s figure is **wall-clock
+for the worker**; a function gets only **150s to ANSWER the request**, and
+that clock also covers JWT verification and streaming the multi-MB body out.
+A ~140s build + transfer loses that photo finish every time, retries rebuild
+from zero, and no sync-shaped relay can ever carry these sheets.
+
+So the Edge twin changed shape: it **answers immediately** with a heartbeat
+envelope (content-type `application/x-floortrack-sheet-stream`) — a newline
+every 10s while it fetches the portal on a **360s** budget — then sends one
+final line on the same connection: `OK <base64 sheet bytes>` or
+`ERR <error code>` (the same codes as before: `vendor-timeout`,
+`session-expired`, `sheet-not-ready`, `vendor portal answered N`). Answering
+instantly satisfies the 150s clock; the wait happens inside the worker's
+~400s clock.
+
+Browser side (`isSheetStream` / `parseSheetStreamFinal` in
+`src/vendorfetch.js`, `readStreamEnvelope` in `src/vendorpanel.jsx`): a
+response with the stream content-type is drained as text, heartbeats drive a
+live "portal is building this sheet — Ns…" progress note, and the final line
+yields the bytes (fed through the same classify path) or the error. A stream
+that just stops reads as `vendor-timeout`, never as an empty sheet. A
+streamed timeout is **not** retried — the relay already waited ~6 minutes.
+
+Compatibility both ways: the Netlify fallback keeps the plain binary shape
+(its ceiling is the platform's own), and a not-yet-re-pasted Edge deploy
+still answers binary — the browser branches on content-type, so deploy order
+doesn't matter. A storage-bucket park-and-poll design was considered and
+rejected: same wait budget, but it adds owner-run SQL, a bucket lifecycle,
+and a second round trip for no extra headroom.

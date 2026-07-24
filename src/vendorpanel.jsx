@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
 import { bookStaleness, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu } from "./widgets.jsx";
 
@@ -68,6 +68,27 @@ async function readSheetBytes(res, onFraction) {
   return out;
 }
 
+// Drain the Edge relay's heartbeat envelope: newlines tick down the connection
+// while the portal builds (the elapsed count keeps the progress row honest),
+// then the final line carries the sheet or the error (parseSheetStreamFinal).
+async function readStreamEnvelope(res, onProgress) {
+  const started = Date.now();
+  let text = "";
+  if (!res.body?.getReader) {
+    text = await res.text();
+  } else {
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += dec.decode(value, { stream: true });
+      onProgress({ value: null, note: `portal is building this sheet — ${Math.round((Date.now() - started) / 1000)}s…` });
+    }
+  }
+  return parseSheetStreamFinal(text);
+}
+
 // Fetch one sheet through the relay with the portal's on-demand-build retries.
 // onProgress gets { value, note } while fetching (value null = indeterminate).
 // Resolves to { file } or { error }.
@@ -90,17 +111,28 @@ async function runFetch(entry, token, onProgress) {
     try {
       const res = await relayVendorFetch(entry, token);
       let err = "";
+      let streamed = false; // the Edge envelope already waited out ~6 min of build
       if (res.ok) {
-        const bytes = await readSheetBytes(res, (v) => onProgress({ value: v, note: "" }));
-        // Sniff the relayed body here too: the Edge twin is hand-pasted into
-        // the dashboard, so a relay deployed before the interim check can
-        // still pass the portal's mid-build placeholder page through as a
-        // 200 — imported, it parses to 0 rows and offers to retire the book.
-        const cls = classifySheetBytes(bytes);
-        if (cls !== "login" && cls !== "interim") {
-          return { file: new File([bytes], entryFileName(entry), { type: "application/vnd.ms-excel" }) };
+        let bytes = null;
+        if (isSheetStream(res.headers.get("content-type"))) {
+          streamed = true;
+          const fin = await readStreamEnvelope(res, onProgress);
+          if (fin.error) err = fin.error;
+          else bytes = fin.bytes;
+        } else {
+          bytes = await readSheetBytes(res, (v) => onProgress({ value: v, note: "" }));
         }
-        err = cls === "login" ? "session-expired" : "sheet-not-ready";
+        if (!err) {
+          // Sniff the relayed body here too: the Edge twin is hand-pasted into
+          // the dashboard, so a relay deployed before the interim check can
+          // still pass the portal's mid-build placeholder page through as a
+          // 200 — imported, it parses to 0 rows and offers to retire the book.
+          const cls = classifySheetBytes(bytes);
+          if (cls !== "login" && cls !== "interim") {
+            return { file: new File([bytes], entryFileName(entry), { type: "application/vnd.ms-excel" }) };
+          }
+          err = cls === "login" ? "session-expired" : "sheet-not-ready";
+        }
       } else {
         try { err = (await res.json()).error || ""; } catch {}
       }
@@ -115,10 +147,15 @@ async function runFetch(entry, token, onProgress) {
       }
       building = err === "vendor-timeout" || err === "sheet-not-ready";
       msg = err === "vendor-timeout"
-        ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
+        ? (streamed
+          ? "the portal spent over 6 minutes building this sheet and still wasn't done — download it by hand and drop it in"
+          : "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in")
         : err === "sheet-not-ready"
         ? "the portal sent a page instead of the sheet — it was probably still building it; try again in a minute, or download it by hand and drop it in"
         : (err || `failed (${res.status})`);
+      // A streamed timeout already waited ~6 minutes inside the relay — paced
+      // re-asks on top of that would grind for half an hour to no end.
+      if (streamed && err === "vendor-timeout") return { error: msg };
       if (!res.ok && res.status < 500) return { error: msg }; // slow/server errors and the not-ready page are worth retrying, client errors aren't
     } catch { msg = "network error"; building = false; }
   }

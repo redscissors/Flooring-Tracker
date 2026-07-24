@@ -1,9 +1,11 @@
 // Vendor price-sheet relay — Supabase Edge Function twin of
-// netlify/functions/vendor-fetch.mjs (ADR 0019, long-window amendment).
-// Exists because Dancik portals BUILD big sheets on demand — the largest
-// observed took ~103s, longer than any Netlify sync-function window — while
-// an Edge Function may wait several minutes on IO. The browser prefers this
-// relay and falls back to the Netlify one until it is deployed.
+// netlify/functions/vendor-fetch.mjs (ADR 0019; streamed-envelope amendment
+// 2026-07-24). Exists because Dancik portals BUILD big sheets on demand —
+// ~140s observed for the big EFT lists, longer than any Netlify sync-function
+// window and a photo finish against Supabase's own 150s answer clock — so
+// this twin answers instantly with a heartbeat stream and waits out the build
+// inside it (~6 minutes of budget). The browser prefers this relay and falls
+// back to the Netlify one until it is deployed.
 //
 // Self-contained on purpose so it can be pasted straight into the dashboard's
 // function editor; keep VENDORS/RULES/classify in sync with src/vendorfetch.js.
@@ -91,33 +93,51 @@ Deno.serve(async (req: Request) => {
         "content-disposition": "inline",
       })}`;
 
-  let res: Response;
-  try {
-    // Supabase gives a sync function 150s to answer, so wait just under that:
-    // the observed worst-case portal build is ~103s, well inside this.
-    res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(145000) });
-  } catch (err) {
-    const timedOut = (err as Error)?.name === "TimeoutError" || (err as Error)?.name === "AbortError";
-    return json(timedOut ? 504 : 502, { error: timedOut ? "vendor-timeout" : "could not reach the vendor portal" });
-  }
-  // Dancik bounces a dead session as a redirect to its login page; Emser's
-  // document API answers a hard 401 (its downloads require emser.com's login,
-  // verified 2026-07-21). All classify as the sign-in bounce, mirroring
-  // deadSessionStatus in src/vendorfetch.js.
-  if (res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) return json(409, { error: "session-expired" });
-  if (!res.ok) return json(502, { error: `vendor portal answered ${res.status}` });
-
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  const cls = classifySheetBytes(bytes);
-  if (cls === "login") return json(409, { error: "session-expired" });
-  if (cls === "interim") return json(503, { error: "sheet-not-ready" });
-
-  return new Response(bytes, {
-    status: 200,
-    headers: {
-      ...CORS,
-      "content-type": res.headers.get("content-type") || "application/vnd.ms-excel",
-      "cache-control": "no-store",
+  // Supabase's gateway 504s any function that hasn't ANSWERED within 150s,
+  // while the portal's big EFT builds take ~140s PLUS the transfer — a photo
+  // finish the old sync shape kept losing (2026-07-24, CAE/SLR). So answer
+  // immediately with a heartbeat envelope and do the waiting inside it: a
+  // newline every 10s while the portal builds, then one final line — "OK
+  // <base64 sheet bytes>" or "ERR <error code>" — on the same connection.
+  // That moves the wait onto the worker's ~400s wall clock; 360s here leaves
+  // margin for encoding and the final write. The browser recognizes the
+  // content-type (isSheetStream / parseSheetStreamFinal in src/vendorfetch.js)
+  // and still gets the plain binary shape from the Netlify fallback.
+  const enc = new TextEncoder();
+  const b64 = (b: Uint8Array): string => {
+    let s = "";
+    for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+    return btoa(s);
+  };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(enc.encode("\n"));
+      const beat = setInterval(() => { try { controller.enqueue(enc.encode("\n")); } catch { clearInterval(beat); } }, 10000);
+      const done = (line: string) => { clearInterval(beat); try { controller.enqueue(enc.encode(line + "\n")); controller.close(); } catch {} };
+      (async () => {
+        let res: Response;
+        try {
+          res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(360000) });
+        } catch (err) {
+          const timedOut = (err as Error)?.name === "TimeoutError" || (err as Error)?.name === "AbortError";
+          return done(`ERR ${timedOut ? "vendor-timeout" : "could not reach the vendor portal"}`);
+        }
+        // Dancik bounces a dead session as a redirect to its login page;
+        // Emser's document API answers a hard 401 (verified 2026-07-21). All
+        // classify as the sign-in bounce, mirroring deadSessionStatus in
+        // src/vendorfetch.js.
+        if (res.status === 401 || res.status === 403 || (res.status >= 300 && res.status < 400)) return done("ERR session-expired");
+        if (!res.ok) return done(`ERR vendor portal answered ${res.status}`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const cls = classifySheetBytes(bytes);
+        if (cls === "login") return done("ERR session-expired");
+        if (cls === "interim") return done("ERR sheet-not-ready");
+        done("OK " + b64(bytes));
+      })().catch(() => done("ERR could not reach the vendor portal"));
     },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { ...CORS, "content-type": "application/x-floortrack-sheet-stream", "cache-control": "no-store" },
   });
 });

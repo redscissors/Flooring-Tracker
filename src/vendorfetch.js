@@ -561,6 +561,39 @@ export function classifySheetBytes(bytes) {
   return "unknown";
 }
 
+// ---- streamed relay envelope ---------------------------------------------
+// Supabase's gateway 504s any Edge Function that hasn't ANSWERED in 150s, and
+// the big EFT builds take ~140s plus transfer — a photo finish the sync shape
+// kept losing (2026-07-24, CAE/SLR). So the Edge twin answers instantly with
+// this envelope instead: heartbeat newlines while the portal builds, then one
+// final line — "OK <base64 sheet bytes>" or "ERR <error code>" — down the same
+// connection, spending the ~400s worker clock instead of the 150s response
+// clock. The Netlify fallback keeps the plain binary shape (its ceiling is the
+// platform's, not the response clock's).
+
+export const SHEET_STREAM_TYPE = "application/x-floortrack-sheet-stream";
+
+export const isSheetStream = (contentType) => String(contentType || "").toLowerCase().includes(SHEET_STREAM_TYPE);
+
+export function b64ToBytes(s) {
+  const bin = typeof atob === "function" ? atob(s) : globalThis.Buffer.from(s, "base64").toString("binary");
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// The stream's final non-empty line -> { bytes } or { error }. A stream that
+// just stops (the worker's own clock ran out mid-build) reads as the timeout
+// it is, not as an empty sheet.
+export function parseSheetStreamFinal(text) {
+  const line = String(text || "").split("\n").map((l) => l.trim()).filter(Boolean).pop() || "";
+  if (line.startsWith("OK ")) {
+    try { return { bytes: b64ToBytes(line.slice(3)) }; } catch { return { error: "bad stream payload" }; }
+  }
+  if (line.startsWith("ERR ")) return { error: line.slice(4).trim() || "vendor-timeout" };
+  return { error: "vendor-timeout" };
+}
+
 // A response status that means "the portal wants its sign-in", not "the portal
 // broke": Dancik bounces a dead session as a redirect to its login page, while
 // Emser's document API answers a hard 401 (verified 2026-07-21 — the URL
