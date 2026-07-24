@@ -238,3 +238,36 @@ Boundary unchanged: the relay still accepts only structured params behind a
 FloorTrack JWT and rebuilds the URL from the allowlisted host + fixed path —
 `customerDocuments/<validated filename>` — so it still can't proxy anything
 else on emser.com.
+
+### Amendment (2026-07-24): the mid-build placeholder page ("interim")
+
+A VT EFT fetch imported as **0 items with no error**. The file itself was fine
+(the same sheet parses to 1,873 items through the real code path) — the relay
+had passed through a page that wasn't the sheet. Dancik's on-demand build can
+answer **200 with an interim HTML page** while the sheet is still building;
+that page has no `<table>` and no login markers, so `classifySheetBytes`
+called it `"unknown"` and both relays streamed it to the browser as a valid
+sheet. SheetJS parses it to a few junk rows, the import preview says "0 items
+parsed" — and its diff reads every existing row as missing, so the Apply
+button offered to retire the entire book.
+
+Consequences, applied with this note:
+
+- `classifySheetBytes` gains an `"interim"` class: an HTML *document* (doctype
+  / html / head / body / meta / script / div markers) with no table and no
+  login words. Non-HTML text (a CSV) stays `"unknown"` and passes through,
+  and `%PDF` now classifies `"sheet"` (Emser fetches PDFs).
+- Both relays answer an interim body with **503 `sheet-not-ready`** instead of
+  relaying it — retriable, so the browser's existing retry loop usually lands
+  on the portal's just-built cache.
+- The browser's fetch engine (`runFetch`) **sniffs the relayed 200 body too**
+  and treats interim/login bodies as if the relay had said so. This is the
+  copy that ships with the site build; the Edge twin is hand-pasted and can
+  lag behind, so the client-side check is the one that must not.
+- Defense in depth at the import: a sheet that parses to 0 items shows a loud
+  red explanation in the wizard, and an apply that would retire the whole
+  book (0 parsed, everything missing) is blocked outright.
+
+The Edge Function twin changed — re-paste `supabase/functions/vendor-fetch/
+index.ts` in the dashboard (Edge Functions → vendor-fetch) to update the
+deployed copy; the Netlify fallback ships with the site build as usual.

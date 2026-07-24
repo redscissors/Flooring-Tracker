@@ -49,16 +49,20 @@ const CORS = {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "content-type": "application/json" } });
 
-// Real sheets are OLE .xls, zip .xlsx, or an HTML table export; an HTML body
-// with login markers and no table is the portal's dead-session bounce.
+// Real sheets are OLE .xls, zip .xlsx, a PDF, or an HTML table export; an HTML
+// body with login markers and no table is the portal's dead-session bounce,
+// and an HTML page with neither is the on-demand build's interim placeholder
+// (relaying it as a sheet parses to 0 rows silently).
 function classifySheetBytes(b: Uint8Array): string {
   if (b.length >= 4 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return "sheet";
   if (b.length >= 2 && b[0] === 0x50 && b[1] === 0x4b) return "sheet";
+  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "sheet"; // %PDF
   let head = "";
   for (let i = 0; i < Math.min(b.length, 4096); i++) head += String.fromCharCode(b[i]);
   head = head.toLowerCase();
   if (head.includes("<table")) return "sheet";
   if (/(password|login|log in|sign in|session)/.test(head)) return "login";
+  if (/<!doctype|<html|<head|<body|<meta|<script|<div/.test(head)) return "interim";
   return "unknown";
 }
 
@@ -104,7 +108,9 @@ Deno.serve(async (req: Request) => {
   if (!res.ok) return json(502, { error: `vendor portal answered ${res.status}` });
 
   const bytes = new Uint8Array(await res.arrayBuffer());
-  if (classifySheetBytes(bytes) === "login") return json(409, { error: "session-expired" });
+  const cls = classifySheetBytes(bytes);
+  if (cls === "login") return json(409, { error: "session-expired" });
+  if (cls === "interim") return json(503, { error: "sheet-not-ready" });
 
   return new Response(bytes, {
     status: 200,

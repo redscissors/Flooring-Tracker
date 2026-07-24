@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes } from "./vendorfetch.js";
 import { bookStaleness, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu } from "./widgets.jsx";
 
@@ -78,12 +78,21 @@ async function runFetch(entry, token, onProgress) {
     if (t > 1) await new Promise((r) => setTimeout(r, 2500));
     try {
       const res = await relayVendorFetch(entry, token);
+      let err = "";
       if (res.ok) {
         const bytes = await readSheetBytes(res, (v) => onProgress({ value: v, note: "" }));
-        return { file: new File([bytes], entryFileName(entry), { type: "application/vnd.ms-excel" }) };
+        // Sniff the relayed body here too: the Edge twin is hand-pasted into
+        // the dashboard, so a relay deployed before the interim check can
+        // still pass the portal's mid-build placeholder page through as a
+        // 200 — imported, it parses to 0 rows and offers to retire the book.
+        const cls = classifySheetBytes(bytes);
+        if (cls !== "login" && cls !== "interim") {
+          return { file: new File([bytes], entryFileName(entry), { type: "application/vnd.ms-excel" }) };
+        }
+        err = cls === "login" ? "session-expired" : "sheet-not-ready";
+      } else {
+        try { err = (await res.json()).error || ""; } catch {}
       }
-      let err = "";
-      try { err = (await res.json()).error || ""; } catch {}
       if (err === "session-expired") {
         // A token-free vendor has no session to renew, and the relay sends no
         // cookies — Emser's downloads require its login (verified 2026-07-21),
@@ -95,8 +104,10 @@ async function runFetch(entry, token, onProgress) {
       }
       msg = err === "vendor-timeout"
         ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
+        : err === "sheet-not-ready"
+        ? "the portal sent a page instead of the sheet — it was probably still building it; try again in a minute, or download it by hand and drop it in"
         : (err || `failed (${res.status})`);
-      if (res.status < 500) return { error: msg }; // only slow/server errors are worth retrying
+      if (!res.ok && res.status < 500) return { error: msg }; // slow/server errors and the not-ready page are worth retrying, client errors aren't
     } catch { msg = "network error"; }
   }
   return { error: msg };
