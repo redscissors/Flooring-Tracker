@@ -77,6 +77,26 @@ and waits out the build inside it (360s budget), final line `OK <base64>` /
 Full detail in ADR 0019's second 2026-07-24 amendment. **This one DOES need
 the Edge re-paste.**
 
+## Follow-up 3 (same day): the in-flight note never rendered
+
+"Where should it show 'portal is building this sheet'?" — nowhere, it turned
+out. The fetch engine narrated the wait into per-sheet progress state, but the
+board rows rendered `prog.note` only in the ERROR state; while fetching they
+drew just the thin bar. So the streamed build's counter and the retry-pacing
+notes were invisible, and a minutes-long build looked like a stalled bar.
+Fixed: both row variants print the note under the bar while fetching
+(`preview-2-fetch-note-states.png` — the real `VendorSheetRow` in all states).
+
+Diagnostic corollary: "no counter seen" says nothing about whether the
+streamed Edge relay is live. The user's post-paste fetch failed at ~210s with
+"failed (504)" — which arithmetic fits the NETLIFY fallback loop (4 × ~50s
+attempts + pauses ≈ 210s, platform-level 504s that carry no JSON so the raw
+status shows). That would mean the browser got a 404 from the Edge relay and
+fell back — i.e. the paste didn't land under the exact name `vendor-fetch`,
+or wasn't deployed. Dashboard checks: the function list must show
+`vendor-fetch` with a deploy timestamp matching the paste, and its Logs must
+show invocations AT the time of the failed fetch.
+
 ## Owner actions
 
 - **Re-paste the Edge twin**: Dashboard → Edge Functions → vendor-fetch →
