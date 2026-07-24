@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { normPrintPricing, tierTag } from "./pricing.js";
 import { num } from "./catalog.js";
-import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank } from "./model.js";
+import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
 import { TLBL, THICK } from "./uiconst.js";
 import { printProduct, printAreaFloor, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1 } from "./print.js";
 import NedMark from "./NedMark.jsx";
@@ -43,6 +43,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               const pname = sp.name || sp.email;
               const areaCount = sel.categories.length;
               const wMeta = wasteMeta(jobWaste, "waste factor");
+              const printName = sel.quick ? quickPrintName(sel) : sel.name;
               const col = (label, name, detail) => (
                 <div className="flex flex-col" style={{ gap: 2 }}>
                   <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
@@ -52,9 +53,9 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               );
               return (
                 <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                  {col("Customer", cust?.name || sel.name, cust?.address || sel.address)}
+                  {col("Customer", cust?.name || printName, cust?.address || sel.address)}
                   {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  "))}
-                  {col("Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  "))}
+                  {col("Project", printName, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  "))}
                 </div>
               );
             })()}
@@ -182,6 +183,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     const pname = sp.name || sp.email;
     const wMeta = wasteMeta(jobWaste);
     const areaCount = sel.categories.length;
+    const printName = sel.quick ? quickPrintName(sel) : sel.name;
     // CT/SH read as cartons/sheets on the qty line; the price keeps the short unit.
     const unitLong = (unit, n) => { const u = String(unit || "").toUpperCase(); if (u === "CT") return n === 1 ? "carton" : "cartons"; if (u === "SH") return n === 1 ? "sheet" : "sheets"; return u1(n, unit); };
     const groups = [];
@@ -203,9 +205,9 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 12 }}>
           {[
-            ["Customer", cust?.name || sel.name, cust?.address || sel.address],
+            ["Customer", cust?.name || printName, cust?.address || sel.address],
             ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  ")],
-            ["Project", sel.name, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  ")],
+            ["Project", printName, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  ")],
           ].map(([label, name, detail], i) => (
             <div key={i} className="flex flex-col" style={{ gap: 2 }}>
               <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>

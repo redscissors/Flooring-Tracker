@@ -58,6 +58,14 @@ export const quickAutoName = (proj) => {
   const d = new Date(proj.createdAt || Date.now());
   return `Q-${item.slice(0, 30).trim()}-${d.getMonth() + 1}/${d.getDate()}`;
 };
+// The printed estimate has no room for the sidebar's full auto name (item +
+// date) — it prints just "Q-<first two words of the first line item>".
+export const quickPrintName = (proj) => {
+  const first = (proj.categories || []).flatMap((a) => a.products || []).find((p) => !rowBlank(p));
+  if (!first) return QUICK_DEFAULT_NAME;
+  const item = (first.brandColor || "").trim() || (first.sku || "").trim() || TLBL[first.type] || "Item";
+  return `Q-${item.trim().split(/\s+/).slice(0, 2).join(" ")}`;
+};
 // A Project is what a "Customer" used to be: one job/estimate holding areas.
 // It belongs to a Customer (person) via customerId (the projects.customer_id
 // column). See ADR 0005.
