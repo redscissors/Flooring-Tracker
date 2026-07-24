@@ -48,6 +48,22 @@ page as its parsed sheet over a fake 1,873-item book: red banner, "Applying it
 would retire all 1873 items in this book, so Apply is disabled", Apply greyed
 out (`isDisabled() === true` confirmed via the shoot.mjs Playwright run).
 
+## Follow-up (same day): longer patience for slow builds
+
+After deploying, the owner's retry still hit the relay's 504. The relay's
+145s wait CANNOT go higher — Supabase's gateway enforces a hard **150s
+request-response ceiling** on Edge Functions (the 400s wall-clock figure is
+for background work only; see supabase.com/docs/guides/functions/limits), so
+any bigger number in the code still 504s at ~150s.
+
+The long patience therefore lives in the browser (`runFetch`), which has no
+such ceiling: a "still building" failure (the relay's 504 `vendor-timeout`,
+or the interim page / `sheet-not-ready`) now retries up to 3 times spaced
+~25s apart — roughly 10 minutes of automatic asking per sheet, with the
+progress note saying "portal is still building this sheet". Other 5xx blips
+keep the quick 2.5s hops. Client-side only: **no Edge re-paste needed** for
+this part; the pasted 145s twin stays correct.
+
 ## Owner actions
 
 - **Re-paste the Edge twin**: Dashboard → Edge Functions → vendor-fetch →

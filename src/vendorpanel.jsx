@@ -71,11 +71,22 @@ async function readSheetBytes(res, onFraction) {
 // Fetch one sheet through the relay with the portal's on-demand-build retries.
 // onProgress gets { value, note } while fetching (value null = indeterminate).
 // Resolves to { file } or { error }.
+// The relay's own wait tops out at Supabase's hard 150s response ceiling, so
+// the LONG patience lives here: a "still building" failure (the relay's 504,
+// or its interim placeholder page) means the portal is working on the sheet
+// server-side and finishing it whether or not anyone is connected — so those
+// retry more times, spaced ~25s apart, instead of the quick 2.5s hops other
+// 5xx blips get. Worst case one sheet keeps asking for ~10 minutes before
+// giving up with the try-again-in-a-minute message.
 async function runFetch(entry, token, onProgress) {
   let msg = "network error";
-  for (let t = 1; t <= 3; t++) {
-    onProgress({ value: null, note: t === 1 ? "" : `portal is slow — retry ${t - 1} of 2…` });
-    if (t > 1) await new Promise((r) => setTimeout(r, 2500));
+  let building = false; // last failure was the portal still building the sheet
+  for (let t = 1; t <= 4; t++) {
+    if (t > 1) {
+      onProgress({ value: null, note: building ? `portal is still building this sheet — waiting, then retry ${t - 1} of 3…` : `portal is slow — retry ${t - 1} of 3…` });
+      await new Promise((r) => setTimeout(r, building ? 25000 : 2500));
+    }
+    onProgress({ value: null, note: t === 1 ? "" : `retry ${t - 1} of 3…` });
     try {
       const res = await relayVendorFetch(entry, token);
       let err = "";
@@ -102,13 +113,14 @@ async function runFetch(entry, token, onProgress) {
           ? "this vendor's site requires its own sign-in to download — grab the sheet from their site while signed in and drop the file on this page"
           : "portal session expired — paste a freshly opened sheet's link (or click the bookmark again)" };
       }
+      building = err === "vendor-timeout" || err === "sheet-not-ready";
       msg = err === "vendor-timeout"
         ? "the portal took too long to build this sheet — try again in a minute (it's usually quick the second time), or download it by hand and drop it in"
         : err === "sheet-not-ready"
         ? "the portal sent a page instead of the sheet — it was probably still building it; try again in a minute, or download it by hand and drop it in"
         : (err || `failed (${res.status})`);
       if (!res.ok && res.status < 500) return { error: msg }; // slow/server errors and the not-ready page are worth retrying, client errors aren't
-    } catch { msg = "network error"; }
+    } catch { msg = "network error"; building = false; }
   }
   return { error: msg };
 }
