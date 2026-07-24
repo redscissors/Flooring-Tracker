@@ -539,19 +539,25 @@ export function clearHandoffSession() {
 
 // ---- response sniffing ---------------------------------------------------
 // The portal answers a dead session with its login page, not an error status.
-// Real sheets are OLE .xls (d0 cf 11 e0), zip .xlsx (PK), or an HTML table
-// export ("pretty" ERP lists) — SheetJS parses all three. Only an HTML body
-// with login markers and no table is confidently a login bounce.
+// Real sheets are OLE .xls (d0 cf 11 e0), zip .xlsx (PK), a PDF (Emser docs),
+// or an HTML table export ("pretty" ERP lists). An HTML body with login
+// markers and no table is confidently a login bounce; an HTML page with
+// NEITHER is the portal's mid-build placeholder ("interim") — the on-demand
+// build answers 200 with it, and relaying it as a sheet parses to 0 rows
+// (the silent VT "found nothing" import, 2026-07-24). Non-HTML text (CSV)
+// stays "unknown" and passes through.
 
 export function classifySheetBytes(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
   if (b.length >= 4 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return "sheet";
   if (b.length >= 2 && b[0] === 0x50 && b[1] === 0x4b) return "sheet";
+  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "sheet"; // %PDF
   let head = "";
   for (let i = 0; i < Math.min(b.length, 4096); i++) head += String.fromCharCode(b[i]);
   head = head.toLowerCase();
   if (head.includes("<table")) return "sheet";
   if (/(password|login|log in|sign in|session)/.test(head)) return "login";
+  if (/<!doctype|<html|<head|<body|<meta|<script|<div/.test(head)) return "interim";
   return "unknown";
 }
 

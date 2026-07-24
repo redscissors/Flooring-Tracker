@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
 import { priceUnitOf, orderUnitOf } from "./stock.js";
 import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
@@ -1421,6 +1421,11 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // included); missing still retires.
   const rewriteCount = diff.added.length + diff.changed.length + diff.unchanged.length;
   const forcing = force && lastOfBundle && items.length > 0;
+  // A file that parses to 0 items is almost never the real sheet — most likely
+  // the portal fetch relayed its "still building" placeholder page (the silent
+  // VT import, 2026-07-24), or the mapping is off. Applying it would read every
+  // existing row as missing and retire the whole book, so that apply is blocked.
+  const emptyRetire = lastOfBundle && !!sheet && bundleItems.length === 0 && diff.missing.length > 0;
   const applyLabel = !lastOfBundle
     ? `Next file — ${bundle.index + 2} of ${bundle.total}`
     : forcing
@@ -1522,6 +1527,15 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               </div>
             )}
 
+            {!reading && items.length === 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50/70 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-red-700"><AlertTriangle size={15} className="shrink-0" /> This file parsed to 0 items — it doesn't look like the price sheet.</div>
+                <p className="mt-1 text-[11px] text-red-600/90">
+                  A portal fetch can land here when the portal answered with a "still building" page instead of the real sheet — fetch or download it again in a minute and it's usually fine. If this is a hand-picked file, check the data sheet, header row, and SKU pattern above.
+                  {emptyRetire && <span className="block mt-0.5 font-medium">Applying it would retire all {diff.missing.length} item{diff.missing.length === 1 ? "" : "s"} in this book, so Apply is disabled.</span>}
+                </p>
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium">{items.length} item{items.length === 1 ? "" : "s"} parsed</span>
@@ -1529,7 +1543,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                 <span className="text-xs text-amber-600">{diff.changed.length} changed</span>
                 <span className="text-xs text-slate-400">{diff.missing.length} retiring · {diff.unchanged.length} unchanged</span>
               </div>
-              {lastOfBundle && sheet && (
+              {lastOfBundle && sheet && items.length > 0 && (
                 <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer">
                   <input type="checkbox" className="mt-0.5" checked={force} onChange={(e) => setForce(e.target.checked)} />
                   <span className="min-w-0">
@@ -1634,7 +1648,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing }, bundleItems); }} disabled={lastOfBundle && importCount + disableSkus.length === 0 && !forcing} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing }, bundleItems); }} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>

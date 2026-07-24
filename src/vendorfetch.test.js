@@ -221,9 +221,20 @@ test("classifySheetBytes tells sheets from login bounces", () => {
   assert.equal(classifySheetBytes(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0])), "sheet"); // .xls OLE
   assert.equal(classifySheetBytes(new Uint8Array([0x50, 0x4b, 0x03, 0x04])), "sheet"); // .xlsx zip
   const enc = (s) => new Uint8Array([...s].map((c) => c.charCodeAt(0)));
+  assert.equal(classifySheetBytes(enc("%PDF-1.7 rest of the document")), "sheet"); // Emser fetches PDFs too
   assert.equal(classifySheetBytes(enc("<html><body><table><tr><td>1</td></tr></table>")), "sheet"); // HTML export
   assert.equal(classifySheetBytes(enc("<html><form>Please LOGIN with your password")), "login");
   assert.equal(classifySheetBytes(enc("random bytes")), "unknown");
+});
+
+test("classifySheetBytes: a tableless, loginless HTML page is the mid-build placeholder", () => {
+  const enc = (s) => new Uint8Array([...s].map((c) => c.charCodeAt(0)));
+  // The silent VT import (2026-07-24): the portal's on-demand build answers 200
+  // with a page while the sheet is still building — not a sheet, not a bounce.
+  assert.equal(classifySheetBytes(enc("<!DOCTYPE html><html><head><title>Working…</title></head><body>Preparing your file</body></html>")), "interim");
+  assert.equal(classifySheetBytes(enc("<div>One moment please</div>")), "interim");
+  // Plain text (a CSV) is NOT an HTML page — it must keep passing through.
+  assert.equal(classifySheetBytes(enc("SKU,Description,Price\nA1,Tile,1.99")), "unknown");
 });
 
 test("deadSessionStatus: redirects and auth statuses are the sign-in bounce, real errors are not", () => {

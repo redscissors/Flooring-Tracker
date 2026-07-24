@@ -49,7 +49,12 @@ export default async function handler(req) {
   if (!res.ok) return json(502, { error: `vendor portal answered ${res.status}` });
 
   const bytes = new Uint8Array(await res.arrayBuffer());
-  if (classifySheetBytes(bytes) === "login") return json(409, { error: "session-expired" });
+  const cls = classifySheetBytes(bytes);
+  if (cls === "login") return json(409, { error: "session-expired" });
+  // The on-demand build can answer 200 with an interim HTML page while the
+  // sheet is still building. Relaying it as a sheet parses to 0 rows silently
+  // — a 503 instead lets the browser's retry loop hit the just-built cache.
+  if (cls === "interim") return json(503, { error: "sheet-not-ready" });
 
   return new Response(bytes, {
     status: 200,
