@@ -152,14 +152,20 @@ export function getGroutBase(p, s) {
 // one grout (or two grouts sharing a base) order one combined base line:
 // order = ceil(total kits / per). Both the on-screen order summary and the
 // printed breakdown call this, so they can never disagree.
+//
+// A grout with no kit count yet (chosen on a row with no square footage to size
+// it from) still lists its base, flagged `pending`: order 0, cost 0, nothing in
+// any total. A two-part grout is useless without its base, so the estimate has
+// to name it the moment the grout is picked — the quantity follows once the
+// footage does.
 export function groutBaseList(groutEntries, s) {
   const agg = new Map();
   for (const g of groutEntries || []) {
-    if (!g || !(g.order > 0)) continue;
+    if (!g) continue;
     const b = s.grouts[g.product]?.base; if (!b) continue;
     const key = b.sku || b.name;
-    const e = agg.get(key) || { sku: b.sku || "", name: b.name || b.sku, unit: b.unit, price: num(b.price), per: num(b.per) > 0 ? num(b.per) : 1, kits: 0 };
-    e.kits += g.order;
+    const e = agg.get(key) || { sku: b.sku || "", name: b.name || b.sku, unit: b.unit, price: num(b.price), per: num(b.per) > 0 ? num(b.per) : 1, kits: 0, pending: true };
+    if (g.order > 0) { e.kits += g.order; e.pending = false; }
     agg.set(key, e);
   }
   return [...agg.values()].map((b) => {
