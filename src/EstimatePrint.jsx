@@ -3,7 +3,8 @@ import { normPrintPricing, tierTag } from "./pricing.js";
 import { num } from "./catalog.js";
 import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
 import { TLBL, THICK } from "./uiconst.js";
-import { printProduct, printAreaFloor, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1 } from "./print.js";
+import { printProduct, printAreaFloor, areaPrintLabel, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1 } from "./print.js";
+import { unitNoun } from "./units.js";
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -41,7 +42,6 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               // signed-in profile, which is exactly what they printed before.
               const sp = sel.salesperson || profile;
               const pname = sp.name || sp.email;
-              const areaCount = sel.categories.length;
               const wMeta = wasteMeta(jobWaste, "waste factor");
               const printName = sel.quick ? quickPrintName(sel) : sel.name;
               const col = (label, name, detail) => (
@@ -55,7 +55,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                   {col("Customer", cust?.name || printName, cust?.address || sel.address)}
                   {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  "))}
-                  {col("Project", printName, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  "))}
+                  {col("Project", printName, wMeta)}
                 </div>
               );
             })()}
@@ -63,7 +63,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             {tv.proj.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
                 <div className="flex justify-between items-center" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
-                  <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
+                  <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", showTotals && printAreaFloor(a, tSet) > 0 ? money(printAreaFloor(a, tSet)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
                 {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
@@ -79,8 +79,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                       <div className="ft-mono" style={{ fontSize: 9 }}>{p.sku || PRINT_DASH}</div>
                       <div className="ft-mono" style={{ fontSize: 9.5 }}>{c.C ? <>{sf1(c.C.sf)}<span style={{ fontSize: 7.5, color: "var(--ft-muted)" }}> SF/{c.C.unit.toUpperCase()}</span></> : PRINT_DASH}</div>
                       <div className="text-right">{p.qtyType === "sqft" && num(p.qty) > 0 ? sf1(num(p.qty)) : PRINT_DASH}</div>
-                      {showUnit && <div className="text-right">{num(p.priceSqft) > 0 ? money(num(p.priceSqft)) : PRINT_DASH}</div>}
-                      <div className="text-right whitespace-nowrap">{p.type === "misc" ? `${c.qtyText} EA` : c.C && c.C.order > 0 ? `${c.C.order} ${c.C.unit}` : c.qtyText || PRINT_DASH}</div>
+                      {showUnit && <div className="text-right whitespace-nowrap">{num(p.priceSqft) > 0 ? <>{money(num(p.priceSqft))}<span style={{ fontSize: 8, color: "var(--ft-muted)" }}>/{c.priceUnit.toLowerCase()}</span></> : PRINT_DASH}</div>}
+                      <div className="text-right whitespace-nowrap">{p.type === "misc" ? c.qtyText : c.C && c.C.order > 0 ? `${c.C.order} ${c.C.unit}` : c.qtyText || PRINT_DASH}</div>
                       {showTotals && <div className="text-right" style={{ fontWeight: 700 }}>{c.line > 0 ? money(c.line) : PRINT_DASH}</div>}
                     </div>
                     {inline.length > 0 && (
@@ -182,10 +182,10 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     const sp = sel.salesperson || profile;
     const pname = sp.name || sp.email;
     const wMeta = wasteMeta(jobWaste);
-    const areaCount = sel.categories.length;
     const printName = sel.quick ? quickPrintName(sel) : sel.name;
-    // CT/SH read as cartons/sheets on the qty line; the price keeps the short unit.
-    const unitLong = (unit, n) => { const u = String(unit || "").toUpperCase(); if (u === "CT") return n === 1 ? "carton" : "cartons"; if (u === "SH") return n === 1 ? "sheet" : "sheets"; return u1(n, unit); };
+    // CT/SH/RL read as cartons/sheets/rolls on the qty line; the price keeps the
+    // short unit.
+    const unitLong = (unit, n) => unitNoun(n, unit);
     const groups = [];
     pMats.forEach((m) => { const g = groups[groups.length - 1]; if (g && g.kind === m.kind) g.items.push(m); else groups.push({ kind: m.kind, items: [m] }); });
     return (
@@ -207,7 +207,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           {[
             ["Customer", cust?.name || printName, cust?.address || sel.address],
             ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  ")],
-            ["Project", printName, [areaCount ? `${areaCount} area${areaCount === 1 ? "" : "s"}` : "", wMeta].filter(Boolean).join("  ·  ")],
+            ["Project", printName, wMeta],
           ].map(([label, name, detail], i) => (
             <div key={i} className="flex flex-col" style={{ gap: 2 }}>
               <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
@@ -223,7 +223,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           return (
             <div key={a.id} className="break-inside-avoid" style={{ marginBottom: 12 }}>
               <div className="flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "6px 12px", minHeight: 28 }}>
-                <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Area {String(ai + 1).padStart(2, "0")}{(a.name || "").trim() ? ` · ${a.name}` : ""}</div>
+                <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                 {showUnit && areaHasExtras && <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
               </div>
               {a.note && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ft-muted)", padding: "6px 12px 0" }}>{a.note}</div>}
@@ -235,7 +235,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 const specParts = [c.size, c.C ? `${sf1(c.C.sf)} SF/${c.C.unit}` : "", p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ");
                 const cartonPrice = c.C ? c.C.sf * num(p.priceSqft) : 0;
                 const qtyLine = c.C ? `${sf1(c.orderedSf)} SF ordered · ${c.C.order} ${unitLong(c.C.unit, c.C.order)}` : (num(p.qty) > 0 ? `${sf1(num(p.qty))} SF` : "");
-                const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.pieces} pcs` : `${miscQty(p)} ${miscQty(p) === 1 ? "pc" : "pcs"}`) : (num(p.qty) > 0 ? `${p.qty} ${num(p.qty) === 1 ? "unit" : "units"}` : "");
+                const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.pieces} pcs` : `${miscQty(p)} ${unitNoun(miscQty(p), c.countUnit)}`) : (num(p.qty) > 0 ? `${p.qty} ${unitNoun(num(p.qty), c.countUnit)}` : "");
                 return (
                   <div key={p.id} className="flex justify-between" style={{ gap: 22, padding: "8px 12px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none" }}>
                     <div style={{ minWidth: 0 }}>
@@ -255,13 +255,13 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                     <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
                       {isEach ? (
                         <>
-                          {showUnit && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/ea` : null}</div>}
+                          {showUnit && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
                           {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
                         </>
                       ) : (
                         <>
                           {showTotals && qtyLine && <div style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
-                          {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{money(num(p.priceSqft))}/sf{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
+                          {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
                           {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
                         </>
                       )}

@@ -601,3 +601,54 @@ test("guessBookField: the ERP export headers, without disturbing the EFT guesses
   assert.equal(guessBookField("Mfg Product Code"), "vendorSku"); // a vendor code, not the markup-group axis
   assert.equal(guessBookField("MFG"), "mfg");                    // the EFT group column keeps its slot
 });
+
+// --- roll-sold stock (2026-07-25) ---------------------------------------------
+// The Schluter export sells sheet goods by the RL. A roll bundles coverage like
+// a carton, so it belongs in the same class — but, like every other unit, it
+// only types a row whose description names a floor.
+const ROLL_WORKBOOK = [sheet("Vendor SKU Analysis", [
+  ["Product Code", "Full Description", "Base Price (Cost)", "Retail Price", "Unit of Stock"],
+  ["23015", "Schluter Kerdi-Band 5\" x 33' Waterproofing Strip", 50.5, 84.2, "RL"],
+  ["23031", "Schluter Ditra-Heat Membrane - 134.5sf/roll", 480.0, 720.0, "RL"],
+  ["40122", "12' Prestige Sheet Vinyl Oak Plank - 240sf/roll", 480.0, 720.0, "RL"],
+])];
+
+test("a roll-sold floor types and carries its coverage; a roll of membrane does not", () => {
+  const m = detectVendorSkuAnalysis(ROLL_WORKBOOK);
+  const { items } = parseMapped(ROLL_WORKBOOK[0].rows, m);
+  const by = (sku) => items.find((i) => i.sku === sku);
+
+  const vinyl = by("40122");
+  assert.equal(vinyl.type, "vinyl");
+  assert.equal(vinyl.sfPerUnit, 240);
+  assert.equal(vinyl.unit, "RL");
+
+  // A membrane has real coverage and is still no floor — the existing guard,
+  // unchanged by RL joining the coverage-bundling units.
+  assert.equal(by("23031").type, null);
+  assert.equal(by("23031").sfPerUnit, 134.5);
+  // No coverage in the description at all: a plain roll accessory.
+  assert.equal(by("23015").type, null);
+  assert.equal(by("23015").unit, "RL");
+});
+
+// The Schluter rolls found this: the coverage suffix list knew /ct and /sh but
+// not /roll, so the number was read and the suffix left in the product name.
+test("a roll coverage suffix is consumed, and the separator it leaves is trimmed", () => {
+  const sheetOf = (desc) => [sheet("Vendor SKU Analysis", [
+    ["Product Code", "Full Description", "Base Price (Cost)", "Retail Price", "Unit of Stock"],
+    ["23031", desc, 480, 720, "RL"],
+  ])];
+  const parse = (desc) => {
+    const wb = sheetOf(desc);
+    return parseMapped(wb[0].rows, detectVendorSkuAnalysis(wb)).items[0];
+  };
+  const trailing = parse("Schluter Ditra-Heat Uncoupling Membrane - 134.5sf/roll");
+  assert.equal(trailing.sfPerUnit, 134.5);
+  assert.equal(trailing.description, "Schluter Ditra-Heat Uncoupling Membrane");
+
+  assert.equal(parse("Schluter Ditra 323.2sf/rl Uncoupling Membrane").description, "Schluter Ditra Uncoupling Membrane");
+  assert.equal(parse("Schluter Kerdi 108sf/rolls Membrane").sfPerUnit, 108);
+  // An interior separator is the vendor's own punctuation and stays.
+  assert.equal(parse("Sheoga Clear RO Flr - Unfinished 22sf/ct").description, "Sheoga Clear RO Flr - Unfinished");
+});

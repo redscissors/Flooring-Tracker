@@ -2,6 +2,7 @@ import { num, ceilQty, getGrout, getMortar, groutBaseList, getCarton, getPieceCa
 import { JOINTS, THICK, underlayLabel } from "./uiconst.js";
 import { money, miscQty, sf1 } from "./model.js";
 import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
+import { unitCode } from "./units.js";
 
 // Extended line total at `unit` (the row's per-sf or per-each price): pieces
 // for misc, whole-carton footage when carton-sold, otherwise the entered qty —
@@ -44,9 +45,16 @@ export function printProduct(p, s) {
   }
   const thickSuffix = p.type === "tile" && p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : "";
   const size = p.type === "tile" ? (p.sizeText ? `${p.sizeText}${thickSuffix}` : `${p.L}" × ${p.W}"${thickSuffix}`) : (p.sizeText || "");
-  const qtyText = p.type === "misc" ? (PC ? `${PC.pieces} pcs (${PC.cartons} ${PC.unit})` : String(miscQty(p))) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${p.qtyType === "sqft" ? "sf" : "units"}` : "";
-  const priceText = num(p.priceSqft) > 0 ? (p.type === "misc" ? money(num(p.priceSqft)) + ((PC ? PC.pieces : miscQty(p)) !== 1 ? "/ea" : "") : `${money(num(p.priceSqft))}/${p.qtyType === "count" ? "ea" : "sf"}`) : "";
-  return { size, C, PC, line, mats, qtyText, priceText, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
+  // The unit the row's per-unit price is quoted in. An area line prices by the
+  // square foot; a counted line prices by whatever ONE of the thing is — "EA"
+  // unless the pick snapshotted the vendor's own sell unit (a Schluter roll:
+  // "RL"). Carton/sheet/roll-billed area lines keep SF here; their per-bundle
+  // price is C.sf × this one, which the layouts show beside it.
+  const countUnit = unitCode(p.sellUnit || "EA");
+  const priceUnit = p.type !== "misc" && p.qtyType === "sqft" ? "SF" : countUnit;
+  const qtyText = p.type === "misc" ? (PC ? `${PC.pieces} pcs (${PC.cartons} ${PC.unit})` : `${miscQty(p)} ${countUnit}`) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${priceUnit.toLowerCase()}` : "";
+  const priceText = num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${priceUnit.toLowerCase()}` : "";
+  return { size, C, PC, line, mats, qtyText, priceText, priceUnit, countUnit, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
 }
 // The honest extended vendor cost of a special-order line: the snapshotted
 // per-unit cost (costSqft, parallel to priceSqft) carried through the SAME
@@ -62,6 +70,11 @@ export function orderLineCost(p, s, sell) {
 // Estimate area headers show the flooring subtotal only — material costs live
 // in the bottom "Setting materials & sundries" breakdown.
 export const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
+// The area heading on the printed estimate. A named area prints its name alone —
+// the customer reads "Kitchen", and the "Area 03" ordinal beside it is internal
+// bookkeeping they never asked about. Unnamed areas keep the ordinal so the
+// sheet still distinguishes them.
+export const areaPrintLabel = (a, i) => (a?.name || "").trim() || `Area ${String(i + 1).padStart(2, "0")}`;
 export const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
 // Kiln #8b estimate sheet: the 9-column product grid and the muted em dash
 // empty cells render (the Color column is a dash for now — the data model
@@ -105,34 +118,29 @@ export function printMatList(cust, s) {
   return [...rows, ...bases].sort((x, y) => rank(x.kind) - rank(y.kind));
 }
 
-// Display unit codes for the order-entry panel. The order unit ("ct"/"sh" for
-// carton/sheet-billed rows, "units" for a piece count, "ea" for misc, "sf" for
-// square-foot flooring) becomes a short uppercase code shown on the qty and the
-// per-unit cost/sell — so a line always reads in the unit it's bought and sold.
-export const ORDER_UNIT_CODE = { ct: "CT", sh: "SH", sf: "SF", units: "PC", ea: "EA" };
-
 // One product row → the fields the order-entry panel shows. Special-order rows
 // (bookId set) carry a snapshotted cost; the sell is the row's line total, and
 // the cost is the honest vendor cost carried through the same quantity math
 // (orderLineCost) — so a hand-edited sale price moves the margin, not the cost.
 // Per-unit values are the extended totals ÷ ordered qty, so they read in the
-// sell unit (per carton / sheet / piece / sf). The item text
+// sell unit (per carton / sheet / roll / piece / sf). The item text
 // splits at the SKU: size + color on top, SKU + coverage beneath — thickness
-// dropped, spaces only. Carton/sheet rows lead with a CT/SH tag (also in the
-// copied text) since the order-entry system can't be switched off "each".
-// Read-only; no math is mutated.
+// dropped, spaces only. Rows bought in anything but pieces lead with their unit
+// tag (also in the copied text) since the order-entry system can't be switched
+// off "each". Read-only; no math is mutated.
 export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   const c = printProduct(p, s);
   const isMisc = p.type === "misc";
   // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
   // desk keys the order in cartons even though the row quotes per piece.
   const qty = isMisc ? (c.PC ? c.PC.cartons : miscQty(p)) : (c.C ? c.C.order : num(p.qty));
-  const rawUnit = isMisc ? (c.PC ? c.PC.unit : "ea") : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : "units"));
-  const unitCode = ORDER_UNIT_CODE[rawUnit] || String(rawUnit || "").toUpperCase();
-  // Only carton/sheet-billed lines flag a non-"each" order unit.
-  const tag = c.C || c.PC ? unitCode : "";
+  const rawUnit = isMisc ? (c.PC ? c.PC.unit : c.countUnit) : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : c.countUnit));
+  const code = unitCode(rawUnit);
+  // Anything the desk can't key as a plain "each" gets the tag — the bundling
+  // units, and now a line whose own sell unit isn't a piece (a Schluter roll).
+  const tag = c.C || c.PC || (code !== "EA" && code !== "SF") ? code : "";
   const sizePlain = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
-  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${unitCode}` : c.PC ? `${c.PC.per} PC/${unitCode}` : "";
+  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${code}` : c.PC ? `${c.PC.per} PC/${code}` : "";
   const extSell = c.line;
   const extCost = orderLineCost(p, s, extSell);
   // A Mannington trim's name carries a "· fits APX020 …" note (manningtonbook.js)
@@ -144,7 +152,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   const r = {
     id: p.id, special: isSpecialOrder(p, stockBookIds), byDesc, area,
     tag, sizePlain, name, sku: p.sku, coverage, sheoga: p.sheoga,
-    qty, unitCode, qtyText: qty > 0 ? `${qty} ${unitCode}` : "—",
+    qty, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
   };

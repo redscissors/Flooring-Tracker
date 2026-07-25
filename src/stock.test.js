@@ -484,3 +484,32 @@ test("grout family colors and their caulk skip disabled SKUs", () => {
   assert.deepEqual(powerGrout.colors.map((c) => c.color), ["Charcoal"]); // Bone is disabled
   assert.equal(groutCaulkItem(stock, "TEC Power Grout", "Charcoal"), null); // its caulk is disabled
 });
+
+// --- roll-sold items (2026-07-25) ---------------------------------------------
+
+// The Schluter export sells sheet goods by the RL. A count line always assumed
+// "each", so the row quoted "$84.20/ea" and printed "3 pcs" for three rolls.
+test("a roll-sold accessory snapshots RL as the row's sell unit", () => {
+  const patch = stockPatch(item({ sku: "23015", description: "Schluter Kerdi-Band 5\" x 33'", unit: "RL", price: 84.2 }), {});
+  assert.equal(patch.type, "misc");
+  assert.equal(patch.sellUnit, "RL");
+  assert.equal(patch.priceSqft, "84.2");
+  assert.equal(patch.cartonPc, undefined); // a roll holds no countable pieces
+});
+
+// "Each" is the default the row already had, so it stays blank — nothing to
+// carry, and pre-2026-07-25 rows read identically.
+test("an each-sold accessory leaves the sell unit blank", () => {
+  const patch = stockPatch(item({ description: "Trowel", unit: "EA", price: 18 }), {});
+  assert.equal(patch.sellUnit, undefined);
+});
+
+// A roll bundles coverage exactly like a carton: whole rolls, billed by the
+// foot at the row's $/sf.
+test("a typed roll-sold floor orders in whole rolls off its coverage", () => {
+  const patch = stockPatch(item({ sku: "40122", description: "12' Sheet Vinyl Oak", type: "vinyl", unit: "RL", sfPerUnit: 240, price: 720 }), {});
+  assert.equal(patch.qtyType, "sqft");
+  assert.equal(patch.cartonSf, "240");
+  assert.equal(patch.cartonUnit, "RL");
+  assert.equal(patch.priceSqft, "3");
+});
