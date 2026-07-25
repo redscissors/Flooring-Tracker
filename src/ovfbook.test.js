@@ -52,7 +52,84 @@ test("floor inherits the species price row and carton coverage", () => {
   assert.equal(balboa[6], "7.29");  // cost = floor $/SF
   assert.equal(balboa[7], "SF");
   assert.equal(balboa[8], "hardwood");
-  assert.match(balboa[4], /old #AV75OBAL/); // OLD item # kept as a search alias
+  assert.match(balboa[12], /old #AV75OBAL/); // OLD item # kept as a search alias
+});
+
+// Hallmark states the plank size in the block's prose line, not a column, so
+// without this the whole book imports sizeless and the estimate prints no size.
+test("a floor takes its plank size from the collection's prose line", () => {
+  assert.equal(bySku(parse(), "AV75OBALC")[4], '5/8" x 7 1/2" x RL- 74 3/4"');
+});
+
+test("the size stops at the descriptive tail and drops a dangling RL", () => {
+  const res = parseHallmark([
+    ["Prepared especially for KEIM"],
+    ["Crestline"],
+    ['3/4" x 5" x RL - HandcraftedBevel'],
+    ["Solid Hardwood, Light-medium hand scraped, Wire Brushed"], // construction prose, not a size
+    ["22.6 SF/CT ~ 52 CT/PA ~ 73.15 LB/CT"],
+    ["SPECIES / COLOR", "ITEM #"],
+    ["HICKORY", "$8.79"],
+    ["Sand", "SCR5SANH"],
+  ]);
+  assert.equal(bySku(res, "SCR5SANH")[4], '3/4" x 5"');
+});
+
+// A width LIST and a metric thickness are both real Hallmark spellings; neither
+// is a shape the parser could enumerate, so the run-of-size-words rule keeps them
+// whole rather than picking one number out.
+test("a width list and a metric thickness survive whole", () => {
+  const rows = (prose, sku) => [
+    ["Prepared especially for KEIM"], ["A Collection"], [prose],
+    ["SPECIES / COLOR", "ITEM #"], ["OAK", "$7.29"], ["Color", sku],
+  ];
+  assert.equal(bySku(parseHallmark(rows('5/8"x5, 6, 7 1/2" x RL — 6\'2" Hand Crafted Edge', "EOR567CHAH")), "EOR567CHAH")[4],
+    '5/8"x5, 6, 7 1/2" x RL — 6\'2"');
+  assert.equal(bySku(parseHallmark(rows('5.5mm x 9" x  59" Micro Bevel - Plank', "COADM9O5MM-19")), "COADM9O5MM-19")[4],
+    '5.5mm x 9" x 59"');
+});
+
+// American Traditional's sub-blocks state size, grade and coverage on ONE line
+// and re-state it per block — the size must track the block like the coverage.
+test("a size + coverage prose line binds both to the rows beneath it", () => {
+  const res = parseHallmark([
+    ["Prepared especially for KEIM"],
+    ["American Traditional"],
+    ["SPECIES / COLOR", "ITEM #"],
+    ["HICKORY", "$6.99"],
+    ['1/2” x 3.25” x RL- 7\'2", Select Grade - 23.47 SF/CT - 60 CT/PL - 37 lbs'],
+    ["Natural", "ATC325NATRO-S"],
+    ['1/2” x 5” x RL- 7\'2", Country Grade - 24.06 SF/CT - 60 CT/PL - 39 lbs'],
+    ["Auburn", "ATC5AUBRO-C"],
+  ]);
+  assert.deepEqual(bySku(res, "ATC325NATRO-S").slice(4, 6), ['1/2” x 3.25” x RL- 7\'2"', "23.47"]);
+  assert.deepEqual(bySku(res, "ATC5AUBRO-C").slice(4, 6), ['1/2” x 5” x RL- 7\'2"', "24.06"]);
+});
+
+// The True Collection's prose names no size at all — an empty Size column is the
+// honest answer, not a number scraped out of the construction line.
+test("a collection stating no size imports sizeless, and its prose is not a size", () => {
+  const res = parseHallmark([
+    ["Prepared especially for KEIM"],
+    ["True Collection"],
+    ["Replicates Ancient Fossilized Wood Found in Wetlands, River, and Peat Fens"],
+    ["3 mm Through-Color Wear Layer, TrueCore2,NuOil - Super-Matte"],
+    ["23.31 SF/CT ~ 50 CT/PA ~ 49 LB/CT"],
+    ["SPECIES / COLOR", "ITEM #"],
+    ["OAK", "$9.49"],
+    ["Bering", "TR75BERO25"],
+  ]);
+  const bering = bySku(res, "TR75BERO25");
+  assert.equal(bering[4], "");
+  assert.equal(bering[5], "23.31");
+  assert.equal(bering[2], "True Collection"); // the prose lines stayed prose
+});
+
+// A size belongs to its collection; the next banner must not inherit it.
+test("a new collection clears the previous collection's size", () => {
+  const res = parse();
+  assert.equal(bySku(res, "AV75OBALC")[4], '5/8" x 7 1/2" x RL- 74 3/4"');
+  assert.equal(bySku(res, "SOR34MORH")[4], '3/4" x3 1/4", 4" x RL — 6\' or 7\'');
 });
 
 test("trims fan out priced per piece and stamped with the parent floor", () => {
@@ -96,7 +173,7 @@ test("'dropped' flags the color and is stripped from the name; '*NEW*' is stripp
   const moroccan = bySku(parse(), "SOR34MORH");
   assert.match(moroccan[1], /Moroccan/);
   assert.doesNotMatch(moroccan[1], /dropped/i);
-  assert.match(moroccan[4], /dropped/); // recorded in the note instead
+  assert.match(moroccan[12], /dropped/); // recorded in the note instead
 
   const bay = bySku(parse(), "SOR34BAYO-25");
   assert.match(bay[1], /Bay Leaf/);

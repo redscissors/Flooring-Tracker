@@ -86,6 +86,35 @@ const typeOf = (collection) => {
 // 23.31 SF/CT") yields the first (NEW) value, the current carton.
 const coverageIn = (line) => { const m = str(line).match(/(\d+(?:\.\d+)?)\s*SF\s*\/\s*CT/i); return m ? parseFloat(m[1]) : null; };
 
+// The dimension clause of a Hallmark prose line. Hallmark states a block's plank
+// size in prose, not a column ('5/8" x 7 1/2" x RL- 74 3/4" Handcrafted Bevel'),
+// and spells it a dozen ways — fractions or decimals, one width or a list
+// ('5/8"x5, 6, 7 1/2"'), a metric thickness ('5.5mm x 9" x 59"'), lengths in feet
+// or inches, random-length "RL". Rather than parse the shapes, take the leading
+// run of size-ish words and stop at the first descriptive one ("Handcrafted",
+// "Select Grade", "SF/CT"): a word is size-ish when nothing but digits,
+// punctuation and the size vocabulary (RL / mm / x / or / and) is left of it.
+const SIZE_WORDS = /(rl|mm|or|and|x|×)/gi;
+const sizeish = (w) => !/[a-z]/i.test(w.replace(SIZE_WORDS, ""));
+const hmSize = (line) => {
+  const s = str(line);
+  let end = 0;
+  for (const m of s.matchAll(/\S+/g)) {
+    if (!sizeish(m[0])) break;
+    end = m.index + m[0].length;
+  }
+  let out = s.slice(0, end).replace(/\s+/g, " ").trim();
+  // Trailing separators and a dangling "RL" are left over once the descriptive
+  // tail is cut ('3/4" x 5" x RL - HandcraftedBevel'); the length they qualified
+  // isn't there, so they say nothing.
+  let prev;
+  do { prev = out; out = out.replace(/(?:[\s,\-–—]+|\s*[x×]\s*|\s*\bRL\b\s*)$/i, ""); } while (out !== prev);
+  // A real size names two dimensions and marks its units — this rejects the
+  // construction prose that also opens with a number ("4 mm Sawn Face Wear
+  // Layer", "22.6 SF/CT ~ 52 CT/PA").
+  return /[x×]/i.test(out) && /["'”’]/.test(out) ? out : "";
+};
+
 // A header row starts the color/species grid for a collection.
 const isHeaderRow = (row) => /^SPECIES\s*\/\s*COLOR/i.test(str(row[0]));
 
@@ -126,7 +155,7 @@ export function parseHallmark(rows, name = "Hallmark price list") {
   const trims = new Map(); // sku -> { sku, label, price, fits:Set, names:Set }
   const warnings = [];
 
-  let collection = "", type = "hardwood", coverage = null;
+  let collection = "", type = "hardwood", coverage = null, size = "";
   let header = null, species = "", floorPrice = null, trimPrices = {};
   let sawData = false; // did the previous meaningful row emit a floor?
 
@@ -147,7 +176,7 @@ export function parseHallmark(rows, name = "Hallmark price list") {
       const sp = cleanSpecies(species);
       const label = [sp ? titleCase(sp) : "", color].filter(Boolean).join(" ").trim() || color;
       flooring.push({
-        sku: floorSku, name: label, collection, color, coverage,
+        sku: floorSku, name: label, collection, color, coverage, size,
         cost: floorPrice, type, oldSku, dropped,
       });
       for (const t of header.trims) {
@@ -174,28 +203,34 @@ export function parseHallmark(rows, name = "Hallmark price list") {
       continue;
     }
 
-    // Otherwise a single-cell prose line: coverage, a new collection banner, or
-    // ignorable construction/footnote text.
+    // Otherwise a single-cell prose line: a plank size, coverage, a new
+    // collection banner, or ignorable construction/footnote text. Size and
+    // coverage can share one line — American Traditional's sub-blocks read
+    // '1/2" x 5" x RL- 7'2", Select Grade - 24.06 SF/CT - …' — so both are read
+    // before the line is consumed.
+    const sz = hmSize(c0);
+    if (sz) size = sz;
     const cov = coverageIn(c0);
     if (cov != null) { coverage = cov; continue; }
+    if (sz) continue;
     if ((!collection || sawData) && looksCollection(c0)) {
       collection = cleanName(c0); type = typeOf(collection);
-      header = null; species = ""; floorPrice = null; trimPrices = {}; coverage = null; sawData = false;
+      header = null; species = ""; floorPrice = null; trimPrices = {}; coverage = null; size = ""; sawData = false;
     }
   }
 
-  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
+  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits", "Note"];
   const out = [CANON.slice()];
   for (const f of flooring) {
     const note = [f.oldSku && `old #${f.oldSku}`, f.dropped && "dropped"].filter(Boolean).join(" · ");
-    out.push([f.sku, f.name, f.collection, f.color, note, f.coverage != null ? String(f.coverage) : "",
-      f.cost != null ? String(f.cost) : "", "SF", f.type, "", BRAND, ""]);
+    out.push([f.sku, f.name, f.collection, f.color, f.size, f.coverage != null ? String(f.coverage) : "",
+      f.cost != null ? String(f.cost) : "", "SF", f.type, "", BRAND, "", note]);
   }
   for (const t of trims.values()) {
     const fits = [...t.fits].sort();
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, fits.join(" ")]);
+    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, fits.join(" "), ""]);
   }
 
   if (!flooring.length) warnings.push("No Hallmark product rows were recognized — is this the OVF Hallmark price sheet?");
@@ -206,7 +241,7 @@ export function parseHallmark(rows, name = "Hallmark price list") {
 // a straight column→field assignment (like Mannington's CANON_MAPPING). Floor
 // and trim codes are alphanumeric with a digit and may carry a hyphen.
 export const HALLMARK_MAPPING = {
-  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "note", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand", 11: "fits" },
+  columns: { 0: "sku", 1: "description", 2: "productLine", 3: "color", 4: "size", 5: "sfPerUnit", 6: "cost", 7: "priceUnit", 8: "type", 9: "trim", 10: "brand", 11: "fits", 12: "note" },
   headerRow: 0,
   skuPattern: "^(?=.*\\d)[A-Za-z0-9-]{3,24}$",
   defaultType: "",

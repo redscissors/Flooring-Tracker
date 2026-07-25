@@ -62,6 +62,11 @@ export function orderLineCost(p, s, sell) {
 // Estimate area headers show the flooring subtotal only — material costs live
 // in the bottom "Setting materials & sundries" breakdown.
 export const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
+// The area heading on the printed estimate. A named area prints its name alone —
+// the customer reads "Kitchen", and the "Area 03" ordinal beside it is internal
+// bookkeeping they never asked about. Unnamed areas keep the ordinal so the
+// sheet still distinguishes them.
+export const areaPrintLabel = (a, i) => (a?.name || "").trim() || `Area ${String(i + 1).padStart(2, "0")}`;
 export const PRINT_KINDS = ["Grout", "Grout base", "Caulk", "Mortar", "Tile Backer", "Underlayment", "Install"];
 // Kiln #8b estimate sheet: the 9-column product grid and the muted em dash
 // empty cells render (the Color column is a dash for now — the data model

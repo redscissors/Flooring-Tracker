@@ -2,9 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct } from "./model.js";
-import { printProduct, orderLineCost, printMatList } from "./print.js";
+import { printProduct, orderLineCost, printMatList, areaPrintLabel } from "./print.js";
 
 const s = normalizeSettings();
+
+test("areaPrintLabel: a named area prints its name alone, unnamed keeps the ordinal", () => {
+  assert.equal(areaPrintLabel({ name: "Kitchen" }, 0), "Kitchen");
+  assert.equal(areaPrintLabel({ name: "  Master Bath  " }, 4), "Master Bath");
+  assert.equal(areaPrintLabel({ name: "" }, 0), "Area 01");
+  assert.equal(areaPrintLabel({ name: "   " }, 9), "Area 10");
+});
 
 test("printProduct: a misc count line bills qty × each-price", () => {
   const p = { ...newProduct(), type: "misc", qtyType: "count", qty: "3", priceSqft: "10" };
