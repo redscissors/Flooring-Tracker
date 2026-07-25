@@ -66,22 +66,31 @@ const OrderHit = ({ it, bookName }) => (
   </>
 );
 
+// The books a collapsed hit also lives on (mergeSearch §6): the same SKU in the
+// stock space, or the same product in a second order book. When the collapse
+// dropped a meaningfully dearer copy the note names it and its price in amber —
+// the row is the cheaper one, and the salesperson should see that it was a
+// choice, not the only listing.
+const AlsoOn = ({ it, bookName }) => {
+  if (!it.alsoOn?.length) return null;
+  const gap = it.priceGap;
+  const price = gap && `$${gap.high.toFixed(2)}${gap.basis === "sqft" ? "/sf" : ""}`;
+  return (
+    <div className={`text-[11px] ${gap ? "text-amber-700" : "text-slate-400"}`}>
+      also on {it.alsoOn.map(bookName).join(", ")}
+      {gap && (it.alsoOn.length > 1 ? ` — ${bookName(gap.bookId)} is ${price}` : ` — ${price} there`)}
+    </div>
+  );
+};
+
 // One search-result body: a book item badges with its book (stock or special
 // order); an item with no book (a projected grout-family row) renders plain,
-// plus an "also on {book}" note when the same SKU also lives in an order book
-// (the collision resolved to stock — mergeSearch §6).
+// plus the "also on {book}" note when a collision collapsed a twin into it.
 export const Hit = ({ it, bookName = () => "special order" }) => (
-  it.bookId ? (
-    <>
-      <OrderHit it={it} bookName={bookName} />
-      {it.alsoOn?.length > 0 && <div className="text-[11px] text-slate-400">also on {it.alsoOn.map(bookName).join(", ")}</div>}
-    </>
-  ) : (
-    <>
-      <StockHit it={it} />
-      {it.alsoOn?.length > 0 && <div className="text-[11px] text-slate-400">also on {it.alsoOn.map(bookName).join(", ")}</div>}
-    </>
-  )
+  <>
+    {it.bookId ? <OrderHit it={it} bookName={bookName} /> : <StockHit it={it} />}
+    <AlsoOn it={it} bookName={bookName} />
+  </>
 );
 
 export const matchSummary = (shown, total) => total > shown ? `Showing ${shown} of ${total} matches — keep typing to narrow` : `${total} match${total === 1 ? "" : "es"}`;
@@ -123,7 +132,8 @@ function useOrderResults(query, searchOrder, strictness, fallback) {
 }
 
 // Instant stock matches + streamed order matches, merged stock-first with the
-// exact-SKU collision resolved to stock (mergeSearch), then capped for display.
+// exact-SKU collision resolved to stock and two order books' copies of one
+// product collapsed to the cheaper (mergeSearch), then capped for display.
 // Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
 // the shared in-memory stock objects.
 const mergeCombined = (stockMatches, orderRaw) => {

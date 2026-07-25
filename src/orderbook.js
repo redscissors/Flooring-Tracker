@@ -327,7 +327,79 @@ export function mergeSearch(stockMatches, orderMatches) {
     if (twin) { (twin.alsoOn = twin.alsoOn || []).push(it.bookId); continue; }
     order.push(it);
   }
-  return { stock: stockMatches || [], order };
+  return { stock: stockMatches || [], order: collapseCopies(order) };
+}
+
+// --- the same product in two order books -------------------------------------
+
+// Two vendor books routinely carry the same product — one brand distributed by
+// two suppliers, or a brand's own sheet sitting beside a distributor's — and
+// without this the search shows it twice. SKU equality alone can't decide it
+// here: unlike the shop's internal numbers, vendor SKUs share no namespace, so
+// two unrelated products can both be "1234". The description has to corroborate.
+
+const descTokens = (it) => new Set(str(it?.description || it?.product).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+
+// Containment, not Jaccard: one book routinely spells the same product longer
+// than the other ("CARRARA WHITE 12X24" vs "CARRARA WHITE 12X24 MATTE
+// RECTIFIED PORCELAIN"), and Jaccard would score that pair apart on length
+// alone. Measuring the overlap against the SHORTER description reads the long
+// one as the same product with more words.
+export const COPY_OVERLAP = 0.6;
+
+export function sameProduct(a, b) {
+  const sku = str(a?.sku);
+  if (!sku || sku !== str(b?.sku)) return false;
+  const A = descTokens(a);
+  const B = descTokens(b);
+  // Nothing to corroborate with: leave both rows standing rather than guess
+  // which vendor's price the job gets quoted from.
+  if (!A.size || !B.size) return false;
+  let hit = 0;
+  for (const w of A) if (B.has(w)) hit++;
+  return hit / Math.min(A.size, B.size) >= COPY_OVERLAP;
+}
+
+// The comparable sell figure: flooring quotes per sq ft, everything else per
+// sell unit. Two copies on different bases aren't a price gap — comparing $/sf
+// against $/each would invent one — so the basis gates the comparison.
+const sellBasis = (it) => (it?.priceSqft != null ? "sqft" : it?.price != null ? "each" : null);
+const sellValue = (it) => (it?.priceSqft != null ? it.priceSqft : it?.price);
+
+// How far apart two books' prices for one product must be, in percent of the
+// cheaper, before the surviving row says so out loud.
+export const PRICE_GAP_PCT = 5;
+
+// Collapse each set of copies to one row: the cheapest, keeping the group's
+// place in the search ranking (relevance orders the list, price only decides
+// which copy shows). The dropped books land in `alsoOn` — the same tag the
+// stock collision uses, so the "also on {book}" note renders unchanged — and a
+// spread past PRICE_GAP_PCT sets `priceGap`, so a collapse can never quietly
+// hide that one supplier is meaningfully dearer.
+export function collapseCopies(items) {
+  const leads = [];
+  const groups = [];
+  for (const it of items || []) {
+    // Matched against the group's lead, not every member — an O(n) walk over a
+    // page of results, and copies of one product all resemble the first of them.
+    const i = leads.findIndex((lead) => sameProduct(lead, it));
+    if (i < 0) { leads.push(it); groups.push([it]); continue; }
+    groups[i].push(it);
+  }
+  return leads.map((lead, i) => {
+    const members = groups[i];
+    if (members.length < 2) return lead;
+    const basis = sellBasis(lead);
+    const priced = basis ? members.filter((m) => sellBasis(m) === basis) : [];
+    const winner = priced.length ? priced.reduce((a, b) => (sellValue(b) < sellValue(a) ? b : a)) : lead;
+    const alsoOn = [...new Set(members.filter((m) => m !== winner).map((m) => m.bookId).filter(Boolean))];
+    const dearest = priced.length ? priced.reduce((a, b) => (sellValue(b) > sellValue(a) ? b : a)) : null;
+    const low = winner === dearest ? null : sellValue(winner);
+    const gap = dearest && low > 0 && (sellValue(dearest) - low) / low * 100 >= PRICE_GAP_PCT
+      ? { high: sellValue(dearest), bookId: dearest.bookId, basis }
+      : null;
+    return { ...winner, alsoOn: [...(winner.alsoOn || []), ...alsoOn], ...(gap ? { priceGap: gap } : {}) };
+  });
 }
 
 // --- result ordering: flooring before its trims (ADR 0012) -------------------
