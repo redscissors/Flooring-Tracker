@@ -910,7 +910,23 @@ test("groutBaseList consolidates bases across colors/grouts and applies per", ()
   const comm = list.find((b) => b.sku === "1518984");
   assert.equal(comm.exact, 1.25); // 5 kits / per 4
   assert.equal(comm.order, 2);
+  // A kit count of any size means the line is real, not pending.
+  assert.equal(sanded.pending, false);
   assert.deepEqual(groutBaseList([{ product: "Tec Power Grout", order: 4 }], s), []);
+
+  // A grout with no kits yet still names its base — flagged pending, ordering
+  // nothing and costing nothing.
+  const pend = groutBaseList([{ product: "Spectralock Part C", order: 0 }], s);
+  assert.equal(pend.length, 1);
+  assert.equal(pend[0].sku, "1518984");
+  assert.equal(pend[0].pending, true);
+  assert.equal(pend[0].order, 0);
+  assert.equal(pend[0].cost, 0);
+  // One color computing covers the pending twin: the base line is real again.
+  const mixed = groutBaseList([{ product: "Spectralock Part C", order: 0 }, { product: "Spectralock Part C", order: 4 }], s);
+  assert.equal(mixed.length, 1);
+  assert.equal(mixed[0].pending, false);
+  assert.equal(mixed[0].order, 1);
 });
 
 // --- ADR 0007: grout book-family link, install-item SKUs ------------------------
