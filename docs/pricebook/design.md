@@ -376,6 +376,9 @@ order books it becomes a two-tier search:
    no reliable cross-vendor "same product" detection beyond SKU equality
    (descriptions differ per vendor); anything fuzzier would guess, and a wrong
    guess prices a job off the wrong list. Honest and simple beats clever here.
+   *(Extended 2026-07-25 — ADR 0009 amendment: copies of one product across two
+   ORDER books also collapse, to the cheapest, but only when the descriptions
+   corroborate the SKU match. The hazard named here is what sets that bar.)*
 4. The result cap lesson from issue 005 carries over: always show
    "Showing 30 of N", never truncate silently.
 

@@ -5,7 +5,7 @@ import {
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
   bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
-  flagReviewed, flagReviewBySku, trimsForFloor,
+  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, PRICE_GAP_PCT,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -414,6 +414,70 @@ test("mergeSearch: an exact-SKU order twin is dropped and the stock match tagged
   assert.deepEqual(s[0].alsoOn, ["vtc"]);    // "also on vtc" note, not a 2nd row
   assert.equal(o.length, 1);                 // only the non-colliding order item
   assert.equal(o[0].sku, "ZZ9");
+});
+
+// --- the same product in two order books -------------------------------------
+
+const copy = (bookId, over = {}) => ({ sku: "AN1234", bookId, description: "Carrara White 12x24 Matte Porcelain", ...over });
+
+test("sameProduct: same SKU only counts as a copy when the descriptions agree", () => {
+  assert.equal(sameProduct(copy("vtc"), copy("anatolia")), true);
+  // The longer spelling is the same product with more words, not a different one.
+  assert.equal(sameProduct(copy("vtc"), copy("anatolia", { description: "Carrara White 12x24 Matte Rectified Porcelain Tile" })), true);
+  // Two vendors reusing a plain number for unrelated goods must both survive.
+  assert.equal(sameProduct(copy("vtc"), copy("anatolia", { description: "Bullnose Oak Reducer 78in" })), false);
+  // No description on one side is no corroboration.
+  assert.equal(sameProduct(copy("vtc"), copy("anatolia", { description: "" })), false);
+  assert.equal(sameProduct(copy("vtc"), copy("anatolia", { sku: "OTHER" })), false);
+});
+
+test("collapseCopies: one row survives, the cheaper, tagged with the book it dropped", () => {
+  const out = collapseCopies([copy("vtc", { priceSqft: 9.4 }), copy("anatolia", { priceSqft: 8.2 })]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].bookId, "anatolia");   // cheapest wins
+  assert.deepEqual(out[0].alsoOn, ["vtc"]);
+});
+
+test("collapseCopies: the surviving row keeps the group's place in the ranking", () => {
+  const other = { sku: "ZZ9", bookId: "vtc", description: "Something else" };
+  const out = collapseCopies([copy("vtc", { priceSqft: 9.4 }), other, copy("anatolia", { priceSqft: 8.2 })]);
+  assert.deepEqual(out.map((it) => it.sku), ["AN1234", "ZZ9"]);
+});
+
+test("collapseCopies: a spread past PRICE_GAP_PCT is flagged, a trivial one isn't", () => {
+  const wide = collapseCopies([copy("vtc", { priceSqft: 10 }), copy("anatolia", { priceSqft: 8.2 })]);
+  assert.deepEqual(wide[0].priceGap, { high: 10, bookId: "vtc", basis: "sqft" });
+  const tight = collapseCopies([copy("vtc", { priceSqft: 10 }), copy("anatolia", { priceSqft: 9.8 })]);
+  assert.equal(tight[0].priceGap, undefined);
+  assert.equal(tight[0].bookId, "anatolia");        // still collapsed to the cheaper
+  assert.deepEqual(tight[0].alsoOn, ["vtc"]);
+});
+
+test("collapseCopies: copies quoted on different bases don't invent a price gap", () => {
+  const out = collapseCopies([copy("vtc", { priceSqft: 9.4 }), copy("anatolia", { price: 42 })]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].bookId, "vtc");        // the $/each copy can't be compared
+  assert.deepEqual(out[0].alsoOn, ["anatolia"]);
+  assert.equal(out[0].priceGap, undefined);
+});
+
+test("collapseCopies: unpriced copies still collapse, on the first-ranked row", () => {
+  const out = collapseCopies([copy("vtc"), copy("anatolia")]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].bookId, "vtc");
+  assert.deepEqual(out[0].alsoOn, ["anatolia"]);
+});
+
+test("mergeSearch: the copy collapse runs on what survives the stock collision", () => {
+  const order = [copy("vtc", { priceSqft: 9.4 }), copy("anatolia", { priceSqft: 8.2 })];
+  const { order: o } = mergeSearch([], order);
+  assert.equal(o.length, 1);
+  assert.equal(o[0].bookId, "anatolia");
+  // A stock twin outranks both copies and absorbs each book.
+  const stock = [{ sku: "AN1234", description: "Shop tile" }];
+  const merged = mergeSearch(stock, order);
+  assert.equal(merged.order.length, 0);
+  assert.deepEqual(merged.stock[0].alsoOn, ["vtc", "anatolia"]);
 });
 
 // --- import diff -------------------------------------------------------------

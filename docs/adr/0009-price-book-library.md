@@ -186,3 +186,42 @@ while an `SF` / `No Broken PC` item orders loose pieces. Ships as its own PR in
 the VTC import redesign, after the description parser (PR #70) and alongside the
 coverage-unit suffix (`15.5 SF/CT`) that makes the two units legible on the row,
 summary, and print.
+
+## Amendment (2026-07-25): one row per product across order books
+
+Decision item 6 collapsed an exact-SKU collision between the stock and
+special-order spaces, and stopped there — deliberately, on the grounds that
+"there is no reliable cross-vendor same-product detection beyond SKU equality"
+(design.md §6.3). In practice the books grew past that: several special-order
+books now carry the same product — one brand distributed by two suppliers, or a
+brand's own sheet imported beside a distributor's — and the search shows it once
+per book. A doubled result list is not a neutral cost; it eats the 30-row cap
+and makes the salesperson compare rows by hand mid-quote.
+
+So a second collapse runs over what survives the stock collision: **copies of one
+product in different order books show as one row, the cheapest.** Two rows are
+copies when their SKUs match *and* their descriptions corroborate it — token
+overlap against the shorter description ≥ `COPY_OVERLAP` (0.6), so a longer
+spelling of the same product reads as the same product, while two vendors reusing
+a plain number like "1234" for unrelated goods both survive. A row with no
+description on either side never collapses: no corroboration, no guess.
+
+This does not overturn the original caution, it satisfies it. The hazard §6.3
+named is quoting a job off the wrong vendor's list, and SKU equality alone —
+across namespaces that share no authority — could do exactly that. Requiring the
+description to agree is what makes the collapse safe; equality alone is what
+isn't.
+
+Cheapest wins because it is the only rule that needs no upkeep and never
+silently quotes the dearer twin. It is not silent about the choice: the dropped
+books land in `alsoOn` (the tag decision item 6 already defined, rendering as the
+"also on {book}" note), and a spread of `PRICE_GAP_PCT` (5%) or more sets
+`priceGap`, which names the dearer book and its price in amber on the surviving
+row. Prices on different bases ($/sf vs $/each) are never compared — that would
+invent a gap — so such a pair collapses without one.
+
+Mechanics: `collapseCopies` / `sameProduct` in `src/orderbook.js`, called from
+`mergeSearch` so every caller of the merged search inherits it; `AlsoOn` in
+`src/search.jsx` renders the note for both hit kinds. Display-only, per the
+ADR 0003 doctrine — the collapse decides which row is offered, never what a pick
+snapshots, and a saved estimate is untouched.

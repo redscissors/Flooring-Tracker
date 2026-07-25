@@ -152,6 +152,11 @@ src/
                     # cost/markup/sell, pick snapshot, drift, import diff, and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
+                    # — plus the search collapse: `mergeSearch` (a stock twin
+                    # outranks its order copy) and `collapseCopies`/`sameProduct`
+                    # (one product carried by two order books shows once, the
+                    # cheapest, when the descriptions corroborate the SKU match;
+                    # a spread past `PRICE_GAP_PCT` names the dearer book).
                     # (N-suffix old→new), surfaced in the wizard's review step.
                     # An item's `flagReview` ({code: confirmed/ignored verdict},
                     # ADR 0017) mutes that code's chip + import warnings and is
