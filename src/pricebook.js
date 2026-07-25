@@ -321,20 +321,28 @@ function flagSemantics(cell, flags) {
 }
 
 // The ERP stock exports carry no SF/CT column — coverage rides at the end of
-// the description ("… 23.76 sf", "…10.64sf/c", "….969sf/sh"), per SELL unit
-// (carton, bundle, roll, sheet), which is exactly what sfPerUnit means. A
-// mosaic's sub-square-foot coverage prints with no leading zero (".969") —
-// the leading-decimal alt claims it from the dot (the DIM convention) so the
-// bare "969" can't read as the coverage with a stray "." left in the name.
-// Only mappings that say so (sfFromDescription) pull it out; a description
-// without one stays uncovered rather than invented.
-const SF_DESC_RE = /(\d+(?:\.\d+)?|\.\d+)\s*s\.?f\.?(?:\s*\/\s*(?:c(?:t|tn)?|sh(?:t|eet)?s?))?\b/i;
+// the description ("… 23.76 sf", "…10.64sf/c", "….969sf/sh", "…134.5sf/roll"),
+// per SELL unit (carton, bundle, roll, sheet), which is exactly what sfPerUnit
+// means. A mosaic's sub-square-foot coverage prints with no leading zero
+// (".969") — the leading-decimal alt claims it from the dot (the DIM
+// convention) so the bare "969" can't read as the coverage with a stray "."
+// left in the name. The per-unit suffix is listed out rather than matched
+// loosely, so an unlisted spelling leaves visible litter in the name instead of
+// eating a real word — which is how "/roll" was found (Schluter imported as
+// "Ditra-Heat Uncoupling Membrane - /roll"). Only mappings that say so
+// (sfFromDescription) pull it out; a description without one stays uncovered
+// rather than invented.
+const SF_DESC_RE = /(\d+(?:\.\d+)?|\.\d+)\s*s\.?f\.?(?:\s*\/\s*(?:c(?:t|tn)?|sh(?:t|eet)?s?|r(?:l|oll)s?))?\b/i;
 
 // Units of Stock that bundle coverage — the item is sold in whole cartons/
-// bundles/sheets of so-many square feet, never loose pieces. This is the sell
-// basis the ERP's U/M column names; EA/RL/GL accessories stay count lines.
+// bundles/sheets/rolls of so-many square feet, never loose pieces. This is the
+// sell basis the ERP's U/M column names; EA/GL accessories stay count lines.
 // Sheet-sold mosaics ride the same path (orderbook's SHEET_UNIT_RE forms).
-const COVERAGE_SOLD_RE = /^(ct|ctn|carton|bx|box|cs|case|bl|bdl|bundle|sh|sht|sheet)s?$/i;
+// A roll belongs here for the same reason a carton does — the Schluter export
+// sells sheet goods by the RL with the coverage in the description — and, like
+// every other unit, it only types a row the description also names a floor in,
+// so a roll of membrane stays the count line it should be.
+const COVERAGE_SOLD_RE = /^(ct|ctn|carton|bx|box|cs|case|bl|bdl|bundle|sh|sht|sheet|rl|rls|roll)s?$/i;
 
 // The ERP stock exports carry no type column, but a carton/bundle-sold item
 // with real sf-per-carton coverage IS flooring — the description's wording
@@ -382,7 +390,10 @@ function mappedItem(mapping, raw, sku, sem) {
   const coverage = numOrNull(raw.coverage);
   if (mapping.sfFromDescription && sfPerUnit == null && descText) {
     const sf = descText.match(SF_DESC_RE);
-    if (sf) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")); }
+    // A coverage sitting at the very end after a separator ("… Membrane -
+    // 134.5sf/roll") leaves the separator dangling once it's pulled; interior
+    // ones are the vendor's own punctuation and stay.
+    if (sf) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")).replace(/\s*[-–—·,]\s*$/, ""); }
   }
   if (!size && descText) {
     const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize });

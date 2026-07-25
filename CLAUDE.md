@@ -50,12 +50,18 @@ src/
   uiconst.js        # shared UI constants: TYPES/TLBL, tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
+  units.js          # the sell-unit vocabulary (2026-07-25): `unitCode` (RL/Rolls/
+                    # roll → "RL"), `unitNoun` (3, "rl" → "rolls"), `isRollUnit`.
+                    # One table so a unit reads the same in the grid, the print,
+                    # and the order panel; a unit the table doesn't know falls
+                    # through as the vendor's own code rather than a wrong "EA"
+                    # (units.test.js)
   model.js          # job-model factories + normalizers: `uid`/`money`, `newProduct`/
                     # `newArea`/`newProject`, `normP`/`normA`/`normC`, `catSig`,
                     # `rowBlank`, `personData`… (model.test.js, their first tests)
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
-                    # `printAreaFloor`, `orderEntryRow`, `ESTIMATE_PRINT_LAYOUT`…
-                    # (print.test.js)
+                    # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
+                    # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
   fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
                     # `import("pdfjs-dist")` preserved
   widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
@@ -387,6 +393,16 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // cartonPc = the piece-count twin for carton-only count lines
            // (ADR 0013 amendment): pieces typed in the grid's SF/EA column
            // round up to whole cartons of cartonPc, billing every piece.
+           // cartonUnit = what those bundles ARE (CT/SH/RL) — a roll bundles
+           // coverage exactly like a carton, so a 240 sf/RL sheet-vinyl row
+           // orders in whole rolls and bills sqft × priceSqft.
+           // sellUnit = what ONE of a COUNT line is (2026-07-25): "" means
+           // each — the old and still the default — and a pick snapshots the
+           // vendor's own unit when it isn't ("RL" for a Schluter roll), so
+           // the grid, the print's price column, and the order panel all read
+           // "$84.20/rl · 3 RL" instead of assuming "each". Label only: the
+           // math is unchanged, and like every picked value it's a snapshot
+           // (ADR 0003), so a re-import never re-labels a saved row.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...},
            pricing: { builderPct: 8, salePct: 10, descLimit: 30 } }

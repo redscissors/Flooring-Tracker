@@ -5,6 +5,7 @@
 // product row (snapshot, ADR 0003); nothing here resolves at calculation
 // time, so estimates keep the price they were quoted at. The row remembers
 // its `sku`, which lets the UI flag price drift and offer a refresh.
+import { unitCode } from "./units.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -287,6 +288,13 @@ export function stockPatch(item, product) {
     patch.brandColor = label(item);
     if (item.size) patch.sizeText = str(item.size); // its own Size field, not glued to the name
     if (item.price != null) patch.priceSqft = String(item.price);
+    // What one counted unit IS. A count line was always assumed to be "each",
+    // which reads wrong the moment the vendor sells the thing by the roll or
+    // the gallon — a Schluter RL line quoted "$84.20/ea". Snapshotted like
+    // every other picked value (ADR 0003), so a re-import never re-labels a
+    // saved row; "ea" stays blank, the default the row already had.
+    const sellUnit = unitCode(orderUnitOf(item));
+    if (sellUnit && sellUnit !== "EA") patch.sellUnit = sellUnit;
     if (isCartonUnit(orderUnitOf(item)) && item.pcPerUnit > 0) {
       patch.cartonPc = String(item.pcPerUnit);
       patch.cartonUnit = orderUnitOf(item) || "CT";

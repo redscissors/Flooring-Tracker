@@ -8,6 +8,7 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
+import { unitCode } from "./units.js";
 import { FitSelect, useEscClose } from "./widgets.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { GridSizeInput } from "./grid.jsx";
@@ -197,8 +198,8 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
   const blank = rowBlank(p);
   const sub = blank ? ["tap to fill in"] : [
     p.sku, c.size,
-    c.qtyText && c.C ? `${c.qtyText} × ${sf1(c.C.sf)} SF` : p.type === "misc" && !c.PC && c.qtyText ? `${c.qtyText} EA` : c.qtyText,
-    c.priceText ? `@ ${c.priceText.replace(/\/(sf|ea)$/, "")}` : "",
+    c.qtyText && c.C ? `${c.qtyText} × ${sf1(c.C.sf)} SF` : c.qtyText,
+    c.priceText ? `@ ${c.priceText}` : "",
   ].filter(Boolean);
   return (
     <div onClick={onOpen} onPointerDown={onPointerDown} title="Tap to edit — hold to move"
@@ -247,6 +248,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
   const G = getGrout(p, settings), M = getMortar(p, settings);
   const gEx = groutExact(p, settings), mEx = mortarExact(p, settings);
   const C = getCarton(p, settings), cEx = cartonExact(p, settings), PC = getPieceCarton(p);
+  const countUnit = unitCode(p.sellUnit || "EA");
   const line = lineTotal(p, C, PC, num(p.priceSqft));
   const tierPrice = tv.tier !== "retail" ? tierUnitPrice(p, tv.tier, tv.pct) : null;
   const tierNoCost = tv.tier === "employee" && employeeNoCost(p);
@@ -421,7 +423,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
             <input ref={qtyRef} type="number" inputMode="decimal" value={p.qty} onChange={(e) => onPatch(p.type === "misc" || p.qtyType === "count" ? { qty: e.target.value, qtyType: "count" } : { qty: e.target.value })} placeholder={p.type === "misc" ? "1" : "0"} className={fi + " text-right ft-mono" + (p.type !== "misc" ? " pr-10" : "")} />
             {p.type !== "misc" && (
               <button onClick={() => onPatch({ qtyType: p.qtyType === "count" ? "sqft" : "count" })} title={p.qtyType === "count" ? "Counted each — tap to switch to square feet" : "Square feet — tap to switch to counted each"}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 px-1 py-px text-[9px] font-extrabold text-slate-500" style={{ background: "var(--ft-band)" }}>{p.qtyType === "count" ? "EA" : "SF"}</button>
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 px-1 py-px text-[9px] font-extrabold text-slate-500" style={{ background: "var(--ft-band)" }}>{p.qtyType === "count" ? countUnit : "SF"}</button>
             )}
           </div>
         </div>
@@ -433,7 +435,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
             stepper(PC.cartons, PC.unit, (v) => onPatch({ cartonManual: v }), `${PC.need} pcs needed · ${PC.pieces} billed at ${PC.per}/${PC.unit.toUpperCase()}`)
           ) : (
             <div className={fi + " flex items-center justify-end gap-1 ft-mono"} style={{ color: "var(--ft-muted)" }}>
-              {p.type === "misc" ? <>{miscQty(p)} <span className="text-[10px] font-bold">EA</span></> : num(p.qty) > 0 ? <>{sf1(num(p.qty))} <span className="text-[10px] font-bold">{p.qtyType === "count" ? "EA" : "SF"}</span></> : "—"}
+              {p.type === "misc" ? <>{miscQty(p)} <span className="text-[10px] font-bold">{countUnit}</span></> : num(p.qty) > 0 ? <>{sf1(num(p.qty))} <span className="text-[10px] font-bold">{p.qtyType === "count" ? countUnit : "SF"}</span></> : "—"}
             </div>
           )}
         </div>

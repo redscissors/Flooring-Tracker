@@ -30,6 +30,7 @@ import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
 import { seedTrimPlan, applyTrimPlan, existingTrimRows, mergeTrimOptions, vendorKeys } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
+import { unitCode, unitNoun } from "./units.js";
 import { useTodos } from "./usetodos.js";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
@@ -1383,6 +1384,7 @@ export default function App({ user, onSignOut }) {
                         // Sold by the carton: whole cartons drive the line total —
                         // cartonSf for flooring sqft, cartonPc for per-piece count lines.
                         const C = getCarton(p, wSet), cEx = cartonExact(p, wSet), PC = getPieceCarton(p);
+                        const countUnit = unitCode(p.sellUnit || "EA");
                         const line = lineTotal(p, C, PC, num(p.priceSqft));
                         // Tier lens (spec 2026-07-16): the price INPUT stays the stored
                         // retail; the chip + line total show the tier the estimate uses.
@@ -1646,12 +1648,12 @@ export default function App({ user, onSignOut }) {
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (
                                   <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
                                 ) : (<>
-                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder={p.type === "misc" ? "1" : "0"} title={PC ? `Pieces needed — the order rounds up to whole ${PC.unit.toUpperCase()}s of ${PC.per}` : "Quantity — counted each"} />
-                                  <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>EA</span>
+                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder={p.type === "misc" ? "1" : "0"} title={PC ? `Pieces needed — the order rounds up to whole ${PC.unit.toUpperCase()}s of ${PC.per}` : `Quantity — counted by the ${unitNoun(1, countUnit)}`} />
+                                  <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>{countUnit}</span>
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} tabIndex={p.sku ? -1 : 0} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} tabIndex={p.sku ? -1 : 0} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? `Price per ${unitNoun(1, countUnit)}` : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
@@ -1670,8 +1672,8 @@ export default function App({ user, onSignOut }) {
                                   </span>
                                 </>) : p.type === "misc" || p.qtyType === "count" ? (<>
                                   <span className="text-slate-500">{p.type === "misc" ? miscQty(p) : num(p.qty) > 0 ? sf1(num(p.qty)) : ""}</span>
-                                  {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>EA</span> : (
-                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "sqft" })} title="Counted each — click to switch to square feet" className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>EA</button>
+                                  {p.type === "misc" ? <span className="shrink-0 pr-1.5" style={{ fontSize: 9.5 }}>{countUnit}</span> : (
+                                    <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { qtyType: "sqft" })} title={`Counted by the ${unitNoun(1, countUnit)} — click to switch to square feet`} className="shrink-0 pr-1.5 font-semibold hover:text-slate-600" style={{ fontSize: 9.5 }}>{countUnit}</button>
                                   )}
                                 </>) : (<>
                                   <span className="text-slate-500">{num(p.qty) > 0 ? sf1(num(p.qty)) : ""}</span>
