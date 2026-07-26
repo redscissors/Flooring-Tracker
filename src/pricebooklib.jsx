@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
+import { MAX_QUICK_MARKUPS } from "./costentry.js";
 import { priceUnitOf, orderUnitOf } from "./stock.js";
 import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
@@ -310,6 +311,40 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   );
 }
 
+// The price cell's quick-markup buttons (2026-07-26). Editing is drafted
+// locally because the stored list is normalized — a field cleared to "" on the
+// way to a new number would otherwise be dropped mid-keystroke and collapse the
+// row under the cursor. The draft is what's typed; what's saved is filtered on
+// read (normQuickMarkups), so a half-typed entry never reaches the popup.
+function QuickMarkupsCard({ value, onChange }) {
+  const [draft, setDraft] = useState(() => value.map(String));
+  const commit = (next) => { setDraft(next); onChange(next); };
+  return (
+    <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+      <span className="ft-eyebrow text-[10px]">Quick markups</span>
+      <div className="flex flex-wrap items-center gap-1" title="The buttons on the price cell's cost popup. A markup that isn't listed can still be typed into the popup's % box — these are the ones worth one click.">
+        {draft.map((v, i) => (
+          <span key={i} className="flex items-center rounded-full border border-slate-200 bg-slate-50 pl-0.5 pr-px py-px">
+            <input type="number" min="0" max="500" step="5" value={v} autoFocus={v === ""}
+              onChange={(e) => commit(draft.map((x, j) => (j === i ? e.target.value : x)))}
+              className="ft-field ft-num w-6 bg-transparent text-center text-[11px] font-semibold leading-5 focus:outline-none" aria-label={`Quick markup ${i + 1}`} />
+            <span className="text-[9px] font-bold text-slate-400">%</span>
+            <button onClick={() => commit(draft.filter((_, j) => j !== i))} title="Remove this button"
+              className="grid place-items-center w-3 h-3 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50"><X size={8} /></button>
+          </span>
+        ))}
+        {draft.length < MAX_QUICK_MARKUPS && (
+          <button onClick={() => setDraft([...draft, ""])} title="Add another markup button"
+            className="rounded-full border border-dashed border-slate-300 px-1.5 py-px text-[11px] font-semibold text-slate-500 hover:bg-slate-50">+</button>
+        )}
+      </div>
+      <p className="text-[10px] text-slate-400 leading-snug">
+        {value.length ? "on the price cell's cost popup" : "none — the popup's % box still takes any markup"}
+      </p>
+    </div>
+  );
+}
+
 export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
@@ -425,7 +460,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
         const strictWord = (t) => t <= 0.2 ? "Loose" : t <= 0.28 ? "Forgiving" : t <= 0.4 ? "Balanced" : t <= 0.55 ? "Tight" : "Strict";
         return (
         <>
-          <div className="mt-3 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[720px] md:max-w-full md:pb-0 md:snap-none items-stretch">
+          <div className="mt-3 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[880px] md:max-w-full md:pb-0 md:snap-none items-stretch">
             <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[132px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Import</span>
               <div
@@ -469,6 +504,8 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
                 </label>
               </div>
             </div>
+
+            <QuickMarkupsCard value={pcts.quickMarkups} onChange={(list) => setSettings({ pricing: { ...pcts, quickMarkups: list } })} />
 
             <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Order entry</span>

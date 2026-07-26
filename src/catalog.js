@@ -7,6 +7,7 @@
 import { normVendorGroups } from "./vendorfetch.js";
 import { normLabelPresets, customLabelPresets } from "./labels.js";
 import { normLink, normBookFamily } from "./booklink.js";
+import { normQuickMarkups } from "./costentry.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -744,7 +745,7 @@ const frac = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ?
 // strictness finds NOTHING, so "Strict" never leaves the salesperson empty on a
 // typo — the near-match retry. Only fires when it is actually looser than
 // searchStrictness; drag it up to meet the strictness to switch the fallback off.
-export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), descLimit: chars(raw?.descLimit, 30), searchStrictness: frac(raw?.searchStrictness, 0.3), searchFallback: frac(raw?.searchFallback, 0.18) });
+export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), quickMarkups: normQuickMarkups(raw?.quickMarkups), descLimit: chars(raw?.descLimit, 30), searchStrictness: frac(raw?.searchStrictness, 0.3), searchFallback: frac(raw?.searchFallback, 0.18) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.

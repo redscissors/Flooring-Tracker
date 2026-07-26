@@ -26,10 +26,10 @@ test("normTier / normPrintPricing default invalid values", () => {
 });
 
 test("normPricing defaults builder 8 / sale 10 / Sheoga markup 40 / vent markup 50 and clamps", () => {
-  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
   // Markup is a % over cost, not a discount — it may exceed 100.
   assert.equal(normPricing({ sheogaMarkupPct: 150 }).sheogaMarkupPct, 150);
   assert.equal(normPricing({ sheogaMarkupPct: -3 }).sheogaMarkupPct, 0);

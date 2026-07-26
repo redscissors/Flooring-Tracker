@@ -13,8 +13,27 @@ const round2 = (n) => Math.round(n * 100) / 100;
 const round1 = (n) => Math.round(n * 10) / 10;
 const numOr = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 
-// The shop's common markups. Presets only — the popup's % field takes anything.
+// The shop's common markups — the seed for `settings.pricing.quickMarkups`,
+// which the team tunes in Settings → Price book. Presets only: the popup's %
+// field still takes anything, so an unlisted markup is always one keystroke
+// away and a shop that clears the list entirely just types every markup.
 export const MARKUP_PRESETS = [30, 50, 100];
+export const MAX_QUICK_MARKUPS = 6;   // what the popup's button row fits before it reads as a menu
+
+// A saved list normalizes to buttons the popup can actually render: numbers
+// only, deduped, in the order they were entered. An absent list seeds the
+// defaults; an explicitly empty one is a choice and stays empty.
+export function normQuickMarkups(raw) {
+  if (!Array.isArray(raw)) return [...MARKUP_PRESETS];
+  const out = [];
+  for (const v of raw) {
+    const n = parseFloat(v);
+    if (!Number.isFinite(n) || n < 0 || n > 500) continue;
+    const r = Math.round(n * 10) / 10;
+    if (!out.includes(r)) out.push(r);
+  }
+  return out.slice(0, MAX_QUICK_MARKUPS);
+}
 
 export function priceFromCost(cost, pct) {
   const c = numOr(cost, NaN), p = numOr(pct, NaN);

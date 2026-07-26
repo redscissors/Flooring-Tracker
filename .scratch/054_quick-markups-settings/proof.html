@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quick markups in Settings — preview proof (2026-07-26)</title>
+<style>
+  body{margin:0;background:#26231F;padding:24px 22px 60px;font-family:Manrope,ui-sans-serif,system-ui,sans-serif}
+  h1{font-size:17px;font-weight:800;margin:0 0 4px;color:#F6F3EC}
+  h2{font-size:13px;font-weight:800;margin:26px 0 4px;color:#F6F3EC}
+  .sub{font-size:12px;color:#A8A29A;margin:0 0 6px;max-width:940px;line-height:1.5}
+  .note{font-size:11.5px;color:#A8A29A;margin:0 0 10px;max-width:940px;line-height:1.5}
+  .note code,.stored code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+  .panel{background:#F6F3EC;border-radius:6px;padding:6px 14px 14px;max-width:1000px;box-shadow:0 6px 22px rgba(0,0,0,.35)}
+  .card{background:#F6F3EC;border-radius:6px;padding:12px 14px 10px;max-width:1000px;box-shadow:0 6px 22px rgba(0,0,0,.35)}
+  .rowframe{background:#fff;border:1px solid #E3DED2;border-radius:4px}
+  .gc{border-right:1px solid #EFEBE0;min-width:0;display:flex;align-items:center;padding:0 6px;min-height:34px;color:#3B3934}
+  .gc.r{justify-content:flex-end}
+  .gc.b{font-weight:800}
+  .gc.mono,.stored code{font-family:ui-monospace,Menlo,monospace}
+  .stored{font-size:10.5px;color:#6B6862;margin-top:7px}
+  .stored code{background:#EFEBE0;border-radius:3px;padding:1px 4px;font-size:10px}
+</style>
+</head>
+<body>
+  <h1>Quick markups move into Settings — preview proof</h1>
+  <p class="sub">Both halves below are the <b>real components over one settings object</b>: the top is
+  <code>PriceBookLibrary</code>'s landing header (where the new card lives), the bottom is the real
+  <code>GridPriceCell</code>. Editing the card re-renders the popup — the screenshots are the actual wiring,
+  not two mockups that agree by hand.</p>
+  <div id="root"></div>
+  <script type="module" src="./proof-entry.jsx"></script>
+</body>
+</html>
