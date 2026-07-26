@@ -9,6 +9,7 @@ import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCE
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { unitCode } from "./units.js";
+import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { FitSelect, useEscClose } from "./widgets.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { GridSizeInput } from "./grid.jsx";
@@ -402,7 +403,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
         <div>
           <label className={fl}>{p.type === "misc" || p.qtyType === "count" ? "Price each" : "Price / SF"}</label>
           {tierPrice == null && !tierNoCost ? (
-            <input type="number" inputMode="decimal" value={p.priceSqft} onChange={(e) => onPatch({ priceSqft: e.target.value })} placeholder="0.00" className={fi + " text-right ft-mono"} />
+            <input type="number" inputMode="decimal" value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))} placeholder="0.00" className={fi + " text-right ft-mono"} />
           ) : (
             <div className="rounded-md border border-slate-200 px-2.5 py-1 h-[38px] flex flex-col justify-center" style={{ background: "var(--ft-band)" }}>
               {tierNoCost ? (
@@ -412,7 +413,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
               )}
               <div className="flex items-center justify-end gap-1">
                 <span style={{ fontSize: 8.5, color: "var(--ft-faint)" }}>retail</span>
-                <input type="number" inputMode="decimal" value={p.priceSqft} onChange={(e) => onPatch({ priceSqft: e.target.value })} placeholder="0.00" className="ft-cell text-right ft-mono" style={{ width: 48, flex: "none", fontSize: 10, padding: "0 2px", color: "var(--ft-muted)" }} />
+                <input type="number" inputMode="decimal" value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))} placeholder="0.00" className="ft-cell text-right ft-mono" style={{ width: 48, flex: "none", fontSize: 10, padding: "0 2px", color: "var(--ft-muted)" }} />
               </div>
             </div>
           )}
@@ -439,6 +440,37 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
             </div>
           )}
         </div>
+      </div>
+      {/* Cost & markup — the desktop grid opens this as a popup off the price
+          cell; the sheet has the room to keep it in line. */}
+      <div className="mt-2.5 rounded-md border border-slate-200 px-2.5 py-2" style={{ background: "var(--ft-band)" }}>
+        <div className="flex items-end gap-2">
+          <div className="flex-1 min-w-0">
+            <label className={fl}>{p.type === "misc" || p.qtyType === "count" ? "Cost each" : "Cost / SF"}</label>
+            <input type="number" inputMode="decimal" value={p.costSqft} onChange={(e) => onPatch(editCost(p, e.target.value))} placeholder="0.00" className={fi + " text-right ft-mono ft-num"} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <label className={fl}>Markup</label>
+            <div className="flex items-center gap-1">
+              {MARKUP_PRESETS.map((v) => {
+                const on = String(p.markupPct ?? "").trim() !== "" && num(p.markupPct) === v;
+                return (
+                  <button key={v} onClick={() => onPatch(editMarkup(p, v))}
+                    className={`flex-1 rounded-full border py-1.5 text-[11px] font-semibold ${on ? "border-transparent" : "border-slate-200 text-slate-500"}`}
+                    style={on ? { background: "var(--ft-brand)", color: "#fff" } : { background: "var(--ft-card, #fff)" }}>+{v}%</button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        {(() => {
+          const m = unitMargin(p.costSqft, p.priceSqft);
+          return (
+            <div className="mt-1.5 text-[10.5px]" style={{ color: m && m.amount < 0 ? "#dc2626" : "var(--ft-faint)" }}>
+              {m ? <>{m.amount < 0 ? "Below cost — " : "Margin "}<b>{money(m.amount)}</b> per {p.type === "misc" || p.qtyType === "count" ? countUnit.toLowerCase() : "sf"} · {m.pct}%</> : "Enter a cost to see the margin"}
+            </div>
+          );
+        })()}
       </div>
       {p.type !== "misc" && (
         <>

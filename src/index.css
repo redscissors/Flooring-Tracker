@@ -339,8 +339,8 @@ select.ft-cell{appearance:none;-webkit-appearance:none;cursor:pointer;}
 .ft-cell::placeholder{color:var(--ft-faint);}
 /* Grid number cells (Cov / SF / Price / Order) hide the native spinners; the
    carton Order cell draws its own slim stepper instead. */
-.ft-cell::-webkit-outer-spin-button,.ft-cell::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-input.ft-cell[type="number"]{-moz-appearance:textfield;}
+.ft-cell::-webkit-outer-spin-button,.ft-cell::-webkit-inner-spin-button,.ft-num::-webkit-outer-spin-button,.ft-num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfield;}
 
 /* Corner radius — kit shape scale: 4px chips/inputs, 6px cards; pills stay full. */
 :root{--ft-r:4px;--ft-r-lg:6px;}

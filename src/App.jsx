@@ -945,12 +945,14 @@ export default function App({ user, onSignOut }) {
     ...aList.filter((r) => r.order > 0).map((r) => ({ ...r, kind: r.category })),
   ];
   const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0 || aList.length > 0; const materialsCost = groutCost + baseCost + caulkCost + mortarCost + underlayCost + addonCost; const grandTotal = flooringPrice + materialsCost + miscCost;
-  // Internal materials margin over special-order rows only (ADR 0011 / 0009 §8.1):
-  // those snapshot a cost. Each row's sell mirrors its flooring/misc line total,
-  // so this margin is a subset of grandTotal. On screen only — never printed.
+  // Internal materials margin over the rows that carry a cost (ADR 0011 / 0009
+  // §8.1): a price-book pick snapshots one, and the price cell's popup takes a
+  // hand-typed one on a manual line. Each row's sell mirrors its flooring/misc
+  // line total, so this margin is a subset of grandTotal. On screen only —
+  // never printed.
   const soLines = [];
   (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => {
-    if (!(num(p.cost) > 0)) return;
+    if (!(num(p.cost) > 0) && !(num(p.costSqft) > 0)) return;
     const C = getCarton(p, tSet);
     const PC = getPieceCarton(p);
     const sell = lineTotal(p, C, PC, num(p.priceSqft));
@@ -1653,7 +1655,7 @@ export default function App({ user, onSignOut }) {
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
-                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} tabIndex={p.sku ? -1 : 0} onRetail={(v) => updProduct(a.id, p.id, { priceSqft: v })} title={p.type === "misc" || p.qtyType === "count" ? `Price per ${unitNoun(1, countUnit)}` : "Price per sq ft"} />
+                                <GridPriceCell p={p} tier={tv.tier} tierPrice={tierPrice} noCost={tierNoCost} tabIndex={p.sku ? -1 : 0} onPatch={(patch) => updProduct(a.id, p.id, patch)} unit={p.type === "misc" || p.qtyType === "count" ? countUnit.toLowerCase() : "sf"} title={p.type === "misc" || p.qtyType === "count" ? `Price per ${unitNoun(1, countUnit)}` : "Price per sq ft"} />
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
