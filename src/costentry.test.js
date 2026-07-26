@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { priceFromCost, markupFromPrice, unitMargin, editCost, editMarkup, editPrice, MARKUP_PRESETS } from "./costentry.js";
+import { priceFromCost, markupFromPrice, unitMargin, editCost, editMarkup, editPrice, normQuickMarkups, MARKUP_PRESETS, MAX_QUICK_MARKUPS } from "./costentry.js";
+import { normPricing } from "./catalog.js";
 import { sellPrice } from "./orderbook.js";
 
 const row = (over = {}) => ({ priceSqft: "", costSqft: "", markupPct: "", ...over });
@@ -59,4 +60,33 @@ test("editPrice re-derives the markup — the price moves the margin, not the co
 // book's snapshotted markup — there is nothing to re-derive from.
 test("editPrice leaves a snapshotted markup alone when there is no per-unit cost", () => {
   assert.deepEqual(editPrice(row({ markupPct: "40" }), "7.00"), { priceSqft: "7.00" });
+});
+
+// --- the team-tunable preset list (Settings -> Price book) -------------------
+
+test("an unset list seeds the shop's defaults", () => {
+  assert.deepEqual(normQuickMarkups(undefined), MARKUP_PRESETS);
+  assert.deepEqual(normQuickMarkups(null), MARKUP_PRESETS);
+  assert.deepEqual(normQuickMarkups("30,50"), MARKUP_PRESETS);   // not a list
+});
+
+// Clearing every button is a decision, not a reset — the popup's % box still
+// takes any markup, so an empty row is usable.
+test("an explicitly empty list stays empty", () => {
+  assert.deepEqual(normQuickMarkups([]), []);
+});
+
+test("what the Settings card can type is filtered on the way out", () => {
+  assert.deepEqual(normQuickMarkups(["35", "", "60", "abc", "35", -5, 700, 42.55]), [35, 60, 42.6]);
+});
+
+test("the list is capped at what the popup's button row can show", () => {
+  assert.equal(normQuickMarkups([10, 20, 30, 40, 50, 60, 70, 80]).length, MAX_QUICK_MARKUPS);
+});
+
+test("the defaults survive a round trip through the settings normalizer", () => {
+  assert.deepEqual(normPricing({}).quickMarkups, MARKUP_PRESETS);
+  assert.deepEqual(normPricing({ quickMarkups: ["25", "45"] }).quickMarkups, [25, 45]);
+  // A saved list must not disturb the percentages beside it.
+  assert.equal(normPricing({ quickMarkups: [25], builderPct: 12 }).builderPct, 12);
 });

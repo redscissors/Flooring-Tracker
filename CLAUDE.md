@@ -58,7 +58,10 @@ src/
                     # (units.test.js)
   costentry.js      # hand-entered cost on a product row (2026-07-26): the price
                     # cell's cost → markup → price popup. `MARKUP_PRESETS`
-                    # (30/50/100), `priceFromCost`/`markupFromPrice`/`unitMargin`,
+                    # (30/50/100) seeds `settings.pricing.quickMarkups`, which
+                    # the team tunes in Settings → Price book — `normQuickMarkups`
+                    # is what normPricing stores and the popup reads;
+                    # `priceFromCost`/`markupFromPrice`/`unitMargin`,
                     # and the three patch builders `editCost`/`editMarkup`/
                     # `editPrice` — which write the SAME costSqft/markupPct a
                     # price-book pick snapshots, so a hand-costed line and a
@@ -413,8 +416,13 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // (ADR 0003), so a re-import never re-labels a saved row.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...},
-           pricing: { builderPct: 8, salePct: 10, descLimit: 30 } }
+           pricing: { builderPct: 8, salePct: 10, quickMarkups: [30,50,100],
+                      descLimit: 30 } }
            // builderPct/salePct = Builder/Sale tier %s (ADR 0018).
+           // quickMarkups = the price cell's cost-popup markup buttons
+           // (costentry.js normQuickMarkups): up to 6, an absent list seeds
+           // 30/50/100, an explicitly empty one means no buttons (the popup's
+           // % box still takes any markup).
            // descLimit = how many characters the ERP's order-description field
            // holds; drives the order-entry fit ladder (descfit.js), 0 = off.
            // All edited in Settings → Price book.

@@ -85,7 +85,7 @@ const fnum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0
 const POP_W = 268;
 const POP_LBL = { fontSize: 9, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--ft-faint)" };
 const POP_FIELD = "ft-field ft-num w-full rounded border border-slate-200 text-right ft-mono";
-function PriceCostPop({ p, unit, onPatch, onClose, anchorRef }) {
+function PriceCostPop({ p, unit, markups, onPatch, onClose, anchorRef }) {
   const panelRef = useRef(null);
   const costRef = useRef(null);
   const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
@@ -122,14 +122,18 @@ function PriceCostPop({ p, unit, onPatch, onClose, anchorRef }) {
               onChange={(e) => onPatch(editPrice(p, e.target.value))} className={POP_FIELD} title={`What the customer pays per ${unit} — the estimate's price`} />
           </label>
         </div>
-        <div className="flex items-center" style={{ gap: 4 }}>
-          <span className="shrink-0" style={POP_LBL}>Markup</span>
-          {MARKUP_PRESETS.map((v) => {
+        {/* The label sits above rather than inline, and the row wraps: the
+            preset list is team-tunable in Settings, so a fourth or fifth button
+            takes a second line instead of shrinking the others to nothing. */}
+        <div>
+          <span className="block pb-1" style={POP_LBL}>Markup</span>
+          <div className="flex items-center flex-wrap" style={{ gap: 4 }}>
+          {markups.map((v) => {
             const on = fnum(pct) === v && pct !== "";
             return (
               <button key={v} onClick={() => onPatch(editMarkup(p, v))} title={`Price at cost + ${v}%`}
-                className={`flex-1 rounded-full border font-semibold ${on ? "border-transparent" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                style={{ fontSize: 11, padding: "3px 0", ...(on ? { background: "var(--ft-brand)", color: "#fff" } : null) }}>+{v}%</button>
+                className={`shrink-0 rounded-full border font-semibold ${on ? "border-transparent" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                style={{ fontSize: 11, padding: "3px 8px", ...(on ? { background: "var(--ft-brand)", color: "#fff" } : null) }}>+{v}%</button>
             );
           })}
           <span className="shrink-0 flex items-center rounded border border-slate-200" style={{ background: "var(--ft-field)" }}>
@@ -138,6 +142,7 @@ function PriceCostPop({ p, unit, onPatch, onClose, anchorRef }) {
               style={{ width: 34, background: "transparent", border: 0, outline: "none", fontSize: 11, padding: "3px 1px" }} />
             <span className="pr-1" style={{ fontSize: 10, color: "var(--ft-faint)" }}>%</span>
           </span>
+          </div>
         </div>
         <div className="flex items-center justify-between border-t border-slate-100" style={{ fontSize: 10.5, paddingTop: 5 }}>
           {m ? (
@@ -157,7 +162,7 @@ function PriceCostPop({ p, unit, onPatch, onClose, anchorRef }) {
 // input's spot (color-coded like the tier chips) and the editable retail
 // slides beneath as a micro field — the GridSizeInput footnote pattern.
 // Retail stays the stored value; the top line is derived, never typed.
-export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabIndex, unit = "sf" }) {
+export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabIndex, unit = "sf", markups = MARKUP_PRESETS }) {
   const [pop, setPop] = useState(false);
   const anchorRef = useRef(null);
   // Closing hands the caret back to the price cell so Tab carries on down the
@@ -173,7 +178,7 @@ export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabI
   };
   const costed = fnum(p.costSqft) > 0;
   const hint = costed ? `${title} — cost ${money(fnum(p.costSqft))}/${unit}, click for cost & markup` : `${title} — click for cost & markup`;
-  const popup = pop && <PriceCostPop p={p} unit={unit} onPatch={onPatch} onClose={close} anchorRef={anchorRef} />;
+  const popup = pop && <PriceCostPop p={p} unit={unit} markups={markups} onPatch={onPatch} onClose={close} anchorRef={anchorRef} />;
   if (tierPrice == null && !noCost) return (<>
     <input ref={anchorRef} type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))}
       onFocus={open} onClick={open} data-c="price" className="ft-cell text-right" placeholder="0.00" title={hint}

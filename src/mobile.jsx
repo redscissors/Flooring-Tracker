@@ -236,7 +236,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify, strictness, fallback }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify, strictness, fallback }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -452,7 +452,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           <div className="flex-1 min-w-0">
             <label className={fl}>Markup</label>
             <div className="flex items-center gap-1">
-              {MARKUP_PRESETS.map((v) => {
+              {markups.map((v) => {
                 const on = String(p.markupPct ?? "").trim() !== "" && num(p.markupPct) === v;
                 return (
                   <button key={v} onClick={() => onPatch(editMarkup(p, v))}
