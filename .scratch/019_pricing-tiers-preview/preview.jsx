@@ -255,7 +255,7 @@ function ChipsDemo({ tv }) {
                 {p.brandColor}
                               </div>
               <div style={gridCell}>
-                <GridPriceCell p={p} tier={tv.tier} tierPrice={tp} noCost={noCost} onRetail={() => {}} title="Price per sq ft" />
+                <GridPriceCell p={p} tier={tv.tier} tierPrice={tp} noCost={noCost} onPatch={() => {}} title="Price per sq ft" />
               </div>
               {tp != null && tLine > 0 ? (
                 <div style={{ ...gridCell, flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "2px 8px", gap: 1, borderRight: "none" }}>

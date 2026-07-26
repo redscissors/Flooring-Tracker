@@ -56,6 +56,14 @@ src/
                     # and the order panel; a unit the table doesn't know falls
                     # through as the vendor's own code rather than a wrong "EA"
                     # (units.test.js)
+  costentry.js      # hand-entered cost on a product row (2026-07-26): the price
+                    # cell's cost → markup → price popup. `MARKUP_PRESETS`
+                    # (30/50/100), `priceFromCost`/`markupFromPrice`/`unitMargin`,
+                    # and the three patch builders `editCost`/`editMarkup`/
+                    # `editPrice` — which write the SAME costSqft/markupPct a
+                    # price-book pick snapshots, so a hand-costed line and a
+                    # picked one read alike to the Employee tier, the internal
+                    # margin and `orderLineCost` (costentry.test.js)
   model.js          # job-model factories + normalizers: `uid`/`money`, `newProduct`/
                     # `newArea`/`newProject`, `normP`/`normA`/`normC`, `catSig`,
                     # `rowBlank`, `personData`… (model.test.js, their first tests)
