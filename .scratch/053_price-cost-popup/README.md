@@ -1,6 +1,6 @@
 # Cost &amp; common markups, off the price cell (2026-07-26)
 
-Status: prototype — preview proof attached, not merged
+Status: done
 
 Request (Marcus, 7/26): "When we're putting in a manual line — selecting the
 material type and manually entering the product — we need more ways to enter
@@ -40,6 +40,11 @@ Margin $1.70/sf · 33.3%          Enter ↵
   the same `units.js` vocabulary the print and order panel use.
 - A price cell that carries a cost gets a thin green rule down its left edge,
   so a costed line is visible without opening anything.
+- **Clicking anywhere outside dismisses it** — the page, another row, another
+  cell of the same row. Clicking a *different* price cell hands the panel over:
+  exactly one open, never two and never none. Clicks inside the panel (a markup
+  button, a field) never close it. Shot 08 is those six cases run as assertions,
+  not eyeballed.
 
 ## Why it's more than a data-entry convenience
 
@@ -100,6 +105,9 @@ Real components, real state, driven by Playwright — not mockups.
 | `05-employee-tier-gets-a-cost.png` | The red "Retail" fallback becoming $6.57 as a cost is typed |
 | `06-price-book-line.png` | A picked row opens pre-filled from its own snapshot |
 | `07-mobile-cost-row.png` | The phone's in-line Cost / SF + markup chips |
+| `08-click-outside-dismiss.png` | Dismissal cases; the shot is the hand-over (one panel, on the row just clicked) |
+
+`shot.mjs` prints a pass/fail line per dismissal case; all six pass.
 
 Rebuild: `npx vite build --config .scratch/053_price-cost-popup/proof-vite.config.mjs`,
 serve `proof-dist` on :8391 (`python3 -m http.server 8391`), then

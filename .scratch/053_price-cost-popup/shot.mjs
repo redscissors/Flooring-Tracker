@@ -52,7 +52,46 @@ await page.waitForTimeout(250);
 await page.screenshot({ path: `${dir}06-price-book-line.png`, fullPage: true });
 await page.keyboard.press("Escape");
 
-// 7 — the phone sheet's in-line cost row (its own page load: the sheet is a
+// 7 — click-outside dismissal, in the three places it has to work: empty page,
+// another row's field, and (the one that could have gone wrong) a click inside
+// the panel itself, which must NOT close it.
+const panel = page.locator('[title="Close (Enter or Esc)"]');
+// n is the panel COUNT, so "handed over" (exactly one) can't pass as "two open".
+const check = async (label, act, want) => {
+  await act();
+  await page.waitForTimeout(250);
+  const n = await panel.count();
+  const pass = n === want;
+  console.log(`${pass ? "ok  " : "FAIL"} ${label} → ${n} panel(s) open (wanted ${want})`);
+  return pass;
+};
+
+let ok = true;
+ok &= await check("open on the manual row", () => price("manual").click(), 1);
+ok &= await check("click inside the panel (markup button)", () => page.getByTitle("Price at cost + 30%").first().click(), 1);
+ok &= await check("click the page background", () => page.mouse.click(1400, 700), 0);
+
+ok &= await check("re-open", () => price("misc").click(), 1);
+ok &= await check("click another row's description cell", () => page.getByText("Mannington AduraMax Fossil").first().click(), 0);
+ok &= await check("re-open, then click this row's own SKU cell", async () => {
+  await price("misc").click();
+  await page.waitForTimeout(200);
+  await page.getByText("Stair nose, site finished").first().click();
+}, 0);
+
+// A click that lands on a DIFFERENT price cell must hand the panel over —
+// exactly one open, never two and never none.
+ok &= await check("click straight from one price cell to another", async () => {
+  await price("manual").click();
+  await page.waitForTimeout(200);
+  await price("employee").click();
+}, 1);
+await page.screenshot({ path: `${dir}08-click-outside-dismiss.png`, fullPage: true });
+await page.mouse.click(1400, 700);
+await page.waitForTimeout(200);
+console.log(ok ? "click-outside: all cases pass" : "click-outside: FAILURES ABOVE");
+
+// 8 — the phone sheet's in-line cost row (its own page load: the sheet is a
 // full-screen portal and its scrim would sit over the desktop rows).
 const phone = await browser.newPage({ viewport: { width: 402, height: 900 }, deviceScaleFactor: 2 });
 await phone.goto(`${page0}?phone`);
