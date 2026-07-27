@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sheoga — species &amp; width grid (desktop)</title>
+<style>
+  :root{
+    --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-sand:#EDE9DD;
+    --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+    --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+    --ft-grid-line:rgba(28,26,23,.34);
+    --ft-brand:#57703A; --ft-brand-deep:#40542A;
+    --ft-tint:#eef1e8; --ft-tint-border:rgba(87,112,58,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Manrope",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ft-text);background:#0f0c0a}
+
+  .toolbar{position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1a17;color:#f6f3ec;z-index:200;font-size:12px;font-weight:700}
+  .toolbar .seg{display:inline-flex;border:1px solid #4a453d;border-radius:8px;overflow:hidden}
+  .toolbar .seg button{background:#26231f;color:#c9c4ba;border:0;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer}
+  .toolbar .seg button.on{background:#f6f3ec;color:#1c1a17}
+  .toolbar .hint{color:#a8a29a;font-weight:600}
+  .toolbar .tag{margin-left:auto;color:#a8a29a;font-weight:600}
+  .stage{position:fixed;inset:46px 0 0 0;display:flex;align-items:center;justify-content:center;background:rgba(20,15,10,.55);padding:18px;overflow:auto}
+
+  .pop{position:relative;background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden;width:1060px;height:min(740px,90vh)}
+  .eyebrow{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ft-muted)}
+  .head{display:flex;align-items:center;gap:12px;padding:12px 16px 8px}
+  .head h1{margin:0;font-size:18px;font-weight:800}
+  .head .sub{font-size:11px;color:var(--ft-muted);font-weight:600}
+  .xbtn{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .tabs{display:flex;gap:3px;padding:6px 16px 0;border-bottom:1px solid var(--ft-grid-line)}
+  .tab{padding:8px 13px;font-size:12px;font-weight:800;border:1px solid transparent;border-bottom:0;border-radius:9px 9px 0 0;background:transparent;color:var(--ft-muted);cursor:pointer;white-space:nowrap}
+  .tab.on{background:var(--ft-card);border-color:var(--ft-grid-line);color:var(--ft-text);position:relative;z-index:2;margin-bottom:-1px}
+
+  .body{flex:1;display:flex;min-height:0}
+  .rail{width:520px;flex:none;border-right:1px solid var(--ft-grid-line);overflow:auto;scrollbar-gutter:stable;padding:16px}
+  .pane{flex:1;min-width:0;overflow:auto;padding:16px;background:var(--ft-cream)}
+
+  .sect{margin-bottom:16px}
+  .sect .lbl{display:flex;align-items:baseline;gap:8px;margin-bottom:7px}
+  .sect .lbl .hint{margin-left:auto;font-size:10.5px;color:var(--ft-faint);font-weight:600}
+
+  /* --- chips: shared skin --------------------------------------------------- */
+  .chip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:7px 8px;font-size:12px;font-weight:800;line-height:1.15;text-align:center;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .chip:hover{background:#faf9f6}
+  .chip .s{display:block;font-size:10px;font-weight:700;color:var(--ft-faint);margin-top:2px}
+  .chip.on{background:#1c1a17;border-color:#1c1a17;color:#fff}
+  .chip.on .s{color:rgba(255,255,255,.7)}
+  .chip.dis{opacity:.3;cursor:not-allowed;text-decoration:line-through}
+
+  /* current (shipping) layout: free wrap */
+  .wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start}
+
+  /* proposed layout: 4 equal columns + a full-height chip on the right.
+     Rows are an explicit fixed height so the spanning chip can never stretch
+     row 1; the 5th column is wide enough to set its label horizontally. */
+  .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 76px;grid-template-rows:repeat(2,36px);gap:4px;align-items:stretch}
+  .grid4 .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:3px 5px;font-size:10px;line-height:1.25;white-space:nowrap}
+  .grid4 .chip .s{font-size:9px;margin-top:1px}
+  .tall{grid-column:5;grid-row:1 / -1;padding:4px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;overflow:hidden}
+  .tall .vl{font-size:10px;line-height:1.3;white-space:pre;letter-spacing:.01em}
+  .tall .vs{font-size:9px;font-weight:700;color:var(--ft-faint);margin-top:2px}
+  .tall.on .vs{color:rgba(255,255,255,.7)}
+  .tall.ls{border-color:var(--ft-border-strong)}
+
+  /* multi-select checkbox skin (width chips while Multi is on) */
+  .chip.pick{position:relative}
+  .chip.pick .box{position:absolute;left:5px;top:5px;width:12px;height:12px;border-radius:3px;border:1.5px solid var(--ft-border-strong);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#fff;line-height:1}
+  .chip.pick.sel .box{background:var(--ft-brand);border-color:var(--ft-brand)}
+  .chip.on.pick .box{border-color:rgba(255,255,255,.7)}
+
+  /* wrap-layout multi chip (the current shipping look) */
+  .wrap .chip.pick{padding-left:22px}
+  .wrap .chip.pick .box{top:50%;transform:translateY(-50%);left:7px}
+  .chip.multiflat{border-style:dashed;border-color:var(--ft-brand);color:var(--ft-brand-deep);display:inline-flex;align-items:center;justify-content:center;gap:5px}
+  .chip.multiflat.on{background:var(--ft-brand);border-style:solid;border-color:var(--ft-brand);color:#fff}
+
+  .row2{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  .row2 .grp .cap{margin-bottom:6px}
+  .seg2{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden}
+  .seg2 button{border:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-muted);padding:7px 13px;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit}
+  .seg2 button:first-child{border-left:0}
+  .seg2 button.on{background:#1c1a17;color:#fff}
+  .gridbtn{margin-left:auto;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .drop{width:100%;border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:8px 10px;font-size:12px;font-weight:800;color:var(--ft-text);font-family:inherit}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  .cap{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ft-muted);margin-bottom:6px}
+
+  .mwpanel{margin-top:9px;border:1px solid var(--ft-tint-border);background:var(--ft-tint);border-radius:10px;padding:11px}
+  .mwpanel .top{display:flex;align-items:center;gap:10px}
+  .mwpanel .note{margin-top:6px;font-size:11px;color:var(--ft-muted);font-weight:600}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:var(--ft-card)}
+  .stepper button{border:0;background:var(--ft-card);width:28px;height:28px;font-size:15px;font-weight:800;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .stepper .n{width:30px;text-align:center;font-weight:800;font-size:13px}
+
+  /* build card */
+  .card{background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:12px;padding:14px}
+  .card h2{margin:0 0 2px;font-size:15px;font-weight:800;line-height:1.25}
+  .card .desc{font-size:11.5px;color:var(--ft-muted);font-weight:600;line-height:1.5}
+  .money{display:flex;align-items:baseline;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--ft-border)}
+  .money .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .money .u{font-size:12px;color:var(--ft-muted);font-weight:700}
+  .money .cost{margin-left:auto;font-size:11.5px;color:var(--ft-faint);font-weight:700}
+  .brk{margin-top:10px;font-size:11.5px}
+  .brk .r{display:flex;gap:10px;padding:3px 0;color:var(--ft-muted);font-weight:600}
+  .brk .r span:last-child{margin-left:auto;font-weight:800;color:var(--ft-text)}
+  .addbtn{margin-top:12px;width:100%;border:0;border-radius:9px;background:var(--ft-brand);color:#fff;padding:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  .callout{margin-top:12px;border:1px solid var(--ft-tint-border);background:var(--ft-tint);border-radius:10px;padding:10px 11px;font-size:11.5px;color:var(--ft-brand-deep);font-weight:700;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>Sheoga configurator — species &amp; width grid</span>
+  <span class="seg" id="layoutSeg">
+    <button data-layout="new" class="on">Proposed grid</button>
+    <button data-layout="old">Current (shipping)</button>
+  </span>
+  <span class="hint">desktop rail only · phone keeps the wrap</span>
+  <span class="tag">click anything — prices are live from the real sheet tables</span>
+</div>
+
+<div class="stage">
+  <div class="pop">
+    <div class="head">
+      <div>
+        <h1>Sheoga Hardwood <span class="sub">· vendor configurator</span></h1>
+      </div>
+      <button class="xbtn">✕</button>
+    </div>
+    <div class="tabs">
+      <button class="tab on">Custom / unfinished</button>
+      <button class="tab">Stocked prefinished</button>
+      <button class="tab">Herringbone</button>
+      <button class="tab">Wood vents</button>
+      <button class="tab">Dampers</button>
+    </div>
+    <div class="body">
+      <div class="rail">
+
+        <div class="sect">
+          <div class="lbl"><span class="eyebrow">Species</span><span class="hint">sell $/sf at current options</span></div>
+          <div id="speciesBox"></div>
+        </div>
+
+        <div class="row2">
+          <div class="grp">
+            <div class="cap">Construction</div>
+            <div class="seg2" id="consSeg">
+              <button data-cons="solid" class="on">Solid</button>
+              <button data-cons="eng">Eng.</button>
+            </div>
+          </div>
+          <div class="grp">
+            <div class="cap">Grade</div>
+            <div class="seg2" id="gradeSeg"></div>
+          </div>
+          <button class="gridbtn">▦ Price grid</button>
+        </div>
+
+        <div class="sect">
+          <div class="lbl"><span class="eyebrow">Width</span></div>
+          <div id="widthBox"></div>
+          <div id="mwBox"></div>
+        </div>
+
+        <div class="twocol">
+          <div>
+            <div class="cap">Texture / scrape</div>
+            <select class="drop"><option>Smooth</option><option>Aged Brush +$1.40</option><option>Saw Cut +$2.10</option></select>
+          </div>
+          <div>
+            <div class="cap">Finishing</div>
+            <select class="drop"><option>Unfinished</option><option>Prefinished — Natural +$2.31</option></select>
+          </div>
+        </div>
+        <div class="twocol">
+          <div>
+            <div class="cap">Lengths</div>
+            <select class="drop"><option>1'–8'</option><option>2'–8' +15%</option></select>
+          </div>
+          <div>
+            <div class="cap">Edge</div>
+            <select class="drop"><option>Square edge</option><option>Micro bevel</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="pane">
+        <div class="card">
+          <div class="cap">Build</div>
+          <h2 id="bTitle"></h2>
+          <div class="desc" id="bDesc"></div>
+          <div class="money">
+            <span class="big" id="bSell"></span><span class="u">/sf sell</span>
+            <span class="cost" id="bCost"></span>
+          </div>
+          <div class="brk" id="bBrk"></div>
+          <button class="addbtn">＋ Add to product line</button>
+        </div>
+        <div class="callout" id="note"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- data transcribed from src/sheoga.js (layout prototype only) --------------
+const N = null;
+const WIDTHS = [2.25, 3.25, 4.25, 5.25, 6.25, 7.25, 8.25];
+const WIDTH_LABEL = {2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"',9.25:'9¼"',11.25:'11¼"'};
+const UNFINISHED = {
+  "White Oak":     {clear:[5.65,5.95,6.25,6.65,7.15,7.70,8.40], char:[3.60,3.80,4.05,4.35,4.65,4.95,5.25], eClear:[N,6.00,6.40,6.85,7.30,7.80,8.30], eChar:[N,5.00,5.35,5.70,6.05,6.45,6.90]},
+  "Red Oak":       {clear:[3.40,3.60,3.80,4.05,4.35,4.65,4.95], char:[3.00,3.15,3.35,3.60,3.80,4.05,4.30], eClear:[N,5.05,5.35,5.70,6.10,6.50,6.90], eChar:[N,4.75,5.05,5.40,5.75,6.10,6.50]},
+  "Hickory":       {clear:[3.55,3.80,4.00,4.25,4.55,4.85,5.15], char:[3.15,3.35,3.55,3.75,4.00,4.25,4.55], eClear:[N,5.05,5.40,5.75,6.10,6.50,6.95], eChar:[N,4.80,5.10,5.45,5.80,6.20,6.60]},
+  "Maple":         {clear:[4.25,4.55,4.85,5.15,5.45,5.85,6.25], char:[3.30,3.55,3.75,4.00,4.25,4.55,4.80], eClear:[N,5.35,5.70,6.05,6.45,6.90,7.35], eChar:[N,4.85,5.15,5.50,5.85,6.25,6.70]},
+  "Cherry":        {clear:[3.45,3.65,3.90,4.15,4.40,4.70,5.00], char:[3.35,3.55,3.80,4.05,4.30,4.60,4.85], eClear:[N,5.00,5.35,5.70,6.05,6.45,6.90], eChar:[N,4.85,5.20,5.50,5.90,6.30,6.70]},
+  "Walnut":        {clear:[6.90,7.35,7.85,8.35,8.90,9.50,10.15], char:[4.90,5.20,5.55,5.95,6.35,6.75,7.20], eClear:[N,6.90,7.35,7.85,8.40,8.95,9.55], eChar:[N,5.40,5.75,6.10,6.50,6.95,7.40]},
+  "Beech":         {clear:[3.70,3.90,4.15,4.40,N,N,N], char:[3.35,3.60,3.80,4.05,N,N,N], eClear:[N,5.20,5.55,5.90,N,N,N], eChar:[N,5.00,5.30,5.65,N,N,N]},
+  "Q/R White Oak": {clear:[7.45,7.95,8.50,9.05,9.65,10.35,11.05], char:[4.70,5.05,5.35,5.70,6.10,6.50,6.90], eClear:[N,7.35,7.85,8.40,8.95,9.55,10.20], eChar:[N,5.30,5.65,6.05,6.45,6.85,7.35]},
+};
+const LIVE_SAWN = {ws:[5.25,6.25,7.25,8.25,9.25,11.25], solid:[3.80,4.15,4.55,4.95,5.40,6.50], eng:[5.25,5.55,5.95,6.35,6.75,N]};
+const LIVE_SAWN_SP = "Live Sawn White Oak";
+const BASE_SPECIES = Object.keys(UNFINISHED);          // the 8 that stack 4 + 4
+const MARKUP = 40;
+
+const fm = (n) => "$" + n.toFixed(2);
+const sellOf = (c) => Math.round(c * (1 + MARKUP / 100) * 100) / 100;
+const floorWidths = (f) => (f.sp === LIVE_SAWN_SP ? LIVE_SAWN.ws : WIDTHS);
+function floorBase(f){
+  if (f.sp === LIVE_SAWN_SP){
+    const i = LIVE_SAWN.ws.indexOf(f.w);
+    return i < 0 ? N : (f.cons === "solid" ? LIVE_SAWN.solid : LIVE_SAWN.eng)[i];
+  }
+  const t = UNFINISHED[f.sp]; if (!t) return N;
+  const i = WIDTHS.indexOf(f.w); if (i < 0) return N;
+  return t[f.cons === "eng" ? (f.grade === "clear" ? "eClear" : "eChar") : f.grade === "clear" ? "clear" : "char"][i];
+}
+const snapW = (f) => {
+  if (floorBase(f) != N) return f;
+  const w = floorWidths(f).find((w2) => floorBase({...f, w: w2}) != N);
+  return w != null ? {...f, w} : f;
+};
+const gradeName = (f) => (f.sp === LIVE_SAWN_SP ? "Live Sawn" : f.grade === "clear" ? "Clear" : "Character");
+
+// --- state --------------------------------------------------------------------
+const st = {layout:"new", sp:"White Oak", grade:"char", cons:"solid", w:5.25, multi:false, mw:[3.25,4.25,5.25]};
+const cfg = () => ({sp:st.sp, grade:st.grade, cons:st.cons, w:st.w});
+const el = (tag, cls, html) => {const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n;};
+
+function chip(label, sub, {on, dis, cls} = {}){
+  const b = el("button", "chip" + (on ? " on" : "") + (dis ? " dis" : "") + (cls ? " " + cls : ""));
+  b.innerHTML = label + (sub != null ? '<span class="s">' + sub + "</span>" : "");
+  if (dis) b.disabled = true;
+  return b;
+}
+function tallChip(label, sub, {on, cls} = {}){
+  const b = el("button", "chip tall " + (cls || "") + (on ? " on" : ""));
+  b.innerHTML = '<span class="vl">' + label + "</span>" + (sub != null ? '<span class="vs">' + sub + "</span>" : "");
+  return b;
+}
+// Width chips sit in columns 1-4 only, so they stay exactly the size of the
+// species chips instead of spreading into the 5th (tall) column.
+function place(node, i){ node.style.gridColumn = (i % 4) + 1; node.style.gridRow = Math.floor(i / 4) + 1; }
+
+// --- species ------------------------------------------------------------------
+function speciesSub(sp){
+  const probe = snapW({...cfg(), sp});
+  const base = floorBase(probe);
+  if (base == N) return {sub:"—", dis:true};
+  return {sub: fm(sellOf(base)) + "/sf" + (probe.w !== st.w ? " @" + WIDTH_LABEL[probe.w] : ""), dis:false};
+}
+function pickSpecies(sp){ const next = snapW({...cfg(), sp}); st.sp = next.sp; st.w = next.w; render(); }
+
+function renderSpecies(){
+  const box = document.getElementById("speciesBox");
+  box.innerHTML = "";
+  const all = BASE_SPECIES.concat([LIVE_SAWN_SP]);
+  if (st.layout === "old"){
+    const wrap = el("div", "wrap");
+    all.forEach((sp) => {
+      const {sub, dis} = speciesSub(sp);
+      const c = chip(sp, sub, {on: sp === st.sp, dis});
+      c.onclick = () => !dis && pickSpecies(sp);
+      wrap.appendChild(c);
+    });
+    box.appendChild(wrap);
+    return;
+  }
+  const g = el("div", "grid4");
+  BASE_SPECIES.forEach((sp) => {
+    const {sub, dis} = speciesSub(sp);
+    const c = chip(sp, sub, {on: sp === st.sp, dis});
+    c.onclick = () => !dis && pickSpecies(sp);
+    g.appendChild(c);
+  });
+  const {sub, dis} = speciesSub(LIVE_SAWN_SP);
+  const ls = tallChip("Live Sawn\nWhite Oak", sub, {on: st.sp === LIVE_SAWN_SP, cls:"ls"});
+  if (dis) ls.classList.add("dis");
+  ls.onclick = () => !dis && pickSpecies(LIVE_SAWN_SP);
+  g.appendChild(ls);
+  box.appendChild(g);
+}
+
+// --- width --------------------------------------------------------------------
+function widthSub(w){
+  const base = floorBase({...cfg(), w});
+  return base == N ? {sub:"—", dis:true} : {sub: fm(sellOf(base)) + "/sf", dis:false};
+}
+function toggleMw(w){
+  if (st.mw.includes(w)){ if (st.mw.length > 2) st.mw = st.mw.filter((x) => x !== w); }
+  else st.mw = [...new Set([...st.mw, w])].sort((a,b) => a-b);
+  render();
+}
+function stepMw(d){
+  const avail = floorWidths(cfg()).filter((w) => floorBase({...cfg(), w}) != N);
+  if (d > 0){ const add = avail.find((w) => !st.mw.includes(w)); if (add != null) st.mw = [...st.mw, add].sort((a,b)=>a-b); }
+  else if (st.mw.length > 2) st.mw = st.mw.slice(0, -1);
+  render();
+}
+
+function renderWidth(){
+  const box = document.getElementById("widthBox");
+  box.innerHTML = "";
+  const ws = floorWidths(cfg());
+  const mkChip = (w) => {
+    const {sub, dis} = widthSub(w);
+    const on = st.multi ? st.mw.includes(w) : w === st.w;
+    const c = chip(WIDTH_LABEL[w], st.multi ? null : sub, {on, dis, cls: st.multi ? "pick" + (st.mw.includes(w) ? " sel" : "") : ""});
+    if (st.multi) c.insertAdjacentHTML("afterbegin", '<span class="box">' + (st.mw.includes(w) ? "✓" : "") + "</span>");
+    c.onclick = () => { if (dis) return; if (st.multi) toggleMw(w); else { st.w = w; render(); } };
+    return c;
+  };
+
+  if (st.layout === "old"){
+    const wrap = el("div", "wrap");
+    ws.forEach((w) => wrap.appendChild(mkChip(w)));
+    const m = chip("◨ Multi" + (st.multi ? " ✓" : ""), null, {on: st.multi, cls:"multiflat"});
+    m.onclick = () => { st.multi = !st.multi; render(); };
+    wrap.appendChild(m);
+    box.appendChild(wrap);
+  } else {
+    const g = el("div", "grid4");
+    // Four and four, exactly like Species; Multi rides the flow as an ordinary
+    // chip right after the last width.
+    g.style.gridTemplateRows = "repeat(" + Math.max(2, Math.ceil((ws.length + 1) / 4)) + ", 36px)";
+    ws.forEach((w, i) => { const c = mkChip(w); place(c, i); g.appendChild(c); });
+    const m = chip("◨ Multi" + (st.multi ? " ✓" : ""), null, {on: st.multi, cls:"multiflat"});
+    m.onclick = () => { st.multi = !st.multi; render(); };
+    place(m, ws.length);
+    g.appendChild(m);
+    box.appendChild(g);
+  }
+
+  const mw = document.getElementById("mwBox");
+  mw.innerHTML = "";
+  if (st.multi){
+    const p = el("div", "mwpanel");
+    p.innerHTML = '<div class="top"><span class="eyebrow">Multi-width</span>' +
+      '<span style="font-size:11px;font-weight:700;color:var(--ft-muted)">How many widths?</span>' +
+      '<span class="stepper"><button data-d="-1">−</button><span class="n">' + st.mw.length + '</span><button data-d="1">＋</button></span>' +
+      '<span style="margin-left:auto;font-size:10.5px;color:var(--ft-faint);font-weight:700">split ∝ width · editable →</span></div>' +
+      '<div class="note">Tick the widths above; job size splits proportionally to plank width.</div>';
+    p.querySelectorAll("button").forEach((b) => (b.onclick = () => stepMw(+b.dataset.d)));
+    mw.appendChild(p);
+  }
+}
+
+// --- grade seg + build card ---------------------------------------------------
+function renderGrade(){
+  const seg = document.getElementById("gradeSeg");
+  seg.innerHTML = "";
+  const opts = st.sp === LIVE_SAWN_SP ? [["ls","Live Sawn"]] : [["clear","Clear"],["char","Char."]];
+  opts.forEach(([id, label]) => {
+    const b = el("button", (st.sp === LIVE_SAWN_SP || id === st.grade) ? "on" : "", label);
+    b.onclick = () => { if (st.sp === LIVE_SAWN_SP) return; const next = snapW({...cfg(), grade:id}); st.grade = id; st.w = next.w; render(); };
+    seg.appendChild(b);
+  });
+  document.querySelectorAll("#consSeg button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.cons === st.cons);
+    b.onclick = () => { const next = snapW({...cfg(), cons:b.dataset.cons}); st.cons = b.dataset.cons; st.w = next.w; render(); };
+  });
+}
+
+function renderBuild(){
+  const base = floorBase(cfg());
+  const consLbl = st.cons === "solid" ? "solid" : "engineered";
+  document.getElementById("bTitle").textContent = st.sp + " — " + gradeName(cfg()) + ", " + consLbl;
+  document.getElementById("bDesc").textContent =
+    (st.multi ? st.mw.map((w) => WIDTH_LABEL[w]).join(" · ") + " multi-width" : WIDTH_LABEL[st.w]) +
+    " · Smooth · Square edge · 1'–8' · Unfinished";
+  document.getElementById("bSell").textContent = base == N ? "—" : fm(sellOf(base));
+  document.getElementById("bCost").textContent = base == N ? "" : "cost " + fm(base) + "/sf · " + MARKUP + "% markup";
+  const rows = st.multi
+    ? st.mw.map((w) => {const b = floorBase({...cfg(), w}); return [WIDTH_LABEL[w] + " — unfinished base", b == N ? "—" : fm(sellOf(b)) + "/sf"];})
+    : [["Unfinished base — " + st.sp + " " + WIDTH_LABEL[st.w], base == N ? "—" : fm(base) + "/sf"],
+       ["Texture — Smooth", "—"], ["Edge — Square", "—"]];
+  document.getElementById("bBrk").innerHTML = rows.map((r) => '<div class="r"><span>' + r[0] + "</span><span>" + r[1] + "</span></div>").join("");
+  document.getElementById("note").innerHTML = st.layout === "new"
+    ? "<b>Proposed.</b> Eight species on one 4×4 footprint, every chip the same size, with Live Sawn White Oak standing full-height on the right — it is its own price run (one grade, 5¼\"–11¼\"), so it reads as a separate choice instead of a ninth name that wraps to its own line. Width stacks 4 and 4 the same way, with Multi riding the flow right after the last width."
+    : "<b>Current (shipping).</b> Free-wrapping chips: widths differ per name, Live Sawn drops to its own line, and Multi lands wherever the wrap leaves it.";
+}
+
+// Keep the multi-width picks inside the current species' run — the real
+// component does the same when a species change shortens the width list.
+function normMw(){
+  const avail = floorWidths(cfg()).filter((w) => floorBase({...cfg(), w}) != N);
+  let next = st.mw.filter((w) => avail.includes(w));
+  for (const w of avail){ if (next.length >= 2) break; if (!next.includes(w)) next.push(w); }
+  st.mw = next.sort((a,b) => a-b);
+}
+function render(){ normMw(); renderSpecies(); renderGrade(); renderWidth(); renderBuild(); }
+
+document.querySelectorAll("#layoutSeg button").forEach((b) => (b.onclick = () => {
+  st.layout = b.dataset.layout;
+  document.querySelectorAll("#layoutSeg button").forEach((x) => x.classList.toggle("on", x === b));
+  render();
+}));
+render();
+</script>
+</body>
+</html>
