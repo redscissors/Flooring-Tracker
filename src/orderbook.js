@@ -754,6 +754,20 @@ export function markupGroups(items, markups) {
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
+// --- a book with no markup ---------------------------------------------------
+
+// An order book whose config carries no rate at all sells the vendor's cost as
+// the selling price — every pick from it quotes the job at cost. Read off the
+// book's metadata alone (the library board's rows never load items), so any
+// rate the config holds counts: the default, the trim rate, and each per-group
+// override. Stock books price off their own sheet and are never flagged.
+export function bookNoMarkup(book) {
+  if (!book || book.kind !== "order") return false;
+  const m = book.data?.markups || {};
+  const rates = [m.default, m.trim, ...Object.values(m.byGroup || {})];
+  return !rates.some((r) => (numOr(r, 0) || 0) !== 0);
+}
+
 // --- book staleness (§8.3) ---------------------------------------------------
 
 // Vendors re-issue cost lists roughly quarterly; a months-old book quietly

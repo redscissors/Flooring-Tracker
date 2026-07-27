@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
-import { bookStaleness, DEFAULT_STALE_DAYS } from "./orderbook.js";
+import { bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu } from "./widgets.jsx";
 
 export const FLAG_SEMANTICS = [["", "— ignore —"], ["discontinued", "Discontinued"], ["freight", "Extra freight"], ["madeToOrder", "Made to order"], ["transitioning", "Transitioning"]];
@@ -15,6 +15,19 @@ export function StaleChip({ days }) {
     <span title={`Last imported ${days} days ago — vendors re-issue cost lists roughly quarterly; re-import to be sure prices are current`}
       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
       <AlertTriangle size={11} /> Stale · {days}d
+    </span>
+  );
+}
+
+// Red chip for an order book with no markup anywhere in its config: its items
+// sell at the vendor's cost. Red, not amber — a stale book misprices by a
+// little, this one quotes the job at zero margin.
+export const NO_MARKUP_TITLE = "No markup set — every pick from this book sells at the vendor's cost. Set a markup on the book.";
+export function NoMarkupChip() {
+  return (
+    <span title={NO_MARKUP_TITLE}
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-50 text-red-700 border border-red-200">
+      <AlertTriangle size={11} /> No markup
     </span>
   );
 }
@@ -272,7 +285,7 @@ function bookLinkMenu({ books, sheet, onLinkBook, onDone, open, setOpen, label }
 // A linked sheet presents as its BOOK (ADR 0024): name + meta up front, the
 // filename demoted to the ⋯ menu. Row click opens the book; the refresh
 // control fetches the sheet and parks it for review (the pill).
-function VendorBookRow({ sheet, siblings = [], book, group, groups, books, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onLinkBook, onUnlinkBook, onOpenBook }) {
+export function VendorBookRow({ sheet, siblings = [], book, group, groups, books, prog, locked, mismatch, running, stale, pending, checked, onToggle, onRedownload, onReview, onRemove, onMove, onLinkBook, onUnlinkBook, onOpenBook }) {
   const feeds = [sheet, ...siblings];
   const [menu, setMenu] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -282,18 +295,24 @@ function VendorBookRow({ sheet, siblings = [], book, group, groups, books, prog,
   const fetching = prog?.state === "fetching";
   const openMenu = (v) => { setMenu(v); if (!v) { setMoveOpen(false); setLinkOpen(false); } };
   const feedNote = siblings.length ? `${feeds.length} sheets · ` : "";
+  const noMarkup = bookNoMarkup(book);
   const meta = pending ? "downloaded — changes waiting"
     : fetching ? `downloading ${entryFileName(sheet)}…`
     : `${feedNote}${book.data?.lastImport?.skus ? `${book.data.lastImport.skus} items · ` : ""}${sheet.lastFetched ? `fetched ${new Date(sheet.lastFetched).toLocaleDateString()}` : "not fetched yet"}`;
   return (
-    <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : pending ? "bg-indigo-50/40" : stale?.stale ? "bg-amber-50" : "")}>
+    // A book selling at cost outranks the amber stale tint: it misprices every
+    // pick, not just the ones the vendor has moved since.
+    <div className={"px-2.5 py-1.5 " + (checked ? "bg-indigo-50" : pending ? "bg-indigo-50/40" : noMarkup ? "bg-red-50" : stale?.stale ? "bg-amber-50" : "")}>
       <div className="flex items-center gap-2">
         <input type="checkbox" checked={checked} onChange={onToggle} className="shrink-0" title="Select for batch download" />
-        <BookOpen size={14} className="text-slate-400 shrink-0" />
+        <BookOpen size={14} className={noMarkup ? "text-red-400 shrink-0" : "text-slate-400 shrink-0"} />
         <button onClick={() => onOpenBook(book.id)} className="min-w-0 flex-1 text-left" title={`${book.name || "Untitled"} — open this price book (source sheet${feeds.length > 1 ? "s" : ""}: ${feeds.map(entryFileName).join(", ")})`}>
-          <div className="text-[12.5px] font-medium truncate">{book.name || "Untitled"}</div>
-          <div className="text-[10px] text-slate-400 truncate">{meta}</div>
+          {/* The red tint stays light under the dark theme (like the amber one),
+              so these state a red ink instead of inheriting near-white. */}
+          <div className={"text-[12.5px] font-medium truncate " + (noMarkup ? "text-red-900" : "")}>{book.name || "Untitled"}</div>
+          <div className={"text-[10px] truncate " + (noMarkup ? "text-red-700" : "text-slate-400")}>{noMarkup && !fetching && !pending ? "no markup — sells at cost · " : ""}{meta}</div>
         </button>
+        {noMarkup && <span className="shrink-0 leading-none" title={NO_MARKUP_TITLE}><AlertTriangle size={12} className="text-red-500" /></span>}
         {mismatch && <span className="shrink-0 leading-none" title="This sheet is from a different portal account — it needs its own sign-in link to download."><AlertTriangle size={12} className="text-amber-500" /></span>}
         {stale?.stale && !pending && <span className="shrink-0 leading-none" title={`Last imported ${stale.days} days ago — refresh to update.`}><AlertTriangle size={12} className="text-amber-500" /></span>}
         {prog?.state === "done" && !pending && <Check size={13} className="text-emerald-600 shrink-0" />}
@@ -734,16 +753,20 @@ export function InHouseColumn({ books, groups, bookStale, onOpen }) {
         <div className="text-[11px] text-slate-400 mt-0.5">no portal — imported by hand</div>
       </div>
       <div className="divide-y divide-slate-100">
-        {inHouse.map((b) => (
-          <button key={b.id} onClick={() => onOpen(b.id)} className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50">
-            <Database size={14} className="text-slate-400 shrink-0" />
+        {inHouse.map((b) => {
+          const noMarkup = bookNoMarkup(b);
+          return (
+          <button key={b.id} onClick={() => onOpen(b.id)} className={"w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-slate-50 " + (noMarkup ? "bg-red-50" : "")}>
+            <Database size={14} className={noMarkup ? "text-red-400 shrink-0" : "text-slate-400 shrink-0"} />
             <span className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-medium truncate">{b.name || "Untitled"}</span>
-              <span className="block text-[10px] text-slate-400">{b.kind === "stock" ? "stock" : "special order"}{b.active ? "" : " · off"}</span>
+              <span className={"block text-[12.5px] font-medium truncate " + (noMarkup ? "text-red-900" : "")}>{b.name || "Untitled"}</span>
+              <span className={"block text-[10px] " + (noMarkup ? "text-red-700" : "text-slate-400")}>{b.kind === "stock" ? "stock" : "special order"}{b.active ? "" : " · off"}{noMarkup ? " · no markup" : ""}</span>
             </span>
+            {noMarkup && <AlertTriangle size={12} className="text-red-500 shrink-0" aria-label="No markup set — sells at cost" />}
             {bookStale(b).stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
