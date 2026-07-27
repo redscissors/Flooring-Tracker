@@ -9,7 +9,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { OrderEntryPanel } from "../../src/orderentry.jsx";
-import { orderEntryRow } from "../../src/print.js";
+import { orderEntryRow, u1 } from "../../src/print.js";
+import { orderQty } from "../../src/orderentry.js";
 import { normalizeSettings } from "../../src/catalog.js";
 import { newProduct } from "../../src/model.js";
 import "../../src/index.css";
@@ -31,9 +32,29 @@ const PRODUCTS = [
   row({ id: "p6", type: "misc", qtyType: "count", sku: "29490", brandColor: "Aquamix Grout Haze Remover", bookId: "bkOHIVA", priceSqft: "14.24", qty: "2" }),
 ];
 
-const AFTER = PRODUCTS.map((p) => orderEntryRow(p, s, "Master Bath", 30, STOCK_BOOKS));
-// The old outcome for exactly the rows the change touches.
-const BEFORE = AFTER.map((r) => (r.qtyAssumed ? { ...r, qty: 0, qtyText: "—", perCost: 0, perSell: 0, qtyAssumed: false } : r));
+// The estimated materials, exactly as App.jsx flattens them (matAll → orderQty).
+// A grout/mortar chip that's checked but can't compute yet aggregates as a
+// "pending" line at order 0 — before, the panel filtered those out entirely, so
+// the material the desk still has to key simply wasn't on the screen to copy.
+const MATERIALS = [
+  { sku: "93790", product: "Custom Prism — Haystack", kind: "Grout", unit: "bags", order: 0 },
+  { sku: "93800", product: "Prism Part C Full Unit", kind: "Grout base", unit: "units", order: 0 },
+  { sku: "12044", product: "Custom Versabond LFT", kind: "Mortar", unit: "bags", order: 0 },
+  { sku: "29490", product: "Custom 380 Haystack matching caulk", kind: "Caulk", unit: "tubes", order: 0 },
+  { sku: "18220", product: "Schluter Ditra 1/8″", kind: "Underlayment", unit: "rolls", order: 3 },
+];
+
+const matRows = (list) => list.map((m, i) => {
+  const { qty, qtyAssumed } = orderQty(m.order);
+  return { id: "mat" + i, sku: m.sku, qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
+});
+
+const AFTER = [...PRODUCTS.map((p) => orderEntryRow(p, s, "Master Bath", 30, STOCK_BOOKS)), ...matRows(MATERIALS)];
+// The old outcome: quantity-less product rows read "—" at $0.00, and a
+// quantity-less MATERIAL was filtered out of the panel before it ever rendered.
+const BEFORE = AFTER
+  .filter((r) => !(r.qtyAssumed && r.kind))
+  .map((r) => (r.qtyAssumed ? { ...r, qty: 0, qtyText: "—", perCost: 0, perSell: 0, qtyAssumed: false } : r));
 
 const split = (rows) => ({ special: rows.filter((r) => r.special), stock: rows.filter((r) => !r.special) });
 
@@ -47,7 +68,7 @@ function Pane({ title, note, rows, tone }) {
         <div className="ft-eyebrow text-[11px] tracking-[.12em]" style={{ color: tone }}>{title}</div>
         <div className="text-[12px] text-slate-500">{note}</div>
       </div>
-      <div style={{ position: "relative", width: 600, height: 780, transform: "translateZ(0)", overflow: "hidden", borderRadius: 12 }}>
+      <div style={{ position: "relative", width: 600, height: 1000, transform: "translateZ(0)", overflow: "hidden", borderRadius: 12 }}>
         <OrderEntryPanel name="Whitfield — 4118 Ravenna Rd" special={special} stock={stock} descLimit={30} onClose={() => {}} />
       </div>
     </div>
@@ -58,10 +79,11 @@ createRoot(document.getElementById("root")).render(
   <div className="p-6" style={{ background: "var(--ft-paper, #faf8f4)" }}>
     <h1 className="ft-serif text-2xl mb-1">Order entry — a line with no quantity</h1>
     <p className="text-[13px] text-slate-500 mb-5 max-w-[1180px]">
-      Four of these six lines have no quantity on the estimate yet. Before, they read “—” with $0.00 cost and sell,
-      and the stock lines copied as <span className="ft-mono">SKU⇥0</span>, which the ERP will not take. Now each keys as
-      one of its own sell unit — a whole carton where the row is carton-sold — and the row turns amber so the number is
-      visibly the panel’s, not the estimate’s.
+      Eight of these eleven lines have no quantity on the estimate yet. Before, the product rows read “—” with $0.00 cost
+      and sell and copied as <span className="ft-mono">SKU⇥0</span> (which the ERP will not take), and the four estimated
+      materials — grout, its base unit, mortar, caulk — were <b>filtered out of the panel entirely</b>, so there was
+      nothing on screen to copy at all. Now each keys as one of its own sell unit — a whole carton where the row is
+      carton-sold — and the row turns amber so the number is visibly the panel’s, not the estimate’s.
     </p>
     <div style={{ display: "flex", gap: 24 }}>
       <Pane title="BEFORE" note="Blank quantity → “—”, $0.00/$0.00, copies as SKU⇥0" rows={BEFORE} tone="#b91c1c" />

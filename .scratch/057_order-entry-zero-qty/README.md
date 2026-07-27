@@ -55,9 +55,32 @@ to skim past down a long order), an amber quantity with an `ASSUMED` label, and
 a count in the section footer: *"2 amber lines have no quantity on the estimate
 — priced and keyed as 1."*
 
-Estimated material lines (grout, mortar, underlayment) are untouched: they are
-already filtered to `order > 0` before the panel sees them — a zero there means
-the math couldn't run, not that someone forgot to type a number.
+## Estimated materials too
+
+Asked for on follow-up, and right:
+
+> "I dont know quanities but I want to move one of everyting to our erp system
+> and if they dont show I can not paste and copy them."
+
+The material lists already carry these lines — a checked grout/mortar chip whose
+quantity can't be computed aggregates as a `pending` entry at order 0, and
+`groutBaseList` carries its base unit the same way. `matLines` then filtered
+`order > 0`, so they never reached the panel: not a bad quantity, *no row at
+all*, nothing on screen to copy.
+
+The flatten is now `matAll` (unfiltered) with `matLines = matAll.filter(order >
+0)` derived from it. The panel takes `matAll` through the same `orderQty`, so a
+pending grout keys as **1 bag** in amber; the printed order sheet keeps
+`matLines`, because that is the sheet the warehouse pulls from and a "1" nobody
+measured is a wrong pull.
+
+Two gaps this does NOT close, both by nature rather than by choice:
+
+- A material whose catalog product no longer resolves (deleted or renamed since
+  the job was quoted) produces no aggregate row at any quantity. That is what
+  `materialWarnings` flags on the row itself.
+- A material with no SKU in the catalog still shows red and stays out of the
+  copies — unchanged, and correct: there is nothing to key.
 
 ## Proof
 
@@ -66,8 +89,10 @@ the math couldn't run, not that someone forgot to type a number.
 REAL `orderEntryRow` output. "After" is literally what the panel does now;
 "before" is the same rows with the old outcome restored (qty 0 → `—`, $0.00).
 
-Four of the six lines have no quantity: two special-order (one carton-sold, one
-per-sf) and two stock (one roll, one carton-sold).
+Eight of the eleven lines have no quantity: two special-order (one carton-sold,
+one per-sf), two stock products (one roll, one carton-sold), and four estimated
+materials (grout, its base unit, mortar, caulk) that the old panel dropped
+entirely — the BEFORE pane is four lines shorter for exactly that reason.
 
 Tests: four `orderEntryRow` cases in `print.test.js` — the per-sf line, the
 carton line keying as one whole carton, the count line in its own sell unit, and

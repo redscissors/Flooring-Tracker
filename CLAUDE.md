@@ -248,7 +248,11 @@ src/
                     # .jsx so `node --test` can cover it;
                     # imports always name the extension
   orderentry.jsx    # the panel itself — Special order (per-line copy) above
-                    # Stock (checkboxes + Copy all as SKU⇥qty). A `qtyAssumed`
+                    # Stock (checkboxes + Copy all as SKU⇥qty; the estimated
+                    # materials ride the Stock list unfiltered — App.jsx's
+                    # `matAll`, so a pending grout/mortar still keys as 1, while
+                    # the printed order sheet keeps the quantified `matLines`).
+                    # A `qtyAssumed`
                     # line reads amber (tint + edge bar + "ASSUMED") with a
                     # count in the section footer. A Sheoga line has
                     # no SKU to key, so it reads "by description — no SKU" and

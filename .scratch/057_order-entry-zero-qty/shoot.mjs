@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 const OUT = '.scratch/057_order-entry-zero-qty';
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-const pg = await b.newPage({ viewport: { width: 1300, height: 980 }, deviceScaleFactor: 2 });
+const pg = await b.newPage({ viewport: { width: 1300, height: 1200 }, deviceScaleFactor: 2 });
 pg.on('console', m => { if (m.type() === 'error') console.log('PAGE ERR:', m.text()); });
 pg.on('pageerror', e => console.log('PAGE THROW:', e.message));
 await pg.goto('http://localhost:5199/.scratch/057_order-entry-zero-qty/preview.html', { waitUntil: 'networkidle' });
