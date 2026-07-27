@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
-import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -57,6 +57,24 @@ const gridCell = { borderRight: "1px solid var(--ft-row-line)", minWidth: 0, dis
 // out of width — a shared column header can't stay aligned once fields wrap,
 // so each one carries its own label instead. Same state, same handlers as
 // the desktop grid below — layout only.
+
+// A material line whose typed quantity no longer agrees with what the square
+// footage calculates. The override is never discarded on its own — a typed
+// number is a decision (attic stock, one spare carton) — so this just carries
+// the news and a one-click way to take the fresh figure, the same shape as the
+// price-book drift chip above it on the row.
+export function QtyDriftChip({ d, unit, onUse, what = "line" }) {
+  return (<>
+    <span className="text-amber-600">Sq ft now calculates to {d.auto} {u1(d.auto, unit)} — this {what} is set to {d.have}</span>
+    <button tabIndex={-1} onClick={onUse} title="Drop the typed total and go back to calculating from the square footage"
+      className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use {d.auto}</button>
+  </>);
+}
+// The materials rows have no chip strip of their own, so the same chip gets a
+// full-width line of its own beneath the row's controls.
+export function QtyDriftNote(props) {
+  return <div className="order-last basis-full flex items-center gap-1.5 flex-wrap text-xs"><QtyDriftChip {...props} /></div>;
+}
 
 // Enter in any grid cell moves to the same column one product row down
 // (spreadsheet-style); on the last row it grows the area by one product.
@@ -1386,12 +1404,29 @@ export default function App({ user, onSignOut }) {
                       {a.products.map((p, pi) => {
                         const G = getGrout(p, wSet), M = getMortar(p, wSet);
                         const gEx = groutExact(p, wSet), mEx = mortarExact(p, wSet);
+                        // What each hand-overridden quantity would calculate to NOW — the
+                        // same getter re-run with the override lifted, so the offer can
+                        // never drift from the real math. Only computed when an override
+                        // is standing; null the rest of the time.
+                        const overridden = (v) => v !== "" && v != null;
+                        const autoOrder = (patch, get) => { const q = get({ ...p, ...patch }, wSet); return q ? q.order : null; };
+                        const gDrift = overridden(p.grout?.manual) ? qtyDrift(p.grout.manual, autoOrder({ grout: { ...p.grout, manual: "" } }, getGrout)) : null;
+                        const mDrift = overridden(p.mortar?.manual) ? qtyDrift(p.mortar.manual, autoOrder({ mortar: { ...p.mortar, manual: "" } }, getMortar)) : null;
                         // Amber-flag the empty qty box only once the row has identity —
                         // a freshly added blank row shouldn't glow before you start.
                         const qtyMissing = p.type !== "misc" && !(num(p.qty) > 0) && !!(p.sku || p.brandColor || num(p.priceSqft) > 0);
                         // Sold by the carton: whole cartons drive the line total —
                         // cartonSf for flooring sqft, cartonPc for per-piece count lines.
                         const C = getCarton(p, wSet), cEx = cartonExact(p, wSet), PC = getPieceCarton(p);
+                        // A single click of the carton ▲▼ writes cartonManual, so this is the
+                        // easiest override in the app to set without meaning to — and the one
+                        // that freezes a line's price, since a carton row bills ordered
+                        // cartons × sf/carton × price.
+                        const cAuto = overridden(p.cartonManual)
+                          ? (C ? getCarton({ ...p, cartonManual: "" }, wSet)?.order : PC ? getPieceCarton({ ...p, cartonManual: "" })?.cartons : null)
+                          : null;
+                        const cDrift = qtyDrift(overridden(p.cartonManual) ? p.cartonManual : "", cAuto);
+                        const cUnit = (C ? C.unit : PC ? PC.unit : "ct").toUpperCase();
                         const countUnit = unitCode(p.sellUnit || "EA");
                         const line = lineTotal(p, C, PC, num(p.priceSqft));
                         // Tier lens (spec 2026-07-16): the price INPUT stays the stored
@@ -1436,6 +1471,7 @@ export default function App({ user, onSignOut }) {
                         // filtered to the ones tagged for this type; a stored pick that is
                         // no longer offered is injected back so it still shows.
                         const U = getUnderlay(p, wSet), uEx = underlayExact(p, wSet);
+                        const uDrift = overridden(p.underlay?.manual) ? qtyDrift(p.underlay.manual, autoOrder({ underlay: { ...p.underlay, manual: "" } }, getUnderlay)) : null;
                         const installDefs = settings.underlayments[p.underlay.product]?.install || [];
                         const INS = getUnderlayInstall(p, wSet);
                         const insById = new Map((INS || []).map((m) => [m.defId, m]));
@@ -1524,7 +1560,7 @@ export default function App({ user, onSignOut }) {
                         // Drift / retired-SKU / base-variant chips render under the row on
                         // both layouts, so the block is built once. A Sheoga row's chip
                         // reopens the configurator pre-filled from its saved configuration.
-                        const driftBlock = (drift || oDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg) ? (
+                        const driftBlock = (drift || oDrift || cDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                             {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
@@ -1553,6 +1589,7 @@ export default function App({ user, onSignOut }) {
                               )}
                               <button tabIndex={-1} onClick={() => { const priced = pricedItem(oItem, oBook?.data?.markups); const csf = rowCostSqft(oItem); updProduct(a.id, p.id, { priceSqft: String(oDrift.to), cost: oItem.cost != null ? String(oItem.cost) : "", costSqft: csf != null ? String(Math.round(csf * 100) / 100) : "", markupPct: priced.markupPct != null ? String(priced.markupPct) : "" }); }} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                             </>))}
+                            {cDrift && <QtyDriftChip d={cDrift} unit={cUnit} what="row" onUse={() => updProduct(a.id, p.id, { cartonManual: "" })} />}
                             {p.freightFlag && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
                             {baseAlt && (
                               <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, stockPatch(baseAlt, p))} className="rounded-full border border-slate-300 text-slate-600 px-2 py-0.5 hover:bg-slate-50 font-medium">Use {baseAlt.style || baseAlt.description}</button>
@@ -1759,6 +1796,7 @@ export default function App({ user, onSignOut }) {
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
                                       {!G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}
+                                      {gDrift && <QtyDriftNote d={gDrift} unit={gUnit} onUse={() => updProduct(a.id, p.id, { grout: { ...p.grout, manual: "" } })} />}
                                     </div>
                                     <div className="mt-1.5 pl-7 flex items-center gap-2 text-xs text-slate-500">
                                       <span className="text-slate-400">Matching caulk</span>
@@ -1785,6 +1823,7 @@ export default function App({ user, onSignOut }) {
                                         {settings.mortars[p.mortar.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.mortars[p.mortar.product]?.sku}</span>}
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{mEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{mEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={M ? String(M.order) : ""} onChange={(e) => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{mUnit}</span></span>
+                                      {mDrift && <QtyDriftNote d={mDrift} unit={mUnit} onUse={() => updProduct(a.id, p.id, { mortar: { ...p.mortar, manual: "" } })} />}
                                     </div>
                                   </div>
                                 )}
@@ -1809,6 +1848,7 @@ export default function App({ user, onSignOut }) {
                                         {settings.underlayments[p.underlay.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.underlayments[p.underlay.product]?.sku}</span>}
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
+                                      {uDrift && <QtyDriftNote d={uDrift} unit={underlayUnit} onUse={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: "" } })} />}
                                     </div>
                                     {installDefs.length > 0 && (
                                       <div className="mt-1.5 pt-1.5" style={{ borderTop: "1px solid var(--ft-border)" }}>
@@ -1876,6 +1916,12 @@ export default function App({ user, onSignOut }) {
                                   const aUnit = A ? A.unit : pf?.unit || "";
                                   const covEx = cat.math === "coverage" && p.qtyType === "sqft" && num(p.qty) > 0 && num(pf?.coverage) > 0 ? num(p.qty) * wasteFor(p, wSet) / num(pf.coverage) : null;
                                   const setA = (patch) => updProduct(a.id, p.id, { attached: { ...p.attached, [cat.id]: { ...jobA, ...patch } } });
+                                  // Only a "coverage" category's box is an OVERRIDE; a "manual"
+                                  // category's typed number is the quantity itself, with nothing
+                                  // behind it to drift from.
+                                  const aDrift = cat.math === "coverage" && overridden(jobA.manual)
+                                    ? qtyDrift(jobA.manual, getAttached({ ...p, attached: { ...p.attached, [cat.id]: { ...jobA, manual: "" } } }, wSet, cat)?.order)
+                                    : null;
                                   const toggleOn = () => setA({ checked: true, product: jobA.product || def, manual: cat.math === "manual" ? (jobA.manual || "1") : jobA.manual });
                                   return jobA.checked ? (
                                     <div key={cat.id} className="px-2.5 py-1.5" style={{ background: rowTint }}>
@@ -1892,6 +1938,7 @@ export default function App({ user, onSignOut }) {
                                         </div>
                                         <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{covEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{covEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={cat.math === "manual" ? jobA.manual : (A ? String(A.order) : "")} onChange={(e) => setA({ manual: e.target.value })} placeholder={cat.math === "manual" ? "qty" : "—"} title={cat.math === "manual" ? "Quantity to order" : "Total — type to override the calculated amount"} className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{aUnit}</span></span>
                                         {cat.math === "coverage" && !A && jobA.product && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + a coverage for this product to calculate, or type a total above.</div>}
+                                        {aDrift && <QtyDriftNote d={aDrift} unit={aUnit} onUse={() => setA({ manual: "" })} />}
                                       </div>
                                     </div>
                                   ) : (
