@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
+import { normFreight, freightParts, freightSummary } from "./freight.js";
 import { MAX_QUICK_MARKUPS } from "./costentry.js";
 import { priceUnitOf, orderUnitOf } from "./stock.js";
 import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
@@ -923,6 +924,10 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
         <MarkupEditor book={book} items={items} onSave={(m) => updateBook(book.id, { dataPatch: { markups: m } })} inp={inp} lbl={lbl} />
       )}
 
+      {isOrder && (
+        <FreightCard book={book} onSave={(f) => updateBook(book.id, { dataPatch: { freight: f } })} inp={inp} lbl={lbl} />
+      )}
+
       {items && items.length > 0 && (
         <>
           <div className="flex items-center gap-2 mt-4 flex-wrap">
@@ -1206,6 +1211,83 @@ export function MarkupEditor({ book, items, onSave, inp, lbl }) {   // exported 
         </div>
       ) : (
         <p className="text-[11px] text-slate-400 mt-2">This book has no product-line or manufacturer column to price by — only the default (and trim) markup applies.</p>
+      )}
+    </div>
+  );
+}
+
+// The freight program (ADR 0030): what this vendor charges to ship, typed off
+// their shipping sheet. Not an import — a freight sheet is a page of prose with
+// nine numbers on it, re-issued about once a year, so the numbers are hand-kept
+// here and read live by every job (freight.js). Switched off, the book charges
+// nothing and no chip appears on a row.
+const FREIGHT_FIELDS = [
+  { k: "perSqft", label: "Per sq ft", pre: "$", step: "0.01", hint: "the base rate area material ships at" },
+  { k: "minCharge", label: "Minimum", pre: "$", step: "0.01", hint: "the least this vendor bills for one order" },
+  { k: "palletAt", label: "Pallet at", pre: "$", step: "1", hint: "once the per-foot charge reaches this, the order ships flat-rate pallets (0 = never)" },
+  { k: "palletRate", label: "Per pallet", pre: "$", step: "1", hint: "the flat-rate pallet price" },
+  { k: "largeRate", label: "Large / pallet", pre: "$", step: "1", hint: "large-format material ships by the pallet outright (0 = price it by the foot with everything else)" },
+  { k: "largeFormatIn", label: "Large from", suf: '"', step: "1", hint: "a piece with a side this long or longer is large format" },
+  { k: "palletSf", label: "Sq ft / pallet", step: "1", hint: "how much this vendor puts on one pallet — the pallet count divides by it" },
+  { k: "perPiece", label: "Per piece", pre: "$", step: "0.01", hint: "trims, borders and mouldings ship by the piece" },
+  { k: "pieceMin", label: "Piece min", pre: "$", step: "0.01", hint: "the least this vendor bills for a piece order" },
+];
+export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the preview harness
+  const saved = normFreight(book.data?.freight);
+  const [f, setF] = useState(saved);
+  const on = f.mode === "program";
+  const commit = (next) => { setF(next); onSave(next); };
+  const setField = (k) => (v) => setF((prev) => ({ ...prev, [k]: v }));
+  // A worked example off the book's own rates, so a typo in a rate is visible as
+  // a wrong dollar figure rather than as a wrong quote three weeks later.
+  const demo = (sf, side) => {
+    const parts = freightParts({ f: normFreight(f), smallSf: side < f.largeFormatIn ? sf : 0, largeSf: side >= f.largeFormatIn ? sf : 0, pieces: 0 });
+    return parts.length ? `${freightSummary({ parts })} · ${money(parts.reduce((n, x) => n + x.cost, 0))}` : "no charge";
+  };
+  return (
+    <div className="mt-4 border rounded-lg p-3 border-slate-100">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Truck size={14} className="text-slate-400" />
+        <span className="text-sm font-medium">Freight</span>
+        <span className="text-[11px] text-slate-400">charged once per order, on top of the item cost</span>
+        <button onClick={() => commit({ ...normFreight(f), mode: on ? "none" : "program" })}
+          className={"ml-auto text-xs rounded-md border px-2.5 py-1 " + (on ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
+          {on ? "On" : "Off"}
+        </button>
+      </div>
+      {!on ? (
+        <p className="text-[11px] text-slate-400 mt-2">This book adds no freight. Jobs that pick from it show no freight chip and no freight line.</p>
+      ) : (
+        <>
+          <div className="flex items-end gap-3 mt-2 flex-wrap">
+            <div>
+              <label className={lbl}>Ships to</label>
+              <input className={`${inp} w-32`} value={f.destination} placeholder="Ohio" onChange={(e) => setField("destination")(e.target.value)} onBlur={() => commit(normFreight(f))}
+                title="Which column of the vendor's state table these rates came from. Prints with the freight line; nothing calculates from it." />
+            </div>
+            <div>
+              <label className={lbl}>Rates dated</label>
+              <input className={`${inp} w-28`} value={f.effective} placeholder="2026" onChange={(e) => setField("effective")(e.target.value)} onBlur={() => commit(normFreight(f))} />
+            </div>
+            <p className="text-[11px] text-slate-400 pb-2">Rates read live — changing one moves every open quote, saved estimates included.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 mt-3 max-w-2xl">
+            {FREIGHT_FIELDS.map((x) => (
+              <div key={x.k}>
+                <label className={lbl} title={x.hint}>{x.label}</label>
+                <div className="flex items-center gap-1">
+                  {x.pre && <span className="text-[11px] text-slate-400">{x.pre}</span>}
+                  <input type="number" min="0" step={x.step} className={`${inp} w-20`} value={String(f[x.k] ?? "")} title={x.hint}
+                    onChange={(e) => setField(x.k)(e.target.value)} onBlur={() => commit(normFreight(f))} />
+                  {x.suf && <span className="text-[11px] text-slate-400">{x.suf}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-3">
+            300 sf of 12×12 → <b className="text-slate-500">{demo(300, 12)}</b> · 300 sf of 12×24 → <b className="text-slate-500">{demo(300, 24)}</b>
+          </p>
+        </>
       )}
     </div>
   );

@@ -11,7 +11,13 @@ import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal }) {
+export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal }) {
+  // pMats already carries the job's freight as its own trailing "Freight" group
+  // (App.jsx appends freightPrintRows), so the breakdown band renders it with
+  // everything else — but the band's subtotal has to count it, and the meta line
+  // names it separately: freight is the vendor's shipping, not the shop's
+  // sundries, and a customer asking "what's the $79" deserves the word.
+  const extrasCost = materialsCost + freightCost;
   // The estimate "paper" — renders in BOTH the print layout and the on-screen
   // Print preview tab (one source, so the preview can never drift from what
   // prints). Callers guard sel && sel._full. Two layouts live here: the card
@@ -127,8 +133,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                   </div>
                   {showTotals && (
                   <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-border)", marginTop: 2, paddingTop: 8 }}>
-                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Materials subtotal</div>
-                    <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(materialsCost)}</div>
+                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>{freightCost > 0 ? "Materials & freight" : "Materials subtotal"}</div>
+                    <div className="ft-mono" style={{ fontSize: 12, fontWeight: 700 }}>{money(extrasCost)}</div>
                   </div>
                   )}
                 </div>
@@ -140,6 +146,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                   {[
                     showTotals && flooringPrice + miscCost > 0 ? `Flooring ${money(flooringPrice + miscCost)}` : "",
                     showTotals && materialsCost > 0 ? `Materials ${money(materialsCost)}` : "",
+                    showTotals && freightCost > 0 ? `Freight ${money(freightCost)}` : "",
                     totalSqft > 0 ? `${totalSqft.toLocaleString()} SF measured${orderedSqft > 0 ? `, ${sf1(orderedSqft)} ordered` : ""}` : "",
                   ].filter(Boolean).join(" · ")}
                 </div>
@@ -306,7 +313,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               {showTotals && (
                 <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-paper-rule)", marginTop: 4, paddingTop: 7 }}>
                   <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Extras subtotal</div>
-                  <div className="ft-mono" style={{ fontSize: 12, fontWeight: 800 }}>{money(materialsCost)}</div>
+                  <div className="ft-mono" style={{ fontSize: 12, fontWeight: 800 }}>{money(extrasCost)}</div>
                 </div>
               )}
             </div>

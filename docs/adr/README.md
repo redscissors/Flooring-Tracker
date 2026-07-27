@@ -33,3 +33,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0027](0027-catalog-stock-book-links.md) | Catalog products link to ERP stock-book rows; grout families are rule-projected book slices | Accepted | 2026-07-21 |
 | [0028](0028-open-layer-restore-and-one-press-escape.md) | Refresh restores the open overlay (`ft-open-layer`); Escape closes a layer in one press from inside a text field | Accepted | 2026-07-22 |
 | [0029](0029-erp-stock-sell-basis-from-uom.md) | ERP stock exports: Unit of Stock names the sell basis — carton-sold + coverage rows type as flooring (words/size decide which), leading bare widths land in the size field | Accepted | 2026-07-22 |
+| [0030](0030-vendor-freight-program.md) | Vendor freight: a live rate program on the book, opted into per row, charged once per order | Accepted | 2026-07-27 |

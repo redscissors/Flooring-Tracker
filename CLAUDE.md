@@ -67,6 +67,18 @@ src/
                     # price-book pick snapshots, so a hand-costed line and a
                     # picked one read alike to the Employee tier, the internal
                     # margin and `orderLineCost` (costentry.test.js)
+  freight.js        # vendor freight programs (ADR 0030): the rate table a book
+                    # carries in `data.freight` (normFreight) and the rules that
+                    # turn a job's rows into a charge. Every rule on a freight
+                    # sheet is scoped to an ORDER — a minimum, a dollar threshold
+                    # that flips the shipment onto pallets, a per-piece floor —
+                    # so a row's chip is only an OPT-IN and `freightList` charges
+                    # each book ONCE over the rows that opted in (the attachedList
+                    # shape). Rates read LIVE at calc time, not snapshotted:
+                    # freight follows the job's footage as it's edited, and a
+                    # retyped sheet is the team restating what shipping costs, not
+                    # a vendor re-import (freight.test.js)
+  freightui.jsx     # the drawer row + the header master switch, presentation only
   model.js          # job-model factories + normalizers: `uid`/`money`, `newProduct`/
                     # `newArea`/`newProject`, `normP`/`normA`/`normC`, `catSig`,
                     # `rowBlank`, `personData`… (model.test.js, their first tests)
@@ -370,7 +382,10 @@ Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[],
            salesperson: { name, phone, email } | null,
            priceTier: "retail|builder|employee|sale|custom", customPct,
-           printPricing: "full|unit|none" }
+           printPricing: "full|unit|none", freight: bool }
+           // freight = the job's freight master switch (ADR 0030), default ON
+           // (an absent field is a job quoted before it existed). Off means no
+           // freight line anywhere, whatever the rows say.
            // priceTier/printPricing (ADR 0018) = the job's price point and how
            // much pricing the printed estimate shows. Tiers are a DISPLAY LENS
            // (src/pricing.js tierView) over the stored retail prices — rows are
@@ -395,7 +410,14 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // without a snapshot price cost $0, as before).
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
+           freight: "" | "off",
            sheoga: { mode, cfg } | null }
+           // freight = the row's opt-OUT of its book's freight program
+           // (ADR 0030). "" (the default) means the row rides the vendor's
+           // shipment; only the explicit "off" is stored, so a row saved before
+           // the program existed is included too. The AMOUNT is never per row —
+           // the vendor's minimum and pallet threshold are order-scoped, so
+           // freightList charges each book once over every row that opted in.
            // sheoga = the raw Sheoga-configurator configuration (issue 023)
            // snapshotted onto a row added from the configurator, so
            // "Reconfigure" reopens the popup pre-filled (src/sheoga.js
@@ -537,6 +559,27 @@ breakdown/totals, printed estimate, and order sheet. `getAttached` does the math
 ("coverage" like underlayment, "manual" a typed quantity), `attachedList` the
 shared aggregate, and `materialWarnings` flags a checked chip whose product no
 longer resolves — all resolving by name at calc time, like mortar.
+
+**Vendor freight** (issue 061, ADR 0030). A special-order book can carry a
+**freight program** — the rate table off the vendor's shipping sheet, stored in
+`price_books.data.freight` (the slot ADR 0009 §3 reserved) and edited on the book
+page beside the markup editor. Unlike everything else a book holds, freight rates
+are **read live at calc time**, never snapshotted: the charge depends on the job's
+square footage, which moves with every edit, and a retyped sheet is the team
+restating what shipping costs today rather than a vendor re-import rewriting a
+quote. Every rule on a freight sheet is scoped to an **order** — the minimum, the
+dollar threshold that flips a shipment onto flat-rate pallets, the per-piece
+floor — so a product row's Freight chip is only an **opt-in** (freight is on by
+default; only the explicit `"off"` is stored), and `freightList` charges each book
+**once** over all the rows that opted in. What the row's chip shows is therefore
+the job's charge from that vendor, not a share of it. A per-job master switch
+(`project.freight`, the header's "Estimate shows" column) turns the whole thing
+off. Freight is charged **at cost**, exempt from the price tiers (ADR 0018
+already excluded it from Employee pricing), prints as its own group in the
+estimate's extras band, and files with the **special orders** in the order-entry
+panel — by description, since there's no SKU to key. Size picks the rate table:
+a side at or over `largeFormatIn` (15") is large format. First program: Glazzio,
+Ohio (`.scratch/061_vendor-freight-program/ticket.md` transcribes the sheet).
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add

@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Plus, Check, X } from "lucide-react";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Plus, Check, Truck, X } from "lucide-react";
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
+import { FreightSwitch } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 import { money } from "./model.js";
@@ -35,8 +36,10 @@ const headerTabOut = (nameTabRef) => (e) => {
 
 // Vertical SegBar: same options shape ({ v, label, color, title, input }), the
 // active row pressed in. Default active paints ink (the .bg-indigo-600 theme
-// override), tier rows paint their tier color.
-function VertBar({ header, headerIcon, value, onChange, options, inputValue, onInput, width }) {
+// override), tier rows paint their tier color. `footer` hangs an unrelated
+// control off the bottom of the same column — the band has no room for a column
+// per switch, and a two-state toggle doesn't earn one.
+function VertBar({ header, headerIcon, value, onChange, options, inputValue, onInput, width, footer }) {
   return (
     <div className="ft-hcol shrink-0" style={width ? { width } : undefined}>
       <div className="ft-hhead">{headerIcon}{header}</div>
@@ -54,6 +57,7 @@ function VertBar({ header, headerIcon, value, onChange, options, inputValue, onI
         );
         return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={cls} style={fill}>{o.label}</button>;
       })}
+      {footer}
     </div>
   );
 }
@@ -127,7 +131,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   );
 }
 
-export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
@@ -188,7 +192,8 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             { v: "full", label: "All prices", title: "Print every price and total" },
             { v: "unit", label: "Unit only", title: "Print unit prices only — no line or job totals" },
             { v: "none", label: "No prices", title: "Print no pricing" },
-          ]} />
+          ]}
+          footer={<FreightSwitch on={sel.freight !== false} amount={freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : ""} onToggle={() => updateProject(sel.id, { freight: sel.freight === false })} />} />
 
         <VertBar header="Price level" width={108} value={sel.priceTier || "retail"} inputValue={sel.customPct}
           onChange={(v) => updateProject(sel.id, { priceTier: v })}
@@ -297,6 +302,14 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
                   { v: "none", label: "No $", title: "Print no pricing" },
                 ]} />
             </div>
+            {/* The freight master switch (ADR 0030) — one press for "no shipping
+                on this job"; the per-row chips do the rest. */}
+            <button onClick={() => updateProject(sel.id, { freight: sel.freight === false })}
+              title={sel.freight === false ? "No freight on this job. Press to add vendor shipping to the special orders." : "Freight is included — vendor shipping is added to this job's special orders. Press to leave it off entirely."}
+              className={"h-[30px] shrink-0 flex items-center justify-center gap-1 rounded-md border px-2 text-[11.5px] font-semibold whitespace-nowrap " +
+                (sel.freight === false ? "border-slate-200 text-slate-400 hover:bg-slate-50" : "bg-indigo-600 border-indigo-600 text-white")}>
+              <Truck size={13} /> {sel.freight === false ? "No freight" : "Freight"}
+            </button>
             <WasteBar w={jobWasteUI} dflt={settings.waste} className="w-[134px]"
               onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
           </div>
