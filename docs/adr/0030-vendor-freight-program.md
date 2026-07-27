@@ -110,8 +110,9 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
   address, so neither can trigger — and the Arvora LVT trim tube rate ($40/tube,
   17 pc T-mold/reducer, 13 pc stair nose), since the shop does not price Glazzio
   LVT. Both are additive to this shape if that changes.
-- Two ambiguities in the vendor's sheet are left as the reading stated above and
-  should be confirmed with Glazzio: whether a mixed order pays the $14.85
-  minimum once or once per table (this charges it per table, which is what the
-  sheet literally says), and whether a small large-format order really pays a
-  full $79 pallet (it does here).
+- Two readings of the sheet were **confirmed by the owner (2026-07-27)** and are
+  what `freightParts` implements: a **mixed order pays each table's minimum**
+  (small format and trims can both floor), while an order that is *all* small
+  format pays the $14.85 minimum **once** — one part, one floor; and a small
+  large-format order really does pay a **full $79 pallet**, the one-pallet floor
+  in decision 5.

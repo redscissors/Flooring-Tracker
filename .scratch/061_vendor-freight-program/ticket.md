@@ -45,9 +45,11 @@ The break-even between the per-foot rate and the pallet program is ~150.5 sqft
 the shop doesn't price Glazzio LVT — and the residential/lift-gate accessorials,
 since everything ships to the shop, a commercial address.
 
-**Confirm with Glazzio:** whether a mixed order pays the $14.85 minimum once or
-once per table (the app charges per table, which is what the sheet says), and
-whether a small large-format order really pays a full $79 pallet (it does here).
+**Confirmed by the owner (7/27), and what the app does:** a **mixed** order pays
+each table's minimum — the small-format $14.85 and the trim $14.85 can both
+floor on one order — while an order that is *all* small-format tile pays the
+minimum **once**. And a small large-format order does pay the **full $79**: one
+pallet is the floor.
 
 ## What shipped
 
@@ -69,7 +71,7 @@ whether a small large-format order really pays a full $79 pallet (it does here).
 
 | | |
 |---|---|
-| `preview-drawer.png` | the header master switch + the drawer row on three Glazzio products — one charge, $256.01 |
+| `preview-drawer.png` | the Freight card (its own heading, under Estimate shows) + the drawer row on three Glazzio products — one charge, $256.01 |
 | `preview-drawer-waived.png` | the mosaic row unchecked: 84 sf leaves the shipment, $256.01 → $172.85 |
 | `preview-card.png` | the book's freight program, with the worked example |
 | `preview-order-entry.png` | freight filed with the special orders, by description, cost = sell |

@@ -8,7 +8,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { FreightCard } from "./pricebooklib.jsx";
-import { FreightMatRow, FreightSwitch } from "./freightui.jsx";
+import { FreightMatRow, FreightColumn } from "./freightui.jsx";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { EstimatePaper } from "./EstimatePrint.jsx";
 import { freightList, freightTotal, freightPrintRows, freightOrderRows } from "./freight.js";
@@ -62,16 +62,18 @@ function DrawerCase() {
   const line = lines.find((l) => l.bookId === BOOK.id);
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div style={{ width: 108 }} className="ft-hcol">
-          <div className="ft-hhead">Estimate shows</div>
-          <button className="ft-hopt on bg-indigo-600">All prices</button>
-          <button className="ft-hopt">Unit only</button>
-          <button className="ft-hopt">No prices</button>
-          <FreightSwitch on={job.freight !== false} amount={`$${Math.round(freightTotal(lines)).toLocaleString()}`} onToggle={() => setJob((j) => ({ ...j, freight: j.freight === false }))} />
+      <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 108 }}>
+          <div className="ft-hcol flex-1">
+            <div className="ft-hhead">Estimate shows</div>
+            <button className="ft-hopt on bg-indigo-600">All prices</button>
+            <button className="ft-hopt">Unit only</button>
+            <button className="ft-hopt">No prices</button>
+          </div>
+          <FreightColumn on={job.freight !== false} amount={`$${Math.round(freightTotal(lines)).toLocaleString()}`} onSet={(v) => setJob((j) => ({ ...j, freight: v }))} />
         </div>
-        <div className="text-[12px] text-slate-500 max-w-xs">
-          The master switch hangs off the bottom of the “Estimate shows” column and carries the job’s freight total. Press it and every row below goes quiet.
+        <div className="text-[12px] text-slate-500 max-w-xs self-center">
+          Freight sits under “Estimate shows” in the same column, as its own card with its own heading — it carries the job’s total. Press <b>None</b> and every row below goes quiet.
         </div>
       </div>
       <div className="ft-mats rounded-lg border border-slate-200 max-w-2xl overflow-hidden" style={{ background: "var(--ft-cream)" }}>

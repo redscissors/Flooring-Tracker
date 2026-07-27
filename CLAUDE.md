@@ -573,8 +573,8 @@ floor — so a product row's Freight chip is only an **opt-in** (freight is on b
 default; only the explicit `"off"` is stored), and `freightList` charges each book
 **once** over all the rows that opted in. What the row's chip shows is therefore
 the job's charge from that vendor, not a share of it. A per-job master switch
-(`project.freight`, the header's "Estimate shows" column) turns the whole thing
-off. Freight is charged **at cost**, exempt from the price tiers (ADR 0018
+(`project.freight`) turns the whole thing off — its own Include/None card in the
+header, under Estimate shows but not part of it. Freight is charged **at cost**, exempt from the price tiers (ADR 0018
 already excluded it from Employee pricing), prints as its own group in the
 estimate's extras band, and files with the **special orders** in the order-entry
 panel — by description, since there's no SKU to key. Size picks the rate table:

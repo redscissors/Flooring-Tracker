@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Plus, Check, Truck, X } from "lucide-react";
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
-import { FreightSwitch } from "./freightui.jsx";
+import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 import { money } from "./model.js";
@@ -36,12 +36,10 @@ const headerTabOut = (nameTabRef) => (e) => {
 
 // Vertical SegBar: same options shape ({ v, label, color, title, input }), the
 // active row pressed in. Default active paints ink (the .bg-indigo-600 theme
-// override), tier rows paint their tier color. `footer` hangs an unrelated
-// control off the bottom of the same column — the band has no room for a column
-// per switch, and a two-state toggle doesn't earn one.
-function VertBar({ header, headerIcon, value, onChange, options, inputValue, onInput, width, footer }) {
+// override), tier rows paint their tier color.
+function VertBar({ header, headerIcon, value, onChange, options, inputValue, onInput, width, className = "" }) {
   return (
-    <div className="ft-hcol shrink-0" style={width ? { width } : undefined}>
+    <div className={"ft-hcol shrink-0 " + className} style={width ? { width } : undefined}>
       <div className="ft-hhead">{headerIcon}{header}</div>
       {options.map((o) => {
         const active = value === o.v;
@@ -57,7 +55,6 @@ function VertBar({ header, headerIcon, value, onChange, options, inputValue, onI
         );
         return <button key={o.v} onClick={() => onChange(o.v)} title={o.title} className={cls} style={fill}>{o.label}</button>;
       })}
-      {footer}
     </div>
   );
 }
@@ -187,13 +184,20 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             style={{ flex: "1 1 0", minHeight: 0, background: "var(--ft-cream)", border: "1px solid var(--ft-border-strong)" }} />
         </div>
 
-        <VertBar header="Estimate shows" width={108} value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
-          options={[
-            { v: "full", label: "All prices", title: "Print every price and total" },
-            { v: "unit", label: "Unit only", title: "Print unit prices only — no line or job totals" },
-            { v: "none", label: "No prices", title: "Print no pricing" },
-          ]}
-          footer={<FreightSwitch on={sel.freight !== false} amount={freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : ""} onToggle={() => updateProject(sel.id, { freight: sel.freight === false })} />} />
+        {/* Two cards share this column slot — Freight sits UNDER Estimate shows
+            but is its own bordered category, not a fourth row hanging off the
+            end of it (it answers its own question). The waste/minis column
+            stacks the same way. */}
+        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 108 }}>
+          <VertBar header="Estimate shows" className="flex-1" value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
+            options={[
+              { v: "full", label: "All prices", title: "Print every price and total" },
+              { v: "unit", label: "Unit only", title: "Print unit prices only — no line or job totals" },
+              { v: "none", label: "No prices", title: "Print no pricing" },
+            ]} />
+          <FreightColumn on={sel.freight !== false} amount={freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : ""}
+            onSet={(v) => updateProject(sel.id, { freight: v })} />
+        </div>
 
         <VertBar header="Price level" width={108} value={sel.priceTier || "retail"} inputValue={sel.customPct}
           onChange={(v) => updateProject(sel.id, { priceTier: v })}

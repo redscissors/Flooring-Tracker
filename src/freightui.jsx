@@ -39,22 +39,34 @@ export function FreightMatRow({ book, on, jobOff, line, accent, rowTint, onToggl
   );
 }
 
-// The job's master switch. Freight is on by default and the per-row rows do the
-// fine-grained waiving, so this is the one press that answers "we're not
-// charging shipping on this job" — and the place a salesperson looks to find out
-// whether the total already includes it.
-export function FreightSwitch({ on, amount, onToggle }) {
+// The job's master switch, as a card of its own — the same
+// header-over-pressed-options shape as Estimate shows and Price level. It sits
+// under Estimate shows in the header's third column but carries its own border
+// and heading, because a row tacked onto the end of that card reads as a
+// footnote to printed pricing, which it has nothing to do with. Two options
+// rather than one toggle for the same reason: the card states both positions, so
+// "None" is a choice someone made, not the absence of a press.
+//
+// Freight is on by default and the per-row rows do the fine-grained waiving, so
+// this is the one press for "we're not charging shipping on this job" — and the
+// place to look to find out whether the total already includes it.
+// `width` is optional: with none it stretches to whatever column it's dropped in.
+export function FreightColumn({ on, amount, onSet, width }) {
+  const opt = (active) => "ft-hopt gap-1 " + (active ? "on bg-indigo-600" : "");
   return (
-    <button onClick={onToggle}
-      title={on ? "Freight is included — vendor shipping is added to this job's special orders. Press to leave it off entirely."
-        : "No freight on this job. Press to add vendor shipping to the special orders."}
-      className={"ft-hopt gap-1 " + (on ? "on bg-indigo-600" : "")}
-      style={{ marginTop: 5, borderTop: "1px solid var(--ft-border)" }}>
-      {/* No icon and whole dollars: the column is 108px wide, and squeezing a
-          truck in front truncated the word. The rule above is what separates
-          this from the print-pricing options it shares the column with. */}
-      <span>Freight</span>
-      <span className="ml-auto text-[10px] shrink-0" style={{ opacity: on ? 0.85 : 0.6 }}>{on ? (amount || "on") : "off"}</span>
-    </button>
+    <div className="ft-hcol shrink-0" style={width ? { width } : undefined}>
+      <div className="ft-hhead">Freight</div>
+      <button onClick={() => onSet(true)} className={opt(on)}
+        title="Vendor shipping is added to this job's special orders, at cost — the price level never discounts it">
+        <span>Include</span>
+        {/* Whole dollars: this is a glance figure, and the cents are in the
+            order summary two clicks away. */}
+        {on && amount && <span className="ml-auto text-[10px] shrink-0" style={{ opacity: 0.85 }}>{amount}</span>}
+      </button>
+      <button onClick={() => onSet(false)} className={opt(!on)}
+        title="No freight on this job, whatever the rows say">
+        <span>None</span>
+      </button>
+    </div>
   );
 }
