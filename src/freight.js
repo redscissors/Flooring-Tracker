@@ -62,18 +62,25 @@ export const normFreight = (raw) => ({
 export const bookFreight = (book) => normFreight(book?.data?.freight);
 export const hasFreightProgram = (book) => bookFreight(book).mode === "program";
 
-// The rates a freshly switched-on program starts with: Glazzio's 2026 shipping
-// sheet read down the Ohio column, which is the only destination the shop ships
-// to and the only real program anyone has typed. Every distributor's sheet has
-// this shape, and most of the figures (the pallet size, the 15" large-format
-// line) are the shop's own facts rather than Glazzio's — so seeding beats nine
-// empty boxes even for a different vendor. It is a STARTING POINT, not a
-// default: the card says where the numbers came from until someone edits one.
+// Glazzio's 2026 shipping sheet, read down the Ohio column — the one real
+// program anyone has transcribed, prefilled so switching Glazzio's freight on is
+// a press rather than nine numbers. It seeds ONLY that book (isSeedBook): these
+// are one vendor's rates, and dropping them into another distributor's program
+// would quote that vendor's shipping at Glazzio's prices, which is worse than an
+// empty card because it looks finished.
 export const FREIGHT_SEED = Object.freeze({
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
   largeRate: 79, largeFormatIn: 15, perPiece: 0.33, pieceMin: 14.85,
 });
+
+// The book the seed belongs to, matched on its name — the shop names its books
+// after the vendor, and the alternative is a hardcoded book id that changes the
+// first time someone re-creates the book. Every other book opens its freight
+// program empty.
+const SEED_BOOK_RE = /glazzio/i;
+export const isSeedBook = (book) => SEED_BOOK_RE.test(str(book?.name));
+export const freightSeedFor = (book) => (isSeedBook(book) ? { ...FREIGHT_SEED } : { mode: "program" });
 
 const RATE_FIELDS = ["palletSf", "perSqft", "minCharge", "palletAt", "palletRate", "largeRate", "perPiece", "pieceMin"];
 // A program nobody has given rates to — every chargeable figure still zero.

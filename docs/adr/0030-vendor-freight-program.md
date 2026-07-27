@@ -50,13 +50,14 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
    numbers, and the vendor re-issues them about once a year: the import
    machinery would cost more to build than retyping the numbers ever will.
 
-   Switching a blank program on **seeds it** with `FREIGHT_SEED` — the Glazzio
-   Ohio rates — rather than opening nine empty boxes. Every distributor's sheet
-   has this shape, and several of the figures (the 496 sq ft pallet, the 15"
-   large-format line) are the shop's own facts rather than Glazzio's, so the
-   seed is a head start even for a different vendor. The card labels it as
-   Glazzio's numbers until any rate is edited (`freightIsSeed`), so a seeded
-   program can't quietly pass for a checked one.
+   Switching a blank program on **prefills the Glazzio book only**
+   (`freightSeedFor`, matched on the book's name) with the transcribed Ohio
+   rates, so turning that vendor's freight on is a press rather than nine
+   numbers. Every other book opens with the rates empty: those figures are one
+   vendor's, and a program wearing them would quote another distributor's
+   shipping at Glazzio's prices — worse than an empty card, because it looks
+   finished. The card labels the prefill until any rate is edited
+   (`freightIsSeed`), so a seeded program can't quietly pass for a checked one.
 
 2. **Freight rates read LIVE at calc time, not snapshotted at pick time.** This
    is a deliberate exception to the ADR 0003 snapshot doctrine, and the reason

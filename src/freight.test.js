@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, normP, normC, newProject } from "./model.js";
-import { normFreight, hasFreightProgram, rowFreightOn, rowLongestSide, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed } from "./freight.js";
+import { normFreight, hasFreightProgram, rowFreightOn, rowLongestSide, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 
 const s = normalizeSettings();
 
@@ -30,8 +30,18 @@ test("normFreight: an unconfigured book has no program, and 0 rates switch rules
   assert.equal(normFreight({ mode: "program", perSqft: "-3", palletSf: "abc" }).perSqft, 0);
 });
 
-test("FREIGHT_SEED prefills a switched-on program with the Glazzio Ohio rates", () => {
+test("the seed prefills the Glazzio book only — every other vendor opens empty", () => {
   assert.deepEqual(normFreight(FREIGHT_SEED), normFreight(GLAZZIO));
+  assert.equal(isSeedBook({ name: "Glazzio Tiles" }), true);
+  assert.equal(isSeedBook({ name: "glazzio" }), true);
+  assert.equal(isSeedBook({ name: "Virginia Tile — Core" }), false);
+  assert.equal(isSeedBook(undefined), false);
+  assert.deepEqual(freightSeedFor({ name: "Glazzio Tiles" }), { ...FREIGHT_SEED });
+  // Another vendor gets a program with no rates at all, not Glazzio's.
+  const other = normFreight(freightSeedFor({ name: "Anatolia Tile" }));
+  assert.equal(other.mode, "program");
+  assert.equal(freightIsBlank(other), true);
+  assert.equal(other.destination, "");
   // Blank = nothing chargeable typed yet, which is what earns the prefill.
   assert.equal(freightIsBlank({ mode: "program" }), true);
   assert.equal(freightIsBlank(undefined), true);
