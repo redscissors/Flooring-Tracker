@@ -57,12 +57,12 @@
   /* proposed layout: 4 equal columns + a full-height chip on the right.
      Rows are an explicit fixed height so the spanning chip can never stretch
      row 1; the 5th column is wide enough to set its label horizontally. */
-  .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 88px;grid-template-rows:repeat(2,46px);gap:5px;align-items:stretch}
-  .grid4 .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:4px 5px;font-size:11px;line-height:1.1}
-  .grid4 .chip .s{font-size:9.5px;margin-top:2px}
-  .tall{grid-column:5;grid-row:1 / -1;padding:5px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden}
-  .tall .vl{font-size:11px;line-height:1.22;white-space:pre;letter-spacing:.01em}
-  .tall .vs{font-size:9.5px;font-weight:700;color:var(--ft-faint);margin-top:2px}
+  .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 76px;grid-template-rows:repeat(2,36px);gap:4px;align-items:stretch}
+  .grid4 .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:3px 5px;font-size:10px;line-height:1.25;white-space:nowrap}
+  .grid4 .chip .s{font-size:9px;margin-top:1px}
+  .tall{grid-column:5;grid-row:1 / -1;padding:4px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;overflow:hidden}
+  .tall .vl{font-size:10px;line-height:1.3;white-space:pre;letter-spacing:.01em}
+  .tall .vs{font-size:9px;font-weight:700;color:var(--ft-faint);margin-top:2px}
   .tall.on .vs{color:rgba(255,255,255,.7)}
   .tall.ls{border-color:var(--ft-border-strong)}
 
@@ -345,7 +345,7 @@ function renderWidth(){
     const g = el("div", "grid4");
     // Four and four, exactly like Species; Multi rides the flow as an ordinary
     // chip right after the last width.
-    g.style.gridTemplateRows = "repeat(" + Math.max(2, Math.ceil((ws.length + 1) / 4)) + ", 46px)";
+    g.style.gridTemplateRows = "repeat(" + Math.max(2, Math.ceil((ws.length + 1) / 4)) + ", 36px)";
     ws.forEach((w, i) => { const c = mkChip(w); place(c, i); g.appendChild(c); });
     const m = chip("◨ Multi" + (st.multi ? " ✓" : ""), null, {on: st.multi, cls:"multiflat"});
     m.onclick = () => { st.multi = !st.multi; render(); };

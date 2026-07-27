@@ -14,8 +14,8 @@
 Both blocks become one grid instead of a free-wrapping chip row:
 
 ```
-grid-template-columns: repeat(4, 1fr) 88px;   /* 4 equal cells + the tall column */
-grid-template-rows:    repeat(2, 46px);       /* two lines, fixed height          */
+grid-template-columns: repeat(4, 1fr) 76px;   /* 4 equal cells + the tall column */
+grid-template-rows:    repeat(2, 36px);       /* two lines, fixed height          */
 ```
 
 - **Species** — the eight sheet species (White Oak · Red Oak · Hickory · Maple /
@@ -23,9 +23,11 @@ grid-template-rows:    repeat(2, 46px);       /* two lines, fixed height        
   same width and height regardless of name length. **Live Sawn White Oak** sits
   in the 5th column, `grid-row: 1 / -1`, so it is exactly as tall as the two
   rows beside it. Its label is set horizontally, stacked "Live Sawn / White Oak"
-  over its sell price; the column is 88px wide to hold that, and the four
-  regular columns give up the difference — chips are tighter both ways (46px
-  rows, 11px label) than the wrapping version they replace.
+  over its sell price. That column is held to 76px — the narrowest that still
+  fits "White Oak" at the 10px label size — which leaves the four regular
+  columns at 95px, wide enough that **"Q/R White Oak" sets on one line**. With
+  no name wrapping, a row only needs 36px, so the whole species block is 76px
+  tall against 97px in the first pass and ~135px in the shipping wrap.
 - **Width** — same 4-and-4 stack on the same module (widths keep to columns 1–4
   so a width chip is exactly a species chip), and the **Multi** chip stays an
   ordinary in-flow chip right after the last width, in its dashed-green
@@ -39,8 +41,9 @@ than a ninth name in the same list.
 ## Desktop only
 
 The grid is the ≥768px rail. The phone sheet keeps the wrapping chips (a fixed
-4-wide grid at 390px would make each cell ~70px, too narrow for
-"Q/R White Oak" plus a price).
+4-wide grid at 390px would make each cell ~75px, and "Q/R White Oak" needs 82px
+before padding — so the phone would be back to wrapped names in half-height
+chips).
 
 ## Shots
 
@@ -60,6 +63,11 @@ computed from the real `src/sheoga.js` tables at the shop's 40% flooring markup.
 Touches `FloorRail` / `StockedRail` in `src/SheogaConfigurator.jsx` only —
 `Chips` and `WidthRow` grow a grid variant behind the existing `useIsWide`
 switch. No engine, pricing, or data change; `sheoga.js` is untouched.
+
+Row height is a fixed 36px and chip labels are `white-space: nowrap`, so the
+block's compactness rests on every species name fitting 95px at 10px/800 —
+"Q/R White Oak" is the longest at 82px. A longer name added to the sheet would
+clip rather than wrap; that's the trade for the height.
 
 Two things to eyeball before it ships: the **Stocked prefinished** tab has 4
 species and 4–5 widths, so the same grid reads differently there; and the width
