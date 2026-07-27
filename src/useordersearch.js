@@ -7,11 +7,13 @@ import { SKU_SHOW } from "./search.jsx";
 export function useOrderSearch({ books, sel, orderItems, setOrderItems }) {
   const orderBooks = useMemo(() => books.filter((b) => b.kind === "order" && b.active), [books]);
   const bookName = (id) => books.find((b) => b.id === id)?.name || "special order";
-  // Prefer the fuzzy RPC (supabase/pricebook-fuzzy.sql); flips false for the
-  // session the first time the function is absent, so the search keeps working
-  // before the migration is run — just via the exact-substring ILIKE fallback
-  // below (still synonym-aware, just no typo tolerance).
+  // The fuzzy RPC (supabase/pricebook-fuzzy.sql) and the generated search_text
+  // column (supabase/pricebook-search.sql). Each flips false for the session the
+  // first time Postgres says it isn't there, so an install that hasn't run the
+  // migrations still searches — just without typo tolerance / off an unindexed
+  // per-field scan.
   const fuzzyRpc = useRef(true);
+  const searchCol = useRef(true);
   // Debounced server-side search across every active order book (§6). Order
   // items aren't eagerly loaded (a vendor book runs to thousands of rows), so
   // the selection-row pickers query price_book_items on demand, price each hit
@@ -30,23 +32,51 @@ export function useOrderSearch({ books, sel, orderItems, setOrderItems }) {
     // it in explicitly — that keeps size searchable ("12x24 white") without a
     // SQL re-run (search_text already covers the rest, index-backed).
     const fields = ["sku", "data->>description", "data->>product", "data->>brand", "data->>mfg", "data->>color", "data->>size"];
-    return async (q, threshold = 0.3) => {
-      const words = q.replace(/[%_,()"\\]/g, " ").trim().split(/\s+/).filter(Boolean);
-      if (!words.length) return [];
-      const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
-      if (fuzzyRpc.current) {
-        const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: threshold, p_limit: SKU_SHOW * 2 });
-        // The client-side disabled guard (both paths) also covers installs
-        // where the RPC/column migrations haven't been re-run yet.
-        if (!error) return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);
-        // PGRST202 / 42883 = undefined_function: the fuzzy migration isn't run yet.
-        if (error.code !== "PGRST202" && error.code !== "42883") throw error;
-        fuzzyRpc.current = false;
+    const rowsOf = async (query) => {
+      const { data: rows, error } = await query;
+      return { rows, error };
+    };
+    // The EXACT pass — every typed word literally present. search_text is the
+    // generated column pricebook-search.sql adds, and its trigram GIN index
+    // makes this substring form index-backed; `size` isn't in it, so it's ORed
+    // in explicitly. Without the migration this degrades to the per-field ILIKE
+    // (a scan, but the same result set).
+    const exactRows = async (groups) => {
+      if (searchCol.current) {
+        let query = base();
+        for (const grp of groups) query = query.or(grp.flatMap((alt) => [`search_text.ilike.%${alt}%`, `data->>size.ilike.%${alt}%`]).join(","));
+        const { rows, error } = await rowsOf(query);
+        if (!error) return rows;
+        if (error.code !== "42703") throw error; // undefined_column: migration not run
+        searchCol.current = false;
       }
       let query = base();
       for (const grp of groups) query = query.or(grp.flatMap((alt) => fields.map((f) => `${f}.ilike.%${alt}%`)).join(","));
-      const { data: rows, error } = await query;
+      const { rows, error } = await rowsOf(query);
       if (error) throw error;
+      return rows;
+    };
+    // The NEAR-MATCH pass — trigram similarity, only ever reached when the
+    // exact pass came back empty. It lives entirely in the RPC: with no fuzzy
+    // migration there is no near-match tier at all (repeating the exact pass
+    // here would just re-return the empty set that got us here).
+    const nearRows = async (groups, threshold) => {
+      if (!fuzzyRpc.current) return [];
+      const { data: rows, error } = await supabase.rpc("search_price_book_items", { p_book_ids: ids, p_groups: groups, p_threshold: threshold, p_limit: SKU_SHOW * 2 });
+      if (!error) return rows;
+      // PGRST202 / 42883 = undefined_function: the fuzzy migration isn't run yet.
+      if (error.code !== "PGRST202" && error.code !== "42883") throw error;
+      fuzzyRpc.current = false;
+      return [];
+    };
+    // threshold null/omitted = the exact pass; a number = the near-match pass at
+    // that cutoff. The client-side disabled guard (both paths) also covers
+    // installs where the column migrations haven't been re-run yet.
+    return async (q, threshold = null) => {
+      const words = q.replace(/[%_,()"\\]/g, " ").trim().split(/\s+/).filter(Boolean);
+      if (!words.length) return [];
+      const groups = words.map(expand); // Option D: each word -> [itself, ...synonyms]
+      const rows = threshold == null ? await exactRows(groups) : await nearRows(groups, threshold);
       return orderFloorFirst(price(rows).filter((it) => !it.disabled), q);
     };
   }, [orderBooks]);

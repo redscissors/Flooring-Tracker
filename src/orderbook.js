@@ -13,7 +13,7 @@
 // tierPrices (book-defined contractor pricing). Picking one produces the same
 // patch stockPatch builds, then adds bookId/cost/markupPct and the flags.
 
-import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize } from "./stock.js";
+import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize, hitRank } from "./stock.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => {
@@ -313,12 +313,13 @@ export function orderDrift(item, book, product) {
 
 // --- search collision (stock outranks order, by SKU) -------------------------
 
-// Stock matches always render first; order matches follow. When the same SKU
-// string exists in both spaces the order twin is dropped (the stock item wins)
-// and the surviving stock match is tagged with the book it is also on, so the
-// UI can show an "also on {book}" note instead of a second, differently-priced
-// row. Honest and simple: only exact-SKU equality collides — no fuzzy
-// cross-vendor product guessing (a wrong guess prices a job off the wrong list).
+// When the same SKU string exists in both spaces the order twin is dropped (the
+// stock item wins) and the surviving stock match is tagged with the book it is
+// also on, so the UI can show an "also on {book}" note instead of a second,
+// differently-priced row. Honest and simple: only exact-SKU equality collides —
+// no fuzzy cross-vendor product guessing (a wrong guess prices a job off the
+// wrong list). Which space a surviving hit RENDERS in is rankMerged's call, not
+// this one's.
 export function mergeSearch(stockMatches, orderMatches) {
   const bySku = new Map((stockMatches || []).map((it) => [it.sku, it]));
   const order = [];
@@ -328,6 +329,26 @@ export function mergeSearch(stockMatches, orderMatches) {
     order.push(it);
   }
   return { stock: stockMatches || [], order: collapseCopies(order) };
+}
+
+// One relevance-ordered list out of the two search spaces. mergeSearch still
+// resolves the collisions; this decides the ORDER.
+//
+// Stock used to render as a whole block ahead of every order hit, so a loose
+// stock match buried an exact special-order one past the display cap — search
+// for "hanoi" and 74 stock near-misses filled all 30 rows while the vendor
+// book's actual Hanoi sat unreachable behind them. Now the ladder decides and
+// the shelf only breaks ties: at equal relevance stock still wins (no lead
+// time, no freight), but it can no longer outrank a better match.
+//
+// Within a rung each space keeps its incoming order — stock's best-similarity
+// sort, the order tier's orderFloorFirst — so this only ever re-interleaves.
+export function rankMerged(stockMatches, orderMatches, query) {
+  const { stock, order } = mergeSearch(stockMatches, orderMatches);
+  return [
+    ...stock.map((it, i) => ({ it, rank: hitRank(it, query), shelf: 0, i })),
+    ...order.map((it, i) => ({ it, rank: hitRank(it, query), shelf: 1, i })),
+  ].sort((a, b) => a.rank - b.rank || a.shelf - b.shelf || a.i - b.i).map((r) => r.it);
 }
 
 // --- the same product in two order books -------------------------------------

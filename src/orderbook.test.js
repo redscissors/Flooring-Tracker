@@ -5,7 +5,7 @@ import {
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
   bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
-  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, PRICE_GAP_PCT,
+  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -414,6 +414,42 @@ test("mergeSearch: an exact-SKU order twin is dropped and the stock match tagged
   assert.deepEqual(s[0].alsoOn, ["vtc"]);    // "also on vtc" note, not a 2nd row
   assert.equal(o.length, 1);                 // only the non-colliding order item
   assert.equal(o[0].sku, "ZZ9");
+});
+
+// --- cross-tier ranking ------------------------------------------------------
+
+test("rankMerged: an exact special-order hit outranks a loose stock one", () => {
+  // The reported bug: stock rendered as a whole block ahead of every order hit,
+  // so near-misses buried the vendor book's actual Hanoi past the display cap.
+  const stock = [
+    { sku: "93790", description: "Custom 380 Haystack Part A" },
+    { sku: "29490", description: "Aquamix Cement Grout Haze Rmvr" },
+  ];
+  const order = [{ sku: "TL-77", bookId: "vtc", description: "Hanoi Collection Hanoi White" }];
+  assert.deepEqual(rankMerged(stock, order, "hanoi").map((it) => it.sku), ["TL-77", "93790", "29490"]);
+});
+
+test("rankMerged: the shelf still wins at equal relevance", () => {
+  const stock = [{ sku: "S-1", description: "Hanoi White" }];
+  const order = [{ sku: "V-1", bookId: "vtc", description: "Hanoi White" }];
+  assert.deepEqual(rankMerged(stock, order, "hanoi").map((it) => it.sku), ["S-1", "V-1"]);
+  // and each space keeps its incoming order within a rung
+  const twoStock = [{ sku: "S-1", description: "Hanoi White" }, { sku: "S-2", description: "Hanoi Grey" }];
+  assert.deepEqual(rankMerged(twoStock, order, "hanoi").map((it) => it.sku), ["S-1", "S-2", "V-1"]);
+});
+
+test("rankMerged: an exact SKU beats everything, in either space", () => {
+  const stock = [{ sku: "12345", description: "Hanoi White" }];
+  const order = [{ sku: "hanoi", bookId: "vtc", description: "Something else entirely" }];
+  assert.deepEqual(rankMerged(stock, order, "hanoi").map((it) => it.sku), ["hanoi", "12345"]);
+});
+
+test("rankMerged: still resolves the collision and the copy collapse", () => {
+  const stock = [{ sku: "1234", description: "Shop tile" }];
+  const order = [{ sku: "1234", bookId: "vtc", description: "Vendor tile" }];
+  const out = rankMerged(stock, order, "tile");
+  assert.equal(out.length, 1);              // the order twin is gone, not re-ranked
+  assert.deepEqual(out[0].alsoOn, ["vtc"]);
 });
 
 // --- the same product in two order books -------------------------------------
