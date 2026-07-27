@@ -571,6 +571,14 @@ Mortar uses tiered coverage by tile longest side (`max(L,W)`): `<8"`, `8–15"`,
 
 The un-rounded "exact" value is always shown next to the rounded order quantity.
 
+A manual override (grout/mortar/underlayment/add-on totals, `cartonManual`) is a
+decision, not a cache: it keeps winning after the square footage moves, and
+nothing clears it on its own. `qtyDrift` (catalog.js) compares the standing
+override against the same getter re-run with the override lifted, and the row
+renders `QtyDriftChip` — "Sq ft now calculates to N — this row is set to M" plus
+a one-click **Use N** — the same shape as the price-book drift chip. Silent when
+they agree or the auto quantity isn't computable.
+
 ## Conventions
 
 - Customer mutations go through `updateCust(id, patch)` → optimistic `setData` +

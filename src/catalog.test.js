@@ -1332,3 +1332,27 @@ test("resolveCatalog surfaces link on the flattened grout/mortar/underlayment/at
   assert.deepEqual(resolved.underlayments["TestUnderlay"].link, { bookId: "b1", sku: "SKU-U" });
   assert.deepEqual(resolved.attached["cat1"]["TestAttached"].link, { bookId: "b1", sku: "SKU-A" });
 });
+
+import { qtyDrift } from "./catalog.js";
+
+test("qtyDrift: only speaks up when a standing override disagrees with the math", () => {
+  assert.equal(qtyDrift("", 12), null, "no override, nothing to reconcile");
+  assert.equal(qtyDrift(null, 12), null);
+  assert.deepEqual(qtyDrift("12", 12), null, "they agree — silence");
+  assert.deepEqual(qtyDrift("12", 15), { auto: 15, have: 12 });
+  assert.deepEqual(qtyDrift("12", 9), { auto: 9, have: 12 }, "drift downward reports too");
+});
+
+// A row whose footage was cleared computes to nothing; "calculates to 0" is
+// noise, not news, and taking it would zero the line.
+test("qtyDrift: an uncomputable or zero auto quantity is not an offer", () => {
+  assert.equal(qtyDrift("12", 0), null);
+  assert.equal(qtyDrift("12", null), null);
+  assert.equal(qtyDrift("12", undefined), null);
+});
+
+// The override itself may legitimately be 0 ("don't order any") — that's still
+// a disagreement worth surfacing.
+test("qtyDrift: a deliberate zero override still drifts", () => {
+  assert.deepEqual(qtyDrift("0", 8), { auto: 8, have: 0 });
+});

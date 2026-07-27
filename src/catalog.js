@@ -42,6 +42,21 @@ export const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 // order quantity ceils through here.
 export const ceilQty = (ex) => Math.ceil(Math.round(ex * 1e6) / 1e6);
 
+// A hand-typed quantity (grout/mortar/underlayment/add-on totals, carton
+// counts) is a DECISION, not a cache — attic stock, one spare carton, "just
+// order 12" — so it keeps winning after the square footage that fed the
+// calculation moves, and nothing here discards it. What the row does owe the
+// salesperson is the news: this compares the standing override against what the
+// numbers say now, so the UI can offer the fresh one the way the price-book
+// drift chip offers a new price. Null when there's no override, nothing
+// computable to compare against, or the two already agree.
+export function qtyDrift(manual, autoOrder) {
+  if (manual === "" || manual == null) return null;
+  if (!(num(autoOrder) > 0)) return null;
+  const have = num(manual), auto = num(autoOrder);
+  return auto === have ? null : { auto, have };
+}
+
 // Waste is per material family: one rate for tile, one shared by every other
 // flooring type (hardwood/vinyl/laminate/carpet). Records written before the
 // split stored a single `wastePct` number — migrate it onto both families so
