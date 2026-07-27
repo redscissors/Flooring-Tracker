@@ -563,7 +563,10 @@ longer resolves — all resolving by name at calc time, like mortar.
 **Vendor freight** (issue 061, ADR 0030). A special-order book can carry a
 **freight program** — the rate table off the vendor's shipping sheet, stored in
 `price_books.data.freight` (the slot ADR 0009 §3 reserved) and edited on the book
-page beside the markup editor. Unlike everything else a book holds, freight rates
+page beside the markup editor. Switching a blank program on seeds it with
+`FREIGHT_SEED` (the Glazzio Ohio rates), labeled as such on the card until a rate
+is edited — every distributor's sheet has this shape and the pallet size and 15"
+large-format line are the shop's own facts. Unlike everything else a book holds, freight rates
 are **read live at calc time**, never snapshotted: the charge depends on the job's
 square footage, which moves with every edit, and a retyped sheet is the team
 restating what shipping costs today rather than a vendor re-import rewriting a

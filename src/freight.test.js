@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, normP, normC, newProject } from "./model.js";
-import { normFreight, hasFreightProgram, rowFreightOn, rowLongestSide, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows } from "./freight.js";
+import { normFreight, hasFreightProgram, rowFreightOn, rowLongestSide, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed } from "./freight.js";
 
 const s = normalizeSettings();
 
@@ -10,7 +10,7 @@ const s = normalizeSettings();
 // the Ohio column. Both of its pallet tables (Large Format, and Harmonic 12x24 /
 // Arvora LVT) charge $79 in Ohio, so one large-format rate covers the state.
 const GLAZZIO = {
-  mode: "program", destination: "Ohio", palletSf: 496,
+  mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
   largeRate: 79, largeFormatIn: 15,
   perPiece: 0.33, pieceMin: 14.85,
@@ -28,6 +28,20 @@ test("normFreight: an unconfigured book has no program, and 0 rates switch rules
   assert.equal(bare.perSqft, 0);
   assert.equal(bare.largeFormatIn, 15);                          // the trade's line, not 0
   assert.equal(normFreight({ mode: "program", perSqft: "-3", palletSf: "abc" }).perSqft, 0);
+});
+
+test("FREIGHT_SEED prefills a switched-on program with the Glazzio Ohio rates", () => {
+  assert.deepEqual(normFreight(FREIGHT_SEED), normFreight(GLAZZIO));
+  // Blank = nothing chargeable typed yet, which is what earns the prefill.
+  assert.equal(freightIsBlank({ mode: "program" }), true);
+  assert.equal(freightIsBlank(undefined), true);
+  assert.equal(freightIsBlank(FREIGHT_SEED), false);
+  assert.equal(freightIsBlank({ mode: "program", perPiece: 0.5 }), false);   // one rate is enough
+  // The card's "these are Glazzio's numbers" note stops the moment one moves.
+  assert.equal(freightIsSeed(FREIGHT_SEED), true);
+  assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeRate: 99 }), false);
+  assert.equal(freightIsSeed({ ...FREIGHT_SEED, destination: "Indiana" }), true);  // a label, not a rate
+  assert.equal(freightIsSeed({ mode: "program" }), false);
 });
 
 test("rowFreightOn: a row rides the shipment unless it was explicitly switched off", () => {

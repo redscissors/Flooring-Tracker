@@ -61,8 +61,10 @@ pallet is the floor.
   `freightPrintRows` / `freightOrderRows`.
 - **`src/freightui.jsx`** — the drawer row and the header master switch, split
   out as presentation so the preview harness mounts the real components.
-- **Price book → the book page** — a Freight card beside the markup editor,
-  with a worked example that moves as you type a rate.
+- **Price book → the book page** — a Freight card beside the markup editor, with
+  a worked example that moves as you type a rate. Switching a blank program on
+  fills in the Ohio rates above (`FREIGHT_SEED`) instead of nine empty boxes; the
+  card says they're Glazzio's numbers until one is edited.
 - **The job** — freight lands in the materials estimate, the order summary, the
   grand total, the printed estimate's extras band, the printed order sheet, and
   the order-entry panel's Special order section.

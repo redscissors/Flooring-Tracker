@@ -73,7 +73,7 @@ function DrawerCase() {
           <FreightColumn on={job.freight !== false} amount={`$${Math.round(freightTotal(lines)).toLocaleString()}`} onSet={(v) => setJob((j) => ({ ...j, freight: v }))} />
         </div>
         <div className="text-[12px] text-slate-500 max-w-xs self-center">
-          Freight sits under “Estimate shows” in the same column, as its own card with its own heading — it carries the job’s total. Press <b>None</b> and every row below goes quiet.
+          Freight sits under “Estimate shows” in the same column, as its own card with its own heading — one button, carrying the job’s total. Press it and every row below goes quiet.
         </div>
       </div>
       <div className="ft-mats rounded-lg border border-slate-200 max-w-2xl overflow-hidden" style={{ background: "var(--ft-cream)" }}>

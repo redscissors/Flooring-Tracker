@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
-import { normFreight, freightParts, freightSummary } from "./freight.js";
+import { normFreight, freightParts, freightSummary, freightIsBlank, freightIsSeed, FREIGHT_SEED } from "./freight.js";
 import { MAX_QUICK_MARKUPS } from "./costentry.js";
 import { priceUnitOf, orderUnitOf } from "./stock.js";
 import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
@@ -1250,7 +1250,10 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
         <Truck size={14} className="text-slate-400" />
         <span className="text-sm font-medium">Freight</span>
         <span className="text-[11px] text-slate-400">charged once per order, on top of the item cost</span>
-        <button onClick={() => commit({ ...normFreight(f), mode: on ? "none" : "program" })}
+        {/* Switching a blank program on seeds it rather than opening nine empty
+            boxes — the shape is the same for every distributor, and the seed is
+            labeled until a rate is edited. */}
+        <button onClick={() => commit(on ? { ...normFreight(f), mode: "none" } : freightIsBlank(f) ? { ...FREIGHT_SEED } : { ...normFreight(f), mode: "program" })}
           className={"ml-auto text-xs rounded-md border px-2.5 py-1 " + (on ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
           {on ? "On" : "Off"}
         </button>
@@ -1287,6 +1290,11 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
           <p className="text-[11px] text-slate-400 mt-3">
             300 sf of 12×12 → <b className="text-slate-500">{demo(300, 12)}</b> · 300 sf of 12×24 → <b className="text-slate-500">{demo(300, 24)}</b>
           </p>
+          {freightIsSeed(f) && (
+            <p className="text-[11px] text-amber-600 mt-1.5">
+              These are the Glazzio 2026 Ohio rates, filled in as a starting point — check every figure against this vendor&apos;s own sheet.
+            </p>
+          )}
         </>
       )}
     </div>

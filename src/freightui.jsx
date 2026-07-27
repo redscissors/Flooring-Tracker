@@ -39,33 +39,28 @@ export function FreightMatRow({ book, on, jobOff, line, accent, rowTint, onToggl
   );
 }
 
-// The job's master switch, as a card of its own — the same
-// header-over-pressed-options shape as Estimate shows and Price level. It sits
-// under Estimate shows in the header's third column but carries its own border
-// and heading, because a row tacked onto the end of that card reads as a
-// footnote to printed pricing, which it has nothing to do with. Two options
-// rather than one toggle for the same reason: the card states both positions, so
-// "None" is a choice someone made, not the absence of a press.
+// The job's master switch: one card, one button. It sits under Estimate shows in
+// the header's third column but carries its own border and heading, because a
+// row tacked onto the end of that card reads as a footnote to printed pricing,
+// which it has nothing to do with.
 //
-// Freight is on by default and the per-row rows do the fine-grained waiving, so
-// this is the one press for "we're not charging shipping on this job" — and the
-// place to look to find out whether the total already includes it.
+// One press, like the waste card's cells — pressed means applied, and the label
+// says which state you're in rather than what the press will do. Freight is on
+// by default and the per-row rows do the fine-grained waiving, so this is the
+// one press for "we're not charging shipping on this job" — and the place to
+// look to find out whether the total already includes it.
 // `width` is optional: with none it stretches to whatever column it's dropped in.
 export function FreightColumn({ on, amount, onSet, width }) {
-  const opt = (active) => "ft-hopt gap-1 " + (active ? "on bg-indigo-600" : "");
   return (
     <div className="ft-hcol shrink-0" style={width ? { width } : undefined}>
       <div className="ft-hhead">Freight</div>
-      <button onClick={() => onSet(true)} className={opt(on)}
-        title="Vendor shipping is added to this job's special orders, at cost — the price level never discounts it">
-        <span>Include</span>
+      <button onClick={() => onSet(!on)} className={"ft-hopt gap-1 " + (on ? "on bg-indigo-600" : "")}
+        title={on ? "Vendor shipping is on this job's special orders, at cost — the price level never discounts it. Press to leave it off."
+          : "No freight on this job, whatever the rows say. Press to add vendor shipping."}>
+        <span>{on ? "Included" : "None"}</span>
         {/* Whole dollars: this is a glance figure, and the cents are in the
             order summary two clicks away. */}
         {on && amount && <span className="ml-auto text-[10px] shrink-0" style={{ opacity: 0.85 }}>{amount}</span>}
-      </button>
-      <button onClick={() => onSet(false)} className={opt(!on)}
-        title="No freight on this job, whatever the rows say">
-        <span>None</span>
       </button>
     </div>
   );

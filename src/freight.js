@@ -62,6 +62,29 @@ export const normFreight = (raw) => ({
 export const bookFreight = (book) => normFreight(book?.data?.freight);
 export const hasFreightProgram = (book) => bookFreight(book).mode === "program";
 
+// The rates a freshly switched-on program starts with: Glazzio's 2026 shipping
+// sheet read down the Ohio column, which is the only destination the shop ships
+// to and the only real program anyone has typed. Every distributor's sheet has
+// this shape, and most of the figures (the pallet size, the 15" large-format
+// line) are the shop's own facts rather than Glazzio's — so seeding beats nine
+// empty boxes even for a different vendor. It is a STARTING POINT, not a
+// default: the card says where the numbers came from until someone edits one.
+export const FREIGHT_SEED = Object.freeze({
+  mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
+  perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
+  largeRate: 79, largeFormatIn: 15, perPiece: 0.33, pieceMin: 14.85,
+});
+
+const RATE_FIELDS = ["palletSf", "perSqft", "minCharge", "palletAt", "palletRate", "largeRate", "perPiece", "pieceMin"];
+// A program nobody has given rates to — every chargeable figure still zero.
+export const freightIsBlank = (f) => RATE_FIELDS.every((k) => !(normFreight(f)[k] > 0));
+// Still carrying the seed verbatim, so the card can say so and then stop saying
+// it the moment a rate is touched.
+export const freightIsSeed = (f) => {
+  const n = normFreight(f);
+  return RATE_FIELDS.every((k) => n[k] === FREIGHT_SEED[k]) && n.largeFormatIn === FREIGHT_SEED.largeFormatIn;
+};
+
 // A row rides the shipment unless someone unchecked it. Default-on (rather than
 // a stored `checked` like grout) is deliberate: the freight is real the moment
 // the material is ordered, so the quote should carry it without anyone
