@@ -17,6 +17,16 @@ import { descParts } from "./sheoga.js";
 // the shop's own, so they file as stock lines (SKU ⇥ qty).
 export const isSpecialOrder = (p, stockBookIds) => (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga;
 
+// What an order line with no quantity is keyed as. A zero is unusable at the
+// desk twice over: the ERP won't take a zero-quantity line at all, and the
+// panel's per-unit cost/sell are the extended totals ÷ qty, so a zero also
+// blanks the pricing the salesperson came here to read. A quantity is the one
+// field they always confirm against the order anyway, so a quantity-less line
+// is priced and keyed as ONE of its sell unit — and says so (amber row), since
+// a silently invented quantity is worse than a zero.
+export const ORDER_MIN_QTY = 1;
+export const orderQty = (qty) => (Number(qty) > 0 ? { qty: Number(qty), qtyAssumed: false } : { qty: ORDER_MIN_QTY, qtyAssumed: true });
+
 // The vendor prefix the configurator writes into the row name. It's worth ~9 of
 // a 30-character field and the PO already says who it's going to, so it stays on
 // screen but out of the fitted description.

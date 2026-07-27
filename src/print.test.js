@@ -115,3 +115,48 @@ test("orderEntryRow: an each line still carries no unit tag", () => {
   assert.equal(r.unitCode, "EA");
   assert.equal(r.tag, "");
 });
+
+// A line the salesperson hasn't measured yet still has to reach the order desk:
+// the ERP takes no zero-quantity line, and a zero qty also zeroes the per-unit
+// cost/sell (they're extended ÷ qty), so the pricing they came to read is blank.
+test("orderEntryRow: a quantity-less line keys as 1 and flags it", () => {
+  const p = { ...newProduct(), type: "tile", qty: "", priceSqft: "6.5", costSqft: "4", sku: "ANA-1224", brandColor: "Anatolia Marlow", bookId: "bkVTC" };
+  const r = orderEntryRow(p, s, "Master Bath", 0, new Set());
+  assert.equal(r.qty, 1);
+  assert.equal(r.qtyAssumed, true);
+  assert.equal(r.qtyText, "1 SF");
+  assert.equal(r.perSell, 6.5); // priced per sf, not $0.00
+  assert.equal(r.perCost, 4);
+});
+
+// The assumed quantity is ONE OF THE SELL UNIT, so a carton-sold row reads per
+// carton — the same per-unit it will read once the footage is entered.
+test("orderEntryRow: a quantity-less carton line keys as one whole carton", () => {
+  const p = { ...newProduct(), type: "tile", qty: "", priceSqft: "5", costSqft: "3", cartonSf: "12", sku: "TL-9", brandColor: "Hanoi White" };
+  const r = orderEntryRow(p, s, "Kitchen", 0, new Set());
+  assert.equal(r.qty, 1);
+  assert.equal(r.qtyAssumed, true);
+  assert.equal(r.unitCode, "CT");
+  assert.equal(r.perSell, 60); // one 12 sf carton at $5/sf
+  assert.equal(r.perCost, 36);
+});
+
+// A stock count line is what the desk copies as SKU⇥qty — "SKU 0" is the paste
+// the ERP rejected.
+test("orderEntryRow: a quantity-less count line keys as 1 in its own sell unit", () => {
+  const p = { ...newProduct(), type: "misc", qtyType: "count", qty: "0", priceSqft: "84.2", sellUnit: "RL", sku: "23015", brandColor: "Schluter Kerdi-Band" };
+  const r = orderEntryRow(p, s, "Master Bath", 0, new Set());
+  assert.equal(r.qty, 1);
+  assert.equal(r.qtyAssumed, true);
+  assert.equal(r.qtyText, "1 RL");
+  assert.equal(r.perSell, 84.2);
+});
+
+// A measured row must be untouched — no flag, no invented quantity.
+test("orderEntryRow: a line with a quantity is never flagged", () => {
+  const p = { ...newProduct(), type: "tile", qty: "240", priceSqft: "6.5", sku: "ANA-1224" };
+  const r = orderEntryRow(p, s, "Master Bath", 0, new Set());
+  assert.equal(r.qty, 240);
+  assert.equal(r.qtyAssumed, false);
+  assert.equal(r.perSell, 6.5);
+});

@@ -15,7 +15,10 @@
 // estimated materials (mortar, grout, grout base, caulk, underlayment) are
 // stock items too, so they ride the same list — labeled with their kind —
 // and one "Copy all" pastes the whole order. A line with no SKU can't be
-// keyed, so it shows red and is left out of the copies.
+// keyed, so it shows red and is left out of the copies. A line with no
+// QUANTITY is keyed as 1 (orderQty) — the ERP takes no zero-quantity line and
+// a zero qty blanks the per-unit pricing — and the whole row turns amber so the
+// salesperson can see the panel supplied that number, not the estimate.
 //
 // Pure presentation: App.jsx builds the row objects (orderEntryRow) from the
 // snapshotted product rows and passes them in. Nothing here mutates state,
@@ -30,6 +33,17 @@ const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDig
 // checkboxes (accent-color: --ft-brand), white check on moss. Set inline rather
 // than via Tailwind's emerald utilities, which this theme's build does not render.
 const DONE_MOSS = { color: "#fff", background: "var(--ft-brand)", borderColor: "var(--ft-brand)" };
+// A line whose quantity the panel supplied itself (orderQty — no qty on the
+// row, so it keys as 1). Amber is already this app's "we changed this, look at
+// it" signal: the grid rings a missing Sq Ft cell in the same amber, and the
+// split-description Ext button below is amber too. Inline, like DONE_MOSS,
+// because the row's zebra background is inline and would otherwise win.
+const ASSUMED_BG = "#fef6e2";
+const ASSUMED_INK = "#b45309";
+// A tinted row alone is easy to skim past on a long order; the edge bar is what
+// makes the flagged lines countable down the side of the list.
+const ASSUMED_ROW = { background: ASSUMED_BG, boxShadow: "inset 3px 0 0 #f59e0b" };
+const ASSUMED_TITLE = "No quantity on this line — the panel keyed it as 1. Set the real quantity when you enter the order.";
 // Cost/sell read in the sell unit; "SF" shows lowercase to match the estimate's
 // "/sf", the rest stay uppercase codes (CT/SH/PC/EA).
 const perUnit = (code) => "/" + (code === "SF" ? "sf" : code);
@@ -80,7 +94,8 @@ function SpecialRow({ r, alt, descLimit }) {
   const copyExt = async () => { await writeClipboard(r.desc.ext); setCopiedExt(true); };
   const d = r.desc;
   return (
-    <div style={{ ...GRID, padding: "9px 12px", background: alt ? "var(--ft-prod)" : "transparent" }}
+    <div style={{ ...GRID, padding: "9px 12px", background: alt ? "var(--ft-prod)" : "transparent", ...(r.qtyAssumed ? ASSUMED_ROW : null) }}
+      title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
       className="border-t border-slate-100 first:border-t-0">
       <button onClick={copy} title="Copy the description field" style={copied ? DONE_MOSS : undefined}
         className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
@@ -122,7 +137,10 @@ function SpecialRow({ r, alt, descLimit }) {
         )}
       </div>
 
-      <div className="text-right ft-mono font-bold text-[13px] whitespace-nowrap">{r.qty > 0 ? <>{r.qty} <span className="text-[9px] font-semibold text-slate-400">{r.unitCode}</span></> : "—"}</div>
+      <div className="text-right ft-mono font-bold text-[13px] whitespace-nowrap" style={r.qtyAssumed ? { color: ASSUMED_INK } : undefined}>
+        {r.qty > 0 ? <>{r.qty} <span className={"text-[9px] font-semibold " + (r.qtyAssumed ? "" : "text-slate-400")}>{r.unitCode}</span></> : "—"}
+        {r.qtyAssumed && <div className="ft-eyebrow text-[8px] font-extrabold tracking-[.06em] leading-tight">assumed</div>}
+      </div>
       <div className="text-right ft-mono font-semibold text-[12.5px] whitespace-nowrap">{money(r.perCost)}<span className="text-[9px] font-semibold text-slate-400">{perUnit(r.unitCode)}</span></div>
       <div className="text-right ft-mono font-bold text-[12.5px] whitespace-nowrap" style={{ color: "var(--ft-brand-deep)" }}>{money(r.perSell)}<span className="text-[9px] font-semibold text-slate-400">{perUnit(r.unitCode)}</span></div>
     </div>
@@ -138,6 +156,7 @@ function CopySection({ title, rows, emptyText, hint }) {
   const toggle = (id) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const line = (r) => `${r.sku}\t${r.qty}`;
   const copyable = rows.filter((r) => r.sku);
+  const assumed = rows.filter((r) => r.qtyAssumed).length;
   const bulk = copyable.map(line).join("\n");
   const selected = copyable.filter((r) => sel.has(r.id)).map(line).join("\n");
   return (
@@ -156,15 +175,22 @@ function CopySection({ title, rows, emptyText, hint }) {
       ) : (
         <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
           {rows.map((r) => (
-            <label key={r.id} className={"flex items-center gap-2 px-3 py-2 text-[12.5px] " + (r.sku ? "cursor-pointer hover:bg-slate-50" : "cursor-default")}>
+            <label key={r.id} title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
+              style={r.qtyAssumed ? ASSUMED_ROW : undefined}
+              className={"flex items-center gap-2 px-3 py-2 text-[12.5px] " + (r.sku ? "cursor-pointer hover:bg-slate-50" : "cursor-default")}>
               <span className={"ft-mono shrink-0 w-24 truncate " + (r.sku ? "text-slate-400" : "font-semibold text-red-600")} title={r.sku}>{r.sku || "no SKU"}</span>
-              <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}>{r.qtyText}</span>
+              <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}
+                style={r.qtyAssumed ? { color: ASSUMED_INK } : undefined}>{r.qtyText}{r.qtyAssumed && <span className="ft-eyebrow text-[8px] font-extrabold tracking-[.06em] ml-1">assumed</span>}</span>
               <span className={"truncate flex-1" + (r.sku ? "" : " text-red-600")}>{r.name}{r.kind && <span className={"text-[11px] " + (r.sku ? "text-slate-400" : "text-red-400")}> {r.kind}</span>}</span>
               <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} disabled={!r.sku}
                 className="w-[17px] h-[17px] shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default" style={{ accentColor: "var(--ft-brand)" }} />
             </label>
           ))}
-          <div className="px-3 py-1.5 text-[11px] text-slate-400">{hint}{copyable.length < rows.length && <span className="text-red-600"> Red lines have no SKU and are not copied.</span>}</div>
+          <div className="px-3 py-1.5 text-[11px] text-slate-400">
+            {hint}
+            {assumed > 0 && <span className="text-amber-700"> {assumed === 1 ? "One amber line has" : `${assumed} amber lines have`} no quantity on the estimate — copied as 1.</span>}
+            {copyable.length < rows.length && <span className="text-red-600"> Red lines have no SKU and are not copied.</span>}
+          </div>
         </div>
       )}
     </section>
@@ -173,6 +199,7 @@ function CopySection({ title, rows, emptyText, hint }) {
 
 export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0, onClose }) {
   const splits = special.filter((r) => r.desc && r.desc.ext).length;
+  const assumed = special.filter((r) => r.qtyAssumed).length;
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
@@ -205,6 +232,11 @@ export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0,
                 <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100">
                   A copied line stays a green check so you can track your place · Cost &amp; Sell are per the buy/sell unit.
                   {descLimit > 0 && <> · Descriptions are fitted to {descLimit} characters.</>}
+                  {assumed > 0 && (
+                    <span className="text-amber-700">
+                      {" "}{assumed === 1 ? "One amber line has" : `${assumed} amber lines have`} no quantity on the estimate — priced and keyed as <b>1</b>.
+                    </span>
+                  )}
                   {splits > 0 && (
                     <span className="text-amber-700">
                       {" "}{splits === 1 ? "One line is" : `${splits} lines are`} too long to fit — the “+” means the rest is in <b>Ext</b>.

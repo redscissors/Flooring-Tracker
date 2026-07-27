@@ -238,10 +238,19 @@ src/
                     # is arbitrary vendor text with no short rung) and
                     # `orderCopyText` (the description field's contents, nothing
                     # else — qty/cost/sell are separate ERP fields with their own
-                    # columns). Split from the .jsx so `node --test` can cover it;
+                    # columns), and `orderQty` (2026-07-27): a line with no
+                    # quantity is keyed as ONE of its sell unit — the ERP takes
+                    # no zero-quantity line, and a zero qty also blanks the
+                    # per-unit cost/sell, which are extended totals ÷ qty.
+                    # orderEntryRow re-runs the row's math at qty 1 so a
+                    # carton-sold line's "one" is a whole carton, and sets
+                    # `qtyAssumed` for the panel's amber flag. Split from the
+                    # .jsx so `node --test` can cover it;
                     # imports always name the extension
   orderentry.jsx    # the panel itself — Special order (per-line copy) above
-                    # Stock (checkboxes + Copy all as SKU⇥qty). A Sheoga line has
+                    # Stock (checkboxes + Copy all as SKU⇥qty). A `qtyAssumed`
+                    # line reads amber (tint + edge bar + "ASSUMED") with a
+                    # count in the section footer. A Sheoga line has
                     # no SKU to key, so it reads "by description — no SKU" and
                     # copies its qty inline
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
