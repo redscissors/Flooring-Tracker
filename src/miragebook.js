@@ -491,10 +491,75 @@ function walkFloorBlocks(sheets, read) {
   return rows;
 }
 
+// ---- the packaging band ------------------------------------------------------
+// Each flooring sheet closes its price grid with a Packaging block — the only
+// place in the four documents that states a box's coverage:
+//
+//   [ Packaging             |  | TruBalance 3/4" |        |        |      |       | … ]
+//   [                       |  | 5"              | 6-1/2" | 7-3/4" | 9"** |       | … ]
+//   [                       |  |                 |        |        | Box A | Box B | … ]
+//   [ Box content (sq. ft.) |  | 22.70           | 14.75  | 23.00  | 25.45 | 19.00 | … ]
+//
+// Coverage RIDES THE PRICE ROW rather than being read once for the book: the two
+// sheets disagree (TruBalance 7-3/4" is 23.00 sf on the 2026 Hardwood sheet and
+// 17.60 on the 2025 Value Tower), so a floor must take the coverage off the same
+// sheet its price came from, or it orders in a box the vendor isn't shipping.
+//
+// A width with TWO box sizes — the 9"'s Box A/Box B, a 70/30 mix the sheet says
+// "may vary from order to order" — has no single carton, so it is reported and
+// left WITHOUT coverage. Quoting it off whichever box we picked would be a made-up
+// number; without one it quotes exact square feet, which is at least honest.
+const BAND_RE = /TruBalance|Classic|Lock|Solid/i;
+const boxSf = (v) => { const n = parseFloat(str(v).replace(/,/g, "")); return Number.isFinite(n) && n > 0 ? n : null; };
+
+export function parseMiragePackaging(sheets) {
+  const coverage = new Map(), split = new Map();
+  for (const sh of sheets || []) {
+    const grid = sh?.rows || [];
+    for (let h = 0; h < grid.length; h++) {
+      if (!(grid[h] || []).some((c) => /box\s*content/i.test(str(c)))) continue;
+      // Search upward for the two header rows rather than reading fixed offsets:
+      // the Hardwood sheet slips a Box A/Box B row between them, Value Tower
+      // doesn't.
+      let widthRow = -1, bandRow = -1;
+      for (let r = h - 1; r >= 0 && r >= h - 4 && widthRow < 0; r--) if ((grid[r] || []).some(looksWidth)) widthRow = r;
+      if (widthRow < 0) continue;
+      for (let r = widthRow - 1; r >= 0 && r >= widthRow - 4 && bandRow < 0; r--) if ((grid[r] || []).some((c) => BAND_RE.test(str(c)))) bandRow = r;
+      if (bandRow < 0) continue;
+
+      const width = Math.max((grid[h] || []).length, (grid[widthRow] || []).length, (grid[bandRow] || []).length);
+      let band = "", key = "", label = "", at = -1;
+      for (let c = 0; c < width; c++) {
+        const b = cell(grid[bandRow], c);
+        if (b && BAND_RE.test(b)) band = b;                 // merged cell: fills right
+        const w = cell(grid[widthRow], c);
+        const sf = boxSf(cell(grid[h], c));
+        if (looksWidth(w) && band) {
+          key = `${normConstruction(band)}|${normWidth(w)}`;
+          label = `${band} ${w}`;
+          at = c;
+          if (sf != null) coverage.set(key, sf);
+          continue;
+        }
+        // A second box for the width to its left: no header of its own, so it is
+        // recognized by position — immediately right of the column it belongs to.
+        if (sf != null && key && c === at + 1) { split.set(key, label); at = c; }
+      }
+    }
+  }
+  for (const key of split.keys()) coverage.delete(key);
+  return { coverage, split };
+}
+
 export function parseMirageFlooring(sheets) {
-  const rows = walkFloorBlocks(sheets, priceOf).map(({ value, ...r }) => ({ ...r, price: value }));
+  const { coverage, split } = parseMiragePackaging(sheets);
+  const rows = walkFloorBlocks(sheets, priceOf).map(({ value, ...r }) => ({
+    ...r,
+    price: value,
+    coverage: coverage.get(`${normConstruction(r.construction)}|${normWidth(r.width)}`) ?? null,
+  }));
   const warnings = rows.length ? [] : ["No Mirage flooring prices were recognized — is this a Mirage flooring price sheet?"];
-  return { rows, warnings };
+  return { rows, warnings, split: [...split.entries()] };
 }
 
 // The SKU half of the same grid.
@@ -815,7 +880,7 @@ export function priceChartRows(chartRows, priceRows) {
   const rows = [], unpriced = [];
   for (const c of chartRows || []) {
     const p = byKey.get(key(c));
-    if (p) rows.push({ ...c, price: p.price, priceSheet: p.sheet });
+    if (p) rows.push({ ...c, price: p.price, priceSheet: p.sheet, coverage: p.coverage ?? null });
     else unpriced.push(c);
   }
   return { rows, unpriced };
@@ -904,9 +969,11 @@ export function parseMirage(payloads, name = "Mirage price book") {
   // silently overwriting a sheet we CAN date.
   const priceRows = [];
   const gridRows = [];
+  const splitBoxes = new Map();
   for (const o of floorAt.map((t) => ({ t, at: effectiveDate(t.p.sheets) })).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))) {
     const r = parseMirageFlooring(o.t.p.sheets);
     priceRows.push(...r.rows);
+    for (const [k, label] of r.split) splitBoxes.set(k, label);
     if (!r.rows.length) warnings.push(...r.warnings);
     // Both places a flooring sheet can carry SKUs the chart doesn't: Value
     // Tower's per-colour grid, and the sheet's own SKU half. Both are filtered to
@@ -939,7 +1006,7 @@ export function parseMirage(payloads, name = "Mirage price book") {
 
   const out = [CANON.slice()];
   for (const r of priced) {
-    out.push([r.sku, floorName(r), r.collection, r.color, r.width, "",
+    out.push([r.sku, floorName(r), r.collection, r.color, r.width, r.coverage != null ? String(r.coverage) : "",
       r.price != null ? String(r.price) : "", "SF", "hardwood", "", MIRAGE_BRAND, ""]);
   }
 
@@ -998,6 +1065,18 @@ export function parseMirage(payloads, name = "Mirage price book") {
   // colours or its prices looks like a working import of a smaller book.
   if (!chartAt) warnings.push("The Mirage Product Chart is missing. It is the only document that carries colours and floor SKUs, so no floors can be built from the price sheets alone.");
   if (!floorAt.length) warnings.push("No Mirage flooring price sheet in this set — every chart SKU would be unpriced, and unpriced rows are dropped.");
+  // Coverage is what makes a floor order in whole boxes instead of exact square
+  // feet, so a floor that reaches the book without one is a quantity the shop
+  // will have to fix by hand — say which widths, not just how many.
+  const bare = priced.filter((r) => r.coverage == null);
+  if (bare.length) {
+    const combos = [...new Set(bare.map((r) => [r.construction, r.width].filter(Boolean).join(" ") || "unlabelled"))];
+    warnings.push(`${bare.length} floors carry no box coverage and will quote by the square foot rather than in whole boxes: ${combos.slice(0, 6).join(", ")}${combos.length > 6 ? ", …" : ""}. The sheet's Packaging band is where coverage comes from — a width missing there, or renamed, lands here.`);
+    // Only for split widths a floor actually landed on: a width the sheet
+    // packages two ways but prices nowhere is not something to warn about.
+    const hit = [...splitBoxes.entries()].filter(([k]) => bare.some((r) => `${normConstruction(r.construction)}|${normWidth(r.width)}` === k));
+    if (hit.length) warnings.push(`${hit.map(([, label]) => label).join(", ")} ships in two box sizes (the sheet's Box A / Box B, a ratio the sheet says may vary from order to order), so no single box figure fits — that is why those rows have none.`);
+  }
   if (unpriced.length) warnings.push(`${unpriced.length} chart SKUs had no price in these sheets and were dropped. Expect some: the chart and the sheets are published on different dates, so an older chart still lists widths the current sheets no longer carry.`);
   if (!trimAt.length) warnings.push("No Mirage trim sheet in this set — the book will have floors but no mouldings or stair parts.");
   if (trimUnpriced) warnings.push(`${trimUnpriced} trim SKUs had no price for their species and were dropped (the sheet leaves some trims priced only in certain species).`);
@@ -1005,6 +1084,6 @@ export function parseMirage(payloads, name = "Mirage price book") {
 
   return {
     name, rows: out, mapping: { ...MIRAGE_MAPPING }, warnings,
-    meta: { floors: priced.length, unpriced: unpriced.length, chart: chart.rows.length, prices: priceRows.length, fromGrid, trims, trimUnpriced, trimOrphan },
+    meta: { floors: priced.length, covered: priced.length - bare.length, unpriced: unpriced.length, chart: chart.rows.length, prices: priceRows.length, fromGrid, trims, trimUnpriced, trimOrphan },
   };
 }

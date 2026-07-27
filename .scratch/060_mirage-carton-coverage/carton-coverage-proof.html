@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Mirage carton coverage — preview proof</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --ink:#1f2421; --paper:#faf9f6; --mute:#8a8f8a; --line:#e4e2dc; --moss:#5f7a5a; --moss-soft:#eef1ea; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:28px 32px 60px; background:var(--paper); color:var(--ink);
+         font:14px/1.45 Manrope, system-ui, sans-serif; }
+  h1 { font-size:19px; margin:0 0 2px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  h3 { font-size:12px; margin:0 0 6px; color:var(--mute); font-weight:600; }
+  .sub { color:var(--mute); font-size:12px; margin-bottom:24px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:22px; }
+  .kv { display:flex; gap:22px; flex-wrap:wrap; font-size:12px; color:var(--mute); margin-bottom:14px; }
+  .kv b { color:var(--ink); font-weight:600; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th { text-align:left; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute);
+       border-bottom:1px solid var(--line); padding:5px 8px; white-space:nowrap; }
+  td { border-bottom:1px solid #f0efeb; padding:5px 8px; vertical-align:top; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sku { font-weight:600; white-space:nowrap; }
+  .bands { display:flex; gap:26px; flex-wrap:wrap; }
+  .band { min-width:270px; flex:1; }
+  tr.split td { color:#8a6d3b; background:#fdf6ec; font-size:11px; }
+  .was { color:var(--mute); text-decoration:line-through; }
+  .now { color:var(--moss); font-weight:600; }
+  .chip { display:inline-block; font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:999px;
+          background:var(--moss-soft); color:var(--moss); border:1px solid #d8dfd2; }
+  .foot { color:var(--mute); font-size:11px; margin-top:18px; }
+</style>
+</head>
+<body>
+<h1>Mirage floors order in whole boxes again</h1>
+<div class="sub">Real modules (<code>miragebook.js</code> → <code>pricebook.js</code> → <code>orderbook.js</code> → <code>catalog.js</code>)
+over the real four Mirage files. Sample job: <b>420 sq ft</b>, book markup 35%, waste 5% (floor).</div>
+
+<div class="card">
+  <h2>1 · The packaging band, now parsed</h2>
+  <div class="kv"><span>Each flooring sheet states box coverage once, per construction × width. Nothing read it before.</span></div>
+  <div class="bands">
+  <div class="band">
+    <h3>OVF-Mirage-Hardwood.xls</h3>
+    <table>
+      <thead><tr><th>Construction</th><th>Width</th><th class="num">Box content</th></tr></thead>
+      <tbody><tr><td>TruBalance</td><td>5</td><td class="num">22.7 sf</td></tr><tr><td>TruBalance</td><td>6-1/2</td><td class="num">14.75 sf</td></tr><tr><td>TruBalance</td><td>7-3/4</td><td class="num">23 sf</td></tr><tr><td>TruBalance</td><td>Herringbone 5</td><td class="num">20.85 sf</td></tr><tr><td>TruBalance</td><td>Chevron 5</td><td class="num">16.95 sf</td></tr><tr><td>TruBalance Lite</td><td>5</td><td class="num">33.05 sf</td></tr><tr><td>TruBalance Lite</td><td>7</td><td class="num">27.75 sf</td></tr><tr><td>TruBalance Lite</td><td>Herringbone 5</td><td class="num">29.2 sf</td></tr><tr><td>TruBalance Lite</td><td>Chevron 5</td><td class="num">23.75 sf</td></tr><tr><td>Lock</td><td>5</td><td class="num">32.6 sf</td></tr><tr><td>Classic</td><td>3-1/4</td><td class="num">20 sf</td></tr><tr><td>Classic</td><td>4-1/4</td><td class="num">18 sf</td></tr>
+      <tr class="split"><td colspan="3">TruBalance 3/4" 9"** — two box sizes (Box A / Box B), no single figure fits, left without coverage</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="band">
+    <h3>OVF-Mirage-Value-Tower.xls</h3>
+    <table>
+      <thead><tr><th>Construction</th><th>Width</th><th class="num">Box content</th></tr></thead>
+      <tbody><tr><td>TruBalance</td><td>5</td><td class="num">22.7 sf</td></tr><tr><td>TruBalance</td><td>6-1/2</td><td class="num">14.75 sf</td></tr><tr><td>TruBalance</td><td>7</td><td class="num">19.8 sf</td></tr><tr><td>TruBalance</td><td>7-3/4</td><td class="num">17.6 sf</td></tr><tr><td>TruBalance</td><td>Herringbone 5</td><td class="num">16.67 sf</td></tr><tr><td>TruBalance</td><td>Chevron 5</td><td class="num">13.6 sf</td></tr><tr><td>TruBalance Lite</td><td>5</td><td class="num">28.5 sf</td></tr><tr><td>TruBalance Lite</td><td>7</td><td class="num">23.8 sf</td></tr><tr><td>TruBalance Lite</td><td>Herringbone 5</td><td class="num">25 sf</td></tr><tr><td>Lock</td><td>5</td><td class="num">32.6 sf</td></tr><tr><td>Classic</td><td>3-1/4</td><td class="num">20 sf</td></tr><tr><td>Classic</td><td>4-1/4</td><td class="num">18 sf</td></tr>
+      
+      </tbody>
+    </table>
+  </div></div>
+</div>
+
+<div class="card">
+  <h2>2 · What reaches the book</h2>
+  <div class="kv">
+    <span><b>954</b> priced floors</span>
+    <span><b>954</b> with box coverage <span class="chip">was 0</span></span>
+    <span><b>805</b> trims (unchanged, sold EA)</span>
+  </div>
+  <table>
+    <thead><tr><th>Item #</th><th>Name</th><th>Width</th><th class="num">$/SF cost</th><th class="num">SF/box before</th><th class="num">SF/box now</th></tr></thead>
+    <tbody><tr>
+      <td class="sku">86360</td><td>Sweet Memories Maple Cotton Candy Character TruBalance</td><td>5"</td>
+      <td class="num">$8.89</td><td class="num was">—</td><td class="num now">22.7 sf</td></tr><tr>
+      <td class="sku">76455</td><td>Autumn Maple Harvest Character TruBalance</td><td>5"</td>
+      <td class="num">$8.89</td><td class="num was">—</td><td class="num now">22.7 sf</td></tr><tr>
+      <td class="sku">88364</td><td>Autumn Maple Harvest Character TruBalance</td><td>7-3/4"</td>
+      <td class="num">$9.99</td><td class="num was">—</td><td class="num now">23 sf</td></tr><tr>
+      <td class="sku">76939N</td><td>Autumn Maple Harvest Character TruBalance</td><td>Herringbone 5"</td>
+      <td class="num">$11.19</td><td class="num was">—</td><td class="num now">20.85 sf</td></tr><tr>
+      <td class="sku">87144</td><td>Autumn Maple Harvest Character TruBalance Lite</td><td>7"</td>
+      <td class="num">$7.79</td><td class="num was">—</td><td class="num now">27.75 sf</td></tr><tr>
+      <td class="sku">86246</td><td>Autumn Maple Harvest Character TruBalance Lite</td><td>Herringbone 5"</td>
+      <td class="num">$9.49</td><td class="num was">—</td><td class="num now">29.2 sf</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>3 · The row math on a 420 sq ft job</h2>
+  <div class="kv"><span>Same snapshot path a salesperson's SKU pick takes — <code>orderPatch</code> → the product row → <code>getCarton</code>.</span></div>
+  <table>
+    <thead><tr><th>Item #</th><th class="num">Sell $/SF</th>
+      <th class="num">Before — quantity</th><th class="num">Before — line</th>
+      <th class="num">Now — quantity</th><th class="num">Now — line</th></tr></thead>
+    <tbody><tr>
+      <td class="sku">86360</td><td class="num">$12.00</td>
+      <td class="num was">420 sf</td><td class="num was">$5040.00</td>
+      <td class="num now">20 boxes <span style="color:var(--mute);font-weight:400">(19.43 exact · 22.7 sf ea)</span></td>
+      <td class="num now">$5448.00</td></tr><tr>
+      <td class="sku">76455</td><td class="num">$12.00</td>
+      <td class="num was">420 sf</td><td class="num was">$5040.00</td>
+      <td class="num now">20 boxes <span style="color:var(--mute);font-weight:400">(19.43 exact · 22.7 sf ea)</span></td>
+      <td class="num now">$5448.00</td></tr><tr>
+      <td class="sku">88364</td><td class="num">$13.49</td>
+      <td class="num was">420 sf</td><td class="num was">$5665.80</td>
+      <td class="num now">20 boxes <span style="color:var(--mute);font-weight:400">(19.17 exact · 23 sf ea)</span></td>
+      <td class="num now">$6205.40</td></tr><tr>
+      <td class="sku">76939N</td><td class="num">$15.11</td>
+      <td class="num was">420 sf</td><td class="num was">$6346.20</td>
+      <td class="num now">22 boxes <span style="color:var(--mute);font-weight:400">(21.15 exact · 20.85 sf ea)</span></td>
+      <td class="num now">$6930.96</td></tr><tr>
+      <td class="sku">87144</td><td class="num">$10.52</td>
+      <td class="num was">420 sf</td><td class="num was">$4418.40</td>
+      <td class="num now">16 boxes <span style="color:var(--mute);font-weight:400">(15.89 exact · 27.75 sf ea)</span></td>
+      <td class="num now">$4670.88</td></tr><tr>
+      <td class="sku">86246</td><td class="num">$12.81</td>
+      <td class="num was">420 sf</td><td class="num was">$5380.20</td>
+      <td class="num now">16 boxes <span style="color:var(--mute);font-weight:400">(15.10 exact · 29.2 sf ea)</span></td>
+      <td class="num now">$5984.83</td></tr>
+    </tbody>
+  </table>
+  <div class="foot">Before: exact square feet, no rounding — the bug the shop hit on 86360. Now: whole boxes, billed at ordered coverage × $/SF, exactly as every other carton-sold book behaves.</div>
+</div>
+
+<div class="card">
+  <h2>4 · Import warnings</h2>
+  <table><tbody><tr><td>32 chart SKUs had no price in these sheets and were dropped. Expect some: the chart and the sheets are published on different dates, so an older chart still lists widths the current sheets no longer carry.</td></tr><tr><td>9 trim SKUs had no price for their species and were dropped (the sheet leaves some trims priced only in certain species).</td></tr><tr><td>118 trims matched no floor in this import, so they carry no "fits" link — they are still orderable by SKU.</td></tr></tbody></table>
+  <div class="foot">No new warning fires: every priced floor found its box. A width that ever loses its coverage — or the 9"'s Box A/Box B pair, which has no single figure — is named in this list rather than quietly quoting by the foot.</div>
+</div>
+
+<div class="foot">Generated by <code>.scratch/060_mirage-carton-coverage/make-proof.mjs</code>.</div>
+</body>
+</html>
