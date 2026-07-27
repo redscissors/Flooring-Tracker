@@ -55,18 +55,16 @@
   .wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start}
 
   /* proposed layout: 4 equal columns + a full-height chip on the right.
-     Rows are explicit 1fr so the spanning chip can never stretch row 1. */
-  .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 50px;grid-template-rows:repeat(2,52px);gap:6px;align-items:stretch}
-  .grid4 .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44px}
-  .grid4 .chip .s{margin-top:3px}
-  .tall{grid-column:5;grid-row:1 / -1;padding:6px 3px;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:4px;overflow:hidden}
-  .tall .vl,.tall .vs{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;line-height:1.15;max-height:100%}
-  .tall .vl{white-space:pre;font-size:10px;letter-spacing:.01em}
-  .tall .vs{font-size:10px;font-weight:700;color:var(--ft-faint)}
+     Rows are an explicit fixed height so the spanning chip can never stretch
+     row 1; the 5th column is wide enough to set its label horizontally. */
+  .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 88px;grid-template-rows:repeat(2,46px);gap:5px;align-items:stretch}
+  .grid4 .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:4px 5px;font-size:11px;line-height:1.1}
+  .grid4 .chip .s{font-size:9.5px;margin-top:2px}
+  .tall{grid-column:5;grid-row:1 / -1;padding:5px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden}
+  .tall .vl{font-size:11px;line-height:1.22;white-space:pre;letter-spacing:.01em}
+  .tall .vs{font-size:9.5px;font-weight:700;color:var(--ft-faint);margin-top:2px}
   .tall.on .vs{color:rgba(255,255,255,.7)}
   .tall.ls{border-color:var(--ft-border-strong)}
-  .tall.multi{border-style:dashed;border-color:var(--ft-brand);color:var(--ft-brand-deep)}
-  .tall.multi.on{background:var(--ft-brand);border-style:solid;border-color:var(--ft-brand);color:#fff}
 
   /* multi-select checkbox skin (width chips while Multi is on) */
   .chip.pick{position:relative}
@@ -77,7 +75,7 @@
   /* wrap-layout multi chip (the current shipping look) */
   .wrap .chip.pick{padding-left:22px}
   .wrap .chip.pick .box{top:50%;transform:translateY(-50%);left:7px}
-  .chip.multiflat{border-style:dashed;border-color:var(--ft-brand);color:var(--ft-brand-deep);display:inline-flex;align-items:center;gap:5px}
+  .chip.multiflat{border-style:dashed;border-color:var(--ft-brand);color:var(--ft-brand-deep);display:inline-flex;align-items:center;justify-content:center;gap:5px}
   .chip.multiflat.on{background:var(--ft-brand);border-style:solid;border-color:var(--ft-brand);color:#fff}
 
   .row2{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
@@ -263,6 +261,9 @@ function tallChip(label, sub, {on, cls} = {}){
   b.innerHTML = '<span class="vl">' + label + "</span>" + (sub != null ? '<span class="vs">' + sub + "</span>" : "");
   return b;
 }
+// Width chips sit in columns 1-4 only, so they stay exactly the size of the
+// species chips instead of spreading into the 5th (tall) column.
+function place(node, i){ node.style.gridColumn = (i % 4) + 1; node.style.gridRow = Math.floor(i / 4) + 1; }
 
 // --- species ------------------------------------------------------------------
 function speciesSub(sp){
@@ -342,12 +343,13 @@ function renderWidth(){
     box.appendChild(wrap);
   } else {
     const g = el("div", "grid4");
-    // Two rows of four, exactly like Species; Live Sawn's six widths leave the
-    // last two cells open rather than reflowing the column widths.
-    g.style.gridTemplateRows = "repeat(" + Math.max(2, Math.ceil(ws.length / 4)) + ", 52px)";
-    ws.forEach((w) => g.appendChild(mkChip(w)));
-    const m = tallChip("◨ Multi-width" + (st.multi ? " ✓" : ""), null, {on: st.multi, cls:"multi"});
+    // Four and four, exactly like Species; Multi rides the flow as an ordinary
+    // chip right after the last width.
+    g.style.gridTemplateRows = "repeat(" + Math.max(2, Math.ceil((ws.length + 1) / 4)) + ", 46px)";
+    ws.forEach((w, i) => { const c = mkChip(w); place(c, i); g.appendChild(c); });
+    const m = chip("◨ Multi" + (st.multi ? " ✓" : ""), null, {on: st.multi, cls:"multiflat"});
     m.onclick = () => { st.multi = !st.multi; render(); };
+    place(m, ws.length);
     g.appendChild(m);
     box.appendChild(g);
   }
@@ -397,7 +399,7 @@ function renderBuild(){
        ["Texture — Smooth", "—"], ["Edge — Square", "—"]];
   document.getElementById("bBrk").innerHTML = rows.map((r) => '<div class="r"><span>' + r[0] + "</span><span>" + r[1] + "</span></div>").join("");
   document.getElementById("note").innerHTML = st.layout === "new"
-    ? "<b>Proposed.</b> Eight species on one 4×4 footprint, every chip the same size, with Live Sawn White Oak standing full-height on the right — it is its own price run (one grade, 5¼\"–11¼\"), so it reads as a separate choice instead of a ninth name that wraps to its own line. Width repeats the shape with Multi-width on the end."
+    ? "<b>Proposed.</b> Eight species on one 4×4 footprint, every chip the same size, with Live Sawn White Oak standing full-height on the right — it is its own price run (one grade, 5¼\"–11¼\"), so it reads as a separate choice instead of a ninth name that wraps to its own line. Width stacks 4 and 4 the same way, with Multi riding the flow right after the last width."
     : "<b>Current (shipping).</b> Free-wrapping chips: widths differ per name, Live Sawn drops to its own line, and Multi lands wherever the wrap leaves it.";
 }
 
