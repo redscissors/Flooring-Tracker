@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup, normSpecies, parseMirageFloorSkus } from "./miragebook.js";
+import { isMirageChart, isMirageTrim, isMirageFlooring, mirageFileKind, bandRuns, parseMirageChart, parseMirageFlooring, parseMiragePackaging, priceChartRows, normConstruction, normWidth, parseMirage, effectiveDate, parseMirageColorGrid, parseMirageTrimPrices, parseMirageTrimSkus, normTrimType, normTrimGroup, normSpecies, parseMirageFloorSkus } from "./miragebook.js";
 
 // A PDF text item in the shape App.jsx's readPdfPages produces (y top-down).
 const it = (str, x, y, w = 10) => ({ str, x, y, w });
@@ -216,6 +216,70 @@ test("a sheet with no prices says so rather than returning nothing quietly", () 
   assert.match(warnings[0], /Mirage flooring prices/i);
 });
 
+// --- the packaging band ------------------------------------------------------
+// Without it every Mirage floor quotes exact square feet, because the chart and
+// the price grid state no coverage anywhere. This band is the only source.
+
+const packagingSheet = (rows) => [{ name: "Mirage", rows: [
+  ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"],
+  ["Effective: February 3, 2025"],
+  ...rows,
+] }];
+
+test("the packaging band gives each construction and width its box coverage", () => {
+  const { coverage } = parseMiragePackaging(packagingSheet([
+    ["Packaging", "", 'TruBalance 3/4"', "", "", 'Lock 7/16"', 'Solid 3/4"'],
+    ["", "", '5"', '6-1/2"', 'Herr. 5"', '5"', '3-1/4"'],
+    ["Box content (sq. ft.)", "", "22.70", "14.75", "20.85", "32.60", "20.00"],
+    ["Pallet content (sq. ft.)", "", "1,089.60", "1,062.00", "834.00", "1,173.60", "960.00"],
+  ]));
+  assert.equal(coverage.get(`${normConstruction('TruBalance 3/4"')}|${normWidth('5"')}`), 22.7);
+  assert.equal(coverage.get(`${normConstruction('TruBalance 3/4"')}|${normWidth('6-1/2"')}`), 14.75);
+  // The band label fills right, so Herr. 5" is still TruBalance and not Lock.
+  assert.equal(coverage.get(`${normConstruction('TruBalance 3/4"')}|${normWidth('Herringbone 5"')}`), 20.85);
+  assert.equal(coverage.get(`${normConstruction("Lock")}|${normWidth('5"')}`), 32.6);
+  // Solid is the Hardwood sheet's word for the chart's Classic.
+  assert.equal(coverage.get(`${normConstruction("Classic")}|${normWidth('3-1/4"')}`), 20);
+  // The pallet row is not a second box size.
+  assert.equal(coverage.size, 5);
+});
+
+test("a width shipped in two box sizes is reported, not quoted off one of them", () => {
+  // The 9"'s Box A / Box B: a 70/30 mix the sheet says may vary per order, so no
+  // single box figure is true. Box B has no width header of its own.
+  const { coverage, split } = parseMiragePackaging(packagingSheet([
+    ["Packaging", "", 'TruBalance 3/4"', "", ""],
+    ["", "", '5"', '9"**', ""],
+    ["", "", "", "Box A", "Box B"],
+    ["Box content (sq. ft.)", "", "22.70", "25.45", "19.00"],
+  ]));
+  assert.equal(coverage.get(`${normConstruction("TruBalance")}|${normWidth('5"')}`), 22.7);
+  assert.equal(coverage.has(`${normConstruction("TruBalance")}|${normWidth('9"')}`), false);
+  assert.deepEqual([...split.values()], ['TruBalance 3/4" 9"**']);
+});
+
+test("a price row carries the coverage from its own sheet's band", () => {
+  // The two sheets genuinely disagree — TruBalance 7-3/4" is 23.00 sf on the 2026
+  // Hardwood sheet and 17.60 on the 2025 Value Tower — so coverage has to travel
+  // with the price, not be read once for the book.
+  const sheet = (name, sf) => [{ name, rows: [
+    ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"],
+    ["Effective: February 3, 2025"],
+    ["", "", "", "", 'TruBalance 3/4"'],
+    ["", "", "", "", '7-3/4"'],
+    ["", "", "Specie", "Grades", 'Lengths 34 to 87"'],
+    ["Muse", "", "White Oak", "Character", "$12.19/SF"],
+    [],
+    ["Packaging", "", "", "", 'TruBalance 3/4"'],
+    ["", "", "", "", '7-3/4"'],
+    ["Box content (sq. ft.)", "", "", "", sf],
+  ] }];
+  assert.equal(parseMirageFlooring(sheet("$ Flooring blank", "23.00")).rows[0].coverage, 23);
+  assert.equal(parseMirageFlooring(sheet("Mirage", "17.60")).rows[0].coverage, 17.6);
+  // No band at all: no coverage invented.
+  assert.equal(parseMirageFlooring(flooringSheet).rows[0].coverage, null);
+});
+
 // --- the join ----------------------------------------------------------------
 
 test("chart SKUs take their price from the sheets, later sheet winning an overlap", () => {
@@ -290,13 +354,19 @@ const chartPayload = {
     it("Character", 67, 50), it("Ada", 115, 50), it("72698", 205, 50, 20),
   ]],
 };
-const floorPayload = (effective, price) => ({ sheets: [{ name: "Mirage", rows: [
+const floorPayload = (effective, price, box = "") => ({ sheets: [{ name: "Mirage", rows: [
   ["USA DISTRIBUTORS - FLOORING PRICE LIST ($/sq. ft.)"],
   [`Effective: ${effective}`],
   ["", "", "", "", 'TruBalance 3/4"'],
   ["", "", "", "", '5"'],
   ["", "", "Specie", "Grades", "Lengths 20 to 82\""],
   ["Muse", "", "White Oak", "Character", `$${price}/SF`],
+  ...(box ? [
+    [],
+    ["Packaging", "", "", "", 'TruBalance 3/4"'],
+    ["", "", "", "", '5"'],
+    ["Box content (sq. ft.)", "", "", "", box],
+  ] : []),
 ] }] });
 
 test("the four documents collapse into one canonical sheet", () => {
@@ -309,6 +379,28 @@ test("the four documents collapse into one canonical sheet", () => {
   assert.equal(eleanor[6], "9.99");                 // the joined price
   assert.equal(eleanor[8], "hardwood");
   assert.equal(res.mapping.columns[0], "sku");
+});
+
+// A Mirage floor that reaches the book without coverage quotes exact square feet
+// — which is what the whole packaging band exists to prevent, so both the figure
+// and its absence are stated.
+
+test("a floor reaches the book with the box coverage its width packs in", () => {
+  const res = parseMirage([chartPayload, floorPayload("February 3, 2025", "9.99", "22.70")]);
+  const sfCol = res.rows[0].indexOf("SF/Carton");
+  assert.equal(res.rows.find((r) => r[0] === "72697")[sfCol], "22.7");
+  assert.equal(res.meta.covered, res.meta.floors);
+  assert.equal(res.warnings.some((w) => /no box coverage/i.test(w)), false);
+});
+
+test("floors with no box coverage are named, not left to quote by the foot silently", () => {
+  const res = parseMirage([chartPayload, floorPayload("February 3, 2025", "9.99")]);
+  const sfCol = res.rows[0].indexOf("SF/Carton");
+  assert.equal(res.rows.find((r) => r[0] === "72697")[sfCol], "");
+  assert.equal(res.meta.covered, 0);
+  const w = res.warnings.find((x) => /no box coverage/i.test(x));
+  assert.match(w, /2 floors/);
+  assert.match(w, /TruBalance 5"/);
 });
 
 // Which sheet supersedes the other is a question of DATE, not of argument order
