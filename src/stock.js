@@ -13,7 +13,7 @@ const round4 = (n) => Math.round(n * 10000) / 10000;
 
 // --- search -------------------------------------------------------------------
 
-const hay = (it) => [it.sku, it.description, it.brand, it.product, it.color, it.section, it.sheet, it.size, it.sheetSize, it.note].join(" ").toLowerCase();
+const hay = (it) => [it.sku, it.description, it.brand, it.mfg, it.product, it.color, it.section, it.sheet, it.size, it.sheetSize, it.note].join(" ").toLowerCase();
 
 // The price book labels transition pieces by profile (Reducer, T-Mold, End
 // Cap, Stairnose…), so the trade word "transition" would find nothing without
@@ -59,9 +59,19 @@ const live = (it) => it.active && !it.discontinued && !it.disabled;
 //
 // `threshold` opts the whole query into fuzzy matching: every typed word must
 // clear it on trigram word-similarity (a typo like "reducar" still finds
-// "Reducer"), and matches sort best-similarity first. Omitted / 0 keeps the
-// original exact word-inclusion — the Settings and Apps pickers rely on that,
-// only the selection-row search (via the strictness setting) passes a value.
+// "Reducer"), and matches sort best-similarity first. Omitted / 0 is the exact
+// word-inclusion pass.
+//
+// The selection-row search asks for BOTH, in that order: exact first, and the
+// fuzzy pass only when exact came back empty (search.jsx useMergedResults),
+// which is why the strictness setting no longer governs the primary results.
+// Fuzzy alone was far too generous to be a primary tier: pg_trgm pads each word
+// to "  w ", so two of a query's trigrams are free to any word sharing its first
+// two letters — at 5 letters that is 2/6 = 0.33, and "hanoi" matched Haystack,
+// Haze, Haven and Hard. No single threshold fixes that (the knee moves with
+// query length: a 3-letter query needs 0.55+), so exactness, not a number,
+// decides the primary tier.
+//
 // A numeric query stays an exact SKU-prefix lookup at any threshold.
 export function searchStock(items, query, threshold = 0) {
   const q = str(query).toLowerCase();
@@ -87,6 +97,33 @@ export function searchStock(items, query, threshold = 0) {
   }
   scored.sort((a, b) => b[0] - a[0]);
   return scored.map(([, it]) => it);
+}
+
+// Where a hit sits on the relevance ladder — scored identically in both search
+// spaces so the merged list can rank by RELEVANCE rather than by which space a
+// hit came from (orderbook.js rankMerged). Lower is better; the caller only
+// breaks ties with the shelf-first preference.
+//
+//   0  the SKU *is* the query
+//   1  the SKU starts with the query
+//   2  every typed word starts a word of the item's text ("hanoi" → "Hanoi White")
+//   3  every typed word is in there somewhere ("noi" → "Hanoi")
+//   4  neither — a fuzzy/near match
+export function hitRank(it, query) {
+  const q = str(query).toLowerCase();
+  if (!q) return 4;
+  const sku = str(it?.sku).toLowerCase();
+  if (sku && sku === q) return 0;
+  if (sku && q.length >= 2 && sku.startsWith(q)) return 1;
+  const h = hay(it);
+  const toks = tokens(h);
+  const words = q.split(/\s+/).filter(Boolean);
+  // "transition" is a trade label, not a spelling — a family hit counts as a
+  // whole word, exactly as searchStock scores it.
+  const rung = (w, test) => (/^transitions?$/.test(w) ? TRANSITION_RE.test(h) : test(w));
+  if (words.every((w) => rung(w, (x) => toks.some((t) => t.startsWith(x))))) return 2;
+  if (words.every((w) => rung(w, (x) => h.includes(x)))) return 3;
+  return 4;
 }
 
 export const findStock = (items, sku) => (str(sku) ? items.find((it) => it.sku === str(sku)) : null) || null;

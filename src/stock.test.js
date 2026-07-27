@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -295,6 +295,34 @@ test("searchStock with a threshold matches fuzzily and ranks best-first", () => 
   assert.deepEqual(searchStock(items, "reducer", 0.3).map((i) => i.sku), ["TR-01"]);
   // numeric queries stay exact SKU-prefix even with a threshold
   assert.deepEqual(searchStock(items, "01", 0.3), []);
+});
+
+test("the fuzzy pass is far too generous to be the primary tier", () => {
+  // pg_trgm pads each word to "  w ", so "  h" and " ha" are free to ANY word
+  // starting "ha" — 2 of "hanoi"'s 6 trigrams, i.e. 0.33, over the 0.30 default.
+  // This is the whole reason exactness, not a threshold, decides the primary
+  // tier: no single cutoff fixes it, because the knee moves with query length.
+  const items = [
+    item({ sku: "28904", description: "Mirage Red Oak Classic - New Haven W Brushed" }),
+    item({ sku: "93790", description: "Custom 380 Haystack Part A - Ceg-Lite Colorant" }),
+    item({ sku: "29490", description: "Aquamix Cement Grout Haze Rmvr" }),
+  ];
+  assert.equal(searchStock(items, "hanoi", 0.3).length, 3);   // every one of them, fuzzily
+  assert.deepEqual(searchStock(items, "hanoi"), []);          // and none of them, exactly
+});
+
+test("hitRank ladders a hit by how exactly it answers the query", () => {
+  const hanoi = item({ sku: "TL-99", description: "Hanoi Collection Hanoi White" });
+  assert.equal(hitRank(item({ sku: "TL-99" }), "tl-99"), 0);            // the SKU is the query
+  assert.equal(hitRank(item({ sku: "TL-9901" }), "tl-99"), 1);          // SKU prefix
+  assert.equal(hitRank(hanoi, "hanoi"), 2);                             // starts a word
+  assert.equal(hitRank(hanoi, "anoi"), 3);                              // in there somewhere
+  assert.equal(hitRank(item({ description: "Haystack" }), "hanoi"), 4); // fuzzy only
+  // every typed word has to clear the rung, not just one of them
+  assert.equal(hitRank(hanoi, "hanoi white"), 2);
+  assert.equal(hitRank(hanoi, "hanoi grey"), 4);
+  // "transition" is a trade label, not a spelling — a family hit is a whole word
+  assert.equal(hitRank(item({ description: "Reducer White Oak" }), "transition"), 2);
 });
 
 test("searchStock returns every match — display code does the truncating", () => {

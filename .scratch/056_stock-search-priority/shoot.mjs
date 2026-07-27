@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const OUT = '.scratch/056_stock-search-priority';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const pg = await b.newPage({ viewport: { width: 1120, height: 900 }, deviceScaleFactor: 2 });
+pg.on('console', m => { if (m.type() === 'error') console.log('PAGE ERR:', m.text()); });
+await pg.goto('http://localhost:5199/.scratch/056_stock-search-priority/preview.html', { waitUntil: 'networkidle' });
+await pg.waitForTimeout(700);
+await pg.screenshot({ path: `${OUT}/before-after.png`, fullPage: true });
+console.log('shot taken');
+await b.close();

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { searchStock, relaxSearchWords } from "./stock.js";
 import { suggestSeries } from "./booklink.js";
-import { mergeSearch } from "./orderbook.js";
+import { rankMerged } from "./orderbook.js";
 import { useAnchoredPanel, vPos } from "./widgets.jsx";
 
 export const SKU_SHOW = 30;
@@ -110,36 +110,44 @@ export const searchPanelBox = (pos) => {
 // instant from the in-memory list; special-order matches stream in behind them
 // from a debounced server query (searchOrder — null when no order books exist,
 // which keeps the whole feature inert until one is imported).
-function useOrderResults(query, searchOrder, strictness, fallback) {
-  const [state, setState] = useState({ primary: [], fallback: [] });
+//
+// Three rungs, walked in order and only as far as needed: `exact` (every typed
+// word literally present), then the two near-match cutoffs. `stockExact` says
+// the stock tier already answered the query exactly, which settles the rung for
+// the merged list — so the near-match queries are never issued at all.
+const NO_ORDER = { exact: [], near: [], wider: [] };
+
+function useOrderResults(query, searchOrder, strictness, fallback, stockExact) {
+  const [state, setState] = useState(NO_ORDER);
   useEffect(() => {
     const q = (query || "").trim();
-    if (!q || !searchOrder) { setState({ primary: [], fallback: [] }); return; }
+    if (!q || !searchOrder) { setState(NO_ORDER); return; }
     let stale = false;
     const t = setTimeout(async () => {
       try {
-        const primary = await searchOrder(q, strictness);
-        // The looser retry costs a second query, so only when the strict pass
-        // came back empty and the fallback is genuinely looser (else it can't
-        // surface anything the primary didn't).
-        const fb = (!primary.length && fallback != null && strictness != null && fallback < strictness) ? await searchOrder(q, fallback) : [];
-        if (!stale) setState({ primary, fallback: fb });
-      } catch { if (!stale) setState({ primary: [], fallback: [] }); }
+        const exact = await searchOrder(q);
+        const settled = stockExact || exact.length;
+        const near = settled ? [] : await searchOrder(q, strictness);
+        // The wider retry costs a third query, so only when the one above came
+        // back empty and it is genuinely looser (else it can't surface anything
+        // the near pass didn't).
+        const widerOn = fallback != null && strictness != null && fallback < strictness;
+        const wider = (!settled && !near.length && widerOn) ? await searchOrder(q, fallback) : [];
+        if (!stale) setState({ exact, near, wider });
+      } catch { if (!stale) setState(NO_ORDER); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [query, searchOrder, strictness, fallback]);
+  }, [query, searchOrder, strictness, fallback, stockExact]);
   return state;
 }
 
-// Instant stock matches + streamed order matches, merged stock-first with the
-// exact-SKU collision resolved to stock and two order books' copies of one
-// product collapsed to the cheaper (mergeSearch), then capped for display.
+// Instant stock matches + streamed order matches, merged into ONE
+// relevance-ordered list (rankMerged) with the exact-SKU collision resolved to
+// stock and two order books' copies of one product collapsed to the cheaper.
 // Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
 // the shared in-memory stock objects.
-const mergeCombined = (stockMatches, orderRaw) => {
-  const { stock: sMatches, order: oMatches } = mergeSearch(stockMatches.map((it) => ({ ...it })), orderRaw);
-  return [...sMatches, ...oMatches];
-};
+const mergeCombined = (stockMatches, orderRaw, query) =>
+  rankMerged(stockMatches.map((it) => ({ ...it })), orderRaw, query);
 
 // A quiet banner over the results when they came from the looser fallback pass
 // (the set strictness matched nothing), so a near-match is never mistaken for
@@ -150,13 +158,21 @@ export const NearMatchNote = () => (
   </div>
 );
 
+// Exact first, fuzzy only when exact finds nothing. The strictness/fallback
+// cutoffs govern the near-match rungs alone — a trigram threshold is far too
+// generous to decide the primary results (see searchStock's note: "hanoi"
+// matched Haystack, Haze and Hard at any usable cutoff), so exactness decides
+// them and the sliders only tune how forgiving the retry is.
 export function useMergedResults(active, stock, query, searchOrder, strictness, fallback) {
-  const order = useOrderResults(active ? query : "", searchOrder, strictness, fallback);
-  const primary = mergeCombined(active ? searchStock(stock, query, strictness) : [], order.primary);
-  if (primary.length) return { results: primary.slice(0, SKU_SHOW), total: primary.length, near: false };
-  const useFb = active && fallback != null && strictness != null && fallback < strictness;
-  const near = mergeCombined(useFb ? searchStock(stock, query, fallback) : [], order.fallback);
-  return { results: near.slice(0, SKU_SHOW), total: near.length, near: near.length > 0 };
+  const stockExact = active ? searchStock(stock, query) : [];
+  const order = useOrderResults(active ? query : "", searchOrder, strictness, fallback, stockExact.length > 0);
+  const exact = mergeCombined(stockExact, order.exact, query);
+  if (exact.length) return { results: exact.slice(0, SKU_SHOW), total: exact.length, near: false };
+  const near = mergeCombined(active ? searchStock(stock, query, strictness) : [], order.near, query);
+  if (near.length) return { results: near.slice(0, SKU_SHOW), total: near.length, near: true };
+  const widerOn = active && fallback != null && strictness != null && fallback < strictness;
+  const wider = mergeCombined(widerOn ? searchStock(stock, query, fallback) : [], order.wider, query);
+  return { results: wider.slice(0, SKU_SHOW), total: wider.length, near: wider.length > 0 };
 }
 
 // Price book lookup for the Settings catalog's add-product form: picking an
