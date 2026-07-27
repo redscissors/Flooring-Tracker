@@ -1,7 +1,7 @@
 import { num, ceilQty, getGrout, getMortar, groutBaseList, getCarton, getPieceCarton, getUnderlay, getUnderlayInstall, getAttached } from "./catalog.js";
 import { JOINTS, THICK, underlayLabel } from "./uiconst.js";
 import { money, miscQty, sf1 } from "./model.js";
-import { isSpecialOrder, orderCopyText, orderDescription } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription, orderQty, ORDER_MIN_QTY } from "./orderentry.js";
 import { unitCode } from "./units.js";
 
 // Extended line total at `unit` (the row's per-sf or per-each price): pieces
@@ -127,13 +127,23 @@ export function printMatList(cust, s) {
 // splits at the SKU: size + color on top, SKU + coverage beneath — thickness
 // dropped, spaces only. Rows bought in anything but pieces lead with their unit
 // tag (also in the copied text) since the order-entry system can't be switched
-// off "each". Read-only; no math is mutated.
+// off "each". A row with no quantity yet keys as one and sets `qtyAssumed` so
+// the panel can flag it (orderQty). Read-only; no math is mutated.
 export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
-  const c = printProduct(p, s);
   const isMisc = p.type === "misc";
   // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
   // desk keys the order in cartons even though the row quotes per piece.
-  const qty = isMisc ? (c.PC ? c.PC.cartons : miscQty(p)) : (c.C ? c.C.order : num(p.qty));
+  const rowQty = (row, c) => (isMisc ? (c.PC ? c.PC.cartons : miscQty(row)) : (c.C ? c.C.order : num(row.qty)));
+  const c0 = printProduct(p, s);
+  // A row still waiting on its quantity is priced and keyed as ONE of its sell
+  // unit (ORDER_MIN_QTY). Re-running the row's own math at qty 1 — rather than
+  // just swapping the 0 — is what gets the per-unit cost/sell right: a
+  // carton-sold line's "one" is a whole carton, so its per-unit reads per
+  // carton, exactly as it would once the footage is entered.
+  const { qty: minQty, qtyAssumed } = orderQty(rowQty(p, c0));
+  const row = qtyAssumed ? { ...p, qty: String(ORDER_MIN_QTY) } : p;
+  const c = qtyAssumed ? printProduct(row, s) : c0;
+  const qty = qtyAssumed ? Math.max(rowQty(row, c), minQty) : minQty;
   const rawUnit = isMisc ? (c.PC ? c.PC.unit : c.countUnit) : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : c.countUnit));
   const code = unitCode(rawUnit);
   // Anything the desk can't key as a plain "each" gets the tag — the bundling
@@ -142,7 +152,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   const sizePlain = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
   const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${code}` : c.PC ? `${c.PC.per} PC/${code}` : "";
   const extSell = c.line;
-  const extCost = orderLineCost(p, s, extSell);
+  const extCost = orderLineCost(row, s, extSell);
   // A Mannington trim's name carries a "· fits APX020 …" note (manningtonbook.js)
   // that helps the picker surface it under a floor-code search; it's noise once
   // the trim is on the order, so drop it from the panel's name and copied text.
@@ -152,7 +162,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   const r = {
     id: p.id, special: isSpecialOrder(p, stockBookIds), byDesc, area,
     tag, sizePlain, name, sku: p.sku, coverage, sheoga: p.sheoga,
-    qty, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
+    qty, qtyAssumed, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
   };

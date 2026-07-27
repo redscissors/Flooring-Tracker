@@ -7,7 +7,7 @@ import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, serializeSett
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
-import { isSpecialOrder, nameBudget } from "./orderentry.js";
+import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
@@ -935,16 +935,21 @@ export default function App({ user, onSignOut }) {
   const aList = sel?._full ? attachedList(tv.proj, tSet) : [];
   const addonCost = aList.reduce((t, r) => t + r.cost, 0);
   const aByCat = (settings.catalog.categories || []).map((cat) => ({ cat, rows: aList.filter((r) => r.categoryId === cat.id) })).filter((g) => g.rows.length > 0);
-  // Every estimated material line with an order quantity, flattened and labeled
-  // — shared by the printed order sheet and the order-entry panel.
-  const matLines = [
-    ...mList.filter((m) => m.order > 0).map((m) => ({ ...m, kind: "Mortar" })),
-    ...gList.filter((g) => g.order > 0).map((g) => ({ ...g, product: `${g.product}${g.color !== "—" ? ` — ${g.color}` : ""}`, kind: "Grout" })),
-    ...bList.filter((b) => b.order > 0).map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
-    ...cList.filter((c) => c.order > 0).map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
-    ...uList.filter((u) => u.order > 0).map((u) => ({ ...u, kind: "Underlayment" })),
-    ...aList.filter((r) => r.order > 0).map((r) => ({ ...r, kind: r.category })),
+  // Every estimated material line, flattened and labeled. A line lands here
+  // even at order 0 — a checked chip whose quantity can't be computed yet
+  // (no footage, no tile thickness) still names a real material the desk has to
+  // key, so the order-entry panel keys it as one (orderQty) rather than hiding
+  // it. The printed order sheet keeps the quantified lines only: it's the sheet
+  // the warehouse pulls from, where a "1" nobody measured is a wrong pull.
+  const matAll = [
+    ...mList.map((m) => ({ ...m, kind: "Mortar" })),
+    ...gList.map((g) => ({ ...g, product: `${g.product}${g.color !== "—" ? ` — ${g.color}` : ""}`, kind: "Grout" })),
+    ...bList.map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
+    ...cList.map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
+    ...uList.map((u) => ({ ...u, kind: "Underlayment" })),
+    ...aList.map((r) => ({ ...r, kind: r.category })),
   ];
+  const matLines = matAll.filter((m) => m.order > 0);
   const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0 || aList.length > 0; const materialsCost = groutCost + baseCost + caulkCost + mortarCost + underlayCost + addonCost; const grandTotal = flooringPrice + materialsCost + miscCost;
   // Internal materials margin over the rows that carry a cost (ADR 0011 / 0009
   // §8.1): a price-book pick snapshots one, and the price cell's popup takes a
@@ -2242,7 +2247,10 @@ export default function App({ user, onSignOut }) {
         const descLimit = normPricing(settings.pricing).descLimit;
         const rows = [];
         (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds)); }));
-        const mats = matLines.map((m, i) => ({ id: "mat" + i, sku: m.sku || "", qty: m.order, qtyText: `${m.order} ${m.unit}`, name: m.product, kind: m.kind }));
+        const mats = matAll.map((m, i) => {
+          const { qty, qtyAssumed } = orderQty(m.order);
+          return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
+        });
         return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
       })()}
 
