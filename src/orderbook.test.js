@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
-  bookStaleness, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
+  bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
   flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, PRICE_GAP_PCT,
 } from "./orderbook.js";
@@ -567,6 +567,30 @@ test("bookStaleness: an out-of-range threshold falls back to the default", () =>
     assert.equal(bookStaleness(now - 130 * DAY, bad, now).threshold, DEFAULT_STALE_DAYS);
     assert.equal(bookStaleness(now - 130 * DAY, bad, now).stale, true);   // 130 ≥ 120 default
   }
+});
+
+// --- a book with no markup ---------------------------------------------------
+
+const ob = (markups) => ({ id: "b", kind: "order", data: markups === undefined ? {} : { markups } });
+
+test("bookNoMarkup: an order book with no rate anywhere sells at cost", () => {
+  assert.equal(bookNoMarkup(ob(undefined)), true);          // never configured
+  assert.equal(bookNoMarkup(ob({})), true);
+  assert.equal(bookNoMarkup(ob({ default: 0, byGroup: {} })), true);
+  assert.equal(bookNoMarkup(ob({ default: null, trim: null })), true);
+  assert.equal(bookNoMarkup(ob({ groupBy: "mfg", default: 0, byGroup: { CER: 0 } })), true);
+});
+
+test("bookNoMarkup: any rate the config carries clears the warning", () => {
+  assert.equal(bookNoMarkup(ob({ default: 45 })), false);
+  assert.equal(bookNoMarkup(ob({ default: "45" })), false);           // strings round-trip through the editor
+  assert.equal(bookNoMarkup(ob({ default: 0, trim: 30 })), false);    // trims marked up, floors not — still a rate
+  assert.equal(bookNoMarkup(ob({ groupBy: "mfg", default: 0, byGroup: { CER: 60 } })), false);
+});
+
+test("bookNoMarkup: stock books price off their own sheet and are never flagged", () => {
+  assert.equal(bookNoMarkup({ id: "s", kind: "stock", data: {} }), false);
+  assert.equal(bookNoMarkup(null), false);
 });
 
 // --- internal materials margin (§8.1) ----------------------------------------

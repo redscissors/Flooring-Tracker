@@ -11,13 +11,13 @@ import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, diffBookItems, forceDiff, markupGroups, pricedItem, editedInDiff, bookStaleness, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, diffBookItems, forceDiff, markupGroups, pricedItem, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages } from "./fileread.js";
 import { Modal } from "./widgets.jsx";
-import { InHouseColumn, PasteSignInPopover, StaleChip, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
+import { InHouseColumn, PasteSignInPopover, StaleChip, NoMarkupChip, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 
 // --- Price book library (ADR 0009, Phase 1) ---------------------------------
 //
@@ -785,6 +785,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const markups = book.data?.markups || null;
   const li = book.data?.lastImport;
   const st = bookStaleness(li?.at, staleDays);
+  const noMarkup = bookNoMarkup(book);
   // A book may be fed by several sheets (flooring + trim + product chart…).
   const sources = source || [];
   const pendingSources = sources.filter(({ sheet }) => sourcePendingOf(sheet));
@@ -914,6 +915,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
           {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
         </span>
         {st.stale && <StaleChip days={st.days} />}
+        {noMarkup && <NoMarkupChip />}
       </div>
 
       {isOrder && items && items.length > 0 && (
@@ -1118,7 +1120,7 @@ function BookItemEditModal({ item, isOrder, onClose, onSave, inp, lbl }) {
 // priceable (markupGroups), so there's no free-form matcher to get wrong.
 const GROUP_LABEL = { mfg: "manufacturer", productLine: "product line", section: "section", brand: "brand" };
 const GROUP_AXES = [["mfg", "Manufacturer"], ["productLine", "Product line"], ["section", "Section"], ["brand", "Brand"]];
-function MarkupEditor({ book, items, onSave, inp, lbl }) {
+export function MarkupEditor({ book, items, onSave, inp, lbl }) {   // exported for the preview harness
   const markups = book.data?.markups || {};
   const [groupBy, setGroupBy] = useState(markups.groupBy || book.data?.mapping?.groupBy || "");
   const [def, setDef] = useState(markups.default != null ? String(markups.default) : "");
@@ -1146,20 +1148,29 @@ function MarkupEditor({ book, items, onSave, inp, lbl }) {
   // column's values and mean nothing under the new one.
   const changeGroupBy = (val) => { setGroupBy(val); setByGroup({}); commit(def, {}, trim, val); };
   const groups = groupBy ? markupGroups(items, { groupBy, default: num(def), byGroup }) : [];
+  // Read off the draft, not the saved book, so typing a rate clears the warning
+  // as soon as it commits and re-raises it the moment the last rate goes back to 0.
+  const noMarkup = bookNoMarkup({ kind: "order", data: { markups: { default: num(def), trim: String(trim).trim() === "" ? null : num(trim), byGroup } } });
 
+  // Border and ink only, no red fill: the panel's own controls and notes are
+  // slate-inked, and the dark theme leaves a red-50 surface light while
+  // remapping those inks to near-white.
   return (
-    <div className="mt-4 border border-slate-100 rounded-lg p-3">
+    <div className={"mt-4 border rounded-lg p-3 " + (noMarkup ? "border-red-300" : "border-slate-100")}>
       <div className="flex items-center gap-2 flex-wrap">
-        <Percent size={14} className="text-slate-400" />
-        <span className="text-sm font-medium">Markup</span>
-        <span className="text-[11px] text-slate-400">selling price = cost × (1 + markup)</span>
+        <Percent size={14} className={noMarkup ? "text-red-500" : "text-slate-400"} />
+        <span className={"text-sm font-medium " + (noMarkup ? "text-red-600" : "")}>Markup</span>
+        <span className={"text-[11px] " + (noMarkup ? "text-red-600" : "text-slate-400")}>selling price = cost × (1 + markup)</span>
       </div>
+      {noMarkup && (
+        <p className="mt-1.5 text-[11.5px] text-red-600">No markup set — every item in this book sells at the vendor's cost, and so does every job that picks one.</p>
+      )}
       <div className="flex items-end gap-3 mt-2 flex-wrap">
         <div>
           <label className={lbl}>Default %</label>
           <input type="number" className={`${inp} w-24`} value={def} onChange={(e) => setDef(e.target.value)} onBlur={() => commit(def, byGroup)} placeholder="0" />
         </div>
-        <span className="text-[11px] text-slate-400 pb-2">$10 cost → {money(10 * (1 + num(def) / 100))} sell</span>
+        <span className={"text-[11px] pb-2 " + (noMarkup ? "text-red-600" : "text-slate-400")}>$10 cost → {money(10 * (1 + num(def) / 100))} sell</span>
         {hasTrims && (
           <div className="ml-auto text-right">
             <label className={lbl}>Trim %</label>
