@@ -57,10 +57,74 @@ function Chips({ items, cur, onPick }) {
   );
 }
 
-// Width row: single-select chips (unchanged behavior) that can flip into
-// multi-select checkboxes + a job-size-split stepper via the Multi chip.
-function WidthRow({ items, cur, multi, selected, onPick, onToggle, onMultiToggle, onStep, count }) {
+// Desktop option grid: four equal cells per row so every chip is the same size
+// whatever its name's length, plus an optional full-height chip in a 5th column.
+// 76px there is the narrowest that still sets "White Oak" on its own line, which
+// leaves the four cells wide enough for "Q/R White Oak" — nothing wraps, so a
+// row is 36px and the whole block stays short. The phone keeps the wrap below.
+const GRID_COLS = "repeat(4,minmax(0,1fr)) 76px";
+const gridRows = (n) => `repeat(${Math.max(2, Math.ceil(n / 4))}, 36px)`;
+// Cells claim columns 1-4 explicitly, so a block with no tall chip still lays
+// out four and four instead of spilling into the 5th column.
+const cellAt = (i) => ({ gridColumn: (i % 4) + 1, gridRow: Math.floor(i / 4) + 1 });
+const cellCls = (on, dis, nowrap = true) =>
+  `flex flex-col items-center justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold leading-tight text-center ${nowrap ? "whitespace-nowrap" : ""} ${on ? "bg-slate-900 border-slate-900 text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"} ${dis ? "opacity-30 cursor-not-allowed line-through" : ""}`;
+const cellSub = (on) => `text-[9px] font-semibold no-underline ${on ? "text-white/70" : "text-slate-500"}`;
+
+// `tallId` names the one item that stands full-height on the right — Live Sawn
+// White Oak, which is its own price run (one grade, its own width list) rather
+// than a ninth name in the same list.
+function GridChips({ items, cur, onPick, tallId }) {
+  const cells = items.filter((it) => it.id !== tallId);
+  const tall = items.find((it) => it.id === tallId);
+  return (
+    <div className="grid gap-1 items-stretch" style={{ gridTemplateColumns: GRID_COLS, gridTemplateRows: gridRows(cells.length) }}>
+      {cells.map((it, i) => {
+        const on = it.id === cur;
+        return (
+          <button key={String(it.id)} disabled={it.dis} onClick={() => onPick(it.id)} style={cellAt(i)} className={cellCls(on, it.dis)}>
+            {it.label}
+            {it.sub != null && <span className={cellSub(on)}>{it.sub}</span>}
+          </button>
+        );
+      })}
+      {tall && (
+        <button disabled={tall.dis} onClick={() => onPick(tall.id)} style={{ gridColumn: 5, gridRow: "1 / -1" }}
+          className={cellCls(tall.id === cur, tall.dis, false) + " leading-[1.3] px-1.5"}>
+          {tall.label}
+          {tall.sub != null && <span className={cellSub(tall.id === cur) + " mt-0.5"}>{tall.sub}</span>}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Width row: single-select chips that can flip into multi-select checkboxes + a
+// job-size-split stepper via the Multi chip. On the desktop rail the chips take
+// the same four-and-four grid as Species, with Multi riding the flow right
+// after the last width; the phone sheet keeps the wrapping row.
+function WidthRow({ items, cur, multi, selected, onPick, onToggle, onMultiToggle, onStep, count, wide }) {
+  const multiChip = (style, cls) => (
+    <button onClick={onMultiToggle} style={{ ...style, ...(multi ? { background: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : { borderColor: "var(--ft-brand)", borderStyle: "dashed" }) }}
+      className={cls + ` ${multi ? "text-white" : "text-[color:var(--ft-brand-deep)]"}`}>
+      ◨ Multi{multi ? " ✓" : ""}
+    </button>
+  );
   return (<>
+    {wide ? (
+      <div className="grid gap-1 items-stretch" style={{ gridTemplateColumns: GRID_COLS, gridTemplateRows: gridRows(items.length + 1) }}>
+        {items.map((it, i) => {
+          const on = multi ? selected.includes(it.id) : it.id === cur;
+          return (
+            <button key={it.id} disabled={it.dis} onClick={() => (multi ? onToggle(it.id) : onPick(it.id))} style={cellAt(i)}
+              className={cellCls(on, it.dis) + " relative"}>
+              {multi && <span className={`absolute left-1 top-1 w-3 h-3 rounded-[3px] border ${on ? "bg-white/90 border-white/90 text-slate-900" : "border-slate-300"} flex items-center justify-center text-[8px] font-black`}>{on ? "✓" : ""}</span>}
+              {it.label}{it.sub != null && !multi && <span className={cellSub(on)}>{it.sub}</span>}
+            </button>);
+        })}
+        {multiChip(cellAt(items.length), "flex items-center justify-center rounded-md border text-[10px] font-bold")}
+      </div>
+    ) : (
     <div className="flex flex-wrap gap-1.5 items-start">
       {items.map((it) => {
         const on = multi ? selected.includes(it.id) : it.id === cur;
@@ -71,12 +135,9 @@ function WidthRow({ items, cur, multi, selected, onPick, onToggle, onMultiToggle
             {it.label}{it.sub != null && !multi && <span className={`block text-[10px] font-semibold ${on ? "text-white/70" : "text-slate-400"}`}>{it.sub}</span>}
           </button>);
       })}
-      <button onClick={onMultiToggle}
-        className={`rounded-md border px-2.5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5 ${multi ? "text-white" : "text-[color:var(--ft-brand-deep)]"}`}
-        style={multi ? { background: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : { borderColor: "var(--ft-brand)", borderStyle: "dashed" }}>
-        ◨ Multi{multi ? " ✓" : ""}
-      </button>
+      {multiChip(undefined, "rounded-md border px-2.5 py-1.5 text-xs font-bold inline-flex items-center gap-1.5")}
     </div>
+    )}
     {multi && (
       <div className="mt-2.5 rounded-lg p-3" style={{ border: "1px solid var(--ft-tint-border)", background: "var(--ft-tint)" }}>
         <div className="flex items-center gap-2.5">
@@ -218,7 +279,7 @@ const snapFloorW = (f) => {
   return w != null ? { ...f, w } : f;
 };
 
-function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep }) {
+function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep, wide }) {
   const sell = (c) => (c ? fm(sellOf(c.cost, markup)) + "/sf" : "—");
   const custom = CUSTOM_FINISHES.includes(f.finish);
   const established = f.finish === "est";
@@ -226,12 +287,17 @@ function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle,
   const stained = established || custom;
   return (<>
     <Sect title="Species" hint="sell $/sf at current options">
-      <Chips cur={f.sp} onPick={(sp) => set(snapFloorW({ ...f, sp }))}
-        items={SPECIES.map((sp) => {
+      {(() => {
+        const pick = (sp) => set(snapFloorW({ ...f, sp }));
+        const items = SPECIES.map((sp) => {
           const probe = snapFloorW({ ...f, sp });
           const c = calcFloor(probe, sf);
           return { id: sp, label: sp, sub: c ? sell(c) + (probe.w !== f.w ? " @" + WIDTH_LABEL[probe.w] : "") : "—", dis: !c };
-        })} />
+        });
+        return wide
+          ? <GridChips cur={f.sp} onPick={pick} items={items} tallId={LIVE_SAWN_SP} />
+          : <Chips cur={f.sp} onPick={pick} items={items} />;
+      })()}
     </Sect>
     {/* Construction (left) + Grade, with the price grid pushed to the right */}
     <div className="mb-4 flex items-end gap-4 flex-wrap">
@@ -249,7 +315,7 @@ function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle,
     </div>
     <Sect title="Width">
       <WidthRow items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })}
-        cur={f.w} multi={multi} selected={mwWidths} count={mwWidths.length}
+        cur={f.w} multi={multi} selected={mwWidths} count={mwWidths.length} wide={wide}
         onPick={(w) => set({ ...f, w: +w })} onToggle={onMwWidth} onMultiToggle={onMultiToggle} onStep={onStep} />
     </Sect>
     {/* Texture + Finishing on one row. When a prefinished finish is chosen its
@@ -1009,7 +1075,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const rail = (
     <>
-      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
+      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} wide={isWide}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
       {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}

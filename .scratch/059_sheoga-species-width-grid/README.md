@@ -1,7 +1,8 @@
 # Sheoga configurator — species & width as a fixed grid (desktop)
 
-**Status:** prototype — not implemented in `src/SheogaConfigurator.jsx`
-**Open:** `mockup.html` in a browser (standalone, no build, clickable).
+**Status:** done — shipped in `src/SheogaConfigurator.jsx` (Unfinished & custom tab)
+**Open:** `mockup.html` in a browser (standalone, no build, clickable), or the
+real component via `npm run dev` → `/.scratch/059_sheoga-species-width-grid/harness.html`.
 
 ## What was asked
 
@@ -47,8 +48,16 @@ chips).
 
 ## Shots
 
+`B*` are the **real component** in the harness (preview proof); `A*` are the
+standalone mockup the shape was agreed on.
+
 | | |
 |---|---|
+| `B1-real-floor-default.png` | shipped grid, default build |
+| `B2-real-live-sawn.png` | Live Sawn selected in the real popup |
+| `B3-real-multi.png` | Multi on — checkboxes, split panel, bundle card |
+| `B4-real-stocked-unchanged.png` | Stocked tab, deliberately still the wrap |
+| `B5-real-phone-wrap.png` | 390px — the phone sheet keeps the wrap |
 | `A1-proposed-white-oak.png` | proposed grid, default build |
 | `A2-proposed-live-sawn.png` | Live Sawn selected — grade collapses to one, widths become its own run |
 | `A3-proposed-multi.png` | Multi on — width cells become checkboxes, the Multi chip goes solid green |
@@ -58,11 +67,21 @@ chips).
 The toolbar toggle in `mockup.html` switches Proposed / Current live; prices are
 computed from the real `src/sheoga.js` tables at the shop's 40% flooring markup.
 
-## If this gets built
+## What shipped
 
-Touches `FloorRail` / `StockedRail` in `src/SheogaConfigurator.jsx` only —
-`Chips` and `WidthRow` grow a grid variant behind the existing `useIsWide`
-switch. No engine, pricing, or data change; `sheoga.js` is untouched.
+`src/SheogaConfigurator.jsx` only — no engine, pricing, or data change, and
+`sheoga.js` is untouched:
+
+- `GRID_COLS` / `gridRows` / `cellAt` / `cellCls` / `cellSub` — the shared grid
+  metrics, so Species and Width can never drift apart.
+- `GridChips` — the species grid; `tallId` names the item that spans both rows.
+- `WidthRow` gains a `wide` branch (the grid) beside its existing wrapping row.
+- `FloorRail` takes `wide` and passes `isWide` down from the popup.
+
+Scoped to the **Unfinished & custom** tab, which is what was previewed. The
+Stocked tab still calls `WidthRow` without `wide`, so it keeps the wrap — its 4
+species and 4–5 widths read differently in a 4-wide grid and that wants its own
+look before it changes.
 
 Row height is a fixed 36px and chip labels are `white-space: nowrap`, so the
 block's compactness rests on every species name fitting 95px at 10px/800 —
