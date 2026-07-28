@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sheoga — prefinished sheet grid replaces the Stocked tab (mockup)</title>
+<style>
+  :root{
+    --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-sand:#EDE9DD;
+    --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+    --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+    --ft-grid-line:rgba(28,26,23,.34);
+    --ft-brand:#57703A; --ft-brand-deep:#40542A;
+    --ft-tint:#eef1e8; --ft-tint-border:rgba(87,112,58,.35);
+    --stock:#dcebc7; --stock-deep:#c2dca1;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Manrope",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ft-text);background:#0f0c0a}
+
+  .toolbar{position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1a17;color:#f6f3ec;z-index:200;font-size:12px;font-weight:700}
+  .toolbar .seg{display:inline-flex;border:1px solid #4a453d;border-radius:8px;overflow:hidden}
+  .toolbar .seg button{background:#26231f;color:#c9c4ba;border:0;padding:6px 11px;font-weight:800;font-size:11.5px;cursor:pointer;font-family:inherit}
+  .toolbar .seg button.on{background:#f6f3ec;color:#1c1a17}
+  .toolbar .tag{margin-left:auto;color:#a8a29a;font-weight:600}
+  .stage{position:fixed;inset:46px 0 0 0;display:flex;align-items:center;justify-content:center;background:rgba(20,15,10,.55);padding:14px;overflow:auto}
+
+  .pop{position:relative;background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden;width:1060px;height:min(780px,94vh)}
+  .eyebrow{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ft-muted)}
+  .head{display:flex;align-items:center;gap:12px;padding:12px 16px 8px}
+  .head h1{margin:0;font-size:18px;font-weight:800}
+  .head .sub{font-size:11px;color:var(--ft-muted);font-weight:600}
+  .xbtn{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;display:flex;align-items:center;justify-content:center}
+  .tabs{display:flex;gap:3px;padding:6px 16px 0;border-bottom:1px solid var(--ft-grid-line);align-items:flex-end}
+  .tab{padding:8px 13px;font-size:12px;font-weight:800;border:1px solid transparent;border-bottom:0;border-radius:9px 9px 0 0;background:#efece4;color:var(--ft-muted);cursor:pointer;white-space:nowrap;font-family:inherit;border-color:var(--ft-border)}
+  .tab.on{background:var(--ft-card);border-color:var(--ft-grid-line);color:var(--ft-text);position:relative;z-index:2;margin-bottom:-1px}
+  .tabs .gone{margin-left:8px;padding-bottom:8px;font-size:10.5px;color:var(--ft-faint);font-weight:600}
+
+  /* --- sheet band ----------------------------------------------------------- */
+  .sheetbar{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--ft-border);background:var(--ft-card)}
+  .sbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:800;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .sbtn:hover{background:#faf9f6}
+  .sbtn.on{background:#1c1a17;color:#fff;border-color:#1c1a17}
+  .sbtn.stock.on{background:var(--ft-brand);border-color:var(--ft-brand)}
+  .legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-left:auto}
+  .swatch{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--ft-border-strong);vertical-align:-1px}
+  .swatch.g{background:var(--stock);border-color:var(--stock-deep)}
+
+  .sheet{border-bottom:1px solid var(--ft-grid-line);background:var(--ft-card);max-height:308px;overflow:auto;scrollbar-gutter:stable}
+  .sheet table{border-collapse:separate;border-spacing:0;width:100%;font-size:11.5px}
+  .sheet th{position:sticky;background:var(--ft-sand);z-index:3;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted);padding:4px 6px;border-bottom:1px solid var(--ft-grid-line);text-align:right;white-space:nowrap}
+  .sheet th.blk{top:0;text-align:center;border-bottom:1px solid var(--ft-border)}
+  .sheet th.w{top:21px}
+  .sheet th.lbl{text-align:left;left:0;z-index:4}
+  .sheet td{padding:0;border-bottom:1px solid var(--ft-border);text-align:right}
+  .sheet td.lbl{position:sticky;left:0;background:var(--ft-card);z-index:2;text-align:left;padding:4px 8px;font-weight:800;font-size:11px;white-space:nowrap}
+  .sheet td.lbl .m{color:var(--ft-faint);font-weight:600;font-size:10px}
+  .sheet tr.spTop td{border-top:1.5px solid var(--ft-grid-line)}
+  .sheet td.div,.sheet th.div{border-left:1.5px solid var(--ft-grid-line)}
+  .cellb{display:block;width:100%;border:2px solid transparent;background:transparent;padding:3px 6px;font:inherit;font-weight:700;text-align:right;cursor:pointer;color:var(--ft-text);border-radius:5px;font-variant-numeric:tabular-nums}
+  .cellb:hover{border-color:var(--ft-border-strong)}
+  .cellb.g{background:var(--stock)}
+  .cellb.cur{border-color:#1c1a17;background:#1c1a17;color:#fff}
+  .cellb.cur.g{box-shadow:inset 0 0 0 2px var(--stock-deep)}
+  td .dash{display:block;text-align:center;color:var(--ft-border-strong);padding:3px 6px}
+  .offsheet{padding:7px 16px;font-size:11px;font-weight:700;color:#92610f;background:#fdf6e3;border-bottom:1px solid var(--ft-border)}
+
+  /* --- rail + pane ----------------------------------------------------------- */
+  .body{flex:1;display:flex;min-height:0}
+  .rail{width:470px;flex:none;border-right:1px solid var(--ft-grid-line);overflow:auto;scrollbar-gutter:stable;padding:14px 16px}
+  .pane{flex:1;min-width:0;overflow:auto;padding:14px 16px;background:var(--ft-cream)}
+  .sect{margin-bottom:13px}
+  .sect .lbl{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+  .sect .lbl .hint{margin-left:auto;font-size:10px;color:var(--ft-faint);font-weight:600}
+  .wrap{display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start}
+  .chip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:6px 8px;font-size:11.5px;font-weight:800;line-height:1.15;text-align:center;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .chip .s{display:block;font-size:9.5px;font-weight:700;color:var(--ft-faint);margin-top:1px}
+  .chip.on{background:#1c1a17;border-color:#1c1a17;color:#fff}
+  .chip.on .s{color:rgba(255,255,255,.7)}
+  .chip.dis{opacity:.3;cursor:not-allowed;text-decoration:line-through}
+  .chip.stockdot{position:relative}
+  .chip .dot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:99px;background:var(--ft-brand)}
+  .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-muted);padding:6px 13px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .seg button:first-child{border-left:0}
+  .seg button.on{background:#1c1a17;color:#fff}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  select,input[type=number]{width:100%;border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:6px 8px;font-size:11.5px;font-weight:700;font-family:inherit;color:var(--ft-text)}
+  .stainbox{border:2px solid var(--ft-brand);background:var(--ft-tint);border-radius:10px;padding:10px;margin-bottom:13px}
+
+  /* --- build card ------------------------------------------------------------ */
+  .card{border:1px solid var(--ft-grid-line);border-radius:10px;background:var(--ft-card);overflow:hidden}
+  .card .top{display:flex;align-items:center;gap:8px;background:var(--ft-sand);padding:8px 12px}
+  .card .top .h{width:20px;height:20px;border-radius:5px;background:var(--ft-brand-deep);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .card .top b{font-size:13px}
+  .card .top .note{margin-left:auto;font-size:9.5px;color:var(--ft-muted);font-weight:700}
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:3px 9px;font-size:10px;font-weight:800;letter-spacing:.04em}
+  .badge.stock{background:var(--stock);color:var(--ft-brand-deep);border:1px solid var(--stock-deep)}
+  .badge.mto{background:#fdf6e3;color:#92610f;border:1px solid #ecd9a8}
+  .card .desc{padding:9px 12px 2px;font-size:14.5px;font-weight:800;line-height:1.35}
+  .card .rows{padding:2px 12px 10px}
+  .crow{display:flex;align-items:baseline;gap:8px;padding:2.5px 0;font-size:11.5px;color:var(--ft-muted);font-weight:600}
+  .crow span:last-child{margin-left:auto;font-weight:700;color:var(--ft-text);font-variant-numeric:tabular-nums}
+  .crow.warn{color:#92610f;font-weight:700}
+  .crow.fee{color:var(--ft-brand-deep);font-weight:700}
+  .card .tot{display:flex;align-items:center;gap:16px;border-top:1px solid var(--ft-grid-line);background:var(--ft-sand);padding:9px 12px}
+  .tot .cell .e{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--ft-muted)}
+  .tot .cell .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .tot .cell .v.sell{color:var(--ft-brand-deep);font-size:20px}
+  .tot .arrow{font-size:11px;color:var(--ft-faint)}
+  .tot .right{margin-left:auto;text-align:right}
+  .actions{display:flex;gap:8px;border-top:1px solid var(--ft-border);padding:9px 12px}
+  .abtn{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .abtn.pri{margin-left:auto;background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
+  .foot{display:flex;align-items:center;gap:16px;border-top:1px solid var(--ft-grid-line);background:var(--ft-cream);padding:9px 16px;font-size:11.5px;font-weight:800}
+  .foot label{display:flex;align-items:center;gap:6px}
+  .foot input{width:70px;text-align:center}
+  .foot .tip{margin-left:auto;font-size:10.5px;color:var(--ft-faint);font-weight:600}
+  .pnote{margin-top:10px;font-size:10.5px;color:var(--ft-faint);font-weight:600;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>065 · prefinished sheet grid replaces the Stocked tab</span>
+  <span class="seg" id="scen"></span>
+  <span class="tag">everything below is live — click cells & options</span>
+</div>
+<div class="stage"><div class="pop">
+  <div class="head">
+    <div>
+      <div class="eyebrow">Vendor configurator</div>
+      <h1>Sheoga Hardwood <span class="sub">bought by description — no SKUs</span></h1>
+    </div>
+    <div class="xbtn">×</div>
+  </div>
+  <div class="tabs">
+    <button class="tab on">Unfinished &amp; custom</button>
+    <button class="tab">Wood vents</button>
+    <button class="tab">Dampers</button>
+    <span class="gone">Stocked prefinished tab retired → it's the green cells of the price sheet now</span>
+  </div>
+
+  <div class="sheetbar">
+    <button class="sbtn" id="sheetToggle">▦ Price sheet</button>
+    <button class="sbtn stock" id="stockOnly" style="display:none">⬤ Stocked / Rush only</button>
+    <span class="legend" id="legend" style="display:none">
+      <span class="swatch g"></span> STOCK / FAST TRACK — ships from stock, no small-order fee
+      <span class="swatch"></span> made to order — small-order fee under 500 sf
+    </span>
+  </div>
+  <div id="offsheet" class="offsheet" style="display:none"></div>
+  <div class="sheet" id="sheet" style="display:none"></div>
+
+  <div class="body">
+    <div class="rail" id="rail"></div>
+    <div class="pane"><div id="card"></div>
+      <p class="pnote">Sheet prices are distributor cost · flooring effective Jan 19 2026 · the prefinished sheet above is the vendor page: green = stocked, white = the same $/sf made to order (they price identically — verified cell-for-cell against the custom path).</p>
+    </div>
+  </div>
+  <div class="foot">
+    <label>Markup <input type="number" id="markup" value="40"> %</label>
+    <label>Job size <input type="number" id="sf" value="400"> sq ft</label>
+    <span class="tip">The description is the order — read it to Sheoga, or reconfigure from the row later.</span>
+  </div>
+</div></div>
+
+<script>
+// ---- data (Jan 19 2026 sheet, distributor cost) -------------------------------
+const N = null;
+const WIDTHS = [2.25,3.25,4.25,5.25,6.25,7.25,8.25];
+const WL = {2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"',9.25:'9¼"',10.25:'10¼"',11.25:'11¼"'};
+const UNF = {
+  "White Oak":     {clear:[5.25,5.65,6.05,6.45,6.90,7.40,8.10], char:[3.40,3.65,3.90,4.15,4.45,4.75,5.10], eClear:[6.80,5.70,6.10,6.55,7.00,7.50,8.00], eChar:[5.75,4.70,5.05,5.40,5.75,6.15,6.60]},
+  "Red Oak":       {clear:[3.10,3.30,3.55,3.80,4.05,4.35,4.65], char:[2.70,2.90,3.10,3.30,3.55,3.80,4.05], eClear:[5.95,4.85,5.20,5.55,5.95,6.35,6.80], eChar:[5.55,4.45,4.80,5.10,5.45,5.85,6.25]},
+  "Hickory":       {clear:[3.25,3.50,3.70,4.00,4.25,4.55,4.85], char:[2.90,3.10,3.30,3.55,3.80,4.05,4.35], eClear:[5.80,4.75,5.10,5.45,5.80,6.20,6.65], eChar:[5.60,4.50,4.85,5.20,5.55,5.90,6.35]},
+  "Maple":         {clear:[4.05,4.35,4.65,4.95,5.30,5.65,6.05], char:[3.10,3.35,3.55,3.80,4.05,4.35,4.65], eClear:[6.15,5.10,5.45,5.85,6.25,6.70,7.15], eChar:[5.65,4.60,4.90,5.25,5.60,6.00,6.40]},
+  "Cherry":        {clear:[3.25,3.45,3.70,3.95,4.25,4.55,4.85], char:[3.05,3.25,3.50,3.75,4.00,4.30,4.55], eClear:[5.80,4.75,5.10,5.45,5.80,6.20,6.65], eChar:[5.65,4.55,4.90,5.20,5.60,6.00,6.40]},
+  "Walnut":        {clear:[6.80,7.25,7.75,8.30,8.90,9.50,10.15],char:[4.55,4.85,5.20,5.55,5.95,6.35,6.80], eClear:[7.80,6.75,7.20,7.70,8.25,8.85,9.45], eChar:[6.15,5.10,5.45,5.80,6.20,6.65,7.10]},
+  "Beech":         {clear:[3.40,3.65,3.90,4.15,4.45,4.80,5.10], char:[3.15,3.35,3.60,3.80,4.10,4.40,4.70], eClear:[6.00,4.90,5.25,5.60,6.00,6.40,6.85], eChar:[5.75,4.70,5.00,5.35,5.75,6.10,6.55]},
+  "Q/R White Oak": {clear:[7.35,7.85,8.40,9.00,9.60,10.30,11.00],char:[4.50,4.80,5.15,5.50,5.90,6.30,6.75], eClear:[8.10,7.05,7.55,8.10,8.65,9.25,9.90], eChar:[6.15,5.10,5.45,5.80,6.20,6.65,7.10]},
+};
+const LS = {ws:[4.25,5.25,6.25,7.25,8.25,9.25,10.25,11.25], solid:[3.20,3.50,3.85,4.25,4.65,5.10,5.65,6.20], eng:[4.75,5.05,5.40,5.80,6.20,6.60,N,N]};
+const LSSP = "Live Sawn White Oak";
+const SPECIES = Object.keys(UNF).concat([LSSP]);
+const TEX = [["smooth","Smooth (standard)",0,false],["aged","Aged Brush",1.00,true],["sawcut","Saw Cut",1.50,true],["bandsawn","Band Sawn",1.50,true],["country","Country Worn",1.50,false],["vintage","Vintage Charm",1.50,false],["oldmill","Old Mill",2.50,false]];
+const EDGES = [["square","Square edge",0],["bevel","Micro bevel",0],["pillow","Hand pillowed",1.00],["vgroove","Custom V-groove",1.50]];
+const LENGTHS = [["1-8","1'–8' (standard)",0],["1-10","1'–10'",5],["2-8","2'–8'",15],["2-10","2'–10'",20],["3-8","3'–8'",25],["3-10","3'–10'",30]];
+const NAT=1.70, EST=2.05, ESTDEEP=3.15;
+const FIN = [["unf","Unfinished"],["nat","Prefinished — Natural"],["est","Prefinished — Established stain"],["t1","Custom color T-1 (+$3.35)"],["t2","Custom color T-2 (+$4.00)"],["t3","Custom color T-3 (+$4.20)"]];
+const TADD = {t1:3.35,t2:4.00,t3:4.20};
+const STAINS = ["Natural","Cattail","Caramel","Fresh Cut","Toasted Acorn","Nutmeg","Buckeye","Hickory Nut","Frost","Breeze","Camo","Dawn","Drift","Mist","Prestige","Silk"];
+const NO_SAP = {Cherry:1.00, Walnut:2.00};
+
+// The prefinished PAGE: every row of the vendor sheet, in sheet order. stdSheen
+// per the sheet's * / ** marks; green = the STOCK / FAST TRACK highlights per
+// grade (width indices into 2¼..6¼). Prices derive (base + adder) — production
+// would keep transcribed green prices + an assert-equal test (see ticket).
+const SHEET_WS = [2.25,3.25,4.25,5.25,6.25];
+const PAGE = [
+  {sp:"Beech",color:"Natural",sheen:30},
+  {sp:"Beech",color:"Drift",sheen:5},
+  {sp:"Cherry",color:"Natural",sheen:30,green:{clear:[1,2,3],char:[1,2,3,4]}},
+  {sp:"Cherry",color:"Silk",sheen:5},
+  {sp:"Hickory",color:"Natural",sheen:30,green:{clear:[0,1,2,3],char:[0,1,2,3,4]}},
+  {sp:"Hickory",color:"Breeze",sheen:5},
+  {sp:"Hickory",color:"Buckeye",sheen:30,green:{clear:[1,2,3]}},
+  {sp:"Hickory",color:"Hickory Nut",sheen:30,green:{char:[1,2,3,4]}},
+  {sp:"Hickory",color:"Toasted Acorn",sheen:30,green:{char:[1,2,3,4]}},
+  {sp:"Maple",color:"Natural",sheen:30,green:{clear:[1,2,3],char:[0,1,2,3,4]}},
+  {sp:"Maple",color:"Frost",sheen:5},
+  {sp:"Red Oak",color:"Natural",sheen:30,green:{clear:[0,1,2,3],char:[0,1,2,3]}},
+  {sp:"Red Oak",color:"Camo",sheen:5},
+  {sp:"Red Oak",color:"Dawn",sheen:5},
+  {sp:"Red Oak",color:"Prestige",sheen:30},
+  {sp:"Red Oak",color:"Toasted Acorn",sheen:30,green:{clear:[1,2,3],char:[1,2,3]}},
+  {sp:"Red Oak",color:"Nutmeg",sheen:20},
+  {sp:"Walnut",color:"Natural",sheen:30,green:{clear:[1,2],char:[1,2,3,4]}},
+  {sp:"Walnut",color:"Mist",sheen:5},
+  {sp:"White Oak",color:"Natural",sheen:30,green:{clear:[1,2,3],char:[0,1,2,3,4]}},
+  {sp:"White Oak",color:"Fresh Cut",sheen:5,green:{char:[1,2,3,4]}},
+  {sp:"White Oak",color:"Cattail",sheen:30,green:{char:[1,2,3,4]}},
+  {sp:"White Oak",color:"Caramel",sheen:20,green:{char:[1,2,3,4]}},
+  {sp:"Q/R White Oak",color:"Natural",sheen:30},
+  {sp:"Q/R White Oak",color:"Fresh Cut",sheen:5},
+  {sp:"Q/R White Oak",color:"Cattail",sheen:30},
+  {sp:"Q/R White Oak",color:"Caramel",sheen:20},
+  {sp:"Red Oak",color:"Cattail",tex:"sawcut",sheen:20,charOnly:true,wMin:2,green:{char:[2,3,4]}},
+  {sp:"Hickory",color:"Hickory Nut",tex:"vintage",sheen:20,charOnly:true,wMin:2,green:{char:[2,3,4]}},
+];
+
+// ---- pricing ------------------------------------------------------------------
+const texOf = id => TEX.find(t=>t[0]===id);
+const base = c => {
+  if (c.sp===LSSP){ const i=LS.ws.indexOf(c.w); return i<0?N:(c.cons==="solid"?LS.solid:LS.eng)[i]; }
+  const t=UNF[c.sp]; if(!t) return N;
+  const i=WIDTHS.indexOf(c.w); if(i<0) return N;
+  return t[c.cons==="eng"?(c.grade==="clear"?"eClear":"eChar"):(c.grade==="clear"?"clear":"char")][i];
+};
+const finAdd = c => c.finish==="nat"?NAT : c.finish==="est"?(texOf(c.tex)[3]?ESTDEEP:EST) : (TADD[c.finish]||0);
+const pageCost = (row,grade,wi) => {
+  const b = UNF[row.sp][grade][wi]; if(b==N) return N;
+  if(row.wMin && wi<row.wMin) return N;
+  const t = row.tex?texOf(row.tex)[2]:0;
+  const f = row.color==="Natural"?NAT:(row.tex&&texOf(row.tex)[3]?ESTDEEP:EST);
+  return +(b+t+f).toFixed(2);
+};
+const fm = n => "$"+n.toFixed(2);
+
+// Which sheet row/cell the CURRENT config sits on (highlight), if any.
+function findCell(c){
+  if (c.cons!=="solid") return null;
+  const wi = SHEET_WS.indexOf(c.w); if (wi<0) return null;
+  if (c.finish!=="nat" && c.finish!=="est") return null;
+  const color = c.finish==="nat"?"Natural":c.stain;
+  const row = PAGE.find(r=>r.sp===c.sp && r.color===color && (r.tex||"smooth")===(c.tex||"smooth") && !(r.charOnly&&c.grade==="clear"));
+  if (!row) return null;
+  if (pageCost(row,c.grade,wi)==N) return null;
+  return {row, grade:c.grade, wi};
+}
+const cellGreen = cell => !!(cell && cell.row.green && cell.row.green[cell.grade] && cell.row.green[cell.grade].includes(cell.wi));
+// STOCK = on a green cell AND nothing else walks it off the stock item.
+function stockMatch(c){
+  const cell = findCell(c);
+  if (!cellGreen(cell)) return {stock:false, cell};
+  const clean = c.edge==="bevel" && c.len==="1-8" && !c.noSap;
+  const sheenStd = String(c.sheen)===String(cell.row.sheen);
+  return {stock: clean && sheenStd, cell, clean, sheenStd};
+}
+
+// ---- state ---------------------------------------------------------------------
+let cfg = {sp:"White Oak",cons:"solid",grade:"char",w:4.25,tex:"smooth",edge:"bevel",len:"1-8",noSap:false,finish:"est",stain:"Cattail",sheen:"30"};
+let ui = {open:true, stockOnly:false};
+
+const SCEN = [
+  ["Stock pick", ()=>{cfg={sp:"White Oak",cons:"solid",grade:"char",w:4.25,tex:"smooth",edge:"bevel",len:"1-8",noSap:false,finish:"est",stain:"Cattail",sheen:"30"}; ui.open=true; ui.stockOnly=false;}],
+  ["Walks off stock", ()=>{cfg={sp:"White Oak",cons:"solid",grade:"char",w:4.25,tex:"smooth",edge:"pillow",len:"1-8",noSap:false,finish:"est",stain:"Cattail",sheen:"30"}; ui.open=true; ui.stockOnly=false;}],
+  ["White cell", ()=>{cfg={sp:"Q/R White Oak",cons:"solid",grade:"char",w:5.25,tex:"smooth",edge:"bevel",len:"1-8",noSap:false,finish:"est",stain:"Caramel",sheen:"20"}; ui.open=true; ui.stockOnly=false;}],
+  ["Stock/Rush only", ()=>{cfg={sp:"Hickory",cons:"solid",grade:"char",w:5.25,tex:"vintage",edge:"bevel",len:"1-8",noSap:false,finish:"est",stain:"Hickory Nut",sheen:"20"}; ui.open=true; ui.stockOnly=true;}],
+  ["Off the sheet", ()=>{cfg={sp:"White Oak",cons:"eng",grade:"char",w:5.25,tex:"smooth",edge:"bevel",len:"1-8",noSap:false,finish:"est",stain:"Cattail",sheen:"30"}; ui.open=true; ui.stockOnly=false;}],
+];
+
+// ---- renderers -------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+function renderScen(){
+  $("scen").innerHTML = SCEN.map((s,i)=>`<button data-i="${i}">${s[0]}</button>`).join("");
+  $("scen").querySelectorAll("button").forEach(b=>b.onclick=()=>{SCEN[+b.dataset.i][1](); renderAll();});
+}
+
+function renderSheet(){
+  $("sheetToggle").classList.toggle("on", ui.open);
+  $("sheetToggle").textContent = (ui.open?"▾ ":"▦ ")+"Price sheet";
+  $("stockOnly").style.display = ui.open?"":"none";
+  $("legend").style.display = ui.open?"":"none";
+  $("stockOnly").classList.toggle("on", ui.stockOnly);
+  const el = $("sheet");
+  el.style.display = ui.open?"":"none";
+  const cur = findCell(cfg);
+  $("offsheet").style.display = "none";
+  if (ui.open && !cur){
+    $("offsheet").style.display = "";
+    $("offsheet").textContent = "Current build isn't on the prefinished sheet ("+(cfg.cons==="eng"?"engineered — the sheet is solid only":cfg.finish==="unf"?"it's unfinished":["t1","t2","t3"].includes(cfg.finish)?"custom color":"this color/width/texture isn't a sheet row")+") — it prices the custom way below.";
+  }
+  if (!ui.open) return;
+  const rows = PAGE.filter(r=>!ui.stockOnly || r.green);
+  let spLast = "";
+  const th = `<tr><th class="lbl blk" style="top:0"></th><th class="blk" colspan="5">Clear grade</th><th class="blk div" colspan="5">Character grade</th></tr>
+  <tr><th class="lbl w">Species — color</th>${SHEET_WS.map(w=>`<th class="w">${WL[w]}</th>`).join("")}${SHEET_WS.map((w,i)=>`<th class="w${i===0?" div":""}">${WL[w]}</th>`).join("")}</tr>`;
+  const body = rows.map(r=>{
+    const spTop = r.sp!==spLast; spLast = r.sp;
+    const cells = grade => SHEET_WS.map((w,wi)=>{
+      const p = r.charOnly&&grade==="clear" ? N : pageCost(r,grade,wi);
+      const div = grade==="char"&&wi===0 ? " div":"";
+      if (p==N) return `<td class="${div.trim()}"><span class="dash">—</span></td>`;
+      const g = r.green && r.green[grade] && r.green[grade].includes(wi);
+      if (ui.stockOnly && !g) return `<td class="${div.trim()}"><span class="dash">·</span></td>`;
+      const on = cur && cur.row===r && cur.grade===grade && cur.wi===wi;
+      return `<td class="${div.trim()}"><button class="cellb${g?" g":""}${on?" cur":""}" data-sp="${esc(r.sp)}" data-color="${esc(r.color)}" data-tex="${r.tex||"smooth"}" data-grade="${grade}" data-wi="${wi}">${p.toFixed(2)}</button></td>`;
+    }).join("");
+    const mark = r.sheen!==30?` <span class="m">(${r.sheen}-sheen)</span>`:"";
+    const texN = r.tex?` <span class="m">· ${texOf(r.tex)[1]}</span>`:"";
+    return `<tr${spTop?' class="spTop"':''}><td class="lbl">${esc(r.sp)} — ${esc(r.color)}${texN}${mark}</td>${cells("clear")}${cells("char")}</tr>`;
+  }).join("");
+  el.innerHTML = `<table>${th}${body}</table>`;
+  el.querySelectorAll(".cellb").forEach(b=>b.onclick=()=>{
+    // sp + color + texture names exactly one PAGE row (the textured rows are the
+    // only sp+color dupes, and data-tex splits them).
+    const rr = PAGE.find(r=>r.sp===b.dataset.sp && r.color===b.dataset.color && (r.tex||"smooth")===b.dataset.tex);
+    cfg = {...cfg, sp:rr.sp, cons:"solid", grade:b.dataset.grade, w:SHEET_WS[+b.dataset.wi],
+      tex:rr.tex||"smooth", edge:"bevel", len:"1-8", noSap:false,
+      finish:rr.color==="Natural"?"nat":"est", stain:rr.color==="Natural"?"":rr.color, sheen:String(rr.sheen)};
+    renderAll();
+  });
+}
+
+function chipRow(items, cur, on){ // items: [id,label,sub,dis,stockdot]
+  return `<div class="wrap">`+items.map(it=>`<button class="chip${it[0]===cur?" on":""}${it[3]?" dis":""}${it[4]?" stockdot":""}" data-id="${esc(String(it[0]))}" ${it[3]?"disabled":""}>${it[1]}${it[2]?`<span class="s">${it[2]}</span>`:""}${it[4]?'<span class="dot"></span>':''}</button>`).join("")+`</div>`;
+}
+
+function renderRail(){
+  const sell = c => { const m=+($("markup").value||40); return c==N?null:+(c*(1+m/100)).toFixed(2); };
+  const widths = cfg.sp===LSSP?LS.ws:WIDTHS;
+  const spHasStock = sp => PAGE.some(r=>r.sp===sp && r.green);
+  const rowStock = w => { const m = stockMatch({...cfg,w}); return m.stock; };
+  const html = `
+    <div class="sect"><div class="lbl"><span class="eyebrow">Species</span><span class="hint">sell $/sf at current options · ● has stock colors</span></div>
+      ${chipRow(SPECIES.map(sp=>{const c=base({...cfg,sp,w:(sp===LSSP?(LS.ws.includes(cfg.w)?cfg.w:5.25):(WIDTHS.includes(cfg.w)?cfg.w:5.25))}); const s=c==N?null:sell(c+finAdd(cfg)+texOf(cfg.tex)[2]); return [sp,sp,s?fm(s)+"/sf":"—",false,spHasStock(sp)];}), cfg.sp)}</div>
+    <div class="sect" style="display:flex;gap:18px;align-items:flex-end">
+      <div><div class="lbl"><span class="eyebrow">Construction</span></div><span class="seg" id="consSeg"><button data-v="solid" class="${cfg.cons==="solid"?"on":""}">Solid</button><button data-v="eng" class="${cfg.cons==="eng"?"on":""}">Eng.</button></span></div>
+      <div><div class="lbl"><span class="eyebrow">Grade</span></div>${cfg.sp===LSSP?'<span class="seg"><button class="on">Live Sawn</button></span>':`<span class="seg" id="gradeSeg"><button data-v="clear" class="${cfg.grade==="clear"?"on":""}">Clear</button><button data-v="char" class="${cfg.grade==="char"?"on":""}">Char.</button></span>`}</div>
+    </div>
+    <div class="sect"><div class="lbl"><span class="eyebrow">Width</span><span class="hint">● = this width ships from stock at current color</span></div>
+      ${chipRow(widths.map(w=>{const c=base({...cfg,w}); return [w,WL[w],c==N?"—":fm(sell(c+finAdd(cfg)+texOf(cfg.tex)[2]))+"/sf",c==N,rowStock(w)];}), cfg.w)}</div>
+    <div class="row2 sect">
+      <div><div class="lbl"><span class="eyebrow">Texture / scrape</span></div><select id="texSel">${TEX.map(t=>`<option value="${t[0]}"${cfg.tex===t[0]?" selected":""}>${t[1]}${t[2]?`  +${fm(t[2])} cost`:""}</option>`).join("")}</select></div>
+      <div><div class="lbl"><span class="eyebrow">Finishing</span></div><select id="finSel">${FIN.map(f=>`<option value="${f[0]}"${cfg.finish===f[0]?" selected":""}>${f[1]}</option>`).join("")}</select></div>
+    </div>
+    ${cfg.finish!=="unf"?`<div class="stainbox"><div class="row2">
+      ${cfg.finish==="est"?`<div><div class="lbl"><span class="eyebrow">Stain color</span></div><select id="stainSel"><option value="">Pick color…</option>${STAINS.filter(s=>s!=="Natural").map(s=>`<option${cfg.stain===s?" selected":""}>${s}</option>`).join("")}</select></div>`
+        :["t1","t2","t3"].includes(cfg.finish)?`<div><div class="lbl"><span class="eyebrow">Stain color</span></div><input type="text" placeholder="Custom color name" style="width:100%"></div>`:"<div></div>"}
+      <div><div class="lbl"><span class="eyebrow">Sheen</span><span class="hint">${(()=>{const m=stockMatch(cfg); return cellGreen(m.cell)?`stock standard ${m.cell.row.sheen} · +$250 if changed`:"included, no charge";})()}</span></div>
+        <select id="sheenSel">${["30","20","15","10","5"].map(s=>`<option${String(cfg.sheen)===s?" selected":""}>${s}</option>`).join("")}</select></div>
+    </div></div>`:""}
+    <div class="row2 sect">
+      <div><div class="lbl"><span class="eyebrow">Lengths</span></div><select id="lenSel">${LENGTHS.map(l=>`<option value="${l[0]}"${cfg.len===l[0]?" selected":""}>${l[1]}${l[2]?`  +${l[2]}%`:""}</option>`).join("")}</select></div>
+      <div><div class="lbl"><span class="eyebrow">Edge</span></div><select id="edgeSel">${EDGES.map(e=>`<option value="${e[0]}"${cfg.edge===e[0]?" selected":""}>${e[1]}${e[2]?`  +${fm(e[2])} cost`:""}</option>`).join("")}</select></div>
+    </div>
+    ${NO_SAP[cfg.sp]!=null?`<div class="sect"><div class="lbl"><span class="eyebrow">Sap</span></div><button class="chip${cfg.noSap?" on":""}" id="sapChip">No sap — ${cfg.sp}  +${fm(NO_SAP[cfg.sp])} cost</button></div>`:""}
+  `;
+  $("rail").innerHTML = html;
+  $("rail").querySelectorAll(".wrap")[0].querySelectorAll(".chip").forEach(b=>b.onclick=()=>{cfg.sp=b.dataset.id; const ws=cfg.sp===LSSP?LS.ws:WIDTHS; if(!ws.includes(cfg.w)||base(cfg)==N){cfg.w=ws.find(w=>base({...cfg,w})!=N)??ws[0];} renderAll();});
+  $("rail").querySelectorAll(".wrap")[1].querySelectorAll(".chip").forEach(b=>b.onclick=()=>{cfg.w=+b.dataset.id; renderAll();});
+  const on = (id,f)=>{const e=$(id); if(e) e.onchange=ev=>{f(ev.target.value); renderAll();};};
+  const seg = (id,f)=>{const e=$(id); if(e) e.querySelectorAll("button").forEach(b=>b.onclick=()=>{f(b.dataset.v); if(base(cfg)==N){const ws=cfg.sp===LSSP?LS.ws:WIDTHS; cfg.w=ws.find(w=>base({...cfg,w})!=N)??cfg.w;} renderAll();});};
+  seg("consSeg",v=>cfg.cons=v); seg("gradeSeg",v=>cfg.grade=v);
+  on("texSel",v=>cfg.tex=v); on("finSel",v=>{cfg.finish=v; if(v==="nat")cfg.stain="";});
+  on("stainSel",v=>cfg.stain=v); on("sheenSel",v=>cfg.sheen=v);
+  on("lenSel",v=>cfg.len=v); on("edgeSel",v=>cfg.edge=v);
+  const sap=$("sapChip"); if(sap) sap.onclick=()=>{cfg.noSap=!cfg.noSap; renderAll();};
+}
+
+function renderCard(){
+  const sf = +($("sf").value||400), m = +($("markup").value||40);
+  const b = base(cfg);
+  if (b==N){ $("card").innerHTML = `<div class="card"><div class="rows" style="padding:18px 14px;color:var(--ft-faint);font-weight:700;font-size:13px">This combination isn't offered — pick an available width.</div></div>`; return; }
+  const t = texOf(cfg.tex), edge = EDGES.find(e=>e[0]===cfg.edge), len = LENGTHS.find(l=>l[0]===cfg.len);
+  const sap = cfg.noSap?(NO_SAP[cfg.sp]||0):0;
+  const lenAdd = (b+sap)*len[2]/100;
+  const fa = finAdd(cfg);
+  const cost = +(b+sap+lenAdd+t[2]+edge[2]+fa).toFixed(2);
+  const sm = stockMatch(cfg);
+  const green = cellGreen(sm.cell);
+  const rows = [[`Unfinished base — ${cfg.sp}, ${cfg.sp===LSSP?"Live Sawn":(cfg.grade==="clear"?"Clear":"Character")}, ${cfg.cons==="solid"?"solid":"engineered"} ${WL[cfg.w]}`, fm(b)+"/sf"]];
+  if (sap) rows.push(["No-sap upcharge", "+"+fm(sap)+"/sf"]);
+  if (len[2]) rows.push([`${len[1].replace(" (standard)","")} lengths (+${len[2]}% of base)`, "+"+fm(lenAdd)+"/sf"]);
+  if (t[2]) rows.push([`Texture — ${t[1]}`, "+"+fm(t[2])+"/sf"]);
+  if (edge[2]) rows.push([`Edge — ${edge[1]}`, "+"+fm(edge[2])+"/sf"]);
+  if (fa) rows.push([`Finishing — ${cfg.finish==="nat"?"Natural":cfg.finish==="est"?`${cfg.stain||"(pick stain)"} stain`:"Custom color "+cfg.finish.toUpperCase()}`, "+"+fm(fa)+"/sf"]);
+  const fees = [];
+  if (sm.stock){
+    // stock item: no small-order fee
+  } else if (green && sm.clean===true && !sm.sheenStd){
+    fees.push([`Non-standard sheen — ${cfg.sheen}-sheen (stock standard ${sm.cell.row.sheen})`, 250]);
+  } else if (cfg.finish!=="unf" && cfg.finish!=="nat"){
+    if (sf<250) fees.push(["Small-order fee — prefinished job under 250 sf", 600]);
+    else if (sf<500) fees.push(["Small-order fee — prefinished job under 500 sf", 300]);
+  }
+  if (["t1","t2","t3"].includes(cfg.finish)) fees.push(["Custom color-match sample — approval bundle shipped", 750]);
+  const sell = +(cost*(1+m/100)).toFixed(2);
+  const feeTot = fees.reduce((a,f)=>a+f[1],0);
+  const badge = sm.stock
+    ? `<span class="badge stock">⬤ STOCK — ships from Sheoga stock · no small-order fee</span>`
+    : green && !sm.sheenStd && sm.clean
+      ? `<span class="badge mto">◍ stock color, non-standard sheen — made to order, +$250 flat</span>`
+      : green===false && sm.cell
+        ? `<span class="badge mto">◌ on the sheet, not stocked — made to order · fees under 500 sf</span>`
+        : sm.cell
+          ? `<span class="badge mto">◍ stock color, but an option walked it off the stock item — made to order</span>`
+          : `<span class="badge mto">◌ custom build — made to order · 5–10% overrun · non-returnable</span>`;
+  const desc = `${WL[cfg.w]} ${cfg.sp} ${cfg.sp===LSSP?"Live Sawn":(cfg.grade==="clear"?"Clear":"Character")} ${cfg.cons==="solid"?"Solid":"Engineered"}${t[0]!=="smooth"?" "+t[1]:""}${edge[0]!=="square"?" "+edge[1]:""}${len[2]?" "+len[1].replace(" (standard)","")+" lengths":""} ${cfg.finish==="unf"?"Unfinished":cfg.finish==="nat"?`Prefinished Natural ${cfg.sheen} sheen`:cfg.finish==="est"?`Prefinished ${cfg.stain||"(pick stain)"} stain ${cfg.sheen} sheen`:`Custom color ${cfg.finish.toUpperCase()} ${cfg.sheen} sheen`}`;
+  $("card").innerHTML = `<div class="card">
+    <div class="top"><span class="h">H</span><b>Sheoga ${WL[cfg.w]} ${cfg.sp}</b><span class="note">priced from Sheoga sheets · Jan ’26</span></div>
+    <div class="desc">${esc(desc)}</div>
+    <div style="padding:4px 12px 0">${badge}</div>
+    <div class="rows">
+      ${rows.map(r=>`<div class="crow"><span>${esc(r[0])}</span><span>${r[1]}</span></div>`).join("")}
+      ${fees.map(f=>`<div class="crow fee"><span>${esc(f[0])} → imports as its own line</span><span>+${fm(f[1])} flat</span></div>`).join("")}
+      ${sm.stock?`<div class="crow" style="color:var(--ft-brand-deep);font-weight:700"><span>Micro bevel · standard lengths · ${sm.cell.row.sheen}-sheen — the stock spec</span><span>✓</span></div>`:""}
+    </div>
+    <div class="tot">
+      <div class="cell"><div class="e">our cost</div><div class="v">${fm(cost)}/sf</div></div>
+      <div class="arrow">→ +${m}% →</div>
+      <div class="cell"><div class="e">sell</div><div class="v sell">${fm(sell)}/sf</div></div>
+      <div class="right cell"><div class="e">× ${sf} sq ft${feeTot?` + ${fm(feeTot)} fees`:""}</div><div class="v">$${Math.round(sell*sf+feeTot).toLocaleString()}</div></div>
+    </div>
+    <div class="actions"><button class="abtn">＋ Add to basket</button><button class="abtn pri">＋ Add to product line${fees.length?"s":""}</button></div>
+  </div>`;
+}
+
+function renderAll(){ renderSheet(); renderRail(); renderCard(); }
+$("sheetToggle").onclick = ()=>{ui.open=!ui.open; renderAll();};
+$("stockOnly").onclick = ()=>{ui.stockOnly=!ui.stockOnly; renderAll();};
+$("markup").oninput = renderAll; $("sf").oninput = renderAll;
+renderScen(); renderAll();
+</script>
+</body>
+</html>
