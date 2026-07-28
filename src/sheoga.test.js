@@ -5,8 +5,8 @@ import {
   TEXTURES, FINISHES, STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE,
   VENT_GROUP, VENT_STD, VENT_FRAMED, VENT_CAR, VENT_3D, VENT_CATS,
   MODES, defaultConfig, floorWidths, floorBase, gradeName, finishName,
-  calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig,
-  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
+  calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig, smallOrderFee,
+  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, tierSellOf, tierFeeOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, hbFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
@@ -123,17 +123,34 @@ test("calcFloor: established stain picks its rate from the texture depth", () =>
 });
 
 test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => {
-  const base = 4.35 + 1.65;
-  const big = calcFloor(floor({ finish: "nat" }), 600);
+  const est = (sf) => calcFloor(floor({ finish: "est", stain: "Cattail" }), sf);
+  const base = 4.35 + 1.95; // established stain, smooth texture
+  const big = est(600);
   assert.equal(big.cost, base);
   assert.deepEqual(big.fees, []);
-  const mid = calcFloor(floor({ finish: "nat" }), 400);
+  const mid = est(400);
   assert.equal(mid.cost, base);
   assert.deepEqual(mid.fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
-  const small = calcFloor(floor({ finish: "nat" }), 200);
+  const small = est(200);
   assert.deepEqual(small.fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
   const unf = calcFloor(floor(), 200); // unfinished never owes the fee
   assert.deepEqual(unf.fees, []);
+});
+
+test("calcFloor: Prefinished Natural never owes the small-order fee", () => {
+  for (const sf of [200, 400, 600]) {
+    const c = calcFloor(floor({ finish: "nat" }), sf);
+    assert.equal(c.cost, 4.35 + 1.65);
+    assert.deepEqual(c.fees, []);
+  }
+});
+
+test("smallOrderFee: unfinished and Natural are exempt at every size", () => {
+  assert.equal(smallOrderFee("est", 200), 600);
+  assert.equal(smallOrderFee("est", 400), 300);
+  assert.equal(smallOrderFee("est", 500), 0);
+  assert.equal(smallOrderFee("t1", 249), 600);
+  for (const f of ["unf", "nat"]) for (const sf of [1, 200, 400, 600]) assert.equal(smallOrderFee(f, sf), 0);
 });
 
 test("calcFloor: custom color always charges the $750 sample; established stain is optional", () => {
@@ -254,10 +271,12 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30 sheen');
   assert.ok(fin.rows.some(([l]) => l === "Texture — Saw Cut"));
   // Small-order fee follows sf, imports as its own flat line, never in the $/sf.
-  const small = calcHerringbone({ ...base, finish: "nat" }, 200);
-  assert.equal(small.cost, 8.40 + 1.65);
+  const small = calcHerringbone({ ...base, finish: "est", stain: "Cattail" }, 200);
+  assert.equal(small.cost, 8.40 + 1.95);
   assert.deepEqual(small.fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
-  assert.deepEqual(calcHerringbone({ ...base, finish: "nat" }, 600).fees, []);
+  assert.deepEqual(calcHerringbone({ ...base, finish: "est", stain: "Cattail" }, 600).fees, []);
+  // Prefinished Natural is exempt at every size (owner rule 2026-07-28).
+  for (const sf of [200, 400, 600]) assert.deepEqual(calcHerringbone({ ...base, finish: "nat" }, sf).fees, []);
   // Custom color always owes the $750 sample; established only with the toggle.
   assert.deepEqual(calcHerringbone({ ...base, finish: "t1" }, 1000).fees, [{ label: "Custom color-match sample — approval bundle shipped", amt: 750 }]);
   assert.deepEqual(calcHerringbone({ ...base, finish: "est", sample: true }, 1000).fees.at(-1), { label: "Custom color-match sample — approval bundle shipped", amt: 750 });
@@ -620,6 +639,8 @@ test("multiWidthBuild floor: unfinished has no fees; small-order fee pools once 
   assert.equal(small.fees.find((f) => /Small-order/.test(f.label)).amt, 300);
   const big = multiWidthBuild(mwFloor({ finish: "est" }), shares([3.25, 4.25, 5.25]), 600);
   assert.equal(big.fees.filter((f) => /Small-order/.test(f.label)).length, 0);
+  const nat = multiWidthBuild(mwFloor({ finish: "nat" }), shares([3.25, 4.25, 5.25]), 300);
+  assert.equal(nat.fees.filter((f) => /Small-order/.test(f.label)).length, 0);
 });
 
 test("multiWidthBuild floor: custom color sample charged once for the bundle", () => {
@@ -692,4 +713,32 @@ test("normBasketEntry: valid single/bundle pass; junk drops to null", () => {
 test("normBasketEntry: a 0% markup entry is preserved, not coerced to default", () => {
   const s = normBasketEntry({ kind: "single", markupPct: 0, snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
   assert.equal(s.markupPct, 0);
+});
+
+// --- tier display lens -------------------------------------------------------
+
+test("tierSellOf: retail (and a 0% discount) is the plain marked-up sell", () => {
+  assert.equal(tierSellOf(4.35, 40, "retail", 0), sellOf(4.35, 40));
+  assert.equal(tierSellOf(4.35, 40, undefined, 0), sellOf(4.35, 40));
+  assert.equal(tierSellOf(4.35, 40, "builder", 0), sellOf(4.35, 40));
+  assert.equal(tierSellOf(4.35, 40, "custom", undefined), sellOf(4.35, 40));
+});
+
+test("tierSellOf: employee is cost + 6%, whatever the markup", () => {
+  for (const m of [0, 40, 150]) assert.equal(tierSellOf(4.35, m, "employee", 0), 4.61);
+  assert.equal(tierSellOf(20.85, 50, "employee", 0), Math.round(20.85 * 1.06 * 100) / 100);
+});
+
+test("tierSellOf: builder/sale/custom discount the marked-up sell", () => {
+  const retail = sellOf(4.35, 40); // 6.09
+  assert.equal(tierSellOf(4.35, 40, "builder", 8), Math.round(retail * 0.92 * 100) / 100);
+  assert.equal(tierSellOf(4.35, 40, "sale", 10), Math.round(retail * 0.9 * 100) / 100);
+  assert.equal(tierSellOf(4.35, 40, "custom", 25), Math.round(retail * 0.75 * 100) / 100);
+});
+
+test("tierFeeOf: an at-cost fee rides the same lens with no markup", () => {
+  assert.equal(tierFeeOf(600, "retail", 0), 600);
+  assert.equal(tierFeeOf(600, "employee", 0), 636);
+  assert.equal(tierFeeOf(600, "builder", 8), 552);
+  assert.equal(tierFeeOf(750, "sale", 10), 675);
 });

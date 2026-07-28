@@ -14,12 +14,14 @@ import {
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape, ventDims,
-  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
+  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, tierSellOf, tierFeeOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
+import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 
 const fm = (n) => "$" + n.toFixed(2);
 const fmInt = (n) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
 // --- small option controls ----------------------------------------------------
 
@@ -223,6 +225,40 @@ function Dropdown({ label, hint, value, options, onChange }) {
   );
 }
 
+// The job's price level, as the project header's tier buttons laid out
+// horizontally (projectheader.jsx VertBar, same options and tooltips). Pressing
+// a segment sets the JOB's tier — the configurator is a lens on it, not a
+// separate setting — and every price on screen redraws through it. What lands on
+// a product line is always retail (ADR 0018).
+function TierBar({ value, customPct, builderPct, salePct, onPick, onPct }) {
+  const opts = [
+    { v: "retail", label: "Retail", title: "Retail pricing" },
+    { v: "builder", label: "Builder", color: TIER_COLOR.builder.main, title: `Builder pricing — ${builderPct}% off retail` },
+    { v: "employee", label: "Employee", color: TIER_COLOR.employee.main, title: "Employee pricing — cost + 6% (no-cost lines stay retail)" },
+    { v: "sale", label: "Sale", color: TIER_COLOR.sale.main, title: `Sale pricing — ${salePct}% off retail` },
+    { v: "custom", label: "Custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
+  ];
+  return (
+    <div className="inline-flex shrink-0 items-stretch rounded-md border border-slate-300 overflow-hidden bg-white">
+      <span className="flex items-center px-2 text-[9px] font-bold uppercase tracking-wider text-slate-400" style={{ background: "var(--ft-sand)" }}>Price level</span>
+      {opts.map((o) => {
+        const on = value === o.v;
+        const cls = "border-l border-slate-300 px-2.5 py-1.5 text-[11px] font-bold whitespace-nowrap " + (on ? (o.color ? "text-white" : "bg-slate-900 text-white") : "text-slate-500 hover:bg-slate-50");
+        const fill = on && o.color ? { background: o.color } : undefined;
+        if (o.input) return (
+          <label key={o.v} title={o.title} style={fill} className={cls + " flex items-center gap-1 cursor-text"}>
+            <span>{o.label}</span>
+            <input type="number" min="0" max="100" value={customPct ?? ""} onFocus={() => onPick("custom")} onChange={(e) => onPct(e.target.value)}
+              className={"ft-nospin w-7 bg-transparent text-right focus:outline-none " + (on ? "" : "text-slate-500")} />
+            <span>%</span>
+          </label>
+        );
+        return <button key={o.v} onClick={() => onPick(o.v)} title={o.title} style={fill} className={cls}>{o.label}</button>;
+      })}
+    </div>
+  );
+}
+
 // The "full price grid" trigger — a real button, shared by both rails.
 function GridButton({ onClick }) {
   return (
@@ -279,8 +315,8 @@ const snapFloorW = (f) => {
   return w != null ? { ...f, w } : f;
 };
 
-function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep, wide }) {
-  const sell = (c) => (c ? fm(sellOf(c.cost, markup)) + "/sf" : "—");
+function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep, wide }) {
+  const sell = (c) => (c ? fm(tsell(c.cost)) + "/sf" : "—");
   const custom = CUSTOM_FINISHES.includes(f.finish);
   const established = f.finish === "est";
   const prefin = f.finish !== "unf";
@@ -320,13 +356,14 @@ function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle,
     </Sect>
     {/* Texture + Finishing on one row. When a prefinished finish is chosen its
         stain/sheen detail drops in right below — green-outlined to tie it to
-        the Finishing control — pushing Lengths/Edge down. The +$ adders show
-        retail (marked up), matching the sell-price chips above. */}
+        the Finishing control — pushing Lengths/Edge down. The +$ adders are
+        sell-side at the job's price level, matching the chips above (the lens
+        is linear in every tier, so an adder stays an adder). */}
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={f.tex} onChange={(tex) => set({ ...f, tex })}
-        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
-      <Dropdown label="Finishing" hint="fee under 500 sf" value={f.finish} onChange={(finish) => set({ ...f, finish })}
-        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(f), markup))}`) }))} />
+        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(tsell(t.add))}` : "") }))} />
+      <Dropdown label="Finishing" hint={f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={(finish) => set({ ...f, finish })}
+        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(tsell(x.add(f)))}`) }))} />
     </div>
     {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
         free on this custom/floor tab — no fee, it's made to order regardless. */}
@@ -342,11 +379,11 @@ function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle,
       <Dropdown label="Lengths" value={f.len} onChange={(len) => set({ ...f, len })}
         options={LENGTHS.map((l) => ({ id: l.id, label: l.name.replace(" (standard)", "") + (l.pct ? `  +${l.pct}%` : "") }))} />
       <Dropdown label="Edge" value={f.edge} onChange={(edge) => set({ ...f, edge })}
-        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(sellOf(e.add, markup))}` : "") }))} />
+        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(tsell(e.add))}` : "") }))} />
     </div>
     {NO_SAP[f.sp] != null && (
       <Sect title="Sap">
-        <Toggle label={`No sap — ${f.sp}`} on={f.noSap} onClick={() => set({ ...f, noSap: !f.noSap })} add={`+${fm(sellOf(NO_SAP[f.sp], markup))}/sf`} />
+        <Toggle label={`No sap — ${f.sp}`} on={f.noSap} onClick={() => set({ ...f, noSap: !f.noSap })} add={`+${fm(tsell(NO_SAP[f.sp]))}/sf`} />
       </Sect>
     )}
     {custom && (
@@ -366,7 +403,7 @@ function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle,
   </>);
 }
 
-function StockedRail({ k, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep }) {
+function StockedRail({ k, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, onMwWidth, onStep }) {
   const it = stockedItem(k) || STOCKED[0];
   const species = [...new Set(STOCKED.map((x) => x.sp))];
   const colorsFor = (sp) => STOCKED.filter((x) => x.sp === sp);
@@ -406,7 +443,7 @@ function StockedRail({ k, set, sf, markup, onGrid, multi, mwWidths, onMultiToggl
       </div>
     </div>
     <Sect title="Width">
-      <WidthRow items={STOCKED_WIDTHS[k.grade].map((w) => { const c = calcStocked({ ...k, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—", dis: !c }; })}
+      <WidthRow items={STOCKED_WIDTHS[k.grade].map((w) => { const c = calcStocked({ ...k, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(tsell(c.cost)) + "/sf" : "—", dis: !c }; })}
         cur={k.w} multi={multi} selected={mwWidths} count={mwWidths.length}
         onPick={(w) => set({ ...k, w: +w })} onToggle={onMwWidth} onMultiToggle={onMultiToggle} onStep={onStep} />
     </Sect>
@@ -417,7 +454,7 @@ function StockedRail({ k, set, sf, markup, onGrid, multi, mwWidths, onMultiToggl
   </>);
 }
 
-function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
+function HbRail({ h, set, tsell, onGrid, onCopyFloor, copySrc }) {
   const snap = (next) => {
     const t = HERRINGBONE[next.cons === "solid" ? "solid" : "eng"][next.sp];
     return t.ws.includes(next.w) ? next : { ...next, w: t.ws[Math.min(2, t.ws.length - 1)] };
@@ -441,7 +478,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
         items={Object.keys(HERRINGBONE.solid).map((sp) => {
           const p = snap({ ...h, sp });
           const c = calcHerringbone(p);
-          return { id: sp, label: sp, sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" };
+          return { id: sp, label: sp, sub: c ? fm(tsell(c.cost)) + "/sf" : "—" };
         })} />
     </Sect>
     <div className="mb-4 flex items-end gap-4 flex-wrap">
@@ -459,7 +496,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
       {/* Every width in the run stays pickable — before a length is typed there
           is no price yet, but the width choice must not be blocked on it. */}
       <Chips cur={h.w} onPick={(w) => set({ ...h, w: +w })}
-        items={table.ws.map((w) => { const c = calcHerringbone({ ...h, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(sellOf(c.cost, markup)) + "/sf" : "—" }; })} />
+        items={table.ws.map((w) => { const c = calcHerringbone({ ...h, w }); return { id: w, label: WIDTH_LABEL[w], sub: c ? fm(tsell(c.cost)) + "/sf" : "—" }; })} />
     </Sect>
     <Sect title="Slat length" hint="type it — the tier prices it">
       <div className="flex items-center gap-2 mb-2">
@@ -481,23 +518,23 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
           return (
             <div key={i} className={`rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center select-none ${on ? "bg-slate-900 border-slate-900 text-white" : "border-slate-200 bg-white text-slate-500"}`}>
               {b}
-              <span className={`block text-[10px] font-semibold ${on ? "text-white/70" : "text-slate-400"}`}>{c ? fm(sellOf(c.cost, markup)) + "/sf" : "—"}</span>
+              <span className={`block text-[10px] font-semibold ${on ? "text-white/70" : "text-slate-400"}`}>{c ? fm(tsell(c.cost)) + "/sf" : "—"}</span>
             </div>
           );
         })}
       </div>
     </Sect>
     <Sect title="Pattern">
-      <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(sellOf(CHEVRON_ADD, markup))}/sf`} />
+      <Toggle label="Chevron pattern (slip tongue included)" on={h.chevron} onClick={() => set({ ...h, chevron: !h.chevron })} add={`+${fm(tsell(CHEVRON_ADD))}/sf`} />
     </Sect>
     {/* Scrape + finishing + edge, same options and $/sf adders as the custom
         floor tab. A prefinished finish drops its stain/sheen detail in below
         (sheen free); established/custom colors owe the $750 sample. */}
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={h.tex || "smooth"} onChange={(tex) => set({ ...h, tex })}
-        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
-      <Dropdown label="Finishing" hint="fee under 500 sf" value={h.finish || "unf"} onChange={(finish) => set({ ...h, finish })}
-        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(h), markup))}`) }))} />
+        options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(tsell(t.add))}` : "") }))} />
+      <Dropdown label="Finishing" hint={h.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={h.finish || "unf"} onChange={(finish) => set({ ...h, finish })}
+        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(tsell(x.add(h)))}`) }))} />
     </div>
     {prefin && (
       <div className="mb-3 rounded-lg border-2 p-3" style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)" }}>
@@ -509,7 +546,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
     )}
     <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Edge" value={h.edge || "square"} onChange={(edge) => set({ ...h, edge })}
-        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(sellOf(e.add, markup))}` : "") }))} />
+        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(tsell(e.add))}` : "") }))} />
     </div>
     {custom && (
       <Sect title="Custom color sample">
@@ -533,7 +570,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
 const VENT_W_TINT = { 2.25: "#eff5e6", 4: "#e6f0d5", 6: "#dcebc7", 8: "#d3e6ba", 10: "#cbe1ae", 12: "#c2dca1" };
 const ventWidthTint = (size) => VENT_W_TINT[ventDims(size)[0]] || undefined;
 
-function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
+function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
   const cat = VENT_CATS.find((c) => c.id === v.cat);
   const snapSize = (next) => {
     const c2 = VENT_CATS.find((c) => c.id === next.cat);
@@ -556,11 +593,11 @@ function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
     </Sect>
     <Sect title="Size (duct W × L)" hint="shaded by duct width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full grid →</button>}>
       <Chips cur={v.size} onPick={(size) => set({ ...v, size })}
-        items={cat.list().map((row) => { const c = calcVent({ ...v, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(sellOf(c.cost, markup)) : "—", bg: ventWidthTint(row[0]) }; })} />
+        items={cat.list().map((row) => { const c = calcVent({ ...v, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(tsell(c.cost)) : "—", bg: ventWidthTint(row[0]) }; })} />
     </Sect>
     <Sect title="Options">
-      {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(sellOf(VENT_CUBED, markup))}`} />}
-      <Toggle label="Prefinished" on={v.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(sellOf(VENT_PREFIN, markup))}`} />
+      {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(tsell(VENT_CUBED))}`} />}
+      <Toggle label="Prefinished" on={v.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(tsell(VENT_PREFIN))}`} />
       {v.prefin && (
         <div className="mt-1.5 mb-1.5 ml-[26px]">
           <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Stain color</span><span className="text-[9.5px] text-slate-400 font-medium">included in the prefinish charge</span></div>
@@ -573,7 +610,7 @@ function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
           {v.stainCustom && <input value={v.stain} onChange={(e) => set({ ...v, stain: e.target.value })} placeholder="Custom color name" className={textCls + " mt-1.5"} />}
         </div>
       )}
-      <Toggle label="Textured" on={v.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(sellOf(VENT_TEX, markup))}`} />
+      <Toggle label="Textured" on={v.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(tsell(VENT_TEX))}`} />
       {v.tex && (
         <div className="mt-1.5 mb-1.5 ml-[26px]">
           <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Scrape / texture</span><span className="text-[9.5px] text-slate-400 font-medium">any scrape, same flat charge</span></div>
@@ -583,18 +620,18 @@ function VentRail({ v, set, markup, onGrid, onCopyFloor, copySrc }) {
           </select>
         </div>
       )}
-      {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(sellOf(DAMPERS[v.size][1] + DAMPER_ATTACH, markup))}`} />}
-      {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(sellOf(0.4 * frameLineal(v.size), markup))}`} />}
+      {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(tsell(DAMPERS[v.size][1] + DAMPER_ATTACH))}`} />}
+      {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(tsell(0.4 * frameLineal(v.size)))}`} />}
     </Sect>
     <Sect title="Quantity"><QtyInput value={v.qty} onChange={(qty) => set({ ...v, qty })} /></Sect>
   </>);
 }
 
-function DamperRail({ d, set, markup }) {
+function DamperRail({ d, set, tsell }) {
   return (<>
     <Sect title="Size" hint="sell each at markup">
       <Chips cur={d.size} onPick={(size) => set({ ...d, size })}
-        items={Object.keys(DAMPERS).map((sz) => ({ id: sz, label: sz + '"', sub: fm(sellOf(DAMPERS[sz][1], markup)) }))} />
+        items={Object.keys(DAMPERS).map((sz) => ({ id: sz, label: sz + '"', sub: fm(tsell(DAMPERS[sz][1])) }))} />
     </Sect>
     <Sect title="Quantity"><QtyInput value={d.qty} onChange={(qty) => set({ ...d, qty })} /></Sect>
     <p className="text-[11px] text-slate-400 leading-relaxed font-medium">Loose dampers. To price a damper attached to a vent (+$5 attach), use the Wood vents tab.</p>
@@ -728,7 +765,10 @@ const Fragment2 = ({ children }) => <>{children}</>;
 // The cost -> sell breakdown, shown in the desktop right pane and inside the
 // mobile pull-up sheet. `showActions` keeps the grid/Add buttons on desktop;
 // the mobile sheet renders those in its own pinned footer instead.
-function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf, onGrid, onAdd, onAddBasket, showActions = true }) {
+function BuildCard({ c, sell, activeMarkup, tierId, pct, tierColor, tfee, isEa, qty, ctn, feesTot, jobTot, sf, onGrid, onAdd, onAddBasket, showActions = true }) {
+  const badge = tierBadgeText(tierId, pct);
+  // The middle label says what the lens did to the cost, not just the markup.
+  const lensLabel = tierId === "employee" ? "cost + 6% →" : pct > 0 ? `+${activeMarkup}% − ${pct}% →` : `→ +${activeMarkup}% →`;
   return (
     <div className="rounded-lg border overflow-hidden bg-white" style={{ borderColor: "var(--ft-grid-line)" }}>
       <div className="flex items-center gap-2 px-3.5 py-2" style={{ background: "var(--ft-sand)" }}>
@@ -753,18 +793,21 @@ function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf,
       </div>
       <div className="flex items-center gap-4 px-3.5 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-sand)" }}>
         <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">our cost</div><div className="text-base font-extrabold tabular-nums">{fm(c.cost)}{isEa ? " ea" : "/sf"}</div></div>
-        <div className="text-xs text-slate-400">→ +{activeMarkup}% →</div>
-        <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">sell</div><div className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}{isEa ? " ea" : "/sf"}</div></div>
+        <div className="text-xs text-slate-400">{lensLabel}</div>
+        <div className="leading-tight">
+          <div className="ft-eyebrow text-[8.5px] flex items-center gap-1">sell{badge && <span className="rounded px-1 py-px text-[9px] font-bold normal-case tracking-normal" style={{ background: TIER_COLOR[tierId]?.soft, color: TIER_COLOR[tierId]?.main }}>{badge}</span>}</div>
+          <div className="text-xl font-extrabold tabular-nums" style={{ color: tierColor || "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}{isEa ? " ea" : "/sf"}</div>
+        </div>
         <div className="ml-auto text-right leading-tight">
           <div className="ft-eyebrow text-[8.5px]">{isEa ? `× ${qty} pcs` : ctn ? `${ctn.cartons} ctns × ${ctn.sf} sf = ${ctn.billedSf} sf` : `× ${sf} sq ft`}{feesTot ? ` + ${fm(feesTot)} fees` : ""}</div>
-          <div className="text-base font-extrabold tabular-nums">{fmInt(jobTot)}</div>
+          <div className="text-base font-extrabold tabular-nums" style={tierColor ? { color: tierColor } : undefined}>{fmInt(jobTot)}</div>
         </div>
       </div>
       {(c.fees || []).length > 0 && (
         <div className="px-3.5 py-2 border-t border-dashed border-slate-300">
           {c.fees.map((x, i) => (
             <div key={i} className="flex items-baseline gap-2 py-[2px] text-[11px] text-slate-500 font-medium">
-              <span className="flex-1">{x.label} — imports as its own line, at cost</span><span className="tabular-nums font-semibold">{fm(x.amt)}</span>
+              <span className="flex-1">{x.label} — imports as its own line{tierId === "retail" ? ", at cost" : ""}</span><span className="tabular-nums font-semibold">{fm(tfee(x.amt))}</span>
             </div>
           ))}
         </div>
@@ -785,12 +828,12 @@ function BuildCard({ c, sell, activeMarkup, isEa, qty, ctn, feesTot, jobTot, sf,
 // one product. Shares are editable inline; sf/line/bundle total recompute live
 // off multiWidthBuild. Setup fees (small-order, sample, non-standard sheen)
 // pool to a single shared line instead of repeating per width.
-function MultiWidthCard({ base, widths, shares, sf, markup, onShare, onAddBasket, onMove, showActions = true }) {
+function MultiWidthCard({ base, widths, shares, sf, tsell, tfee, tierColor, onShare, onAddBasket, onMove, showActions = true }) {
   const wlist = widths.map((w) => ({ w, share: shares[w] ?? 0 }));
   const b = useMemo(() => multiWidthBuild(base, wlist, sf), [base, JSON.stringify(wlist), sf]);
   const ok = b.lines.filter((l) => l.ok);
-  const linesTot = ok.reduce((a, l) => a + Math.round(sellOf(l.cost, markup) * l.sf), 0);
-  const feesTot = b.fees.reduce((a, x) => a + x.amt, 0);
+  const linesTot = ok.reduce((a, l) => a + Math.round(tsell(l.cost) * l.sf), 0);
+  const feesTot = b.fees.reduce((a, x) => a + tfee(x.amt), 0);
   const total = linesTot + feesTot;
   return (
     <div className="rounded-lg border overflow-hidden bg-white" style={{ borderColor: "var(--ft-grid-line)" }}>
@@ -810,16 +853,16 @@ function MultiWidthCard({ base, widths, shares, sf, markup, onShare, onAddBasket
                 className="w-11 px-1.5 py-1 text-xs font-bold text-right focus:outline-none" /><span className="px-1.5 text-[11px] font-bold text-slate-400">%</span>
             </span>
             <span className="w-16 text-[11px] font-semibold text-slate-500">{l.ok ? `${l.sf} sf` : "n/a"}</span>
-            <span className="w-14 text-[11px] font-semibold text-slate-400">{l.ok ? fm(sellOf(l.cost, markup)) : "—"}</span>
-            <span className="ml-auto font-extrabold tabular-nums text-[13px]">{l.ok ? fmInt(Math.round(sellOf(l.cost, markup) * l.sf)) : "—"}</span>
+            <span className="w-14 text-[11px] font-semibold text-slate-400" style={tierColor ? { color: tierColor } : undefined}>{l.ok ? fm(tsell(l.cost)) : "—"}</span>
+            <span className="ml-auto font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{l.ok ? fmInt(Math.round(tsell(l.cost) * l.sf)) : "—"}</span>
           </div>
         ))}
       </div>
       {b.fees.length > 0 && (
         <div className="px-3.5 py-2 border-t border-dashed border-slate-300">
           {b.fees.map((x, i) => (
-            <div key={i} className="flex items-baseline gap-2 py-[2px] text-[11.5px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>
-              <span className="flex-1">{x.label} — one line, shared across widths</span><span className="tabular-nums">+{fmInt(x.amt)}</span>
+            <div key={i} className="flex items-baseline gap-2 py-[2px] text-[11.5px] font-semibold" style={{ color: tierColor || "var(--ft-brand-deep)" }}>
+              <span className="flex-1">{x.label} — one line, shared across widths</span><span className="tabular-nums">+{fmInt(tfee(x.amt))}</span>
             </div>
           ))}
         </div>
@@ -827,7 +870,7 @@ function MultiWidthCard({ base, widths, shares, sf, markup, onShare, onAddBasket
       <div className="flex items-center gap-4 px-3.5 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-sand)" }}>
         <div className="leading-tight"><div className="ft-eyebrow text-[8.5px]">{ok.length} width lines</div><div className="text-base font-extrabold tabular-nums">{fmInt(linesTot)}</div></div>
         <div className="text-xs text-slate-400">+ pooled fees →</div>
-        <div className="ml-auto text-right leading-tight"><div className="ft-eyebrow text-[8.5px]">bundle total · {sf} sq ft</div><div className="text-xl font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }}>{fmInt(total)}</div></div>
+        <div className="ml-auto text-right leading-tight"><div className="ft-eyebrow text-[8.5px]">bundle total · {sf} sq ft</div><div className="text-xl font-extrabold tabular-nums" style={{ color: tierColor || "var(--ft-brand-deep)" }}>{fmInt(total)}</div></div>
       </div>
       {showActions && (
         <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
@@ -913,23 +956,26 @@ function useIsWide() {
 // alongside other configurations before any of them commit to a product line.
 // basketEntryView derives the same cost -> sell numbers BuildCard/MultiWidthCard
 // show live, plus a `lines()` thunk that yields the lineItems() payload for Move.
-function basketEntryView(entry) {
+// The displayed numbers ride the job's tier lens; `lines()` stays retail.
+function basketEntryView(entry, tierCtx = {}) {
+  const esell = (cost) => tierSellOf(cost, entry.markupPct, tierCtx.tier, tierCtx.pct);
+  const efee = (amt) => tierFeeOf(amt, tierCtx.tier, tierCtx.pct);
   if (entry.kind === "bundle") {
     const b = multiWidthBuild(entry.base, entry.widths, entry.sf);
     const ok = b.lines.filter((l) => l.ok);
-    const linesTot = ok.reduce((a, l) => a + Math.round(sellOf(l.cost, entry.markupPct) * l.sf), 0);
-    const feesTot = b.fees.reduce((a, x) => a + x.amt, 0);
+    const linesTot = ok.reduce((a, l) => a + Math.round(esell(l.cost) * l.sf), 0);
+    const feesTot = b.fees.reduce((a, x) => a + efee(x.amt), 0);
     return { title: `${entry.base.cfg.sp} — multi-width (${ok.length} widths)`, meta: `${entry.sf} sf total · one job`, price: linesTot + feesTot,
-      subs: ok.map((l) => ({ label: `${WIDTH_LABEL[l.w]} · ${l.sf} sf`, amt: Math.round(sellOf(l.cost, entry.markupPct) * l.sf) })),
-      fees: b.fees.map((x) => ({ label: x.label, amt: x.amt })), lines: () => multiWidthLineItems(entry.base, entry.widths, entry.sf, entry.markupPct) };
+      subs: ok.map((l) => ({ label: `${WIDTH_LABEL[l.w]} · ${l.sf} sf`, amt: Math.round(esell(l.cost) * l.sf) })),
+      fees: b.fees.map((x) => ({ label: x.label, amt: efee(x.amt) })), lines: () => multiWidthLineItems(entry.base, entry.widths, entry.sf, entry.markupPct) };
   }
   const c = calcConfig(entry.snap, entry.sf);
   const isEa = c && c.per === "ea";
-  const price = c ? Math.round(sellOf(c.cost, entry.markupPct) * (isEa ? (c.qty || 1) : entry.sf)) : 0;
+  const price = c ? Math.round(esell(c.cost) * (isEa ? (c.qty || 1) : entry.sf)) : 0;
   return { title: `${c ? (c.size ? c.size + " " : "") + (c.rest || c.desc) : "build"}`, meta: isEa ? `${c?.qty || 1} pcs` : `${entry.sf} sf`, price, subs: [], fees: [], lines: () => lineItems(entry.snap, { sf: entry.sf, markupPct: entry.markupPct }) };
 }
 
-function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onMoveAll, areaName, onClose, isWide }) {
+function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onMoveAll, areaName, onClose, isWide, tierCtx, tierColor }) {
   const n = basket.length, selCount = basket.filter((b) => sel[b.id]).length;
   return (
     <div className="flex flex-col h-full">
@@ -941,7 +987,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
       </div>
       <div className="flex-1 overflow-auto p-3">
         {n === 0 ? <div className="text-center text-xs font-semibold text-slate-400 py-10">Basket is empty. Build a config and "Add to basket".</div> :
-          basket.map((entry) => { const v = basketEntryView(entry); const on = !!sel[entry.id]; return (
+          basket.map((entry) => { const v = basketEntryView(entry, tierCtx); const on = !!sel[entry.id]; return (
             <div key={entry.id} className={`flex gap-2.5 items-start rounded-lg border p-2.5 mb-2 ${on ? "border-[color:var(--ft-brand)]" : "border-slate-200"}`}>
               <button onClick={() => onToggle(entry.id)} className={`w-[18px] h-[18px] mt-0.5 rounded-[5px] border flex items-center justify-center text-[11px] font-black text-white shrink-0 ${on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)]" : "border-slate-300"}`}>{on ? "✓" : ""}</button>
               <div className="flex-1 min-w-0">
@@ -951,7 +997,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
                 {v.subs.map((s, i) => <div key={i} className="flex text-[11px] text-slate-500 font-semibold pt-0.5"><span>{s.label}</span><span className="ml-auto font-bold text-slate-700">{fmInt(s.amt)}</span></div>)}
                 {v.fees.map((s, i) => <div key={i} className="flex text-[11px] font-semibold pt-0.5" style={{ color: "var(--ft-brand-deep)" }}><span>{s.label}</span><span className="ml-auto">+{fmInt(s.amt)}</span></div>)}
               </div>
-              <div className="flex flex-col items-end gap-1.5"><span className="font-extrabold tabular-nums text-[13px]">{fmInt(v.price)}</span><button onClick={() => onRemove(entry.id)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button></div>
+              <div className="flex flex-col items-end gap-1.5"><span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmInt(v.price)}</span><button onClick={() => onRemove(entry.id)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button></div>
             </div>); })}
         {n > 0 && <div className="text-center pt-1"><button onClick={onSelectAll} className="text-[11px] font-bold underline underline-offset-2" style={{ color: "var(--ft-brand-deep)" }}>{selCount === n ? "Clear selection" : "Select all"}</button></div>}
       </div>
@@ -966,7 +1012,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange }) {
   const [mode, setMode] = useState(seed?.mode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
@@ -980,6 +1026,20 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const ventMode = mode === "vent" || mode === "damper";
   const activeMarkup = ventMode ? ventMarkup : markup;
   const setActiveMarkup = ventMode ? setVentMarkup : setMarkup;
+  // Price level: a lens on the JOB's tier when the popup was opened from one
+  // (controlled by App), otherwise a local preview for the Apps-hub instance.
+  // Either way nothing added to a product line is repriced — see tierSellOf.
+  const [localTier, setLocalTier] = useState({ tier: "retail", customPct: "" });
+  const tierCtl = !!(tier && onTierChange);
+  const tierId = (tierCtl ? tier.tier : localTier.tier) || "retail";
+  const customPct = tierCtl ? tier.customPct : localTier.customPct;
+  const builderPct = (tierCtl ? tier.builderPct : null) ?? 8;
+  const salePct = (tierCtl ? tier.salePct : null) ?? 10;
+  const setTier = (patch) => (tierCtl ? onTierChange(patch) : setLocalTier((t) => ({ tier: patch.priceTier ?? t.tier, customPct: patch.customPct ?? t.customPct })));
+  const pct = tierId === "builder" ? builderPct : tierId === "sale" ? salePct : tierId === "custom" ? clampPct(customPct) : 0;
+  const tierColor = TIER_COLOR[tierId]?.main;
+  const tsell = (cost) => tierSellOf(cost, activeMarkup, tierId, pct);
+  const tfee = (amt) => tierFeeOf(amt, tierId, pct);
   const [sf, setSf] = useState(initialSf > 0 ? initialSf : 1);
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
@@ -1039,11 +1099,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const snap = { mode, cfg };
   const c = useMemo(() => calcConfig(snap, sf), [mode, cfg, sf]);
-  const sell = c ? sellOf(c.cost, activeMarkup) : 0;
+  const sell = c ? tsell(c.cost) : 0;
   const isEa = c?.per === "ea";
   const qty = c?.qty || 1;
   const ctn = c && !isEa ? cartonize(sf, c.cartonSf) : null;
-  const feesTot = (c?.fees || []).reduce((a, x) => a + x.amt, 0);
+  const feesTot = (c?.fees || []).reduce((a, x) => a + tfee(x.amt), 0);
   const jobTot = c ? (isEa ? sell * qty : sell * (ctn ? ctn.billedSf : sf)) + feesTot : 0;
   const add = () => { if (c) onAdd(lineItems(snap, { sf, markupPct: activeMarkup }), snap); };
   const addBundleToBasket = () => {
@@ -1075,15 +1135,15 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const rail = (
     <>
-      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)} wide={isWide}
+      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} tsell={tsell} onGrid={() => setGrid(true)} wide={isWide}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
-      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} markup={activeMarkup} onGrid={() => setGrid(true)}
+      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} tsell={tsell} onGrid={() => setGrid(true)}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
-      {mode === "hb" && <HbRail h={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)}
+      {mode === "hb" && <HbRail h={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
         onCopyFloor={copyFloorToHb} copySrc={MODES.find((m) => m.id === flatSrc).label} />}
-      {mode === "vent" && <VentRail v={cfg} set={set} markup={activeMarkup} onGrid={() => setGrid(true)}
+      {mode === "vent" && <VentRail v={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
         onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
-      {mode === "damper" && <DamperRail d={cfg} set={set} markup={activeMarkup} />}
+      {mode === "damper" && <DamperRail d={cfg} set={set} tsell={tsell} />}
     </>
   );
   const markupInput = (
@@ -1104,16 +1164,23 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     </p>
   );
 
+  const tierBar = (
+    <TierBar value={tierId} customPct={customPct} builderPct={builderPct} salePct={salePct}
+      onPick={(v) => setTier({ priceTier: v })} onPct={(v) => setTier({ priceTier: "custom", customPct: v })} />
+  );
   const header = (
     <div className="flex items-center gap-3 px-4 pt-3">
       <div className="leading-tight">
         <div className="ft-eyebrow text-[9px]">Vendor configurator</div>
         <div className="text-lg font-extrabold">Sheoga Hardwood <span className="text-xs font-semibold text-slate-500 ml-1.5">bought by description — no SKUs</span></div>
       </div>
-      <button onClick={() => setBasketOpen(true)} className="relative ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50">
-        🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
-      </button>
-      {!embedded && <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>}
+      <div className="ml-auto flex items-center gap-3">
+        {isWide && tierBar}
+        <button onClick={() => setBasketOpen(true)} className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50">
+          🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
+        </button>
+        {!embedded && <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>}
+      </div>
     </div>
   );
   // Desktop tabs sit on the content border; the phone scrolls them as pills.
@@ -1146,18 +1213,19 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-sheoga-pop>
         {header}
         {tabs}
+        {!isWide && <div className="shrink-0 overflow-x-auto border-b border-slate-200 px-4 py-2">{tierBar}</div>}
         {isWide ? (<>
           {/* desktop: options rail + build card side by side */}
           <div className="flex-1 flex min-h-0">
             <div className="w-[50%] max-w-[500px] shrink-0 border-r border-slate-300 overflow-y-auto p-4" style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
               {multi && multiOk ? (
-                <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} markup={activeMarkup} onShare={setShare}
+                <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} tsell={tsell} tfee={tfee} tierColor={tierColor} onShare={setShare}
                   onAddBasket={addBundleToBasket} onMove={moveBundleToLine} />
               ) : (!c ? (
                 <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">{hbNeedsLen ? "Type a slat length on the left — the build prices from its tier." : "This combination isn't offered — pick an available width."}</div>
               ) : (
-                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
+                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
               ))}
               {priceNote}
             </div>
@@ -1182,7 +1250,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
                   <div className="text-[10.5px] text-slate-500 font-semibold">{c.size ? c.size + " · " : ""}{isEa ? `${qty} pcs` : ctn ? `${ctn.cartons} cartons · ${ctn.billedSf} sf` : `${sf} sf`}</div>
                 </div>
                 <div className="text-right leading-none">
-                  <div className="text-lg font-extrabold tabular-nums" style={{ color: "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}</div>
+                  <div className="text-lg font-extrabold tabular-nums" style={{ color: tierColor || "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}</div>
                   <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-1">{isEa ? "ea · sell" : "/sf · sell"}</div>
                 </div>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-text)" }}><ChevronUp size={16} /></div>
@@ -1199,9 +1267,9 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               <button onClick={add} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }} data-sheoga-add><Plus size={15} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
             </>)}>
             {multi && multiOk ? (
-              <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} markup={activeMarkup} onShare={setShare}
+              <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} tsell={tsell} tfee={tfee} tierColor={tierColor} onShare={setShare}
                 onAddBasket={addBundleToBasket} onMove={moveBundleToLine} showActions={false} />
-            ) : (c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />)}
+            ) : (c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />)}
             <div className="flex items-center gap-5 px-1 pt-3">{markupInput}{sfInput}</div>
             {priceNote}
           </MobileBuildSheet>
@@ -1209,12 +1277,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         {isWide && (<>
           <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
           <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
-            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} onClose={() => setBasketOpen(false)} isWide />
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide />
           </div>
         </>)}
         {!isWide && (
           <MobileBuildSheet open={basketOpen} onClose={() => setBasketOpen(false)}>
-            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} onClose={() => setBasketOpen(false)} isWide={false} />
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide={false} />
           </MobileBuildSheet>
         )}
       </div>

@@ -2306,6 +2306,8 @@ export default function App({ user, onSignOut }) {
             ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
             basket={sel.sheogaBasket || []}
             onBasketChange={(next) => updateProject(sel.id, { sheogaBasket: next })}
+            tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
+            onTierChange={(patch) => updateProject(sel.id, patch)}
             areaName={sel.categories.find((x) => x.id === sheogaPop.aid)?.name || "this area"}
             onMove={(lines) => addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines)}
             onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}

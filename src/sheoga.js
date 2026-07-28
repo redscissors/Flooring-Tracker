@@ -285,6 +285,11 @@ export function finishName(f) {
   return `${x.name}${f.stain ? ` “${f.stain}”` : ""}`;
 }
 
+// Small-order fee — prefinished jobs under 500/250 sf. Prefinished Natural is
+// exempt (owner rule 2026-07-28): the clear natural coat is a standard run, so
+// only stained/custom prefinishes owe the setup fee.
+export const smallOrderFee = (finish, sf) => (finish === "unf" || finish === "nat" ? 0 : sf < 250 ? 600 : sf < 500 ? 300 : 0);
+
 // Length upcharges (%) apply to the unfinished base incl. no-sap, BEFORE the
 // flat $/sf adders (assumption 1 of the design README — sheet just says "Add
 // 15%"). Small-order fees apply whenever a finish is selected and are never
@@ -300,7 +305,7 @@ export function calcFloor(f, sf) {
   const sap = f.noSap ? NO_SAP[f.sp] || 0 : 0;
   const lenAdd = ((base + sap) * len.pct) / 100;
   const finAdd = fin.add(f);
-  const fee = f.finish !== "unf" ? (sf < 250 ? 600 : sf < 500 ? 300 : 0) : 0;
+  const fee = smallOrderFee(f.finish, sf);
   const cost = base + sap + lenAdd + tex.add + edge.add + finAdd;
   const rows = [[`Unfinished base — ${f.sp}, ${gradeName(f)}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
   if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
@@ -393,7 +398,8 @@ export function calcHerringbone(h, sf) {
   const finAdd = fin.add(h);
   if (finAdd) { cost += finAdd; rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]); }
   const fees = [];
-  if (prefin) { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+  const fee = smallOrderFee(fin.id, sf);
+  if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
   const custom = CUSTOM_FINISHES.includes(fin.id);
   const established = fin.id === "est";
   if (custom || (established && h.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
@@ -563,7 +569,8 @@ export function multiWidthBuild(base, widths, sf) {
     if (std != null && Number(sheen) !== std) fees.push({ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE });
   } else {
     const f = base.cfg;
-    if (f.finish !== "unf") { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+    const fee = smallOrderFee(f.finish, sf);
+    if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
     if (CUSTOM_FINISHES.includes(f.finish) || (f.finish === "est" && f.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   }
   return { lines, fees, sf };
@@ -590,6 +597,20 @@ export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP
 
 // Sell $/unit from distributor cost — same rounding as every other price.
 export const sellOf = (cost, markupPct) => round2(cost * (1 + (markupPct ?? DEFAULT_MARKUP) / 100));
+
+// Tier display lens over a configurator price — mirrors src/pricing.js tierView:
+// employee is cost × 1.06 (pricing.js EMPLOYEE_MARKUP, markup ignored), builder/
+// sale/custom discount the marked-up retail sell, retail (or a 0% discount) is
+// sellOf. Display only — every payload this file builds stays retail, and the
+// job sheet's own lens reprices the landed rows (ADR 0018). Restated here rather
+// than imported so sheoga.js stays dependency-free for `node --test`.
+export const tierSellOf = (cost, markupPct, tier, pct) =>
+  tier === "employee" ? round2(cost * 1.06)
+  : (tier === "builder" || tier === "sale" || tier === "custom") && pct > 0 ? round2(sellOf(cost, markupPct) * (1 - pct / 100))
+  : sellOf(cost, markupPct);
+// Fee lines land at cost with retail = cost (markup 0), so the same lens applies
+// with markup 0.
+export const tierFeeOf = (amt, tier, pct) => tierSellOf(amt, 0, tier, pct);
 
 // Whole-carton preview for a sq-ft build (ADR 0013 math: exact always shown,
 // order rounds up). The app row redoes this itself off cartonSf — with waste —

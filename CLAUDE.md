@@ -200,8 +200,10 @@ src/
                     # `seedFromQuery` for the SKU-search pinned entry row, and
                     # `lineItems` (configuration -> product-row payloads; fees
                     # as separate at-cost misc lines; `product.sheoga` keeps the
-                    # raw config for Reconfigure). A sheet update is a
-                    # re-transcription of this one file
+                    # raw config for Reconfigure). `smallOrderFee` is the one
+                    # $600/$300 under-500-sf rule all three build paths use —
+                    # Prefinished Natural is exempt (owner rule 2026-07-28).
+                    # A sheet update is a re-transcription of this one file
   SheogaConfigurator.jsx  # the configurator popup: mode tabs, an option rail,
                     # a build card (cost -> sell, carton preview, fee lines), and
                     # the full price grid (a button on the Grade row). The floor
@@ -231,7 +233,14 @@ src/
                     # Responsive (useIsWide, 768px): desktop is the two-pane
                     # rail+BuildCard; on mobile the options fill the screen with a
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
-                    # (BuildCard + Add). BuildCard is the shared cost->sell card
+                    # (BuildCard + Add). BuildCard is the shared cost->sell card.
+                    # A price-level bar (TierBar) mirrors the job's tier buttons
+                    # two ways — seeded from project.priceTier, pressing one sets
+                    # it — and every price on screen renders through that lens in
+                    # the tier's color (sheoga.js tierSellOf/tierFeeOf). Display
+                    # only: rows Add/Move land RETAIL, the job sheet's own lens
+                    # reprices them (ADR 0018). Opened from the Apps hub instead,
+                    # the bar falls back to a local retail-seeded preview
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
