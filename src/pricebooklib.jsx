@@ -1233,7 +1233,7 @@ const FREIGHT_FIELDS = [
   { k: "palletAt", label: "Pallet at", pre: "$", step: "1", hint: "once the per-foot charge reaches this, the order ships flat-rate pallets (0 = never)" },
   { k: "palletRate", label: "Per pallet", pre: "$", step: "1", hint: "the flat-rate pallet price" },
   { k: "largeRate", label: "Large / pallet", pre: "$", step: "1", hint: "large-format material ships by the pallet outright (0 = price it by the foot with everything else)" },
-  { k: "largeOverSqin", label: "Large over", suf: "in²", step: "1", hint: "the biggest piece that still ships by the foot, as face area — 288 is exactly a 12x24, so a 12x24 stays small format and a 24x24 or 12x36 goes on the large-format pallet table (0 = nothing is large by size)" },
+  { k: "largeAtSqin", label: "Large at", suf: "in²", step: "1", hint: "where large format starts, as the face area of one piece — 144 is a 12x12, so a 12x12 and up ships by the pallet and an 8x16 (128) by the foot. Mounted sheet goods are exempt however big the sheet is (see \"Never large format\"). 0 = nothing is large by size" },
   { k: "palletSf", label: "Sq ft / pallet", step: "1", hint: "how much this vendor puts on one pallet — the pallet count divides by it" },
   { k: "perPiece", label: "Per piece", pre: "$", step: "0.01", hint: "trims, borders and mouldings ship by the piece" },
   { k: "pieceMin", label: "Piece min", pre: "$", step: "0.01", hint: "the least this vendor bills for a piece order" },
@@ -1246,9 +1246,9 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
   const setField = (k) => (v) => setF((prev) => ({ ...prev, [k]: v }));
   // A worked example off the book's own rates, so a typo in a rate is visible as
   // a wrong dollar figure rather than as a wrong quote three weeks later.
-  const demo = (sf, w, l) => {
+  const demo = (sf, w, l, name = "") => {
     const n = normFreight(f);
-    const large = freightBasis({ type: "tile", qtyType: "sqft", W: String(w), L: String(l) }, n) === "large";
+    const large = freightBasis({ type: "tile", qtyType: "sqft", W: String(w), L: String(l), brandColor: name }, n) === "large";
     const parts = freightParts({ f: n, smallSf: large ? 0 : sf, largeSf: large ? sf : 0, pieces: 0 });
     return parts.length ? `${freightSummary({ parts })} · ${money(parts.reduce((n2, x) => n2 + x.cost, 0))}` : "no charge";
   };
@@ -1282,11 +1282,16 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
             </div>
             <div>
               <label className={lbl}>Always large format</label>
-              <input className={`${inp} w-44`} value={f.largeSeries} placeholder="Harmonic, Arvora" onChange={(e) => setField("largeSeries")(e.target.value)} onBlur={() => commit(normFreight(f))}
+              <input className={`${inp} w-40`} value={f.largeSeries} placeholder="Harmonic, Arvora" onChange={(e) => setField("largeSeries")(e.target.value)} onBlur={() => commit(normFreight(f))}
                 title="Series this vendor ships by the pallet whatever their size, named on the sheet (Glazzio's Harmonic 12x24). Matched against the row's description; comma-separated." />
             </div>
-            <p className="text-[11px] text-slate-400 pb-2">Rates read live — changing one moves every open quote, saved estimates included.</p>
+            <div>
+              <label className={lbl}>Never large format</label>
+              <input className={`${inp} w-48`} value={f.smallSeries} placeholder="mosaic, mesh, penny round, sheet" onChange={(e) => setField("smallSeries")(e.target.value)} onBlur={() => commit(normFreight(f))}
+                title="Words that mean the piece is a chip on a backing sheet, not a foot of tile — so the row ships small format whatever the sheet measures. This is what keeps a 12x12 mosaic off the large-format line. Matched against the row's description; comma-separated." />
+            </div>
           </div>
+          <p className="text-[11px] text-slate-400 mt-1.5">Rates read live — changing one moves every open quote, saved estimates included.</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 mt-3 max-w-2xl">
             {FREIGHT_FIELDS.map((x) => (
               <div key={x.k}>
@@ -1296,13 +1301,13 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
                   <input type="number" min="0" step={x.step} className={`${inp} w-20`} value={String(f[x.k] ?? "")} title={x.hint}
                     onChange={(e) => setField(x.k)(e.target.value)} onBlur={() => commit(normFreight(f))} />
                   {x.suf && <span className="text-[11px] text-slate-400">{x.suf}</span>}
-                  {x.k === "largeOverSqin" && <span className="text-[11px] text-slate-400 whitespace-nowrap">{sizeAt(f.largeOverSqin)}</span>}
+                  {x.k === "largeAtSqin" && <span className="text-[11px] text-slate-400 whitespace-nowrap">{sizeAt(f.largeAtSqin)}</span>}
                 </div>
               </div>
             ))}
           </div>
           <p className="text-[11px] text-slate-400 mt-3">
-            120 sf of 12×24 → <b className="text-slate-500">{demo(120, 12, 24)}</b> · 120 sf of 24×24 → <b className="text-slate-500">{demo(120, 24, 24)}</b> · 300 sf of 12×24 → <b className="text-slate-500">{demo(300, 12, 24)}</b>
+            120 sf of 12×12 → <b className="text-slate-500">{demo(120, 12, 12)}</b> · 120 sf of 12×12 mosaic → <b className="text-slate-500">{demo(120, 12, 12, "Mosaic")}</b> · 120 sf of 8×16 → <b className="text-slate-500">{demo(120, 8, 16)}</b> · 300 sf of 12×24 → <b className="text-slate-500">{demo(300, 12, 24)}</b>
           </p>
           {isSeedBook(book) && freightIsSeed(f) && (
             <p className="text-[11px] text-amber-600 mt-1.5">

@@ -36,6 +36,12 @@ const pos = (v, dflt = 0) => { const n = parseFloat(v); return Number.isFinite(n
 // material priced by the pallet outright, and pieces (trims, mouldings) priced
 // per piece. A rate left at 0 switches its rule off rather than charging zero —
 // a program with no piece rate simply doesn't bill trims.
+// The trade's words for goods that come mounted on a backing sheet. Every
+// distributor prices these by the chip, so they ride the small-format table
+// whatever the sheet measures. Seeded into a new program (a blank list is a
+// deliberate "this vendor has no such thing", not a missing field).
+export const SHEET_GOODS_WORDS = "mosaic, mesh, penny round, sheet";
+
 export const normFreight = (raw) => ({
   mode: raw?.mode === "program" ? "program" : "none",
   // Where these rates ship TO. Nominal — it names the column someone read off
@@ -50,22 +56,33 @@ export const normFreight = (raw) => ({
   palletAt: pos(raw?.palletAt),
   palletRate: pos(raw?.palletRate),
   largeRate: pos(raw?.largeRate),
-  // The biggest piece that still ships on the per-foot table, as FACE AREA. A
-  // distributor draws this line at a size, not at a dimension: Glazzio's is
-  // "larger than a 12x24", which is 288 in². A side threshold can't say that —
-  // any number low enough to catch a 24x24 also catches the 24" side of a 12x24 —
-  // and area is the literal reading of "larger", so a 16x16 (256 in², smaller
-  // than a 12x24 despite being wider) ships by the foot. 0 = never large by size.
+  // Where large format starts, as the FACE AREA of one piece, inclusive: at
+  // Glazzio 144 in² — a 12x12 — and up. A side measurement can't say this (an
+  // 8x16 is 128 in², smaller than the 12x12 that ships large, but has a longer
+  // side), and neither can a dimension pair, so the rule is the area of the piece
+  // the vendor stacks. 0 = never large by size.
   //
   // A legacy `largeFormatIn` is deliberately NOT read: the only programs that
   // carry one hold the 15"-side seed, which is the rule this replaced.
-  largeOverSqin: pos(raw?.largeOverSqin, 288),
+  largeAtSqin: pos(raw?.largeAtSqin, 144),
   // Series the vendor ships large format regardless of size — Glazzio's sheet
-  // puts "Harmonic 12x24 & Arvora LVT" on the pallet table by name, and both are
-  // pieces of exactly 288 in² (a 12x24; a 6x48 LVT plank), which is why the sheet
-  // has to name them at all. Comma-separated, matched against the row's
-  // description; empty on every book that has no such exception.
+  // puts "Harmonic 12x24 & Arvora LVT" on its own pallet table by name.
+  // Comma-separated, matched against the row's description; empty on every book
+  // that has no such exception. Beats every other test: it is the vendor telling
+  // us which table the pallet goes on.
   largeSeries: str(raw?.largeSeries),
+  // The mirror, and the reason the area rule is safe at 144: goods sold as a
+  // MOUNTED SHEET are priced by their chip, not by the sheet. A 12x12 mosaic is
+  // 144 in² of backing carrying a hundred 1" chips, and it ships small format
+  // while the 12x12 field tile beside it on the same threshold does not.
+  //
+  // The app usually knows this without being told — a mosaic picked from a book
+  // lands with L×W blank and prompts for the CHIP size (ADR 0014), which is 1–4
+  // in² and small at any threshold — but a hand-typed row often carries the sheet
+  // size in L×W, and there is no way to read "12 × 12" as anything but a foot of
+  // tile. So the escape hatch is the row's own words, per book, editable when one
+  // misfires.
+  smallSeries: str(raw?.smallSeries ?? SHEET_GOODS_WORDS),
   perPiece: pos(raw?.perPiece),
   pieceMin: pos(raw?.pieceMin),
   effective: str(raw?.effective),
@@ -83,8 +100,8 @@ export const hasFreightProgram = (book) => bookFreight(book).mode === "program";
 export const FREIGHT_SEED = Object.freeze({
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeOverSqin: 288, largeSeries: "Harmonic, Arvora",
-  perPiece: 0.33, pieceMin: 14.85,
+  largeRate: 79, largeAtSqin: 144, largeSeries: "Harmonic, Arvora",
+  smallSeries: SHEET_GOODS_WORDS, perPiece: 0.33, pieceMin: 14.85,
 });
 
 // The book the seed belongs to, matched on its name — the shop names its books
@@ -100,7 +117,7 @@ const RATE_FIELDS = ["palletSf", "perSqft", "minCharge", "palletAt", "palletRate
 export const freightIsBlank = (f) => RATE_FIELDS.every((k) => !(normFreight(f)[k] > 0));
 // Still carrying the seed verbatim, so the card can say so and then stop saying
 // it the moment a rate is touched.
-const RULE_FIELDS = ["largeOverSqin", "largeSeries"];
+const RULE_FIELDS = ["largeAtSqin", "largeSeries", "smallSeries"];
 export const freightIsSeed = (f) => {
   const n = normFreight(f);
   return [...RATE_FIELDS, ...RULE_FIELDS].every((k) => n[k] === FREIGHT_SEED[k]);
@@ -123,11 +140,12 @@ export const freightBookFor = (p, books) => {
   return book && hasFreightProgram(book) ? book : null;
 };
 
-// A size like "12x24" / "2 x 10" / `12" × 24"` → the piece's face area in square
-// inches. Falls back through the row's own L/W first, since a picked tile row
-// carries them parsed; sizeText is the mosaic-sheet / free-text case. A row
-// missing either dimension has no area to measure and reads 0, which no size
-// rule calls large.
+// A size like "12x24" / "2 x 10" / `12" × 24"` → the face area of ONE PIECE in
+// square inches. L×W first, since a picked tile row carries them parsed — and on
+// a mosaic those hold the CHIP (ADR 0014 leaves them blank for the desk to fill,
+// and 1×1 is what gets filled), which is exactly the piece the vendor prices.
+// sizeText is the free-text case. A row missing either dimension has no area to
+// measure and reads 0, which no size rule calls large.
 const SIZE_RE = /(\d+(?:\.\d+)?)\s*["”]?\s*[x×]\s*(\d+(?:\.\d+)?)/i;
 export function rowSqin(p) {
   const l = num(p?.L), w = num(p?.W);
@@ -136,27 +154,38 @@ export function rowSqin(p) {
   return m ? parseFloat(m[1]) * parseFloat(m[2]) : 0;
 }
 
-// Does the row's description name one of the vendor's always-large series? Read
-// off the same text the desk sees on the row, since these exceptions are named
-// on the sheet in the vendor's own words ("Harmonic"), not by SKU pattern.
+// Does the row's description name one of a program's series lists? Read off the
+// same text the desk sees on the row, since these are named on the sheet in the
+// vendor's own words ("Harmonic") or in the trade's ("mosaic"), not by SKU
+// pattern. Word-boundary matched so "Meshach Grey" isn't mesh and a "Harmonic"
+// series still hits inside "Harmonic Pearl".
 const rowText = (p) => [p?.brandColor, p?.sku, p?.note, p?.sizeText].map(str).join(" ").toLowerCase();
-export function matchesLargeSeries(p, f) {
-  const names = str(f?.largeSeries).split(/[,;]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export function matchesSeries(p, list) {
+  const names = str(list).split(/[,;]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
   if (!names.length) return false;
   const text = rowText(p);
-  return names.some((n) => text.includes(n));
+  return names.some((n) => new RegExp(`\\b${esc(n)}\\b`).test(text));
 }
 
-// Which of a program's three tables a row ships on. A counted line is pieces
-// whatever its size (a trim is a trim); an area line is large-format when the
-// vendor names its series or when the piece outgrows the largest small-format
-// size. A row whose size is unknown falls to "small": the per-foot rate is the
+// Which of a program's three tables a row ships on, in the order the sheet's own
+// rules override each other:
+//
+//   1. a counted line is pieces, whatever its size — a trim is a trim;
+//   2. a series the vendor names as large format is large, whatever its size —
+//      that is the vendor telling us which pallet it goes on;
+//   3. sheet goods are small, whatever the sheet measures — the piece is the chip
+//      (see smallSeries; this is what keeps a 12x12 mosaic off the 144 in² line);
+//   4. otherwise the piece's area decides.
+//
+// A row whose size can't be read falls to "small": the per-foot rate is the
 // sheet's default, and guessing "large" would invent a whole pallet.
 export function freightBasis(p, f) {
   if (!p) return null;
   if (p.type === "misc" || p.qtyType !== "sqft") return "piece";
-  if (matchesLargeSeries(p, f)) return "large";
-  return f.largeOverSqin > 0 && rowSqin(p) > f.largeOverSqin ? "large" : "small";
+  if (matchesSeries(p, f?.largeSeries)) return "large";
+  if (matchesSeries(p, f?.smallSeries)) return "small";
+  return f.largeAtSqin > 0 && rowSqin(p) >= f.largeAtSqin ? "large" : "small";
 }
 
 // What each opted-in row contributes, in the units its table bills: ORDERED

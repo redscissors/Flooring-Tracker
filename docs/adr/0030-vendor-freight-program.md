@@ -40,8 +40,8 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
 1. **A freight program lives on the book, in the reserved `data.freight` slot**,
    as a rate table the team types off the vendor's sheet:
    `{ mode, destination, palletSf, perSqft, minCharge, palletAt, palletRate,
-   largeRate, largeOverSqin, largeSeries, perPiece, pieceMin, effective }`.
-   `mode: "none"` is
+   largeRate, largeAtSqin, largeSeries, smallSeries, perPiece, pieceMin,
+   effective }`. `mode: "none"` is
    every book that was never configured, so an absent program changes nothing.
    A rate left at 0 switches its rule **off** rather than charging zero — a
    program with no piece rate simply doesn't bill trims. Edited in the Price book
@@ -99,39 +99,56 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
    496 sq ft. Since the sheet is silent, this is a shop-supplied constant living
    in the same editable card as the rates, not a derived value.
 
-6. **Size decides the table, and the line is a piece's FACE AREA — over
-   `largeOverSqin`, default 288 in².** *(Amended 2026-07-28 — this decision
-   originally read "a side at or over `largeFormatIn`, default 15\"", the trade's
-   own line. It quoted Glazzio wrong: their large format is what is larger than a
-   12x24, so a plain 12x24 ships by the foot.)* A side threshold cannot express
-   that — any number low enough to catch a 24x24 also catches the 24" side of a
-   12x24 — and **area is the literal reading of "larger"**: 288 in² *is* a 12x24,
-   a 16x16 (256) is a smaller piece even though it is wider, and a 24x24 (576) is
-   plainly bigger. The old field is not migrated: every program carrying one
-   holds the 15" seed, which is the rule being corrected. A row whose size can't
-   be read falls to small format, because guessing "large" invents a whole
-   pallet.
+6. **Size decides the table, and the size is the FACE AREA of one piece — at
+   `largeAtSqin` (default 144 in², a 12x12) and up.** *(Amended 2026-07-28. This
+   decision first read "a side at or over `largeFormatIn`, default 15\"", the
+   trade's own line; an intermediate correction to "larger than a 12x24" was
+   reported and then retracted by the owner in the same conversation. The
+   vendor's actual line is 144 in² — a 12x12 field tile is large format at
+   Glazzio.)* No side measurement can express it: an 8x16 is 128 in² — a smaller
+   piece than the 12x12 that pallets — but carries the longer side, so a side
+   rule gets that pair backwards whichever number it picks. The comparison is
+   inclusive, because 144 *is* the 12x12 the vendor names. A legacy
+   `largeFormatIn` is not migrated: the only programs carrying one hold the 15"
+   seed, which is the rule being corrected. A row whose size can't be read falls
+   to small format, because guessing "large" invents a whole pallet.
 
-7. **A vendor's named exceptions are matched by name (`largeSeries`).** Glazzio's
-   sheet puts "Harmonic 12x24 & Arvora LVT" on the pallet table — and both are
-   pieces of *exactly* 288 in² (a 12x24; a 6x48 LVT plank), which is the
-   corroboration that decision 6 reads the sheet right: those two need naming
-   precisely because the size rule leaves them on the small table. So the
-   exception is neither a size nor a SKU pattern — it is the series name, in the
-   vendor's own words, matched against the row's description. Comma-separated,
-   empty on every book with no such exception. *(Added 2026-07-28 with the
-   amendment above: the 15" rule had swept Harmonic onto the large table by
-   accident, and correcting the size rule would otherwise have lost it.)*
+7. **Two name lists override the size rule, read in the vendor's order of
+   authority: `largeSeries` beats `smallSeries` beats area.**
+
+   `largeSeries` is the sheet's own exception — Glazzio prints "Harmonic 12x24 &
+   Arvora LVT" as its own pallet table — so it is the vendor naming the pallet a
+   thing goes on, and nothing outranks it. *(Added 2026-07-28: the 15" rule had
+   swept Harmonic onto the large table by accident, and correcting the size rule
+   would otherwise have lost it.)*
+
+   `smallSeries` (seeded `mosaic, mesh, penny round, sheet`) is what makes a
+   144 in² threshold safe. **Mounted sheet goods are priced by the chip, not by
+   the sheet**: a 12x12 mosaic is a foot of backing carrying a hundred 1" chips,
+   and it ships small format beside the 12x12 field tile that ships large. The
+   app usually knows this already — a mosaic picked from a book lands with L×W
+   blank and prompts for the *chip* size (ADR 0014), which is 1–4 in² and small
+   at any threshold — but a hand-typed row often carries the **sheet** size in
+   L×W, and "12 × 12" cannot be read as anything but a foot of tile. So the
+   escape hatch is the row's own words, matched whole-word ("Meshach Grey" is not
+   mesh), per book, editable on the card when one misfires.
+
+   Getting this one wrong is the most expensive error the sheet allows, and it is
+   asymmetric: mosaics are ordered in accent quantities, where large format's
+   one-pallet floor ($79) bills nearly 3× the per-foot charge on 30 sf ($29.70).
+   Above ~80 sf the error reverses and undercharges instead. Both directions are
+   wrong; the small end is wrong by more.
 
 ## Consequences
 
 - Any special-order book can now carry freight; VTC's 312 freight-flagged items
   become a data-entry job rather than another PR. The per-item `freightFlag`
   chip from ADR 0009 is untouched and still advisory.
-- The 2026-07-28 amendment **raises** Glazzio freight on the commonest tile in
-  the book: 620 sf of 12x24 was two $79 large-format pallets ($158) and is now
-  $613.80 by the foot, which trips the $149 threshold into two flat-rate pallets
-  ($298). It moves saved quotes, by the same live-rate design as decision 2.
+- The 2026-07-28 amendment **lowers** Glazzio freight on 12x12 and 13x13 tile,
+  which the 15" rule shipped by the foot: 300 sf of 12x12 was $149 (per-foot,
+  over the pallet threshold) and is now a single $79 large-format pallet. Tile
+  the 15" rule already called large (12x24, 24x24) is unchanged, and mosaics are
+  unchanged. It moves saved quotes, by the same live-rate design as decision 2.
 - A freight rate correction moves saved estimates. That is the intent (decision
   2), and it is the one place in this app where a book edit reaches back into a
   quote — hence the on-card warning and the "rates dated" field.

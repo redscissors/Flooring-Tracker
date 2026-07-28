@@ -581,14 +581,20 @@ header, under Estimate shows but not part of it. Freight is charged **at cost**,
 already excluded it from Employee pricing), prints as its own group in the
 estimate's extras band, and files with the **special orders** in the order-entry
 panel — by description, since there's no SKU to key. Size picks the rate table,
-and the vendor draws that line at a **size**, not a dimension: a piece whose face
-area is over `largeOverSqin` (288 in² — Glazzio's large format is what outgrows a
-12x24, so a 12x24 itself ships by the foot and a 16x16 is a *smaller* piece
-despite being wider) is large format, as is any row whose description names a
-`largeSeries` the sheet lists by name — Glazzio's "Harmonic 12x24 & Arvora LVT",
-both of them exactly 288 in², which is why the sheet names them at all. First program: Glazzio, Ohio
-(`.scratch/061_vendor-freight-program/ticket.md` transcribes the sheet;
-`.scratch/062_glazzio-large-format/` corrects the size rule).
+and the vendor draws that line at the **face area of one piece**: at
+`largeAtSqin` and up (144 in² — a 12x12 — at Glazzio) a row is large format,
+which no side measurement can express (an 8x16 is 128 in², a *smaller* piece
+than the 12x12 that pallets, with a longer side). Two name lists override it,
+both matched whole-word against the row's description: `largeSeries` ships large
+whatever its size (the sheet's own "Harmonic 12x24 & Arvora LVT"), and
+`smallSeries` — seeded `mosaic, mesh, penny round, sheet` — ships small whatever
+the sheet measures, because **mounted sheet goods are priced by the chip**: a
+12x12 mosaic is 144 in² of backing carrying a hundred 1" chips and rides the
+per-foot table beside the 12x12 field tile that doesn't. A book-picked mosaic
+needs no such help (ADR 0014 leaves L×W blank for the chip size, which is 1–4
+in²); the list is what catches a hand-typed row carrying the sheet size in L×W.
+First program: Glazzio, Ohio (`.scratch/061_vendor-freight-program/ticket.md`
+transcribes the sheet; `.scratch/062_glazzio-large-format/` fixes the size rule).
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add

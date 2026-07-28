@@ -11,7 +11,7 @@ import { FreightCard } from "./pricebooklib.jsx";
 import { FreightMatRow, FreightColumn } from "./freightui.jsx";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { EstimatePaper } from "./EstimatePrint.jsx";
-import { freightList, freightTotal, freightPrintRows, freightOrderRows } from "./freight.js";
+import { freightList, freightTotal, freightPrintRows, freightOrderRows, SHEET_GOODS_WORDS } from "./freight.js";
 import { printMatList, orderEntryRow, printAreaFloor } from "./print.js";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, newProject, money, areaLabel } from "./model.js";
@@ -24,7 +24,8 @@ const lbl = "ft-eyebrow text-[10px] mb-1 block";
 const GLAZZIO_OHIO = {
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeOverSqin: 288, largeSeries: "Harmonic, Arvora",
+  largeRate: 79, largeAtSqin: 144, largeSeries: "Harmonic, Arvora",
+  smallSeries: SHEET_GOODS_WORDS,
   perPiece: 0.33, pieceMin: 14.85,
 };
 const BOOK = { id: "glz", kind: "order", name: "Glazzio Tiles", active: true, data: { markups: { default: 45 }, freight: GLAZZIO_OHIO } };
@@ -116,7 +117,7 @@ function Harness() {
         <div>
           <h1 className="ft-serif" style={{ fontSize: 24 }}>Vendor freight — Glazzio, Ohio</h1>
           <p className="text-[12.5px] text-slate-500 mt-1">
-            620 sf of 12×24 + 84 sf of mosaic (small format at $0.99/sf — Glazzio's large format is what outgrows a 12×24, 288 sq in — past $149, so the flat-rate pallet program) · 180 sf of 24×24 (large format, {money(79)}/pallet over 496 sf/pallet) · 24 chair-rail pieces ($0.33 each, $14.85 minimum).
+            620 sf of 12×24 + 180 sf of 24×24 (large format — Glazzio calls a piece large at 144 sq in, a 12×12 — {money(79)}/pallet over 496 sf/pallet) · 84 sf of 12×12 mosaic (small format at $0.99/sf: the piece is the chip, not the sheet, so the same 144 sq in ships by the foot) · 24 chair-rail pieces ($0.33 each, $14.85 minimum).
             Every number below is computed by <span className="ft-mono">freight.js</span>, not typed into this page.
           </p>
         </div>
