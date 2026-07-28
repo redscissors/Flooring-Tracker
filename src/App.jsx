@@ -9,6 +9,8 @@ import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } f
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
+import { freightList, freightTotal, freightPrintRows, freightOrderRows, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
+import { FreightMatRow } from "./freightui.jsx";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
@@ -952,6 +954,13 @@ export default function App({ user, onSignOut }) {
   // summary, order sheet, and grand total. Grouped by category for the summary.
   const aList = sel?._full ? attachedList(tv.proj, tSet) : [];
   const addonCost = aList.reduce((t, r) => t + r.cost, 0);
+  // Vendor freight (ADR 0030), one line per special-order book whose program is
+  // configured. Computed off the RAW project, not the tier view: freight is what
+  // the vendor bills to ship, so a builder discount doesn't move it. It rides
+  // beside materialsCost rather than inside it — the estimate names it
+  // separately, and "materials" is the shop's own sundries.
+  const fList = sel?._full ? freightList(sel, wSet, books) : [];
+  const freightCost = freightTotal(fList);
   const aByCat = (settings.catalog.categories || []).map((cat) => ({ cat, rows: aList.filter((r) => r.categoryId === cat.id) })).filter((g) => g.rows.length > 0);
   // Every estimated material line, flattened and labeled. A line lands here
   // even at order 0 — a checked chip whose quantity can't be computed yet
@@ -968,7 +977,7 @@ export default function App({ user, onSignOut }) {
     ...aList.map((r) => ({ ...r, kind: r.category })),
   ];
   const matLines = matAll.filter((m) => m.order > 0);
-  const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0 || aList.length > 0; const materialsCost = groutCost + baseCost + caulkCost + mortarCost + underlayCost + addonCost; const grandTotal = flooringPrice + materialsCost + miscCost;
+  const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0 || aList.length > 0; const materialsCost = groutCost + baseCost + caulkCost + mortarCost + underlayCost + addonCost; const grandTotal = flooringPrice + materialsCost + miscCost + freightCost;
   // Internal materials margin over the rows that carry a cost (ADR 0011 / 0009
   // §8.1): a price-book pick snapshots one, and the price cell's popup takes a
   // hand-typed one on a manual line. Each row's sell mirrors its flooring/misc
@@ -983,7 +992,10 @@ export default function App({ user, onSignOut }) {
     if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, tSet, sell), markupPct: num(p.markupPct) });
   }));
   const margin = specialOrderMargin(soLines);
-  const pMats = sel && sel._full ? printMatList(tv.proj, tSet) : [];
+  // Freight prints in the same breakdown band as the materials, as its own
+  // trailing group (printMatList sorts known kinds first, and the band groups by
+  // adjacency), so the sheet names the charge instead of burying it in a total.
+  const pMats = sel && sel._full ? [...printMatList(tv.proj, tSet), ...freightPrintRows(fList)] : [];
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -1237,7 +1249,7 @@ export default function App({ user, onSignOut }) {
                 // areas yet it falls back to the header's Add-area button.
                 const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
                 const hp = {
-                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject,
+                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, freightCost, saveOk, settings, jobWasteUI, updateProject,
                   onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
                   nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
@@ -1313,6 +1325,15 @@ export default function App({ user, onSignOut }) {
                           <label className={lbl}>Waste</label>
                           <WasteBar w={jobWasteUI} dflt={settings.waste} className="w-[160px]"
                             onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
+                        </div>
+                        <div>
+                          <label className={lbl}>Freight</label>
+                          <SegBar value={sel.freight === false ? "off" : "on"}
+                            onChange={(v) => updateProject(sel.id, { freight: v === "on" })}
+                            options={[
+                              { v: "on", label: freightCost > 0 ? money(freightCost) : "Include", title: "Vendor shipping is added to this job's special orders" },
+                              { v: "off", label: "None", title: "No freight on this job" },
+                            ]} />
                         </div>
                         <div><label className={lbl}>Project notes</label><textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…" rows={2} className={inp} /></div>
                         <div>
@@ -1504,6 +1525,9 @@ export default function App({ user, onSignOut }) {
                           ...(p.type === "tile" && !p.mortar.checked ? ["Mortar"] : []),
                           ...(!p.underlay.checked ? [KSHORT[underlayLabel(p.type)]] : []),
                           ...offCats.filter((c) => !p.attached?.[c.id]?.checked).map((c) => c.name),
+                          // Only once it's been waived — freight rides along by default,
+                          // so listing it unprompted would advertise every book row.
+                          ...(freightBookFor(p, books) && !rowFreightOn(p) ? ["Freight"] : []),
                         ];
                         const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
                         const mUnit = M ? M.unit : settings.mortars[p.mortar.product]?.unit || "";
@@ -1950,6 +1974,13 @@ export default function App({ user, onSignOut }) {
                                   );
                                 })}
                                 {(() => {
+                                  const fBook = freightBookFor(p, books);
+                                  if (!fBook) return null;
+                                  const on = rowFreightOn(p);
+                                  return <FreightMatRow book={fBook} on={on} jobOff={sel.freight === false} line={fList.find((l) => l.bookId === fBook.id)}
+                                    accent={accent} rowTint={rowTint} onToggle={() => updProduct(a.id, p.id, { freight: on ? "off" : "" })} />;
+                                })()}
+                                {(() => {
                                   // Everything the books offer this floor (fits +
                                   // color-name stock tier + companions) — the fits
                                   // fetch prefetched on drawer open, the row shown
@@ -2022,7 +2053,7 @@ export default function App({ user, onSignOut }) {
                 <button onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
               )}
 
-              {(totalSqft > 0 || hasMat || miscCost > 0) && (
+              {(totalSqft > 0 || hasMat || miscCost > 0 || freightCost > 0) && (
                 <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
                   <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "10px 16px" }}>
                     <span className="ft-serif min-w-0 truncate" style={{ fontSize: 20 }}>Materials estimate</span>
@@ -2057,6 +2088,17 @@ export default function App({ user, onSignOut }) {
                         </div>
                       ))}
                     </div>
+                    {fList.length > 0 && (
+                      <div>
+                        <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>Freight</div>
+                        {fList.map((l) => (
+                          <div key={l.bookId} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
+                            <span className="font-medium min-w-0">{l.book}<span className="block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{[freightSummary(l), l.destination].filter(Boolean).join(" · ")}</span></span>
+                            <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{money(l.cost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {aByCat.map(({ cat, rows }) => (
                       <div key={cat.id}>
                         <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>{cat.name}</div>
@@ -2078,6 +2120,7 @@ export default function App({ user, onSignOut }) {
                         {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
                         {aByCat.map(({ cat, rows }) => { const c = rows.reduce((t, r) => t + r.cost, 0); return c > 0 ? <div key={cat.id} className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>{cat.name}</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(c)}</span></div> : null; })}
                         {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
+                        {freightCost > 0 && <div className="flex items-center justify-between" title="Vendor freight on this job's special orders — charged at cost, and not discounted by the price level"><span className="text-slate-500" style={{ fontSize: 12 }}>Freight</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(freightCost)}</span></div>}
                         <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
                         <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
                       </div>
@@ -2090,7 +2133,7 @@ export default function App({ user, onSignOut }) {
               {viewTab === "preview" && (
                 <div className="rounded-lg py-6 px-3 md:px-6" style={{ background: "color-mix(in oklab, var(--ft-text) 6%, var(--ft-cream))" }}>
                   <div className="ft-light bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
-                    <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />
+                    <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />
                   </div>
                   <div className="text-center mt-4">
                     <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
@@ -2160,11 +2203,23 @@ export default function App({ user, onSignOut }) {
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{m.order} {m.unit} <span className="text-slate-400 font-normal text-[10.5px]">({m.exact.toFixed(2)})</span></td>
                   </tr>
                 ))}
+                {/* Freight isn't pulled off a shelf, but it IS part of the order
+                    this sheet places — the line tells whoever keys it what the
+                    vendor will add. */}
+                {freightPrintRows(fList).map((f, i) => (
+                  <tr key={"frt" + i} className="border-b border-slate-200 align-baseline">
+                    <td className="py-1.5 text-center text-slate-400">☐</td>
+                    <td className="py-1.5 pr-2">{f.name} <span className="text-slate-400 text-[10.5px]">{[f.kind, f.spec].filter(Boolean).join(" · ")}</span></td>
+                    <td className="py-1.5 pr-2 ft-mono text-[11px]" />
+                    <td className="py-1.5 pr-2 text-slate-500">whole order</td>
+                    <td className="py-1.5 text-right font-semibold whitespace-nowrap">{f.order} {u1(f.order, f.unit)} <span className="text-slate-400 font-normal text-[10.5px]">{money(f.cost)}</span></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
-        ) : <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />)}
+        ) : <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />)}
       </div>
 
       {/* Customer browser (issue 040) — the ERP-style directory grid over the
@@ -2298,7 +2353,10 @@ export default function App({ user, onSignOut }) {
           const { qty, qtyAssumed } = orderQty(m.order);
           return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
         });
-        return <OrderEntryPanel name={sel.name} special={rows.filter((r) => r.special)} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
+        // Freight files with the special orders: it's billed by the same vendor
+        // on the same order, and like a Sheoga line it has no SKU to key.
+        const freightRows = fList.flatMap((l) => freightOrderRows(l, descLimit));
+        return <OrderEntryPanel name={sel.name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
       })()}
 
       {custModal && (() => {
