@@ -233,7 +233,14 @@ src/
                     # Responsive (useIsWide, 768px): desktop is the two-pane
                     # rail+BuildCard; on mobile the options fill the screen with a
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
-                    # (BuildCard + Add). BuildCard is the shared cost->sell card
+                    # (BuildCard + Add). BuildCard is the shared cost->sell card.
+                    # A price-level bar (TierBar) mirrors the job's tier buttons
+                    # two ways — seeded from project.priceTier, pressing one sets
+                    # it — and every price on screen renders through that lens in
+                    # the tier's color (sheoga.js tierSellOf/tierFeeOf). Display
+                    # only: rows Add/Move land RETAIL, the job sheet's own lens
+                    # reprices them (ADR 0018). Opened from the Apps hub instead,
+                    # the bar falls back to a local retail-seeded preview
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

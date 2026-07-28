@@ -6,7 +6,7 @@ import {
   VENT_GROUP, VENT_STD, VENT_FRAMED, VENT_CAR, VENT_3D, VENT_CATS,
   MODES, defaultConfig, floorWidths, floorBase, gradeName, finishName,
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig, smallOrderFee,
-  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, cartonize, lineItems,
+  DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, tierSellOf, tierFeeOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, hbFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
@@ -713,4 +713,32 @@ test("normBasketEntry: valid single/bundle pass; junk drops to null", () => {
 test("normBasketEntry: a 0% markup entry is preserved, not coerced to default", () => {
   const s = normBasketEntry({ kind: "single", markupPct: 0, snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
   assert.equal(s.markupPct, 0);
+});
+
+// --- tier display lens -------------------------------------------------------
+
+test("tierSellOf: retail (and a 0% discount) is the plain marked-up sell", () => {
+  assert.equal(tierSellOf(4.35, 40, "retail", 0), sellOf(4.35, 40));
+  assert.equal(tierSellOf(4.35, 40, undefined, 0), sellOf(4.35, 40));
+  assert.equal(tierSellOf(4.35, 40, "builder", 0), sellOf(4.35, 40));
+  assert.equal(tierSellOf(4.35, 40, "custom", undefined), sellOf(4.35, 40));
+});
+
+test("tierSellOf: employee is cost + 6%, whatever the markup", () => {
+  for (const m of [0, 40, 150]) assert.equal(tierSellOf(4.35, m, "employee", 0), 4.61);
+  assert.equal(tierSellOf(20.85, 50, "employee", 0), Math.round(20.85 * 1.06 * 100) / 100);
+});
+
+test("tierSellOf: builder/sale/custom discount the marked-up sell", () => {
+  const retail = sellOf(4.35, 40); // 6.09
+  assert.equal(tierSellOf(4.35, 40, "builder", 8), Math.round(retail * 0.92 * 100) / 100);
+  assert.equal(tierSellOf(4.35, 40, "sale", 10), Math.round(retail * 0.9 * 100) / 100);
+  assert.equal(tierSellOf(4.35, 40, "custom", 25), Math.round(retail * 0.75 * 100) / 100);
+});
+
+test("tierFeeOf: an at-cost fee rides the same lens with no markup", () => {
+  assert.equal(tierFeeOf(600, "retail", 0), 600);
+  assert.equal(tierFeeOf(600, "employee", 0), 636);
+  assert.equal(tierFeeOf(600, "builder", 8), 552);
+  assert.equal(tierFeeOf(750, "sale", 10), 675);
 });

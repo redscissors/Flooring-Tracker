@@ -598,6 +598,20 @@ export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP
 // Sell $/unit from distributor cost — same rounding as every other price.
 export const sellOf = (cost, markupPct) => round2(cost * (1 + (markupPct ?? DEFAULT_MARKUP) / 100));
 
+// Tier display lens over a configurator price — mirrors src/pricing.js tierView:
+// employee is cost × 1.06 (pricing.js EMPLOYEE_MARKUP, markup ignored), builder/
+// sale/custom discount the marked-up retail sell, retail (or a 0% discount) is
+// sellOf. Display only — every payload this file builds stays retail, and the
+// job sheet's own lens reprices the landed rows (ADR 0018). Restated here rather
+// than imported so sheoga.js stays dependency-free for `node --test`.
+export const tierSellOf = (cost, markupPct, tier, pct) =>
+  tier === "employee" ? round2(cost * 1.06)
+  : (tier === "builder" || tier === "sale" || tier === "custom") && pct > 0 ? round2(sellOf(cost, markupPct) * (1 - pct / 100))
+  : sellOf(cost, markupPct);
+// Fee lines land at cost with retail = cost (markup 0), so the same lens applies
+// with markup 0.
+export const tierFeeOf = (amt, tier, pct) => tierSellOf(amt, 0, tier, pct);
+
 // Whole-carton preview for a sq-ft build (ADR 0013 math: exact always shown,
 // order rounds up). The app row redoes this itself off cartonSf — with waste —
 // so this is display-only for the popup.
