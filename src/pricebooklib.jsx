@@ -9,6 +9,7 @@ import { computeFingerprint, fileFormat, routeFile, bundleByBook, bookKindFor, s
 import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSession, recordKey, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
+import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
@@ -1414,13 +1415,15 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       // Text-PDF vendor price lists: pdfbook aligns every page's own header onto
       // one canonical sheet, then we apply its suggested mapping. Mannington's
       // account list leads each row with Pattern, not the item code, so its fixed
-      // grid gets a dedicated parser (ADR 0012); every other text PDF stays on
+      // grid gets a dedicated parser (ADR 0012), and OVF's TrueTouch list keeps
+      // its prices in a per-collection band with color-name-led rows, so it gets
+      // one too (truetouchbook.js); every other text PDF stays on
       // parsePdfPages. Everything downstream — sheet picker, mapping controls,
       // diff preview — is unchanged.
       if (isPdf || prePages) {
         const pages = prePages || (await readPdfPages(file));
         setFmt(fileFormat({ pages, isPdf: true }));
-        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : parsePdfPages;
+        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : isTrueTouch(pages) ? parseTrueTouchPages : parsePdfPages;
         const { name, rows, mapping } = parsePdf(pages, (file?.name || book.name || "book").replace(/\.pdf$/i, ""));
         setSheets([{ name, rows }]);
         applyDetected({ sheet: name, ...mapping });
