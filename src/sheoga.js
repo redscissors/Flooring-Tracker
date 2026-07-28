@@ -9,16 +9,21 @@
 //
 // All table numbers are distributor COST, transcribed by hand from the three
 // vendor sheets (the vent sheet is a scan, so there is no mapped import):
-//   · Sheoga Pricing (Distributors) eff. 2/1/2025 — flooring
-//   · Stocking Vent Prices, Feb 2022              — vents
-//   · Damper cost sheet 1/9/2023                  — dampers
+//   · Distributor Price List (Stocking) eff. 1/19/2026 — flooring & stocked
+//   · Stocking Vent Prices, Feb 2022                   — vents
+//   · Damper Pricing sheet (undated, received 2026-07) — dampers
 // A sheet update is a re-transcription of this one file.
 
 const N = null;
 const round2 = (n) => Math.round(n * 100) / 100;
 const fm = (n) => "$" + n.toFixed(2);
 
-export const SHEET_NOTE = "priced from Sheoga sheets · Feb ’25 / Feb ’22";
+export const SHEET_NOTE = "priced from Sheoga sheets · Jan ’26 / Feb ’22";
+// Herringbone retired to custom quotes only (owner, 2026-07-28): the tab is
+// hidden and the SKU search no longer routes to it, but the tables, pricing
+// and Reconfigure path stay so saved rows keep working — and so the tab can
+// be repurposed later.
+export const HB_RETIRED = true;
 export const DEFAULT_MARKUP = 40;
 // Wood vents & dampers carry their own markup (Settings → Price book), separate
 // from flooring's — the shop marks grilles up more than material.
@@ -27,26 +32,30 @@ export const DEFAULT_VENT_MARKUP = 50;
 // --- widths & cartons ---------------------------------------------------------
 
 export const WIDTHS = [2.25, 3.25, 4.25, 5.25, 6.25, 7.25, 8.25];
-export const WIDTH_LABEL = { 2.25: '2¼"', 3.25: '3¼"', 4.25: '4¼"', 5.25: '5¼"', 6.25: '6¼"', 7.25: '7¼"', 8.25: '8¼"', 9.25: '9¼"', 11.25: '11¼"' };
-// sf per full carton by width (per shop, 2026-07-17). Live Sawn 9¼"/11¼" have
+export const WIDTH_LABEL = { 2.25: '2¼"', 3.25: '3¼"', 4.25: '4¼"', 5.25: '5¼"', 6.25: '6¼"', 7.25: '7¼"', 8.25: '8¼"', 9.25: '9¼"', 10.25: '10¼"', 11.25: '11¼"' };
+// sf per full carton by width (per shop, 2026-07-17). Live Sawn 9¼"–11¼" have
 // no carton figure — call Sheoga.
 export const CARTON_SF = { 2.25: 22, 3.25: 21, 4.25: 22, 5.25: 20.5, 6.25: 20, 7.25: 23.5, 8.25: 21.5 };
 
 // --- unfinished flooring grid -------------------------------------------------
 // clear/char = solid; eClear/eChar = engineered; each array indexes WIDTHS.
+// The 1/19/26 sheet prices every cell, including engineered 2¼" — which costs
+// MORE than 3¼" (a short-plank premium, verified against the sheet's column
+// positions, not a transcription slip).
 
 export const UNFINISHED = {
-  "White Oak":     { clear: [5.65, 5.95, 6.25, 6.65, 7.15, 7.70, 8.40], char: [3.60, 3.80, 4.05, 4.35, 4.65, 4.95, 5.25], eClear: [N, 6.00, 6.40, 6.85, 7.30, 7.80, 8.30], eChar: [N, 5.00, 5.35, 5.70, 6.05, 6.45, 6.90] },
-  "Red Oak":       { clear: [3.40, 3.60, 3.80, 4.05, 4.35, 4.65, 4.95], char: [3.00, 3.15, 3.35, 3.60, 3.80, 4.05, 4.30], eClear: [N, 5.05, 5.35, 5.70, 6.10, 6.50, 6.90], eChar: [N, 4.75, 5.05, 5.40, 5.75, 6.10, 6.50] },
-  "Hickory":       { clear: [3.55, 3.80, 4.00, 4.25, 4.55, 4.85, 5.15], char: [3.15, 3.35, 3.55, 3.75, 4.00, 4.25, 4.55], eClear: [N, 5.05, 5.40, 5.75, 6.10, 6.50, 6.95], eChar: [N, 4.80, 5.10, 5.45, 5.80, 6.20, 6.60] },
-  "Maple":         { clear: [4.25, 4.55, 4.85, 5.15, 5.45, 5.85, 6.25], char: [3.30, 3.55, 3.75, 4.00, 4.25, 4.55, 4.80], eClear: [N, 5.35, 5.70, 6.05, 6.45, 6.90, 7.35], eChar: [N, 4.85, 5.15, 5.50, 5.85, 6.25, 6.70] },
-  "Cherry":        { clear: [3.45, 3.65, 3.90, 4.15, 4.40, 4.70, 5.00], char: [3.35, 3.55, 3.80, 4.05, 4.30, 4.60, 4.85], eClear: [N, 5.00, 5.35, 5.70, 6.05, 6.45, 6.90], eChar: [N, 4.85, 5.20, 5.50, 5.90, 6.30, 6.70] },
-  "Walnut":        { clear: [6.90, 7.35, 7.85, 8.35, 8.90, 9.50, 10.15], char: [4.90, 5.20, 5.55, 5.95, 6.35, 6.75, 7.20], eClear: [N, 6.90, 7.35, 7.85, 8.40, 8.95, 9.55], eChar: [N, 5.40, 5.75, 6.10, 6.50, 6.95, 7.40] },
-  "Beech":         { clear: [3.70, 3.90, 4.15, 4.40, N, N, N], char: [3.35, 3.60, 3.80, 4.05, N, N, N], eClear: [N, 5.20, 5.55, 5.90, N, N, N], eChar: [N, 5.00, 5.30, 5.65, N, N, N] },
-  "Q/R White Oak": { clear: [7.45, 7.95, 8.50, 9.05, 9.65, 10.35, 11.05], char: [4.70, 5.05, 5.35, 5.70, 6.10, 6.50, 6.90], eClear: [N, 7.35, 7.85, 8.40, 8.95, 9.55, 10.20], eChar: [N, 5.30, 5.65, 6.05, 6.45, 6.85, 7.35] },
+  "White Oak":     { clear: [5.25, 5.65, 6.05, 6.45, 6.90, 7.40, 8.10], char: [3.40, 3.65, 3.90, 4.15, 4.45, 4.75, 5.10], eClear: [6.80, 5.70, 6.10, 6.55, 7.00, 7.50, 8.00], eChar: [5.75, 4.70, 5.05, 5.40, 5.75, 6.15, 6.60] },
+  "Red Oak":       { clear: [3.10, 3.30, 3.55, 3.80, 4.05, 4.35, 4.65], char: [2.70, 2.90, 3.10, 3.30, 3.55, 3.80, 4.05], eClear: [5.95, 4.85, 5.20, 5.55, 5.95, 6.35, 6.80], eChar: [5.55, 4.45, 4.80, 5.10, 5.45, 5.85, 6.25] },
+  "Hickory":       { clear: [3.25, 3.50, 3.70, 4.00, 4.25, 4.55, 4.85], char: [2.90, 3.10, 3.30, 3.55, 3.80, 4.05, 4.35], eClear: [5.80, 4.75, 5.10, 5.45, 5.80, 6.20, 6.65], eChar: [5.60, 4.50, 4.85, 5.20, 5.55, 5.90, 6.35] },
+  "Maple":         { clear: [4.05, 4.35, 4.65, 4.95, 5.30, 5.65, 6.05], char: [3.10, 3.35, 3.55, 3.80, 4.05, 4.35, 4.65], eClear: [6.15, 5.10, 5.45, 5.85, 6.25, 6.70, 7.15], eChar: [5.65, 4.60, 4.90, 5.25, 5.60, 6.00, 6.40] },
+  "Cherry":        { clear: [3.25, 3.45, 3.70, 3.95, 4.25, 4.55, 4.85], char: [3.05, 3.25, 3.50, 3.75, 4.00, 4.30, 4.55], eClear: [5.80, 4.75, 5.10, 5.45, 5.80, 6.20, 6.65], eChar: [5.65, 4.55, 4.90, 5.20, 5.60, 6.00, 6.40] },
+  "Walnut":        { clear: [6.80, 7.25, 7.75, 8.30, 8.90, 9.50, 10.15], char: [4.55, 4.85, 5.20, 5.55, 5.95, 6.35, 6.80], eClear: [7.80, 6.75, 7.20, 7.70, 8.25, 8.85, 9.45], eChar: [6.15, 5.10, 5.45, 5.80, 6.20, 6.65, 7.10] },
+  "Beech":         { clear: [3.40, 3.65, 3.90, 4.15, 4.45, 4.80, 5.10], char: [3.15, 3.35, 3.60, 3.80, 4.10, 4.40, 4.70], eClear: [6.00, 4.90, 5.25, 5.60, 6.00, 6.40, 6.85], eChar: [5.75, 4.70, 5.00, 5.35, 5.75, 6.10, 6.55] },
+  "Q/R White Oak": { clear: [7.35, 7.85, 8.40, 9.00, 9.60, 10.30, 11.00], char: [4.50, 4.80, 5.15, 5.50, 5.90, 6.30, 6.75], eClear: [8.10, 7.05, 7.55, 8.10, 8.65, 9.25, 9.90], eChar: [6.15, 5.10, 5.45, 5.80, 6.20, 6.65, 7.10] },
 };
-// Live Sawn White Oak — one grade, its own width run.
-export const LIVE_SAWN = { ws: [5.25, 6.25, 7.25, 8.25, 9.25, 11.25], solid: [3.80, 4.15, 4.55, 4.95, 5.40, 6.50], eng: [5.25, 5.55, 5.95, 6.35, 6.75, N] };
+// Live Sawn White Oak — one grade, its own width run (starts at 4¼" on the
+// 1/19/26 sheet, and 10¼" joined the wide run).
+export const LIVE_SAWN = { ws: [4.25, 5.25, 6.25, 7.25, 8.25, 9.25, 10.25, 11.25], solid: [3.20, 3.50, 3.85, 4.25, 4.65, 5.10, 5.65, 6.20], eng: [4.75, 5.05, 5.40, 5.80, 6.20, 6.60, N, N] };
 export const LIVE_SAWN_SP = "Live Sawn White Oak";
 export const SPECIES = Object.keys(UNFINISHED).concat([LIVE_SAWN_SP]);
 
@@ -73,15 +82,15 @@ export const LENGTHS = [
   { id: "3-8", name: "3'–8'", pct: 25 },
   { id: "3-10", name: "3'–10'", pct: 30 },
 ];
-// Established stain picks $1.95 or $2.85 from the selected texture (deep
+// Established stain picks $2.05 or $3.15 from the selected texture (deep
 // scrapes — sawcut/bandsawn/aged — take the higher rate per the finishing sheet).
 export const FINISHES = [
   { id: "unf", name: "Unfinished", sub: "finish on site", add: () => 0 },
-  { id: "nat", name: "Prefinished — Natural", sub: "clear ceramic", add: () => 1.65 },
-  { id: "est", name: "Prefinished — Established stain", sub: "$1.95 smooth/OM/CW/VC · $2.85 sawcut/bandsawn/aged", add: (c) => (TEXTURES.find((t) => t.id === c.tex)?.deep ? 2.85 : 1.95) },
-  { id: "t1", name: "Custom color T-1", sub: "to unfinished price", add: () => 3.05 },
-  { id: "t2", name: "Custom color T-2", sub: "to unfinished price", add: () => 3.65 },
-  { id: "t3", name: "Custom color T-3", sub: "to unfinished price", add: () => 3.85 },
+  { id: "nat", name: "Prefinished — Natural", sub: "clear ceramic", add: () => 1.70 },
+  { id: "est", name: "Prefinished — Established stain", sub: "$2.05 smooth/OM/CW/VC · $3.15 sawcut/bandsawn/aged", add: (c) => (TEXTURES.find((t) => t.id === c.tex)?.deep ? 3.15 : 2.05) },
+  { id: "t1", name: "Custom color T-1", sub: "to unfinished price", add: () => 3.35 },
+  { id: "t2", name: "Custom color T-2", sub: "to unfinished price", add: () => 4.00 },
+  { id: "t3", name: "Custom color T-3", sub: "to unfinished price", add: () => 4.20 },
 ];
 export const NO_SAP = { Cherry: 1.00, Walnut: 2.00 };
 export const SAMPLE_FEE = 750;
@@ -91,33 +100,37 @@ export const CUSTOM_FINISHES = ["t1", "t2", "t3"];
 // custom entry, and the sheen scale. Sheen is descriptive on the custom/floor
 // tab (free); on the STOCKED tab, moving a product off its standard sheen adds
 // a flat SHEEN_FEE line (made-to-order setup).
-export const STAIN_COLORS = ["Natural", "Cattail", "Caramel", "Fresh Cut", "Toasted Acorn", "Nutmeg", "Buckeye", "Hickory Nut", "Frost"];
+export const STAIN_COLORS = ["Natural", "Cattail", "Caramel", "Fresh Cut", "Toasted Acorn", "Nutmeg", "Buckeye", "Hickory Nut", "Frost", "Breeze", "Camo", "Dawn", "Drift", "Mist", "Prestige", "Silk"];
 export const SHEENS = ["30", "20", "15", "10", "5"];
 export const SHEEN_FEE = 250;
 
 // --- stocked prefinished ------------------------------------------------------
-// Solid, micro bevel; clear widths 2¼–5¼, char widths 2¼–6¼ (STOCKED_WIDTHS).
+// Solid, micro bevel; clear and char widths both 2¼–6¼ (STOCKED_WIDTHS).
+// The 1/19/26 sheet prices every prefinished cell but marks STOCK / FAST TRACK
+// by green highlight — only the highlighted cells are transcribed here (white
+// cells are non-stock, minimum-order runs: quote those through the custom tab
+// or call Sheoga). Colors with no green cell at all (Beech Natural/Drift,
+// Cherry Silk, Hickory Breeze, Maple Frost, Red Oak Camo/Dawn/Prestige/Nutmeg,
+// Walnut Mist, all Q/R White Oak) are left out entirely.
 
 export const STOCKED = [
-  { sp: "Cherry", color: "Natural", sheen: 30, clear: [N, 5.30, 5.55, 5.80], char: [N, 5.25, 5.50, 5.75, 6.00] },
-  { sp: "Maple", color: "Natural", sheen: 30, clear: [N, 6.20, 6.50, 6.80], char: [4.95, 5.20, 5.40, 5.65, 5.90] },
-  { sp: "Maple", color: "Frost", sheen: 5, clear: N, char: [N, 5.50, 5.70, 5.95, N] },
-  { sp: "Hickory", color: "Natural", sheen: 30, clear: [5.20, 5.45, 5.65, 5.90], char: [4.80, 5.00, 5.20, 5.40, 5.65] },
-  { sp: "Hickory", color: "Buckeye", sheen: 30, clear: [N, 5.75, 5.95, 6.20], char: N },
-  { sp: "Hickory", color: "Hickory Nut", sheen: 30, clear: N, char: [N, 5.30, 5.50, 5.70, 5.95] },
-  { sp: "Hickory", color: "Toasted Acorn", sheen: 30, clear: N, char: [N, 5.30, 5.50, 5.70, 5.95] },
-  { sp: "Red Oak", color: "Natural", sheen: 30, clear: [5.05, 5.25, 5.45, 5.70], char: [4.65, 4.80, 5.00, 5.25, N] },
-  { sp: "Red Oak", color: "Toasted Acorn", sheen: 30, clear: [N, 5.55, 5.75, 6.00], char: [N, 5.10, 5.30, 5.55, N] },
-  { sp: "Red Oak", color: "Nutmeg", sheen: 20, clear: N, char: [N, 5.10, 5.30, 5.55, N] },
-  { sp: "Walnut", color: "Natural", sheen: 30, clear: [N, 9.00, 9.50, N], char: [N, 6.85, 7.20, 7.60, 8.00] },
-  { sp: "White Oak", color: "Natural", sheen: 30, clear: [N, 7.60, 7.90, 8.30], char: [5.25, 5.45, 5.70, 6.00, 6.30] },
-  { sp: "White Oak", color: "Cattail", sheen: 30, clear: N, char: [N, 5.75, 6.00, 6.30, 6.60] },
-  { sp: "White Oak", color: "Caramel", sheen: 20, clear: N, char: [N, 5.75, 6.00, 6.30, 6.60] },
-  { sp: "White Oak", color: "Fresh Cut", sheen: 5, clear: N, char: [N, 5.75, 6.00, 6.30, 6.60] },
-  { sp: "Red Oak", color: "Cattail · Sawcut", sheen: 20, tex: true, clear: N, char: [N, N, 7.90, 8.10, 8.35] },
-  { sp: "Hickory", color: "Hickory Nut · Vintage Charm", sheen: 20, tex: true, clear: N, char: [N, N, 7.00, 7.20, 7.45] },
+  { sp: "Cherry", color: "Natural", sheen: 30, clear: [N, 5.15, 5.40, 5.65, N], char: [N, 4.95, 5.20, 5.45, 5.70] },
+  { sp: "Hickory", color: "Natural", sheen: 30, clear: [4.95, 5.20, 5.40, 5.70, N], char: [4.60, 4.80, 5.00, 5.25, 5.50] },
+  { sp: "Hickory", color: "Buckeye", sheen: 30, clear: [N, 5.55, 5.75, 6.05, N], char: N },
+  { sp: "Hickory", color: "Hickory Nut", sheen: 30, clear: N, char: [N, 5.15, 5.35, 5.60, 5.85] },
+  { sp: "Hickory", color: "Toasted Acorn", sheen: 30, clear: N, char: [N, 5.15, 5.35, 5.60, 5.85] },
+  { sp: "Maple", color: "Natural", sheen: 30, clear: [N, 6.05, 6.35, 6.65, N], char: [4.80, 5.05, 5.25, 5.50, 5.75] },
+  { sp: "Red Oak", color: "Natural", sheen: 30, clear: [4.80, 5.00, 5.25, 5.50, N], char: [4.40, 4.60, 4.80, 5.00, N] },
+  { sp: "Red Oak", color: "Toasted Acorn", sheen: 30, clear: [N, 5.35, 5.60, 5.85, N], char: [N, 4.95, 5.15, 5.35, N] },
+  { sp: "Walnut", color: "Natural", sheen: 30, clear: [N, 8.95, 9.45, N, N], char: [N, 6.55, 6.90, 7.25, 7.65] },
+  { sp: "White Oak", color: "Natural", sheen: 30, clear: [N, 7.35, 7.75, 8.15, N], char: [5.10, 5.35, 5.60, 5.85, 6.15] },
+  { sp: "White Oak", color: "Cattail", sheen: 30, clear: N, char: [N, 5.70, 5.95, 6.20, 6.50] },
+  { sp: "White Oak", color: "Caramel", sheen: 20, clear: N, char: [N, 5.70, 5.95, 6.20, 6.50] },
+  { sp: "White Oak", color: "Fresh Cut", sheen: 5, clear: N, char: [N, 5.70, 5.95, 6.20, 6.50] },
+  { sp: "Red Oak", color: "Cattail · Sawcut", sheen: 20, tex: true, clear: N, char: [N, N, 7.75, 7.95, 8.20] },
+  { sp: "Hickory", color: "Hickory Nut · Vintage Charm", sheen: 20, tex: true, clear: N, char: [N, N, 6.85, 7.10, 7.35] },
 ];
-export const STOCKED_WIDTHS = { clear: [2.25, 3.25, 4.25, 5.25], char: [2.25, 3.25, 4.25, 5.25, 6.25] };
+export const STOCKED_WIDTHS = { clear: [2.25, 3.25, 4.25, 5.25, 6.25], char: [2.25, 3.25, 4.25, 5.25, 6.25] };
 // Stocked colors are looked up by species + color name, never by table index —
 // a re-transcription that reorders rows must not repoint saved configurations.
 export const stockedItem = (k) => STOCKED.find((x) => x.sp === k.sp && x.color === k.color) || null;
@@ -228,10 +241,11 @@ export const VENT_PREFIN = 28.25;
 export const VENT_TEX = 8.00;
 export const VENT_CUBED = 10.00;
 export const DAMPER_ATTACH = 5.00;
-// [Sheoga cost, stocking (our cost as a Keim stocking dealer), builder, retail]
+// One distributor cost per size (the 2026-07 sheet dropped the old four-column
+// Sheoga/stocking/builder/retail list — and the 8×12 size with it).
 export const DAMPERS = {
-  "4×10": [16.00, 20.00, 23.20, 25.60], "4×12": [17.50, 21.88, 25.38, 28.00], "4×14": [19.50, 24.38, 28.28, 31.20],
-  "6×10": [17.50, 21.88, 25.38, 28.00], "6×12": [19.50, 24.38, 28.28, 31.20], "6×14": [22.50, 28.13, 32.63, 36.00], "8×12": [21.50, 26.88, 31.18, 34.40],
+  "4×10": 21.39, "4×12": 22.07, "4×14": 22.39,
+  "6×10": 23.20, "6×12": 23.91, "6×14": 24.82,
 };
 
 // --- configurations -----------------------------------------------------------
@@ -241,6 +255,8 @@ export const DAMPERS = {
 export const MODES = [
   { id: "floor", label: "Unfinished & custom" },
   { id: "stocked", label: "Stocked prefinished" },
+  // HB_RETIRED hides this tab (custom quotes only); it stays in the list so a
+  // saved row's Reconfigure still opens on it.
   { id: "hb", label: "Herringbone" },
   { id: "vent", label: "Wood vents" },
   { id: "damper", label: "Dampers" },
@@ -448,7 +464,7 @@ export function calcVent(v) {
   if (v.prefin) { cost += VENT_PREFIN; rows.push([`Prefinished${stain ? ` — ${stain}` : ""}`, "+$28.25"]); }
   if (v.tex) { cost += VENT_TEX; rows.push([`Textured${scrapeName ? ` — ${scrapeName}` : ""}`, "+$8.00"]); }
   if (v.damper && DAMPERS[v.size]) {
-    const d = DAMPERS[v.size][1] + DAMPER_ATTACH;
+    const d = DAMPERS[v.size] + DAMPER_ATTACH;
     cost += d;
     rows.push([`Damper ${v.size} + $5.00 attach`, `+${fm(d)}`]);
   }
@@ -469,12 +485,9 @@ export function calcVent(v) {
 export function calcDamper(d) {
   const t = DAMPERS[d.size];
   if (!t) return null;
-  const rows = [
-    [`Damper ${d.size}" — stocking price (our cost)`, fm(t[1]) + " ea"],
-    ["Sheoga list: builder " + fm(t[2]) + " · retail " + fm(t[3]), ""],
-  ];
+  const rows = [[`Damper ${d.size}" — distributor cost`, fm(t) + " ea"]];
   return {
-    desc: `${d.size}" vent damper (loose)`, size: `${d.size}"`, rest: "vent damper (loose)", name: `Sheoga damper ${d.size}"`, rows, cost: t[1], per: "ea", qty: d.qty || 1,
+    desc: `${d.size}" vent damper (loose)`, size: `${d.size}"`, rest: "vent damper (loose)", name: `Sheoga damper ${d.size}"`, rows, cost: t, per: "ea", qty: d.qty || 1,
     warn: ["Attached-to-vent price is damper + $5.00 (use the vent tab)"], fees: [],
   };
 }
@@ -683,6 +696,7 @@ const FIN_SHORT = { unf: "Unf", nat: "Nat", t1: "T-1", t2: "T-2", t3: "T-3" };
 const STAIN_SHORT = {
   Natural: "Nat", Cattail: "Cattail", Caramel: "Caramel", "Fresh Cut": "FrshCut",
   "Toasted Acorn": "TstdAcrn", Nutmeg: "Nutmeg", Buckeye: "Buckeye", "Hickory Nut": "HickNut", Frost: "Frost",
+  Breeze: "Breeze", Camo: "Camo", Dawn: "Dawn", Drift: "Drift", Mist: "Mist", Prestige: "Prstg", Silk: "Silk",
 };
 
 const shortFinish = (f) => {
@@ -761,7 +775,9 @@ export function parseQuery(q) {
   q = " " + String(q || "").toLowerCase().replace(/[",]/g, "") + " ";
   const out = {};
   if (/\bvent|damper|register\b/.test(q)) out.mode = /damper/.test(q) && !/vent/.test(q) ? "damper" : "vent";
-  if (/herringbone|chevron/.test(q)) { out.mode = "hb"; out.chevron = /chevron/.test(q); }
+  // Retired herringbone never routes from search — "herringbone white oak"
+  // still seeds the floor tab off its species words.
+  if (!HB_RETIRED && /herringbone|chevron/.test(q)) { out.mode = "hb"; out.chevron = /chevron/.test(q); }
   const SPP = [
     ["live sawn", LIVE_SAWN_SP], ["q/r", "Q/R White Oak"], ["qr ", "Q/R White Oak"], ["quarter", "Q/R White Oak"],
     ["white oak", "White Oak"], ["wht oak", "White Oak"], ["red oak", "Red Oak"], ["hickory", "Hickory"], ["maple", "Maple"],

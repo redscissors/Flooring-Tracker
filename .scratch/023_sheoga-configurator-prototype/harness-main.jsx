@@ -10,13 +10,11 @@ import "/src/index.css";
 import { GridOmniSearch } from "/src/grid.jsx";
 import { MobileSearchSheet } from "/src/mobile.jsx";
 import SheogaConfigurator from "/src/SheogaConfigurator.jsx";
-import { normStockItem } from "/src/stock.js";
 import { seedFromQuery } from "/src/sheoga.js";
 
-const FAKE_STOCK = [
-  { sku: "5187941", active: true, data: { type: "hardwood", style: '5" White Oak Natural 4mm T&G Eng', size: '5"', price: 6.99, um: "SF" } },
-  { sku: "5202230", active: true, data: { type: "hardwood", style: '7½" Euro White Oak Brushed UV Eng', size: '7.5"', price: 8.49, um: "SF" } },
-].map(normStockItem);
+// The retired shop workbook's normStockItem is gone (ADR 0027) — the search
+// demo only needs the pinned vendor row, so an empty stock list is enough.
+const FAKE_STOCK = [];
 
 function Harness() {
   const [q, setQ] = useState("");
@@ -46,6 +44,8 @@ function Harness() {
           <button onClick={() => setPop({ seed: null })} className="rounded-md bg-indigo-600 text-white px-3 py-1.5 text-xs font-bold">Open configurator</button>
           <button onClick={() => setPop({ seed: seedFromQuery("walnut vent") })} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Open on vents</button>
           <button onClick={() => setPop({ seed: seedFromQuery("chevron red oak") })} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Open on herringbone</button>
+          {/* HB_RETIRED preview: how a pre-retirement herringbone row's Reconfigure lands */}
+          <button onClick={() => setPop({ seed: { mode: "hb", cfg: { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, slatLen: "24", chevron: false, tex: "smooth", edge: "square", finish: "unf", stain: "", sheen: "30", sample: false } } })} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Reconfigure legacy hb row</button>
           <button onClick={() => setMobileSearch(true)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold">Open mobile search</button>
         </div>
 

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import {
-  MODES, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
+  MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
   TEXTURES, EDGES, LENGTHS, FINISHES, NO_SAP, CUSTOM_FINISHES,
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
@@ -620,7 +620,7 @@ function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
           </select>
         </div>
       )}
-      {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(tsell(DAMPERS[v.size][1] + DAMPER_ATTACH))}`} />}
+      {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(tsell(DAMPERS[v.size] + DAMPER_ATTACH))}`} />}
       {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(tsell(0.4 * frameLineal(v.size)))}`} />}
     </Sect>
     <Sect title="Quantity"><QtyInput value={v.qty} onChange={(qty) => set({ ...v, qty })} /></Sect>
@@ -631,7 +631,7 @@ function DamperRail({ d, set, tsell }) {
   return (<>
     <Sect title="Size" hint="sell each at markup">
       <Chips cur={d.size} onPick={(size) => set({ ...d, size })}
-        items={Object.keys(DAMPERS).map((sz) => ({ id: sz, label: sz + '"', sub: fm(tsell(DAMPERS[sz][1])) }))} />
+        items={Object.keys(DAMPERS).map((sz) => ({ id: sz, label: sz + '"', sub: fm(tsell(DAMPERS[sz])) }))} />
     </Sect>
     <Sect title="Quantity"><QtyInput value={d.qty} onChange={(qty) => set({ ...d, qty })} /></Sect>
     <p className="text-[11px] text-slate-400 leading-relaxed font-medium">Loose dampers. To price a damper attached to a vent (+$5 attach), use the Wood vents tab.</p>
@@ -648,7 +648,7 @@ function GridModal({ mode, cfg, onPick, onClose }) {
   const th = "px-2 py-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-300 bg-slate-100 first:text-left";
   const tdName = "px-2 py-1.5 text-left text-xs font-bold whitespace-nowrap";
   if (mode === "floor") {
-    const cols = WIDTHS.concat([9.25, 11.25]);
+    const cols = WIDTHS.concat([9.25, 10.25, 11.25]);
     title = `Full price grid — ${cfg.grade === "clear" ? "Clear" : "Character"}, ${cfg.cons === "solid" ? "Solid" : "Engineered"}`;
     body = (
       <table className="w-full border-collapse">
@@ -1139,8 +1139,15 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
       {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} tsell={tsell} onGrid={() => setGrid(true)}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
-      {mode === "hb" && <HbRail h={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
-        onCopyFloor={copyFloorToHb} copySrc={MODES.find((m) => m.id === flatSrc).label} />}
+      {mode === "hb" && <>
+        {HB_RETIRED && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11.5px] font-semibold text-amber-800 leading-snug">
+            Herringbone is sold by custom quote only now — this tab opens just for rows configured before the change. Call Sheoga for new herringbone pricing.
+          </div>
+        )}
+        <HbRail h={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
+          onCopyFloor={copyFloorToHb} copySrc={MODES.find((m) => m.id === flatSrc).label} />
+      </>}
       {mode === "vent" && <VentRail v={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
         onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} tsell={tsell} />}
@@ -1160,7 +1167,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   );
   const priceNote = (
     <p className="mt-3 text-[10.5px] text-slate-400 font-medium leading-relaxed">
-      Sheet prices are distributor cost · flooring effective Feb 1 2025 · vents Feb 2022 · custom orders 5–10% overrun, no returns.
+      Sheet prices are distributor cost · flooring effective Jan 19 2026 · vents Feb 2022 · custom orders 5–10% overrun, no returns.
     </p>
   );
 
@@ -1184,9 +1191,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     </div>
   );
   // Desktop tabs sit on the content border; the phone scrolls them as pills.
+  // The retired herringbone tab is hidden — unless a saved hb row's Reconfigure
+  // opened on it, where it shows as the active tab so the build stays readable.
+  const visibleModes = MODES.filter((m) => m.id !== "hb" || !HB_RETIRED || mode === "hb");
   const tabs = (
     <div className={isWide ? "flex gap-0.5 px-4 pt-2.5 border-b border-slate-300" : "flex gap-1.5 px-4 pt-2 pb-2.5 overflow-x-auto border-b border-slate-200"}>
-      {MODES.map((m) => (
+      {visibleModes.map((m) => (
         isWide ? (
           <button key={m.id} onClick={() => pickMode(m.id)}
             className={`px-3.5 py-2 text-xs font-bold rounded-t-lg border border-b-0 -mb-px ${mode === m.id ? "bg-white border-slate-300 text-slate-900 relative z-10" : "bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-700"}`}>

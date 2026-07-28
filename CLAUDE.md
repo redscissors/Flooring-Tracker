@@ -193,10 +193,13 @@ src/
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
                     # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
-                    # sheet tables (flooring Feb '25, vents Feb '22, dampers
-                    # 1/9/23 — all distributor cost) + pure pricing for the five
-                    # programs (unfinished/custom, stocked prefinished,
-                    # herringbone, vents, dampers), `parseQuery`/`queryHit`/
+                    # sheet tables (flooring & stocked Jan '26, vents Feb '22,
+                    # dampers Jul '26 — all distributor cost) + pure pricing for
+                    # the five programs (unfinished/custom, stocked prefinished,
+                    # herringbone, vents, dampers — herringbone RETIRED to
+                    # custom quotes 2026-07-28: `HB_RETIRED` hides its tab and
+                    # search routing, tables kept so saved rows still price and
+                    # the tab can be repurposed), `parseQuery`/`queryHit`/
                     # `seedFromQuery` for the SKU-search pinned entry row, and
                     # `lineItems` (configuration -> product-row payloads; fees
                     # as separate at-cost misc lines; `product.sheoga` keeps the
@@ -219,7 +222,9 @@ src/
                     # stocked/herringbone tab's config onto the vent
                     # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
                     # -> White Oak, finish -> prefin+stain, texture -> scrape).
-                    # Herringbone tab: the same Texture/scrape + Finishing + Edge
+                    # Herringbone tab (hidden while HB_RETIRED — shows only when
+                    # a saved hb row's Reconfigure opens on it, with a custom-
+                    # quote banner): the same Texture/scrape + Finishing + Edge
                     # dropdowns (+ stain/sheen + sample) as the custom tab, priced
                     # the same $/sf way; its own "Copy floor" pulls species/scrape/
                     # edge/prefinish from the last-open custom/stocked tab
