@@ -50,10 +50,23 @@ export const normFreight = (raw) => ({
   palletAt: pos(raw?.palletAt),
   palletRate: pos(raw?.palletRate),
   largeRate: pos(raw?.largeRate),
-  // A piece with a side at or over this many inches is "large format" and ships
-  // on the large-format table. 15" is the trade's line and the one Glazzio's
-  // sheet draws (its Harmonic 12x24 sits on the large table).
-  largeFormatIn: pos(raw?.largeFormatIn, 15),
+  // The biggest piece that still ships on the per-foot table, as the sheet names
+  // it: a size. A distributor draws this line at a SIZE, not at a single
+  // dimension — Glazzio's is "larger than 12x24", so a 12x24 ships small format
+  // and a 16x16 (wider, though smaller in area) does not. One number can't say
+  // that: any threshold low enough to catch a 24x24 also catches the 24" side of
+  // a 12x24. So the rule is a fit — over on the short side OR over on the long
+  // side is large format. Either at 0 switches that half of the test off.
+  //
+  // A legacy `largeFormatIn` is deliberately NOT read: the only programs that
+  // carry one hold the 15" seed, which is the rule this replaced.
+  largeOverShort: pos(raw?.largeOverShort, 12),
+  largeOverLong: pos(raw?.largeOverLong, 24),
+  // Series the vendor ships large format regardless of size — Glazzio's sheet
+  // puts "Harmonic 12x24 & Arvora LVT" on the pallet table by name, at a size
+  // that is otherwise small format. Comma-separated, matched against the row's
+  // description; empty on every book that has no such exception.
+  largeSeries: str(raw?.largeSeries),
   perPiece: pos(raw?.perPiece),
   pieceMin: pos(raw?.pieceMin),
   effective: str(raw?.effective),
@@ -71,7 +84,8 @@ export const hasFreightProgram = (book) => bookFreight(book).mode === "program";
 export const FREIGHT_SEED = Object.freeze({
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeFormatIn: 15, perPiece: 0.33, pieceMin: 14.85,
+  largeRate: 79, largeOverShort: 12, largeOverLong: 24, largeSeries: "Harmonic, Arvora",
+  perPiece: 0.33, pieceMin: 14.85,
 });
 
 // The book the seed belongs to, matched on its name — the shop names its books
@@ -87,9 +101,10 @@ const RATE_FIELDS = ["palletSf", "perSqft", "minCharge", "palletAt", "palletRate
 export const freightIsBlank = (f) => RATE_FIELDS.every((k) => !(normFreight(f)[k] > 0));
 // Still carrying the seed verbatim, so the card can say so and then stop saying
 // it the moment a rate is touched.
+const RULE_FIELDS = ["largeOverShort", "largeOverLong", "largeSeries"];
 export const freightIsSeed = (f) => {
   const n = normFreight(f);
-  return RATE_FIELDS.every((k) => n[k] === FREIGHT_SEED[k]) && n.largeFormatIn === FREIGHT_SEED.largeFormatIn;
+  return [...RATE_FIELDS, ...RULE_FIELDS].every((k) => n[k] === FREIGHT_SEED[k]);
 };
 
 // A row rides the shipment unless someone unchecked it. Default-on (rather than
@@ -109,27 +124,43 @@ export const freightBookFor = (p, books) => {
   return book && hasFreightProgram(book) ? book : null;
 };
 
-// A size like "12x24" / "2 x 10" / `12" × 24"` → the larger side in inches.
-// Falls back through the row's own L/W first, since a picked tile row carries
-// them parsed; sizeText is the mosaic-sheet / free-text case.
+// A size like "12x24" / "2 x 10" / `12" × 24"` → [short side, long side] in
+// inches. Falls back through the row's own L/W first, since a picked tile row
+// carries them parsed; sizeText is the mosaic-sheet / free-text case. A row with
+// only one dimension reads as [0, that], which no size rule calls large.
 const SIZE_RE = /(\d+(?:\.\d+)?)\s*["”]?\s*[x×]\s*(\d+(?:\.\d+)?)/i;
-export function rowLongestSide(p) {
+export function rowSides(p) {
   const l = num(p?.L), w = num(p?.W);
-  if (l > 0 || w > 0) return Math.max(l, w);
+  if (l > 0 || w > 0) return [Math.min(l, w), Math.max(l, w)];
   const m = SIZE_RE.exec(str(p?.sizeText));
-  return m ? Math.max(parseFloat(m[1]), parseFloat(m[2])) : 0;
+  if (!m) return [0, 0];
+  const a = parseFloat(m[1]), b = parseFloat(m[2]);
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
+// Does the row's description name one of the vendor's always-large series? Read
+// off the same text the desk sees on the row, since these exceptions are named
+// on the sheet in the vendor's own words ("Harmonic"), not by SKU pattern.
+const rowText = (p) => [p?.brandColor, p?.sku, p?.note, p?.sizeText].map(str).join(" ").toLowerCase();
+export function matchesLargeSeries(p, f) {
+  const names = str(f?.largeSeries).split(/[,;]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (!names.length) return false;
+  const text = rowText(p);
+  return names.some((n) => text.includes(n));
 }
 
 // Which of a program's three tables a row ships on. A counted line is pieces
-// whatever its size (a trim is a trim); an area line is large-format when a side
-// reaches the threshold. A row whose size is unknown falls to "small": the
-// per-foot rate is the sheet's default, and guessing "large" would invent a
-// whole pallet.
+// whatever its size (a trim is a trim); an area line is large-format when the
+// vendor names its series or when it outgrows the largest small-format size. A
+// row whose size is unknown falls to "small": the per-foot rate is the sheet's
+// default, and guessing "large" would invent a whole pallet.
 export function freightBasis(p, f) {
   if (!p) return null;
   if (p.type === "misc" || p.qtyType !== "sqft") return "piece";
-  const side = rowLongestSide(p);
-  return f.largeFormatIn > 0 && side >= f.largeFormatIn ? "large" : "small";
+  if (matchesLargeSeries(p, f)) return "large";
+  const [short, long] = rowSides(p);
+  const over = (n, limit) => limit > 0 && n > limit;
+  return over(short, f.largeOverShort) || over(long, f.largeOverLong) ? "large" : "small";
 }
 
 // What each opted-in row contributes, in the units its table bills: ORDERED

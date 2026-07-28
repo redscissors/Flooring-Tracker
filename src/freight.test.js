@@ -2,17 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, normP, normC, newProject } from "./model.js";
-import { normFreight, hasFreightProgram, rowFreightOn, rowLongestSide, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
+import { normFreight, hasFreightProgram, rowFreightOn, rowSides, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 
 const s = normalizeSettings();
 
 // The real program this was built from: Glazzio's 2026 shipping sheet, read down
 // the Ohio column. Both of its pallet tables (Large Format, and Harmonic 12x24 /
 // Arvora LVT) charge $79 in Ohio, so one large-format rate covers the state.
+// Glazzio's large format starts ABOVE 12x24 — that size ships by the foot.
 const GLAZZIO = {
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeFormatIn: 15,
+  largeRate: 79, largeOverShort: 12, largeOverLong: 24, largeSeries: "Harmonic, Arvora",
   perPiece: 0.33, pieceMin: 14.85,
 };
 const book = (freight = GLAZZIO, id = "glz", name = "Glazzio") => ({ id, name, kind: "order", data: { freight } });
@@ -26,7 +27,11 @@ test("normFreight: an unconfigured book has no program, and 0 rates switch rules
   assert.equal(hasFreightProgram(book()), true);
   const bare = normFreight({ mode: "program" });
   assert.equal(bare.perSqft, 0);
-  assert.equal(bare.largeFormatIn, 15);                          // the trade's line, not 0
+  assert.equal(bare.largeOverShort, 12);                         // the default line is a SIZE, not 0
+  assert.equal(bare.largeOverLong, 24);
+  // The 15" rule this replaced is not read back in — a stored program carrying
+  // it gets the size rule, which is the point of the change.
+  assert.equal(normFreight({ mode: "program", largeFormatIn: 15 }).largeOverLong, 24);
   assert.equal(normFreight({ mode: "program", perSqft: "-3", palletSf: "abc" }).perSqft, 0);
 });
 
@@ -50,6 +55,8 @@ test("the seed prefills the Glazzio book only — every other vendor opens empty
   // The card's "these are Glazzio's numbers" note stops the moment one moves.
   assert.equal(freightIsSeed(FREIGHT_SEED), true);
   assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeRate: 99 }), false);
+  assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeOverLong: 15 }), false);   // the size rule is the sheet's too
+  assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeSeries: "" }), false);
   assert.equal(freightIsSeed({ ...FREIGHT_SEED, destination: "Indiana" }), true);  // a label, not a rate
   assert.equal(freightIsSeed({ mode: "program" }), false);
 });
@@ -62,16 +69,43 @@ test("rowFreightOn: a row rides the shipment unless it was explicitly switched o
   assert.equal(normP({ freight: "nonsense" }).freight, "");
 });
 
-test("rowLongestSide / freightBasis: L×W first, then the size text, then small", () => {
+test("rowSides / freightBasis: L×W first, then the size text, then small", () => {
   const f = normFreight(GLAZZIO);
-  assert.equal(rowLongestSide(tile({ L: "12", W: "24" })), 24);
-  assert.equal(rowLongestSide(tile({ sizeText: '12" × 24"' })), 24);
-  assert.equal(rowLongestSide(tile({ sizeText: "12x12 sheet" })), 12);
-  assert.equal(freightBasis(tile({ L: "12", W: "24" }), f), "large");
-  assert.equal(freightBasis(tile({ L: "12", W: "12" }), f), "small");
-  assert.equal(freightBasis(tile({ L: "15", W: "15" }), f), "large");   // at the line, not past it
+  assert.deepEqual(rowSides(tile({ L: "24", W: "12" })), [12, 24]);     // short first, however it was typed
+  assert.deepEqual(rowSides(tile({ sizeText: '12" × 24"' })), [12, 24]);
+  assert.deepEqual(rowSides(tile({ sizeText: "12x12 sheet" })), [12, 12]);
+  assert.deepEqual(rowSides(tile({ sizeText: '2" Hex' })), [0, 0]);
   assert.equal(freightBasis(tile({ sizeText: '2" Hex' }), f), "small"); // unknown size never invents a pallet
   assert.equal(freightBasis({ ...newProduct(), type: "misc", qtyType: "count" }, f), "piece");
+});
+
+// Glazzio's line is "larger than 12x24", not the trade's 15" side: a 12x24 rides
+// the per-foot table with the mosaics, and only a piece that outgrows that
+// footprint — on either axis — goes on the pallet.
+test("freightBasis: large format is what outgrows 12x24, on either side", () => {
+  const f = normFreight(GLAZZIO);
+  assert.equal(freightBasis(tile({ L: "12", W: "24" }), f), "small");
+  assert.equal(freightBasis(tile({ L: "24", W: "12" }), f), "small");   // the same tile, typed the other way
+  assert.equal(freightBasis(tile({ L: "12", W: "12" }), f), "small");
+  assert.equal(freightBasis(tile({ L: "36", W: "12" }), f), "large");   // long side past 24
+  assert.equal(freightBasis(tile({ L: "16", W: "16" }), f), "large");   // short side past 12
+  assert.equal(freightBasis(tile({ L: "24", W: "24" }), f), "large");
+  assert.equal(freightBasis(tile({ sizeText: '12" × 48"' }), f), "large");
+  // Both halves off = size never sends anything to the pallet table.
+  const flat = normFreight({ ...GLAZZIO, largeOverShort: 0, largeOverLong: 0, largeSeries: "" });
+  assert.equal(freightBasis(tile({ L: "24", W: "24" }), flat), "small");
+});
+
+// The sheet names two series that ship by the pallet at a size that is otherwise
+// small format ("Harmonic 12x24 & Arvora LVT"), so the exception is by name.
+test("freightBasis: a named series ships large format whatever its size", () => {
+  const f = normFreight(GLAZZIO);
+  assert.equal(freightBasis(tile({ L: "12", W: "24", brandColor: "Harmonic — Pearl" }), f), "large");
+  assert.equal(freightBasis(tile({ L: "12", W: "24", brandColor: "Sunset Glass — Alabaster" }), f), "small");
+  assert.equal(freightBasis(tile({ L: "12", W: "12", note: "Arvora LVT plank" }), f), "large");
+  // A trim stays a trim: the piece table doesn't care what series it is.
+  assert.equal(freightBasis({ ...newProduct(), type: "misc", qtyType: "count", brandColor: "Harmonic chair rail" }, f), "piece");
+  assert.equal(freightBasis(tile({ L: "12", W: "24", brandColor: "Harmonic — Pearl" }), normFreight({ ...GLAZZIO, largeSeries: "" })), "small");
 });
 
 test("small format: $0.99/sf, floored at the order minimum", () => {
@@ -136,8 +170,8 @@ test("the three tables bill side by side on one order", () => {
 test("freightTally: ordered footage, per book, only for opted-in rows", () => {
   const books = [book(), book(GLAZZIO, "vtc", "Virginia Tile")];
   const p = proj([
-    tile({ L: "12", W: "24", qty: "200" }),                       // large
-    tile({ L: "12", W: "12", qty: "100" }),                       // small
+    tile({ L: "24", W: "24", qty: "200" }),                       // large
+    tile({ L: "12", W: "24", qty: "100" }),                       // small — Glazzio's line is ABOVE 12x24
     tile({ L: "12", W: "12", qty: "500", freight: "off" }),       // waived
     { ...newProduct(), type: "misc", qtyType: "count", qty: "8", bookId: "glz" },
     tile({ L: "12", W: "12", qty: "300", bookId: "vtc" }),        // a second vendor's truck
@@ -165,7 +199,7 @@ test("a book with no program never charges freight", () => {
 });
 
 test("freightList: one line per book, and the master switch is the whole answer", () => {
-  const p = proj([tile({ L: "12", W: "24", qty: "600" }), tile({ L: "12", W: "12", qty: "50" })]);
+  const p = proj([tile({ L: "24", W: "24", qty: "600" }), tile({ L: "12", W: "12", qty: "50" })]);
   const [line] = freightList(p, s, [book()]);
   assert.equal(line.book, "Glazzio");
   assert.equal(line.destination, "Ohio");
@@ -177,8 +211,21 @@ test("freightList: one line per book, and the master switch is the whole answer"
   assert.equal(normC(p).freight, true);                          // absent field = on
 });
 
+// The bug this rule fixed: 620 sf of plain 12x24 was quoting two $79 large-format
+// pallets ($158) when Glazzio bills it by the foot — $613.80, past the $149
+// threshold, so two pallets of the flat-rate program.
+test("a 12x24 job prices on the per-foot table, not the large-format pallet", () => {
+  const [line] = freightList(proj([tile({ L: "12", W: "24", qty: "620" })]), s, [book()]);
+  assert.deepEqual(line.parts.map((x) => x.basis), ["pallet"]);
+  assert.equal(line.cost, 298);
+  // The same footage in Harmonic is the sheet's named exception: $79 pallets.
+  const harmonic = freightList(proj([tile({ L: "12", W: "24", qty: "620", brandColor: "Harmonic — Pearl" })]), s, [book()])[0];
+  assert.deepEqual(harmonic.parts.map((x) => x.basis), ["large"]);
+  assert.equal(harmonic.cost, 158);
+});
+
 test("freightOrderRows: special-order lines, by description, never marked up", () => {
-  const p = proj([tile({ L: "12", W: "24", qty: "600" })]);
+  const p = proj([tile({ L: "24", W: "24", qty: "600" })]);
   const [line] = freightList(p, s, [book()]);
   const [row] = freightOrderRows(line, 30);
   assert.equal(row.special, true);

@@ -580,9 +580,14 @@ the job's charge from that vendor, not a share of it. A per-job master switch
 header, under Estimate shows but not part of it. Freight is charged **at cost**, exempt from the price tiers (ADR 0018
 already excluded it from Employee pricing), prints as its own group in the
 estimate's extras band, and files with the **special orders** in the order-entry
-panel — by description, since there's no SKU to key. Size picks the rate table:
-a side at or over `largeFormatIn` (15") is large format. First program: Glazzio,
-Ohio (`.scratch/061_vendor-freight-program/ticket.md` transcribes the sheet).
+panel — by description, since there's no SKU to key. Size picks the rate table,
+and the vendor draws that line at a **size**, not a dimension: a piece wider than
+`largeOverShort` **or** longer than `largeOverLong` (12 × 24 — Glazzio's large
+format is what outgrows a 12x24, so a 12x24 itself ships by the foot) is large
+format, as is any row whose description names a `largeSeries` the sheet lists by
+name (Glazzio's "Harmonic 12x24 & Arvora LVT"). First program: Glazzio, Ohio
+(`.scratch/061_vendor-freight-program/ticket.md` transcribes the sheet;
+`.scratch/062_glazzio-large-format/` corrects the size rule).
 
 **Team to-do list** (issue 006). The sidebar's "Issues" button (with an
 open-item count badge) opens a shared list where anyone signed in can add
