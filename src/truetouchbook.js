@@ -1,6 +1,7 @@
 // Parser for the OVF "TrueTouch" account price list (issue 063) — the Wellmade
 // TrueTouch program: EVOLV / MOMENTUM real-wood planks and the Hawaii / Tsunami
-// waterproof lines — shipped as a text PDF.
+// waterproof lines — shipped as a text PDF and as the .xls workbook OVF's other
+// books use (the team's preferred version; parseTrueTouchSheet below).
 //
 // The sheet is the PDF twin of OVF's banded .xls flooring lists (ovfbook.js):
 // each collection prints a warranty banner naming it, a construction/size prose
@@ -97,6 +98,44 @@ function specSize(line) {
 
 const rowText = (row) => [...row.items].sort((a, b) => a.x - b.x).map((i) => str(i.str)).join(" ");
 
+// The floor's cost + sell basis for a section. Self-consistency guard: carton ÷
+// SF/carton must reconcile with the printed $/SF; if not, the band was misread —
+// quote the honest per-sq-ft cost instead of a wrong carton.
+function floorCost(floorSf, floorCt, coverage) {
+  if (floorCt != null && coverage && floorSf != null && Math.abs(floorCt / coverage - floorSf) / floorSf > 0.03) return { cost: floorSf, unit: "SF" };
+  if (floorCt != null && coverage) return { cost: floorCt, unit: "BX" };
+  if (floorSf != null) return { cost: floorSf, unit: "SF" };
+  if (floorCt != null) return { cost: floorCt, unit: "BX" };
+  return { cost: null, unit: "" };
+}
+
+// The canonical { name, rows, mapping, warnings } both file versions emit —
+// shared so the PDF and the workbook can never disagree about what a TrueTouch
+// floor or trim row looks like downstream.
+function bookResult(name, flooring, trims) {
+  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
+  const out = [CANON.slice()];
+  for (const f of flooring) {
+    out.push([f.sku, f.color, f.collection, f.color, f.size, f.coverage != null ? String(f.coverage) : "",
+      f.cost != null ? String(f.cost) : "", f.unit, f.type, "", BRAND, ""]);
+  }
+  // Trim rows: per-piece cost from the band, `trim`-flagged so the book can mark
+  // them up apart from the floors, and the parent floor code(s) both in the
+  // structured `fits` column and in the description so a floor-code search
+  // surfaces the trim in the picker. Trims keep their collection so "evolv
+  // t-mold" finds them; the trim markup outranks the collection group
+  // (orderbook resolveMarkup), so grouping is unaffected.
+  for (const t of trims.values()) {
+    const fits = [...t.fits].sort();
+    const parent = [...t.names][0] || "";
+    const label = t.note ? `${t.label} (${t.note})` : t.label;
+    const desc = [parent ? `${parent} — ${label}` : label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
+    out.push([t.sku, desc, t.collection, "", "", "", t.cost != null ? String(t.cost) : "", t.unit, "", "trim", BRAND, fits.join(" ")]);
+  }
+  const warnings = flooring.length ? [] : ["No TrueTouch product rows were recognized — is this the OVF TrueTouch price sheet?"];
+  return { name, rows: out, mapping: { ...TRUETOUCH_MAPPING }, warnings, meta: { flooring: flooring.length, trims: trims.size } };
+}
+
 // True when the pages look like the OVF TrueTouch account list: an early page
 // carries the "Prepared especially for …" account line (the OVF export
 // signature) AND the grid's "Item Name | Item #" header — a pairing no other
@@ -119,7 +158,6 @@ export function isTrueTouch(pages) {
 export function parseTrueTouchPages(pages, name = "TrueTouch price list") {
   const flooring = [];
   const trims = new Map(); // sku -> { sku, label, cost, unit, note, fits:Set, names:Set }
-  const warnings = [];
 
   // Section state — carries ACROSS pages (Hawaii 4.5mm banners on page 1, its
   // grid opens page 2).
@@ -176,16 +214,7 @@ export function parseTrueTouchPages(pages, name = "TrueTouch price list") {
       const color = nameParts.sort((a, b) => a.x - b.x).map((i) => str(i.str)).join(" ");
       const floorSku = str(skuIt.str);
 
-      // Self-consistency: carton ÷ SF/carton must reconcile with the printed
-      // $/SF; if not, the band was misread — quote the honest per-sq-ft cost.
-      let cost = null, unit = "";
-      if (floorCt != null && coverage && floorSf != null && Math.abs(floorCt / coverage - floorSf) / floorSf > 0.03) {
-        cost = floorSf; unit = "SF";
-      } else if (floorCt != null && coverage) { cost = floorCt; unit = "BX"; }
-      else if (floorSf != null) { cost = floorSf; unit = "SF"; }
-      else if (floorCt != null) { cost = floorCt; unit = "BX"; }
-
-      flooring.push({ sku: floorSku, color, collection, size, coverage, cost, unit, type });
+      flooring.push({ sku: floorSku, color, collection, size, coverage, ...floorCost(floorSf, floorCt, coverage), type });
 
       for (const it of row.items) {
         if (it.x < TRIM_X - 10 || it === skuIt || !looksTrimSku(it.str)) continue;
@@ -203,29 +232,110 @@ export function parseTrueTouchPages(pages, name = "TrueTouch price list") {
     }
   }
 
-  const CANON = ["Item #", "Name", "Collection", "Color", "Size", "SF/Carton", "Cost", "Price U/M", "Type", "Kind", "Brand", "Fits"];
-  const out = [CANON.slice()];
-  for (const f of flooring) {
-    out.push([f.sku, f.color, f.collection, f.color, f.size, f.coverage != null ? String(f.coverage) : "",
-      f.cost != null ? String(f.cost) : "", f.unit, f.type, "", BRAND, ""]);
-  }
-  // Trim rows: per-piece cost from the band, `trim`-flagged so the book can mark
-  // them up apart from the floors, and the parent floor code(s) both in the
-  // structured `fits` column and in the description so a floor-code search
-  // surfaces the trim in the picker. Trims keep their collection so "evolv
-  // t-mold" finds them; the trim markup outranks the collection group
-  // (orderbook resolveMarkup), so grouping is unaffected.
-  for (const t of trims.values()) {
-    const fits = [...t.fits].sort();
-    const parent = [...t.names][0] || "";
-    const label = t.note ? `${t.label} (${t.note})` : t.label;
-    const desc = [parent ? `${parent} — ${label}` : label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, t.collection, "", "", "", t.cost != null ? String(t.cost) : "", t.unit, "", "trim", BRAND, fits.join(" ")]);
+  return bookResult(name, flooring, trims);
+}
+
+// --- The .xls workbook version ----------------------------------------------
+//
+// OVF ships the same TrueTouch list as a workbook too, banded exactly like the
+// PDF — banner+warranty row, construction prose, coverage prose, an "Item Name |
+// Item # | <trim labels>" header, ONE price row, then color rows — but with real
+// columns, so roles read by index off each band's own header instead of by
+// x-position. Same section state machine, same shared emit, so the two file
+// versions can never disagree downstream.
+
+const isTtSheetHeader = (row) => /^Item\s*Name$/i.test(str(row?.[0])) && /^Item\s*#/i.test(str(row?.[1]));
+
+export function parseTrueTouchSheet(rows, name = "TrueTouch price list") {
+  const flooring = [];
+  const trims = new Map(); // sku -> { sku, label, cost, unit, note, fits:Set, names:Set }
+
+  let collection = "", type = "", size = "", coverage = null;
+  let header = null, floorSf = null, floorCt = null, trimCols = [];
+
+  for (const r of rows || []) {
+    const cells = r || [];
+    const c0 = str(cells[0]);
+    if (cells.every((c) => str(c) === "")) continue;
+    if (/^Prepared especially/i.test(c0)) continue;
+
+    // Warranty banner — names the collection and starts a new section.
+    if (c0 && cells.some((c) => /\bwarranty\b/i.test(str(c)))) {
+      collection = c0.split(/\s+/).filter(Boolean).map(titleWord).join(" ");
+      type = ""; size = ""; coverage = null; header = null; floorSf = null; floorCt = null; trimCols = [];
+      continue;
+    }
+
+    // Construction prose — the plank size and what the floor IS.
+    if (/pad attached/i.test(c0) || /wear layer/i.test(c0)) {
+      const sz = specSize(c0);
+      if (sz) size = sz;
+      if (/real wood/i.test(c0)) type = "hardwood";
+      else if (/lvt|wpc|waterproof/i.test(c0)) type = "vinyl";
+      continue;
+    }
+
+    // Coverage prose: "25.68 SF/CT • 50 CT/PA • …".
+    const cov = c0.match(/(\d+(?:\.\d+)?)\s*SF\s*\/\s*CT/i);
+    if (cov) { coverage = parseFloat(cov[1]); continue; }
+
+    if (isTtSheetHeader(cells)) { header = cells.map(str); floorSf = null; floorCt = null; trimCols = []; continue; }
+
+    // The price row under the header: the floor's $/SF and $/CT, then one
+    // per-piece price per trim column — those columns ARE the trim grid.
+    const p0 = priceTok(c0);
+    if (header && p0?.unit === "SF") {
+      floorSf = p0.cost;
+      floorCt = priceTok(cells[1])?.cost ?? null;
+      for (let c = 2; c < cells.length; c++) {
+        const t = priceTok(cells[c]);
+        if (!t || (t.unit !== "EA" && t.unit !== "PC")) continue;
+        const label = header[c] || "";
+        trimCols.push({ col: c, cost: t.cost, unit: t.unit, label: trimLabel(label.split(/\n/)), note: label.match(/\d+\s*ctn\s*min/i)?.[0] || "" });
+      }
+      continue;
+    }
+
+    // Color row: name | floor Item # | one trim code per price column.
+    if (header && looksSku(cells[1])) {
+      const color = c0.replace(/\s+/g, " ").trim();
+      const floorSku = str(cells[1]);
+      flooring.push({ sku: floorSku, color, collection, size, coverage, ...floorCost(floorSf, floorCt, coverage), type });
+      for (const col of trimCols) {
+        const tsku = str(cells[col.col]);
+        if (!looksTrimSku(tsku)) continue;
+        const rec = trims.get(tsku) || {
+          sku: tsku, label: col.label, cost: col.cost, unit: col.unit,
+          note: col.note, collection, fits: new Set(), names: new Set(),
+        };
+        if (rec.cost == null && col.cost != null) { rec.cost = col.cost; rec.label = col.label; rec.unit = col.unit; }
+        rec.fits.add(floorSku);
+        if (color) rec.names.add(color);
+        trims.set(tsku, rec);
+      }
+    }
   }
 
-  if (!flooring.length) warnings.push("No TrueTouch product rows were recognized — is this the OVF TrueTouch price sheet?");
-  return { name, rows: out, mapping: { ...TRUETOUCH_MAPPING }, warnings, meta: { flooring: flooring.length, trims: trims.size } };
+  return bookResult(name, flooring, trims);
 }
+
+// The sheet that looks like the OVF TrueTouch workbook — the "Prepared
+// especially for …" account line plus the "Item Name | Item #" banded header.
+// The other OVF books carry the account line too but never this header
+// (Hallmark's is "SPECIES / COLOR", Tarkett's "Design", the sundries tables
+// carry Item #/Price at fixed far columns).
+export function findTrueTouchSheet(sheets) {
+  for (const s of sheets || []) {
+    let account = false, header = false;
+    for (const row of (s?.rows || []).slice(0, 40)) {
+      if (/^Prepared especially/i.test(str(row?.[0]))) account = true;
+      if (isTtSheetHeader(row)) header = true;
+    }
+    if (account && header) return s;
+  }
+  return null;
+}
+export const isTrueTouchSheet = (sheets) => !!findTrueTouchSheet(sheets);
 
 // Passthrough mapping, the same column plan as Hallmark/Tarkett: the parser has
 // already resolved every column, so this is a straight column→field assignment.

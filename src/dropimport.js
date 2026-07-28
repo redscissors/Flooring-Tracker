@@ -5,7 +5,7 @@
 
 import { detectVtcEft, detectVendorSkuAnalysis, parseMapped } from "./pricebook.js";
 import { isManningtonCartons } from "./manningtonbook.js";
-import { isTrueTouch } from "./truetouchbook.js";
+import { isTrueTouch, isTrueTouchSheet } from "./truetouchbook.js";
 import { isHallmarkWood, isTarkettLvt, isOvfSundries } from "./ovfbook.js";
 import { isMirageChart, mirageFileKind } from "./miragebook.js";
 import { isEmserIspl } from "./emserbook.js";
@@ -23,6 +23,9 @@ export function fileFormat({ sheets, pages, isPdf }) {
   if (detectVtcEft(sheets || [])) return "vtc-eft";
   if (isHallmarkWood(sheets || [])) return "ovf-hallmark";
   if (isTarkettLvt(sheets || [])) return "ovf-tarkett";
+  // The same tag as the PDF version on purpose: it's the same book, so either
+  // file version of the list routes to it on a re-drop.
+  if (isTrueTouchSheet(sheets || [])) return "ovf-truetouch";
   if (isOvfSundries(sheets || [])) return "ovf-sundries";
   if (isEmserIspl(sheets || [])) return "emser-ispl";
   const mirage = mirageFileKind({ sheets: sheets || [] });

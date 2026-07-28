@@ -110,11 +110,15 @@ export function buildVendorUrl(entry) {
   return `https://${entry.host}${cfg.path}?${q}`;
 }
 
-export function entryFileName(entry) {
+export function entryFileName(entry, magic) {
   const base = String(entry.filename || "price list").trim();
   // Portals name most sheets without an extension, and they're nearly all .xls —
   // but not all (Mannington's list and Mirage's product chart are PDFs), so an
   // extension the file already carries is left alone rather than suffixed.
+  // `magic` is the fetched bytes' own container (sheetMagic), and it outranks
+  // the name: OVF serves its TrueTouch list as a PDF down an extension-less
+  // Dancik link, and named .xls it would be read as a spreadsheet downstream.
+  if (magic === "pdf" && !/\.pdf$/i.test(base)) return `${base.replace(/\.(xls[xmb]?|csv)$/i, "")}.pdf`;
   return /\.(xls[xmb]?|pdf|csv)$/i.test(base) ? base : `${base}.xls`;
 }
 
@@ -547,11 +551,17 @@ export function clearHandoffSession() {
 // (the silent VT "found nothing" import, 2026-07-24). Non-HTML text (CSV)
 // stays "unknown" and passes through.
 
+export function sheetMagic(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (b.length >= 4 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return "xls"; // OLE
+  if (b.length >= 2 && b[0] === 0x50 && b[1] === 0x4b) return "xlsx"; // zip
+  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "pdf"; // %PDF
+  return null;
+}
+
 export function classifySheetBytes(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
-  if (b.length >= 4 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return "sheet";
-  if (b.length >= 2 && b[0] === 0x50 && b[1] === 0x4b) return "sheet";
-  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "sheet"; // %PDF
+  if (sheetMagic(b)) return "sheet";
   let head = "";
   for (let i = 0; i < Math.min(b.length, 4096); i++) head += String.fromCharCode(b[i]);
   head = head.toLowerCase();

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
   decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries,
-  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes, deadSessionStatus,
+  sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes, sheetMagic, deadSessionStatus,
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
   sheetMatchesGroup, moveSheetInGroups, vendorForHost, rememberIntoGroups,
   setSheetBook, normSession, decodeHandoffSession, poolSession,
@@ -39,6 +39,24 @@ test("entryFileName only assumes .xls when the sheet has no extension of its own
   assert.equal(f("Cartons Detail.PDF"), "Cartons Detail.PDF");
   assert.equal(f("book.xlsx"), "book.xlsx");
   assert.equal(f(""), "price list.xls");
+});
+
+test("entryFileName: the fetched bytes' magic outranks the name — a PDF is never named .xls", () => {
+  const f = (filename, magic) => entryFileName({ filename }, magic);
+  // OVF serves TrueTouch as a PDF down an extension-less Dancik link
+  assert.equal(f("ovf-truetouch", "pdf"), "ovf-truetouch.pdf");
+  assert.equal(f("list.xls", "pdf"), "list.pdf"); // a wrong extension is corrected, not stacked
+  assert.equal(f("Cartons Detail.PDF", "pdf"), "Cartons Detail.PDF"); // already right, left alone
+  assert.equal(f("AOT EFT 26 02 19", "xls"), "AOT EFT 26 02 19.xls"); // spreadsheets unchanged
+  assert.equal(f("book.xlsx", "xlsx"), "book.xlsx");
+});
+
+test("sheetMagic names the container the bytes actually are", () => {
+  assert.equal(sheetMagic(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0])), "xls");
+  assert.equal(sheetMagic(new Uint8Array([0x50, 0x4b, 0x03, 0x04])), "xlsx");
+  assert.equal(sheetMagic(new TextEncoder().encode("%PDF-1.4 rest")), "pdf");
+  assert.equal(sheetMagic(new TextEncoder().encode("<html><table>")), null);
+  assert.equal(sheetMagic(new Uint8Array([])), null);
 });
 
 test("parseVendorLink reads an OVF (ovf400) price-list link — second Dancik host", () => {

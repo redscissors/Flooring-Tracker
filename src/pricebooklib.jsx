@@ -17,7 +17,7 @@ import { normBookItem, diffBookItems, forceDiff, markupGroups, pricedItem, edite
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
-import { readXlsxSheets, readPdfPages } from "./fileread.js";
+import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
 import { Modal } from "./widgets.jsx";
 import { InHouseColumn, PasteSignInPopover, StaleChip, NoMarkupChip, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 
@@ -98,7 +98,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   // Read + route every file once, fault-isolated: a file that won't parse gets an
   // error row and is skipped; the rest still route.
   const readRow = async (file) => {
-    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf" || (await looksPdf(file));
     try {
       const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
       // The filename rides along for formats whose sibling files it alone tells
@@ -1467,7 +1467,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     } catch (x) { setErr("Could not read that file — is it an .xlsx / .xls, or a text-based .pdf?"); }
     setReading(false);
   };
-  const onFile = (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) ingest({ file: f, isPdf: /\.pdf$/i.test(f.name) || f.type === "application/pdf" }); };
+  const onFile = async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) ingest({ file: f, isPdf: /\.pdf$/i.test(f.name) || f.type === "application/pdf" || (await looksPdf(f)) }); };
   // The router hands in an already-parsed file; ingest it once on mount so the
   // wizard opens straight on the preview (no chooser flash, no second read).
   useEffect(() => { if (preParsed && !sheets) ingest(preParsed); }, []);

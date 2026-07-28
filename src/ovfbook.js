@@ -48,6 +48,8 @@
 // cell looks like a SKU, so a re-organized sheet degrades to visible missing
 // counts downstream, never garbage rows.
 
+import { findTrueTouchSheet, parseTrueTouchSheet } from "./truetouchbook.js";
+
 const str = (c) => (c == null ? "" : String(c).trim());
 const num = (c) => { const n = parseFloat(str(c).replace(/[$,]/g, "")); return Number.isFinite(n) ? n : null; };
 
@@ -550,7 +552,8 @@ export const isOvfSundries = (sheets) => !!findSundriesSheet(sheets);
 // parsed sheets and flatten it to the canonical { name, rows, mapping, warnings }
 // the wizard consumes (the xlsx twin of the isManningtonCartons ?
 // parseManningtonPages : parsePdfPages fork). The banded flooring lists
-// (Hallmark, Tarkett) are matched first; the sundries section-table is the
+// (Hallmark, Tarkett, TrueTouch — the last living in truetouchbook.js beside
+// its PDF twin) are matched first; the sundries section-table is the
 // fallthrough. Null when the file is not an OVF book, so the caller falls
 // through to the generic mapped path.
 export function parseOvf(sheets, name) {
@@ -558,6 +561,8 @@ export function parseOvf(sheets, name) {
   if (hall) return parseHallmark(hall.rows, name || "Hallmark price list");
   const tk = findTarkettSheet(sheets);
   if (tk) return parseTarkett(tk.rows, name || "Tarkett price list");
+  const tt = findTrueTouchSheet(sheets);
+  if (tt) return parseTrueTouchSheet(tt.rows, name || "TrueTouch price list");
   const sundry = findSundriesSheet(sheets);
   if (sundry) return parseSundries(sundry.rows, name || "OVF sundries price list");
   return null;
