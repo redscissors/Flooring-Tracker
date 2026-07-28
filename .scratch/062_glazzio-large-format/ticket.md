@@ -1,41 +1,53 @@
 ---
 issue_type: Bug
 summary: Glazzio freight priced 12x24 as large format. Glazzio's large format is
-  what is LARGER than 12x24, so the rule is now a size (over 12 × 24 on either
-  axis) plus the sheet's named exceptions, not a single 15" side.
+  what is LARGER than a 12x24, so the rule is now the piece's face area (over
+  288 sq in) plus the sheet's named series, not a single 15" side.
 status: done
 labels: [ready-for-human]
 ---
 
-# Glazzio's large format starts above 12x24, not at 15"
+# Glazzio's large format is what outgrows a 12x24, not a 15" side
 
 Reported 2026-07-28: "running into a problem where glazzio is pricing freight
 differently then glazzio prices it. It normally would make sense to say any size
 over 15 is large tile but for glazzio it only means larger then 12x24."
 
 ADR 0030 decision 6 shipped the trade's line — a side at or over 15" is large
-format — and that quotes Glazzio wrong. Their large-format table is what
-**outgrows a 12x24**; a 12x24 itself ships on the per-foot table with the
+format — and that quotes Glazzio wrong. Their large-format table is what is
+**larger than a 12x24**; a 12x24 itself ships on the per-foot table with the
 mosaics.
 
-One threshold cannot express that. Any number low enough to catch a 24x24 also
-catches the 24" side of a 12x24. So the rule is now the size the vendor actually
-names:
+## Why area, and why 288
+
+A side threshold can't express "larger than a 12x24": any number low enough to
+catch a 24x24 also catches the 24" side of a 12x24. The first cut of this fix
+tried a two-axis fit (over 12 on the short side **or** over 24 on the long side);
+the follow-up asked for square inches instead, which is both simpler and better
+evidenced:
+
+- **288 in² is exactly a 12x24** (2 sq ft), so the threshold IS the size the
+  vendor names.
+- **Area is the literal reading of "larger."** A 16x16 is 256 in² — a smaller
+  piece than a 12x24 even though it is wider — and ships by the foot. Under the
+  fit rule it would have gone on the pallet.
+- **The sheet corroborates it.** Glazzio's second pallet table is "Harmonic 12x24
+  & Arvora LVT" — a 12x24 is 288 in² and a 6x48 LVT plank is *also* 288 in².
+  Both sit exactly on the small side of the line, which is precisely why the
+  vendor has to name them. Under the fit rule any 48" plank was already large by
+  its long side, and naming Arvora would have been pointless.
+
+120 in² (the number first floated) would have made the whole book large format:
+a 12x12 mosaic is 144 in², and the 12x24 this ticket is about is 288.
 
 | | |
 |---|---|
-| `largeOverShort` | 12" — a piece wider than this on its **short** side is large format |
-| `largeOverLong` | 24" — a piece longer than this is large format |
-| `largeSeries` | `Harmonic, Arvora` — series the sheet ships by the pallet whatever their size |
+| `largeOverSqin` | 288 — a piece with more face area than this is large format (0 = never large by size) |
+| `largeSeries` | `Harmonic, Arvora` — series the sheet ships by the pallet whatever their size, matched against the row's description |
 
-Either number at 0 switches that half of the test off. Both are per book and
-editable on the freight card, since 12 × 24 is Glazzio's line, not the trade's.
-
-**Why `largeSeries`.** Glazzio's sheet has a second pallet table, "Harmonic 12x24
-& Arvora LVT" — a size that is otherwise small format, listed by name. The 15"
-rule swept those onto the large table by accident; correcting the size rule
-alone would have lost them. The exception is neither a size nor a SKU pattern, so
-it is matched as text against the row's description.
+Both are per book and editable on the freight card, since 288 is Glazzio's line,
+not the trade's. The card shows the tile the number is (`288 in² (12x24)`) so
+nobody has to do the arithmetic.
 
 **No migration.** A stored `largeFormatIn` is ignored rather than converted: the
 only programs carrying one hold the 15" seed, which is the rule being corrected.
@@ -51,24 +63,26 @@ small-format pallet ($149) is dearer than its large-format one ($79):
 | 620 sf of plain 12x24 | 2 large pallets = **$158** | $613.80 by the foot → over the $149 threshold → 2 flat-rate pallets = **$298** |
 | 620 sf of **Harmonic** 12x24 | $158 | **$158** (named exception, unchanged) |
 | 180 sf of 24x24 | $79 | **$79** (unchanged) |
-| 84 sf of mosaic | $83.16 | **$83.16** (unchanged) |
+| 84 sf of 12x12 mosaic | $83.16 | **$83.16** (unchanged) |
+| 16x16 / 18x18 | $79/pallet | 16x16 **by the foot** (256 in²); 18x18 stays on the pallet (324 in²) |
 
 Rates read live (ADR 0030 decision 2), so open and saved quotes carrying Glazzio
 12x24 reprice on their next open.
 
 ## What changed
 
-- **`src/freight.js`** — `normFreight` (the two size fields + `largeSeries`,
-  legacy `largeFormatIn` deliberately unread), `rowSides` (replaces
-  `rowLongestSide`), `matchesLargeSeries`, and `freightBasis`. `FREIGHT_SEED`
-  carries Glazzio's 12 × 24 and its two named series.
-- **`src/pricebooklib.jsx`** — the freight card: one "Large over `12` × `24`"
-  cell in the rate grid, an "Always large format" text field beside Ships to,
-  and a third worked example so the 12x24 / 24x24 boundary is visible while
-  typing.
-- **`src/freight.test.js`** — the size rule on either axis, the named-series
-  exception, the no-migration case, and the reported job (620 sf of 12x24 →
-  $298, Harmonic → $158). 808 tests pass, lint clean.
+- **`src/freight.js`** — `normFreight` (`largeOverSqin` + `largeSeries`; legacy
+  `largeFormatIn` deliberately unread), `rowSqin` (replaces `rowLongestSide`),
+  `matchesLargeSeries`, and `freightBasis`. `FREIGHT_SEED` carries Glazzio's 288
+  and its two named series.
+- **`src/pricebooklib.jsx`** — the freight card: a "Large over `288` in² (12x24)"
+  field that names the tile as you type it, an "Always large format" text field
+  beside Ships to, and a third worked example so the 12x24 / 24x24 boundary is
+  visible on the card.
+- **`src/freight.test.js`** — the area rule at and past the line, the 16x16 and
+  6x48 cases, the named-series exception, the no-migration case, and the
+  reported job (620 sf of 12x24 → $298, Harmonic → $158). 808 tests pass, lint
+  clean.
 
 ## Preview proof
 

@@ -50,21 +50,20 @@ export const normFreight = (raw) => ({
   palletAt: pos(raw?.palletAt),
   palletRate: pos(raw?.palletRate),
   largeRate: pos(raw?.largeRate),
-  // The biggest piece that still ships on the per-foot table, as the sheet names
-  // it: a size. A distributor draws this line at a SIZE, not at a single
-  // dimension — Glazzio's is "larger than 12x24", so a 12x24 ships small format
-  // and a 16x16 (wider, though smaller in area) does not. One number can't say
-  // that: any threshold low enough to catch a 24x24 also catches the 24" side of
-  // a 12x24. So the rule is a fit — over on the short side OR over on the long
-  // side is large format. Either at 0 switches that half of the test off.
+  // The biggest piece that still ships on the per-foot table, as FACE AREA. A
+  // distributor draws this line at a size, not at a dimension: Glazzio's is
+  // "larger than a 12x24", which is 288 in². A side threshold can't say that —
+  // any number low enough to catch a 24x24 also catches the 24" side of a 12x24 —
+  // and area is the literal reading of "larger", so a 16x16 (256 in², smaller
+  // than a 12x24 despite being wider) ships by the foot. 0 = never large by size.
   //
   // A legacy `largeFormatIn` is deliberately NOT read: the only programs that
-  // carry one hold the 15" seed, which is the rule this replaced.
-  largeOverShort: pos(raw?.largeOverShort, 12),
-  largeOverLong: pos(raw?.largeOverLong, 24),
+  // carry one hold the 15"-side seed, which is the rule this replaced.
+  largeOverSqin: pos(raw?.largeOverSqin, 288),
   // Series the vendor ships large format regardless of size — Glazzio's sheet
-  // puts "Harmonic 12x24 & Arvora LVT" on the pallet table by name, at a size
-  // that is otherwise small format. Comma-separated, matched against the row's
+  // puts "Harmonic 12x24 & Arvora LVT" on the pallet table by name, and both are
+  // pieces of exactly 288 in² (a 12x24; a 6x48 LVT plank), which is why the sheet
+  // has to name them at all. Comma-separated, matched against the row's
   // description; empty on every book that has no such exception.
   largeSeries: str(raw?.largeSeries),
   perPiece: pos(raw?.perPiece),
@@ -84,7 +83,7 @@ export const hasFreightProgram = (book) => bookFreight(book).mode === "program";
 export const FREIGHT_SEED = Object.freeze({
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeOverShort: 12, largeOverLong: 24, largeSeries: "Harmonic, Arvora",
+  largeRate: 79, largeOverSqin: 288, largeSeries: "Harmonic, Arvora",
   perPiece: 0.33, pieceMin: 14.85,
 });
 
@@ -101,7 +100,7 @@ const RATE_FIELDS = ["palletSf", "perSqft", "minCharge", "palletAt", "palletRate
 export const freightIsBlank = (f) => RATE_FIELDS.every((k) => !(normFreight(f)[k] > 0));
 // Still carrying the seed verbatim, so the card can say so and then stop saying
 // it the moment a rate is touched.
-const RULE_FIELDS = ["largeOverShort", "largeOverLong", "largeSeries"];
+const RULE_FIELDS = ["largeOverSqin", "largeSeries"];
 export const freightIsSeed = (f) => {
   const n = normFreight(f);
   return [...RATE_FIELDS, ...RULE_FIELDS].every((k) => n[k] === FREIGHT_SEED[k]);
@@ -124,18 +123,17 @@ export const freightBookFor = (p, books) => {
   return book && hasFreightProgram(book) ? book : null;
 };
 
-// A size like "12x24" / "2 x 10" / `12" × 24"` → [short side, long side] in
+// A size like "12x24" / "2 x 10" / `12" × 24"` → the piece's face area in square
 // inches. Falls back through the row's own L/W first, since a picked tile row
-// carries them parsed; sizeText is the mosaic-sheet / free-text case. A row with
-// only one dimension reads as [0, that], which no size rule calls large.
+// carries them parsed; sizeText is the mosaic-sheet / free-text case. A row
+// missing either dimension has no area to measure and reads 0, which no size
+// rule calls large.
 const SIZE_RE = /(\d+(?:\.\d+)?)\s*["”]?\s*[x×]\s*(\d+(?:\.\d+)?)/i;
-export function rowSides(p) {
+export function rowSqin(p) {
   const l = num(p?.L), w = num(p?.W);
-  if (l > 0 || w > 0) return [Math.min(l, w), Math.max(l, w)];
+  if (l > 0 && w > 0) return l * w;
   const m = SIZE_RE.exec(str(p?.sizeText));
-  if (!m) return [0, 0];
-  const a = parseFloat(m[1]), b = parseFloat(m[2]);
-  return [Math.min(a, b), Math.max(a, b)];
+  return m ? parseFloat(m[1]) * parseFloat(m[2]) : 0;
 }
 
 // Does the row's description name one of the vendor's always-large series? Read
@@ -151,16 +149,14 @@ export function matchesLargeSeries(p, f) {
 
 // Which of a program's three tables a row ships on. A counted line is pieces
 // whatever its size (a trim is a trim); an area line is large-format when the
-// vendor names its series or when it outgrows the largest small-format size. A
-// row whose size is unknown falls to "small": the per-foot rate is the sheet's
-// default, and guessing "large" would invent a whole pallet.
+// vendor names its series or when the piece outgrows the largest small-format
+// size. A row whose size is unknown falls to "small": the per-foot rate is the
+// sheet's default, and guessing "large" would invent a whole pallet.
 export function freightBasis(p, f) {
   if (!p) return null;
   if (p.type === "misc" || p.qtyType !== "sqft") return "piece";
   if (matchesLargeSeries(p, f)) return "large";
-  const [short, long] = rowSides(p);
-  const over = (n, limit) => limit > 0 && n > limit;
-  return over(short, f.largeOverShort) || over(long, f.largeOverLong) ? "large" : "small";
+  return f.largeOverSqin > 0 && rowSqin(p) > f.largeOverSqin ? "large" : "small";
 }
 
 // What each opted-in row contributes, in the units its table bills: ORDERED

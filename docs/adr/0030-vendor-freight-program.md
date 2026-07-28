@@ -40,8 +40,8 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
 1. **A freight program lives on the book, in the reserved `data.freight` slot**,
    as a rate table the team types off the vendor's sheet:
    `{ mode, destination, palletSf, perSqft, minCharge, palletAt, palletRate,
-   largeRate, largeOverShort, largeOverLong, largeSeries, perPiece, pieceMin,
-   effective }`. `mode: "none"` is
+   largeRate, largeOverSqin, largeSeries, perPiece, pieceMin, effective }`.
+   `mode: "none"` is
    every book that was never configured, so an absent program changes nothing.
    A rate left at 0 switches its rule **off** rather than charging zero — a
    program with no piece rate simply doesn't bill trims. Edited in the Price book
@@ -99,25 +99,29 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
    496 sq ft. Since the sheet is silent, this is a shop-supplied constant living
    in the same editable card as the rates, not a derived value.
 
-6. **Size decides the table, and the line is a SIZE — over `largeOverShort` ×
-   `largeOverLong` (default 12 × 24), on either axis.** *(Amended 2026-07-28 —
-   this decision originally read "a side at or over `largeFormatIn`, default
-   15\"", the trade's own line. It quoted Glazzio wrong: their large format is
-   what outgrows a 12x24, so a plain 12x24 ships by the foot, and one threshold
-   cannot say that — any number low enough to catch a 24x24 also catches the 24"
-   side of a 12x24. The old field is not migrated: every program carrying one
-   holds the 15" seed, which is the rule being corrected.)* A row whose size
-   can't be read falls to small format, because guessing "large" invents a whole
+6. **Size decides the table, and the line is a piece's FACE AREA — over
+   `largeOverSqin`, default 288 in².** *(Amended 2026-07-28 — this decision
+   originally read "a side at or over `largeFormatIn`, default 15\"", the trade's
+   own line. It quoted Glazzio wrong: their large format is what is larger than a
+   12x24, so a plain 12x24 ships by the foot.)* A side threshold cannot express
+   that — any number low enough to catch a 24x24 also catches the 24" side of a
+   12x24 — and **area is the literal reading of "larger"**: 288 in² *is* a 12x24,
+   a 16x16 (256) is a smaller piece even though it is wider, and a 24x24 (576) is
+   plainly bigger. The old field is not migrated: every program carrying one
+   holds the 15" seed, which is the rule being corrected. A row whose size can't
+   be read falls to small format, because guessing "large" invents a whole
    pallet.
 
 7. **A vendor's named exceptions are matched by name (`largeSeries`).** Glazzio's
-   sheet puts "Harmonic 12x24 & Arvora LVT" on the pallet table at a size that is
-   otherwise small format, so the exception is neither a size nor a SKU pattern —
-   it is the series name, written on the sheet in the vendor's own words and
-   matched against the row's description. Comma-separated, empty on every book
-   with no such exception. *(Added 2026-07-28 with the amendment above: the 15"
-   rule had swept Harmonic onto the large table by accident, and correcting the
-   size rule would otherwise have lost it.)*
+   sheet puts "Harmonic 12x24 & Arvora LVT" on the pallet table — and both are
+   pieces of *exactly* 288 in² (a 12x24; a 6x48 LVT plank), which is the
+   corroboration that decision 6 reads the sheet right: those two need naming
+   precisely because the size rule leaves them on the small table. So the
+   exception is neither a size nor a SKU pattern — it is the series name, in the
+   vendor's own words, matched against the row's description. Comma-separated,
+   empty on every book with no such exception. *(Added 2026-07-28 with the
+   amendment above: the 15" rule had swept Harmonic onto the large table by
+   accident, and correcting the size rule would otherwise have lost it.)*
 
 ## Consequences
 

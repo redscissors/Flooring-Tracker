@@ -2,18 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, normP, normC, newProject } from "./model.js";
-import { normFreight, hasFreightProgram, rowFreightOn, rowSides, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
+import { normFreight, hasFreightProgram, rowFreightOn, rowSqin, freightBasis, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 
 const s = normalizeSettings();
 
 // The real program this was built from: Glazzio's 2026 shipping sheet, read down
 // the Ohio column. Both of its pallet tables (Large Format, and Harmonic 12x24 /
 // Arvora LVT) charge $79 in Ohio, so one large-format rate covers the state.
-// Glazzio's large format starts ABOVE 12x24 — that size ships by the foot.
+// Glazzio's large format is what is LARGER than a 12x24 — 288 in² — so a 12x24
+// itself ships by the foot.
 const GLAZZIO = {
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeOverShort: 12, largeOverLong: 24, largeSeries: "Harmonic, Arvora",
+  largeRate: 79, largeOverSqin: 288, largeSeries: "Harmonic, Arvora",
   perPiece: 0.33, pieceMin: 14.85,
 };
 const book = (freight = GLAZZIO, id = "glz", name = "Glazzio") => ({ id, name, kind: "order", data: { freight } });
@@ -27,11 +28,10 @@ test("normFreight: an unconfigured book has no program, and 0 rates switch rules
   assert.equal(hasFreightProgram(book()), true);
   const bare = normFreight({ mode: "program" });
   assert.equal(bare.perSqft, 0);
-  assert.equal(bare.largeOverShort, 12);                         // the default line is a SIZE, not 0
-  assert.equal(bare.largeOverLong, 24);
-  // The 15" rule this replaced is not read back in — a stored program carrying
-  // it gets the size rule, which is the point of the change.
-  assert.equal(normFreight({ mode: "program", largeFormatIn: 15 }).largeOverLong, 24);
+  assert.equal(bare.largeOverSqin, 288);                         // the default line is a SIZE, not 0
+  // The 15"-side rule this replaced is not read back in — a stored program
+  // carrying it gets the area rule, which is the point of the change.
+  assert.equal(normFreight({ mode: "program", largeFormatIn: 15 }).largeOverSqin, 288);
   assert.equal(normFreight({ mode: "program", perSqft: "-3", palletSf: "abc" }).perSqft, 0);
 });
 
@@ -55,7 +55,7 @@ test("the seed prefills the Glazzio book only — every other vendor opens empty
   // The card's "these are Glazzio's numbers" note stops the moment one moves.
   assert.equal(freightIsSeed(FREIGHT_SEED), true);
   assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeRate: 99 }), false);
-  assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeOverLong: 15 }), false);   // the size rule is the sheet's too
+  assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeOverSqin: 144 }), false);  // the size rule is the sheet's too
   assert.equal(freightIsSeed({ ...FREIGHT_SEED, largeSeries: "" }), false);
   assert.equal(freightIsSeed({ ...FREIGHT_SEED, destination: "Indiana" }), true);  // a label, not a rate
   assert.equal(freightIsSeed({ mode: "program" }), false);
@@ -69,30 +69,35 @@ test("rowFreightOn: a row rides the shipment unless it was explicitly switched o
   assert.equal(normP({ freight: "nonsense" }).freight, "");
 });
 
-test("rowSides / freightBasis: L×W first, then the size text, then small", () => {
+test("rowSqin / freightBasis: L×W first, then the size text, then small", () => {
   const f = normFreight(GLAZZIO);
-  assert.deepEqual(rowSides(tile({ L: "24", W: "12" })), [12, 24]);     // short first, however it was typed
-  assert.deepEqual(rowSides(tile({ sizeText: '12" × 24"' })), [12, 24]);
-  assert.deepEqual(rowSides(tile({ sizeText: "12x12 sheet" })), [12, 12]);
-  assert.deepEqual(rowSides(tile({ sizeText: '2" Hex' })), [0, 0]);
+  assert.equal(rowSqin(tile({ L: "24", W: "12" })), 288);              // however it was typed
+  assert.equal(rowSqin(tile({ sizeText: '12" × 24"' })), 288);
+  assert.equal(rowSqin(tile({ sizeText: "12x12 sheet" })), 144);
+  assert.equal(rowSqin(tile({ sizeText: '2" Hex' })), 0);              // one dimension is no area
+  assert.equal(rowSqin(tile({ L: "12" })), 0);
   assert.equal(freightBasis(tile({ sizeText: '2" Hex' }), f), "small"); // unknown size never invents a pallet
   assert.equal(freightBasis({ ...newProduct(), type: "misc", qtyType: "count" }, f), "piece");
 });
 
-// Glazzio's line is "larger than 12x24", not the trade's 15" side: a 12x24 rides
-// the per-foot table with the mosaics, and only a piece that outgrows that
-// footprint — on either axis — goes on the pallet.
-test("freightBasis: large format is what outgrows 12x24, on either side", () => {
+// Glazzio's line is "larger than a 12x24" — 288 in² — not the trade's 15" side.
+// A 12x24 rides the per-foot table with the mosaics, and "larger" is read as the
+// vendor writes it: face area, so a 16x16 (256 in²) is a smaller piece than a
+// 12x24 even though it is wider.
+test("freightBasis: large format is what outgrows a 12x24 by area", () => {
   const f = normFreight(GLAZZIO);
-  assert.equal(freightBasis(tile({ L: "12", W: "24" }), f), "small");
+  assert.equal(freightBasis(tile({ L: "12", W: "24" }), f), "small");   // 288 — at the line, not over it
   assert.equal(freightBasis(tile({ L: "24", W: "12" }), f), "small");   // the same tile, typed the other way
-  assert.equal(freightBasis(tile({ L: "12", W: "12" }), f), "small");
-  assert.equal(freightBasis(tile({ L: "36", W: "12" }), f), "large");   // long side past 24
-  assert.equal(freightBasis(tile({ L: "16", W: "16" }), f), "large");   // short side past 12
-  assert.equal(freightBasis(tile({ L: "24", W: "24" }), f), "large");
-  assert.equal(freightBasis(tile({ sizeText: '12" × 48"' }), f), "large");
-  // Both halves off = size never sends anything to the pallet table.
-  const flat = normFreight({ ...GLAZZIO, largeOverShort: 0, largeOverLong: 0, largeSeries: "" });
+  assert.equal(freightBasis(tile({ L: "12", W: "12" }), f), "small");   // 144
+  assert.equal(freightBasis(tile({ L: "16", W: "16" }), f), "small");   // 256 — wider, but a smaller piece
+  assert.equal(freightBasis(tile({ L: "36", W: "12" }), f), "large");   // 432
+  assert.equal(freightBasis(tile({ L: "24", W: "24" }), f), "large");   // 576
+  assert.equal(freightBasis(tile({ sizeText: '18" × 18"' }), f), "large"); // 324
+  // A 6x48 LVT plank is exactly a 12x24's area — which is why Glazzio names
+  // Arvora on the pallet table instead of leaving it to the size rule.
+  assert.equal(freightBasis(tile({ L: "48", W: "6" }), f), "small");
+  // 0 = size never sends anything to the pallet table.
+  const flat = normFreight({ ...GLAZZIO, largeOverSqin: 0, largeSeries: "" });
   assert.equal(freightBasis(tile({ L: "24", W: "24" }), flat), "small");
 });
 
@@ -101,6 +106,7 @@ test("freightBasis: large format is what outgrows 12x24, on either side", () => 
 test("freightBasis: a named series ships large format whatever its size", () => {
   const f = normFreight(GLAZZIO);
   assert.equal(freightBasis(tile({ L: "12", W: "24", brandColor: "Harmonic — Pearl" }), f), "large");
+  assert.equal(freightBasis(tile({ L: "48", W: "6", brandColor: "Arvora LVT — Dune" }), f), "large");
   assert.equal(freightBasis(tile({ L: "12", W: "24", brandColor: "Sunset Glass — Alabaster" }), f), "small");
   assert.equal(freightBasis(tile({ L: "12", W: "12", note: "Arvora LVT plank" }), f), "large");
   // A trim stays a trim: the piece table doesn't care what series it is.

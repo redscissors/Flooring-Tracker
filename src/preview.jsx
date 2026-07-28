@@ -24,7 +24,7 @@ const lbl = "ft-eyebrow text-[10px] mb-1 block";
 const GLAZZIO_OHIO = {
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeOverShort: 12, largeOverLong: 24, largeSeries: "Harmonic, Arvora",
+  largeRate: 79, largeOverSqin: 288, largeSeries: "Harmonic, Arvora",
   perPiece: 0.33, pieceMin: 14.85,
 };
 const BOOK = { id: "glz", kind: "order", name: "Glazzio Tiles", active: true, data: { markups: { default: 45 }, freight: GLAZZIO_OHIO } };
@@ -116,7 +116,7 @@ function Harness() {
         <div>
           <h1 className="ft-serif" style={{ fontSize: 24 }}>Vendor freight — Glazzio, Ohio</h1>
           <p className="text-[12.5px] text-slate-500 mt-1">
-            620 sf of 12×24 + 84 sf of mosaic (small format at $0.99/sf — Glazzio's large format starts ABOVE 12×24 — past $149, so the flat-rate pallet program) · 180 sf of 24×24 (large format, {money(79)}/pallet over 496 sf/pallet) · 24 chair-rail pieces ($0.33 each, $14.85 minimum).
+            620 sf of 12×24 + 84 sf of mosaic (small format at $0.99/sf — Glazzio's large format is what outgrows a 12×24, 288 sq in — past $149, so the flat-rate pallet program) · 180 sf of 24×24 (large format, {money(79)}/pallet over 496 sf/pallet) · 24 chair-rail pieces ($0.33 each, $14.85 minimum).
             Every number below is computed by <span className="ft-mono">freight.js</span>, not typed into this page.
           </p>
         </div>

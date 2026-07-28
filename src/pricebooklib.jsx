@@ -1221,15 +1221,19 @@ export function MarkupEditor({ book, items, onSave, inp, lbl }) {   // exported 
 // nine numbers on it, re-issued about once a year, so the numbers are hand-kept
 // here and read live by every job (freight.js). Switched off, the book charges
 // nothing and no chip appears on a row.
+// The large-format line is stored as area, because that's the only way to say
+// "larger than a 12x24" — but nobody on the desk thinks in square inches, so the
+// field says which tile the number IS.
+const SQIN_SIZES = { 144: "12x12", 256: "16x16", 288: "12x24", 324: "18x18", 432: "12x36", 576: "24x24", 864: "24x36" };
+const sizeAt = (n) => (SQIN_SIZES[n] ? `(${SQIN_SIZES[n]})` : n > 0 ? `(${Math.round((n / 144) * 100) / 100} sq ft)` : "");
+
 const FREIGHT_FIELDS = [
   { k: "perSqft", label: "Per sq ft", pre: "$", step: "0.01", hint: "the base rate area material ships at" },
   { k: "minCharge", label: "Minimum", pre: "$", step: "0.01", hint: "the least this vendor bills for one order" },
   { k: "palletAt", label: "Pallet at", pre: "$", step: "1", hint: "once the per-foot charge reaches this, the order ships flat-rate pallets (0 = never)" },
   { k: "palletRate", label: "Per pallet", pre: "$", step: "1", hint: "the flat-rate pallet price" },
   { k: "largeRate", label: "Large / pallet", pre: "$", step: "1", hint: "large-format material ships by the pallet outright (0 = price it by the foot with everything else)" },
-  // One cell, two numbers: the vendor draws this line at a SIZE ("larger than
-  // 12x24"), and two labelled boxes in the rate grid read as two thresholds.
-  { k: "largeOverShort", k2: "largeOverLong", label: "Large over", suf: '"', step: "1", hint: "the biggest piece that still ships small format — anything wider than the first OR longer than the second goes on the large-format pallet table (12 × 24 keeps a 12x24 by the foot and sends a 16x16 or a 12x36 to the pallet). 0 switches that side of the test off" },
+  { k: "largeOverSqin", label: "Large over", suf: "in²", step: "1", hint: "the biggest piece that still ships by the foot, as face area — 288 is exactly a 12x24, so a 12x24 stays small format and a 24x24 or 12x36 goes on the large-format pallet table (0 = nothing is large by size)" },
   { k: "palletSf", label: "Sq ft / pallet", step: "1", hint: "how much this vendor puts on one pallet — the pallet count divides by it" },
   { k: "perPiece", label: "Per piece", pre: "$", step: "0.01", hint: "trims, borders and mouldings ship by the piece" },
   { k: "pieceMin", label: "Piece min", pre: "$", step: "0.01", hint: "the least this vendor bills for a piece order" },
@@ -1289,15 +1293,10 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
                 <label className={lbl} title={x.hint}>{x.label}</label>
                 <div className="flex items-center gap-1">
                   {x.pre && <span className="text-[11px] text-slate-400">{x.pre}</span>}
-                  <input type="number" min="0" step={x.step} className={`${inp} ${x.k2 ? "w-14" : "w-20"}`} value={String(f[x.k] ?? "")} title={x.hint}
+                  <input type="number" min="0" step={x.step} className={`${inp} w-20`} value={String(f[x.k] ?? "")} title={x.hint}
                     onChange={(e) => setField(x.k)(e.target.value)} onBlur={() => commit(normFreight(f))} />
                   {x.suf && <span className="text-[11px] text-slate-400">{x.suf}</span>}
-                  {x.k2 && <>
-                    <span className="text-[11px] text-slate-400">×</span>
-                    <input type="number" min="0" step={x.step} className={`${inp} w-14`} value={String(f[x.k2] ?? "")} title={x.hint}
-                      onChange={(e) => setField(x.k2)(e.target.value)} onBlur={() => commit(normFreight(f))} />
-                    <span className="text-[11px] text-slate-400">{x.suf}</span>
-                  </>}
+                  {x.k === "largeOverSqin" && <span className="text-[11px] text-slate-400 whitespace-nowrap">{sizeAt(f.largeOverSqin)}</span>}
                 </div>
               </div>
             ))}
