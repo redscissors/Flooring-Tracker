@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, sheetMagic, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
 import { bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu } from "./widgets.jsx";
 
@@ -142,7 +142,8 @@ async function runFetch(entry, token, onProgress) {
           // 200 — imported, it parses to 0 rows and offers to retire the book.
           const cls = classifySheetBytes(bytes);
           if (cls !== "login" && cls !== "interim") {
-            return { file: new File([bytes], entryFileName(entry), { type: "application/vnd.ms-excel" }) };
+            const magic = sheetMagic(bytes);
+            return { file: new File([bytes], entryFileName(entry, magic), { type: magic === "pdf" ? "application/pdf" : "application/vnd.ms-excel" }) };
           }
           err = cls === "login" ? "session-expired" : "sheet-not-ready";
         }

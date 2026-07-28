@@ -7,6 +7,18 @@ export async function readXlsxSheets(file) {
   const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
   return wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
 }
+// A portal can serve a PDF down an .xls-named link (OVF's TrueTouch list), so
+// import paths pick their reader by content, not name: the PDF spec puts
+// "%PDF-" within the first 1024 bytes.
+export async function looksPdf(file) {
+  try {
+    const b = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+    for (let i = 0; i + 4 < b.length; i++) {
+      if (b[i] === 0x25 && b[i + 1] === 0x50 && b[i + 2] === 0x44 && b[i + 3] === 0x46 && b[i + 4] === 0x2d) return true;
+    }
+  } catch {}
+  return false;
+}
 export async function readPdfPages(file) {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
