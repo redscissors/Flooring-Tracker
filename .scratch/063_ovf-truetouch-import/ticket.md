@@ -68,3 +68,17 @@ trims import with no cost (missing beats wrong; the import review flags them).
 To use: drop `ovftruetouch.pdf` on the Price book library and create/pick its
 book — the first import stamps the `ovf-truetouch` fingerprint so every later
 drop routes to that book automatically.
+
+## Amendment (2026-07-28): the .xls workbook version
+
+The team prefers OVF's `.xls` workbook version of the list ("keep consistent
+with most of the others"), supplied as `ovftruetouch.xls` — the same banded
+grid with real columns. `parseTrueTouchSheet` (same file) reads roles by
+column index off each band's own "Item Name | Item #" header, drives the same
+section state machine, and emits through the same shared `bookResult` as the
+PDF parser, so the two file versions cannot disagree — the real workbook
+parses to the identical 46 floors + 166 trims, costs, coverage, types and
+sizes as the PDF proof above. Recognized by `isTrueTouchSheet`, dispatched
+from `parseOvf` (before the sundries fallthrough), and tagged the SAME
+`ovf-truetouch` in the drop router, so either file version of the list routes
+to the one TrueTouch book on a re-drop.
