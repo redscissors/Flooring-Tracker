@@ -200,8 +200,10 @@ src/
                     # `seedFromQuery` for the SKU-search pinned entry row, and
                     # `lineItems` (configuration -> product-row payloads; fees
                     # as separate at-cost misc lines; `product.sheoga` keeps the
-                    # raw config for Reconfigure). A sheet update is a
-                    # re-transcription of this one file
+                    # raw config for Reconfigure). `smallOrderFee` is the one
+                    # $600/$300 under-500-sf rule all three build paths use —
+                    # Prefinished Natural is exempt (owner rule 2026-07-28).
+                    # A sheet update is a re-transcription of this one file
   SheogaConfigurator.jsx  # the configurator popup: mode tabs, an option rail,
                     # a build card (cost -> sell, carton preview, fee lines), and
                     # the full price grid (a button on the Grade row). The floor

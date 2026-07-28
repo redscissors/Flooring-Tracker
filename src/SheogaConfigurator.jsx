@@ -325,7 +325,7 @@ function FloorRail({ f, set, sf, markup, onGrid, multi, mwWidths, onMultiToggle,
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={f.tex} onChange={(tex) => set({ ...f, tex })}
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
-      <Dropdown label="Finishing" hint="fee under 500 sf" value={f.finish} onChange={(finish) => set({ ...f, finish })}
+      <Dropdown label="Finishing" hint={f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={(finish) => set({ ...f, finish })}
         options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(f), markup))}`) }))} />
     </div>
     {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
@@ -496,7 +496,7 @@ function HbRail({ h, set, markup, onGrid, onCopyFloor, copySrc }) {
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={h.tex || "smooth"} onChange={(tex) => set({ ...h, tex })}
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(sellOf(t.add, markup))}` : "") }))} />
-      <Dropdown label="Finishing" hint="fee under 500 sf" value={h.finish || "unf"} onChange={(finish) => set({ ...h, finish })}
+      <Dropdown label="Finishing" hint={h.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={h.finish || "unf"} onChange={(finish) => set({ ...h, finish })}
         options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(sellOf(x.add(h), markup))}`) }))} />
     </div>
     {prefin && (

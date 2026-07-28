@@ -285,6 +285,11 @@ export function finishName(f) {
   return `${x.name}${f.stain ? ` “${f.stain}”` : ""}`;
 }
 
+// Small-order fee — prefinished jobs under 500/250 sf. Prefinished Natural is
+// exempt (owner rule 2026-07-28): the clear natural coat is a standard run, so
+// only stained/custom prefinishes owe the setup fee.
+export const smallOrderFee = (finish, sf) => (finish === "unf" || finish === "nat" ? 0 : sf < 250 ? 600 : sf < 500 ? 300 : 0);
+
 // Length upcharges (%) apply to the unfinished base incl. no-sap, BEFORE the
 // flat $/sf adders (assumption 1 of the design README — sheet just says "Add
 // 15%"). Small-order fees apply whenever a finish is selected and are never
@@ -300,7 +305,7 @@ export function calcFloor(f, sf) {
   const sap = f.noSap ? NO_SAP[f.sp] || 0 : 0;
   const lenAdd = ((base + sap) * len.pct) / 100;
   const finAdd = fin.add(f);
-  const fee = f.finish !== "unf" ? (sf < 250 ? 600 : sf < 500 ? 300 : 0) : 0;
+  const fee = smallOrderFee(f.finish, sf);
   const cost = base + sap + lenAdd + tex.add + edge.add + finAdd;
   const rows = [[`Unfinished base — ${f.sp}, ${gradeName(f)}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
   if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
@@ -393,7 +398,8 @@ export function calcHerringbone(h, sf) {
   const finAdd = fin.add(h);
   if (finAdd) { cost += finAdd; rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]); }
   const fees = [];
-  if (prefin) { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+  const fee = smallOrderFee(fin.id, sf);
+  if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
   const custom = CUSTOM_FINISHES.includes(fin.id);
   const established = fin.id === "est";
   if (custom || (established && h.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
@@ -563,7 +569,8 @@ export function multiWidthBuild(base, widths, sf) {
     if (std != null && Number(sheen) !== std) fees.push({ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE });
   } else {
     const f = base.cfg;
-    if (f.finish !== "unf") { const fee = sf < 250 ? 600 : sf < 500 ? 300 : 0; if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }); }
+    const fee = smallOrderFee(f.finish, sf);
+    if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
     if (CUSTOM_FINISHES.includes(f.finish) || (f.finish === "est" && f.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   }
   return { lines, fees, sf };
