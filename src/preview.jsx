@@ -11,7 +11,7 @@ import { FreightCard } from "./pricebooklib.jsx";
 import { FreightMatRow, FreightColumn } from "./freightui.jsx";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { EstimatePaper } from "./EstimatePrint.jsx";
-import { freightList, freightTotal, freightPrintRows, freightOrderRows } from "./freight.js";
+import { freightList, freightTotal, freightPrintRows, freightOrderRows, SHEET_GOODS_WORDS } from "./freight.js";
 import { printMatList, orderEntryRow, printAreaFloor } from "./print.js";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, newProject, money, areaLabel } from "./model.js";
@@ -24,7 +24,9 @@ const lbl = "ft-eyebrow text-[10px] mb-1 block";
 const GLAZZIO_OHIO = {
   mode: "program", destination: "Ohio", effective: "2026", palletSf: 496,
   perSqft: 0.99, minCharge: 14.85, palletAt: 149, palletRate: 149,
-  largeRate: 79, largeFormatIn: 15, perPiece: 0.33, pieceMin: 14.85,
+  largeRate: 79, largeAtSqin: 144, largeSeries: "Harmonic, Arvora",
+  smallSeries: SHEET_GOODS_WORDS,
+  perPiece: 0.33, pieceMin: 14.85,
 };
 const BOOK = { id: "glz", kind: "order", name: "Glazzio Tiles", active: true, data: { markups: { default: 45 }, freight: GLAZZIO_OHIO } };
 const settings = normalizeSettings();
@@ -35,7 +37,8 @@ const JOB = {
   categories: [{
     id: "a1", name: "Kitchen", note: "", products: [
       row({ L: "12", W: "24", qty: "620", priceSqft: "8.40", costSqft: "5.80", brandColor: "Sunset Glass — Alabaster", cartonSf: "15.5" }),
-      row({ L: "12", W: "12", qty: "84", priceSqft: "22.40", costSqft: "15.45", brandColor: "Harmonic Mosaic — Pearl" }),
+      row({ L: "24", W: "24", qty: "180", priceSqft: "9.60", costSqft: "6.75", brandColor: "Terra Grande — Ash" }),
+      row({ L: "12", W: "12", qty: "84", priceSqft: "22.40", costSqft: "15.45", brandColor: "Coastal Mosaic — Pearl" }),
       row({ type: "misc", qtyType: "count", qty: "24", priceSqft: "18.00", costSqft: "12.40", brandColor: "Sunset chair rail", sizeText: '2" × 12"' }),
     ],
   }],
@@ -83,7 +86,7 @@ function DrawerCase() {
         ))}
       </div>
       <p className="text-[12px] text-slate-500 max-w-2xl">
-        Three rows, one charge: {line ? `${money(line.cost)}` : "none"}. Unchecking a row drops its footage out of the vendor’s pallet/minimum math — which is why every row shows the JOB’s number, not a share of it.
+        Four rows, one charge: {line ? `${money(line.cost)}` : "none"}. Unchecking a row drops its footage out of the vendor’s pallet/minimum math — which is why every row shows the JOB’s number, not a share of it.
       </p>
     </div>
   );
@@ -114,7 +117,7 @@ function Harness() {
         <div>
           <h1 className="ft-serif" style={{ fontSize: 24 }}>Vendor freight — Glazzio, Ohio</h1>
           <p className="text-[12.5px] text-slate-500 mt-1">
-            620 sf of 12×24 (large format, {money(79)}/pallet over 496 sf/pallet) · 84 sf of mosaic (small format, $0.99/sf) · 24 chair-rail pieces ($0.33 each, $14.85 minimum).
+            620 sf of 12×24 + 180 sf of 24×24 (large format — Glazzio calls a piece large at 144 sq in, a 12×12 — {money(79)}/pallet over 496 sf/pallet) · 84 sf of 12×12 mosaic (small format at $0.99/sf: the piece is the chip, not the sheet, so the same 144 sq in ships by the foot) · 24 chair-rail pieces ($0.33 each, $14.85 minimum).
             Every number below is computed by <span className="ft-mono">freight.js</span>, not typed into this page.
           </p>
         </div>
@@ -128,7 +131,7 @@ function Harness() {
             <EstimatePaper sel={JOB} people={[]} profile={{ name: "Sam Weaver", phone: "", email: "" }} tv={tv}
               jobWaste={{ tile: 10, floor: 5 }} pMats={pMats} tSet={settings}
               materialsCost={0} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={0}
-              totalSqft={704} orderedSqft={766} grandTotal={flooringPrice + freightCost} />
+              totalSqft={884} orderedSqft={946} grandTotal={flooringPrice + freightCost} />
           </div>
         </Case>
 
