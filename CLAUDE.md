@@ -193,10 +193,18 @@ src/
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
                     # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
-                    # sheet tables (flooring Feb '25, vents Feb '22, dampers
-                    # 1/9/23 — all distributor cost) + pure pricing for the five
-                    # programs (unfinished/custom, stocked prefinished,
-                    # herringbone, vents, dampers), `parseQuery`/`queryHit`/
+                    # sheet tables (flooring & stocked Jan '26, vents Feb '22,
+                    # dampers Jul '26 — all distributor cost) + pure pricing for
+                    # the five programs (unfinished/custom, stocked prefinished,
+                    # herringbone, vents, dampers — herringbone RETIRED to
+                    # custom quotes 2026-07-28: `HB_RETIRED` hides its tab and
+                    # search routing, tables kept so saved rows still price and
+                    # the tab can be repurposed; Live Sawn is unfinished-only,
+                    # owner rule 2026-07-29), the prefinished-page table
+                    # (`PREFIN_SHEET` + `prefinCost`, issue 065 — derived prices
+                    # with green STOCK flags; a test pins derived == the
+                    # transcribed STOCKED prices so a decoupled sheet edition
+                    # fails loudly), `parseQuery`/`queryHit`/
                     # `seedFromQuery` for the SKU-search pinned entry row, and
                     # `lineItems` (configuration -> product-row payloads; fees
                     # as separate at-cost misc lines; `product.sheoga` keeps the
@@ -206,7 +214,18 @@ src/
                     # A sheet update is a re-transcription of this one file
   SheogaConfigurator.jsx  # the configurator popup: mode tabs, an option rail,
                     # a build card (cost -> sell, carton preview, fee lines), and
-                    # the full price grid (a button on the Grade row). The floor
+                    # the price grids (issue 065): at ≥1400px the floor/stocked
+                    # tabs dock a grid panel left of the rail — the vendor's
+                    # prefinished sheet on Stocked (green STOCK/FAST TRACK cells
+                    # set the stocked build; a white cell hands off to the custom
+                    # tab pre-filled, same $/sf, since the buttons stay
+                    # stock-only) and a live unfinished grid on the custom tab
+                    # (every cell re-prices with the current scrape/finish/
+                    # lengths; Live Sawn strips are unfinished-only) — both
+                    # defaulting to Sell through the tier lens with a Cost
+                    # toggle; 768–1400px keeps the Grade-row grid button/modal,
+                    # phones get a Grid button on the price bar opening the same
+                    # table as an overlay. The floor
                     # rail is compact — Species/Width chips, Construction+Grade
                     # paired, and Texture/Finishing/Lengths/Edge as dropdowns;
                     # prefinished finishes reveal Stain-color + Sheen pickers
@@ -219,7 +238,9 @@ src/
                     # stocked/herringbone tab's config onto the vent
                     # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
                     # -> White Oak, finish -> prefin+stain, texture -> scrape).
-                    # Herringbone tab: the same Texture/scrape + Finishing + Edge
+                    # Herringbone tab (hidden while HB_RETIRED — shows only when
+                    # a saved hb row's Reconfigure opens on it, with a custom-
+                    # quote banner): the same Texture/scrape + Finishing + Edge
                     # dropdowns (+ stain/sheen + sample) as the custom tab, priced
                     # the same $/sf way; its own "Copy floor" pulls species/scrape/
                     # edge/prefinish from the last-open custom/stocked tab

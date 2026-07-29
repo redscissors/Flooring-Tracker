@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sheoga — docked price grids: prefinished sheet + live unfinished grid (mockup v2)</title>
+<style>
+  :root{
+    --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-sand:#EDE9DD;
+    --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378;
+    --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+    --ft-grid-line:rgba(28,26,23,.34);
+    --ft-brand:#57703A; --ft-brand-deep:#40542A;
+    --ft-tint:#eef1e8; --ft-tint-border:rgba(87,112,58,.35);
+    --stock:#dcebc7; --stock-deep:#c2dca1;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Manrope",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ft-text);background:#0f0c0a}
+
+  .toolbar{position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 14px;background:#1c1a17;color:#f6f3ec;z-index:200;font-size:12px;font-weight:700}
+  .toolbar .seg{display:inline-flex;border:1px solid #4a453d;border-radius:8px;overflow:hidden}
+  .toolbar .seg button{background:#26231f;color:#c9c4ba;border:0;padding:6px 10px;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit}
+  .toolbar .seg button.on{background:#f6f3ec;color:#1c1a17}
+  .toolbar .tag{margin-left:auto;color:#a8a29a;font-weight:600}
+  .stage{position:fixed;inset:46px 0 0 0;display:flex;align-items:center;justify-content:center;background:rgba(20,15,10,.55);padding:14px;overflow:auto}
+
+  .pop{position:relative;background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden;width:1620px;max-width:98vw;height:min(800px,94vh)}
+  .pop.phone{width:398px;height:min(760px,94vh)}
+  .eyebrow{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ft-muted)}
+  .head{display:flex;align-items:center;gap:12px;padding:11px 16px 7px}
+  .head h1{margin:0;font-size:17px;font-weight:800}
+  .head .sub{font-size:11px;color:var(--ft-muted);font-weight:600}
+  .xbtn{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;display:flex;align-items:center;justify-content:center}
+  .tabs{display:flex;gap:3px;padding:6px 16px 0;border-bottom:1px solid var(--ft-grid-line);align-items:flex-end}
+  .pop.phone .tabs{gap:6px;padding:4px 12px 8px;border-bottom:1px solid var(--ft-border);overflow-x:auto}
+  .tab{padding:8px 13px;font-size:12px;font-weight:800;border:1px solid var(--ft-border);border-bottom:0;border-radius:9px 9px 0 0;background:#efece4;color:var(--ft-muted);cursor:pointer;white-space:nowrap;font-family:inherit}
+  .tab.on{background:var(--ft-card);border-color:var(--ft-grid-line);color:var(--ft-text);position:relative;z-index:2;margin-bottom:-1px}
+  .pop.phone .tab{border:1px solid var(--ft-border-strong);border-radius:99px;padding:6px 11px;font-size:11px}
+  .pop.phone .tab.on{background:#1c1a17;color:#fff;border-color:#1c1a17;margin-bottom:0}
+
+  .body{flex:1;display:flex;min-height:0}
+
+  /* --- docked grid panel (desktop) ------------------------------------------ */
+  .gridpanel{width:716px;flex:none;display:flex;flex-direction:column;min-height:0;border-right:1.5px solid var(--ft-grid-line);background:var(--ft-card)}
+  .gridpanel.stocked{width:620px}
+  .gp-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--ft-border);background:var(--ft-sand)}
+  .gp-head .t{font-size:11px;font-weight:800}
+  .gp-head .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;margin-left:auto}
+  .gp-head .seg button{border:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-muted);padding:3px 9px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit}
+  .gp-head .seg button:first-child{border-left:0}
+  .gp-head .seg button.on{background:#1c1a17;color:#fff}
+  .gp-sub{padding:5px 10px;border-bottom:1px solid var(--ft-border);font-size:10px;font-weight:700;color:var(--ft-muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .gp-sub .opt{color:var(--ft-brand-deep)}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid var(--ft-border-strong);vertical-align:-1px}
+  .swatch.g{background:var(--stock);border-color:var(--stock-deep)}
+  .sbtn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:7px;padding:3px 9px;font-size:10px;font-weight:800;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .sbtn.on{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
+  .gp-scroll{flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable}
+
+  table.sheet{border-collapse:separate;border-spacing:0;width:100%}
+  .sheet th{position:sticky;top:0;background:var(--ft-sand);z-index:3;font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ft-muted);padding:3px 2px;border-bottom:1px solid var(--ft-grid-line);text-align:right;white-space:nowrap}
+  .sheet th.blk{text-align:center;border-bottom:1px solid var(--ft-border)}
+  .sheet th.w{top:17px}
+  .sheet th.lbl{text-align:left;left:0;z-index:4;padding-left:8px}
+  .sheet td{padding:0;border-bottom:1px solid var(--ft-border);text-align:right}
+  .sheet td.lbl{position:sticky;left:0;background:var(--ft-card);z-index:2;text-align:left;padding:3px 4px 3px 8px;font-weight:800;font-size:10px;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .gridpanel:not(.stocked) .sheet td.lbl{max-width:96px;font-size:9.5px}
+  .gridpanel:not(.stocked) .cellb{font-size:10px;padding:2px 2px}
+  .sheet td.lbl .m{color:var(--ft-faint);font-weight:600;font-size:9px}
+  .sheet tr.secHead td{background:var(--ft-sand);border-bottom:1px solid var(--ft-grid-line);border-top:1.5px solid var(--ft-grid-line);padding:3px 8px;text-align:left;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ft-brand-deep);position:sticky;left:0}
+  .sheet tr.spTop td{border-top:1.5px solid var(--ft-grid-line)}
+  .sheet td.div,.sheet th.div{border-left:1.5px solid var(--ft-grid-line)}
+  .cellb{display:block;width:100%;border:2px solid transparent;background:transparent;padding:2px 3px;font:inherit;font-size:10.5px;font-weight:700;text-align:right;cursor:pointer;color:var(--ft-text);border-radius:4px;font-variant-numeric:tabular-nums}
+  .cellb:hover{border-color:var(--ft-border-strong)}
+  .cellb.g{background:var(--stock)}
+  .cellb.cur{border-color:#1c1a17;background:#1c1a17;color:#fff}
+  td .dash{display:block;text-align:center;color:var(--ft-border-strong);padding:2px 3px;font-size:10px}
+  .lschips{display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:3px 6px}
+  .lschips .lc{border:1.5px solid var(--ft-border-strong);background:var(--ft-card);border-radius:6px;padding:2px 6px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;font-variant-numeric:tabular-nums}
+  .lschips .lc.cur{background:#1c1a17;border-color:#1c1a17;color:#fff}
+  .lschips .t{font-size:9px;font-weight:800;color:var(--ft-faint);text-transform:uppercase;letter-spacing:.08em}
+
+  /* --- rail + pane ------------------------------------------------------------ */
+  .rail{width:430px;flex:none;border-right:1px solid var(--ft-grid-line);overflow:auto;scrollbar-gutter:stable;padding:13px 14px}
+  .pop.phone .rail{width:auto;flex:1;border-right:0}
+  .pane{flex:1;min-width:0;overflow:auto;padding:13px 14px;background:var(--ft-cream)}
+  .sect{margin-bottom:12px}
+  .sect .lbl{display:flex;align-items:baseline;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+  .stainbox .lbl{flex-wrap:wrap}
+  .stainbox .lbl .hint{margin-left:0;display:block;width:100%}
+  .sect .lbl .hint{margin-left:auto;font-size:9.5px;color:var(--ft-faint);font-weight:600}
+  .wrap{display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start}
+  .chip{position:relative;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:8px;padding:6px 8px;font-size:11.5px;font-weight:800;line-height:1.15;text-align:center;cursor:pointer;color:var(--ft-text);font-family:inherit}
+  .chip .s{display:block;font-size:9.5px;font-weight:700;color:var(--ft-faint);margin-top:1px}
+  .chip.on{background:#1c1a17;border-color:#1c1a17;color:#fff}
+  .chip.on .s{color:rgba(255,255,255,.7)}
+  .chip.dis{opacity:.3;cursor:not-allowed;text-decoration:line-through}
+  .chip .dot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:99px;background:var(--ft-brand)}
+  .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-muted);padding:6px 12px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .seg button:first-child{border-left:0}
+  .seg button.on{background:#1c1a17;color:#fff}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  select,input[type=number],input[type=text]{width:100%;border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:6px 8px;font-size:11.5px;font-weight:700;font-family:inherit;color:var(--ft-text)}
+  .stainbox{border:2px solid var(--ft-brand);background:var(--ft-tint);border-radius:10px;padding:10px;margin-bottom:12px}
+
+  /* --- build card --------------------------------------------------------------- */
+  .card{border:1px solid var(--ft-grid-line);border-radius:10px;background:var(--ft-card);overflow:hidden}
+  .card .top{display:flex;align-items:center;gap:8px;background:var(--ft-sand);padding:8px 12px}
+  .card .top .h{width:20px;height:20px;border-radius:5px;background:var(--ft-brand-deep);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .card .top b{font-size:12.5px}
+  .card .top .note{margin-left:auto;font-size:9px;color:var(--ft-muted);font-weight:700}
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:3px 9px;font-size:10px;font-weight:800;letter-spacing:.03em}
+  .badge.stock{background:var(--stock);color:var(--ft-brand-deep);border:1px solid var(--stock-deep)}
+  .badge.mto{background:#fdf6e3;color:#92610f;border:1px solid #ecd9a8}
+  .card .desc{padding:9px 12px 2px;font-size:14px;font-weight:800;line-height:1.35}
+  .card .rows{padding:2px 12px 10px}
+  .crow{display:flex;align-items:baseline;gap:8px;padding:2.5px 0;font-size:11.5px;color:var(--ft-muted);font-weight:600}
+  .crow span:last-child{margin-left:auto;font-weight:700;color:var(--ft-text);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .crow.warn{color:#92610f;font-weight:700}
+  .crow.fee{color:var(--ft-brand-deep);font-weight:700}
+  .card .tot{display:flex;align-items:center;gap:14px;border-top:1px solid var(--ft-grid-line);background:var(--ft-sand);padding:9px 12px;flex-wrap:wrap}
+  .tot .cell .e{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--ft-muted)}
+  .tot .cell .v{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+  .tot .cell .v.sell{color:var(--ft-brand-deep);font-size:19px}
+  .tot .arrow{font-size:10.5px;color:var(--ft-faint)}
+  .tot .right{margin-left:auto;text-align:right}
+  .actions{display:flex;gap:8px;border-top:1px solid var(--ft-border);padding:9px 12px}
+  .abtn{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .abtn.pri{margin-left:auto;background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
+  .foot{display:flex;align-items:center;gap:16px;border-top:1px solid var(--ft-grid-line);background:var(--ft-cream);padding:8px 16px;font-size:11.5px;font-weight:800}
+  .foot label{display:flex;align-items:center;gap:6px}
+  .foot input{width:70px;text-align:center}
+  .foot .tip{margin-left:auto;font-size:10px;color:var(--ft-faint);font-weight:600}
+  .pnote{margin-top:10px;font-size:10px;color:var(--ft-faint);font-weight:600;line-height:1.5}
+
+  /* --- phone bits ---------------------------------------------------------------- */
+  .pbar{flex:none;display:flex;align-items:center;gap:10px;border-top:1px solid var(--ft-grid-line);background:var(--ft-card);padding:10px 12px;box-shadow:0 -6px 24px rgba(28,26,23,.10)}
+  .pbar .d{flex:1;min-width:0}
+  .pbar .d .n{font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pbar .d .s{font-size:10px;color:var(--ft-muted);font-weight:700}
+  .pbar .price{text-align:right;line-height:1}
+  .pbar .price .v{font-size:17px;font-weight:800;color:var(--ft-brand-deep);font-variant-numeric:tabular-nums}
+  .pbar .price .e{font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-faint);margin-top:3px}
+  .gridfab{flex:none;display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--ft-brand);color:var(--ft-brand-deep);background:var(--ft-tint);border-radius:9px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}
+  .overlay{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;background:var(--ft-card)}
+  .overlay .oh{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--ft-grid-line);flex-wrap:nowrap}
+  .overlay .oh b{font-size:11.5px;white-space:nowrap}
+  .overlay .oh .seg button{padding:3px 7px;font-size:9.5px}
+  .overlay .oh .xbtn{margin-left:auto}
+  .overlay .oscroll{flex:1;min-height:0;overflow:auto}
+  .overlay table.sheet{min-width:640px}
+  .phonebadge{padding:6px 12px 0}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>065 v2 · docked grids</span>
+  <span class="seg" id="scen"></span>
+  <span class="tag">everything is live — click cells, chips &amp; tabs</span>
+</div>
+<div class="stage"><div class="pop" id="pop"></div></div>
+
+<script>
+// ---- data (Jan 19 2026 sheet, distributor cost) --------------------------------
+const N = null;
+const WIDTHS = [2.25,3.25,4.25,5.25,6.25,7.25,8.25];
+const WL = {2.25:'2¼"',3.25:'3¼"',4.25:'4¼"',5.25:'5¼"',6.25:'6¼"',7.25:'7¼"',8.25:'8¼"',9.25:'9¼"',10.25:'10¼"',11.25:'11¼"'};
+const UNF = {
+  "White Oak":     {clear:[5.25,5.65,6.05,6.45,6.90,7.40,8.10], char:[3.40,3.65,3.90,4.15,4.45,4.75,5.10], eClear:[6.80,5.70,6.10,6.55,7.00,7.50,8.00], eChar:[5.75,4.70,5.05,5.40,5.75,6.15,6.60]},
+  "Red Oak":       {clear:[3.10,3.30,3.55,3.80,4.05,4.35,4.65], char:[2.70,2.90,3.10,3.30,3.55,3.80,4.05], eClear:[5.95,4.85,5.20,5.55,5.95,6.35,6.80], eChar:[5.55,4.45,4.80,5.10,5.45,5.85,6.25]},
+  "Hickory":       {clear:[3.25,3.50,3.70,4.00,4.25,4.55,4.85], char:[2.90,3.10,3.30,3.55,3.80,4.05,4.35], eClear:[5.80,4.75,5.10,5.45,5.80,6.20,6.65], eChar:[5.60,4.50,4.85,5.20,5.55,5.90,6.35]},
+  "Maple":         {clear:[4.05,4.35,4.65,4.95,5.30,5.65,6.05], char:[3.10,3.35,3.55,3.80,4.05,4.35,4.65], eClear:[6.15,5.10,5.45,5.85,6.25,6.70,7.15], eChar:[5.65,4.60,4.90,5.25,5.60,6.00,6.40]},
+  "Cherry":        {clear:[3.25,3.45,3.70,3.95,4.25,4.55,4.85], char:[3.05,3.25,3.50,3.75,4.00,4.30,4.55], eClear:[5.80,4.75,5.10,5.45,5.80,6.20,6.65], eChar:[5.65,4.55,4.90,5.20,5.60,6.00,6.40]},
+  "Walnut":        {clear:[6.80,7.25,7.75,8.30,8.90,9.50,10.15],char:[4.55,4.85,5.20,5.55,5.95,6.35,6.80], eClear:[7.80,6.75,7.20,7.70,8.25,8.85,9.45], eChar:[6.15,5.10,5.45,5.80,6.20,6.65,7.10]},
+  "Beech":         {clear:[3.40,3.65,3.90,4.15,4.45,4.80,5.10], char:[3.15,3.35,3.60,3.80,4.10,4.40,4.70], eClear:[6.00,4.90,5.25,5.60,6.00,6.40,6.85], eChar:[5.75,4.70,5.00,5.35,5.75,6.10,6.55]},
+  "Q/R White Oak": {clear:[7.35,7.85,8.40,9.00,9.60,10.30,11.00],char:[4.50,4.80,5.15,5.50,5.90,6.30,6.75], eClear:[8.10,7.05,7.55,8.10,8.65,9.25,9.90], eChar:[6.15,5.10,5.45,5.80,6.20,6.65,7.10]},
+};
+const LS = {ws:[4.25,5.25,6.25,7.25,8.25,9.25,10.25,11.25], solid:[3.20,3.50,3.85,4.25,4.65,5.10,5.65,6.20], eng:[4.75,5.05,5.40,5.80,6.20,6.60,N,N]};
+const LSSP = "Live Sawn White Oak";
+const SP_SHORT = {"White Oak":"WO","Red Oak":"RO",Hickory:"Hick",Maple:"Mpl",Cherry:"Chry",Walnut:"Wal",Beech:"Bch","Q/R White Oak":"QRWO"};
+const TEX = [["smooth","Smooth (standard)",0,false],["aged","Aged Brush",1.00,true],["sawcut","Saw Cut",1.50,true],["bandsawn","Band Sawn",1.50,true],["country","Country Worn",1.50,false],["vintage","Vintage Charm",1.50,false],["oldmill","Old Mill",2.50,false]];
+const EDGES = [["square","Square edge",0],["bevel","Micro bevel",0],["pillow","Hand pillowed",1.00],["vgroove","Custom V-groove",1.50]];
+const LENGTHS = [["1-8","1'–8' (standard)",0],["1-10","1'–10'",5],["2-8","2'–8'",15],["2-10","2'–10'",20],["3-8","3'–8'",25],["3-10","3'–10'",30]];
+const NAT=1.70, EST=2.05, ESTDEEP=3.15;
+const FIN = [["unf","Unfinished"],["nat","Prefinished — Natural"],["est","Prefinished — Established stain"],["t1","Custom color T-1 (+$3.35)"],["t2","Custom color T-2 (+$4.00)"],["t3","Custom color T-3 (+$4.20)"]];
+const TADD = {t1:3.35,t2:4.00,t3:4.20};
+const STAINS = ["Cattail","Caramel","Fresh Cut","Toasted Acorn","Nutmeg","Buckeye","Hickory Nut","Frost","Breeze","Camo","Dawn","Drift","Mist","Prestige","Silk"];
+const NO_SAP = {Cherry:1.00, Walnut:2.00};
+
+// The prefinished PAGE (sheet order). Green = STOCK/FAST TRACK highlights per
+// grade (indices into 2¼..6¼); prices derive base+adder (verified == the sheet).
+const SHEET_WS = [2.25,3.25,4.25,5.25,6.25];
+const PAGE = [
+  {sp:"Beech",color:"Natural",sheen:30},
+  {sp:"Beech",color:"Drift",sheen:5},
+  {sp:"Cherry",color:"Natural",sheen:30,green:{clear:[1,2,3],char:[1,2,3,4]}},
+  {sp:"Cherry",color:"Silk",sheen:5},
+  {sp:"Hickory",color:"Natural",sheen:30,green:{clear:[0,1,2,3],char:[0,1,2,3,4]}},
+  {sp:"Hickory",color:"Breeze",sheen:5},
+  {sp:"Hickory",color:"Buckeye",sheen:30,green:{clear:[1,2,3]}},
+  {sp:"Hickory",color:"Hickory Nut",sheen:30,green:{char:[1,2,3,4]}},
+  {sp:"Hickory",color:"Toasted Acorn",sheen:30,green:{char:[1,2,3,4]}},
+  {sp:"Maple",color:"Natural",sheen:30,green:{clear:[1,2,3],char:[0,1,2,3,4]}},
+  {sp:"Maple",color:"Frost",sheen:5},
+  {sp:"Red Oak",color:"Natural",sheen:30,green:{clear:[0,1,2,3],char:[0,1,2,3]}},
+  {sp:"Red Oak",color:"Camo",sheen:5},
+  {sp:"Red Oak",color:"Dawn",sheen:5},
+  {sp:"Red Oak",color:"Prestige",sheen:30},
+  {sp:"Red Oak",color:"Toasted Acorn",sheen:30,green:{clear:[1,2,3],char:[1,2,3]}},
+  {sp:"Red Oak",color:"Nutmeg",sheen:20},
+  {sp:"Walnut",color:"Natural",sheen:30,green:{clear:[1,2],char:[1,2,3,4]}},
+  {sp:"Walnut",color:"Mist",sheen:5},
+  {sp:"White Oak",color:"Natural",sheen:30,green:{clear:[1,2,3],char:[0,1,2,3,4]}},
+  {sp:"White Oak",color:"Fresh Cut",sheen:5,green:{char:[1,2,3,4]}},
+  {sp:"White Oak",color:"Cattail",sheen:30,green:{char:[1,2,3,4]}},
+  {sp:"White Oak",color:"Caramel",sheen:20,green:{char:[1,2,3,4]}},
+  {sp:"Q/R White Oak",color:"Natural",sheen:30},
+  {sp:"Q/R White Oak",color:"Fresh Cut",sheen:5},
+  {sp:"Q/R White Oak",color:"Cattail",sheen:30},
+  {sp:"Q/R White Oak",color:"Caramel",sheen:20},
+  {sp:"Red Oak",color:"Cattail",tex:"sawcut",sheen:20,charOnly:true,wMin:2,green:{char:[2,3,4]}},
+  {sp:"Hickory",color:"Hickory Nut",tex:"vintage",sheen:20,charOnly:true,wMin:2,green:{char:[2,3,4]}},
+];
+
+// ---- pricing --------------------------------------------------------------------
+const texOf = id => TEX.find(t=>t[0]===id);
+const fm = n => "$"+n.toFixed(2);
+const pageCost = (row,grade,wi) => {
+  const b = UNF[row.sp][grade][wi]; if (b==N) return N;
+  if (row.wMin && wi<row.wMin) return N;
+  const t = row.tex?texOf(row.tex)[2]:0;
+  const f = row.color==="Natural"?NAT:(row.tex&&texOf(row.tex)[3]?ESTDEEP:EST);
+  return +(b+t+f).toFixed(2);
+};
+const isGreen = (row,grade,wi) => !!(row.green && row.green[grade] && row.green[grade].includes(wi));
+const pageRow = k => PAGE.find(r=>r.sp===k.sp && r.color===k.color && (r.tex||"smooth")===(k.tex||"smooth"));
+
+// Unfinished-tab cost for one grid cell WITH the tab's current options applied.
+function floorCellCost(sp,grade,cons,w,c){
+  let b;
+  if (sp===LSSP){ const i=LS.ws.indexOf(w); b = i<0?N:(cons==="solid"?LS.solid:LS.eng)[i]; }
+  else { const i=WIDTHS.indexOf(w); b = i<0?N:UNF[sp][cons==="eng"?(grade==="clear"?"eClear":"eChar"):(grade==="clear"?"clear":"char")][i]; }
+  if (b==N) return N;
+  const sap = c.noSap && NO_SAP[sp] ? NO_SAP[sp] : 0;
+  const len = LENGTHS.find(l=>l[0]===c.len);
+  const fin = c.finish==="nat"?NAT : c.finish==="est"?(texOf(c.tex)[3]?ESTDEEP:EST) : (TADD[c.finish]||0);
+  return +(b + sap + (b+sap)*len[2]/100 + texOf(c.tex)[2] + EDGES.find(e=>e[0]===c.edge)[2] + fin).toFixed(2);
+}
+
+// ---- state -------------------------------------------------------------------
+let tab = "stocked";           // "floor" | "stocked"
+let phone = false, sheetOpen = false, stockOnly = false, priceMode = "cost";
+let kCfg = {sp:"White Oak", color:"Cattail", tex:"smooth", grade:"char", w:4.25, sheen:"30"};
+let fCfg = {sp:"White Oak", cons:"solid", grade:"char", w:5.25, tex:"smooth", edge:"square", len:"1-8", noSap:false, finish:"unf", stain:"", sheen:"30"};
+let sf = 400, markup = 40;
+const mUp = c => +(c*(1+markup/100)).toFixed(2);
+const disp = c => priceMode==="sell"?mUp(c):c;
+
+const SCEN = [
+  ["Stocked · stock pick", ()=>{tab="stocked"; phone=false; sheetOpen=false; stockOnly=false; kCfg={sp:"White Oak",color:"Cattail",tex:"smooth",grade:"char",w:4.25,sheen:"30"};}],
+  ["Stocked · white cell", ()=>{tab="stocked"; phone=false; sheetOpen=false; stockOnly=false; kCfg={sp:"Q/R White Oak",color:"Caramel",tex:"smooth",grade:"char",w:5.25,sheen:"20"};}],
+  ["Unfinished · bare", ()=>{tab="floor"; phone=false; sheetOpen=false; fCfg={sp:"White Oak",cons:"solid",grade:"char",w:5.25,tex:"smooth",edge:"square",len:"1-8",noSap:false,finish:"unf",stain:"",sheen:"30"};}],
+  ["Unfinished · scraped + stained", ()=>{tab="floor"; phone=false; sheetOpen=false; fCfg={sp:"White Oak",cons:"solid",grade:"char",w:5.25,tex:"sawcut",edge:"square",len:"1-8",noSap:false,finish:"est",stain:"Cattail",sheen:"30"};}],
+  ["Phone · buttons", ()=>{tab="stocked"; phone=true; sheetOpen=false; kCfg={sp:"White Oak",color:"Cattail",tex:"smooth",grade:"char",w:4.25,sheen:"30"};}],
+  ["Phone · grid open", ()=>{tab="stocked"; phone=true; sheetOpen=true;}],
+];
+
+// ---- table HTML builders ---------------------------------------------------------
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+function stockedTableHTML(){
+  const rows = PAGE.filter(r=>!stockOnly || r.green);
+  let spLast = "";
+  const cur = pageRow(kCfg);
+  const head = `<tr><th class="lbl blk" style="top:0"></th><th class="blk" colspan="5">Clear</th><th class="blk div" colspan="5">Character</th></tr>
+    <tr><th class="lbl w">Species — color</th>${SHEET_WS.map(w=>`<th class="w">${WL[w]}</th>`).join("")}${SHEET_WS.map((w,i)=>`<th class="w${i===0?" div":""}">${WL[w]}</th>`).join("")}</tr>`;
+  const body = rows.map(r=>{
+    const spTop = r.sp!==spLast; spLast = r.sp;
+    const cells = grade => SHEET_WS.map((w,wi)=>{
+      const p = r.charOnly&&grade==="clear" ? N : pageCost(r,grade,wi);
+      const div = grade==="char"&&wi===0 ? "div":"";
+      if (p==N) return `<td class="${div}"><span class="dash">—</span></td>`;
+      const g = isGreen(r,grade,wi);
+      if (stockOnly && !g) return `<td class="${div}"><span class="dash">·</span></td>`;
+      const on = cur===r && kCfg.grade===grade && SHEET_WS.indexOf(kCfg.w)===wi;
+      return `<td class="${div}"><button class="cellb${g?" g":""}${on?" cur":""}" data-k="cell" data-sp="${esc(r.sp)}" data-color="${esc(r.color)}" data-tex="${r.tex||"smooth"}" data-grade="${grade}" data-wi="${wi}">${disp(p).toFixed(2)}</button></td>`;
+    }).join("");
+    const mark = r.sheen!==30?` <span class="m">(${r.sheen})</span>`:"";
+    const texN = r.tex?` <span class="m">· ${texOf(r.tex)[1].split(" ")[0]}${r.tex==="vintage"?" Charm":""}</span>`:"";
+    return `<tr${spTop?' class="spTop"':''}><td class="lbl" title="${esc(r.sp)} — ${esc(r.color)}">${SP_SHORT[r.sp]} — ${esc(r.color)}${texN}${mark}</td>${cells("clear")}${cells("char")}</tr>`;
+  }).join("");
+  return `<table class="sheet">${head}${body}</table>`;
+}
+
+function floorTableHTML(){
+  const spNames = Object.keys(UNF);
+  const head = `<tr><th class="lbl blk" style="top:0"></th><th class="blk" colspan="7">Clear</th><th class="blk div" colspan="7">Character</th></tr>
+    <tr><th class="lbl w">Species</th>${WIDTHS.map(w=>`<th class="w">${WL[w]}</th>`).join("")}${WIDTHS.map((w,i)=>`<th class="w${i===0?" div":""}">${WL[w]}</th>`).join("")}</tr>`;
+  const section = cons => {
+    const rows = spNames.map(sp=>{
+      const cells = grade => WIDTHS.map((w,wi)=>{
+        const p = floorCellCost(sp,grade,cons,w,fCfg);
+        const div = grade==="char"&&wi===0 ? "div":"";
+        if (p==N) return `<td class="${div}"><span class="dash">—</span></td>`;
+        const on = fCfg.sp===sp && fCfg.grade===grade && fCfg.cons===cons && fCfg.w===w;
+        return `<td class="${div}"><button class="cellb${on?" cur":""}" data-k="fcell" data-sp="${esc(sp)}" data-grade="${grade}" data-cons="${cons}" data-w="${w}">${disp(p).toFixed(2)}</button></td>`;
+      }).join("");
+      return `<tr><td class="lbl">${esc(sp)}</td>${cells("clear")}${cells("char")}</tr>`;
+    }).join("");
+    // Live Sawn: one grade, its own 4¼–11¼ run — a chip strip under the section.
+    const lsChips = LS.ws.map(w=>{
+      const p = floorCellCost(LSSP,"char",cons,w,fCfg);
+      if (p==N) return "";
+      const on = fCfg.sp===LSSP && fCfg.cons===cons && fCfg.w===w;
+      return `<button class="lc${on?" cur":""}" data-k="fcell" data-sp="${esc(LSSP)}" data-grade="char" data-cons="${cons}" data-w="${w}">${WL[w]} ${disp(p).toFixed(2)}</button>`;
+    }).join("");
+    return `<tr class="secHead"><td colspan="15">${cons==="solid"?"¾&quot; Solid":"Engineered"}</td></tr>${rows}
+      <tr><td colspan="15"><div class="lschips"><span class="t">Live Sawn WO</span>${lsChips||'<span class="t" style="text-transform:none">—</span>'}</div></td></tr>`;
+  };
+  return `<table class="sheet">${head}${section("solid")}${section("eng")}</table>`;
+}
+
+// One line naming what's baked into every unfinished-grid cell right now.
+function floorOptsSummary(){
+  const bits = [];
+  const t = texOf(fCfg.tex); if (t[2]) bits.push(`${t[1].replace(" (standard)","")} +${fm(t[2])}`);
+  if (fCfg.finish==="nat") bits.push(`Natural prefinish +${fm(NAT)}`);
+  if (fCfg.finish==="est") bits.push(`${fCfg.stain||"stain"} +${fm(t[3]?ESTDEEP:EST)}`);
+  if (TADD[fCfg.finish]) bits.push(`${fCfg.finish.toUpperCase()} custom color +${fm(TADD[fCfg.finish])}`);
+  const e = EDGES.find(x=>x[0]===fCfg.edge); if (e[2]) bits.push(`${e[1]} +${fm(e[2])}`);
+  const l = LENGTHS.find(x=>x[0]===fCfg.len); if (l[2]) bits.push(`${l[1].replace(" (standard)","")} lengths +${l[2]}%`);
+  if (fCfg.noSap) bits.push(`no sap (Cherry/Walnut rows only)`);
+  return bits.length ? `every cell includes: <span class="opt">${bits.join(" · ")}</span>` : "bare unfinished base — add a scrape or finish and the whole grid updates";
+}
+
+// ---- panel / rail / card renderers ----------------------------------------------
+function gridPanelHTML(){
+  if (tab==="stocked") return `
+    <div class="gridpanel stocked">
+      <div class="gp-head"><span class="t">Prefinished price sheet</span>
+        <button class="sbtn${stockOnly?" on":""}" data-k="stockOnly">⬤ Stocked / Rush only</button>
+        <span class="seg"><button data-k="pm" data-v="cost" class="${priceMode==="cost"?"on":""}">Cost</button><button data-k="pm" data-v="sell" class="${priceMode==="sell"?"on":""}">Sell</button></span>
+      </div>
+      <div class="gp-sub"><span><span class="swatch g"></span> STOCK / FAST TRACK — no small-order fee</span><span><span class="swatch"></span> made to order — fees under 500 sf</span></div>
+      <div class="gp-scroll">${stockedTableHTML()}</div>
+    </div>`;
+  return `
+    <div class="gridpanel">
+      <div class="gp-head"><span class="t">Unfinished price grid — live with your options</span>
+        <span class="seg"><button data-k="pm" data-v="cost" class="${priceMode==="cost"?"on":""}">Cost</button><button data-k="pm" data-v="sell" class="${priceMode==="sell"?"on":""}">Sell</button></span>
+      </div>
+      <div class="gp-sub">${floorOptsSummary()}</div>
+      <div class="gp-scroll">${floorTableHTML()}</div>
+    </div>`;
+}
+
+function chipRow(items, cur){ // [id,label,sub,dis,dot]
+  return `<div class="wrap">`+items.map(it=>`<button class="chip${String(it[0])===String(cur)?" on":""}${it[3]?" dis":""}" data-k="chip" data-id="${esc(String(it[0]))}" ${it[3]?"disabled":""}>${it[1]}${it[2]?`<span class="s">${it[2]}</span>`:""}${it[4]?'<span class="dot"></span>':''}</button>`).join("")+`</div>`;
+}
+
+function stockedRailHTML(){
+  const species = [...new Set(PAGE.map(r=>r.sp))];
+  const colors = PAGE.filter(r=>r.sp===kCfg.sp);
+  const row = pageRow(kCfg) || colors[0];
+  const grades = ["clear","char"];
+  const ws = SHEET_WS;
+  return `
+    <div class="sect"><div class="lbl"><span class="eyebrow">Species</span><span class="hint">● has stock colors</span></div>
+      ${chipRow(species.map(sp=>[sp,sp,null,false,PAGE.some(r=>r.sp===sp&&r.green)]), kCfg.sp).replace(/data-k="chip"/g,'data-k="ksp"')}</div>
+    <div class="sect"><div class="lbl"><span class="eyebrow">Color</span><span class="hint">${colors.length} on the sheet in ${esc(kCfg.sp)} · ● stocked</span></div>
+      ${chipRow(colors.map(r=>[r.color+"|"+(r.tex||"smooth"), esc(r.color)+(r.tex?" · "+texOf(r.tex)[1].split(" ")[0]:""), r.sheen+"-sheen", false, !!r.green]), kCfg.color+"|"+(kCfg.tex||"smooth")).replace(/data-k="chip"/g,'data-k="kcolor"')}</div>
+    <div class="sect"><div class="lbl"><span class="eyebrow">Grade</span></div>
+      <span class="seg">${grades.map(g=>`<button data-k="kgrade" data-v="${g}" class="${kCfg.grade===g?"on":""}" ${row.charOnly&&g==="clear"?"disabled":""}>${g==="clear"?"Clear":"Character"}</button>`).join("")}</span></div>
+    <div class="sect"><div class="lbl"><span class="eyebrow">Width</span><span class="hint">● ships from stock</span></div>
+      ${chipRow(ws.map((w,wi)=>{const p=row.charOnly&&kCfg.grade==="clear"?N:pageCost(row,kCfg.grade,wi); return [w,WL[w],p==N?"—":fm(mUp(p))+"/sf",p==N,isGreen(row,kCfg.grade,wi)];}), kCfg.w).replace(/data-k="chip"/g,'data-k="kw"')}</div>
+    <div class="sect"><div class="lbl"><span class="eyebrow">Sheen</span><span class="hint">stock standard ${row.sheen} · +$250 if changed on a stock item</span></div>
+      <select data-k="ksheen">${["30","20","15","10","5"].map(s=>`<option${String(kCfg.sheen)===s?" selected":""}>${s}</option>`).join("")}</select></div>`;
+}
+
+function floorRailHTML(){
+  const c = fCfg;
+  const widths = c.sp===LSSP?LS.ws:WIDTHS;
+  const sell = p => p==N?null:fm(mUp(p))+"/sf";
+  return `
+    <div class="sect"><div class="lbl"><span class="eyebrow">Species</span><span class="hint">sell $/sf at current options</span></div>
+      ${chipRow(Object.keys(UNF).concat([LSSP]).map(sp=>{const ws2=sp===LSSP?LS.ws:WIDTHS; const w2=ws2.includes(c.w)?c.w:ws2[1]; const p=floorCellCost(sp,c.grade,c.cons,w2,c); return [sp,sp,p==N?"—":sell(p),false,false];}), c.sp).replace(/data-k="chip"/g,'data-k="fsp"')}</div>
+    <div class="sect" style="display:flex;gap:16px;align-items:flex-end">
+      <div><div class="lbl"><span class="eyebrow">Construction</span></div><span class="seg"><button data-k="fcons" data-v="solid" class="${c.cons==="solid"?"on":""}">Solid</button><button data-k="fcons" data-v="eng" class="${c.cons==="eng"?"on":""}">Eng.</button></span></div>
+      <div><div class="lbl"><span class="eyebrow">Grade</span></div>${c.sp===LSSP?'<span class="seg"><button class="on">Live Sawn</button></span>':`<span class="seg"><button data-k="fgrade" data-v="clear" class="${c.grade==="clear"?"on":""}">Clear</button><button data-k="fgrade" data-v="char" class="${c.grade==="char"?"on":""}">Char.</button></span>`}</div>
+    </div>
+    <div class="sect"><div class="lbl"><span class="eyebrow">Width</span></div>
+      ${chipRow(widths.map(w=>{const p=floorCellCost(c.sp,c.grade,c.cons,w,c); return [w,WL[w],p==N?"—":sell(p),p==N,false];}), c.w).replace(/data-k="chip"/g,'data-k="fw"')}</div>
+    <div class="row2 sect">
+      <div><div class="lbl"><span class="eyebrow">Texture / scrape</span></div><select data-k="ftex">${TEX.map(t=>`<option value="${t[0]}"${c.tex===t[0]?" selected":""}>${t[1]}${t[2]?`  +${fm(t[2])} cost`:""}</option>`).join("")}</select></div>
+      <div><div class="lbl"><span class="eyebrow">Finishing</span></div><select data-k="ffin">${FIN.map(f=>`<option value="${f[0]}"${c.finish===f[0]?" selected":""}>${f[1]}</option>`).join("")}</select></div>
+    </div>
+    ${c.finish!=="unf"?`<div class="stainbox"><div class="row2">
+      ${c.finish==="est"?`<div><div class="lbl"><span class="eyebrow">Stain color</span></div><select data-k="fstain"><option value="">Pick color…</option>${STAINS.map(s=>`<option${c.stain===s?" selected":""}>${s}</option>`).join("")}</select></div>`
+        :["t1","t2","t3"].includes(c.finish)?`<div><div class="lbl"><span class="eyebrow">Stain color</span></div><input type="text" placeholder="Custom color name"></div>`:"<div></div>"}
+      <div><div class="lbl"><span class="eyebrow">Sheen</span><span class="hint">included, no charge</span></div><select data-k="fsheen">${["30","20","15","10","5"].map(s=>`<option${String(c.sheen)===s?" selected":""}>${s}</option>`).join("")}</select></div>
+    </div></div>`:""}
+    <div class="row2 sect">
+      <div><div class="lbl"><span class="eyebrow">Lengths</span></div><select data-k="flen">${LENGTHS.map(l=>`<option value="${l[0]}"${c.len===l[0]?" selected":""}>${l[1]}${l[2]?`  +${l[2]}%`:""}</option>`).join("")}</select></div>
+      <div><div class="lbl"><span class="eyebrow">Edge</span></div><select data-k="fedge">${EDGES.map(e=>`<option value="${e[0]}"${c.edge===e[0]?" selected":""}>${e[1]}${e[2]?`  +${fm(e[2])} cost`:""}</option>`).join("")}</select></div>
+    </div>
+    ${NO_SAP[c.sp]!=null?`<div class="sect"><div class="lbl"><span class="eyebrow">Sap</span></div><button class="chip${c.noSap?" on":""}" data-k="fsap">No sap — ${esc(c.sp)}  +${fm(NO_SAP[c.sp])} cost</button></div>`:""}`;
+}
+
+function stockedCardHTML(){
+  const row = pageRow(kCfg);
+  const wi = SHEET_WS.indexOf(kCfg.w);
+  const p = row ? (row.charOnly&&kCfg.grade==="clear"?N:pageCost(row,kCfg.grade,wi)) : N;
+  if (p==N) return `<div class="card"><div class="rows" style="padding:18px 14px;color:var(--ft-faint);font-weight:700;font-size:13px">This combination isn't offered — pick an available width.</div></div>`;
+  const green = isGreen(row,kCfg.grade,wi);
+  const sheenStd = String(kCfg.sheen)===String(row.sheen);
+  const stock = green && sheenStd;
+  const fees = [];
+  if (green && !sheenStd) fees.push([`Non-standard sheen — ${kCfg.sheen}-sheen (stock standard ${row.sheen})`, 250]);
+  if (!green){ if (sf<250) fees.push(["Small-order fee — prefinished job under 250 sf",600]); else if (sf<500) fees.push(["Small-order fee — prefinished job under 500 sf",300]); }
+  const sell = mUp(p), feeTot = fees.reduce((a,f)=>a+f[1],0);
+  const badge = stock ? `<span class="badge stock">⬤ STOCK — ships from Sheoga stock · no small-order fee</span>`
+    : green ? `<span class="badge mto">◍ stock color, non-standard sheen — made to order, +$250 flat</span>`
+    : `<span class="badge mto">◌ on the sheet, not stocked — made to order · fees under 500 sf</span>`;
+  const desc = `${WL[kCfg.w]} ${kCfg.sp} ${kCfg.color}${row.tex?" "+texOf(row.tex)[1]:""} ${kCfg.grade==="clear"?"Clear":"Character"} Prefinished ${kCfg.sheen} sheen`;
+  return `<div class="card">
+    <div class="top"><span class="h">H</span><b>Sheoga ${WL[kCfg.w]} ${esc(kCfg.sp)} ${esc(kCfg.color)}</b><span class="note">priced from Sheoga sheets · Jan ’26</span></div>
+    <div class="desc">${esc(desc)}</div>
+    <div style="padding:4px 12px 0">${badge}</div>
+    <div class="rows">
+      <div class="crow"><span>Prefinished — micro bevel, ${kCfg.sheen}-sheen clear ceramic</span><span>${fm(p)}/sf</span></div>
+      ${fees.map(f=>`<div class="crow fee"><span>${esc(f[0])} → imports as its own line</span><span>+${fm(f[1])} flat</span></div>`).join("")}
+    </div>
+    <div class="tot">
+      <div class="cell"><div class="e">our cost</div><div class="v">${fm(p)}/sf</div></div>
+      <div class="arrow">→ +${markup}% →</div>
+      <div class="cell"><div class="e">sell</div><div class="v sell">${fm(sell)}/sf</div></div>
+      <div class="right cell"><div class="e">× ${sf} sq ft${feeTot?` + ${fm(feeTot)} fees`:""}</div><div class="v">$${Math.round(sell*sf+feeTot).toLocaleString()}</div></div>
+    </div>
+    <div class="actions"><button class="abtn">＋ Add to basket</button><button class="abtn pri">＋ Add to product line${fees.length?"s":""}</button></div>
+  </div>`;
+}
+
+function floorCardHTML(){
+  const c = fCfg;
+  const p = floorCellCost(c.sp,c.grade,c.cons,c.w,c);
+  if (p==N) return `<div class="card"><div class="rows" style="padding:18px 14px;color:var(--ft-faint);font-weight:700;font-size:13px">This combination isn't offered — pick an available width.</div></div>`;
+  const t = texOf(c.tex), e = EDGES.find(x=>x[0]===c.edge), l = LENGTHS.find(x=>x[0]===c.len);
+  const fees = [];
+  if (c.finish!=="unf" && c.finish!=="nat"){ if (sf<250) fees.push(["Small-order fee — prefinished job under 250 sf",600]); else if (sf<500) fees.push(["Small-order fee — prefinished job under 500 sf",300]); }
+  if (["t1","t2","t3"].includes(c.finish)) fees.push(["Custom color-match sample — approval bundle shipped",750]);
+  const sell = mUp(p), feeTot = fees.reduce((a,f)=>a+f[1],0);
+  const grade = c.sp===LSSP?"Live Sawn":(c.grade==="clear"?"Clear":"Character");
+  const desc = `${WL[c.w]} ${c.sp} ${grade} ${c.cons==="solid"?"Solid":"Engineered"}${t[0]!=="smooth"?" "+t[1]:""}${e[0]!=="square"?" "+e[1]:""}${l[2]?" "+l[1].replace(" (standard)","")+" lengths":""} ${c.finish==="unf"?"Unfinished":c.finish==="nat"?`Prefinished Natural ${c.sheen} sheen`:c.finish==="est"?`Prefinished ${c.stain||"(pick stain)"} stain ${c.sheen} sheen`:`Custom color ${c.finish.toUpperCase()} ${c.sheen} sheen`}`;
+  return `<div class="card">
+    <div class="top"><span class="h">H</span><b>Sheoga ${WL[c.w]} ${esc(c.sp)}</b><span class="note">priced from Sheoga sheets · Jan ’26</span></div>
+    <div class="desc">${esc(desc)}</div>
+    <div class="rows" style="padding-top:8px">
+      <div class="crow"><span>Configured cost — every option baked in (the grid shows this same number for all species/widths)</span><span>${fm(p)}/sf</span></div>
+      ${fees.map(f=>`<div class="crow fee"><span>${esc(f[0])} → imports as its own line</span><span>+${fm(f[1])} flat</span></div>`).join("")}
+      <div class="crow warn"><span>Made to order · 5–10% overrun · non-returnable</span><span></span></div>
+    </div>
+    <div class="tot">
+      <div class="cell"><div class="e">our cost</div><div class="v">${fm(p)}/sf</div></div>
+      <div class="arrow">→ +${markup}% →</div>
+      <div class="cell"><div class="e">sell</div><div class="v sell">${fm(sell)}/sf</div></div>
+      <div class="right cell"><div class="e">× ${sf} sq ft${feeTot?` + ${fm(feeTot)} fees`:""}</div><div class="v">$${Math.round(sell*sf+feeTot).toLocaleString()}</div></div>
+    </div>
+    <div class="actions"><button class="abtn">＋ Add to basket</button><button class="abtn pri">＋ Add to product line${fees.length?"s":""}</button></div>
+  </div>`;
+}
+
+// ---- top-level render -------------------------------------------------------------
+function render(){
+  document.querySelectorAll("#scen button").forEach(b=>b.classList.remove("on"));
+  const pop = document.getElementById("pop");
+  pop.className = "pop"+(phone?" phone":"");
+  const tabsHTML = `<div class="tabs">
+    <button class="tab${tab==="floor"?" on":""}" data-k="tab" data-v="floor">Unfinished &amp; custom</button>
+    <button class="tab${tab==="stocked"?" on":""}" data-k="tab" data-v="stocked">Stocked prefinished</button>
+    <button class="tab">Wood vents</button><button class="tab">Dampers</button>
+  </div>`;
+  const headHTML = `<div class="head"><div><div class="eyebrow">Vendor configurator</div>
+    <h1>Sheoga Hardwood <span class="sub">bought by description — no SKUs</span></h1></div><div class="xbtn">×</div></div>`;
+  if (!phone){
+    pop.innerHTML = `${headHTML}${tabsHTML}
+      <div class="body">
+        ${gridPanelHTML()}
+        <div class="rail">${tab==="stocked"?stockedRailHTML():floorRailHTML()}</div>
+        <div class="pane">${tab==="stocked"?stockedCardHTML():floorCardHTML()}
+          <p class="pnote">Big screens dock the price grid on the left — the buttons and the grid drive the same build, and the highlight follows either one. Sheet prices are distributor cost · flooring effective Jan 19 2026.</p></div>
+      </div>
+      <div class="foot"><label>Markup <input type="number" data-k="markup" value="${markup}"> %</label>
+        <label>Job size <input type="number" data-k="sf" value="${sf}"> sq ft</label>
+        <span class="tip">The description is the order — read it to Sheoga, or reconfigure from the row later.</span></div>`;
+  } else {
+    const kRow = pageRow(kCfg);
+    const kp = kRow ? pageCost(kRow,kCfg.grade,SHEET_WS.indexOf(kCfg.w)) : N;
+    const fp = floorCellCost(fCfg.sp,fCfg.grade,fCfg.cons,fCfg.w,fCfg);
+    const p = tab==="stocked"?kp:fp;
+    const nm = tab==="stocked"?`${WL[kCfg.w]} ${kCfg.sp} ${kCfg.color}`:`${WL[fCfg.w]} ${fCfg.sp} ${fCfg.grade==="clear"?"Clear":"Char."} ${fCfg.cons==="solid"?"Solid":"Eng."}`;
+    const stock = tab==="stocked" && kRow && isGreen(kRow,kCfg.grade,SHEET_WS.indexOf(kCfg.w)) && String(kCfg.sheen)===String(kRow.sheen);
+    pop.innerHTML = `${headHTML}${tabsHTML}
+      ${tab==="stocked"?`<div class="phonebadge">${stock?'<span class="badge stock">⬤ STOCK — no small-order fee</span>':'<span class="badge mto">◌ made to order</span>'}</div>`:""}
+      <div class="body" style="position:relative">
+        <div class="rail">${tab==="stocked"?stockedRailHTML():floorRailHTML()}</div>
+        ${sheetOpen?`<div class="overlay">
+          <div class="oh"><b>${tab==="stocked"?"Prefinished price sheet":"Unfinished price grid"}</b>
+            ${tab==="stocked"?`<button class="sbtn${stockOnly?" on":""}" data-k="stockOnly">⬤ Stocked / Rush</button>`:""}
+            <span class="seg" style="border:1px solid var(--ft-border-strong);border-radius:7px"><button data-k="pm" data-v="cost" class="${priceMode==="cost"?"on":""}">Cost</button><button data-k="pm" data-v="sell" class="${priceMode==="sell"?"on":""}">Sell</button></span>
+            <div class="xbtn" data-k="closeSheet">×</div></div>
+          ${tab==="floor"?`<div class="gp-sub">${floorOptsSummary()}</div>`:""}
+          <div class="oscroll">${tab==="stocked"?stockedTableHTML():floorTableHTML()}</div>
+        </div>`:""}
+      </div>
+      <div class="pbar">
+        <button class="gridfab" data-k="openSheet">▦ Grid</button>
+        <div class="d"><div class="n">${esc(nm)}</div><div class="s">${sf} sf · tap for build detail</div></div>
+        <div class="price"><div class="v">${p==N?"—":fm(mUp(p))}</div><div class="e">/sf · sell</div></div>
+      </div>`;
+  }
+  bind();
+}
+
+function bind(){
+  document.querySelectorAll("[data-k]").forEach(el=>{
+    const k = el.dataset.k;
+    const act = {
+      tab: ()=>{ if(el.dataset.v){ tab=el.dataset.v; sheetOpen=false; } },
+      pm: ()=>{ priceMode=el.dataset.v; },
+      stockOnly: ()=>{ stockOnly=!stockOnly; },
+      openSheet: ()=>{ sheetOpen=true; },
+      closeSheet: ()=>{ sheetOpen=false; },
+      cell: ()=>{ const r = PAGE.find(x=>x.sp===el.dataset.sp && x.color===el.dataset.color && (x.tex||"smooth")===el.dataset.tex);
+        kCfg = {sp:r.sp,color:r.color,tex:r.tex||"smooth",grade:el.dataset.grade,w:SHEET_WS[+el.dataset.wi],sheen:String(r.sheen)}; sheetOpen=false; },
+      fcell: ()=>{ fCfg = {...fCfg, sp:el.dataset.sp, grade:el.dataset.sp===LSSP?fCfg.grade:el.dataset.grade, cons:el.dataset.cons, w:+el.dataset.w}; sheetOpen=false; },
+      ksp: ()=>{ const sp=el.dataset.id; const r=PAGE.find(x=>x.sp===sp); kCfg={...kCfg,sp,color:r.color,tex:r.tex||"smooth",sheen:String(r.sheen)}; snapK(); },
+      kcolor: ()=>{ const [color,tex]=el.dataset.id.split("|"); const r=PAGE.find(x=>x.sp===kCfg.sp&&x.color===color&&(x.tex||"smooth")===tex); kCfg={...kCfg,color,tex,sheen:String(r.sheen)}; snapK(); },
+      kgrade: ()=>{ kCfg={...kCfg,grade:el.dataset.v}; snapK(); },
+      kw: ()=>{ kCfg={...kCfg,w:+el.dataset.id}; },
+      ksheen: ()=>{ kCfg={...kCfg,sheen:el.value}; },
+      fsp: ()=>{ const sp=el.dataset.id; fCfg={...fCfg,sp}; const ws=sp===LSSP?LS.ws:WIDTHS; if(!ws.includes(fCfg.w)||floorCellCost(sp,fCfg.grade,fCfg.cons,fCfg.w,fCfg)==N){ fCfg.w=ws.find(w=>floorCellCost(sp,fCfg.grade,fCfg.cons,w,fCfg)!=N)??ws[0]; } },
+      fcons: ()=>{ fCfg={...fCfg,cons:el.dataset.v}; const ws=fCfg.sp===LSSP?LS.ws:WIDTHS; if(floorCellCost(fCfg.sp,fCfg.grade,fCfg.cons,fCfg.w,fCfg)==N){ fCfg.w=ws.find(w=>floorCellCost(fCfg.sp,fCfg.grade,fCfg.cons,w,fCfg)!=N)??fCfg.w; } },
+      fgrade: ()=>{ fCfg={...fCfg,grade:el.dataset.v}; },
+      fw: ()=>{ fCfg={...fCfg,w:+el.dataset.id}; },
+      ftex: ()=>{ fCfg={...fCfg,tex:el.value}; },
+      ffin: ()=>{ fCfg={...fCfg,finish:el.value}; },
+      fstain: ()=>{ fCfg={...fCfg,stain:el.value}; },
+      fsheen: ()=>{ fCfg={...fCfg,sheen:el.value}; },
+      flen: ()=>{ fCfg={...fCfg,len:el.value}; },
+      fedge: ()=>{ fCfg={...fCfg,edge:el.value}; },
+      fsap: ()=>{ fCfg={...fCfg,noSap:!fCfg.noSap}; },
+      markup: ()=>{ markup=+el.value||40; },
+      sf: ()=>{ sf=+el.value||1; },
+    }[k];
+    if (!act) return;
+    if (el.tagName==="SELECT") el.onchange = ()=>{ act(); render(); };
+    else if (el.dataset.k==="markup"||el.dataset.k==="sf") el.oninput = ()=>{ act(); render(); };
+    else el.onclick = ()=>{ act(); render(); };
+  });
+}
+// Snap the stocked width onto a priced cell when species/color/grade moved off one.
+function snapK(){
+  const r = pageRow(kCfg); if (!r) return;
+  if (r.charOnly && kCfg.grade==="clear") kCfg.grade="char";
+  const wi = SHEET_WS.indexOf(kCfg.w);
+  if (wi<0 || pageCost(r,kCfg.grade,wi)==N){
+    const w2 = SHEET_WS.find((w,i)=>pageCost(r,kCfg.grade,i)!=N);
+    if (w2!=null) kCfg.w=w2;
+  }
+}
+
+const scen = document.getElementById("scen");
+scen.innerHTML = SCEN.map((s,i)=>`<button data-i="${i}">${s[0]}</button>`).join("");
+scen.querySelectorAll("button").forEach(b=>b.onclick=()=>{SCEN[+b.dataset.i][1](); render(); b.classList.add("on");});
+render();
+</script>
+</body>
+</html>

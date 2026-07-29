@@ -10,6 +10,8 @@ import {
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, hbFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
+  PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowFor, prefinRowForStocked,
+  stockedForPrefin, floorSeedFromPrefin, floorCellCost, floorGridIncludes,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -26,10 +28,12 @@ test("unfinished grid: 9 species, arrays index the 7-width run", () => {
   assert.equal(LIVE_SAWN.eng.length, LIVE_SAWN.ws.length);
 });
 
-test("engineered has no 2¼\" column; stocked widths per grade", () => {
+test("engineered 2¼\" is a short-plank premium; stocked widths per grade", () => {
+  // The 1/19/26 sheet prices engineered 2¼" ABOVE 3¼" in every species —
+  // transcribed as printed, not a slip.
   for (const sp of Object.keys(UNFINISHED)) {
-    assert.equal(UNFINISHED[sp].eClear[0], null, sp);
-    assert.equal(UNFINISHED[sp].eChar[0], null, sp);
+    assert.ok(UNFINISHED[sp].eClear[0] > UNFINISHED[sp].eClear[1], sp);
+    assert.ok(UNFINISHED[sp].eChar[0] > UNFINISHED[sp].eChar[1], sp);
   }
   for (const it of STOCKED) {
     if (it.clear) assert.equal(it.clear.length, STOCKED_WIDTHS.clear.length, `${it.sp} ${it.color} clear`);
@@ -55,26 +59,29 @@ test("vent tables: five columns std/CAR, three framed/3D, groups cover 8 species
 test("cartons cover the 7 standard widths only", () => {
   for (const w of WIDTHS) assert.ok(CARTON_SF[w] > 0, WIDTH_LABEL[w]);
   assert.equal(CARTON_SF[9.25], undefined);
+  assert.equal(CARTON_SF[10.25], undefined);
   assert.equal(CARTON_SF[11.25], undefined);
 });
 
 // --- floorBase ----------------------------------------------------------------
 
 test("floorBase reads the grid by species/grade/construction/width", () => {
-  assert.equal(floorBase(floor()), 4.35); // White Oak char solid 5¼
-  assert.equal(floorBase(floor({ grade: "clear" })), 6.65);
-  assert.equal(floorBase(floor({ cons: "eng" })), 5.70);
-  assert.equal(floorBase(floor({ cons: "eng", grade: "clear" })), 6.85);
-  assert.equal(floorBase(floor({ cons: "eng", w: 2.25 })), null);
-  assert.equal(floorBase(floor({ sp: "Beech", w: 6.25 })), null);
+  assert.equal(floorBase(floor()), 4.15); // White Oak char solid 5¼
+  assert.equal(floorBase(floor({ grade: "clear" })), 6.45);
+  assert.equal(floorBase(floor({ cons: "eng" })), 5.40);
+  assert.equal(floorBase(floor({ cons: "eng", grade: "clear" })), 6.55);
+  assert.equal(floorBase(floor({ cons: "eng", w: 2.25 })), 5.75); // priced since 1/19/26
+  assert.equal(floorBase(floor({ sp: "Beech", w: 6.25 })), 4.10); // full run since 1/19/26
   assert.equal(floorBase(floor({ sp: "Nope" })), null);
   assert.equal(floorBase(floor({ w: 9.25 })), null); // 9¼ is Live Sawn only
 });
 
 test("floorBase: Live Sawn has its own width run, one grade", () => {
-  assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 11.25 })), 6.50);
+  assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 11.25 })), 6.20);
   assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 11.25, cons: "eng" })), null);
-  assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 5.25, cons: "eng" })), 5.25);
+  assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 10.25, cons: "eng" })), null);
+  assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 5.25, cons: "eng" })), 5.05);
+  assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 4.25 })), 3.20); // 4¼ joined the run 1/19/26
   assert.equal(floorBase(floor({ sp: LIVE_SAWN_SP, w: 2.25 })), null);
   assert.deepEqual(floorWidths(floor({ sp: LIVE_SAWN_SP })), LIVE_SAWN.ws);
   assert.deepEqual(floorWidths(floor()), WIDTHS);
@@ -84,7 +91,7 @@ test("floorBase: Live Sawn has its own width run, one grade", () => {
 
 test("calcFloor: standard-spec cost is the bare base", () => {
   const c = calcFloor(floor(), 1000);
-  assert.equal(c.cost, 4.35);
+  assert.equal(c.cost, 4.15);
   assert.equal(c.per, "sf");
   assert.equal(c.cartonSf, 20.5);
   assert.equal(c.size, '5¼"');
@@ -99,8 +106,8 @@ test("calcFloor: standard-spec cost is the bare base", () => {
 
 test("calcFloor: length % applies to base incl. no-sap, before flat adders", () => {
   const c = calcFloor(floor({ sp: "Walnut", noSap: true, len: "2-8", tex: "oldmill", edge: "pillow" }), 1000);
-  // base 5.95 + sap 2.00 → +15% = 1.1925, + 2.50 old mill + 1.00 pillowed
-  assert.ok(Math.abs(c.cost - (5.95 + 2 + 7.95 * 0.15 + 2.5 + 1)) < 1e-9);
+  // base 5.55 + sap 2.00 → +15% = 1.1325, + 2.50 old mill + 1.00 pillowed
+  assert.ok(Math.abs(c.cost - (5.55 + 2 + 7.55 * 0.15 + 2.5 + 1)) < 1e-9);
   assert.ok(c.desc.includes("No sap"));
   assert.ok(c.rows.some(([l]) => l === "No-sap upcharge"));
   assert.ok(c.rows.some(([l]) => l.includes("+15% of base")));
@@ -108,23 +115,23 @@ test("calcFloor: length % applies to base incl. no-sap, before flat adders", () 
 
 test("calcFloor: no-sap only exists for Cherry/Walnut", () => {
   const c = calcFloor(floor({ noSap: true }), 1000); // White Oak
-  assert.equal(c.cost, 4.35);
+  assert.equal(c.cost, 4.15);
   assert.ok(!c.desc.includes("No sap"));
-  assert.equal(calcFloor(floor({ sp: "Cherry", noSap: true }), 1000).cost, 4.05 + 1.0);
+  assert.equal(calcFloor(floor({ sp: "Cherry", noSap: true }), 1000).cost, 3.75 + 1.0);
 });
 
 test("calcFloor: established stain picks its rate from the texture depth", () => {
   const smooth = calcFloor(floor({ finish: "est", stain: "Toasted Acorn" }), 1000);
-  assert.equal(smooth.cost, 4.35 + 1.95);
+  assert.equal(smooth.cost, 4.15 + 2.05);
   assert.ok(smooth.desc.includes("Prefinished Toasted Acorn stain"));
   const deep = calcFloor(floor({ finish: "est", tex: "sawcut" }), 1000);
-  assert.equal(deep.cost, 4.35 + 1.5 + 2.85);
+  assert.equal(deep.cost, 4.15 + 1.5 + 3.15);
   assert.ok(deep.desc.includes("(pick stain)"));
 });
 
 test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => {
   const est = (sf) => calcFloor(floor({ finish: "est", stain: "Cattail" }), sf);
-  const base = 4.35 + 1.95; // established stain, smooth texture
+  const base = 4.15 + 2.05; // established stain, smooth texture
   const big = est(600);
   assert.equal(big.cost, base);
   assert.deepEqual(big.fees, []);
@@ -140,7 +147,7 @@ test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => 
 test("calcFloor: Prefinished Natural never owes the small-order fee", () => {
   for (const sf of [200, 400, 600]) {
     const c = calcFloor(floor({ finish: "nat" }), sf);
-    assert.equal(c.cost, 4.35 + 1.65);
+    assert.equal(c.cost, 4.15 + 1.70);
     assert.deepEqual(c.fees, []);
   }
 });
@@ -157,7 +164,7 @@ test("calcFloor: custom color always charges the $750 sample; established stain 
   const SAMPLE = { label: "Custom color-match sample — approval bundle shipped", amt: 750 };
   // Custom color (T-2): sample is mandatory — charged even without the flag, no "add it" warning.
   const custom = calcFloor(floor({ finish: "t2", stain: "ClubHouse Brown" }), 1000);
-  assert.equal(custom.cost, 4.35 + 3.65);
+  assert.equal(custom.cost, 4.15 + 4.00);
   assert.deepEqual(custom.fees, [SAMPLE]);
   assert.ok(!custom.warn.some((w) => w.includes("color-match")));
   assert.ok(custom.desc.includes("Custom color T-2 “ClubHouse Brown”"));
@@ -166,11 +173,11 @@ test("calcFloor: custom color always charges the $750 sample; established stain 
   assert.deepEqual(calcFloor(floor({ finish: "est", sample: true }), 1000).fees, [SAMPLE]);
 });
 
-test("calcFloor: Live Sawn 9¼/11¼ carry no carton figure", () => {
+test("calcFloor: Live Sawn 9¼–11¼ carry no carton figure", () => {
   const c = calcFloor(floor({ sp: LIVE_SAWN_SP, w: 11.25 }), 1000);
   assert.equal(c.cartonSf, null);
   assert.ok(c.desc.startsWith('11¼" Live Sawn White Oak Live Sawn'));
-  assert.equal(calcFloor(floor({ sp: "Beech", w: 6.25 }), 1000), null);
+  assert.equal(calcFloor(floor({ sp: LIVE_SAWN_SP, w: 10.25, cons: "eng" }), 1000), null); // solid-only width
 });
 
 test("calcFloor: length shows only when non-standard; sheen rides prefinished", () => {
@@ -186,7 +193,7 @@ test("calcFloor: length shows only when non-standard; sheen rides prefinished", 
 
 test("calcStocked looks up by species + color, not table position", () => {
   const c = calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 5.25 });
-  assert.equal(c.cost, 6.00);
+  assert.equal(c.cost, 5.85);
   assert.equal(c.cartonSf, 20.5);
   assert.equal(c.desc, '5¼" White Oak Natural Character Stocked prefinished 30 sheen');
   assert.deepEqual(c.warn, ["Stocked item — ships from Sheoga stock"]);
@@ -197,7 +204,7 @@ test("calcStocked: off-standard sheen adds a flat $250 fee line, stays at cost",
   const base = { sp: "White Oak", color: "Natural", grade: "char", w: 5.25 }; // standard 30
   assert.deepEqual(calcStocked({ ...base, sheen: "30" }).fees, []);
   const off = calcStocked({ ...base, sheen: "5" });
-  assert.equal(off.cost, 6.00); // fee never folds into $/sf
+  assert.equal(off.cost, 5.85); // fee never folds into $/sf
   assert.deepEqual(off.fees, [{ label: "Non-standard sheen — 5-sheen (standard 30)", amt: 250 }]);
   assert.ok(off.desc.endsWith("Stocked prefinished 5 sheen"));
   assert.ok(off.warn[0].includes("made to order"));
@@ -206,11 +213,15 @@ test("calcStocked: off-standard sheen adds a flat $250 fee line, stays at cost",
 });
 
 test("calcStocked: missing grade/width/color combos are null", () => {
-  assert.equal(calcStocked({ sp: "Maple", color: "Frost", grade: "clear", w: 3.25 }), null); // char-only color
+  assert.equal(calcStocked({ sp: "White Oak", color: "Cattail", grade: "clear", w: 3.25 }), null); // char-only color
   assert.equal(calcStocked({ sp: "Red Oak", color: "Natural", grade: "char", w: 6.25 }), null); // N cell
   assert.equal(calcStocked({ sp: "White Oak", color: "Natural", grade: "clear", w: 2.25 }), null); // N cell
   assert.equal(calcStocked({ sp: "White Oak", color: "Nope", grade: "char", w: 5.25 }), null);
   assert.equal(calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 7.25 }), null); // beyond char run
+  // A color the 1/19/26 sheet no longer stocks resolves like any unknown color —
+  // the saved row keeps its snapshot, only Reconfigure goes dead.
+  assert.equal(calcStocked({ sp: "Maple", color: "Frost", grade: "char", w: 4.25 }), null);
+  assert.equal(calcStocked({ sp: "Red Oak", color: "Nutmeg", grade: "char", w: 4.25 }), null);
 });
 
 // --- calcHerringbone ----------------------------------------------------------
@@ -265,14 +276,14 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   assert.equal(plain.cost, 8.40); // unchanged from the bare band × width
   assert.deepEqual(plain.fees, []);
   assert.equal(plain.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats');
-  // Saw Cut scrape (+1.50) + Established stain on a deep scrape (+2.85).
+  // Saw Cut scrape (+1.50) + Established stain on a deep scrape (+3.15).
   const fin = calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail" }, 1000);
-  assert.equal(fin.cost, 8.40 + 1.5 + 2.85);
+  assert.equal(fin.cost, 8.40 + 1.5 + 3.15);
   assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30 sheen');
   assert.ok(fin.rows.some(([l]) => l === "Texture — Saw Cut"));
   // Small-order fee follows sf, imports as its own flat line, never in the $/sf.
   const small = calcHerringbone({ ...base, finish: "est", stain: "Cattail" }, 200);
-  assert.equal(small.cost, 8.40 + 1.95);
+  assert.equal(small.cost, 8.40 + 2.05);
   assert.deepEqual(small.fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
   assert.deepEqual(calcHerringbone({ ...base, finish: "est", stain: "Cattail" }, 600).fees, []);
   // Prefinished Natural is exempt at every size (owner rule 2026-07-28).
@@ -353,11 +364,11 @@ test("calcVent prices by category column and species group", () => {
 test("calcVent options: cubed/prefin/tex/damper/frame stack onto the base", () => {
   const v = { ...defaultConfig("vent"), sp: "White Oak", cat: "std-fl", size: "4×12", qty: 1 };
   assert.equal(calcVent(v).cost, 20.85);
-  assert.equal(calcVent({ ...v, cubed: true }).cost, 30.85);
+  assert.equal(calcVent({ ...v, cubed: true }).cost, 20.85 + 13.00); // $13 per the sheet's 3-D note, owner-confirmed 2026-07-29
   assert.equal(calcVent({ ...v, prefin: true }).cost, 20.85 + 28.25);
   assert.equal(calcVent({ ...v, tex: true }).cost, 28.85);
-  // damper 4×12 stocking 21.88 + $5 attach
-  assert.ok(Math.abs(calcVent({ ...v, damper: true }).cost - (20.85 + 26.88)) < 1e-9);
+  // damper 4×12 cost 22.07 + $5 attach
+  assert.ok(Math.abs(calcVent({ ...v, damper: true }).cost - (20.85 + 27.07)) < 1e-9);
   // frame: L + 2W lineal = 12 + 2×4 = 20" × $0.40
   assert.equal(frameLineal("4×12"), 20);
   assert.ok(Math.abs(calcVent({ ...v, frame: true }).cost - (20.85 + 8)) < 1e-9);
@@ -415,13 +426,14 @@ test("calcVent: cubed/frame only where the category offers them; damper only on 
   assert.equal(noDamper.cost, 36.25); // 6×16 has no stocked damper
 });
 
-test("calcDamper: loose dampers at stocking cost", () => {
+test("calcDamper: loose dampers at the sheet's distributor cost", () => {
   const c = calcDamper({ size: "6×14", qty: 8 });
-  assert.equal(c.cost, 28.13);
+  assert.equal(c.cost, 24.82);
   assert.equal(c.qty, 8);
   assert.equal(c.desc, '6×14" vent damper (loose)');
-  assert.ok(c.rows[1][0].includes("builder $32.63 · retail $36.00"));
+  assert.equal(c.rows.length, 1); // the 2026-07 sheet has no builder/retail columns
   assert.equal(calcDamper({ size: "9×9", qty: 1 }), null);
+  assert.equal(calcDamper({ size: "8×12", qty: 1 }), null); // dropped from the sheet
 });
 
 // --- calcConfig / defaults ----------------------------------------------------
@@ -467,8 +479,8 @@ test("lineItems: sq-ft build → one hardwood row, size-first, carton-aware", ()
   assert.equal(main.sizeText, '5¼"');
   assert.ok(main.brandColor.startsWith("Sheoga — White Oak Character Solid"));
   assert.ok(!main.brandColor.includes('5¼"')); // size lives in sizeText, not the name
-  assert.equal(main.priceSqft, "6.09");
-  assert.equal(main.costSqft, "4.35");
+  assert.equal(main.priceSqft, "5.81");
+  assert.equal(main.costSqft, "4.15");
   assert.equal(main.markupPct, "40");
   assert.equal(main.cartonSf, "20.5");
   assert.equal(main.sku, "");
@@ -481,7 +493,7 @@ test("lineItems: fees land as their own misc lines at cost", () => {
   const lines = lineItems({ mode: "floor", cfg }, { sf: 200, markupPct: 50 });
   assert.equal(lines.length, 3); // main + small-order fee + sample
   const [main, fee, sample] = lines;
-  assert.equal(main.priceSqft, String(Math.round((4.35 + 3.05) * 1.5 * 100) / 100));
+  assert.equal(main.priceSqft, String(Math.round((4.15 + 3.35) * 1.5 * 100) / 100));
   for (const f of [fee, sample]) {
     assert.equal(f.type, "misc");
     assert.equal(f.qty, "1");
@@ -534,14 +546,16 @@ test("parseQuery pulls species/grade/construction/width/texture from free text",
   assert.equal(parseQuery("maple 12.25").w, undefined); // not a Sheoga width
 });
 
-test("parseQuery routes vents / dampers / herringbone to their modes", () => {
+test("parseQuery routes vents / dampers to their modes; retired herringbone doesn't", () => {
   assert.equal(parseQuery("walnut vent 4x12").mode, "vent");
   assert.equal(parseQuery("damper").mode, "damper");
   assert.equal(parseQuery("vent damper").mode, "vent"); // attached damper rides the vent tab
+  // Herringbone is custom-quote only (HB_RETIRED) — the words no longer set a
+  // mode, so the species alone drives the seed onto the floor tab.
   const hb = parseQuery("chevron red oak");
-  assert.equal(hb.mode, "hb");
-  assert.equal(hb.chevron, true);
-  assert.equal(parseQuery("herringbone").chevron, false);
+  assert.equal(hb.mode, undefined);
+  assert.equal(hb.sp, "Red Oak");
+  assert.deepEqual(parseQuery("herringbone"), {});
 });
 
 test("queryHit: any ≥3-letter prefix of 'sheoga' or a trade word pins the row", () => {
@@ -560,7 +574,8 @@ test("querySummary narrates what the row will open", () => {
   assert.equal(querySummary(parseQuery("white oak char 5 1/4 engineered")), 'opens pre-filled: White Oak · Character · Engineered · 5¼"');
   assert.equal(querySummary(parseQuery("char eng")), "opens pre-filled: …species · Character · Engineered");
   assert.equal(querySummary(parseQuery("cherry vent")), "opens on Wood vents · Cherry");
-  assert.equal(querySummary(parseQuery("chevron walnut 4 1/4")), 'opens on Herringbone (chevron) · Walnut · 4¼"');
+  // Retired herringbone: the query reads as a plain floor search.
+  assert.equal(querySummary(parseQuery("chevron walnut 4 1/4")), 'opens pre-filled: Walnut · 4¼"');
 });
 
 test("seedFromQuery builds the popup's opening { mode, cfg }", () => {
@@ -572,17 +587,19 @@ test("seedFromQuery builds the popup's opening { mode, cfg }", () => {
   assert.equal(v.cfg.sp, "Cherry");
   const vm = seedFromQuery("maple vent"); // 'Maple' isn't a vent species — keep the default
   assert.equal(vm.cfg.sp, "White Oak");
+  // "herringbone" no longer opens the retired tab — the species seeds the floor tab.
   const hb = seedFromQuery("herringbone beech eng");
+  assert.equal(hb.mode, "floor");
   assert.equal(hb.cfg.sp, "Beech");
-  assert.ok(HERRINGBONE.eng.Beech.ws.includes(hb.cfg.w)); // width snapped into Beech's run
+  assert.equal(hb.cfg.cons, "eng");
 });
 
 test("seedFromQuery snaps an unavailable width to the first offered one", () => {
-  const s = seedFromQuery("beech 8 1/4"); // Beech stops at 5¼
-  assert.equal(s.cfg.sp, "Beech");
-  assert.equal(s.cfg.w, 2.25);
-  const e = seedFromQuery("eng red oak 2 1/4"); // engineered starts at 3¼
-  assert.equal(e.cfg.w, 3.25);
+  const s = seedFromQuery("live sawn 2 1/4"); // Live Sawn starts at 4¼
+  assert.equal(s.cfg.sp, LIVE_SAWN_SP);
+  assert.equal(s.cfg.w, 4.25);
+  const e = seedFromQuery("eng red oak 2 1/4"); // engineered 2¼ is priced since 1/19/26
+  assert.equal(e.cfg.w, 2.25);
   assert.ok(floorBase(seedFromQuery("live sawn").cfg) != null);
 });
 
@@ -600,9 +617,9 @@ test("gradeName / finishName", () => {
 
 test("established-stain FINISHES entry keys off texture depth", () => {
   const est = FINISHES.find((x) => x.id === "est");
-  assert.equal(est.add({ tex: "smooth" }), 1.95);
-  assert.equal(est.add({ tex: "oldmill" }), 1.95);
-  assert.equal(est.add({ tex: "bandsawn" }), 2.85);
+  assert.equal(est.add({ tex: "smooth" }), 2.05);
+  assert.equal(est.add({ tex: "oldmill" }), 2.05);
+  assert.equal(est.add({ tex: "bandsawn" }), 3.15);
   assert.equal(TEXTURES.find((t) => t.id === "aged").deep, true);
 });
 
@@ -741,4 +758,135 @@ test("tierFeeOf: an at-cost fee rides the same lens with no markup", () => {
   assert.equal(tierFeeOf(600, "employee", 0), 636);
   assert.equal(tierFeeOf(600, "builder", 8), 552);
   assert.equal(tierFeeOf(750, "sale", 10), 675);
+});
+
+// --- the prefinished sheet (PREFIN_SHEET) --------------------------------------
+
+// The decoupling tripwire. STOCKED transcribes the sheet's highlighted prices;
+// PREFIN_SHEET derives every cell from base + adders. On the 1/19/26 edition
+// they agree everywhere — the Feb '25 edition's textured rows did not, so a
+// future sheet that decouples again fails here instead of quoting silently.
+test("prefinCost derives every transcribed STOCKED price exactly", () => {
+  let checked = 0;
+  for (const it of STOCKED) {
+    const [color] = it.color.split(" · ");
+    const row = PREFIN_SHEET.find((r) => r.sp === it.sp && r.color === color && !!r.tex === !!it.tex);
+    assert.ok(row, `no sheet row for ${it.sp} ${it.color}`);
+    assert.equal(row.sheen, it.sheen, `${it.sp} ${it.color} standard sheen`);
+    for (const grade of ["clear", "char"]) {
+      const arr = it[grade];
+      if (!arr) continue;
+      arr.forEach((p, wi) => {
+        if (p == null) return;
+        assert.equal(prefinCost(row, grade, wi), p, `${it.sp} ${it.color} ${grade} ${WIDTH_LABEL[PREFIN_WS[wi]]}`);
+        assert.equal(prefinGreen(row, grade, wi), true, `${it.sp} ${it.color} ${grade} ${wi} should be green`);
+        checked++;
+      });
+    }
+  }
+  assert.ok(checked > 60, `only ${checked} stocked cells checked`);
+});
+
+test("PREFIN_SHEET green flags sit only on priced cells", () => {
+  for (const row of PREFIN_SHEET) {
+    for (const grade of ["clear", "char"]) {
+      for (const [wi] of PREFIN_WS.entries()) {
+        if (!prefinGreen(row, grade, wi)) continue;
+        assert.notEqual(prefinCost(row, grade, wi), null, `${row.sp} ${row.color} ${grade} ${wi}`);
+      }
+      // ...and every green index names a real width column.
+      for (const wi of row.green?.[grade] || []) assert.ok(wi >= 0 && wi < PREFIN_WS.length, `${row.sp} ${row.color} ${grade} idx ${wi}`);
+    }
+  }
+});
+
+test("prefinCost: charOnly/wMin cut-offs return null, not a price", () => {
+  const sawcut = prefinRowFor({ sp: "Red Oak", color: "Cattail", tex: "sawcut" });
+  assert.ok(sawcut);
+  assert.equal(prefinCost(sawcut, "clear", 3), null);   // Character only
+  assert.equal(prefinCost(sawcut, "char", 1), null);    // starts at 4¼"
+  assert.equal(prefinCost(sawcut, "char", 2), 7.75);
+});
+
+test("prefinRowFor / prefinRowForStocked / stockedForPrefin round-trip a textured row", () => {
+  const row = prefinRowFor({ sp: "Hickory", color: "Hickory Nut", tex: "vintage" });
+  assert.ok(row && row.charOnly);
+  // The smooth Hickory Nut row is a DIFFERENT product, not the same one untextured.
+  assert.notEqual(prefinRowFor({ sp: "Hickory", color: "Hickory Nut" }), row);
+  const it = stockedForPrefin(row);
+  assert.equal(it.color, "Hickory Nut · Vintage Charm");
+  assert.equal(prefinRowForStocked({ sp: it.sp, color: it.color }), row);
+  assert.equal(prefinRowForStocked({ sp: "Q/R White Oak", color: "Caramel" }), null); // not stocked
+});
+
+test("floorSeedFromPrefin: a white cell prices identically on the custom tab", () => {
+  const row = prefinRowFor({ sp: "Q/R White Oak", color: "Caramel" });
+  assert.ok(row);
+  assert.equal(prefinGreen(row, "char", 3), false); // white — Q/R has no stock
+  const cfg = floorSeedFromPrefin(row, "char", 5.25);
+  assert.equal(cfg.finish, "est");
+  assert.equal(cfg.stain, "Caramel");
+  assert.equal(cfg.edge, "bevel");
+  assert.equal(cfg.cons, "solid");
+  assert.equal(cfg.sheen, "20");
+  assert.equal(+calcFloor(cfg, 600).cost.toFixed(2), prefinCost(row, "char", 3));
+});
+
+test("floorSeedFromPrefin: every sheet cell reprices on the custom tab", () => {
+  for (const row of PREFIN_SHEET) {
+    for (const grade of ["clear", "char"]) {
+      PREFIN_WS.forEach((w, wi) => {
+        const p = prefinCost(row, grade, wi);
+        if (p == null) return;
+        const c = calcFloor(floorSeedFromPrefin(row, grade, w), 600);
+        assert.equal(+c.cost.toFixed(2), p, `${row.sp} ${row.color} ${grade} ${WIDTH_LABEL[w]}`);
+      });
+    }
+  }
+});
+
+test("floorSeedFromPrefin: a Natural row seeds the Natural prefinish, no stain", () => {
+  const cfg = floorSeedFromPrefin(prefinRowFor({ sp: "White Oak", color: "Natural" }), "char", 4.25);
+  assert.equal(cfg.finish, "nat");
+  assert.equal(cfg.stain, "");
+});
+
+// --- Live Sawn is unfinished-only (owner, 2026-07-29) --------------------------
+
+test("calcFloor: Live Sawn White Oak prices unfinished and nothing else", () => {
+  const ls = (over) => calcFloor(floor({ sp: LIVE_SAWN_SP, w: 5.25, ...over }), 600);
+  assert.ok(ls({ finish: "unf" }));
+  for (const finish of ["nat", "est", "t1", "t2", "t3"]) assert.equal(ls({ finish }), null, finish);
+  // Every other species still prefinishes.
+  assert.ok(calcFloor(floor({ sp: "White Oak", finish: "nat" }), 600));
+});
+
+test("lineItems: a prefinished Live Sawn snapshot lands no rows at all", () => {
+  const snap = { mode: "floor", cfg: floor({ sp: LIVE_SAWN_SP, w: 5.25, finish: "est", stain: "Cattail" }) };
+  assert.deepEqual(lineItems(snap, { sf: 600 }), []);
+  assert.equal(seedFromQuery("live sawn 5 1/4").cfg.finish, "unf");
+  assert.ok(calcConfig(seedFromQuery("live sawn 5 1/4"), 600));
+});
+
+// --- the live unfinished grid --------------------------------------------------
+
+test("floorCellCost mirrors calcFloor's cost and nulls the same combinations", () => {
+  const f = floor({ tex: "sawcut", finish: "est", stain: "Cattail", len: "2-8", edge: "pillow" });
+  for (const sp of SPECIES) {
+    for (const w of floorWidths({ sp })) {
+      const cfg = { ...f, sp, w };
+      const c = calcFloor(cfg, 600);
+      assert.equal(floorCellCost(cfg), c ? c.cost : null, `${sp} ${w}`);
+    }
+  }
+  assert.equal(floorCellCost(floor({ sp: LIVE_SAWN_SP, w: 2.25 })), null);
+});
+
+test("floorGridIncludes names each flat adder baked into the grid", () => {
+  assert.deepEqual(floorGridIncludes(floor()), []);
+  const inc = floorGridIncludes(floor({ tex: "sawcut", finish: "est", stain: "Cattail", len: "2-8", noSap: true }));
+  assert.deepEqual(inc.map((x) => x.label), ["Saw Cut", "Cattail stain", "2'–8' lengths +15%", "no sap (Cherry / Walnut rows only)"]);
+  assert.equal(inc[0].add, 1.5);
+  assert.equal(inc[1].add, 3.15);   // deep scrape rate
+  assert.equal(inc[2].add, null);   // a % of base, not a flat rate
 });
