@@ -1,0 +1,193 @@
+---
+issue_type: Feature
+summary: A wedi shower-system configurator — one-click stock kits per pan, a
+  custom room solver (walls, pan size, drain placement, extensions), and a fast
+  manual builder with sealant/fastener figuring — its own thing beside the
+  Sheoga configurator. Prototype first.
+status: in progress
+labels: [ready-for-agent]
+---
+
+# wedi shower-system configurator (prototype)
+
+Requested 2026-07-29 with the shop's wedi stock export (`WEDI_1.xlsx`, the ERP
+"Vendor SKU Analysis" for supplier WEDI), wedi's
+`USA_wedi_Distribution_Pricelist_JAN_1_2026.xlsx`, and the
+`Illustrated_Price_List_2026.pdf`; the wedi Technical Handbook
+(wedicorp.com flipbook, Feb 2025) as the install-rules reference:
+
+> "Create a configurator similar to the sheoga configurator, but very much its
+> own thing… 1-button clicks to create Kits with our stock wedi for each of the
+> pans… a custom configurator that I can put in the wall sizes and pan size and
+> drain placement and have it put together a kit using extensions if needed —
+> maybe even multiple options… a fast manual option… figure sealant and screws
+> and washer… Builder pricing for wedi is .82 versus the normal 8% off… focus
+> on the PC version… the custom option had a print option showing the layout,
+> maybe even a 3D example — would need to look very good… must not slow down
+> the rest of the app… port lines into a project and maybe for those lines to
+> be changed in the future… prototype first."
+
+**This folder is the prototype + design record.** Production lands in a later
+PR once the shape is approved.
+
+## Why wedi is not Sheoga
+
+Sheoga has no SKUs and no retail sheet — the configurator builds a
+*description* and marks up from distributor cost. wedi is the opposite on both
+axes: **everything has a part number** (the shop's ERP code for the 151 stocked
+items, wedi's US-SKU for the other ~230), and **wedi publishes suggested
+retail** (MAP policy) with the shop buying at distributor net — the ERP's
+stocked cost matches the 2026 pricelist net to the penny on every linked row
+(verified in `data/`). So there is no markup knob here: **sell = book retail**,
+cost = ERP/net, and the tiers are lenses over retail like everywhere else —
+with one wedi-specific rule, below. What wedi needs instead of a description
+builder is a **system solver**: a shower is a pan + extensions + panels + curb
++ drain finish + consumables that all have to agree with each other.
+
+## The three surfaces (one popup, PC-first)
+
+Mobbin pattern references: IKEA kitchen planner (options rail + live canvas +
+running total) — mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0;
+Walmart "ingredients you'll need" (recipe → swappable stock lines with qty
+steppers + sticky total) — mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456;
+Uber Eats "how it comes" (kit contents as include/customize checkboxes) —
+mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb.
+
+1. **Kits** — every stocked pan (Fundo curbed · curbless · linear · Riolito
+   modules) as a card; **one click builds the house kit** from shop stock,
+   mirroring wedi's own boxed-kit recipe (base + Click&Seal drain (in the box)
+   + drain cover + ½" panels for 3 walls 80" high + curb lean (curbed) /
+   Subliner Dry + 620 + corner seals (curbless) + fasteners + sealant + both
+   collars + corner putty trowel). Every line swappable/steppable
+   (Walmart-style); optional chips for niche, seat/bench, glass shelf, sealant
+   gun, recess kit. A compare chip shows wedi's factory-boxed kit price for
+   the same size (US2000xxx/US2100xxx NOJS) so the desk can see the stock kit
+   beat it.
+2. **Custom** — inputs: pan width × depth, curbed/curbless, drain preference
+   (center · offset toward entry · linear at wall), which sides are walls,
+   wall height (80" default). The solver returns **multiple ranked options**:
+   exact pan · nearest pan + extensions (with corner-extension rule and cut
+   list) · larger pan cut down (channel re-create note) · linear module +
+   extension (drain at wall). Each option carries badges (Cheapest / No
+   cutting / Drain at wall / Fewest pieces), a to-scale **top-down layout
+   diagram** (pieces, seams, cut lines, drain position) and an **isometric 3-D
+   view**, and expands into the same kit panel as tab 1. **Print** produces a
+   layout sheet: diagrams + dimensions + the line list with SKUs — good enough
+   to hand an installer.
+3. **Browse** — the fast manual builder: the whole wedi catalog (stock badged
+   and ranked first, special-order behind it) in dense group-chip rows with
+   fuzzy search and +/- steppers, plus a **"Figure sealant & fasteners"**
+   card that reads the panel square footage already in the build and suggests
+   sealant (sausage vs tube) and fastener kits per wedi's own numbers.
+
+Shared right column ("the build"): grouped lines — Floor · Walls · Drain &
+finish · Install · Add-ons — with qty steppers, per-line tier price, cost +
+margin footer, the tier lens bar, Add to product lines, Print, Copy list.
+
+## The wedi numbers the engine runs on
+
+- **Fasteners:** plan **1 screw + washer per ft² of building panel** (wedi's
+  own planning figure, Illustrated PL p.21); spacing rule for the notes:
+  one fastener every 12" on wall framing, every 6" on ceilings (Technical
+  Handbook). Kits: US5000070 (100 ct tabbed, $32.83/$19.90), US5000086
+  (100 ct tabless), master packs US5000009/US5000012 (1000 ct).
+- **Sealant:** **1.2 oz per ft² of panel** "covers your needs for shower wall,
+  base and curb installation" (Illustrated PL p.19). 10.5 oz tube US5000013,
+  20 oz sausage US5000010 (needs the US5000019 gun — chip appears if a sausage
+  is in the build with no gun on the job); 620 sausage US5000083 for
+  steam/Subliner work, "1.5 linear feet of 2-inch overlap per ounce".
+- **Panels:** min **½" on studs 16" o.c.** (2×4 framing); ⅛"/¼" need
+  continuous backing (Handbook). Stocked: 3×5×½ (15 sf, $54.66), 4×5×½
+  (20 sf, $72.74), 4×8×½ (32 sf, $117.75), plus ¼", 1", 2", Vapor 85.
+- **Extensions:** pre-sloped ¼"/ft (2.1%); a straight extension adds 12" or
+  24" of sloped depth along one side (24×48 US-073783528, 12×72 US3000036,
+  curbless 12×60 US3000035), cuttable in length, stackable in depth; extending
+  on **two adjacent sides takes a corner extension** (16½" sq — US3000053
+  curbed / US3000052 curbless) or two straights mitred at 45°; bases
+  themselves may be cut down with the ½" channel re-created (Illustrated PL
+  p.11). Extensions install with wedi Joint Sealant.
+- **Curbless:** pan perimeter is ¾" — recess the subfloor, or the bracket
+  recess kit US5000085 handles up to 5×5 in ¾" ply, or surface-mount with the
+  16×60 ramp 073736517 (ADA slope); curbless kits add Subliner Dry (53 sf roll
+  US5000001), 620 sealant, and corner seals US5000007/8 for the field seal.
+- **Linear pans:** the 3 stocked 4-sided-slope bases carry a channel (3×5 →
+  43", 4×5 → 27½", 4×6 → 43"); Riolito Neo modules 32"/48" stocked (36/42/54
+  special order) pair with their extensions for one-way slope to a wall drain.
+  Linear covers sold separately, by channel length (27/31/35/43) × finish.
+- **Drain covers:** every pan includes the Click & Seal drain assembly; the
+  cover is the finish pick — 4×4 in SS $67.30 / tileable ¼ & ⅜ / chrome /
+  brass / gold / ORB / matte black / champagne / white (stocked); linear
+  covers + frames likewise.
+
+## Pricing rules
+
+- Retail = ERP retail (stock) / wedi suggested retail (special order).
+  Cost = ERP cost ≡ distributor net. No markup knob.
+- **Builder tier on wedi = retail × 0.82** (owner rule 2026-07-29 — "0.82
+  versus the normal 8% off"). Production route: the configurator stamps
+  `tierPrice` (= round2(retail × .82)) on every line it emits —
+  `product.tierPrice` already exists in `normP` unread, and
+  `docs/pricebook/design.md` Q5 reserved it for exactly "Wedi's 0.82 × retail
+  with per-item exceptions". `pricing.js` learns to prefer `tierPrice` over
+  the flat builderPct at the three hook points (tierView's mapProducts,
+  tierUnitPrice, and the popup's own lens); a `wediBuilderPct` knob
+  (default 18) lands in `normPricing` beside the Sheoga markups so the stamp
+  is tunable. Employee stays cost × 1.06; Sale/custom stay flat off retail.
+- Freight: wedi ships F.O.B. Batavia; $500 net minimum order (10% small-order
+  handling fee below it) and a $20 flat parcel program for covers/frames/
+  shelves — out of scope for v1 (the ADR 0030 freight-program slot fits it
+  later); noted in the build footer when the special-order net total runs
+  under $500.
+
+## Port-to-project (requirement 12)
+
+Every line lands as a normal product row: stocked lines carry the ERP `sku`
+(+ `bookId` once `WEDI_1.xlsx` is dropped into the Price book library as a
+stock book — the existing `detectVendorSkuAnalysis` recognizer handles that
+file with zero new code, which is also what makes requirement 1 free);
+special-order lines go by description with the wedi US-SKU leading it. The
+anchor line (the pan) carries `wedi: { mode, cfg }` — exactly the
+`product.sheoga` pattern — so a **"wedi — reconfigure"** chip reopens the
+popup pre-filled and re-lands the whole kit (later edits to quantities on the
+job sheet survive like any snapshot; reconfigure replaces the kit's lines).
+Companion lines carry `wedi: { part: true }`.
+
+## Perf (requirement 11)
+
+`WediConfigurator.jsx` is a `React.lazy` chunk (ADR 0026 rule 4) and — unlike
+`sheoga.js`, whose tables ride the boot chunk for `queryHit` — the wedi tables
+stay **inside the lazy chunk**: the search box imports only a tiny
+`wediquery.js` recognizer (hit/parse/summary over ~30 trade words + sizes)
+so boot pays a few hundred bytes, not the ~2 000-row catalog. The pinned
+"Vendor configurators" row in `GridOmniSearch`/`MobileSearchSheet`
+generalizes from the hard-coded Sheoga block to a two-entry descriptor list.
+
+## Files
+
+- `data/wedi-stock.json` — the 151 stocked items (ERP code, desc, cost,
+  retail, unit, US-SKU), generated from `WEDI_1.xlsx`.
+- `data/wedi-so.json` — 229 pricelist rows + 6 factory-kit content notes
+  (US-SKU, name, size, details, retail, distributor net, section, discount
+  band, ERP link when stocked), generated from the Jan 1 2026 distribution
+  pricelist ("wedi Fundo" sheet).
+- `proto-data.js` — the same two tables as consts for the prototype.
+- `proto-engine.js` — catalog classification + kit recipes + the room solver
+  + consumable figuring + tier lens, pure JS (node-runnable self-test).
+- `prototype.html` — the standalone prototype (open in a browser, no build;
+  sibling scripts, no CDN beyond the Manrope @import, same as 023).
+- `P*.png` — preview screenshots (the change-control preview proof).
+
+## Assumptions to confirm before production
+
+1. Builder ×0.82 applies to **every** wedi line (pans, panels, consumables,
+   special order alike) — no per-item exceptions yet.
+2. House kits default to 3 walls × 80" high in ½" panel, lean curb, SS 4×4
+   cover — matching wedi's boxed recipe — with the S-Dry line kept out of the
+   kit/solver tabs for v1 (it's stocked and searchable; own mode later).
+3. Extension depth stacking (12" + 24" = 36") is acceptable practice; anything
+   past 36" of added depth ranks the cut-down or bigger-pan option first.
+4. The Vapor 85 / steam program (620 sealant everywhere, tabless washers,
+   patch kit) is a later mode; Browse covers it meanwhile.
+5. Wall panel fill is by area with whole sheets (offcuts assumed reusable
+   across walls); no seam-layout optimizer in v1 — the layout print shows
+   sheet counts per wall, not a cutting diagram.
