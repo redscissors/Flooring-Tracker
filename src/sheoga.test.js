@@ -364,7 +364,7 @@ test("calcVent prices by category column and species group", () => {
 test("calcVent options: cubed/prefin/tex/damper/frame stack onto the base", () => {
   const v = { ...defaultConfig("vent"), sp: "White Oak", cat: "std-fl", size: "4×12", qty: 1 };
   assert.equal(calcVent(v).cost, 20.85);
-  assert.equal(calcVent({ ...v, cubed: true }).cost, 30.85);
+  assert.equal(calcVent({ ...v, cubed: true }).cost, 20.85 + 13.00); // $13 per the sheet's 3-D note, owner-confirmed 2026-07-29
   assert.equal(calcVent({ ...v, prefin: true }).cost, 20.85 + 28.25);
   assert.equal(calcVent({ ...v, tex: true }).cost, 28.85);
   // damper 4×12 cost 22.07 + $5 attach

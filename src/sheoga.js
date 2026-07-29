@@ -331,7 +331,9 @@ export const VENT_CATS = [
 ];
 export const VENT_PREFIN = 28.25;
 export const VENT_TEX = 8.00;
-export const VENT_CUBED = 10.00;
+// The vent sheet's 3-D box note ("Available in same sizes Add $13.00") IS the
+// cubed adder — owner confirmed 2026-07-29, superseding issue 023's $10.
+export const VENT_CUBED = 13.00;
 export const DAMPER_ATTACH = 5.00;
 // One distributor cost per size (the 2026-07 sheet dropped the old four-column
 // Sheoga/stocking/builder/retail list — and the 8×12 size with it).
@@ -577,7 +579,7 @@ export function calcVent(v) {
   const stain = v.prefin && v.stain ? String(v.stain).trim() : "";
   const rows = [[`${cat.name} vent ${v.size}" — group ${g} (${v.sp})`, fm(base) + " ea"]];
   let cost = base;
-  if (v.cubed && cat.cubed) { cost += VENT_CUBED; rows.push(["Cubed grille", "+$10.00"]); }
+  if (v.cubed && cat.cubed) { cost += VENT_CUBED; rows.push(["Cubed grille", `+${fm(VENT_CUBED)}`]); }
   if (v.prefin) { cost += VENT_PREFIN; rows.push([`Prefinished${stain ? ` — ${stain}` : ""}`, "+$28.25"]); }
   if (v.tex) { cost += VENT_TEX; rows.push([`Textured${scrapeName ? ` — ${scrapeName}` : ""}`, "+$8.00"]); }
   if (v.damper && DAMPERS[v.size]) {
