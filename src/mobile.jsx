@@ -5,6 +5,9 @@ import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExac
 import { groutSnapshotPatch } from "./stock.js";
 import { tierUnitPrice, employeeNoCost } from "./pricing.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
+// wediquery.js, never wedi.js — the boot chunk pays for the recognizer only
+// (ADR 0026); the wedi catalog rides its lazy popup chunk.
+import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
@@ -124,9 +127,13 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
   const { results, total, near } = useMergedResults(true, stock, q, searchOrder, strictness, fallback);
   const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const commit = () => { if (picked.length === 1) onPick(picked[0]); else if (picked.length) onPickMany(picked); };
-  // Sheoga has no SKUs, so it never book-matches — pin the same vendor row the
-  // desktop search shows when the query spells the vendor or hits a trade word.
-  const vendor = !!onVendor && sheogaQueryHit(q);
+  // Neither configurator's goods book-match — pin the same vendor rows the
+  // desktop search shows when the query spells a vendor or hits a trade word.
+  const vendorRows = !onVendor ? [] : [
+    sheogaQueryHit(q) && { id: "sheoga", attr: "data-sheoga-entry", title: "Sheoga Hardwood — configure by description", sub: sheogaQuerySummary(sheogaParseQuery(q)) },
+    wediQueryHit(q) && { id: "wedi", attr: "data-wedi-entry", title: "wedi shower systems — kits, custom rooms, catalog", sub: wediQuerySummary(wediParseQuery(q)) },
+  ].filter(Boolean);
+  const vendor = vendorRows.length > 0;
   const noHits = q.trim() && results.length === 0;
   return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col print:hidden" style={{ background: "var(--ft-cream)" }}>
@@ -150,16 +157,16 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
             </div>
           );
         })}
-        {vendor && (
-          <button onClick={() => onVendor(q)} data-sheoga-entry className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-slate-100 text-left" style={{ background: "var(--ft-tint)" }}>
+        {vendorRows.map((v) => (
+          <button key={v.id} onClick={() => onVendor(q, v.id)} {...{ [v.attr]: true }} className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-slate-100 text-left" style={{ background: "var(--ft-tint)" }}>
             <span className="w-6 h-6 rounded flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-brand)" }}><Settings size={13} /></span>
             <span className="flex-1 min-w-0">
-              <span className="block text-[13px] font-extrabold">Sheoga Hardwood — configure by description</span>
-              <span className="block text-[11.5px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{sheogaQuerySummary(sheogaParseQuery(q))}</span>
+              <span className="block text-[13px] font-extrabold">{v.title}</span>
+              <span className="block text-[11.5px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{v.sub}</span>
             </span>
             <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
           </button>
-        )}
+        ))}
         {noHits && !vendor && (stockReady ? (
           <div className="px-4 py-6 text-center text-sm text-slate-400">
             No price-book match.
@@ -236,7 +243,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenSheoga, onDelete, onClose, qtyRef, notify, strictness, fallback }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, onClose, qtyRef, notify, strictness, fallback }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -627,7 +634,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           onPick={(it) => { setSearching(false); onPickStock([it]); }}
           onPickMany={(items) => { setSearching(false); onPickStock(items); }}
           onManual={(t) => { setSearching(false); if (t && !p.brandColor) onPatch({ brandColor: t }); }}
-          onVendor={onOpenSheoga ? (query) => { setSearching(false); onOpenSheoga(query); } : undefined}
+          onVendor={onOpenVendor ? (query, which) => { setSearching(false); onOpenVendor(query, which); } : undefined}
           onClose={() => setSearching(false)} />
       )}
     </MobileSheet>

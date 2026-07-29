@@ -84,6 +84,14 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   form walls — + Add wall by clicking an edge on the drawing, removable
   length×height rows, clickable 45° corner cuts — and kit cards showing
   our stock kit cost instead of the boxed-kit price (P11 shows the flow)
+- Production build 2026-07-29 (Opus 5 agents): src/wedi.js + wediquery.js
+  (engine + boot-chunk recognizer, all assertions ported to node --test),
+  pricing/model/orderentry wiring (Builder prefers the tierPrice stamp),
+  the wediBuilderPct knob, and src/WediConfigurator.jsx as a React.lazy
+  chunk wired like Sheoga (search row, reconfigure chip, restore layer).
+  `R1`-`R10` are the change-control preview proof of the REAL React
+  component (house kit to the penny vs P1, Builder lens, wall drawing,
+  solver, pinned drain, Browse, payload confirm, print, dark mode, 820px)
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)
