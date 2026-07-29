@@ -23,6 +23,16 @@ test("normP keeps a saved row's snapshot values untouched", () => {
   assert.equal(p.costSqft, "2.10");
 });
 
+test("normP passes the configurator markers through and defaults them to null", () => {
+  const bare = normP({ id: "x" });
+  assert.equal(bare.sheoga, null);
+  assert.equal(bare.wedi, null);
+  assert.equal(newProduct().wedi, undefined, "newProduct leaves it to normP, like sheoga");
+  const wedi = { mode: "kit", cfg: { pan: "US2000032", walls: 3 } };
+  assert.deepEqual(normP({ id: "x", wedi }).wedi, wedi, "a kit anchor keeps its configuration to reopen");
+  assert.deepEqual(normP({ id: "x", wedi: { part: true } }).wedi, { part: true }, "a companion line keeps its marker");
+});
+
 test("normP maps the legacy brand/color pair into brandColor", () => {
   assert.equal(normP({ brand: "Daltile", color: "Ash" }).brandColor, "Daltile / Ash");
 });

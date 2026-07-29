@@ -486,6 +486,9 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
                 <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
                   {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={pctInp} /><span className="font-medium">Builder</span>
                 </label>
+                <label className="flex items-center gap-1.5" title="Builder tier on wedi lines — percent off retail the wedi configurator stamps onto each line it adds (18% = the owner's ×0.82 rule). The stamp is snapshotted with the line, so changing this only affects lines added from here on.">
+                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.wediBuilderPct} onChange={(e) => setPct("wediBuilderPct")(e.target.value)} className={pctInp} /><span className="font-medium">wedi Builder</span>
+                </label>
                 <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
                   {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={pctInp} /><span className="font-medium">Sale</span>
                 </label>

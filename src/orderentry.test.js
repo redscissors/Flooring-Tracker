@@ -18,6 +18,17 @@ test("isSpecialOrder: a stock-kind book's row files as stock despite its bookId"
   assert.equal(isSpecialOrder({ bookId: "bkDOIT", sku: "", sheoga: { mode: "floor" } }, stockBookIds), true);
 });
 
+test("isSpecialOrder: a wedi line splits on its SKU — stocked keys as stock, the rest by description", () => {
+  const stockBookIds = new Set(["bkWEDI"]);
+  // special order: wedi's pricelist item, no shop code — the description leads
+  // with the US-SKU instead
+  assert.equal(isSpecialOrder({ wedi: { part: true }, sku: "" }), true);
+  assert.equal(isSpecialOrder({ wedi: { mode: "custom", cfg: {} }, sku: "" }), true);
+  // stocked: the shop's own ERP code, so it keys SKU ⇥ qty like any stock line
+  assert.equal(isSpecialOrder({ wedi: { part: true }, sku: "05153" }), false);
+  assert.equal(isSpecialOrder({ wedi: { part: true }, sku: "05153", bookId: "bkWEDI" }, stockBookIds), false);
+});
+
 test("isSpecialOrder: every Sheoga line is special — the floor AND its fee lines", () => {
   // Custom colour on a small job drags two fees along; all three must file
   // together under Special order, or the fees strand in Stock as "no SKU".

@@ -8,14 +8,21 @@
 import { fitDescription, textParts } from "./descfit.js";
 import { descParts } from "./sheoga.js";
 
-// Which section a product row belongs to. Two things make a line a special
-// order: it came from a price-book "order" book (bookId), or it came from the
+// Which section a product row belongs to. Three things make a line a special
+// order: it came from a price-book "order" book (bookId); it came from the
 // Sheoga configurator (sheoga — the floor line and its at-cost fee lines, which
-// carry the marker without a cfg). Neither is a stock SKU the shop holds.
+// carry the marker without a cfg); or it came from the wedi configurator
+// (wedi) WITHOUT a SKU. None of those is a stock SKU the shop holds.
 // `stockBookIds` (a Set of stock-kind book ids) carves out the ERP stock
 // books' rows — they carry a bookId for provenance/drift but their SKUs are
 // the shop's own, so they file as stock lines (SKU ⇥ qty).
-export const isSpecialOrder = (p, stockBookIds) => (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga;
+//
+// wedi is the split case, because one configurator emits both kinds: the shop
+// stocks 151 wedi items and special-orders the rest off wedi's pricelist. A
+// stocked wedi line carries the shop's ERP sku and keys as stock like any
+// other; a special-order one has no shop code, so it goes by description —
+// which already leads with wedi's US-SKU (issue 066).
+export const isSpecialOrder = (p, stockBookIds) => (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga || (!!p.wedi && !p.sku);
 
 // What an order line with no quantity is keyed as. A zero is unusable at the
 // desk twice over: the ERP won't take a zero-quantity line at all, and the
