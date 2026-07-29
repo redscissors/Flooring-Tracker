@@ -172,10 +172,19 @@
     return best;
   }
 
+  // Back to the sheets' own fractions — a pan is 1 37/64" thick, not 1.58".
+  function inch(n) {
+    var whole = Math.floor(n + 1e-9), rem = n - whole;
+    if (rem < 1e-6) return String(whole);
+    var den = 64, num = Math.round(rem * den);
+    if (num === den) return String(whole + 1);
+    while (num % 2 === 0 && den % 2 === 0) { num /= 2; den /= 2; }
+    return (whole ? whole + " " : "") + num + "/" + den;
+  }
+
   function sizeTextOf(w, d, t) {
     if (w == null || d == null) return "";
-    var f = function (n) { return String(round2(n)).replace(/\.0+$/, ""); };
-    return f(w) + '" x ' + f(d) + '"' + (t != null ? ' x ' + f(t) + '"' : "");
+    return inch(w) + '" x ' + inch(d) + '"' + (t != null ? " x " + inch(t) + '"' : "");
   }
 
   function cleanDesc(desc, us) {
@@ -719,8 +728,9 @@
     return rest ? [{ depth: big, nominal: big, key: spec.items[big] }].concat(rest) : null;
   }
 
-  function runPieces(kind, lay, x0, y0, along, sideLen, horizontal) {
-    // `along` is the run direction; each layer is a band of `depth` across it.
+  // A gapped side → its pieces. Each layer is a band `depth` deep laid across
+  // the side; a side longer than the extension takes several runs, the last cut.
+  function runPieces(kind, lay, x0, y0, sideLen, horizontal) {
     var pieces = [], off = 0;
     lay.forEach(function (L) {
       var it = item(L.key);
@@ -796,8 +806,8 @@
         if (!lw || !ld) return;
         var pieces = [{ kind: "pan", item: p, x: 0, y: 0, w: o.w, d: o.d, cut: null }];
         var warn = [];
-        if (gw > 0) pieces = pieces.concat(runPieces("ext", lw, o.w, 0, "y", o.d, true));
-        if (gd > 0) pieces = pieces.concat(runPieces("ext", ld, 0, o.d, "x", o.w, false));
+        if (gw > 0) pieces = pieces.concat(runPieces("ext", lw, o.w, 0, o.d, true));
+        if (gd > 0) pieces = pieces.concat(runPieces("ext", ld, 0, o.d, o.w, false));
         if (gw > 0 && gd > 0) {
           if (gw <= CORNER_MAX && gd <= CORNER_MAX) {
             var ce = item(EXT[fam === "curbless" ? "curbless" : "fundo"].corner);
@@ -808,7 +818,7 @@
           } else {
             warn.push("corner over 12\" — mitre two straights at 45° instead of a corner extension");
             var cw = gw > 0 ? layers(gw, fam) : [];
-            pieces = pieces.concat(runPieces("ext", cw, o.w, o.d, "y", gd, true));
+            pieces = pieces.concat(runPieces("ext", cw, o.w, o.d, gd, true));
           }
         }
         var lines = aggregate(pieces);
@@ -1059,7 +1069,7 @@
     kitFor: kitFor, solve: solve, figureConsumables: figureConsumables,
     TIERS: TIERS, tierPrice: tierPrice, lineItems: lineItems,
     queryHit: queryHit, parseQuery: parseQuery, querySummary: querySummary, seedFromQuery: seedFromQuery,
-    factoryKit: factoryKit, linearCoverFor: linearCoverFor, dims: dims, round2: round2,
+    factoryKit: factoryKit, linearCoverFor: linearCoverFor, dims: dims, round2: round2, inch: inch,
     CONSUMABLES: CONSUMABLES, SKU: SKU, FINISHES: FINISHES, GROUP_LABEL: GROUP_LABEL,
     MODULE_CHANNEL: MODULE_CHANNEL, BUILDER_MULT: WEDI_BUILDER_MULT, SO_MIN_NET: SO_MIN_NET,
     selfTest: selfTest,
@@ -1081,6 +1091,8 @@
     // --- parsing -------------------------------------------------------------
     ok("frac 1 37/64 = 1.578125", frac("1 37/64") === 1.578125);
     ok("frac 27-1/2 = 27.5", frac("27-1/2") === 27.5);
+    ok("inch() prints the sheets' fractions", inch(1.578125) === "1 37/64" && inch(0.5) === "1/2" && inch(5.75) === "5 3/4" && inch(36) === "36");
+    ok("pan sizeText matches the pricelist", item("US9100004").sizeText === '36" x 60" x 1 37/64"', item("US9100004").sizeText);
     ok("dims '36 in. x 60 in. x 1 37/64 in.'", JSON.stringify(dims("36 in. x 60 in. x 1 37/64 in.")) === "[36,60,1.578125]", dims("36 in. x 60 in. x 1 37/64 in."));
     ok('dims \'48"x60"x1/2"\'', JSON.stringify(dims('wedi® Building Panel 48"x60"x1/2"')) === "[48,60,0.5]", dims('wedi® Building Panel 48"x60"x1/2"'));
     ok("dims '16 1/2 in. x 16 1/2 in.'", JSON.stringify(dims("16 1/2 in. x 16 1/2 in.")) === "[16.5,16.5]", dims("16 1/2 in. x 16 1/2 in."));
