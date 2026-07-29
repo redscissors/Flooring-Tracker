@@ -8,8 +8,9 @@ import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import {
   MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
-  floorBase, floorWidths, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, SPECIES,
+  floorBase, floorWidths, floorCellCost, floorGridIncludes, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, LIVE_SAWN, SPECIES, SP_SHORT, UNFINISHED,
   TEXTURES, EDGES, LENGTHS, FINISHES, NO_SAP, CUSTOM_FINISHES,
+  PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowForStocked, stockedForPrefin, floorSeedFromPrefin,
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_FEE,
@@ -347,7 +348,7 @@ function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, 
           ? <Seg opts={[{ id: "ls", label: "Live Sawn" }]} cur="ls" onPick={() => {}} />
           : <Seg opts={[{ id: "clear", label: "Clear" }, { id: "char", label: "Char." }]} cur={f.grade} onPick={(grade) => set(snapFloorW({ ...f, grade }))} />}
       </div>
-      <div className="ml-auto self-end"><GridButton onClick={onGrid} /></div>
+      {onGrid && <div className="ml-auto self-end"><GridButton onClick={onGrid} /></div>}
     </div>
     <Sect title="Width">
       <WidthRow items={floorWidths(f).map((w) => { const c = calcFloor({ ...f, w }, sf); return { id: w, label: WIDTH_LABEL[w], sub: c ? sell(c) : "—", dis: !c }; })}
@@ -362,8 +363,10 @@ function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, 
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={f.tex} onChange={(tex) => set({ ...f, tex })}
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(tsell(t.add))}` : "") }))} />
-      <Dropdown label="Finishing" hint={f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={(finish) => set({ ...f, finish })}
-        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(tsell(x.add(f)))}`) }))} />
+      {/* Live Sawn is sold unfinished only — its prefinished rows are disabled
+          rather than hidden, so the reason reads off the control itself. */}
+      <Dropdown label="Finishing" hint={f.sp === LIVE_SAWN_SP ? "Live Sawn — unfinished only" : f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={(finish) => set({ ...f, finish })}
+        options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(tsell(x.add(f)))}`), dis: f.sp === LIVE_SAWN_SP && x.id !== "unf" }))} />
     </div>
     {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
         free on this custom/floor tab — no fee, it's made to order regardless. */}
@@ -439,7 +442,7 @@ function StockedRail({ k, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle
       <div className="flex items-center justify-center gap-3">
         <Seg cur={k.grade} onPick={(grade) => set(snap({ ...k, grade }))}
           opts={[{ id: "clear", label: "Clear", dis: !it.clear }, { id: "char", label: "Character", dis: !it.char }]} />
-        <GridButton onClick={onGrid} />
+        {onGrid && <GridButton onClick={onGrid} />}
       </div>
     </div>
     <Sect title="Width">
@@ -761,6 +764,208 @@ function GridModal({ mode, cfg, onPick, onClose }) {
 // React.Fragment that tolerates a key prop list in the vent grid loops.
 const Fragment2 = ({ children }) => <>{children}</>;
 
+// --- docked price grids -------------------------------------------------------
+// Two tables that dock beside the rail on a wide screen (and open as a
+// full-screen overlay on a phone). Presentation only: every number comes from
+// sheoga.js (prefinCost / floorCellCost) through the caller's `show` lens, and
+// a click hands back a cfg patch. The sheet's STOCK / FAST TRACK highlight is
+// the vendor's own single green — one color for both, like the printed page.
+
+const STOCK_BG = "#dcebc7";
+const STOCK_EDGE = "#c2dca1";
+const SAND = { background: "var(--ft-sand)" };
+const DIV = { borderLeft: "1.5px solid var(--ft-grid-line)" };
+const gTh = "sticky px-0.5 py-1 text-right text-[8.5px] font-bold uppercase tracking-[.04em] text-slate-500 whitespace-nowrap z-[3]";
+const gRow = "border-b border-slate-100";
+const gLbl = "sticky left-0 z-[2] bg-white pl-2 pr-1 py-0.5 text-left font-extrabold whitespace-nowrap";
+const gDash = "block px-1 py-0.5 text-center text-[10px] text-slate-300";
+
+function GCell({ p, green, on, tight, onClick }) {
+  return (
+    <button onClick={onClick} style={!on && green ? { background: STOCK_BG } : undefined}
+      className={`block w-full rounded border-2 px-0.5 py-0.5 text-right font-bold tabular-nums ${tight ? "text-[9.5px]" : "text-[10px]"} ${on ? "border-slate-900 bg-slate-900 text-white" : "border-transparent text-slate-800 hover:border-slate-400"}`}>
+      {p.toFixed(2)}
+    </button>
+  );
+}
+
+function CostSellToggle({ value, onPick, className = "" }) {
+  return (
+    <div className={`inline-flex rounded-md border border-slate-300 overflow-hidden ${className}`}>
+      {[["cost", "Cost"], ["sell", "Sell"]].map(([id, label]) => (
+        <button key={id} onClick={() => onPick(id)}
+          className={`border-l first:border-l-0 border-slate-300 px-2 py-0.5 text-[10px] font-extrabold ${value === id ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+function StockOnlyToggle({ on, onClick, label }) {
+  return (
+    <button onClick={onClick} style={on ? { background: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : undefined}
+      className={`rounded-md border px-2 py-0.5 text-[10px] font-extrabold ${on ? "text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}>⬤ {label}</button>
+  );
+}
+
+// The vendor's prefinished page, in sheet order. A GREEN cell is a stock item —
+// it sets the stocked configuration. A WHITE one is made to order at the same
+// $/sf, so it hands off to the custom tab pre-filled (owner decision 1).
+function PrefinSheet({ cfg, show, stockOnly, onGreen, onWhite }) {
+  const cur = prefinRowForStocked(cfg);
+  const rows = PREFIN_SHEET.filter((r) => !stockOnly || r.green);
+  let lastSp = "";
+  return (
+    <table className="w-full border-separate border-spacing-0">
+      <thead>
+        <tr>
+          <th className={`${gTh} left-0 z-[4] text-left`} style={{ ...SAND, top: 0, height: 17 }} />
+          <th colSpan={PREFIN_WS.length} className={`${gTh} text-center`} style={{ ...SAND, top: 0, height: 17 }}>Clear</th>
+          <th colSpan={PREFIN_WS.length} className={`${gTh} text-center`} style={{ ...SAND, ...DIV, top: 0, height: 17 }}>Character</th>
+        </tr>
+        <tr>
+          <th className={`${gTh} left-0 z-[4] text-left pl-2`} style={{ ...SAND, top: 17 }}>Species — color</th>
+          {["clear", "char"].flatMap((g) => PREFIN_WS.map((w, i) => (
+            <th key={g + w} className={gTh} style={{ ...SAND, ...(g === "char" && i === 0 ? DIV : null), top: 17 }}>{WIDTH_LABEL[w]}</th>
+          )))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const spTop = r.sp !== lastSp;
+          lastSp = r.sp;
+          const tex = r.tex ? TEXTURES.find((t) => t.id === r.tex) : null;
+          const cells = (g) => PREFIN_WS.map((w, wi) => {
+            const p = prefinCost(r, g, wi);
+            const edge = g === "char" && wi === 0 ? DIV : null;
+            const style = { ...(edge || {}), ...(spTop ? { borderTop: "1.5px solid var(--ft-grid-line)" } : {}) };
+            if (p == null) return <td key={g + w} className={gRow} style={style}><span className={gDash}>—</span></td>;
+            const green = prefinGreen(r, g, wi);
+            if (stockOnly && !green) return <td key={g + w} className={gRow} style={style}><span className={gDash}>·</span></td>;
+            const on = cur === r && cfg.grade === g && cfg.w === w;
+            return (
+              <td key={g + w} className={gRow} style={style}>
+                <GCell p={show(p)} green={green} on={on} onClick={() => (green ? onGreen : onWhite)(r, g, w)} />
+              </td>
+            );
+          });
+          return (
+            <tr key={`${r.sp}|${r.color}|${r.tex || ""}`}>
+              <td className={`${gLbl} ${gRow} text-[9.5px]`} style={spTop ? { borderTop: "1.5px solid var(--ft-grid-line)" } : undefined} title={`${r.sp} — ${r.color}`}>
+                {SP_SHORT[r.sp] || r.sp} — {r.color}
+                {tex && <span className="text-slate-400 font-semibold"> · {tex.name}</span>}
+                {r.sheen !== 30 && <span className="text-slate-400 font-semibold"> ({r.sheen})</span>}
+              </td>
+              {cells("clear")}
+              {cells("char")}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// The unfinished grid, live: every cell is the FULLY configured cost for that
+// species/grade/construction/width with the tab's current options applied, so
+// changing a scrape or a stain moves the whole grid at once. Live Sawn is its
+// own price run (one grade, 4¼–11¼), so it rides a chip strip per section —
+// and only while the finish is unfinished, which is all Sheoga sells it as.
+function FloorGrid({ f, show, onPick }) {
+  const section = (cons) => {
+    const lsWs = LIVE_SAWN.ws.map((w) => ({ w, p: floorCellCost({ ...f, sp: LIVE_SAWN_SP, cons, w }) })).filter((x) => x.p != null);
+    return (
+      <Fragment2 key={cons}>
+        <tr>
+          <td colSpan={1 + WIDTHS.length * 2} className="sticky left-0 px-2 py-1 text-left text-[9px] font-extrabold uppercase tracking-[.12em]"
+            style={{ ...SAND, color: "var(--ft-brand-deep)", borderTop: "1.5px solid var(--ft-grid-line)", borderBottom: "1px solid var(--ft-grid-line)" }}>
+            {cons === "solid" ? '¾" Solid' : "Engineered"}
+          </td>
+        </tr>
+        {Object.keys(UNFINISHED).map((sp) => (
+          <tr key={sp}>
+            <td className={`${gLbl} ${gRow} text-[9.5px]`}>{sp}</td>
+            {["clear", "char"].flatMap((grade) => WIDTHS.map((w, wi) => {
+              const p = floorCellCost({ ...f, sp, grade, cons, w });
+              const style = grade === "char" && wi === 0 ? DIV : undefined;
+              if (p == null) return <td key={grade + w} className={gRow} style={style}><span className={gDash}>—</span></td>;
+              const on = f.sp === sp && f.grade === grade && f.cons === cons && f.w === w;
+              return <td key={grade + w} className={gRow} style={style}><GCell p={show(p)} on={on} tight onClick={() => onPick({ sp, grade, cons, w })} /></td>;
+            }))}
+          </tr>
+        ))}
+        <tr>
+          <td colSpan={1 + WIDTHS.length * 2} className={gRow}>
+            <div className="flex flex-wrap items-center gap-1 px-2 py-1">
+              <span className="text-[9px] font-extrabold uppercase tracking-[.08em] text-slate-400">Live Sawn WO</span>
+              {f.finish !== "unf" ? (
+                <span className="text-[10px] font-semibold text-slate-400">— unfinished only</span>
+              ) : lsWs.map(({ w, p }) => {
+                const on = f.sp === LIVE_SAWN_SP && f.cons === cons && f.w === w;
+                return (
+                  <button key={w} onClick={() => onPick({ sp: LIVE_SAWN_SP, cons, w })}
+                    className={`rounded border-[1.5px] px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums ${on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"}`}>
+                    {WIDTH_LABEL[w]} {show(p).toFixed(2)}
+                  </button>
+                );
+              })}
+            </div>
+          </td>
+        </tr>
+      </Fragment2>
+    );
+  };
+  return (
+    <table className="w-full border-separate border-spacing-0">
+      <thead>
+        <tr>
+          <th className={`${gTh} left-0 z-[4] text-left`} style={{ ...SAND, top: 0, height: 17 }} />
+          <th colSpan={WIDTHS.length} className={`${gTh} text-center`} style={{ ...SAND, top: 0, height: 17 }}>Clear</th>
+          <th colSpan={WIDTHS.length} className={`${gTh} text-center`} style={{ ...SAND, ...DIV, top: 0, height: 17 }}>Character</th>
+        </tr>
+        <tr>
+          <th className={`${gTh} left-0 z-[4] text-left pl-2`} style={{ ...SAND, top: 17 }}>Species</th>
+          {["clear", "char"].flatMap((g) => WIDTHS.map((w, i) => (
+            <th key={g + w} className={gTh} style={{ ...SAND, ...(g === "char" && i === 0 ? DIV : null), top: 17 }}>{WIDTH_LABEL[w]}</th>
+          )))}
+        </tr>
+      </thead>
+      <tbody>{section("solid")}{section("eng")}</tbody>
+    </table>
+  );
+}
+
+// The panel chrome — title + controls, a one-line legend/subheader, and the
+// table's own scroller. Shared by the docked column and the phone overlay.
+function GridPanel({ width, title, controls, sub, children }) {
+  return (
+    <div className="flex-none flex flex-col min-h-0 bg-white" style={{ width, borderRight: "1.5px solid var(--ft-grid-line)" }}>
+      <div className="flex items-center gap-2 flex-wrap px-2.5 py-2 border-b border-slate-200" style={SAND}>
+        <span className="text-[11px] font-extrabold">{title}</span>
+        {controls}
+      </div>
+      {sub}
+      <div className="flex-1 min-h-0 overflow-auto" style={{ scrollbarGutter: "stable" }}>{children}</div>
+    </div>
+  );
+}
+
+const gridSubCls = "flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 border-b border-slate-200 text-[10px] font-bold text-slate-500";
+
+function PrefinLegend() {
+  return (
+    <div className={gridSubCls}>
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block w-2.5 h-2.5 rounded-[3px]" style={{ background: STOCK_BG, border: `1px solid ${STOCK_EDGE}` }} />
+        STOCK / FAST TRACK — ships from stock, no small-order fee
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block w-2.5 h-2.5 rounded-[3px] border border-slate-300 bg-white" />
+        made to order — fees under 500 sf
+      </span>
+    </div>
+  );
+}
+
 // --- shared build card --------------------------------------------------------
 // The cost -> sell breakdown, shown in the desktop right pane and inside the
 // mobile pull-up sheet. `showActions` keeps the grid/Add buttons on desktop;
@@ -814,7 +1019,7 @@ function BuildCard({ c, sell, activeMarkup, tierId, pct, tierColor, tfee, isEa, 
       )}
       {showActions && (
         <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
-          <button onClick={onGrid} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Grid3X3 size={13} /> Full price grid</button>
+          {onGrid && <button onClick={onGrid} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Grid3X3 size={13} /> Full price grid</button>}
           <button onClick={onAddBasket} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={13} /> Add to basket</button>
           <button onClick={onAdd} className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5" data-sheoga-add><Plus size={13} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
         </div>
@@ -937,19 +1142,23 @@ function MobileBuildSheet({ open, onClose, children, footer }) {
   );
 }
 
-// Matches the app's 768px breakpoint; self-contained so the harness works too.
-function useIsWide() {
-  const [wide, setWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
+function useMedia(query) {
+  const [on, setOn] = useState(() => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia(query).matches : true));
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(min-width: 768px)");
-    const on = () => setWide(mq.matches);
-    on();
-    mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on);
-    return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); };
-  }, []);
-  return wide;
+    const mq = window.matchMedia(query);
+    const sync = () => setOn(mq.matches);
+    sync();
+    mq.addEventListener ? mq.addEventListener("change", sync) : mq.addListener(sync);
+    return () => { mq.removeEventListener ? mq.removeEventListener("change", sync) : mq.removeListener(sync); };
+  }, [query]);
+  return on;
 }
+// Matches the app's 768px breakpoint; self-contained so the harness works too.
+const useIsWide = () => useMedia("(min-width: 768px)");
+// The third tier: wide enough to dock a price grid beside the rail AND the
+// build card. Below it the floor/stocked grids stay behind the modal button.
+const useIsGridWide = () => useMedia("(min-width: 1400px)");
 
 // --- shopping basket -----------------------------------------------------------
 // A basket entry snapshots a single build or a multi-width bundle so it can sit
@@ -1043,10 +1252,16 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [sf, setSf] = useState(initialSf > 0 ? initialSf : 1);
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
+  const isGridWide = useIsGridWide();
   const [sheetUp, setSheetUp] = useState(false); // mobile: pull-up build sheet
   const [basketOpen, setBasketOpen] = useState(false);
   const [basketSel, setBasketSel] = useState({}); // basket entry id -> selected
-  useEscClose(true, () => { if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
+  // Docked-grid controls (floor + stocked tabs). Sell is the default lens —
+  // the grid answers "what do I quote", not "what do we pay" (owner decision 4).
+  const [gridPrice, setGridPrice] = useState("sell");
+  const [stockOnly, setStockOnly] = useState(false);
+  const [mobileGrid, setMobileGrid] = useState(false);
+  useEscClose(true, () => { if (mobileGrid) setMobileGrid(false); else if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
@@ -1060,7 +1275,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   // The herringbone tab copies from a real floor config, so it tracks the last-
   // open unfinished/stocked tab (never hb itself — that would be a no-op).
   const [flatSrc, setFlatSrc] = useState(seed?.mode === "stocked" ? "stocked" : "floor");
-  const pickMode = (id) => { setMode(id); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
+  const pickMode = (id) => { setMode(id); setMobileGrid(false); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
   const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
   const copyFloorToHb = () => {
     const patch = hbFromFloor({ mode: flatSrc, cfg: cfgs[flatSrc] });
@@ -1133,11 +1348,55 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   // it's just waiting for the slat length, so prompt for that instead.
   const hbNeedsLen = mode === "hb" && !c && hbSlatLen(cfg) == null && !Number.isFinite(cfg.band);
 
+  // --- the docked / overlay price grids ---------------------------------------
+  // Only the two width-run tabs have one; herringbone, vents and dampers keep
+  // the modal at every size. Above 1400px it docks as the body's first column
+  // and the modal button goes away with it.
+  const gridTab = mode === "floor" || mode === "stocked";
+  const dockGrid = isGridWide && gridTab;
+  const gshow = (cost) => (gridPrice === "sell" ? tsell(cost) : cost);
+  // A green cell is the stocked program's own item — set the stocked build.
+  const pickGreen = (row, grade, w) => {
+    const it = stockedForPrefin(row);
+    if (!it) return;
+    setCfgs((c) => ({ ...c, stocked: { ...c.stocked, sp: it.sp, color: it.color, grade, w, sheen: String(it.sheen), sheenCustom: false } }));
+    setMobileGrid(false);
+  };
+  // A white cell is made to order at the same $/sf — it hands off to the custom
+  // tab pre-filled, where it files honestly as the custom order it is.
+  const pickWhite = (row, grade, w) => {
+    const patch = floorSeedFromPrefin(row, grade, w);
+    setCfgs((c) => ({ ...c, floor: snapFloorW({ ...c.floor, ...patch }) }));
+    pickMode("floor");
+    setMobileGrid(false);
+  };
+  const pickFloorCell = (patch) => { set({ ...cfg, ...patch }); setMobileGrid(false); };
+  const gridTitle = mode === "stocked" ? "Prefinished price sheet" : "Unfinished price grid — live with your options";
+  const gridControls = (
+    <>
+      {mode === "stocked" && <StockOnlyToggle on={stockOnly} onClick={() => setStockOnly((v) => !v)} label="Stocked / Rush only" />}
+      <CostSellToggle value={gridPrice} onPick={setGridPrice} className="ml-auto" />
+    </>
+  );
+  const gridSub = mode === "stocked" ? <PrefinLegend /> : (() => {
+    const inc = floorGridIncludes(cfg);
+    return (
+      <div className={gridSubCls}>
+        {inc.length
+          ? <span>every cell includes: <span style={{ color: "var(--ft-brand-deep)" }}>{inc.map((x) => x.label + (x.add ? ` +${fm(gshow(x.add))}` : "")).join(" · ")}</span></span>
+          : <span>bare unfinished base — add a scrape or finish and the whole grid updates</span>}
+      </div>
+    );
+  })();
+  const gridTable = mode === "stocked"
+    ? <PrefinSheet cfg={cfg} show={gshow} stockOnly={stockOnly} onGreen={pickGreen} onWhite={pickWhite} />
+    : <FloorGrid f={cfg} show={gshow} onPick={pickFloorCell} />;
+
   const rail = (
     <>
-      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} tsell={tsell} onGrid={() => setGrid(true)} wide={isWide}
+      {mode === "floor" && <FloorRail f={cfg} set={set} sf={sf} tsell={tsell} onGrid={dockGrid ? null : () => setGrid(true)} wide={isWide}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
-      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} tsell={tsell} onGrid={() => setGrid(true)}
+      {mode === "stocked" && <StockedRail k={cfg} set={set} sf={sf} tsell={tsell} onGrid={dockGrid ? null : () => setGrid(true)}
         multi={multi} mwWidths={mwWidths} onMultiToggle={() => setMulti((m) => !m)} onMwWidth={toggleMwWidth} onStep={stepMw} />}
       {mode === "hb" && <>
         {HB_RETIRED && (
@@ -1219,15 +1478,18 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
       style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
       <div className={`bg-white flex flex-col overflow-hidden ${embedded
           ? "relative flex-1 min-h-0 w-full"
-          : isWide ? "relative rounded-xl w-full max-w-[1060px] h-[min(820px,94vh)] border border-slate-300 shadow-2xl" : "w-full h-full relative"}`}
+          : isWide ? `relative rounded-xl w-full ${dockGrid ? "max-w-[1660px]" : "max-w-[1060px]"} h-[min(820px,94vh)] border border-slate-300 shadow-2xl` : "w-full h-full relative"}`}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-sheoga-pop>
         {header}
         {tabs}
         {!isWide && <div className="shrink-0 overflow-x-auto border-b border-slate-200 px-4 py-2">{tierBar}</div>}
         {isWide ? (<>
-          {/* desktop: options rail + build card side by side */}
+          {/* desktop: [docked price grid] + options rail + build card side by side */}
           <div className="flex-1 flex min-h-0">
-            <div className="w-[50%] max-w-[500px] shrink-0 border-r border-slate-300 overflow-y-auto p-4" style={{ scrollbarGutter: "stable" }}>{rail}</div>
+            {dockGrid && (
+              <GridPanel width={mode === "stocked" ? 660 : 716} title={gridTitle} controls={gridControls} sub={gridSub}>{gridTable}</GridPanel>
+            )}
+            <div className={`${dockGrid ? "w-[430px]" : "w-[50%] max-w-[500px]"} shrink-0 border-r border-slate-300 overflow-y-auto p-4`} style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
               {multi && multiOk ? (
                 <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} tsell={tsell} tfee={tfee} tierColor={tierColor} onShare={setShare}
@@ -1235,7 +1497,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               ) : (!c ? (
                 <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-400">{hbNeedsLen ? "Type a slat length on the left — the build prices from its tier." : "This combination isn't offered — pick an available width."}</div>
               ) : (
-                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={() => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
+                <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={dockGrid ? null : () => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
               ))}
               {priceNote}
             </div>
@@ -1248,25 +1510,37 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         </>) : (<>
           {/* mobile: options fill the screen; price bar pinned; sheet pulls up */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-6">{rail}</div>
-          <button type="button" onClick={() => (c || (multi && multiOk)) && setSheetUp(true)} disabled={!c && !(multi && multiOk)}
-            className="shrink-0 text-left border-t border-slate-300 px-4 pt-2 pb-3" style={{ background: "var(--ft-card)", boxShadow: "0 -6px 24px rgba(28,26,23,.10)" }} data-sheoga-pricebar>
+          {/* The pinned price bar. On a phone the grid can't dock, so it rides
+              here as a button that opens the same table full-screen. */}
+          <div className="shrink-0 border-t border-slate-300 px-4 pt-2 pb-3" style={{ background: "var(--ft-card)", boxShadow: "0 -6px 24px rgba(28,26,23,.10)" }} data-sheoga-pricebar>
             <div className="mx-auto mb-2 h-1.5 w-10 rounded-full" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.2))" }} />
-            {!c ? (
-              <div className="text-center text-xs font-semibold text-slate-400 py-1">{hbNeedsLen ? "Enter a slat length to see the price" : "Pick an available option to see the price"}</div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-extrabold truncate">{c.rest || c.desc}</div>
-                  <div className="text-[10.5px] text-slate-500 font-semibold">{c.size ? c.size + " · " : ""}{isEa ? `${qty} pcs` : ctn ? `${ctn.cartons} cartons · ${ctn.billedSf} sf` : `${sf} sf`}</div>
-                </div>
-                <div className="text-right leading-none">
-                  <div className="text-lg font-extrabold tabular-nums" style={{ color: tierColor || "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}</div>
-                  <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-1">{isEa ? "ea · sell" : "/sf · sell"}</div>
-                </div>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-text)" }}><ChevronUp size={16} /></div>
-              </div>
-            )}
-          </button>
+            <div className="flex items-center gap-2.5">
+              {gridTab && (
+                <button onClick={() => setMobileGrid(true)} style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)", color: "var(--ft-brand-deep)" }}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border-[1.5px] px-2.5 py-2 text-[11px] font-extrabold" data-sheoga-gridbtn>
+                  <Grid3X3 size={13} /> Grid
+                </button>
+              )}
+              <button type="button" onClick={() => (c || (multi && multiOk)) && setSheetUp(true)} disabled={!c && !(multi && multiOk)}
+                className="flex-1 min-w-0 text-left">
+                {!c ? (
+                  <div className="text-center text-xs font-semibold text-slate-400 py-1">{hbNeedsLen ? "Enter a slat length to see the price" : "Pick an available option to see the price"}</div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-extrabold truncate">{c.rest || c.desc}</div>
+                      <div className="text-[10.5px] text-slate-500 font-semibold">{c.size ? c.size + " · " : ""}{isEa ? `${qty} pcs` : ctn ? `${ctn.cartons} cartons · ${ctn.billedSf} sf` : `${sf} sf`}</div>
+                    </div>
+                    <div className="text-right leading-none">
+                      <div className="text-lg font-extrabold tabular-nums" style={{ color: tierColor || "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(sell)}</div>
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-1">{isEa ? "ea · sell" : "/sf · sell"}</div>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-text)" }}><ChevronUp size={16} /></div>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
           <MobileBuildSheet open={sheetUp && (!!c || (multi && multiOk))} onClose={() => setSheetUp(false)}
             footer={(multi && multiOk) ? (<>
               <button onClick={addBundleToBasket} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Plus size={14} /> Basket</button>
@@ -1283,6 +1557,18 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
             <div className="flex items-center gap-5 px-1 pt-3">{markupInput}{sfInput}</div>
             {priceNote}
           </MobileBuildSheet>
+          {mobileGrid && gridTab && (
+            <div className="absolute inset-0 z-[58] flex flex-col bg-white" data-sheoga-gridsheet>
+              <div className="flex items-center gap-2 px-2.5 py-2 border-b border-slate-200" style={{ background: "var(--ft-sand)" }}>
+                <span className="text-[11.5px] font-extrabold whitespace-nowrap">{mode === "stocked" ? "Prefinished sheet" : "Unfinished grid"}</span>
+                {mode === "stocked" && <StockOnlyToggle on={stockOnly} onClick={() => setStockOnly((v) => !v)} label="Stocked" />}
+                <CostSellToggle value={gridPrice} onPick={setGridPrice} />
+                <button onClick={() => setMobileGrid(false)} className="ml-auto w-7 h-7 rounded-md border border-slate-200 bg-white text-slate-500 flex items-center justify-center"><X size={15} /></button>
+              </div>
+              {gridSub}
+              <div className="flex-1 min-h-0 overflow-auto"><div className="min-w-[640px]">{gridTable}</div></div>
+            </div>
+          )}
         </>)}
         {isWide && (<>
           <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />

@@ -10,6 +10,8 @@ import {
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, hbFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
+  PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowFor, prefinRowForStocked,
+  stockedForPrefin, floorSeedFromPrefin, floorCellCost, floorGridIncludes,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -756,4 +758,135 @@ test("tierFeeOf: an at-cost fee rides the same lens with no markup", () => {
   assert.equal(tierFeeOf(600, "employee", 0), 636);
   assert.equal(tierFeeOf(600, "builder", 8), 552);
   assert.equal(tierFeeOf(750, "sale", 10), 675);
+});
+
+// --- the prefinished sheet (PREFIN_SHEET) --------------------------------------
+
+// The decoupling tripwire. STOCKED transcribes the sheet's highlighted prices;
+// PREFIN_SHEET derives every cell from base + adders. On the 1/19/26 edition
+// they agree everywhere — the Feb '25 edition's textured rows did not, so a
+// future sheet that decouples again fails here instead of quoting silently.
+test("prefinCost derives every transcribed STOCKED price exactly", () => {
+  let checked = 0;
+  for (const it of STOCKED) {
+    const [color] = it.color.split(" · ");
+    const row = PREFIN_SHEET.find((r) => r.sp === it.sp && r.color === color && !!r.tex === !!it.tex);
+    assert.ok(row, `no sheet row for ${it.sp} ${it.color}`);
+    assert.equal(row.sheen, it.sheen, `${it.sp} ${it.color} standard sheen`);
+    for (const grade of ["clear", "char"]) {
+      const arr = it[grade];
+      if (!arr) continue;
+      arr.forEach((p, wi) => {
+        if (p == null) return;
+        assert.equal(prefinCost(row, grade, wi), p, `${it.sp} ${it.color} ${grade} ${WIDTH_LABEL[PREFIN_WS[wi]]}`);
+        assert.equal(prefinGreen(row, grade, wi), true, `${it.sp} ${it.color} ${grade} ${wi} should be green`);
+        checked++;
+      });
+    }
+  }
+  assert.ok(checked > 60, `only ${checked} stocked cells checked`);
+});
+
+test("PREFIN_SHEET green flags sit only on priced cells", () => {
+  for (const row of PREFIN_SHEET) {
+    for (const grade of ["clear", "char"]) {
+      for (const [wi] of PREFIN_WS.entries()) {
+        if (!prefinGreen(row, grade, wi)) continue;
+        assert.notEqual(prefinCost(row, grade, wi), null, `${row.sp} ${row.color} ${grade} ${wi}`);
+      }
+      // ...and every green index names a real width column.
+      for (const wi of row.green?.[grade] || []) assert.ok(wi >= 0 && wi < PREFIN_WS.length, `${row.sp} ${row.color} ${grade} idx ${wi}`);
+    }
+  }
+});
+
+test("prefinCost: charOnly/wMin cut-offs return null, not a price", () => {
+  const sawcut = prefinRowFor({ sp: "Red Oak", color: "Cattail", tex: "sawcut" });
+  assert.ok(sawcut);
+  assert.equal(prefinCost(sawcut, "clear", 3), null);   // Character only
+  assert.equal(prefinCost(sawcut, "char", 1), null);    // starts at 4¼"
+  assert.equal(prefinCost(sawcut, "char", 2), 7.75);
+});
+
+test("prefinRowFor / prefinRowForStocked / stockedForPrefin round-trip a textured row", () => {
+  const row = prefinRowFor({ sp: "Hickory", color: "Hickory Nut", tex: "vintage" });
+  assert.ok(row && row.charOnly);
+  // The smooth Hickory Nut row is a DIFFERENT product, not the same one untextured.
+  assert.notEqual(prefinRowFor({ sp: "Hickory", color: "Hickory Nut" }), row);
+  const it = stockedForPrefin(row);
+  assert.equal(it.color, "Hickory Nut · Vintage Charm");
+  assert.equal(prefinRowForStocked({ sp: it.sp, color: it.color }), row);
+  assert.equal(prefinRowForStocked({ sp: "Q/R White Oak", color: "Caramel" }), null); // not stocked
+});
+
+test("floorSeedFromPrefin: a white cell prices identically on the custom tab", () => {
+  const row = prefinRowFor({ sp: "Q/R White Oak", color: "Caramel" });
+  assert.ok(row);
+  assert.equal(prefinGreen(row, "char", 3), false); // white — Q/R has no stock
+  const cfg = floorSeedFromPrefin(row, "char", 5.25);
+  assert.equal(cfg.finish, "est");
+  assert.equal(cfg.stain, "Caramel");
+  assert.equal(cfg.edge, "bevel");
+  assert.equal(cfg.cons, "solid");
+  assert.equal(cfg.sheen, "20");
+  assert.equal(+calcFloor(cfg, 600).cost.toFixed(2), prefinCost(row, "char", 3));
+});
+
+test("floorSeedFromPrefin: every sheet cell reprices on the custom tab", () => {
+  for (const row of PREFIN_SHEET) {
+    for (const grade of ["clear", "char"]) {
+      PREFIN_WS.forEach((w, wi) => {
+        const p = prefinCost(row, grade, wi);
+        if (p == null) return;
+        const c = calcFloor(floorSeedFromPrefin(row, grade, w), 600);
+        assert.equal(+c.cost.toFixed(2), p, `${row.sp} ${row.color} ${grade} ${WIDTH_LABEL[w]}`);
+      });
+    }
+  }
+});
+
+test("floorSeedFromPrefin: a Natural row seeds the Natural prefinish, no stain", () => {
+  const cfg = floorSeedFromPrefin(prefinRowFor({ sp: "White Oak", color: "Natural" }), "char", 4.25);
+  assert.equal(cfg.finish, "nat");
+  assert.equal(cfg.stain, "");
+});
+
+// --- Live Sawn is unfinished-only (owner, 2026-07-29) --------------------------
+
+test("calcFloor: Live Sawn White Oak prices unfinished and nothing else", () => {
+  const ls = (over) => calcFloor(floor({ sp: LIVE_SAWN_SP, w: 5.25, ...over }), 600);
+  assert.ok(ls({ finish: "unf" }));
+  for (const finish of ["nat", "est", "t1", "t2", "t3"]) assert.equal(ls({ finish }), null, finish);
+  // Every other species still prefinishes.
+  assert.ok(calcFloor(floor({ sp: "White Oak", finish: "nat" }), 600));
+});
+
+test("lineItems: a prefinished Live Sawn snapshot lands no rows at all", () => {
+  const snap = { mode: "floor", cfg: floor({ sp: LIVE_SAWN_SP, w: 5.25, finish: "est", stain: "Cattail" }) };
+  assert.deepEqual(lineItems(snap, { sf: 600 }), []);
+  assert.equal(seedFromQuery("live sawn 5 1/4").cfg.finish, "unf");
+  assert.ok(calcConfig(seedFromQuery("live sawn 5 1/4"), 600));
+});
+
+// --- the live unfinished grid --------------------------------------------------
+
+test("floorCellCost mirrors calcFloor's cost and nulls the same combinations", () => {
+  const f = floor({ tex: "sawcut", finish: "est", stain: "Cattail", len: "2-8", edge: "pillow" });
+  for (const sp of SPECIES) {
+    for (const w of floorWidths({ sp })) {
+      const cfg = { ...f, sp, w };
+      const c = calcFloor(cfg, 600);
+      assert.equal(floorCellCost(cfg), c ? c.cost : null, `${sp} ${w}`);
+    }
+  }
+  assert.equal(floorCellCost(floor({ sp: LIVE_SAWN_SP, w: 2.25 })), null);
+});
+
+test("floorGridIncludes names each flat adder baked into the grid", () => {
+  assert.deepEqual(floorGridIncludes(floor()), []);
+  const inc = floorGridIncludes(floor({ tex: "sawcut", finish: "est", stain: "Cattail", len: "2-8", noSap: true }));
+  assert.deepEqual(inc.map((x) => x.label), ["Saw Cut", "Cattail stain", "2'–8' lengths +15%", "no sap (Cherry / Walnut rows only)"]);
+  assert.equal(inc[0].add, 1.5);
+  assert.equal(inc[1].add, 3.15);   // deep scrape rate
+  assert.equal(inc[2].add, null);   // a % of base, not a flat rate
 });

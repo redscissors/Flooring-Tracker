@@ -4,9 +4,10 @@ summary: Dock the price grids beside the option rails on big screens — the
   vendor's prefinished sheet (white + green) on the Stocked tab, a live
   options-aware unfinished grid on the custom tab — with two-way sync;
   phones keep the buttons plus a Grid button that opens the sheet as an
-  overlay. Mockup v2, not yet implemented.
-status: open
-labels: [needs-info]
+  overlay. Built 2026-07-29 per the five owner decisions (Opus 5 implementation,
+  R1–R8 preview screenshots).
+status: done
+labels: [ready-for-human]
 ---
 
 # Docked price grids on both Sheoga tabs (mockup v2)

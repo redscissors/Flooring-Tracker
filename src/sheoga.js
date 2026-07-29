@@ -135,6 +135,98 @@ export const STOCKED_WIDTHS = { clear: [2.25, 3.25, 4.25, 5.25, 6.25], char: [2.
 // a re-transcription that reorders rows must not repoint saved configurations.
 export const stockedItem = (k) => STOCKED.find((x) => x.sp === k.sp && x.color === k.color) || null;
 
+// --- the prefinished PAGE -----------------------------------------------------
+// The whole prefinished page of the 1/19/26 sheet in sheet order — every color
+// it lists, stocked or not. STOCKED above transcribes only the highlighted
+// (STOCK / FAST TRACK) prices; here the PRICES are derived, because on this
+// edition every prefinished cell equals the unfinished base plus the finishing
+// adder (and, on the two textured rows, that texture's own $/sf). sheoga.test.js
+// asserts derived == transcribed on every green cell — the Feb '25 edition had
+// let the textured rows drift, and that assertion is what catches the next one.
+//
+// `green` marks the highlights per grade as indices into PREFIN_WS; a row with
+// no `green` is on the sheet but made to order. The textured rows are Character
+// only (`charOnly`) and start at 4¼" (`wMin`).
+
+export const PREFIN_WS = [2.25, 3.25, 4.25, 5.25, 6.25];
+export const PREFIN_SHEET = [
+  { sp: "Beech", color: "Natural", sheen: 30 },
+  { sp: "Beech", color: "Drift", sheen: 5 },
+  { sp: "Cherry", color: "Natural", sheen: 30, green: { clear: [1, 2, 3], char: [1, 2, 3, 4] } },
+  { sp: "Cherry", color: "Silk", sheen: 5 },
+  { sp: "Hickory", color: "Natural", sheen: 30, green: { clear: [0, 1, 2, 3], char: [0, 1, 2, 3, 4] } },
+  { sp: "Hickory", color: "Breeze", sheen: 5 },
+  { sp: "Hickory", color: "Buckeye", sheen: 30, green: { clear: [1, 2, 3] } },
+  { sp: "Hickory", color: "Hickory Nut", sheen: 30, green: { char: [1, 2, 3, 4] } },
+  { sp: "Hickory", color: "Toasted Acorn", sheen: 30, green: { char: [1, 2, 3, 4] } },
+  { sp: "Maple", color: "Natural", sheen: 30, green: { clear: [1, 2, 3], char: [0, 1, 2, 3, 4] } },
+  { sp: "Maple", color: "Frost", sheen: 5 },
+  { sp: "Red Oak", color: "Natural", sheen: 30, green: { clear: [0, 1, 2, 3], char: [0, 1, 2, 3] } },
+  { sp: "Red Oak", color: "Camo", sheen: 5 },
+  { sp: "Red Oak", color: "Dawn", sheen: 5 },
+  { sp: "Red Oak", color: "Prestige", sheen: 30 },
+  { sp: "Red Oak", color: "Toasted Acorn", sheen: 30, green: { clear: [1, 2, 3], char: [1, 2, 3] } },
+  { sp: "Red Oak", color: "Nutmeg", sheen: 20 },
+  { sp: "Walnut", color: "Natural", sheen: 30, green: { clear: [1, 2], char: [1, 2, 3, 4] } },
+  { sp: "Walnut", color: "Mist", sheen: 5 },
+  { sp: "White Oak", color: "Natural", sheen: 30, green: { clear: [1, 2, 3], char: [0, 1, 2, 3, 4] } },
+  { sp: "White Oak", color: "Fresh Cut", sheen: 5, green: { char: [1, 2, 3, 4] } },
+  { sp: "White Oak", color: "Cattail", sheen: 30, green: { char: [1, 2, 3, 4] } },
+  { sp: "White Oak", color: "Caramel", sheen: 20, green: { char: [1, 2, 3, 4] } },
+  { sp: "Q/R White Oak", color: "Natural", sheen: 30 },
+  { sp: "Q/R White Oak", color: "Fresh Cut", sheen: 5 },
+  { sp: "Q/R White Oak", color: "Cattail", sheen: 30 },
+  { sp: "Q/R White Oak", color: "Caramel", sheen: 20 },
+  { sp: "Red Oak", color: "Cattail", tex: "sawcut", sheen: 20, charOnly: true, wMin: 2, green: { char: [2, 3, 4] } },
+  { sp: "Hickory", color: "Hickory Nut", tex: "vintage", sheen: 20, charOnly: true, wMin: 2, green: { char: [2, 3, 4] } },
+];
+
+const prefinTex = (row) => (row.tex ? TEXTURES.find((t) => t.id === row.tex) : null);
+
+// Derived distributor cost for one sheet cell, or null where the sheet has no
+// price. Natural takes the clear-coat rate, every other color the established-
+// stain rate, which steps up on a deep scrape — the same FINISHES adders the
+// custom tab charges, which is why a white cell hands off to that tab unchanged.
+export function prefinCost(row, grade, wIdx) {
+  if (!row || (row.charOnly && grade === "clear")) return N;
+  if (row.wMin != null && wIdx < row.wMin) return N;
+  const base = UNFINISHED[row.sp]?.[grade]?.[wIdx];
+  if (base == N) return N;
+  const tex = prefinTex(row);
+  const fin = FINISHES.find((x) => x.id === (row.color === "Natural" ? "nat" : "est"));
+  return round2(base + (tex ? tex.add : 0) + fin.add({ tex: row.tex || "smooth" }));
+}
+
+// STOCK / FAST TRACK — the sheet's green highlight.
+export const prefinGreen = (row, grade, wIdx) => !!(row && row.green && row.green[grade] && row.green[grade].includes(wIdx));
+
+// Exact lookup by species + color + texture ("" / absent reads as smooth).
+export const prefinRowFor = (k) =>
+  (k ? PREFIN_SHEET.find((r) => r.sp === k.sp && r.color === k.color && (r.tex || "smooth") === (k.tex || "smooth")) : null) || null;
+
+// The two directions between a sheet row and the stocked program's own entry.
+// A textured stocked item keys its color as the vendor spells it ("Cattail ·
+// Sawcut"), which no rule rebuilds from a TEXTURES name — so it's looked up.
+export const stockedForPrefin = (row) =>
+  (row ? STOCKED.find((x) => x.sp === row.sp && x.color.split(" · ")[0] === row.color && !!x.tex === !!row.tex) : null) || null;
+export const prefinRowForStocked = (k) => {
+  const it = stockedItem(k);
+  return it ? PREFIN_SHEET.find((r) => r.sp === it.sp && r.color === it.color.split(" · ")[0] && !!r.tex === !!it.tex) || null : null;
+};
+
+// A white (made-to-order) sheet cell -> the custom/floor tab configuration that
+// prices it identically: the stocked program's own build — solid, micro bevel,
+// standard lengths — with the sheet color as the finish. Owner decision 1
+// (2026-07-29): the stocked tab's buttons stay stock-only, so a non-stock pick
+// files honestly as the made-to-order custom order it is.
+export const floorSeedFromPrefin = (row, grade, w) => ({
+  sp: row.sp, grade, cons: "solid", w,
+  tex: row.tex || "smooth", edge: "bevel", len: "1-8", noSap: false,
+  finish: row.color === "Natural" ? "nat" : "est",
+  stain: row.color === "Natural" ? "" : row.color, stainCustom: false,
+  sheen: String(row.sheen), sheenCustom: false, sample: false,
+});
+
 // --- herringbone --------------------------------------------------------------
 // 4 slat-length bands × widths per species. Made to order, no carton rounding.
 
@@ -313,6 +405,9 @@ export const smallOrderFee = (finish, sf) => (finish === "unf" || finish === "na
 export function calcFloor(f, sf) {
   const base = floorBase(f);
   if (base == N) return null;
+  // Live Sawn White Oak is sold unfinished only (owner, 2026-07-29) — Sheoga
+  // doesn't run it through the prefinish line at any price.
+  if (f.sp === LIVE_SAWN_SP && f.finish !== "unf") return null;
   const tex = TEXTURES.find((t) => t.id === f.tex);
   const edge = EDGES.find((e) => e.id === f.edge);
   const len = LENGTHS.find((l) => l.id === f.len);
@@ -354,6 +449,28 @@ export function calcFloor(f, sf) {
   parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${f.sheen || "30"} sheen`);
   const rest = parts.join(" ");
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
+}
+
+// One unfinished-grid cell's configured $/sf — every option in `f` applied, no
+// description built. Delegates to calcFloor so the grid can never quote a
+// different number than the build card beside it.
+export const floorCellCost = (f) => { const c = calcFloor(f, 0); return c ? c.cost : N; };
+
+// What every cell of that grid has baked in, as { label, add } — `add` is the
+// flat $/sf so the caller can render it through the job's price lens, and null
+// where the adder isn't a flat rate (a length %) or isn't on every row (no-sap).
+export function floorGridIncludes(f) {
+  const out = [];
+  const tex = TEXTURES.find((t) => t.id === f.tex);
+  if (tex && tex.add) out.push({ label: tex.name.replace(" (standard)", ""), add: tex.add });
+  const fin = FINISHES.find((x) => x.id === f.finish);
+  if (fin && fin.id !== "unf") out.push({ label: fin.id === "nat" ? "Natural prefinish" : fin.id === "est" ? `${f.stain || "stain"} stain` : fin.name, add: fin.add(f) });
+  const edge = EDGES.find((e) => e.id === f.edge);
+  if (edge && edge.add) out.push({ label: edge.name, add: edge.add });
+  const len = LENGTHS.find((l) => l.id === f.len);
+  if (len && len.pct) out.push({ label: `${len.name.replace(" (standard)", "")} lengths +${len.pct}%`, add: null });
+  if (f.noSap) out.push({ label: "no sap (Cherry / Walnut rows only)", add: null });
+  return out;
 }
 
 export function calcStocked(k) {
@@ -684,7 +801,9 @@ export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
 // These are ORDER TEXT read by the desk (and, on a printed PO, by Sheoga), so
 // keep them unambiguous over merely brief. Widths already print short ('5¼"').
 
-const SP_SHORT = {
+// Exported because the docked price sheet's label column needs the same short
+// names in its narrow first column.
+export const SP_SHORT = {
   "White Oak": "WO", "Red Oak": "RO", Hickory: "Hick", Maple: "Mpl", Cherry: "Chry",
   Walnut: "Wal", Beech: "Bch", "Q/R White Oak": "QRWO", [LIVE_SAWN_SP]: "LSWO",
 };
