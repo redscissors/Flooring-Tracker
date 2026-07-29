@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 const OUT = '.scratch/066_wedi-configurator';
 const URL = 'http://localhost:5199/.scratch/066_wedi-configurator/prototype.html';
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-const pg = await b.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 2 });
+const pg = await b.newPage({ viewport: { width: 1760, height: 1120 }, deviceScaleFactor: 2 });
 const errs = [];
 pg.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 pg.on('pageerror', e => errs.push(String(e)));
@@ -62,7 +62,7 @@ await pg.fill('#bq', '');
 await pg.waitForTimeout(200);
 await pg.click('#badd');
 await pg.waitForTimeout(300);
-await pg.screenshot({ path: `${OUT}/P7-payload-modal.png`, clip: { x: 0, y: 60, width: 1400, height: 900 } });
+await pg.screenshot({ path: `${OUT}/P7-payload-modal.png`, clip: { x: 0, y: 60, width: 1760, height: 1000 } });
 await pg.click('.overlay .xbtn');
 
 // P8 — search-entry demo (E section)

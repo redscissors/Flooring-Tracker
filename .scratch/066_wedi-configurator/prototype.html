@@ -15,19 +15,19 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;font-family:var(--ui);-webkit-tap-highlight-color:transparent}
   body{background:#1C1A17;color:#F6F3EC;padding:28px 20px 80px}
-  .intro{max-width:1320px;margin:0 auto 8px}
+  .intro{max-width:1680px;margin:0 auto 8px}
   .intro h1{font-size:21px;font-weight:800;letter-spacing:-.01em}
   .intro h1 span{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:12px;padding:2px 7px;margin-right:8px;vertical-align:3px}
   .intro p{font-size:13px;color:#A8A29A;margin-top:6px;max-width:900px;line-height:1.55}
   .intro p b{color:#F6F3EC}
-  .proto-label{max-width:1320px;margin:34px auto 10px;display:flex;align-items:baseline;gap:10px}
+  .proto-label{max-width:1680px;margin:34px auto 10px;display:flex;align-items:baseline;gap:10px}
   .proto-label h2{font-size:15px;font-weight:800}
   .proto-label h2 b{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:11px;padding:1px 6px;margin-right:7px;vertical-align:1px}
   .proto-label span{font-size:12px;color:#A8A29A}
 
   /* ============ the popup shell ============ */
-  .popwrap{max-width:1320px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px}
-  .popup{background:var(--paper);color:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;height:860px;border:1px solid rgba(0,0,0,.4)}
+  .popwrap{max-width:1680px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px}
+  .popup{background:var(--paper);color:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;height:940px;border:1px solid rgba(0,0,0,.4)}
   .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--paper)}
   .pop-head .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--moss-deep)}
   .pop-head .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
@@ -133,8 +133,18 @@
   .stepper .q.zero{color:var(--faint);font-weight:600}
   .more{font-size:11px;color:var(--faint);padding:8px 4px}
 
+  /* ============ the drawings rail ============ */
+  .diagcol{flex:0 0 356px;border-left:1px solid var(--line-strong);background:var(--tint);overflow-y:auto;padding:12px 14px 20px;order:3}
+  .diagcol::-webkit-scrollbar{width:0}
+  .diagcol .dc-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin:4px 0 4px}
+  .diagcol .dc-h:first-child{margin-top:0}
+  .diagcol .dc-sub{font-size:10px;color:var(--faint);font-weight:600;margin:-2px 0 6px;line-height:1.4}
+  .diagcol svg{display:block;width:100%;height:auto;background:var(--card);border:1px solid var(--line);border-radius:8px}
+  .diagcol .dc-empty{font-size:11.5px;color:var(--faint);line-height:1.6;padding:18px 4px}
+  .diagcol .dc-legend{font-size:9.5px;color:var(--faint);font-weight:600;line-height:1.5;margin-top:8px}
+
   /* ============ build column ============ */
-  .buildcol{flex:0 0 392px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;min-height:0}
+  .buildcol{flex:0 0 392px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;min-height:0;order:2}
   .bc-scroll{flex:1;overflow-y:auto;padding:14px 16px 8px}
   .bc-scroll::-webkit-scrollbar{width:0}
   .bc-h{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
@@ -221,7 +231,7 @@
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1C1A17;color:#F6F3EC;border:1px solid rgba(246,243,236,.25);font-size:12.5px;font-weight:700;border-radius:8px;padding:10px 18px;z-index:90;box-shadow:0 12px 40px rgba(0,0,0,.5)}
 
   /* ============ search-entry demo (E) ============ */
-  .ewrap{max-width:1320px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px;display:flex;gap:26px;flex-wrap:wrap}
+  .ewrap{max-width:1680px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px;display:flex;gap:26px;flex-wrap:wrap}
   .ecol{flex:1 1 430px}
   .ebox{background:var(--card);color:var(--ink);border-radius:9px;border:1px solid rgba(0,0,0,.4);box-shadow:0 18px 50px rgba(0,0,0,.4);overflow:hidden}
   .ebox .searchline{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid var(--line-strong)}
@@ -239,7 +249,7 @@
   .enote b{color:#F6F3EC}
 
   /* ============ notes ============ */
-  .notes{max-width:1320px;margin:14px auto 0;color:#A8A29A;font-size:12.5px;line-height:1.7}
+  .notes{max-width:1680px;margin:14px auto 0;color:#A8A29A;font-size:12.5px;line-height:1.7}
   .notes b{color:#F6F3EC}
   .notes ul{margin:6px 0 0 18px}
 
@@ -299,6 +309,7 @@
         <div class="bc-scroll" id="bc"></div>
         <div class="bc-foot" id="bcfoot"></div>
       </div>
+      <div class="diagcol" id="diags"></div>
     </div>
   </div>
 </div>
@@ -537,6 +548,26 @@ function svgTop(o, W_, H_, mini) {
   if (wl.back) s += '<rect x="' + (X(0) - wallW) + '" y="' + (Y(0) - wallW) + '" width="' + r2(rw * sc + wallW * 2) + '" height="' + wallW + '" fill="#57534C"/>';
   if (wl.left) s += '<rect x="' + (X(0) - wallW) + '" y="' + (Y(0) - wallW) + '" width="' + wallW + '" height="' + r2(rd * sc + wallW * 2) + '" fill="#57534C"/>';
   if (wl.right) s += '<rect x="' + X(rw) + '" y="' + (Y(0) - wallW) + '" width="' + wallW + '" height="' + r2(rd * sc + wallW * 2) + '" fill="#57534C"/>';
+  if (!mini) {
+    // panel butt joints ticked on the wall bands (paper on ink)
+    diagWalls().forEach(w => {
+      if (!wl[w.side]) return;
+      const span = w.side === 'back' ? rw : rd;
+      const joints = {};
+      w.courses.forEach(c => {
+        let u = 0;
+        c.lens.slice(0, -1).forEach(len => { u = r2(u + len); if (u < span - 0.5) joints[u] = 1; });
+      });
+      Object.keys(joints).forEach(uk => {
+        const u = +uk;
+        if (w.side === 'back') s += '<line x1="' + X(u) + '" y1="' + (Y(0) - wallW - 1) + '" x2="' + X(u) + '" y2="' + (Y(0) + 1) + '" stroke="#F6F3EC" stroke-width="1.3" stroke-dasharray="2 2"/>';
+        else {
+          const bx = w.side === 'left' ? X(0) - wallW - 1 : X(rw) - 1;
+          s += '<line x1="' + bx + '" y1="' + Y(u) + '" x2="' + (bx + wallW + 2) + '" y2="' + Y(u) + '" stroke="#F6F3EC" stroke-width="1.3" stroke-dasharray="2 2"/>';
+        }
+      });
+    });
+  }
   o.pieces.forEach(p => {
     const f = PIECE_FILL[p.kind] || '#EFF3E6';
     s += '<rect x="' + X(p.x) + '" y="' + Y(p.y) + '" width="' + r2(p.w * sc) + '" height="' + r2(p.d * sc) + '" fill="' + f + '" stroke="#1C1A17" stroke-width="1.1"/>';
@@ -593,30 +624,67 @@ function svgTop(o, W_, H_, mini) {
   return s + '</svg>';
 }
 
+// The walls as the build configures them: on/off, per-wall length + height,
+// and (in Fit mode) the panel courses for the dotted seam lines.
+function diagWalls() {
+  const pan = S.panKey ? W.item(S.panKey) : null;
+  if (!pan) return [];
+  const room = S.option ? S.option.room : null;
+  const walls = wallsArr(pan, room);
+  const det = S.panelFit ? W.panelPlan(walls).detail : null;
+  return walls.map((w, i) => ({ side: w.side, len: w.len, h: w.h, courses: det ? det[i].courses : [] }));
+}
+
 function svgIso(o, W_, H_) {
-  const rw = o.room.w, rd = o.room.d, h = Math.min(+S.wallH || 80, 96);
+  const rw = o.room.w, rd = o.room.d;
+  const dw = diagWalls();
+  const bySide = {};
+  dw.forEach(w => { bySide[w.side] = w; });
+  const hmax = Math.min(dw.reduce((m, w) => Math.max(m, w.h), 0) || 80, 96);
   const cx_ = 0.866, cy_ = 0.5;
   const P = (x, y, z) => [ (x - y) * cx_, (x + y) * cy_ - z ];
-  // fit: collect extreme points
-  const pts = [P(0,0,0), P(rw,0,0), P(0,rd,0), P(rw,rd,0), P(0,0,h), P(rw,0,h)];
-  if (wallOn('right')) pts.push(P(rw, rd, h));
-  if (wallOn('left')) pts.push(P(0, rd, h));
+  const pts = [P(0,0,0), P(rw,0,0), P(0,rd,0), P(rw,rd,0), P(0,0,hmax), P(rw,0,hmax)];
+  if (bySide.right) pts.push(P(rw, rd, Math.min(bySide.right.h, 96)));
+  if (bySide.left) pts.push(P(0, rd, Math.min(bySide.left.h, 96)));
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   pts.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
   const pad = 16;
   const sc = Math.min((W_ - pad * 2) / (maxX - minX), (H_ - pad * 2) / (maxY - minY));
   const M = (x, y, z) => { const p = P(x, y, z); return r2(pad + (p[0] - minX) * sc) + ',' + r2(pad + (p[1] - minY) * sc); };
+  const L = (a, b) => { const [x1, y1] = a.split(','), [x2, y2] = b.split(',');
+    return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"'; };
   const poly = (pts2, fill, stroke, sw, extra) =>
     '<polygon points="' + pts2.join(' ') + '" fill="' + fill + '" stroke="' + (stroke || 'none') + '" stroke-width="' + (sw || 0) + '"' + (extra || '') + '/>';
   let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W_ + ' ' + H_ + '" width="' + W_ + '" height="' + H_ + '">';
-  // floor plate + soft shadow
   s += poly([M(-3, -3, 0), M(rw + 3, -3, 0), M(rw + 3, rd + 3, 0), M(-3, rd + 3, 0)], 'rgba(28,26,23,.06)');
-  // back + left walls (behind the floor)
   const wallFill = 'rgba(87,112,58,.12)', wallLine = 'rgba(28,26,23,.4)';
-  if (wallOn('back')) s += poly([M(0, 0, 0), M(rw, 0, 0), M(rw, 0, h), M(0, 0, h)], wallFill, wallLine, 1);
-  if (wallOn('left')) s += poly([M(0, 0, 0), M(0, rd, 0), M(0, rd, h), M(0, 0, h)], wallFill, wallLine, 1);
-  // floor pieces, painter's order
-  const t = 4;   // slab height, exaggerated for read
+  const seamCol = 'rgba(28,26,23,.5)';
+  // a wall plane along one room edge, with its panel courses dotted on it
+  const plane = (w, at, glass) => {
+    if (!w) return '';
+    const h = Math.min(w.h, 96);
+    const span = w.side === 'back' ? rw : rd;
+    const pt = w.side === 'back'
+      ? (u, z) => M(u, 0, z)
+      : (u, z) => M(at, u, z);
+    let out = poly([pt(0, 0), pt(span, 0), pt(span, h), pt(0, h)],
+      glass ? 'rgba(87,112,58,.07)' : wallFill, wallLine, 1);
+    w.courses.forEach(c => {
+      const top = Math.min(c.y0 + c.ch, h);
+      if (c.y0 > 0 && c.y0 < h)   // course joint runs level across the wall
+        out += L(pt(0, c.y0), pt(Math.min(span, w.len), c.y0)) + ' stroke="' + seamCol + '" stroke-width="1" stroke-dasharray="2 3"/>';
+      let u = 0;
+      c.lens.slice(0, -1).forEach(len => {   // butt joints inside the course
+        u = r2(u + len);
+        if (u < span - 0.5)
+          out += L(pt(u, c.y0), pt(u, top)) + ' stroke="' + seamCol + '" stroke-width="1" stroke-dasharray="2 3"/>';
+      });
+    });
+    return out;
+  };
+  s += plane(bySide.back, 0, false);
+  s += plane(bySide.left, 0, false);
+  const t = 4;
   const pieces = o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y));
   pieces.forEach(p => {
     const f = PIECE_FILL[p.kind] || '#EFF3E6', side = PIECE_SIDE[p.kind] || '#D8DFC4';
@@ -624,11 +692,10 @@ function svgIso(o, W_, H_) {
     s += poly([M(p.x, p.y + p.d, t), M(p.x + p.w, p.y + p.d, t), M(p.x + p.w, p.y + p.d, 0), M(p.x, p.y + p.d, 0)], side, '#1C1A17', .8);
     s += poly([M(p.x, p.y, t), M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t), M(p.x, p.y + p.d, t)], f, '#1C1A17', .9);
     if (p.cut) {
-      if (p.w < p.cut.w - 0.01) s += '<line x1="' + M(p.x + p.w, p.y, t).replace(',', '" y1="') + '" x2="' + M(p.x + p.w, p.y + p.d, t).replace(',', '" y2="') + '" stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
-      if (p.d < p.cut.d - 0.01) s += '<line x1="' + M(p.x, p.y + p.d, t).replace(',', '" y1="') + '" x2="' + M(p.x + p.w, p.y + p.d, t).replace(',', '" y2="') + '" stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
+      if (p.w < p.cut.w - 0.01) s += L(M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t)) + ' stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
+      if (p.d < p.cut.d - 0.01) s += L(M(p.x, p.y + p.d, t), M(p.x + p.w, p.y + p.d, t)) + ' stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
     }
   });
-  // drain on top of the pan
   const dr = o.drain;
   if (dr) {
     if (dr.type === 'linear' && dr.len) {
@@ -641,14 +708,10 @@ function svgIso(o, W_, H_) {
       s += '<ellipse cx="' + c[0] + '" cy="' + c[1] + '" rx="' + r2(1.4 * sc) + '" ry="' + r2(0.8 * sc) + '" fill="#1C1A17"/>';
     }
   }
-  // right wall as glass, over the floor
-  if (wallOn('right')) {
-    s += poly([M(rw, 0, 0), M(rw, rd, 0), M(rw, rd, h), M(rw, 0, h)], 'rgba(87,112,58,.07)', wallLine, 1);
-  }
-  // wall height label
-  if (wallOn('back') || wallOn('left') || wallOn('right')) {
-    const lp = M(0, 0, h).split(',');
-    s += '<text x="' + (+lp[0] + 4) + '" y="' + (+lp[1] + 10) + '" font-size="9" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">walls ' + esc(W.inch(+S.wallH || 80)) + '"</text>';
+  s += plane(bySide.right, rw, true);
+  if (dw.length) {
+    const lp = M(0, 0, hmax).split(',');
+    s += '<text x="' + (+lp[0] + 4) + '" y="' + (+lp[1] + 10) + '" font-size="9" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">walls to ' + esc(W.inch(hmax)) + '"' + (S.panelFit ? ' · panel joints dotted' : '') + '</text>';
   }
   return s + '</svg>';
 }
@@ -767,10 +830,6 @@ function renderCustom() {
     }).join('') + '</div>';
     const sel = S.option && res.indexOf(S.option) >= 0 ? S.option : null;
     if (sel) {
-      h += '<div class="diagwrap">'
-        + '<div class="diagbox"><div class="dh">Top-down layout<span>to scale · seams dashed moss · cuts dashed rust</span></div>' + svgTop(sel, 420, 330) + '</div>'
-        + '<div class="diagbox"><div class="dh">Isometric<span>walls at ' + esc(W.inch(S.wallH)) + '″</span></div>' + svgIso(sel, 420, 330) + '</div>'
-        + '</div>';
       const cuts = sel.pieces.filter(p => p.cut);
       h += '<div class="warnlist">';
       cuts.forEach(p => {
@@ -1190,8 +1249,26 @@ function renderMain() {
   else renderBrowse();
   if (lastTab !== S.tab) { $('main').scrollTop = 0; lastTab = S.tab; }
 }
+
+// the drawings rail — whatever shower is selected, kits included
+function renderDiagrams() {
+  const el = $('diags');
+  const d = diagData();
+  if (!d) {
+    el.innerHTML = '<div class="dc-h">The shower</div>'
+      + '<div class="dc-empty">Pick a pan or solve a room — the top-down layout and isometric view draw here for whatever is selected.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="dc-h">Top-down layout</div>'
+    + svgTop(d, 328, 268)
+    + '<div class="dc-h" style="margin-top:12px">Isometric</div>'
+    + svgIso(d, 328, 306)
+    + '<div class="dc-legend">seams dashed moss · cuts dashed rust · '
+    + (S.panelFit ? 'panel joints dotted on the walls' : 'One-size panel mode — joints not drawn') + '</div>';
+}
+
 function renderAll() {
-  renderTierbar(); renderTabs(); renderMain(); renderBuild();
+  renderTierbar(); renderTabs(); renderMain(); renderBuild(); renderDiagrams();
 }
 
 $('eq').oninput = renderE;

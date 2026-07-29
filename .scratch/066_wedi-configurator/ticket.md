@@ -201,6 +201,19 @@ landed in the prototype (engine rules carry self-tests):
    hard to tell apart as text.
 7. **Stock items read on a light green background**, special order on white.
 
+### Round 2 (same day)
+
+8. **The drawings live on the right side of the window** — a permanent rail
+   (top-down over isometric) showing whatever shower is selected, kit cards
+   included, with the window widened to fit. The custom tab's inline
+   diagrams moved there.
+9. **Panel joints draw on the walls** — the Fit plan's level courses and
+   butt joints render as dotted lines on the isometric wall planes (each
+   wall at its own height) and as ticks on the top-down wall bands.
+10. A domain catch from the tube default: the curbless **620 field seal
+    stays on the stocked sausage** — the 620 cartridge is special order, and
+    stock outranks SO for the same product (mergeSearch doctrine).
+
 ## Assumptions to confirm before production
 
 1. Builder ×0.82 applies to **every** wedi line (pans, panels, consumables,

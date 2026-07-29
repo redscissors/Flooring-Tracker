@@ -645,7 +645,13 @@
     if (fam === "curbless") {
       push(lines, SKU.subliner53, 1, "install", "53 sf roll — field seal at the pan perimeter", true);
       push(lines, SKU.subCornerIn, 1, "install", "2 pcs/bag", true);
-      push(lines, sealantItem(form, true), Math.ceil(CONSUMABLES.curbless620Oz / (form === "tube" ? CONSUMABLES.tubeOz : CONSUMABLES.sausageOz)),
+      // The 620 field seal follows the chosen form only while it stays on the
+      // shelf — a stocked sausage outranks a special-order cartridge.
+      var s620 = sealantItem(form, true);
+      var alt620 = sealantItem(form === "tube" ? "sausage" : "tube", true);
+      if (s620 && !s620.stock && alt620 && alt620.stock) s620 = alt620;
+      var oz620 = s620 === sealantItem("tube", true) ? CONSUMABLES.tubeOz : CONSUMABLES.sausageOz;
+      push(lines, s620, Math.ceil(CONSUMABLES.curbless620Oz / oz620),
         "install", CONSUMABLES.curbless620Oz + " oz allowance — Subliner field seal", true);
     }
     if (recess === "kit") push(lines, SKU.recessKit, 1, "install", "recess up to 5×5 ft in ¾ ply", true);
@@ -1106,22 +1112,33 @@
       if (!best || cand.n < best.n || (cand.n === best.n && cand.waste < best.waste)) best = cand;
     }
     if (!best) return null;
-    var out = [];
-    for (var i = 0; i < best.n96; i++) out.push(long_.key);
-    for (var j = 0; j < best.n60; j++) out.push(short_.key);
-    return { sheets: out, vSeams: best.n - 1 };
+    var out = [], lens = [], left = L;
+    for (var i = 0; i < best.n96; i++) {
+      out.push(long_.key);
+      var t96 = Math.min(96, left); lens.push(round2(t96)); left = round2(left - t96);
+    }
+    for (var j = 0; j < best.n60; j++) {
+      out.push(short_.key);
+      var t60 = Math.min(60, left); lens.push(round2(t60)); left = round2(left - t60);
+    }
+    return { sheets: out, lens: lens, vSeams: best.n - 1 };
   }
 
   function panelPlan(walls) {
-    var byKey = {}, order = [], vSeams = 0, courses = 0;
+    var byKey = {}, order = [], vSeams = 0, courses = 0, detail = [];
     (walls || []).forEach(function (wall) {
       var L = +wall.len || 0, H = +wall.h || 0;
+      var d = { len: L, h: H, side: wall.side || "", courses: [] };
+      detail.push(d);
       if (!(L > 0) || !(H > 0)) return;
+      var y0 = 0;
       coursesFor(H).forEach(function (ch) {
         var c = courseFill(ch, L);
         if (!c) return;
         courses++;
         vSeams += c.vSeams;
+        d.courses.push({ y0: y0, ch: Math.min(ch, round2(H - y0)), lens: c.lens });
+        y0 = round2(y0 + ch);
         c.sheets.forEach(function (k) {
           if (!byKey[k]) { byKey[k] = 0; order.push(k); }
           byKey[k]++;
@@ -1130,7 +1147,7 @@
     });
     return {
       lines: order.map(function (k) { return { key: k, qty: byKey[k] }; }),
-      vSeams: vSeams, courses: courses,
+      vSeams: vSeams, courses: courses, detail: detail,
     };
   }
 
@@ -1408,6 +1425,12 @@
         !!lineFor(kitC, "US5000083") && !!lineFor(kitC, "US5000085");
     })());
     ok("curbless 620 = 40 oz allowance → 2 sausages", lineFor(kitC, "US5000083").qty === 2, lineFor(kitC, "US5000083").qty);
+    ok("tube-form curbless still 620s with the stocked sausage (cartridge is SO)", (function () {
+      var kt = kitFor("US9200003", { sealantForm: "tube" });
+      var l = kt.lines.filter(function (x) { return x.item.key === "US5000083"; })[0];
+      return l && l.qty === 2 && !kt.lines.some(function (x) { return x.item.key === "US5000088"; }) &&
+        !!kt.lines.filter(function (x) { return x.item.key === SKU.sealantTube; })[0];
+    })());
     var kitL = kitFor("US9310001");
     ok("linear base takes the matching 43\" SS linear cover", !!lineFor(kitL, "US1000085"), kitL.lines.filter(function (l) { return l.item.group === "cover"; }).map(function (l) { return l.item.key; }));
     var kitAdd = kitFor("US9100004", { addons: ["US3000005", SKU.gun], sealantForm: "tube" });
@@ -1559,6 +1582,15 @@
       var p = panelPlan([{ len: 24, h: 40 }]);
       return p.courses === 1 && p.lines.reduce(function (s, l) { return s + l.qty; }, 0) === 1;
     })());
+    ok("plan detail carries per-wall courses with laid lengths (for the wall drawing)", (function () {
+      var p = panelPlan([{ len: 130, h: 80, side: "back" }]);
+      var d = p.detail[0];
+      if (!d || d.side !== "back" || d.courses.length !== 2) return false;
+      var c = d.courses[0];
+      // 130" course: one 96 + one 60 cut to 34 — the butt joint sits at 96
+      return c.y0 === 0 && JSON.stringify(c.lens) === "[96,34]" &&
+        p.detail[0].courses[1].y0 === 48 && p.detail[0].courses[1].ch === 32;
+    })(), JSON.stringify(panelPlan([{ len: 130, h: 80, side: "back" }]).detail));
 
     // --- line payloads -------------------------------------------------------
     var rows = lineItems(kit, { tier: "builder" });
