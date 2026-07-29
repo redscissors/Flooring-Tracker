@@ -79,6 +79,11 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   center-click drain targeting (drain at the room centre, pan cut to fit),
   a Left/Right pan anchor that mirrors the layout, and wedi S-Dry Seal
   (+ trowel) replacing 620 as the curbless field seal
+- Owner feedback round 4, 2026-07-29: spelled-out cover colors, vertical
+  single-sheet panels when they kill the seams (48×84 = four 4×8s), free-
+  form walls — + Add wall by clicking an edge on the drawing, removable
+  length×height rows, clickable 45° corner cuts — and kit cards showing
+  our stock kit cost instead of the boxed-kit price (P11 shows the flow)
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)

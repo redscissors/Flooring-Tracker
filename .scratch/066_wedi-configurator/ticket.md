@@ -234,6 +234,28 @@ landed in the prototype (engine rules carry self-tests):
     trowel-applied — its 3/16"×5/32" trowel rides along), replacing the 620
     sealant in the recipe; 620 stays in the catalog for steam work.
 
+### Round 4 (same day)
+
+16. **The prototype is still only a prototype** — confirmed with the owner:
+    nothing has landed in `src/`; production is the next PR once the shape
+    is approved.
+17. **Cover colors spell out** everywhere a cover shows (build line, swap
+    list, Browse) beside the swatch — no more guessing codes.
+18. **Panels may stand vertical when that kills the seams**: one column,
+    one piece only (a 48"-wide wall takes a 4×8 upright, uncut) — so a
+    48×84 kit at 96" walls uses exactly four 4×8s: two horizontal on the
+    back, one vertical per side (`verticalSheet` in panelPlan).
+19. **Walls are free-form**: the fixed Half row became **+ Add wall** —
+    click an edge on the top-down drawing to add a wall there (an entry
+    wall reads as a return/pony wall), each added wall gets its own
+    length × height row and remove button, and it draws in both views and
+    joins the panel plan. **Clicking a room corner toggles a 45° corner
+    cut**, drawn as a chamfer and noted on the print sheet (drawing/
+    annotation only in v1 — the solver still fits rectangles).
+20. **Kit cards show our stock kit cost** (the house kit costed at ERP
+    cost with the current wall setup) instead of wedi's boxed-kit price;
+    the boxed-kit compare chip stays in the build column.
+
 ## Assumptions to confirm before production
 
 1. Builder ×0.82 applies to **every** wedi line (pans, panels, consumables,

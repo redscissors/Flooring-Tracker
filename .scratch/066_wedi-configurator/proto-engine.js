@@ -1145,26 +1145,52 @@
     return { sheets: out, lens: lens, vSeams: best.n - 1 };
   }
 
+  // One sheet stood on end covering the whole wall. Vertical is allowed only
+  // when it leaves NO vertical seam (owner rule 2026-07-29) — so exactly one
+  // column, one piece: a 48"-wide wall takes a 4×8 standing up, uncut.
+  function verticalSheet(L, H) {
+    var best = null;
+    PANEL_SHEETS.forEach(function (s) {
+      if (s.w < L - 0.01 || s.len < H - 0.01) return;
+      var waste = round2(s.w * s.len - L * H);
+      if (!best || waste < best.waste) best = { key: s.key, waste: waste };
+    });
+    return best;
+  }
+
   function panelPlan(walls) {
     var byKey = {}, order = [], vSeams = 0, courses = 0, detail = [];
+    var take = function (k) {
+      if (!byKey[k]) { byKey[k] = 0; order.push(k); }
+      byKey[k]++;
+    };
     (walls || []).forEach(function (wall) {
       var L = +wall.len || 0, H = +wall.h || 0;
-      var d = { len: L, h: H, side: wall.side || "", courses: [] };
+      var d = { len: L, h: H, side: wall.side || "", courses: [], vertical: false };
       detail.push(d);
       if (!(L > 0) || !(H > 0)) return;
-      var y0 = 0;
+      var horiz = [], y0 = 0, hSheets = 0;
       coursesFor(H).forEach(function (ch) {
         var c = courseFill(ch, L);
         if (!c) return;
-        courses++;
-        vSeams += c.vSeams;
-        d.courses.push({ y0: y0, ch: Math.min(ch, round2(H - y0)), lens: c.lens });
+        horiz.push({ y0: y0, ch: Math.min(ch, round2(H - y0)), lens: c.lens, sheets: c.sheets });
         y0 = round2(y0 + ch);
-        c.sheets.forEach(function (k) {
-          if (!byKey[k]) { byKey[k] = 0; order.push(k); }
-          byKey[k]++;
-        });
+        hSheets += c.sheets.length;
       });
+      var vert = verticalSheet(L, H);
+      if (vert && hSheets > 1) {
+        d.vertical = true;
+        d.courses.push({ y0: 0, ch: H, lens: [L], vertical: true });
+        courses++;
+        take(vert.key);
+      } else {
+        horiz.forEach(function (c) {
+          courses++;
+          vSeams += c.lens.length - 1;
+          d.courses.push({ y0: c.y0, ch: c.ch, lens: c.lens });
+          c.sheets.forEach(take);
+        });
+      }
     });
     return {
       lines: order.map(function (k) { return { key: k, qty: byKey[k] }; }),
@@ -1609,12 +1635,21 @@
 
     // --- wall panel planner --------------------------------------------------
     var pp = panelPlan([{ len: 60, h: 80 }, { len: 36, h: 80 }, { len: 36, h: 80 }]);
-    ok("36×60 default walls plan: level courses, zero vertical seams", pp.vSeams === 0 && pp.courses === 6, JSON.stringify(pp));
-    ok("plan mixes 4×5 + 3×5 sheets, one per course", (function () {
+    ok("36x60 walls: back in courses, sides one vertical 4x8 each, 0 seams", pp.vSeams === 0 && pp.courses === 4 &&
+      pp.detail[1].vertical && pp.detail[2].vertical && !pp.detail[0].vertical, JSON.stringify(pp.detail));
+    ok("plan mixes: back 4x5 + 3x5, sides a vertical 4x8 apiece", (function () {
       var by = {};
       pp.lines.forEach(function (l) { by[l.key] = l.qty; });
-      return by.US8000014 === 3 && by.US8000017 === 3;
+      return by.US8000014 === 1 && by.US8000017 === 1 && by.US8000015 === 2;
     })(), JSON.stringify(pp.lines));
+    ok("48x84 kit at 96: four 4x8s — back two horizontal, sides one vertical each", (function () {
+      var p2 = panelPlan([{ len: 84, h: 96, side: "back" }, { len: 48, h: 96, side: "left" }, { len: 48, h: 96, side: "right" }]);
+      var by = {};
+      p2.lines.forEach(function (l) { by[l.key] = l.qty; });
+      return by.US8000015 === 4 && p2.lines.length === 1 && p2.vSeams === 0 &&
+        !p2.detail[0].vertical && p2.detail[0].courses.length === 2 &&
+        p2.detail[1].vertical && p2.detail[2].vertical;
+    })(), JSON.stringify(panelPlan([{ len: 84, h: 96 }, { len: 48, h: 96 }, { len: 48, h: 96 }]).lines));
     ok("96\" wall at 96\" high: two 4×8 courses, no vertical seams", (function () {
       var p = panelPlan([{ len: 96, h: 96 }]);
       return p.vSeams === 0 && p.lines.length === 1 && p.lines[0].key === "US8000015" && p.lines[0].qty === 2;

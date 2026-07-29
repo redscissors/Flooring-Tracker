@@ -19,6 +19,33 @@ await pg.click('[data-pan="US9200003"]');
 await pg.waitForTimeout(300);
 await popup.screenshot({ path: `${OUT}/P2-kits-curbless.png` });
 
+// P11 — the 48×84 kit: vertical side panels + an added entry wall + a corner cut
+await pg.evaluate(() => {
+  const card = [...document.querySelectorAll('.pancard')].filter(c => c.textContent.includes('48×84'))[0];
+  if (card) card.click();
+});
+await pg.waitForTimeout(400);
+await pg.click('#addwall');
+await pg.waitForTimeout(250);
+const dsvg = await pg.locator('#diags svg').first().boundingBox();
+await pg.mouse.click(dsvg.x + dsvg.width * 0.5, dsvg.y + dsvg.height * 0.86);
+await pg.waitForTimeout(300);
+const dsvg2 = await pg.locator('#diags svg').first().boundingBox();
+await pg.mouse.click(dsvg2.x + dsvg2.width * 0.16, dsvg2.y + dsvg2.height * 0.1);
+await pg.waitForTimeout(400);
+await popup.screenshot({ path: `${OUT}/P11-walls-drawing.png` });
+// undo through the UI: remove the added wall, click the corner off again
+await pg.click('.xdel');
+await pg.waitForTimeout(300);
+const dsvg3 = await pg.locator('#diags svg').first().boundingBox();
+await pg.mouse.click(dsvg3.x + dsvg3.width * 0.16, dsvg3.y + dsvg3.height * 0.1);
+await pg.waitForTimeout(300);
+await pg.evaluate(() => {
+  const card = [...document.querySelectorAll('.pancard')].filter(c => c.textContent.includes('36×60'))[0];
+  if (card) card.click();
+});
+await pg.waitForTimeout(300);
+
 // P3 — Custom tab: 48×66 curbed (boot solver input), extend option selected
 await pg.click('[data-tab="custom"]');
 await pg.waitForTimeout(300);

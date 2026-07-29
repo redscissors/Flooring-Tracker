@@ -142,6 +142,8 @@
   .diagcol svg{display:block;width:100%;height:auto;background:var(--card);border:1px solid var(--line);border-radius:8px}
   .diagcol .dc-empty{font-size:11.5px;color:var(--faint);line-height:1.6;padding:18px 4px}
   .diagcol .dc-legend{font-size:9.5px;color:var(--faint);font-weight:600;line-height:1.5;margin-top:8px}
+  .diagcol .dc-hint{background:#FBF3E4;border:1px solid #E5C07B;border-radius:6px;color:#7A5B1F;font-size:10.5px;font-weight:700;padding:6px 9px;margin-bottom:6px}
+  .xdel{cursor:pointer;color:var(--rust);font-weight:800;padding:0 2px}
 
   /* ============ build column ============ */
   .buildcol{flex:0 0 392px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;min-height:0;order:2}
@@ -373,6 +375,9 @@ const FIN_SWATCH = {
   B: '#C9A15C', BP: '#C9A15C', G: '#E0B63E', ORB: '#4A362A', MB: '#26231F',
   CHA: '#DCC49B', WHT: '#F4F2EC',
 };
+function finName(e) {
+  return e && (e.group === 'cover' || e.group === 'coverFrame') && e.finish ? (W.FINISHES[e.finish] || e.finish) : '';
+}
 function finDot(e) {
   if (!e || (e.group !== 'cover' && e.group !== 'coverFrame') || !e.finish) return '';
   const c = FIN_SWATCH[e.finish];
@@ -397,8 +402,10 @@ const S = {
     { id: 'back', label: 'Back', on: true, len: '', h: '' },
     { id: 'left', label: 'Left', on: true, len: '', h: '' },
     { id: 'right', label: 'Right', on: true, len: '', h: '' },
-    { id: 'half', label: 'Half', on: false, len: '24', h: '40' },
   ],
+  extraWalls: [], wallSeq: 0,
+  corners: { bl: false, br: false, fl: false, fr: false },
+  placing: false,
   wallFlip: false, wallH: 96, panelFit: true,
   results: [], selIdx: -1, q: '', grp: '', figSf: '',
 };
@@ -428,10 +435,40 @@ function wallsArr(pan, room) {
   S.walls.forEach(w => {
     if (!w.on) return;
     const len = +w.len || auto[w.id] || 0;
-    const h = +w.h || +S.wallH || 80;
+    const h = +w.h || +S.wallH || 96;
     if (len > 0 && h > 0) out.push({ len, h, side: w.id });
   });
+  S.extraWalls.forEach(w => {
+    const len = +w.len || 0, h = +w.h || +S.wallH || 96;
+    if (len > 0 && h > 0) out.push({ len, h, side: w.edge, extra: true });
+  });
   return out;
+}
+
+// swap the engine's by-area panel line for the Fit plan (level courses,
+// vertical single sheets where they kill the seams)
+function applyPanelFit(lines, walls, panelSf) {
+  const plan = W.panelPlan(walls);
+  const out = lines.filter(l => !(l.group === 'walls' && l.auto !== false));
+  const vWalls = plan.detail.filter(d => d.vertical).length;
+  plan.lines.forEach((pl, i) => out.push({
+    item: W.item(pl.key), qty: pl.qty, group: 'walls',
+    note: i === 0
+      ? r2(panelSf) + ' sf — ' + plan.vSeams + ' vertical seam' + (plan.vSeams === 1 ? '' : 's')
+        + (vWalls ? ' · ' + vWalls + ' wall' + (vWalls === 1 ? '' : 's') + ' stood vertical' : '')
+      : 'panel plan',
+    auto: true,
+  }));
+  return out;
+}
+
+// what the house kit costs out of our stock, with the current wall setup
+function kitCostOf(pan) {
+  const walls = wallsArr(pan, null);
+  const b = W.kitFor(pan.key, { walls, sealantForm: S.opts.sealantForm });
+  let lines = b.lines;
+  if (S.panelFit) lines = applyPanelFit(lines, walls, b.panelSf);
+  return r2(lines.reduce((t, l) => t + l.item.cost * l.qty, 0));
 }
 
 function currentBuild() {
@@ -448,18 +485,7 @@ function currentBuild() {
       mode: S.option ? 'custom' : 'kit',
     });
     let lines = b.lines.map(l => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
-    if (S.panelFit) {
-      // level horizontal courses, mixed sheet sizes — minimal vertical seams
-      const plan = W.panelPlan(wallsArr(pan, room));
-      lines = lines.filter(l => !(l.group === 'walls' && l.auto !== false));
-      plan.lines.forEach((pl, i) => lines.push({
-        item: W.item(pl.key), qty: pl.qty, group: 'walls',
-        note: i === 0
-          ? r2(b.panelSf) + ' sf — level courses, ' + plan.vSeams + ' vertical seam' + (plan.vSeams === 1 ? '' : 's')
-          : 'level horizontal courses',
-        auto: true,
-      }));
-    }
+    if (S.panelFit) lines = applyPanelFit(lines, wallsArr(pan, room), b.panelSf);
     lines.forEach(l => {
       const ov = S.qtyOv[l.item.key];
       if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
@@ -560,6 +586,7 @@ function svgTop(o, W_, H_, mini) {
   const rw = o.room.w, rd = o.room.d;
   const sc = Math.min((W_ - pad * 2) / rw, (H_ - padT - (mini ? 6 : 26)) / rd);
   const ox = (W_ - rw * sc) / 2, oy = padT;
+  if (!mini) svgTop.last = { ox, oy, sc, rw, rd, W_, H_ };
   const X = x => r2(ox + x * sc), Y = y => r2(oy + y * sc);
   let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W_ + ' ' + H_ + '" width="' + W_ + '" height="' + H_ + '">';
   // wall bands on the wall sides; the entry side stays open
@@ -587,6 +614,24 @@ function svgTop(o, W_, H_, mini) {
           s += '<line x1="' + bx + '" y1="' + Y(u) + '" x2="' + (bx + wallW + 2) + '" y2="' + Y(u) + '" stroke="#F6F3EC" stroke-width="1.3" stroke-dasharray="2 2"/>';
         }
       });
+    });
+    // added walls: their own band, an entry wall leaves the doorway open
+    diagWalls().filter(w => w.extra).forEach(w => {
+      const len = Math.min(w.len, w.side === 'back' || w.side === 'entry' ? rw : rd);
+      if (w.side === 'entry') s += '<rect x="' + X(0) + '" y="' + Y(rd) + '" width="' + r2(len * sc) + '" height="' + wallW + '" fill="#57703A"/>';
+      else if (w.side === 'back') s += '<rect x="' + X(0) + '" y="' + (Y(0) - wallW) + '" width="' + r2(len * sc) + '" height="' + wallW + '" fill="#57703A"/>';
+      else {
+        const bx = w.side === 'left' ? X(0) - wallW : X(rw);
+        s += '<rect x="' + bx + '" y="' + Y(0) + '" width="' + wallW + '" height="' + r2(len * sc) + '" fill="#57703A"/>';
+      }
+    });
+    // corner cuts: a 45° chamfer mark, toggled by clicking the corner
+    const CH = 12;
+    const chamfers = [['bl', 0, 0, 1, 1], ['br', rw, 0, -1, 1], ['fl', 0, rd, 1, -1], ['fr', rw, rd, -1, -1]];
+    chamfers.forEach(c => {
+      if (!S.corners[c[0]]) return;
+      s += '<line x1="' + X(c[1] + c[3] * CH) + '" y1="' + Y(c[2]) + '" x2="' + X(c[1]) + '" y2="' + Y(c[2] + c[4] * CH) + '" stroke="#1C1A17" stroke-width="1.6" stroke-dasharray="4 3"/>';
+      s += '<text x="' + X(c[1] + c[3] * (CH + 2)) + '" y="' + (Y(c[2] + c[4] * (CH + 2)) + 3) + '" text-anchor="middle" font-size="7.5" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">45°</text>';
     });
   }
   o.pieces.forEach(p => {
@@ -655,7 +700,7 @@ function diagWalls() {
   const room = S.option ? S.option.room : null;
   const walls = wallsArr(pan, room);
   const det = S.panelFit ? W.panelPlan(walls).detail : null;
-  return walls.map((w, i) => ({ side: w.side, len: w.len, h: w.h, courses: det ? det[i].courses : [] }));
+  return walls.map((w, i) => ({ side: w.side, len: w.len, h: w.h, extra: !!w.extra, courses: det ? det[i].courses : [] }));
 }
 
 function svgIso(o, W_, H_) {
@@ -733,6 +778,17 @@ function svgIso(o, W_, H_) {
     }
   }
   s += plane(bySide.right, rw, true);
+  dw.filter(w => w.extra).forEach(w => {
+    const h2 = Math.min(w.h, 96);
+    if (w.side === 'entry') {
+      const len = Math.min(w.len, rw);
+      s += poly([M(0, rd, 0), M(len, rd, 0), M(len, rd, h2), M(0, rd, h2)], 'rgba(87,112,58,.16)', wallLine, 1);
+    } else {
+      const span = Math.min(w.len, w.side === 'back' ? rw : rd);
+      const pt = w.side === 'back' ? (u, z) => M(u, 0, z) : (u, z) => M(w.side === 'left' ? 0 : rw, u, z);
+      s += poly([pt(0, 0), pt(span, 0), pt(span, h2), pt(0, h2)], 'rgba(87,112,58,.16)', wallLine, 1);
+    }
+  });
   if (dw.length) {
     const lp = M(0, 0, hmax).split(',');
     s += '<text x="' + (+lp[0] + 4) + '" y="' + (+lp[1] + 10) + '" font-size="9" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">walls to ' + esc(W.inch(hmax)) + '"' + (S.panelFit ? ' · panel joints dotted' : '') + '</text>';
@@ -798,7 +854,6 @@ function renderKits() {
     h += '<div class="fam"><div class="fam-h"><div class="t">' + esc(fd[1]) + '</div><div class="hint">' + esc(fd[2]) + '</div></div><div class="cards">';
     list.forEach(p => {
       const price = tierOf(p);
-      const fk = p.group === 'pan' ? W.factoryKit(p.w, p.d, p.sub === 'sdry' ? 'fundo' : p.sub, p.drain && p.drain.type) : null;
       const sz = p.group === 'module' ? W.inch(p.len) + '″ <small>module</small>' : W.inch(p.w) + '×' + W.inch(p.d) + '<small>in</small>';
       h += '<button class="pancard' + (S.panKey === p.key && !S.option ? ' on' : '') + '" data-pan="' + esc(p.key) + '">'
         + (p.stock ? '<div class="dot" title="stocked"></div>' : '')
@@ -806,7 +861,7 @@ function renderKits() {
         + '<div class="nm">' + esc(p.name.replace(/wedi\s*(®)?\s*/i, '')) + '</div>'
         + '<div class="drn">' + esc(p.group === 'module' ? W.inch(p.channel) + '″ channel' : p.drain.type + ' drain') + '</div>'
         + '<div class="pr" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(price) + '</div>'
-        + (fk && fk.kit ? '<div class="fk">boxed kit ' + fm0(fk.kit.retail) + '</div>' : '<div class="fk">&nbsp;</div>')
+        + '<div class="fk">kit cost ' + fm0(kitCostOf(p)) + ' — our stock</div>'
         + '</button>';
     });
     h += '</div></div>';
@@ -943,7 +998,7 @@ function renderBrowse() {
   h += shown.map(e => {
     const q = qtyIn(build, e.key);
     return '<div class="brow' + (e.stock ? ' stk' : '') + '"><span class="sdot' + (e.stock ? '' : ' so') + '" title="' + (e.stock ? 'stocked' : 'special order') + '"></span>'
-      + '<div class="bn"><div class="n">' + finDot(e) + esc(e.name) + '</div><div class="s">' + esc([W.GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? 'stock' : 'special order'].filter(Boolean).join(' · ')) + '</div></div>'
+      + '<div class="bn"><div class="n">' + finDot(e) + esc(e.name) + '</div><div class="s">' + esc([finName(e), W.GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? 'stock' : 'special order'].filter(Boolean).join(' · ')) + '</div></div>'
       + '<div class="sku">' + esc(e.stock ? e.erp : e.us) + '</div>'
       + '<div class="pr" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(tierOf(e)) + '<small>' + (S.tier !== 'retail' ? 'retail ' + fm(e.retail) : '&nbsp;') + '</small></div>'
       + '<div class="stepper"><button data-dec="' + esc(e.key) + '">−</button><span class="q' + (q ? '' : ' zero') + '">' + q + '</span><button data-inc="' + esc(e.key) + '">+</button></div>'
@@ -1010,7 +1065,7 @@ function openSwap(btn, line, build) {
   ch.list.forEach(e => {
     h += '<button class="srow' + (e.key === line.item.key ? ' on' : '') + (e.stock ? ' stk' : '') + '" data-k="' + esc(e.key) + '">'
       + '<span class="sdot' + (e.stock ? '' : ' so') + '"></span>'
-      + '<span class="n">' + finDot(e) + esc(e.name) + '<small>' + esc([e.sizeText, e.stock ? e.erp : 'SO — ' + e.us].filter(Boolean).join(' · ')) + '</small></span>'
+      + '<span class="n">' + finDot(e) + esc(e.name) + '<small>' + esc([finName(e), e.sizeText, e.stock ? e.erp : 'SO — ' + e.us].filter(Boolean).join(' · ')) + '</small></span>'
       + '<span class="p">' + fm(tierOf(e)) + '</span></button>';
   });
   popEl.innerHTML = h;
@@ -1068,8 +1123,22 @@ function renderBuild() {
         + '<input class="win" data-wl="' + w.id + '" value="' + esc(w.len) + '" placeholder="' + (auto[w.id] || '') + '"' + (w.on ? '' : ' disabled') + ' title="length, in">'
         + '<span>×</span>'
         + '<input class="win" data-wh="' + w.id + '" value="' + esc(w.h) + '" placeholder="' + esc(S.wallH) + '"' + (w.on ? '' : ' disabled') + ' title="height, in — 40 for a half wall">'
-        + '<span class="wu">' + (w.on ? r2(((+w.len || auto[w.id] || 0) * (+w.h || +S.wallH || 80)) / 144) + ' sf' : 'off') + '</span>'
+        + '<span class="wu">' + (w.on ? r2(((+w.len || auto[w.id] || 0) * (+w.h || +S.wallH || 96)) / 144) + ' sf' : 'off') + '</span>'
         + '</div>').join('');
+      const EDGE_LBL = { back: 'Back +', left: 'Left +', right: 'Right +', entry: 'Entry' };
+      h += S.extraWalls.map(w =>
+        '<div class="wallrow">'
+        + '<button class="wname on" data-xrm="' + w.id + '" title="remove this wall">' + (EDGE_LBL[w.edge] || 'Wall') + '</button>'
+        + '<input class="win" data-xl="' + w.id + '" value="' + esc(w.len) + '" title="length, in">'
+        + '<span>×</span>'
+        + '<input class="win" data-xh="' + w.id + '" value="' + esc(w.h) + '" placeholder="' + esc(S.wallH) + '" title="height, in">'
+        + '<span class="wu">' + r2(((+w.len || 0) * (+w.h || +S.wallH || 96)) / 144) + ' sf · <b class="xdel" data-xrm2="' + w.id + '">×</b></span>'
+        + '</div>').join('');
+      h += '<div class="addchips" style="padding-top:5px"><button class="addchip' + (S.placing ? ' on' : '') + '" id="addwall">'
+        + (S.placing ? 'Click an edge on the drawing…' : '+ Add wall') + '</button>'
+        + (Object.values(S.corners).some(Boolean) ? '<span class="wu" style="font-size:9.5px;align-self:center">corner cuts: '
+          + [['bl','back-left'],['br','back-right'],['fl','entry-left'],['fr','entry-right']].filter(c => S.corners[c[0]]).map(c => c[1]).join(', ') + '</span>' : '')
+        + '</div>';
     }
     lines.forEach(l => {
       const e = l.item;
@@ -1077,7 +1146,7 @@ function renderBuild() {
       const can = (e.group === 'panel' && S.panelFit) ? null : swapChoices(l, build);
       h += '<div class="bline">'
         + '<div class="bn"><div class="n">' + finDot(e) + esc(e.name) + '</div><div class="m"><b>' + esc(e.stock ? e.erp : 'SO ' + e.us) + '</b>'
-        + (l.note ? ' · ' + esc(l.note) : e.sizeText ? ' · ' + esc(e.sizeText) : '') + '</div></div>'
+        + (l.note ? ' · ' + esc(l.note) : finName(e) ? ' · ' + esc(finName(e)) : e.sizeText ? ' · ' + esc(e.sizeText) : '') + '</div></div>'
         + (can ? '<button class="swapb" data-swap="' + esc(e.key) + '" title="swap">⇄</button>' : '')
         + '<div class="stepper"><button data-dec="' + esc(e.key) + '">−</button><span class="q' + (l.ov ? ' ov" title="hand-set — auto is ' + esc(l.autoQty) : '') + '">' + l.qty + '</span><button data-inc="' + esc(e.key) + '">+</button></div>'
         + '<div class="lp" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(r2(price * l.qty)) + '<small>' + fm(price) + (e.unit && e.unit !== 'EA' ? '/' + e.unit.toLowerCase() : ' ea') + '</small></div>'
@@ -1118,6 +1187,20 @@ function renderBuild() {
     if (line) openSwap(b, line, build);
   });
   bc.querySelectorAll('[data-wt]').forEach(b => b.onclick = () => { const w = wallOf(b.dataset.wt); w.on = !w.on; renderAll(); });
+  const xw = id => S.extraWalls.filter(w => String(w.id) === String(id))[0];
+  bc.querySelectorAll('[data-xl]').forEach(i => i.onchange = () => { const w = xw(i.dataset.xl); if (w) w.len = i.value; renderAll(); });
+  bc.querySelectorAll('[data-xh]').forEach(i => i.onchange = () => { const w = xw(i.dataset.xh); if (w) w.h = i.value; renderAll(); });
+  bc.querySelectorAll('[data-xrm],[data-xrm2]').forEach(b => b.onclick = () => {
+    const id = b.dataset.xrm || b.dataset.xrm2;
+    S.extraWalls = S.extraWalls.filter(w => String(w.id) !== String(id));
+    renderAll();
+  });
+  const aw = $('addwall');
+  if (aw) aw.onclick = () => {
+    S.placing = !S.placing;
+    if (S.placing) toast('Click an edge on the top-down drawing to add a wall — a corner toggles a 45° cut');
+    renderAll();
+  };
   bc.querySelectorAll('[data-wl]').forEach(i => i.onchange = () => { wallOf(i.dataset.wl).len = i.value; renderAll(); });
   bc.querySelectorAll('[data-wh]').forEach(i => i.onchange = () => { wallOf(i.dataset.wh).h = i.value; renderAll(); });
   const wf = $('wflip');
@@ -1208,13 +1291,16 @@ function printSheet(build) {
     + '<div class="ps-diags"><div class="d"><div class="dh">Top-down layout</div>' + svgTop(d, 460, 360) + '</div>'
     + '<div class="d"><div class="dh">Isometric</div>' + svgIso(d, 460, 360) + '</div></div>';
   const cuts = d.pieces.filter(p => p.cut);
-  if (cuts.length || (d.warnings && d.warnings.length)) {
+  if (cuts.length || (d.warnings && d.warnings.length) || Object.values(S.corners).some(Boolean)) {
     h += '<div class="ps-sec">Cuts &amp; install notes</div>';
     cuts.forEach(p => {
       h += '<div class="ps-warn">✂ Cut ' + esc(p.item.us || p.item.erp) + ' to ' + esc(W.inch(p.w)) + '″ × ' + esc(W.inch(p.d))
         + '″ (from ' + esc(W.inch(p.cut.w)) + '″ × ' + esc(W.inch(p.cut.d)) + '″)</div>';
     });
     (d.warnings || []).forEach(wt => { h += '<div class="ps-warn">• ' + esc(wt) + '</div>'; });
+    [['bl', 'back-left'], ['br', 'back-right'], ['fl', 'entry-left'], ['fr', 'entry-right']].forEach(c => {
+      if (S.corners[c[0]]) h += '<div class="ps-warn">• corner cut at ' + c[1] + ' — frame a 45° return</div>';
+    });
     if (d.drain && d.drain.note) h += '<div class="ps-warn">• ' + esc(d.drain.note) + '</div>';
   }
   h += '<div class="ps-sec">Materials</div><table class="ps-table"><tr><th>SKU</th><th>Description</th><th>Size</th><th class="num">Qty</th><th class="num">' + esc(S.tier) + '</th><th class="num">Total</th></tr>';
@@ -1288,12 +1374,42 @@ function renderDiagrams() {
       + '<div class="dc-empty">Pick a pan or solve a room — the top-down layout and isometric view draw here for whatever is selected.</div>';
     return;
   }
+  const top = svgTop(d, 328, 268);
+  const T = Object.assign({}, svgTop.last);
   el.innerHTML = '<div class="dc-h">Top-down layout</div>'
-    + svgTop(d, 328, 268)
+    + (S.placing ? '<div class="dc-hint">Click an edge to add a wall — a corner toggles a 45° cut</div>' : '')
+    + top
     + '<div class="dc-h" style="margin-top:12px">Isometric</div>'
     + svgIso(d, 328, 306)
     + '<div class="dc-legend">seams dashed moss · cuts dashed rust · '
-    + (S.panelFit ? 'panel joints dotted on the walls' : 'One-size panel mode — joints not drawn') + '</div>';
+    + (S.panelFit ? 'panel joints dotted on the walls' : 'One-size panel mode — joints not drawn')
+    + ' · corners click to toggle a 45° cut</div>';
+  const svg = el.querySelector('svg');
+  if (svg && T.sc) {
+    svg.style.cursor = S.placing ? 'crosshair' : 'pointer';
+    svg.onclick = ev => {
+      const r = svg.getBoundingClientRect();
+      const x = ((ev.clientX - r.left) * (T.W_ / r.width) - T.ox) / T.sc;
+      const y = ((ev.clientY - r.top) * (T.H_ / r.height) - T.oy) / T.sc;
+      const near = 10;
+      const corner =
+        Math.hypot(x, y) < near ? 'bl' : Math.hypot(x - T.rw, y) < near ? 'br' :
+        Math.hypot(x, y - T.rd) < near ? 'fl' : Math.hypot(x - T.rw, y - T.rd) < near ? 'fr' : null;
+      if (corner) { S.corners[corner] = !S.corners[corner]; S.placing = false; renderAll(); return; }
+      if (!S.placing) return;
+      const dists = [['back', Math.abs(y)], ['entry', Math.abs(y - T.rd)], ['left', Math.abs(x)], ['right', Math.abs(x - T.rw)]];
+      dists.sort((a, b) => a[1] - b[1]);
+      const edge = dists[0][0];
+      S.extraWalls.push({
+        id: ++S.wallSeq, edge,
+        len: String(edge === 'entry' ? Math.min(24, T.rw) : edge === 'back' ? T.rw : T.rd),
+        h: '',
+      });
+      S.placing = false;
+      toast('Wall added on the ' + edge + ' side — set its length and height in the Walls group');
+      renderAll();
+    };
+  }
 }
 
 function renderAll() {
