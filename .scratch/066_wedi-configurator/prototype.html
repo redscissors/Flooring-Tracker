@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ned — wedi shower-system configurator prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+  :root{
+    --paper:#F6F3EC; --card:#FFFFFF; --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A; --band:#E7E3D6; --sand:#EDE9DD; --rowline:#ECE8DC;
+    --line:rgba(28,26,23,.10); --line-strong:rgba(28,26,23,.25); --grid:rgba(28,26,23,.34);
+    --moss-soft:rgba(87,112,58,.13); --tint:#F2F3EC; --rust:#B4552D;
+    --ui:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:var(--ui);-webkit-tap-highlight-color:transparent}
+  body{background:#1C1A17;color:#F6F3EC;padding:28px 20px 80px}
+  .intro{max-width:1320px;margin:0 auto 8px}
+  .intro h1{font-size:21px;font-weight:800;letter-spacing:-.01em}
+  .intro h1 span{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:12px;padding:2px 7px;margin-right:8px;vertical-align:3px}
+  .intro p{font-size:13px;color:#A8A29A;margin-top:6px;max-width:900px;line-height:1.55}
+  .intro p b{color:#F6F3EC}
+  .proto-label{max-width:1320px;margin:34px auto 10px;display:flex;align-items:baseline;gap:10px}
+  .proto-label h2{font-size:15px;font-weight:800}
+  .proto-label h2 b{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:11px;padding:1px 6px;margin-right:7px;vertical-align:1px}
+  .proto-label span{font-size:12px;color:#A8A29A}
+
+  /* ============ the popup shell ============ */
+  .popwrap{max-width:1320px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px}
+  .popup{background:var(--paper);color:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;height:860px;border:1px solid rgba(0,0,0,.4)}
+  .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--paper)}
+  .pop-head .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--moss-deep)}
+  .pop-head .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
+  .pop-head .name small{font-weight:600;color:var(--muted);font-size:12px;margin-left:6px}
+  .xbtn{margin-left:14px;width:30px;height:30px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;flex:none}
+  .tierbar{margin-left:auto;display:flex;align-items:center;gap:0;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden}
+  .tierbar button{border:none;background:var(--card);color:var(--muted);font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;line-height:1.1}
+  .tierbar button + button{border-left:1px solid var(--line-strong)}
+  .tierbar button small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
+  .tierbar input{width:40px;border:none;background:transparent;font-size:11.5px;font-weight:700;text-align:center;color:inherit;font-family:var(--ui)}
+  .tierbar input:focus{outline:none}
+  .modetabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line-strong);background:var(--paper)}
+  .modetab{border:1px solid var(--line);border-bottom:none;background:var(--sand);color:var(--muted);font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:7px 7px 0 0;cursor:pointer}
+  .modetab small{font-weight:600;color:var(--faint);margin-left:5px;font-size:10.5px}
+  .modetab.on{background:var(--card);color:var(--ink);border-color:var(--line-strong);position:relative}
+  .modetab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--card)}
+  .pop-body{flex:1;display:flex;min-height:0;background:var(--card)}
+  .main{flex:1;min-width:0;overflow-y:auto;background:var(--card);padding:16px 18px 30px}
+  .main::-webkit-scrollbar{width:0}
+
+  /* ============ kits tab ============ */
+  .fam{margin-bottom:22px}
+  .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:9px}
+  .fam-h .t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--moss-deep)}
+  .fam-h .hint{font-size:11px;color:var(--faint)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
+  .pancard{border:1px solid var(--line-strong);border-radius:9px;background:var(--card);padding:10px 11px 9px;cursor:pointer;text-align:left;position:relative}
+  .pancard:hover{border-color:var(--moss)}
+  .pancard.on{outline:2px solid var(--moss);outline-offset:-1px;background:var(--tint)}
+  .pancard .sz{font-size:16.5px;font-weight:800;letter-spacing:-.01em}
+  .pancard .sz small{font-size:10.5px;font-weight:600;color:var(--faint);margin-left:4px}
+  .pancard .nm{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:2px;line-height:1.3;min-height:26px}
+  .pancard .pr{font-size:13px;font-weight:800;margin-top:5px;font-variant-numeric:tabular-nums}
+  .pancard .fk{font-size:9.5px;color:var(--faint);font-weight:600;margin-top:2px}
+  .pancard .dot{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--moss)}
+  .pancard .drn{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);background:var(--sand);border-radius:4px;padding:1px 5px;margin-top:5px}
+  .kitnote{font-size:11.5px;color:var(--muted);background:var(--tint);border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin-bottom:16px;line-height:1.5}
+  .kitnote b{color:var(--ink)}
+
+  /* ============ custom tab ============ */
+  .roomform{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;background:var(--tint);border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:14px}
+  .rf{display:flex;flex-direction:column;gap:4px}
+  .rf label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+  .rf .dims{display:flex;align-items:center;gap:6px}
+  .rf .dims span{font-size:12px;color:var(--faint);font-weight:700}
+  .inp{border:1px solid var(--line-strong);border-radius:7px;background:var(--card);color:var(--ink);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px;font-family:var(--ui)}
+  .inp:focus{outline:2px solid var(--moss);outline-offset:1px;border-color:transparent}
+  .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden;background:var(--card)}
+  .seg button{border:none;background:var(--card);color:var(--muted);font-size:12px;font-weight:700;padding:8px 12px;cursor:pointer}
+  .seg button + button{border-left:1px solid var(--line-strong)}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .optrow{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+  .optrow::-webkit-scrollbar{height:0}
+  .optcard{flex:0 0 240px;border:1px solid var(--line-strong);border-radius:9px;background:var(--card);padding:10px 12px;cursor:pointer;text-align:left}
+  .optcard:hover{border-color:var(--moss)}
+  .optcard.on{outline:2px solid var(--moss);outline-offset:-1px;background:var(--tint)}
+  .optcard .bdg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+  .badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;background:var(--sand);color:var(--muted);border-radius:4px;padding:2px 6px}
+  .badge.hot{background:var(--moss);color:#fff}
+  .optcard .t{font-size:12px;font-weight:800;line-height:1.3;min-height:31px}
+  .optcard .p{font-size:14px;font-weight:800;margin-top:5px;font-variant-numeric:tabular-nums}
+  .optcard .p small{font-size:10px;color:var(--faint);font-weight:600;margin-left:4px}
+  .optcard .wrn{font-size:9.5px;color:var(--rust);font-weight:600;margin-top:3px}
+  .optcard .thumb{margin-top:7px;background:var(--tint);border-radius:6px;padding:4px;display:flex;justify-content:center}
+  .diagwrap{display:flex;gap:12px;flex-wrap:wrap}
+  .diagbox{flex:1 1 320px;min-width:0;background:var(--tint);border:1px solid var(--line);border-radius:9px;padding:10px}
+  .diagbox .dh{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin-bottom:4px;display:flex}
+  .diagbox .dh span{margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .diagbox svg{display:block;width:100%;height:auto}
+  .warnlist{margin-top:12px}
+  .warnrow{display:flex;gap:8px;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--rowline);line-height:1.45}
+  .warnrow.bad{color:var(--rust);font-weight:600}
+  .warnrow .ic{flex:none;font-weight:800}
+  .nores{font-size:12.5px;color:var(--faint);padding:16px 4px}
+
+  /* ============ browse tab ============ */
+  .browsebar{display:flex;gap:8px;margin-bottom:10px}
+  .browsebar .inp{flex:1;width:auto}
+  .gchips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+  .gchip{border:1px solid var(--line-strong);background:var(--card);border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer}
+  .gchip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .gchip small{font-weight:600;opacity:.65;margin-left:3px}
+  .figcard{background:var(--tint);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-bottom:12px}
+  .figcard .fh{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--moss-deep);margin-bottom:6px}
+  .figcard .fr{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--muted);font-weight:600}
+  .figcard .fr b{color:var(--ink)}
+  .figcard .inp{width:80px;padding:5px 8px;font-size:12.5px}
+  .brow{display:flex;align-items:center;gap:10px;padding:6px 4px;border-top:1px solid var(--rowline)}
+  .brow:last-child{border-bottom:1px solid var(--rowline)}
+  .brow .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--moss)}
+  .brow .sdot.so{background:transparent;border:1.4px solid var(--faint)}
+  .brow .bn{flex:1;min-width:0}
+  .brow .bn .n{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brow .bn .s{font-size:10.5px;color:var(--faint);font-weight:600}
+  .brow .sku{flex:none;font-size:10.5px;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums;width:88px;text-align:right}
+  .brow .pr{flex:none;width:84px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  .brow .pr small{display:block;font-size:9px;color:var(--faint);font-weight:600}
+  .stepper{flex:none;display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden}
+  .stepper button{border:none;background:var(--card);width:24px;height:24px;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer;line-height:1}
+  .stepper .q{width:28px;text-align:center;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+  .stepper .q.zero{color:var(--faint);font-weight:600}
+  .more{font-size:11px;color:var(--faint);padding:8px 4px}
+
+  /* ============ build column ============ */
+  .buildcol{flex:0 0 392px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;min-height:0}
+  .bc-scroll{flex:1;overflow-y:auto;padding:14px 16px 8px}
+  .bc-scroll::-webkit-scrollbar{width:0}
+  .bc-h{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+  .bc-h .t{font-size:14px;font-weight:800}
+  .bc-h .sub{font-size:10.5px;color:var(--faint);font-weight:600;margin-left:auto}
+  .bc-empty{font-size:12px;color:var(--faint);line-height:1.6;padding:22px 6px}
+  .bgroup{margin-top:11px}
+  .bg-h{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);padding-bottom:4px;border-bottom:1px solid var(--line-strong)}
+  .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
+  .wtgl{border:1px solid var(--line-strong);background:var(--card);border-radius:4px;font-size:9px;font-weight:800;color:var(--faint);width:20px;height:17px;cursor:pointer;line-height:1}
+  .wtgl.on{background:var(--moss);border-color:var(--moss);color:#fff}
+  .whin{width:34px;border:1px solid var(--line-strong);border-radius:4px;font-size:10px;font-weight:700;text-align:center;padding:1px 2px;background:var(--card);color:var(--ink);font-family:var(--ui)}
+  .bline{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--rowline)}
+  .bline .bn{flex:1;min-width:0}
+  .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .bline .bn .m{font-size:9.5px;color:var(--faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bline .bn .m b{color:var(--muted);font-weight:700}
+  .bline .lp{flex:none;text-align:right;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;width:62px}
+  .bline .lp small{display:block;font-size:9px;color:var(--faint);font-weight:600}
+  .bline .stepper button{width:20px;height:20px;font-size:12px}
+  .bline .stepper .q{width:24px;font-size:11px}
+  .bline .stepper .q.ov{color:var(--rust)}
+  .swapb{flex:none;border:1px solid var(--line);background:var(--card);border-radius:5px;width:20px;height:20px;font-size:11px;color:var(--muted);cursor:pointer;line-height:1}
+  .swapb:hover{border-color:var(--moss);color:var(--moss-deep)}
+  .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:7px 0 2px}
+  .addchip{border:1px dashed var(--line-strong);background:var(--card);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;color:var(--muted);cursor:pointer}
+  .addchip.on{border-style:solid;background:var(--moss-soft);border-color:var(--moss);color:var(--moss-deep)}
+  .hint{display:flex;gap:8px;align-items:center;background:#FBF3E4;border:1px solid #E5C07B;border-radius:7px;padding:7px 10px;font-size:11px;color:#7A5B1F;font-weight:600;margin-top:10px;line-height:1.4}
+  .hint button{border:1px solid #C9A050;background:#fff;border-radius:5px;font-size:10.5px;font-weight:800;color:#7A5B1F;padding:3px 8px;cursor:pointer;flex:none;margin-left:auto}
+  .fcomp{margin-top:10px;background:var(--tint);border:1px solid var(--line);border-radius:7px;padding:8px 11px;font-size:11px;color:var(--muted);line-height:1.5}
+  .fcomp b{color:var(--ink)}
+  .fcomp .beat{color:var(--moss-deep);font-weight:800}
+  .fcomp .over{color:var(--rust);font-weight:800}
+  .bc-foot{flex:none;border-top:1px solid var(--line-strong);background:var(--sand);padding:10px 16px 12px}
+  .totrow{display:flex;align-items:baseline;gap:12px}
+  .totrow .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .totrow .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+  .totrow .sell{margin-left:auto;text-align:right}
+  .totrow .sell .v{font-size:22px}
+  .marginrow{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:2px;display:flex}
+  .marginrow span{margin-left:auto}
+  .btnrow{display:flex;gap:7px;margin-top:9px}
+  .btn{flex:1;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);border-radius:7px;font-size:12px;font-weight:800;padding:9px 6px;cursor:pointer}
+  .btn.primary{background:var(--moss);border-color:var(--moss);color:#fff}
+  .btn.primary:hover{background:var(--moss-deep)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* ============ swap popover / modal / toast ============ */
+  .pop-anchor{position:fixed;z-index:60;background:var(--card);color:var(--ink);border:1px solid var(--line-strong);border-radius:9px;box-shadow:0 18px 50px rgba(0,0,0,.3);width:300px;max-height:340px;overflow-y:auto;padding:6px}
+  .pop-anchor .ph{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);padding:6px 8px 4px}
+  .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left}
+  .srow:hover{background:var(--tint)}
+  .srow.on{background:var(--moss-soft)}
+  .srow .sdot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--moss)}
+  .srow .sdot.so{background:transparent;border:1.3px solid var(--faint)}
+  .srow .n{flex:1;font-size:11.5px;font-weight:700;color:var(--ink);line-height:1.3}
+  .srow .n small{display:block;font-size:9.5px;color:var(--faint);font-weight:600}
+  .srow .p{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .overlay{position:fixed;inset:0;background:rgba(28,26,23,.5);z-index:70;display:flex;align-items:center;justify-content:center;padding:30px}
+  .modal{background:var(--paper);color:var(--ink);border-radius:10px;max-width:880px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,.5);overflow:hidden}
+  .modal .mh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line-strong)}
+  .modal .mh .t{font-size:14px;font-weight:800}
+  .modal .mh .sub{font-size:11px;color:var(--muted);font-weight:600}
+  .modal .mbody{flex:1;overflow-y:auto;padding:12px 16px}
+  .ptable{width:100%;border-collapse:collapse;font-size:11.5px}
+  .ptable th{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);text-align:left;padding:4px 8px;border-bottom:1px solid var(--line-strong)}
+  .ptable td{padding:5px 8px;border-bottom:1px solid var(--rowline);vertical-align:top}
+  .ptable .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  .ptable .mono{font-weight:700;white-space:nowrap}
+  .ptable .mark{font-size:9.5px;font-weight:700;color:var(--moss-deep);background:var(--moss-soft);border-radius:4px;padding:1px 6px;white-space:nowrap}
+  .ptable .mark.part{color:var(--faint);background:var(--sand)}
+  .mnote{font-size:11px;color:var(--muted);line-height:1.55;margin-top:10px}
+  .mnote b{color:var(--ink)}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1C1A17;color:#F6F3EC;border:1px solid rgba(246,243,236,.25);font-size:12.5px;font-weight:700;border-radius:8px;padding:10px 18px;z-index:90;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+
+  /* ============ search-entry demo (E) ============ */
+  .ewrap{max-width:1320px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:26px;display:flex;gap:26px;flex-wrap:wrap}
+  .ecol{flex:1 1 430px}
+  .ebox{background:var(--card);color:var(--ink);border-radius:9px;border:1px solid rgba(0,0,0,.4);box-shadow:0 18px 50px rgba(0,0,0,.4);overflow:hidden}
+  .ebox .searchline{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid var(--line-strong)}
+  .ebox .searchline input{flex:1;border:none;font-size:13.5px;font-weight:600;color:var(--ink);font-family:var(--ui);background:transparent}
+  .ebox .searchline input:focus{outline:none}
+  .pinhead{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);padding:9px 13px 3px}
+  .pinrow{display:flex;align-items:center;gap:10px;padding:8px 13px;cursor:pointer}
+  .pinrow:hover{background:var(--tint)}
+  .pinrow.dim{opacity:.38;cursor:default}
+  .pinrow .ic{flex:none;width:26px;height:26px;border-radius:6px;background:var(--moss-soft);color:var(--moss-deep);font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center}
+  .pinrow .pn{flex:1;min-width:0}
+  .pinrow .pn b{display:block;font-size:12.5px;font-weight:800}
+  .pinrow .pn span{display:block;font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.35}
+  .enote{font-size:12px;color:#A8A29A;line-height:1.6;margin-top:12px;max-width:480px}
+  .enote b{color:#F6F3EC}
+
+  /* ============ notes ============ */
+  .notes{max-width:1320px;margin:14px auto 0;color:#A8A29A;font-size:12.5px;line-height:1.7}
+  .notes b{color:#F6F3EC}
+  .notes ul{margin:6px 0 0 18px}
+
+  /* ============ print sheet ============ */
+  #printsheet{display:none}
+  @media print{
+    body{background:#fff;color:#111;padding:0}
+    body > *:not(#printsheet){display:none !important}
+    #printsheet{display:block;color:#111}
+    .ps-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}
+    .ps-head .t{font-size:20px;font-weight:800}
+    .ps-head .sub{font-size:11px;color:#555;font-weight:600}
+    .ps-head .dt{margin-left:auto;font-size:11px;color:#555}
+    .ps-room{font-size:13px;font-weight:700;margin-bottom:12px}
+    .ps-diags{display:flex;gap:18px;align-items:flex-start;margin-bottom:6px}
+    .ps-diags .d{flex:1}
+    .ps-diags .dh{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:4px}
+    .ps-diags svg{width:100%;height:auto;border:1px solid #ddd;border-radius:6px}
+    .ps-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:#555;margin:14px 0 4px}
+    .ps-warn{font-size:11px;color:#333;padding:2px 0}
+    .ps-table{width:100%;border-collapse:collapse;font-size:11px}
+    .ps-table th{text-align:left;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#555;border-bottom:1.5px solid #111;padding:3px 6px}
+    .ps-table td{border-bottom:1px solid #ddd;padding:4px 6px;vertical-align:top}
+    .ps-table .num{text-align:right;font-variant-numeric:tabular-nums}
+    .ps-tot{display:flex;justify-content:flex-end;gap:26px;font-size:12px;font-weight:800;margin-top:8px}
+    .ps-note{font-size:9.5px;color:#777;margin-top:14px;line-height:1.5}
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1><span>ned</span>wedi shower-system configurator — interactive prototype</h1>
+  <p>Issue 066 · One popup, three surfaces. wedi is the opposite of Sheoga on both axes: <b>every piece has a part
+  number</b> and <b>wedi publishes suggested retail</b> — so nothing is marked up. Sell is book retail, cost is
+  distributor net (≡ the ERP's stocked cost), and Builder is the one wedi-specific rule: <b>retail × 0.82</b>.
+  What replaces Sheoga's description builder is a <b>system solver</b> — a shower is a pan + extensions + panels +
+  curb + drain finish + consumables that all have to agree. Everything on this page runs live off
+  <code>proto-engine.js</code> (115 self-test assertions) over the real Jan 2026 pricelist + ERP stock export.</p>
+</div>
+
+<div class="proto-label"><h2><b>A</b> The configurator popup</h2><span>PC-first · Kits / Custom room / Browse · shared build column · tier lens · print layout</span></div>
+<div class="popwrap">
+  <div class="popup">
+    <div class="pop-head">
+      <div class="brand">
+        <div class="eyebrow">Vendor configurator</div>
+        <div class="name">wedi shower systems <small>sell = book retail · cost = distributor net</small></div>
+      </div>
+      <div class="tierbar" id="tierbar"></div>
+      <button class="xbtn" title="Close (prototype)">×</button>
+    </div>
+    <div class="modetabs" id="modetabs"></div>
+    <div class="pop-body">
+      <div class="main" id="main"></div>
+      <div class="buildcol">
+        <div class="bc-scroll" id="bc"></div>
+        <div class="bc-foot" id="bcfoot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-label" style="margin-top:40px"><h2><b>E</b> SKU-search entry</h2><span>the pinned “Vendor configurators” row generalizes to a two-entry descriptor list — Sheoga and wedi side by side</span></div>
+<div class="ewrap">
+  <div class="ecol">
+    <div class="ebox">
+      <div class="searchline">🔍 <input id="eq" placeholder='try: wedi · 36x60 curbless · shower pan · niche · 3&apos;x5&apos; linear' value="wedi 36x60 curbless"></div>
+      <div class="pinhead">Vendor configurators</div>
+      <div id="epin"></div>
+      <div style="height:8px"></div>
+    </div>
+  </div>
+  <div class="ecol">
+    <div class="enote"><b>How it triggers:</b> a token completing toward “wedi”, a strong word (fundo, curbless,
+    riolito, shower pan, niche…), or a weak trade word beside a size. A parsed size opens the room solver
+    pre-filled; kit words open the kit cards; a named part opens the catalog. Unrelated trade queries
+    (“porcelain 12x24”, “schluter reducer”) never pin the row. In production this recognizer is the only wedi
+    code on the boot chunk (<code>wediquery.js</code>, a few hundred bytes) — the tables stay inside the lazy
+    popup chunk (ADR 0026).</div>
+    <div class="enote" id="eparse"></div>
+  </div>
+</div>
+
+<div class="notes">
+  <b>Prototype notes.</b>
+  <ul>
+    <li><b>Kits</b> — every stocked pan is a card; one click assembles the house kit (pan · ½" panels for the picked walls · curb lean / curbless waterproofing · drain cover · fasteners · sealant · collars · trowel) mirroring wedi's boxed recipe, with the factory-kit compare chip under the totals.</li>
+    <li><b>Custom room</b> — the solver returns ranked options (exact pan · pan + extensions with the corner rule · larger pan cut down · linear module + extension), each with a to-scale top-down layout and an isometric view; Print produces the installer layout sheet.</li>
+    <li><b>Browse</b> — the whole catalog, stock ranked first, group chips + search + steppers, and the sealant/fastener figurer using wedi's own planning rates (1 screw+washer / ft² · 1.2 oz / ft²).</li>
+    <li><b>Port to project</b> — “Add to product lines” previews the exact payload rows: the pan line carries <code>wedi:{mode,cfg}</code> for the Reconfigure chip, companions carry <code>wedi:{part:true}</code>, stocked lines key the ERP SKU, and every line carries the ×0.82 Builder stamp in <code>tierPrice</code>.</li>
+  </ul>
+</div>
+
+<div id="printsheet"></div>
+
+<script src="proto-data.js"></script>
+<script src="proto-engine.js"></script>
+<script>
+"use strict";
+const W = WEDI;
+const $ = id => document.getElementById(id);
+const fm = n => '$' + (+n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fm0 = n => '$' + Math.round(+n).toLocaleString('en-US');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const r2 = W.round2;
+
+const TIER_COLOR = {
+  retail: { main: '#1C1A17', soft: '#EDE9DD' },
+  builder: { main: '#2563eb', soft: '#dbeafe' },
+  employee: { main: '#0d9488', soft: '#ccfbf1' },
+  sale: { main: '#db2777', soft: '#fce7f3' },
+  custom: { main: '#7c3aed', soft: '#ede9fe' },
+};
+const TIER_SUB = { retail: 'book price', builder: '× 0.82', employee: 'cost × 1.06', sale: '−10%', custom: null };
+
+const BUCKETS = [['floor', 'Floor'], ['walls', 'Walls'], ['drain', 'Drain & finish'], ['install', 'Install'], ['addon', 'Add-ons']];
+const BUCKET_OF = {
+  pan: 'floor', module: 'floor', modExt: 'floor', extension: 'floor', cornerExt: 'floor', ramp: 'floor',
+  curb: 'floor', kit: 'floor', panel: 'walls', cover: 'drain', coverFrame: 'drain', drainKit: 'drain',
+  recess: 'install', fastener: 'install', sealant: 'install', tool: 'install', collar: 'install', subliner: 'install',
+};
+const bucketOf = e => BUCKET_OF[e.group] || 'addon';
+
+const S = {
+  tab: 'kits', tier: 'retail', customPct: 15,
+  panKey: null, option: null, qtyOv: {}, manual: [], addons: [],
+  opts: { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'sausage', recess: undefined },
+  inp: { w: 48, d: 66, curb: 'curbed', drain: 'any' },
+  wallSel: { back: true, left: true, right: true }, wallH: 80,
+  results: [], selIdx: -1, q: '', grp: '', figSf: '',
+};
+
+function tierOf(item) {
+  return W.tierPrice(item, S.tier, S.tier === 'custom' ? S.customPct : S.tier === 'sale' ? 10 : null);
+}
+
+// ---------------------------------------------------------------------------
+// build assembly: engine kit + user quantity overrides + manual browse lines
+// ---------------------------------------------------------------------------
+function wallsArr(pan, room) {
+  const h = +S.wallH || 80;
+  let bw, sd;
+  if (room) { bw = room.w; sd = room.d; }
+  else if (pan.group === 'module') { bw = pan.len; sd = 72.5; }
+  else { bw = Math.max(pan.w, pan.d); sd = Math.min(pan.w, pan.d); }
+  const out = [];
+  if (S.wallSel.back) out.push({ len: bw, h, side: 'back' });
+  if (S.wallSel.left) out.push({ len: sd, h, side: 'left' });
+  if (S.wallSel.right) out.push({ len: sd, h, side: 'right' });
+  return out;
+}
+
+function currentBuild() {
+  let b = null;
+  if (S.panKey) {
+    const pan = W.item(S.panKey);
+    const room = S.option ? S.option.room : null;
+    b = W.kitFor(S.panKey, {
+      option: S.option || undefined, room: room || undefined,
+      walls: wallsArr(pan, room), wallHeight: +S.wallH || 80,
+      panelKey: S.opts.panelKey, curbKey: S.opts.curbKey, coverKey: S.opts.coverKey,
+      sealantForm: S.opts.sealantForm, recess: S.opts.recess,
+      addons: S.addons.slice(), tier: S.tier,
+      mode: S.option ? 'custom' : 'kit',
+    });
+    let lines = b.lines.map(l => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
+    lines.forEach(l => {
+      const ov = S.qtyOv[l.item.key];
+      if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
+    });
+    lines = lines.filter(l => l.qty > 0);
+    S.manual.forEach(m => {
+      const it = W.item(m.key);
+      if (!it || !(m.qty > 0)) return;
+      const hit = lines.filter(l => l.item.key === m.key)[0];
+      if (hit) hit.qty += m.qty;
+      else lines.push({ item: it, qty: m.qty, group: bucketOf(it), note: '', auto: false });
+    });
+    b = Object.assign({}, b, { lines });
+  } else if (S.manual.length) {
+    const lines = S.manual.filter(m => m.qty > 0).map(m => {
+      const it = W.item(m.key);
+      return it ? { item: it, qty: m.qty, group: bucketOf(it), note: '', auto: false } : null;
+    }).filter(Boolean);
+    if (lines.length) {
+      const soNet = r2(lines.reduce((s, l) => s + (l.item.stock ? 0 : (l.item.soNet || l.item.cost || 0) * l.qty), 0));
+      const hints = [];
+      const hasSaus = lines.some(l => l.item.group === 'sealant' && /sausage/i.test(l.item.name));
+      if (hasSaus && !lines.some(l => l.item.key === W.SKU.gun)) hints.push('sausage-gun');
+      if (soNet > 0 && soNet < W.SO_MIN_NET) hints.push('small-order');
+      b = { pan: null, lines, panelSf: 0, factory: null, hints, mode: 'browse', cfg: {}, soNet };
+    }
+  }
+  return b;
+}
+
+function qtyIn(build, key) {
+  if (!build) return 0;
+  return build.lines.reduce((s, l) => s + (l.item.key === key ? l.qty : 0), 0);
+}
+
+function step(key, delta) {
+  const build = currentBuild();
+  const auto = build && build.lines.filter(l => l.item.key === key && l.auto !== false)[0];
+  if (auto) {
+    const cur = S.qtyOv[key] != null ? S.qtyOv[key] : auto.autoQty != null ? auto.autoQty : auto.qty;
+    S.qtyOv[key] = Math.max(0, (S.qtyOv[key] != null ? S.qtyOv[key] : auto.qty) + delta);
+  } else {
+    const m = S.manual.filter(x => x.key === key)[0];
+    if (m) { m.qty = Math.max(0, m.qty + delta); if (!m.qty) S.manual = S.manual.filter(x => x !== m); }
+    else if (delta > 0) S.manual.push({ key, qty: delta });
+    if (S.addons.indexOf(key) >= 0 && delta < 0 && !qtyIn(currentBuild(), key)) S.addons = S.addons.filter(k => k !== key);
+  }
+  renderAll();
+}
+
+function pickPan(key) {
+  S.panKey = key; S.option = null; S.qtyOv = {}; S.addons = []; S.manual = [];
+  S.opts = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'sausage', recess: undefined };
+  renderAll();
+}
+
+// ---------------------------------------------------------------------------
+// SVG diagrams — top-down layout + isometric view
+// ---------------------------------------------------------------------------
+function diagData() {
+  if (S.option) return S.option;
+  if (!S.panKey) return null;
+  const p = W.item(S.panKey);
+  const w = p.group === 'module' ? p.len : p.w, d = p.group === 'module' ? 5.75 : p.d;
+  return {
+    pieces: [{ kind: p.group === 'module' ? 'module' : 'pan', item: p, x: 0, y: 0, w, d, cut: null }],
+    drain: p.drain ? Object.assign({}, p.drain) : null,
+    room: { w, d }, warnings: [], title: p.name + ' ' + p.sizeText,
+  };
+}
+
+const PIECE_FILL = { pan: '#DCE5CD', module: '#DCE5CD', ext: '#EFF3E6', cornerExt: '#E4EBD6', modExt: '#EFF3E6' };
+const PIECE_SIDE = { pan: '#C2CFA8', module: '#C2CFA8', ext: '#D8DFC4', cornerExt: '#CDD8B4', modExt: '#D8DFC4' };
+
+function svgTop(o, W_, H_, mini) {
+  const pad = mini ? 6 : 42, padT = mini ? 6 : 30;
+  const rw = o.room.w, rd = o.room.d;
+  const sc = Math.min((W_ - pad * 2) / rw, (H_ - padT - (mini ? 6 : 26)) / rd);
+  const ox = (W_ - rw * sc) / 2, oy = padT;
+  const X = x => r2(ox + x * sc), Y = y => r2(oy + y * sc);
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W_ + ' ' + H_ + '" width="' + W_ + '" height="' + H_ + '">';
+  // wall bands on the wall sides; the entry side stays open
+  const wallW = mini ? 2.5 : 5;
+  const wl = { back: S.wallSel.back, left: S.wallSel.left, right: S.wallSel.right };
+  s += '<rect x="' + X(0) + '" y="' + Y(0) + '" width="' + r2(rw * sc) + '" height="' + r2(rd * sc) + '" fill="#FBFAF5" stroke="#8A8378" stroke-width="1"/>';
+  if (wl.back) s += '<rect x="' + (X(0) - wallW) + '" y="' + (Y(0) - wallW) + '" width="' + r2(rw * sc + wallW * 2) + '" height="' + wallW + '" fill="#57534C"/>';
+  if (wl.left) s += '<rect x="' + (X(0) - wallW) + '" y="' + (Y(0) - wallW) + '" width="' + wallW + '" height="' + r2(rd * sc + wallW * 2) + '" fill="#57534C"/>';
+  if (wl.right) s += '<rect x="' + X(rw) + '" y="' + (Y(0) - wallW) + '" width="' + wallW + '" height="' + r2(rd * sc + wallW * 2) + '" fill="#57534C"/>';
+  o.pieces.forEach(p => {
+    const f = PIECE_FILL[p.kind] || '#EFF3E6';
+    s += '<rect x="' + X(p.x) + '" y="' + Y(p.y) + '" width="' + r2(p.w * sc) + '" height="' + r2(p.d * sc) + '" fill="' + f + '" stroke="#1C1A17" stroke-width="1.1"/>';
+    if (p.cut) {
+      // dash the cut edges: any side where the piece is smaller than the uncut nominal
+      if (p.w < p.cut.w - 0.01) s += '<line x1="' + X(p.x + p.w) + '" y1="' + Y(p.y) + '" x2="' + X(p.x + p.w) + '" y2="' + Y(p.y + p.d) + '" stroke="#B4552D" stroke-width="2" stroke-dasharray="5 3"/>';
+      if (p.d < p.cut.d - 0.01) s += '<line x1="' + X(p.x) + '" y1="' + Y(p.y + p.d) + '" x2="' + X(p.x + p.w) + '" y2="' + Y(p.y + p.d) + '" stroke="#B4552D" stroke-width="2" stroke-dasharray="5 3"/>';
+    }
+    if (!mini && p.d * sc >= 26 && p.w * sc >= 46) {
+      const cx = X(p.x + p.w / 2), cy = Y(p.y + p.d / 2);
+      const lbl = p.kind === 'pan' || p.kind === 'module' ? (p.item.erp || p.item.us) : p.item.us || p.item.erp;
+      s += '<text x="' + cx + '" y="' + (cy - 20) + '" text-anchor="middle" font-size="9.5" font-weight="700" fill="#40542A" font-family="Manrope,sans-serif">' + esc(lbl) + '</text>';
+      s += '<text x="' + cx + '" y="' + (cy - 9) + '" text-anchor="middle" font-size="8.5" fill="#57534C" font-family="Manrope,sans-serif">' + esc(W.inch(p.w) + '×' + W.inch(p.d)) + (p.cut ? ' cut' : '') + '</text>';
+    }
+  });
+  // seams between pieces
+  if (!mini && o.pieces.length > 1) {
+    o.pieces.slice(1).forEach(p => {
+      s += '<rect x="' + X(p.x) + '" y="' + Y(p.y) + '" width="' + r2(p.w * sc) + '" height="' + r2(p.d * sc) + '" fill="none" stroke="#57703A" stroke-width="1" stroke-dasharray="2 2"/>';
+    });
+  }
+  const dr = o.drain;
+  if (dr) {
+    if (dr.type === 'linear' && dr.len) {
+      const half = dr.len / 2;
+      const hx = dr.axis === 'w' ? half : 1.4, hy = dr.axis === 'w' ? 1.4 : half;
+      s += '<rect x="' + X(dr.x - hx) + '" y="' + Y(dr.y - hy) + '" width="' + r2(hx * 2 * sc) + '" height="' + r2(hy * 2 * sc) + '" rx="2.5" fill="#1C1A17"/>';
+      if (!mini && dr.axis === 'w') s += '<text x="' + X(dr.x) + '" y="' + (Y(dr.y + hy) + 11) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#1C1A17" font-family="Manrope,sans-serif">' + esc(W.inch(dr.len) + '" channel') + '</text>';
+    } else {
+      s += '<circle cx="' + X(dr.x) + '" cy="' + Y(dr.y) + '" r="' + (mini ? 3 : 7) + '" fill="#FBFAF5" stroke="#1C1A17" stroke-width="1.4"/>';
+      s += '<circle cx="' + X(dr.x) + '" cy="' + Y(dr.y) + '" r="' + (mini ? 1 : 2.2) + '" fill="#1C1A17"/>';
+    }
+    if (!mini && dr.type !== 'linear') {
+      s += '<text x="' + X(dr.x) + '" y="' + (Y(dr.y) + 18) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#1C1A17" font-family="Manrope,sans-serif">' + esc(dr.type) + ' drain @ ' + esc(W.inch(dr.x)) + '", ' + esc(W.inch(dr.y)) + '"</text>';
+    }
+  }
+  if (!mini) {
+    // dimensions
+    const dy = Y(rd) + 16;
+    s += '<line x1="' + X(0) + '" y1="' + dy + '" x2="' + X(rw) + '" y2="' + dy + '" stroke="#8A8378" stroke-width="1"/>';
+    s += '<text x="' + X(rw / 2) + '" y="' + (dy - 3) + '" text-anchor="middle" font-size="9.5" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">' + esc(W.inch(rw)) + '"</text>';
+    const dx = X(0) - 16;
+    s += '<line x1="' + dx + '" y1="' + Y(0) + '" x2="' + dx + '" y2="' + Y(rd) + '" stroke="#8A8378" stroke-width="1"/>';
+    s += '<text x="' + (dx - 4) + '" y="' + Y(rd / 2) + '" text-anchor="middle" font-size="9.5" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif" transform="rotate(-90 ' + (dx - 4) + ' ' + Y(rd / 2) + ')">' + esc(W.inch(rd)) + '"</text>';
+    s += '<text x="' + X(rw / 2) + '" y="' + (Y(rd) - 6) + '" text-anchor="middle" font-size="8.5" fill="#8A8378" font-family="Manrope,sans-serif">↓ entry</text>';
+  }
+  return s + '</svg>';
+}
+
+function svgIso(o, W_, H_) {
+  const rw = o.room.w, rd = o.room.d, h = Math.min(+S.wallH || 80, 96);
+  const cx_ = 0.866, cy_ = 0.5;
+  const P = (x, y, z) => [ (x - y) * cx_, (x + y) * cy_ - z ];
+  // fit: collect extreme points
+  const pts = [P(0,0,0), P(rw,0,0), P(0,rd,0), P(rw,rd,0), P(0,0,h), P(rw,0,h)];
+  if (S.wallSel.right) pts.push(P(rw, rd, h));
+  if (S.wallSel.left) pts.push(P(0, rd, h));
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  pts.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
+  const pad = 16;
+  const sc = Math.min((W_ - pad * 2) / (maxX - minX), (H_ - pad * 2) / (maxY - minY));
+  const M = (x, y, z) => { const p = P(x, y, z); return r2(pad + (p[0] - minX) * sc) + ',' + r2(pad + (p[1] - minY) * sc); };
+  const poly = (pts2, fill, stroke, sw, extra) =>
+    '<polygon points="' + pts2.join(' ') + '" fill="' + fill + '" stroke="' + (stroke || 'none') + '" stroke-width="' + (sw || 0) + '"' + (extra || '') + '/>';
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W_ + ' ' + H_ + '" width="' + W_ + '" height="' + H_ + '">';
+  // floor plate + soft shadow
+  s += poly([M(-3, -3, 0), M(rw + 3, -3, 0), M(rw + 3, rd + 3, 0), M(-3, rd + 3, 0)], 'rgba(28,26,23,.06)');
+  // back + left walls (behind the floor)
+  const wallFill = 'rgba(87,112,58,.12)', wallLine = 'rgba(28,26,23,.4)';
+  if (S.wallSel.back) s += poly([M(0, 0, 0), M(rw, 0, 0), M(rw, 0, h), M(0, 0, h)], wallFill, wallLine, 1);
+  if (S.wallSel.left) s += poly([M(0, 0, 0), M(0, rd, 0), M(0, rd, h), M(0, 0, h)], wallFill, wallLine, 1);
+  // floor pieces, painter's order
+  const t = 4;   // slab height, exaggerated for read
+  const pieces = o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y));
+  pieces.forEach(p => {
+    const f = PIECE_FILL[p.kind] || '#EFF3E6', side = PIECE_SIDE[p.kind] || '#D8DFC4';
+    s += poly([M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t), M(p.x + p.w, p.y + p.d, 0), M(p.x + p.w, p.y, 0)], side, '#1C1A17', .8);
+    s += poly([M(p.x, p.y + p.d, t), M(p.x + p.w, p.y + p.d, t), M(p.x + p.w, p.y + p.d, 0), M(p.x, p.y + p.d, 0)], side, '#1C1A17', .8);
+    s += poly([M(p.x, p.y, t), M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t), M(p.x, p.y + p.d, t)], f, '#1C1A17', .9);
+    if (p.cut) {
+      if (p.w < p.cut.w - 0.01) s += '<line x1="' + M(p.x + p.w, p.y, t).replace(',', '" y1="') + '" x2="' + M(p.x + p.w, p.y + p.d, t).replace(',', '" y2="') + '" stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
+      if (p.d < p.cut.d - 0.01) s += '<line x1="' + M(p.x, p.y + p.d, t).replace(',', '" y1="') + '" x2="' + M(p.x + p.w, p.y + p.d, t).replace(',', '" y2="') + '" stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
+    }
+  });
+  // drain on top of the pan
+  const dr = o.drain;
+  if (dr) {
+    if (dr.type === 'linear' && dr.len) {
+      const half = dr.len / 2;
+      const hx = dr.axis === 'w' ? half : 1.6, hy = dr.axis === 'w' ? 1.6 : half;
+      s += poly([M(dr.x - hx, dr.y - hy, t + .1), M(dr.x + hx, dr.y - hy, t + .1), M(dr.x + hx, dr.y + hy, t + .1), M(dr.x - hx, dr.y + hy, t + .1)], '#1C1A17');
+    } else {
+      const c = M(dr.x, dr.y, t + .1).split(',');
+      s += '<ellipse cx="' + c[0] + '" cy="' + c[1] + '" rx="' + r2(4.5 * sc) + '" ry="' + r2(2.6 * sc) + '" fill="#FBFAF5" stroke="#1C1A17" stroke-width="1.2"/>';
+      s += '<ellipse cx="' + c[0] + '" cy="' + c[1] + '" rx="' + r2(1.4 * sc) + '" ry="' + r2(0.8 * sc) + '" fill="#1C1A17"/>';
+    }
+  }
+  // right wall as glass, over the floor
+  if (S.wallSel.right) {
+    s += poly([M(rw, 0, 0), M(rw, rd, 0), M(rw, rd, h), M(rw, 0, h)], 'rgba(87,112,58,.07)', wallLine, 1);
+  }
+  // wall height label
+  if (S.wallSel.back || S.wallSel.left || S.wallSel.right) {
+    const lp = M(0, 0, h).split(',');
+    s += '<text x="' + (+lp[0] + 4) + '" y="' + (+lp[1] + 10) + '" font-size="9" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">walls ' + esc(W.inch(+S.wallH || 80)) + '"</text>';
+  }
+  return s + '</svg>';
+}
+
+// ---------------------------------------------------------------------------
+// renderers
+// ---------------------------------------------------------------------------
+function renderTierbar() {
+  const el = $('tierbar');
+  el.innerHTML = W.TIERS.map(t => {
+    const on = S.tier === t;
+    const col = TIER_COLOR[t];
+    const style = on ? ' style="background:' + col.main + ';color:#fff"' : '';
+    const sub = t === 'custom'
+      ? (on ? '<small>−<input id="cpct" value="' + esc(S.customPct) + '"" size="2">%</small>' : '<small>−' + esc(S.customPct) + '%</small>')
+      : (TIER_SUB[t] ? '<small>' + TIER_SUB[t] + '</small>' : '');
+    return '<button data-tier="' + t + '"' + style + '>' + t[0].toUpperCase() + t.slice(1) + sub + '</button>';
+  }).join('');
+  el.querySelectorAll('button').forEach(b => b.onclick = e => {
+    if (e.target.id === 'cpct') return;
+    S.tier = b.dataset.tier; renderAll();
+  });
+  const cp = $('cpct');
+  if (cp) {
+    cp.onclick = e => e.stopPropagation();
+    cp.onchange = () => { S.customPct = Math.max(0, Math.min(90, +cp.value || 0)); renderAll(); };
+  }
+}
+
+function renderTabs() {
+  const cat = W.catalog();
+  const nStock = cat.filter(e => e.stock).length;
+  const defs = [
+    ['kits', 'Kits', W.pans().length + ' pans'],
+    ['custom', 'Custom room', 'solver'],
+    ['browse', 'Browse', nStock + ' stock · ' + (cat.length - nStock) + ' SO'],
+  ];
+  $('modetabs').innerHTML = defs.map(d =>
+    '<button class="modetab' + (S.tab === d[0] ? ' on' : '') + '" data-tab="' + d[0] + '">' + d[1] + '<small>' + d[2] + '</small></button>').join('');
+  document.querySelectorAll('.modetab').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderAll(); });
+}
+
+const FAM_DEFS = [
+  ['fundo', 'Fundo — curbed', 'center & offset drains · 1 37/64" thick, pre-sloped'],
+  ['curbless', 'Fundo Ligno — curbless', '¾" perimeter — recess the subfloor, bracket kit, or ramp'],
+  ['linear', 'Linear bases — 4-sided slope', 'channel drain along the long wall'],
+  ['module', 'Riolito Neo modules', 'one-way slope to a wall drain — pair with the module extension'],
+];
+function renderKits() {
+  const el = $('main');
+  let h = '<div class="kitnote"><b>One click builds the house kit from shop stock</b> — pan + Click&Seal drain (in the box)'
+    + ' + ½" panels for the picked walls + curb lean (curbed) / Subliner Dry + 620 + corner seals (curbless) + drain cover'
+    + ' + fasteners + sealant + both collars + trowel — mirroring wedi’s own boxed-kit recipe. Every line swaps or steps in the build column.</div>';
+  FAM_DEFS.forEach(fd => {
+    const list = fd[0] === 'module'
+      ? W.group('module').filter(m => m.sub === 'neo')
+      : W.pans({ family: fd[0] });
+    if (!list.length) return;
+    h += '<div class="fam"><div class="fam-h"><div class="t">' + esc(fd[1]) + '</div><div class="hint">' + esc(fd[2]) + '</div></div><div class="cards">';
+    list.forEach(p => {
+      const price = tierOf(p);
+      const fk = p.group === 'pan' ? W.factoryKit(p.w, p.d, p.sub === 'sdry' ? 'fundo' : p.sub, p.drain && p.drain.type) : null;
+      const sz = p.group === 'module' ? W.inch(p.len) + '″ <small>module</small>' : W.inch(p.w) + '×' + W.inch(p.d) + '<small>in</small>';
+      h += '<button class="pancard' + (S.panKey === p.key && !S.option ? ' on' : '') + '" data-pan="' + esc(p.key) + '">'
+        + (p.stock ? '<div class="dot" title="stocked"></div>' : '')
+        + '<div class="sz">' + sz + '</div>'
+        + '<div class="nm">' + esc(p.name.replace(/wedi\s*(®)?\s*/i, '')) + '</div>'
+        + '<div class="drn">' + esc(p.group === 'module' ? W.inch(p.channel) + '″ channel' : p.drain.type + ' drain') + '</div>'
+        + '<div class="pr" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(price) + '</div>'
+        + (fk && fk.kit ? '<div class="fk">boxed kit ' + fm0(fk.kit.retail) + '</div>' : '<div class="fk">&nbsp;</div>')
+        + '</button>';
+    });
+    h += '</div></div>';
+  });
+  el.innerHTML = h;
+  el.querySelectorAll('[data-pan]').forEach(b => b.onclick = () => pickPan(b.dataset.pan));
+}
+
+function renderCustom() {
+  const el = $('main');
+  const i = S.inp;
+  let h = '<div class="roomform">'
+    + '<div class="rf"><label>Pan size — width × depth</label><div class="dims">'
+    + '<input class="inp" id="rw" value="' + esc(i.w) + '"><span>×</span><input class="inp" id="rd" value="' + esc(i.d) + '"><span>in</span></div></div>'
+    + '<div class="rf"><label>Curb</label><div class="seg" id="segcurb">'
+    + '<button data-v="curbed"' + (i.curb === 'curbed' ? ' class="on"' : '') + '>Curbed</button>'
+    + '<button data-v="curbless"' + (i.curb === 'curbless' ? ' class="on"' : '') + '>Curbless</button></div></div>'
+    + '<div class="rf"><label>Drain preference</label><div class="seg" id="segdrain">'
+    + ['any', 'center', 'offset', 'linear'].map(dv =>
+      '<button data-v="' + dv + '"' + (i.drain === dv ? ' class="on"' : '') + '>' + dv[0].toUpperCase() + dv.slice(1) + '</button>').join('') + '</div></div>'
+    + '<div class="rf"><label>Walls</label><div class="seg" id="segwalls">'
+    + [['back', 'Back'], ['left', 'Left'], ['right', 'Right']].map(wv =>
+      '<button data-v="' + wv[0] + '"' + (S.wallSel[wv[0]] ? ' class="on"' : '') + '>' + wv[1] + '</button>').join('') + '</div></div>'
+    + '<div class="rf"><label>Wall height</label><div class="dims"><input class="inp" id="rh" style="width:58px" value="' + esc(S.wallH) + '"><span>in</span></div></div>'
+    + '</div>';
+
+  const res = S.results;
+  if (!res.length) {
+    h += '<div class="nores">No option fits ' + esc(W.inch(i.w)) + '″ × ' + esc(W.inch(i.d)) + '″ ' + esc(i.curb)
+      + (i.drain !== 'any' ? ' with a ' + esc(i.drain) + ' drain' : '') + ' — extensions reach '
+      + (i.curb === 'curbless' ? '24″' : '36″') + ' past the biggest pan.</div>';
+  } else {
+    h += '<div class="optrow">' + res.map((o, k) => {
+      const kit = W.kitFor(o.pan.key, { option: o, walls: wallsArr(o.pan, o.room) });
+      return '<button class="optcard' + (S.option === o ? ' on' : '') + '" data-opt="' + k + '">'
+        + '<div class="bdg">' + o.badges.map((b, bi) => '<span class="badge' + (bi === 0 && /Cheapest|Perfect/.test(b) ? ' hot' : '') + '">' + esc(b) + '</span>').join('') + '</div>'
+        + '<div class="t">' + esc(o.title) + '</div>'
+        + '<div class="p" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(r2(o.floorLines.reduce((s, l) => s + tierOf(l.item) * l.qty, 0))) + '<small>floor · full kit ' + fm0(kit.lines.reduce((s, l) => s + tierOf(l.item) * l.qty, 0)) + '</small></div>'
+        + (o.warnings.length ? '<div class="wrn">⚠ ' + esc(o.warnings[0].split(' — ')[0]) + '</div>' : '<div class="wrn">&nbsp;</div>')
+        + '<div class="thumb">' + svgTop(o, 120, 86, true) + '</div>'
+        + '</button>';
+    }).join('') + '</div>';
+    const sel = S.option && res.indexOf(S.option) >= 0 ? S.option : null;
+    if (sel) {
+      h += '<div class="diagwrap">'
+        + '<div class="diagbox"><div class="dh">Top-down layout<span>to scale · seams dashed moss · cuts dashed rust</span></div>' + svgTop(sel, 420, 330) + '</div>'
+        + '<div class="diagbox"><div class="dh">Isometric<span>walls at ' + esc(W.inch(S.wallH)) + '″</span></div>' + svgIso(sel, 420, 330) + '</div>'
+        + '</div>';
+      const cuts = sel.pieces.filter(p => p.cut);
+      h += '<div class="warnlist">';
+      cuts.forEach(p => {
+        h += '<div class="warnrow"><span class="ic">✂</span><span>Cut ' + esc(p.item.us || p.item.erp) + ' to '
+          + esc(W.inch(p.w)) + '″ × ' + esc(W.inch(p.d)) + '″ (from ' + esc(W.inch(p.cut.w)) + '″ × ' + esc(W.inch(p.cut.d)) + '″)'
+          + (p.kind === 'pan' ? '' : ' — trim the thick edge; the slope lands on the pan') + '</span></div>';
+      });
+      sel.warnings.forEach(wt => {
+        h += '<div class="warnrow' + (/re-create|re-formed|mitre|off the room/.test(wt) ? ' bad' : '') + '"><span class="ic">•</span><span>' + esc(wt) + '</span></div>';
+      });
+      if (sel.drain && sel.drain.note) h += '<div class="warnrow"><span class="ic">•</span><span>' + esc(sel.drain.note) + '</span></div>';
+      h += '</div>';
+    }
+  }
+  el.innerHTML = h;
+  const re = id => $(id);
+  re('rw').onchange = () => { S.inp.w = +re('rw').value || 0; solveNow(); };
+  re('rd').onchange = () => { S.inp.d = +re('rd').value || 0; solveNow(); };
+  re('rh').onchange = () => { S.wallH = +re('rh').value || 80; solveNow(); };
+  $('segcurb').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.curb = b.dataset.v; solveNow(); });
+  $('segdrain').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.drain = b.dataset.v; solveNow(); });
+  $('segwalls').querySelectorAll('button').forEach(b => b.onclick = () => { S.wallSel[b.dataset.v] = !S.wallSel[b.dataset.v]; solveNow(); });
+  el.querySelectorAll('[data-opt]').forEach(b => b.onclick = () => selectOption(+b.dataset.opt));
+}
+
+function solveNow() {
+  S.results = W.solve({ w: S.inp.w, d: S.inp.d, curb: S.inp.curb, drain: S.inp.drain, tolerance: 0.51 });
+  S.selIdx = S.results.length ? 0 : -1;
+  if (S.results.length) selectOption(0); else { S.panKey = null; S.option = null; renderAll(); }
+}
+
+function selectOption(k) {
+  const o = S.results[k];
+  if (!o) return;
+  S.selIdx = k;
+  S.panKey = o.pan.key; S.option = o;
+  S.qtyOv = {}; S.addons = []; S.manual = [];
+  S.opts = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'sausage', recess: undefined };
+  renderAll();
+}
+
+function renderBrowse() {
+  const el = $('main');
+  const build = currentBuild();
+  const sfDefault = build ? build.panelSf : 0;
+  const sf = S.figSf === '' ? sfDefault : +S.figSf || 0;
+  const fig = W.figureConsumables(sf, S.opts.sealantForm);
+  let h = '<div class="figcard"><div class="fh">Figure sealant &amp; fasteners — wedi’s own planning rates</div>'
+    + '<div class="fr">Panel area <input class="inp" id="figsf" value="' + esc(S.figSf === '' ? (sfDefault ? String(sfDefault) : '') : S.figSf) + '" placeholder="' + esc(sfDefault || 'sf') + '"> sf'
+    + ' · <span class="seg" id="segform" style="display:inline-flex">'
+    + '<button data-v="sausage"' + (S.opts.sealantForm === 'sausage' ? ' class="on"' : '') + '>20 oz sausage</button>'
+    + '<button data-v="tube"' + (S.opts.sealantForm === 'tube' ? ' class="on"' : '') + '>10.5 oz tube</button></span>'
+    + (sf > 0 ? ' → <b>' + fig.fastenerCount + '</b> fasteners = <b>' + fig.lines[0].qty + '</b> kit' + (fig.lines[0].qty > 1 ? 's' : '')
+      + ' · <b>' + fig.sealantOz + '</b> oz = <b>' + fig.lines[1].qty + '</b> ' + (S.opts.sealantForm === 'tube' ? 'tubes' : 'sausages')
+      + ' <button class="btn" style="flex:none;padding:5px 10px;margin-left:6px" id="figadd">Add to build</button>' : '')
+    + '</div><div style="font-size:10px;color:var(--faint);font-weight:600;margin-top:5px">1 screw + washer per ft² of panel · 1.2 oz sealant per ft² — Illustrated Price List pp. 19–21 · spacing 12″ walls / 6″ ceilings</div></div>';
+
+  h += '<div class="browsebar"><input class="inp" id="bq" placeholder="Search the wedi catalog — name, SKU, group…" value="' + esc(S.q) + '"></div>';
+
+  const cat = W.catalog();
+  const counts = {};
+  cat.forEach(e => { counts[e.group] = (counts[e.group] || 0) + 1; });
+  const groups = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  h += '<div class="gchips"><button class="gchip' + (!S.grp ? ' on' : '') + '" data-g="">All <small>' + cat.length + '</small></button>'
+    + groups.map(g => '<button class="gchip' + (S.grp === g ? ' on' : '') + '" data-g="' + esc(g) + '">' + esc(W.GROUP_LABEL[g] || g) + ' <small>' + counts[g] + '</small></button>').join('') + '</div>';
+
+  const toks = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  let list = cat.filter(e => {
+    if (S.grp && e.group !== S.grp) return false;
+    if (!toks.length) return true;
+    const hay = (e.name + ' ' + e.us + ' ' + e.erp + ' ' + e.desc + ' ' + (W.GROUP_LABEL[e.group] || '') + ' ' + e.sizeText).toLowerCase();
+    return toks.every(t => hay.indexOf(t) >= 0);
+  });
+  list.sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || (a.group > b.group ? 1 : a.group < b.group ? -1 : 0) || a.retail - b.retail);
+  const MAX = 48;
+  const shown = list.slice(0, MAX);
+  h += shown.map(e => {
+    const q = qtyIn(build, e.key);
+    return '<div class="brow"><span class="sdot' + (e.stock ? '' : ' so') + '" title="' + (e.stock ? 'stocked' : 'special order') + '"></span>'
+      + '<div class="bn"><div class="n">' + esc(e.name) + '</div><div class="s">' + esc([W.GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? 'stock' : 'special order'].filter(Boolean).join(' · ')) + '</div></div>'
+      + '<div class="sku">' + esc(e.stock ? e.erp : e.us) + '</div>'
+      + '<div class="pr" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(tierOf(e)) + '<small>' + (S.tier !== 'retail' ? 'retail ' + fm(e.retail) : '&nbsp;') + '</small></div>'
+      + '<div class="stepper"><button data-dec="' + esc(e.key) + '">−</button><span class="q' + (q ? '' : ' zero') + '">' + q + '</span><button data-inc="' + esc(e.key) + '">+</button></div>'
+      + '</div>';
+  }).join('');
+  if (list.length > MAX) h += '<div class="more">' + (list.length - MAX) + ' more — narrow the search or pick a group chip</div>';
+  el.innerHTML = h;
+
+  const bq = $('bq');
+  bq.oninput = () => { S.q = bq.value; renderBrowse(); const nb = $('bq'); nb.focus(); nb.setSelectionRange(nb.value.length, nb.value.length); };
+  el.querySelectorAll('.gchip').forEach(b => b.onclick = () => { S.grp = b.dataset.g; renderBrowse(); });
+  el.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => step(b.dataset.inc, 1));
+  el.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => step(b.dataset.dec, -1));
+  const fs = $('figsf');
+  if (fs) fs.onchange = () => { S.figSf = fs.value; renderBrowse(); };
+  const sform = $('segform');
+  if (sform) sform.querySelectorAll('button').forEach(b => b.onclick = () => { S.opts.sealantForm = b.dataset.v; renderAll(); });
+  const fa = $('figadd');
+  if (fa) fa.onclick = () => {
+    fig.lines.forEach(l => {
+      const m = S.manual.filter(x => x.key === l.item.key)[0];
+      const cur = qtyIn(currentBuild(), l.item.key);
+      if (cur >= l.qty) return;
+      if (m) m.qty += l.qty - cur; else S.manual.push({ key: l.item.key, qty: l.qty - cur });
+    });
+    toast('Sealant + fasteners added for ' + sf + ' sf');
+    renderAll();
+  };
+}
+
+// swap alternates per line
+function swapChoices(line, build) {
+  const g = line.item.group, pan = build.pan;
+  if (g === 'panel') return { title: 'Wall panel', list: W.group('panel').filter(p => p.sf), set: k => { S.opts.panelKey = k; } };
+  if (g === 'cover' && line.item.sub === 'point') return { title: 'Drain cover — 4×4 finish', list: W.group('cover').filter(c => c.sub === 'point'), set: k => { S.opts.coverKey = k; } };
+  if (g === 'cover' && line.item.sub === 'linear') {
+    const nom = line.item.len;
+    return { title: 'Linear cover — ' + nom + '″ channel', list: W.group('cover').filter(c => c.sub === 'linear' && c.len === nom), set: k => { S.opts.coverKey = k; } };
+  }
+  if (g === 'curb') return { title: 'Curb', list: W.group('curb'), none: 'No curb', set: k => { S.opts.curbKey = k; } };
+  if (g === 'sealant' && line.item.sub === 'joint') {
+    return { title: 'Joint sealant form', list: [W.item(W.SKU.sealantSausage), W.item(W.SKU.sealantTube)], set: k => { S.opts.sealantForm = k === W.SKU.sealantTube ? 'tube' : 'sausage'; } };
+  }
+  if (g === 'recess' || g === 'ramp') {
+    return { title: 'Curbless entry', list: [W.item(W.SKU.recessKit), W.item(W.SKU.ramp)], none: 'Recess the subfloor (no part)', set: k => { S.opts.recess = k === W.SKU.ramp ? 'ramp' : k ? 'kit' : 'none'; } };
+  }
+  if (['niche', 'seat', 'bench', 'shelf'].indexOf(g) >= 0) {
+    return { title: W.GROUP_LABEL[g], list: W.group(g), set: k => { S.addons = S.addons.map(a => a === line.item.key ? k : a); const m = S.manual.filter(x => x.key === line.item.key)[0]; if (m) m.key = k; } };
+  }
+  return null;
+}
+
+let popEl = null;
+function closePop() { if (popEl) { popEl.remove(); popEl = null; document.removeEventListener('mousedown', popAway, true); } }
+function popAway(e) { if (popEl && !popEl.contains(e.target)) closePop(); }
+function openSwap(btn, line, build) {
+  closePop();
+  const ch = swapChoices(line, build);
+  if (!ch) return;
+  popEl = document.createElement('div');
+  popEl.className = 'pop-anchor';
+  let h = '<div class="ph">' + esc(ch.title) + '</div>';
+  if (ch.none) h += '<button class="srow" data-k=""><span class="sdot so"></span><span class="n">' + esc(ch.none) + '</span><span class="p"></span></button>';
+  ch.list.forEach(e => {
+    h += '<button class="srow' + (e.key === line.item.key ? ' on' : '') + '" data-k="' + esc(e.key) + '">'
+      + '<span class="sdot' + (e.stock ? '' : ' so') + '"></span>'
+      + '<span class="n">' + esc(e.name) + '<small>' + esc([e.sizeText, e.stock ? e.erp : 'SO — ' + e.us].filter(Boolean).join(' · ')) + '</small></span>'
+      + '<span class="p">' + fm(tierOf(e)) + '</span></button>';
+  });
+  popEl.innerHTML = h;
+  document.body.appendChild(popEl);
+  const r = btn.getBoundingClientRect();
+  popEl.style.top = Math.min(window.innerHeight - popEl.offsetHeight - 12, r.bottom + 6) + 'px';
+  popEl.style.left = Math.max(12, r.right - 300) + 'px';
+  popEl.querySelectorAll('.srow').forEach(b => b.onclick = () => {
+    delete S.qtyOv[line.item.key];
+    ch.set(b.dataset.k || null);
+    closePop(); renderAll();
+  });
+  document.addEventListener('mousedown', popAway, true);
+}
+
+const ADDON_CHIPS = [['niche', 'Niche'], ['seat', 'Seat'], ['bench', 'Bench'], ['shelf', 'Glass shelf'], ['gun', 'Sealant gun']];
+function addonDefault(g) {
+  if (g === 'gun') return W.SKU.gun;
+  const list = W.group(g).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
+  return list.length ? list[0].key : null;
+}
+
+function renderBuild() {
+  const bc = $('bc'), foot = $('bcfoot');
+  const build = currentBuild();
+  if (!build) {
+    bc.innerHTML = '<div class="bc-h"><div class="t">The build</div></div>'
+      + '<div class="bc-empty">Nothing yet.<br><br>Click a pan card to assemble its house kit, solve a custom room, or step items in from Browse.</div>';
+    foot.innerHTML = '<div class="btnrow"><button class="btn primary" disabled>Add to product lines</button><button class="btn" disabled>Print</button><button class="btn" disabled>Copy</button></div>';
+    return;
+  }
+  const pan = build.pan;
+  let h = '<div class="bc-h"><div class="t">The build</div><div class="sub">'
+    + esc(pan ? (S.option ? S.option.title : pan.name.replace(/wedi\s*®?\s*/i, '') + ' ' + pan.sizeText) : 'manual — from Browse') + '</div></div>';
+
+  BUCKETS.forEach(bk => {
+    const lines = build.lines.filter(l => l.group === bk[0]);
+    const isAddon = bk[0] === 'addon';
+    if (!lines.length && !isAddon && bk[0] !== 'walls') return;
+    if (!lines.length && bk[0] === 'walls' && !pan) return;
+    h += '<div class="bgroup"><div class="bg-h">' + bk[1];
+    if (bk[0] === 'walls' && pan) {
+      h += '<span class="wallctl">'
+        + [['back', 'B'], ['left', 'L'], ['right', 'R']].map(wv =>
+          '<button class="wtgl' + (S.wallSel[wv[0]] ? ' on' : '') + '" data-w="' + wv[0] + '" title="' + wv[0] + ' wall">' + wv[1] + '</button>').join('')
+        + '<input class="whin" id="whin" value="' + esc(S.wallH) + '" title="wall height, in">″</span>';
+    }
+    h += '</div>';
+    lines.forEach(l => {
+      const e = l.item;
+      const price = tierOf(e);
+      const can = swapChoices(l, build);
+      h += '<div class="bline">'
+        + '<div class="bn"><div class="n">' + esc(e.name) + '</div><div class="m"><b>' + esc(e.stock ? e.erp : 'SO ' + e.us) + '</b>'
+        + (l.note ? ' · ' + esc(l.note) : e.sizeText ? ' · ' + esc(e.sizeText) : '') + '</div></div>'
+        + (can ? '<button class="swapb" data-swap="' + esc(e.key) + '" title="swap">⇄</button>' : '')
+        + '<div class="stepper"><button data-dec="' + esc(e.key) + '">−</button><span class="q' + (l.ov ? ' ov" title="hand-set — auto is ' + esc(l.autoQty) : '') + '">' + l.qty + '</span><button data-inc="' + esc(e.key) + '">+</button></div>'
+        + '<div class="lp" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(r2(price * l.qty)) + '<small>' + fm(price) + (e.unit && e.unit !== 'EA' ? '/' + e.unit.toLowerCase() : ' ea') + '</small></div>'
+        + '</div>';
+    });
+    if (isAddon && pan) {
+      h += '<div class="addchips">' + ADDON_CHIPS.map(ac => {
+        const key = ac[0] === 'gun' ? W.SKU.gun : null;
+        const on = ac[0] === 'gun'
+          ? build.lines.some(l => l.item.key === W.SKU.gun)
+          : build.lines.some(l => l.item.group === ac[0]);
+        return '<button class="addchip' + (on ? ' on' : '') + '" data-addon="' + ac[0] + '">' + (on ? '✓ ' : '+ ') + ac[1] + '</button>';
+      }).join('') + '</div>';
+    }
+    h += '</div>';
+  });
+
+  if (build.hints.indexOf('sausage-gun') >= 0)
+    h += '<div class="hint">Sausage sealant with no gun on the job<button data-addgun>Add gun ' + fm(tierOf(W.item(W.SKU.gun))) + '</button></div>';
+  if (build.hints.indexOf('small-order') >= 0)
+    h += '<div class="hint">Special-order net ' + fm(build.soNet) + ' runs under wedi’s $500 minimum — 10% small-order handling applies</div>';
+
+  if (build.factory && build.factory.kit) {
+    const stockTotal = r2(build.lines.filter(l => ['floor', 'walls', 'drain', 'install'].indexOf(l.group) >= 0)
+      .reduce((s, l) => s + l.item.retail * l.qty, 0));
+    const fk = build.factory.kit, diff = r2(fk.retail - stockTotal);
+    h += '<div class="fcomp">wedi’s boxed kit for this size — <b>' + esc(fk.us) + '</b> ' + fm(fk.retail)
+      + (build.factory.nojs ? ' · NOJS ' + fm(build.factory.nojs.retail) : '') + '<br>stock build ' + fm(stockTotal) + ' — '
+      + (diff >= 0 ? '<span class="beat">beats the box by ' + fm(diff) + '</span>' : '<span class="over">over the box by ' + fm(-diff) + '</span>')
+      + '</div>';
+  }
+  bc.innerHTML = h;
+
+  bc.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => step(b.dataset.inc, 1));
+  bc.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => step(b.dataset.dec, -1));
+  bc.querySelectorAll('[data-swap]').forEach(b => b.onclick = () => {
+    const line = build.lines.filter(l => l.item.key === b.dataset.swap)[0];
+    if (line) openSwap(b, line, build);
+  });
+  bc.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { S.wallSel[b.dataset.w] = !S.wallSel[b.dataset.w]; renderAll(); });
+  const wh = $('whin');
+  if (wh) wh.onchange = () => { S.wallH = +wh.value || 80; renderAll(); };
+  const ag = bc.querySelector('[data-addgun]');
+  if (ag) ag.onclick = () => { if (S.addons.indexOf(W.SKU.gun) < 0) S.addons.push(W.SKU.gun); renderAll(); };
+  bc.querySelectorAll('[data-addon]').forEach(b => b.onclick = () => {
+    const g = b.dataset.addon;
+    if (g === 'gun') {
+      const i = S.addons.indexOf(W.SKU.gun);
+      if (i >= 0) S.addons.splice(i, 1); else S.addons.push(W.SKU.gun);
+    } else {
+      const cur = build.lines.filter(l => l.item.group === g)[0];
+      if (cur) { S.addons = S.addons.filter(k => W.item(k) && W.item(k).group !== g); S.manual = S.manual.filter(m => W.item(m.key).group !== g); delete S.qtyOv[cur.item.key]; }
+      else { const dk = addonDefault(g); if (dk) S.addons.push(dk); }
+    }
+    renderAll();
+  });
+
+  // footer
+  const retail = r2(build.lines.reduce((s, l) => s + l.item.retail * l.qty, 0));
+  const sell = r2(build.lines.reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
+  const cost = r2(build.lines.reduce((s, l) => s + l.item.cost * l.qty, 0));
+  const margin = r2(sell - cost);
+  foot.innerHTML = '<div class="totrow">'
+    + (S.tier === 'retail'
+      ? '<div><div class="k">Lines</div><div class="v">' + build.lines.length + '</div></div>'
+      : '<div><div class="k">Retail</div><div class="v">' + fm(retail) + '</div></div>')
+    + '<div class="sell"><div class="k">' + esc(S.tier) + (S.tier === 'builder' ? ' × .82' : '') + '</div><div class="v" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(sell) + '</div></div>'
+    + '</div>'
+    + '<div class="marginrow">cost ' + fm(cost) + '<span>margin ' + fm(margin) + ' · ' + (sell ? Math.round(margin / sell * 100) : 0) + '%</span></div>'
+    + '<div class="btnrow">'
+    + '<button class="btn primary" id="badd">Add to product lines</button>'
+    + '<button class="btn" id="bprint"' + (diagData() ? '' : ' disabled') + '>Print layout</button>'
+    + '<button class="btn" id="bcopy">Copy list</button></div>';
+  $('badd').onclick = () => openPayload(build);
+  $('bcopy').onclick = () => copyList(build);
+  const bp = $('bprint');
+  if (!bp.disabled) bp.onclick = () => printSheet(build);
+}
+
+// ---------------------------------------------------------------------------
+// payload modal / copy / print
+// ---------------------------------------------------------------------------
+function openPayload(build) {
+  const rows = W.lineItems(build, { tier: S.tier });
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = '<div class="modal"><div class="mh"><div class="t">Add to product lines — the payload</div>'
+    + '<div class="sub">' + rows.length + ' rows land on the job sheet</div>'
+    + '<button class="xbtn" style="margin-left:auto">×</button></div>'
+    + '<div class="mbody"><table class="ptable"><tr><th>SKU</th><th>Description (brandColor)</th><th class="num">Qty</th><th class="num">Retail</th><th class="num">Cost</th><th class="num">tierPrice ×.82</th><th>wedi marker</th></tr>'
+    + rows.map(r => '<tr><td class="mono">' + esc(r.sku || '—') + '</td><td>' + esc(r.brandColor) + '</td>'
+      + '<td class="num">' + esc(r.qty) + '</td><td class="num">' + fm(+r.priceSqft) + '</td><td class="num">' + fm(+r.costSqft) + '</td>'
+      + '<td class="num" style="color:' + TIER_COLOR.builder.main + '">' + fm(+r.tierPrice) + '</td>'
+      + '<td>' + (r.wedi.part ? '<span class="mark part">part</span>' : '<span class="mark">' + esc(r.wedi.mode) + ' cfg — Reconfigure</span>') + '</td></tr>').join('')
+    + '</table>'
+    + '<div class="mnote">Rows land <b>RETAIL</b> — the job sheet’s own tier lens reprices them (ADR 0018). The one wedi rule rides along:'
+    + ' every line carries <b>tierPrice = retail × 0.82</b>, which <code>pricing.js</code> will prefer over the flat Builder % at its three hook'
+    + ' points. The anchor (pan) row carries <b>wedi:{mode,cfg}</b> so a “wedi — reconfigure” chip reopens this popup pre-filled and re-lands'
+    + ' the kit; companions carry <b>wedi:{part:true}</b>. Stocked rows key the ERP SKU (+ <code>bookId</code> once WEDI_1.xlsx is a stock book);'
+    + ' special-order rows go by description with the US-SKU leading it.</div>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('.xbtn').onclick = () => ov.remove();
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+}
+
+function copyList(build) {
+  const txt = build.lines.map(l =>
+    l.item.stock ? l.item.erp + '\t' + l.qty : 'wedi ' + l.item.us + ' — ' + l.item.name + ' × ' + l.qty).join('\n');
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
+    () => toast('Copied — stocked lines as SKU ⇥ qty, special order by description'),
+    () => toast('Clipboard blocked — the list is in the console'));
+  console.log(txt);
+}
+
+function printSheet(build) {
+  const d = diagData();
+  const ps = $('printsheet');
+  const sel = S.option;
+  let h = '<div class="ps-head"><div class="t">wedi shower layout</div>'
+    + '<div class="sub">FloorTrack — issue 066 prototype</div>'
+    + '<div class="dt">' + new Date().toLocaleDateString() + '</div></div>'
+    + '<div class="ps-room">' + esc(d.title || (sel ? sel.title : '')) + ' — room ' + esc(W.inch(d.room.w)) + '″ × ' + esc(W.inch(d.room.d)) + '″'
+    + (build.pan && build.pan.drain ? ' · ' + esc(build.pan.drain.type) + ' drain' : '') + ' · walls at ' + esc(W.inch(S.wallH)) + '″</div>'
+    + '<div class="ps-diags"><div class="d"><div class="dh">Top-down layout</div>' + svgTop(d, 460, 360) + '</div>'
+    + '<div class="d"><div class="dh">Isometric</div>' + svgIso(d, 460, 360) + '</div></div>';
+  const cuts = d.pieces.filter(p => p.cut);
+  if (cuts.length || (d.warnings && d.warnings.length)) {
+    h += '<div class="ps-sec">Cuts &amp; install notes</div>';
+    cuts.forEach(p => {
+      h += '<div class="ps-warn">✂ Cut ' + esc(p.item.us || p.item.erp) + ' to ' + esc(W.inch(p.w)) + '″ × ' + esc(W.inch(p.d))
+        + '″ (from ' + esc(W.inch(p.cut.w)) + '″ × ' + esc(W.inch(p.cut.d)) + '″)</div>';
+    });
+    (d.warnings || []).forEach(wt => { h += '<div class="ps-warn">• ' + esc(wt) + '</div>'; });
+    if (d.drain && d.drain.note) h += '<div class="ps-warn">• ' + esc(d.drain.note) + '</div>';
+  }
+  h += '<div class="ps-sec">Materials</div><table class="ps-table"><tr><th>SKU</th><th>Description</th><th>Size</th><th class="num">Qty</th><th class="num">' + esc(S.tier) + '</th><th class="num">Total</th></tr>';
+  BUCKETS.forEach(bk => {
+    build.lines.filter(l => l.group === bk[0]).forEach(l => {
+      const p = tierOf(l.item);
+      h += '<tr><td>' + esc(l.item.stock ? l.item.erp : 'wedi ' + l.item.us) + '</td><td>' + esc(l.item.name) + '</td>'
+        + '<td>' + esc(l.item.sizeText || '') + '</td><td class="num">' + l.qty + '</td>'
+        + '<td class="num">' + fm(p) + '</td><td class="num">' + fm(r2(p * l.qty)) + '</td></tr>';
+    });
+  });
+  const sell = r2(build.lines.reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
+  h += '</table><div class="ps-tot"><span>' + build.lines.length + ' lines</span><span>' + esc(S.tier) + ' total ' + fm(sell) + '</span></div>'
+    + '<div class="ps-note">Set every joint in wedi Joint Sealant. Fasteners every 12″ on wall framing, 6″ on ceilings. '
+    + 'Pre-sloped extensions: trim the thick edge — the slope lands on the pan. Prices are the Jan 1 2026 book.</div>';
+  ps.innerHTML = h;
+  window.print();
+}
+
+let toastT = null;
+function toast(msg) {
+  let t = document.querySelector('.toast');
+  if (t) t.remove();
+  t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.remove(), 2600);
+}
+
+// ---------------------------------------------------------------------------
+// search-entry demo
+// ---------------------------------------------------------------------------
+function sheogaHit(q) {
+  const toks = String(q || '').toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  if (toks.some(t => t.length >= 3 && 'sheoga'.indexOf(t) === 0)) return true;
+  return /hardwood|white oak|hickory|maple|cherry|plank|live sawn/.test(String(q || '').toLowerCase());
+}
+function renderE() {
+  const q = $('eq').value;
+  const wHit = W.queryHit(q), sHit = sheogaHit(q);
+  const p = W.parseQuery(q);
+  $('epin').innerHTML =
+    '<div class="pinrow' + (sHit ? '' : ' dim') + '"><div class="ic">Sh</div><div class="pn"><b>Sheoga Hardwood — configure by description</b>'
+    + '<span>no SKUs — priced by description · opens the configurator</span></div></div>'
+    + '<div class="pinrow' + (wHit ? '' : ' dim') + '"><div class="ic" style="background:#DCE5CD">we</div><div class="pn"><b>wedi shower systems — kits, custom rooms, catalog</b>'
+    + '<span>' + esc(wHit ? W.querySummary(p) : 'not triggered by this query') + '</span></div></div>';
+  $('eparse').innerHTML = wHit
+    ? '<b>Parsed:</b> tab <b>' + esc(p.tab) + '</b>' + (p.w ? ' · ' + esc(W.inch(p.w)) + '″ × ' + esc(W.inch(p.d)) + '″' : '')
+      + (p.curb ? ' · ' + esc(p.curb) : '') + (p.drain !== 'any' ? ' · ' + esc(p.drain) + ' drain' : '')
+      + ' — Enter opens the popup exactly there, pre-filled.'
+    : '<b>Parsed:</b> no wedi hit — the pinned row stays dim and ordinary search results show as usual.';
+}
+
+// ---------------------------------------------------------------------------
+let lastTab = null;
+function renderMain() {
+  closePop();
+  if (S.tab === 'kits') renderKits();
+  else if (S.tab === 'custom') renderCustom();
+  else renderBrowse();
+  if (lastTab !== S.tab) { $('main').scrollTop = 0; lastTab = S.tab; }
+}
+function renderAll() {
+  renderTierbar(); renderTabs(); renderMain(); renderBuild();
+}
+
+$('eq').oninput = renderE;
+
+// boot state: a built kit so the page never opens empty
+S.results = W.solve({ w: S.inp.w, d: S.inp.d, curb: S.inp.curb, drain: S.inp.drain, tolerance: 0.51 });
+S.selIdx = 0;
+pickPan('US9100004');
+renderE();
+</script>
+</body>
+</html>

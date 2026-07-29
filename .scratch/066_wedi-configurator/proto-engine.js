@@ -967,7 +967,7 @@
     return build.lines.map(function (l, i) {
       var e = l.item;
       var anchor = i === 0;
-      var lead = e.stock ? "wedi — " : "wedi " + e.us + " — ";
+      var lead = e.stock ? (/^\s*wedi/i.test(e.name) ? "" : "wedi — ") : "wedi " + e.us + " — ";
       return {
         type: "misc",
         sku: e.stock ? e.erp || "" : "",
