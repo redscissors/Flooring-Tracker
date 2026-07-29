@@ -392,14 +392,14 @@ const S = {
   tab: 'kits', tier: 'retail', customPct: 15,
   panKey: null, option: null, qtyOv: {}, manual: [], addons: [],
   opts: { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'tube', recess: undefined },
-  inp: { w: 48, d: 66, curb: 'curbed', drain: 'any', drainX: '', drainY: '' },
+  inp: { w: 48, d: 66, curb: 'curbed', drain: 'any', drainX: '', drainY: '', anchor: 'left' },
   walls: [
     { id: 'back', label: 'Back', on: true, len: '', h: '' },
     { id: 'left', label: 'Left', on: true, len: '', h: '' },
     { id: 'right', label: 'Right', on: true, len: '', h: '' },
     { id: 'half', label: 'Half', on: false, len: '24', h: '40' },
   ],
-  wallFlip: false, wallH: 80, panelFit: true,
+  wallFlip: false, wallH: 96, panelFit: true,
   results: [], selIdx: -1, q: '', grp: '', figSf: '',
 };
 const wallOn = id => S.walls.filter(w => w.id === id)[0].on;
@@ -413,13 +413,13 @@ function tierOf(item) {
 // build assembly: engine kit + user quantity overrides + manual browse lines
 // ---------------------------------------------------------------------------
 function autoWallLens(pan, room) {
+  if (room) return { back: room.w, left: room.d, right: room.d };   // the room fixes it
   let hi, lo;
-  if (room) { hi = room.w; lo = room.d; }
-  else if (pan && pan.group === 'module') { hi = pan.len; lo = 72.5; }
+  if (pan && pan.group === 'module') { hi = pan.len; lo = 72.5; }
   else if (pan) { hi = Math.max(pan.w, pan.d); lo = Math.min(pan.w, pan.d); }
   else { hi = 60; lo = 36; }
   // default: 1 long side + 2 short sides; Flip swaps which side is the back
-  if (S.wallFlip) { const t = hi; hi = lo; lo = t; }
+  if (S.wallFlip && pan && pan.group !== 'module') { const t = hi; hi = lo; lo = t; }
   return { back: hi, left: lo, right: lo };
 }
 function wallsArr(pan, room) {
@@ -523,11 +523,32 @@ function diagData() {
   if (S.option) return S.option;
   if (!S.panKey) return null;
   const p = W.item(S.panKey);
-  const w = p.group === 'module' ? p.len : p.w, d = p.group === 'module' ? 5.75 : p.d;
+  if (p.group === 'module') {
+    // the module strip against the drain wall, its extension footprint behind
+    return {
+      pieces: [{ kind: 'module', item: p, x: 0, y: 0, w: p.len, d: 5.75, cut: null }],
+      drain: p.drain ? Object.assign({}, p.drain) : null,
+      room: { w: p.len, d: 72.5 }, warnings: [], title: p.name + ' ' + p.sizeText,
+    };
+  }
+  // orient the pan the way the walls read: the BACK wall is the long side
+  // (or the short one after Flip), so drawing and build column agree
+  const auto = autoWallLens(p, null);
+  const bw = auto.back, bd = auto.left;
+  const rot = bw !== p.w;
+  let drain = null;
+  if (p.drain) {
+    drain = {
+      type: p.drain.type,
+      x: rot ? p.drain.y : p.drain.x, y: rot ? p.drain.x : p.drain.y,
+      len: p.drain.len || 0,
+      axis: p.drain.axis ? (rot ? (p.drain.axis === 'w' ? 'd' : 'w') : p.drain.axis) : null,
+      note: p.drain.note || '',
+    };
+  }
   return {
-    pieces: [{ kind: p.group === 'module' ? 'module' : 'pan', item: p, x: 0, y: 0, w, d, cut: null }],
-    drain: p.drain ? Object.assign({}, p.drain) : null,
-    room: { w, d }, warnings: [], title: p.name + ' ' + p.sizeText,
+    pieces: [{ kind: 'pan', item: p, x: 0, y: 0, w: bw, d: bd, cut: null }],
+    drain, room: { w: bw, d: bd }, warnings: [], title: p.name + ' ' + p.sizeText,
   };
 }
 
@@ -572,8 +593,10 @@ function svgTop(o, W_, H_, mini) {
     const f = PIECE_FILL[p.kind] || '#EFF3E6';
     s += '<rect x="' + X(p.x) + '" y="' + Y(p.y) + '" width="' + r2(p.w * sc) + '" height="' + r2(p.d * sc) + '" fill="' + f + '" stroke="#1C1A17" stroke-width="1.1"/>';
     if (p.cut) {
-      // dash the cut edges: any side where the piece is smaller than the uncut nominal
-      if (p.w < p.cut.w - 0.01) s += '<line x1="' + X(p.x + p.w) + '" y1="' + Y(p.y) + '" x2="' + X(p.x + p.w) + '" y2="' + Y(p.y + p.d) + '" stroke="#B4552D" stroke-width="2" stroke-dasharray="5 3"/>';
+      // dash the cut edges: any side where the piece is smaller than the uncut
+      // nominal; on a mirrored layout the width cut sits on the LEFT edge
+      const cxe = o.mirrored ? X(p.x) : X(p.x + p.w);
+      if (p.w < p.cut.w - 0.01) s += '<line x1="' + cxe + '" y1="' + Y(p.y) + '" x2="' + cxe + '" y2="' + Y(p.y + p.d) + '" stroke="#B4552D" stroke-width="2" stroke-dasharray="5 3"/>';
       if (p.d < p.cut.d - 0.01) s += '<line x1="' + X(p.x) + '" y1="' + Y(p.y + p.d) + '" x2="' + X(p.x + p.w) + '" y2="' + Y(p.y + p.d) + '" stroke="#B4552D" stroke-width="2" stroke-dasharray="5 3"/>';
     }
     if (!mini && p.d * sc >= 26 && p.w * sc >= 46) {
@@ -692,7 +715,8 @@ function svgIso(o, W_, H_) {
     s += poly([M(p.x, p.y + p.d, t), M(p.x + p.w, p.y + p.d, t), M(p.x + p.w, p.y + p.d, 0), M(p.x, p.y + p.d, 0)], side, '#1C1A17', .8);
     s += poly([M(p.x, p.y, t), M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t), M(p.x, p.y + p.d, t)], f, '#1C1A17', .9);
     if (p.cut) {
-      if (p.w < p.cut.w - 0.01) s += L(M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t)) + ' stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
+      const cxe = o.mirrored ? p.x : p.x + p.w;
+      if (p.w < p.cut.w - 0.01) s += L(M(cxe, p.y, t), M(cxe, p.y + p.d, t)) + ' stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
       if (p.d < p.cut.d - 0.01) s += L(M(p.x, p.y + p.d, t), M(p.x + p.w, p.y + p.d, t)) + ' stroke="#B4552D" stroke-width="1.8" stroke-dasharray="5 3"/>';
     }
   });
@@ -806,6 +830,9 @@ function renderCustom() {
     + '<div class="rf"><label>Drain — from left · from back</label><div class="dims">'
     + '<input class="inp" id="rdx" style="width:58px" placeholder="auto" value="' + esc(S.inp.drainX) + '"><span>×</span>'
     + '<input class="inp" id="rdy" style="width:58px" placeholder="auto" value="' + esc(S.inp.drainY) + '"><span>in</span></div></div>'
+    + '<div class="rf"><label>Pan against</label><div class="seg" id="seganchor">'
+    + '<button data-v="left"' + (S.inp.anchor !== 'right' ? ' class="on"' : '') + '>Left</button>'
+    + '<button data-v="right"' + (S.inp.anchor === 'right' ? ' class="on"' : '') + '>Right</button></div></div>'
     + '<div class="rf"><label>Walls</label><div class="seg" id="segwalls">'
     + [['back', 'Back'], ['left', 'Left'], ['right', 'Right']].map(wv =>
       '<button data-v="' + wv[0] + '"' + (wallOn(wv[0]) ? ' class="on"' : '') + '>' + wv[1] + '</button>').join('') + '</div></div>'
@@ -852,6 +879,7 @@ function renderCustom() {
   re('rdy').onchange = () => { S.inp.drainY = re('rdy').value.trim(); solveNow(); };
   re('rh').onchange = () => { S.wallH = +re('rh').value || 80; solveNow(); };
   $('segcurb').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.curb = b.dataset.v; solveNow(); });
+  $('seganchor').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.anchor = b.dataset.v; solveNow(); });
   $('segdrain').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.drain = b.dataset.v; solveNow(); });
   $('segwalls').querySelectorAll('button').forEach(b => b.onclick = () => { const w = wallOf(b.dataset.v); w.on = !w.on; solveNow(); });
   el.querySelectorAll('[data-opt]').forEach(b => b.onclick = () => selectOption(+b.dataset.opt));
@@ -861,6 +889,7 @@ function solveNow() {
   S.results = W.solve({
     w: S.inp.w, d: S.inp.d, curb: S.inp.curb, drain: S.inp.drain, tolerance: 0.51,
     drainX: +S.inp.drainX || 0, drainY: +S.inp.drainY || 0,
+    anchor: S.inp.anchor || 'left',
   });
   S.selIdx = S.results.length ? 0 : -1;
   if (S.results.length) selectOption(0); else { S.panKey = null; S.option = null; renderAll(); }
@@ -1025,7 +1054,7 @@ function renderBuild() {
     h += '<div class="bgroup"><div class="bg-h">' + bk[1];
     if (bk[0] === 'walls' && pan) {
       h += '<span class="wallctl">'
-        + '<button class="wtgl" id="wflip" title="swap which side is the back (long ↔ short)">⇄</button>'
+        + (S.option ? '' : '<button class="wtgl" id="wflip" title="swap which side is the back (long ↔ short)">⇄</button>')
         + '<span class="pfseg"><button data-pf="1"' + (S.panelFit ? ' class="on"' : '') + ' title="mixed sheet sizes, level courses, minimal vertical seams">Fit</button>'
         + '<button data-pf="0"' + (!S.panelFit ? ' class="on"' : '') + ' title="one sheet size, by area">One size</button></span>'
         + '</span>';

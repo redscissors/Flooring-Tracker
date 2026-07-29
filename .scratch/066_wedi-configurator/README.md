@@ -74,6 +74,11 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   selected, kits included — with the panel courses drawn as dotted joints
   on the walls (per-wall heights render too); the curbless 620 field seal
   sticks with the stocked sausage even in tube mode
+- Owner feedback round 3, 2026-07-29: 96" default walls, kit drawings
+  oriented long-side-back so walls and dotted panel joints line up,
+  center-click drain targeting (drain at the room centre, pan cut to fit),
+  a Left/Right pan anchor that mirrors the layout, and wedi S-Dry Seal
+  (+ trowel) replacing 620 as the curbless field seal
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)

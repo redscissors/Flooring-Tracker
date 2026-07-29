@@ -53,6 +53,8 @@
     collarPipe: "US5000033",
     subliner53: "US5000001",
     subCornerIn: "US5000007",
+    sdrySeal: "US5076011",
+    sdrySealTrowel: "US5076010",
     recessKit: "US5000085",
     ramp: "073736517",
     extFundo24: "073783528",
@@ -645,14 +647,11 @@
     if (fam === "curbless") {
       push(lines, SKU.subliner53, 1, "install", "53 sf roll — field seal at the pan perimeter", true);
       push(lines, SKU.subCornerIn, 1, "install", "2 pcs/bag", true);
-      // The 620 field seal follows the chosen form only while it stays on the
-      // shelf — a stocked sausage outranks a special-order cartridge.
-      var s620 = sealantItem(form, true);
-      var alt620 = sealantItem(form === "tube" ? "sausage" : "tube", true);
-      if (s620 && !s620.stock && alt620 && alt620.stock) s620 = alt620;
-      var oz620 = s620 === sealantItem("tube", true) ? CONSUMABLES.tubeOz : CONSUMABLES.sausageOz;
-      push(lines, s620, Math.ceil(CONSUMABLES.curbless620Oz / oz620),
-        "install", CONSUMABLES.curbless620Oz + " oz allowance — Subliner field seal", true);
+      // Owner rule 2026-07-29: the field seal is wedi S-Dry Seal (trowel-
+      // applied, stocked), not 620 sealant — 620 stays in the catalog for
+      // steam/Subliner work.
+      push(lines, SKU.sdrySeal, 1, "install", "field seal — Subliner laps & perimeter", true);
+      push(lines, SKU.sdrySealTrowel, 1, "install", '3/16" x 5/32" notch', true);
     }
     if (recess === "kit") push(lines, SKU.recessKit, 1, "install", "recess up to 5×5 ft in ¾ ply", true);
     if (recess === "ramp") push(lines, SKU.ramp, 1, "install", "surface mount — ADA slope", true);
@@ -934,8 +933,9 @@
         });
       });
     });
+    // Fewest pieces first — "cut the pan to fit" beats a patchwork of strips.
     cands.sort(function (a, b) {
-      return a.trims - b.trims || a.pieces.length - b.pieces.length || a.floorPrice - b.floorPrice;
+      return a.pieces.length - b.pieces.length || a.trims - b.trims || a.floorPrice - b.floorPrice;
     });
     var seen = {}, out = [];
     cands.forEach(function (c) {
@@ -1024,6 +1024,15 @@
     };
   }
 
+  function mirrorOption(o) {
+    var W_ = o.room.w;
+    var pieces = o.pieces.map(function (p) {
+      return Object.assign({}, p, { x: round2(W_ - p.x - p.w) });
+    });
+    var drain = o.drain ? Object.assign({}, o.drain, { x: round2(W_ - o.drain.x) }) : null;
+    return Object.assign({}, o, { pieces: pieces, drain: drain, mirrored: true });
+  }
+
   function solve(input) {
     input = {
       w: +(input && input.w) || 0, d: +(input && input.d) || 0,
@@ -1032,8 +1041,16 @@
       tolerance: +(input && input.tolerance) || 0,
       drainX: +(input && input.drainX) || 0,
       drainY: +(input && input.drainY) || 0,
+      anchor: (input && input.anchor) === "right" ? "right" : "left",
     };
     if (!(input.w > 0) || !(input.d > 0)) return [];
+    var explicitTarget = input.drainX > 0 && input.drainY > 0;
+    // Center clicked with no position given = the drain sits at the centre of
+    // the ROOM, and the pan is cut to make that true (owner rule 2026-07-29).
+    if (input.drain === "center" && !explicitTarget) {
+      input.drainX = round2(input.w / 2);
+      input.drainY = round2(input.d / 2);
+    }
     var fam = input.curb === "curbless" ? "curbless" : "fundo";
     var list = group("pan").filter(function (p) {
       if (p.sub !== fam) return false;
@@ -1043,7 +1060,8 @@
 
     var out = [];
     if (input.drainX > 0 && input.drainY > 0) {
-      // The drain position is the constraint — every option honors it.
+      // The drain position is the constraint — every option honors it, and
+      // the list arrives pre-ranked (pieces, trims, price): keep that order.
       out = drainAtOptions(input, list, fam);
     } else {
       if (input.drain !== "linear") {
@@ -1055,16 +1073,19 @@
         var lin = linearOption(input);
         if (lin) out.push(lin);
       }
+      out.sort(function (a, b) {
+        return a.warnings.length - b.warnings.length || a.floorPrice - b.floorPrice;
+      });
     }
-    out.sort(function (a, b) {
-      return a.warnings.length - b.warnings.length || a.floorPrice - b.floorPrice;
-    });
     if (out.length) {
       var cheap = out.slice().sort(function (a, b) { return a.floorPrice - b.floorPrice; })[0];
       cheap.badges = ["Cheapest"].concat(cheap.badges);
       var few = out.slice().sort(function (a, b) { return a.pieces.length - b.pieces.length; })[0];
       if (few !== cheap && few.pieces.length < cheap.pieces.length) few.badges = few.badges.concat(["Fewest pieces"]);
     }
+    // Anchor the pan against the right wall instead: mirror the layout. A
+    // hand-entered drain position wins over the anchor — it names a spot.
+    if (input.anchor === "right" && !explicitTarget) out = out.map(mirrorOption);
     return out;
   }
 
@@ -1420,15 +1441,17 @@
     var kit72 = kitFor("US9100006");   // 36×72 — entry side over 60"
     ok("36×72 entry takes the 96\" lean curb", !!lineFor(kit72, "US3000040") && !lineFor(kit72, "US3000038"));
     var kitC = kitFor("US9200003");
-    ok("curbless kit: no curb, + subliner, corners, 620 and the recess kit", (function () {
+    ok("curbless kit: no curb, + subliner, corners, S-Dry Seal and the recess kit", (function () {
       return !lineFor(kitC, "US3000038") && !!lineFor(kitC, "US5000001") && !!lineFor(kitC, "US5000007") &&
-        !!lineFor(kitC, "US5000083") && !!lineFor(kitC, "US5000085");
+        !!lineFor(kitC, "US5076011") && !!lineFor(kitC, "US5000085");
     })());
-    ok("curbless 620 = 40 oz allowance → 2 sausages", lineFor(kitC, "US5000083").qty === 2, lineFor(kitC, "US5000083").qty);
-    ok("tube-form curbless still 620s with the stocked sausage (cartridge is SO)", (function () {
+    ok("field seal is S-Dry Seal + its trowel, not 620 (owner rule)", (function () {
+      return lineFor(kitC, "US5076011").qty === 1 && !!lineFor(kitC, "US5076010") &&
+        !lineFor(kitC, "US5000083") && !lineFor(kitC, "US5000088");
+    })());
+    ok("tube-form curbless keeps the S-Dry Seal field seal + tube joint sealant", (function () {
       var kt = kitFor("US9200003", { sealantForm: "tube" });
-      var l = kt.lines.filter(function (x) { return x.item.key === "US5000083"; })[0];
-      return l && l.qty === 2 && !kt.lines.some(function (x) { return x.item.key === "US5000088"; }) &&
+      return !!kt.lines.filter(function (x) { return x.item.key === "US5076011"; })[0] &&
         !!kt.lines.filter(function (x) { return x.item.key === SKU.sealantTube; })[0];
     })());
     var kitL = kitFor("US9310001");
@@ -1561,6 +1584,28 @@
     ok("drain-at pieces stay inside the room", s9.concat(s10).every(function (o) {
       return o.pieces.every(function (p) { return p.x >= 0 && p.y >= 0 && p.x + p.w <= o.room.w + 0.01 && p.y + p.d <= o.room.d + 0.01; });
     }));
+
+    // --- center click + anchor -----------------------------------------------
+    var sc1 = solve({ w: 48, d: 66, curb: "curbed", drain: "center" });
+    ok("48x66 center-click puts the drain at the room centre, pan cut to fit", (function () {
+      return sc1.length > 0 && sc1.every(function (o) { return o.kind === "drainat" && o.drain.x === 24 && o.drain.y === 33; }) &&
+        sc1[0].pieces[0].cut != null;
+    })(), sc1.map(function (o) { return o.pan.key + " trims " + o.trims; }));
+    var sa = solve({ w: 60, d: 60, curb: "curbed", drain: "any", anchor: "right" });
+    var sl = solve({ w: 60, d: 60, curb: "curbed", drain: "any", anchor: "left" });
+    ok("anchor right mirrors the layout (pan against the right wall)", (function () {
+      var er = sa.filter(function (o) { return o.kind === "extend"; })[0];
+      var el = sl.filter(function (o) { return o.kind === "extend"; })[0];
+      if (!er || !el || !er.mirrored || el.mirrored) return false;
+      return round2(er.pieces[0].x + er.pieces[0].w) === 60 && el.pieces[0].x === 0;
+    })(), sa.map(function (o) { return o.kind + " pan@" + o.pieces[0].x; }));
+    ok("anchor-right pieces stay inside the room", sa.every(function (o) {
+      return o.pieces.every(function (p) { return p.x >= 0 && p.x + p.w <= o.room.w + 0.01; });
+    }));
+    ok("a hand-entered drain position wins over the anchor", (function () {
+      var st = solve({ w: 60, d: 60, curb: "curbed", drain: "any", drainX: 24, drainY: 30, anchor: "right" });
+      return st.length > 0 && st.every(function (o) { return !o.mirrored && o.drain.x === 24; });
+    })());
 
     // --- wall panel planner --------------------------------------------------
     var pp = panelPlan([{ len: 60, h: 80 }, { len: 36, h: 80 }, { len: 36, h: 80 }]);

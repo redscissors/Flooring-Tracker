@@ -214,6 +214,26 @@ landed in the prototype (engine rules carry self-tests):
     stays on the stocked sausage** — the 620 cartridge is special order, and
     stock outranks SO for the same product (mergeSearch doctrine).
 
+### Round 3 (same day)
+
+11. **Default wall height is 96"** (8-ft ceilings), not wedi's 80" boxed-kit
+    figure — the factory-kit compare now honestly reads over the box, since
+    the box only panels to 80".
+12. **The drawings orient like the build**: a kit pan draws with the BACK
+    wall as its long side (flip-aware), so the top-down, isometric, wall
+    lengths, and panel-course dotted lines all agree. (They previously drew
+    the pan portrait while the build called the long side "Back".)
+13. **Center-click = drain at the room's centre**: with no drain position
+    typed, picking the Center drain preference solves for the drain at
+    (w/2, d/2), cutting the pan to fit (the 6" trim allowance) — ranked
+    fewest-pieces-first so one cut-down pan beats a patchwork of strips.
+14. **Pan against Left / Right** — a new anchor control mirrors the layout
+    so extensions can fall on either side; a hand-entered drain position
+    wins over the anchor.
+15. **The curbless field seal is wedi S-Dry Seal** (US5076011, stocked,
+    trowel-applied — its 3/16"×5/32" trowel rides along), replacing the 620
+    sealant in the recipe; 620 stays in the catalog for steam work.
+
 ## Assumptions to confirm before production
 
 1. Builder ×0.82 applies to **every** wedi line (pans, panels, consumables,
