@@ -72,6 +72,7 @@
   };
   var MIN_GAP = 6;         // below this, cut the pan rather than shim a strip
   var CORNER_MAX = 12;     // the 16½" corner piece wraps 12" of two straights
+  var TRIM_MAX = 6;        // a pan edge may be cut up to 6" to help fit (owner rule 2026-07-29)
 
   // Riolito neo modules. The ERP prints the 32"'s channel as 27-1/2 where the
   // pricelist prints 27 19/32 — the pricelist figure is the one that matches the
@@ -793,52 +794,150 @@
     };
   }
 
+  function trimWarning(fam) {
+    return fam === "curbless"
+      ? "trimmed edge — the ¾\" perimeter has to be re-formed along the cut"
+      : "trimmed edge — re-create the ½\" channel along the cut";
+  }
+
+  // Extensions fill the gaps; a pan side may also be TRIMMED up to 6" (owner
+  // rule) when the pan runs a touch long in one direction. Returns the best
+  // untrimmed candidate plus, when it saves pieces, the best trimmed one.
   function extendOption(input, list, fam) {
-    var best = null;
+    var best = null, bestTrim = null;
     list.forEach(function (p) {
       orientations(p).forEach(function (o) {
         var gw = round2(input.w - o.w), gd = round2(input.d - o.d);
-        if (gw < 0 || gd < 0) return;
-        if (gw === 0 && gd === 0) return;
+        if (gw < -TRIM_MAX - 0.01 || gd < -TRIM_MAX - 0.01) return;
+        if (gw <= 0 && gd <= 0) return;   // cutdown territory
         if ((gw > 0 && gw < MIN_GAP) || (gd > 0 && gd < MIN_GAP)) return;
         var lw = gw > 0 ? layers(gw, fam) : [];
         var ld = gd > 0 ? layers(gd, fam) : [];
         if (!lw || !ld) return;
-        var pieces = [{ kind: "pan", item: p, x: 0, y: 0, w: o.w, d: o.d, cut: null }];
+        var trims = (gw < 0 ? 1 : 0) + (gd < 0 ? 1 : 0);
+        var pw = Math.min(o.w, input.w), pd = Math.min(o.d, input.d);
+        var pieces = [{ kind: "pan", item: p, x: 0, y: 0, w: pw, d: pd, cut: trims ? { w: o.w, d: o.d } : null }];
         var warn = [];
-        if (gw > 0) pieces = pieces.concat(runPieces("ext", lw, o.w, 0, o.d, true));
-        if (gd > 0) pieces = pieces.concat(runPieces("ext", ld, 0, o.d, o.w, false));
+        if (gw > 0) pieces = pieces.concat(runPieces("ext", lw, pw, 0, pd, true));
+        if (gd > 0) pieces = pieces.concat(runPieces("ext", ld, 0, pd, pw, false));
         if (gw > 0 && gd > 0) {
           if (gw <= CORNER_MAX && gd <= CORNER_MAX) {
             var ce = item(EXT[fam === "curbless" ? "curbless" : "fundo"].corner);
             pieces.push({
-              kind: "cornerExt", item: ce, x: o.w, y: o.d, w: gw, d: gd,
+              kind: "cornerExt", item: ce, x: pw, y: pd, w: gw, d: gd,
               cut: (gw < ce.w - 0.01 || gd < ce.d - 0.01) ? { w: ce.w, d: ce.d } : null,
             });
           } else {
             warn.push("corner over 12\" — mitre two straights at 45° instead of a corner extension");
             var cw = gw > 0 ? layers(gw, fam) : [];
-            pieces = pieces.concat(runPieces("ext", cw, o.w, o.d, gd, true));
+            pieces = pieces.concat(runPieces("ext", cw, pw, pd, gd, true));
           }
         }
         var lines = aggregate(pieces);
         var cuts = pieces.filter(function (x) { return !!x.cut; }).length;
         warn.unshift(seamWarning(pieces.length - 1));
+        if (trims) warn.push(trimWarning(fam));
         var cand = {
-          id: "extend", kind: "extend",
-          title: p.sizeText + " base + " + (pieces.length - 1) + " extension piece" + (pieces.length === 2 ? "" : "s"),
-          badges: ["Extensions"].concat(cuts ? [] : ["No cutting"]),
+          id: trims ? "trimfit" : "extend", kind: trims ? "trimfit" : "extend",
+          title: trims
+            ? p.sizeText + " base trimmed to fit + " + (pieces.length - 1) + " extension piece" + (pieces.length === 2 ? "" : "s")
+            : p.sizeText + " base + " + (pieces.length - 1) + " extension piece" + (pieces.length === 2 ? "" : "s"),
+          badges: (trims ? ["Trim to fit"] : ["Extensions"]).concat(cuts ? [] : ["No cutting"]),
           pieces: pieces, drain: mapDrain(p, o.rot, 0, 0), warnings: warn,
           floorLines: lines, floorPrice: priceOf(lines), input: input,
-          room: { w: input.w, d: input.d }, pan: p, cuts: cuts,
+          room: { w: input.w, d: input.d }, pan: p, cuts: cuts, trims: trims,
         };
-        if (!best) best = cand;
-        else if (cand.pieces.length !== best.pieces.length) best = cand.pieces.length < best.pieces.length ? cand : best;
-        else if (cand.cuts !== best.cuts) best = cand.cuts < best.cuts ? cand : best;
-        else if (cand.floorPrice < best.floorPrice) best = cand;
+        var better = function (a, b) {
+          if (!b) return true;
+          if (a.pieces.length !== b.pieces.length) return a.pieces.length < b.pieces.length;
+          if (a.cuts !== b.cuts) return a.cuts < b.cuts;
+          return a.floorPrice < b.floorPrice;
+        };
+        if (trims) { if (better(cand, bestTrim)) bestTrim = cand; }
+        else if (better(cand, best)) best = cand;
       });
     });
-    return best;
+    var out = [];
+    if (best) out.push(best);
+    // A trimmed pan only earns its card when it genuinely simplifies the floor.
+    if (bestTrim && (!best || bestTrim.pieces.length < best.pieces.length)) out.push(bestTrim);
+    return out;
+  }
+
+  // The drain lands where the plumbing is: the pan floats to put its drain at
+  // (drainX, drainY) — measured off the left and back walls — trims soak up to
+  // 6" of overhang per side, and extensions fill whatever gaps remain.
+  function drainAtOptions(input, list, fam) {
+    var tx = input.drainX, ty = input.drainY;
+    var spec = EXT[fam === "curbless" ? "curbless" : "fundo"];
+    var cands = [];
+    list.forEach(function (p) {
+      if (!p.drain || p.drain.type === "linear") return;
+      orientations(p).forEach(function (o) {
+        var drx = o.rot ? p.drain.y : p.drain.x, dry = o.rot ? p.drain.x : p.drain.y;
+        var ox = round2(tx - drx), oy = round2(ty - dry);
+        var tL = ox < 0 ? -ox : 0, tB = oy < 0 ? -oy : 0;
+        var pr = round2(ox + o.w), pf = round2(oy + o.d);
+        var tR = pr > input.w ? round2(pr - input.w) : 0, tF = pf > input.d ? round2(pf - input.d) : 0;
+        if ([tL, tB, tR, tF].some(function (t) { return t > TRIM_MAX + 0.01; })) return;
+        var px = round2(Math.max(ox, 0)), py = round2(Math.max(oy, 0));
+        var pw = round2(Math.min(pr, input.w) - px), pd = round2(Math.min(pf, input.d) - py);
+        if (pw <= 0 || pd <= 0) return;
+        var gL = px, gB = py, gR = round2(input.w - px - pw), gF = round2(input.d - py - pd);
+        var gaps = [gL, gB, gR, gF];
+        if (gaps.some(function (g) { return g > 0 && g < MIN_GAP; })) return;
+        if (gaps.some(function (g) { return g > spec.max + 0.01; })) return;
+        var trims = (tL ? 1 : 0) + (tB ? 1 : 0) + (tR ? 1 : 0) + (tF ? 1 : 0);
+        var pieces = [{ kind: "pan", item: p, x: px, y: py, w: pw, d: pd, cut: trims ? { w: o.w, d: o.d } : null }];
+        var warn = [], dead = false;
+        var fill = function (g, x0, y0, sideLen, horizontal) {
+          if (!(g > 0) || dead) return;
+          var lay = layers(g, fam);
+          if (!lay) { dead = true; return; }
+          pieces = pieces.concat(runPieces("ext", lay, x0, y0, sideLen, horizontal));
+        };
+        fill(gL, 0, py, pd, true);
+        fill(gR, px + pw, py, pd, true);
+        fill(gB, px, 0, pw, false);
+        fill(gF, px, py + pd, pw, false);
+        if (dead) return;
+        // corner cells where two adjacent gaps meet
+        [[gL, gB, 0, 0], [gR, gB, px + pw, 0], [gL, gF, 0, py + pd], [gR, gF, px + pw, py + pd]]
+          .forEach(function (c) {
+            if (!(c[0] > 0 && c[1] > 0) || dead) return;
+            if (c[0] <= CORNER_MAX && c[1] <= CORNER_MAX) {
+              var ce = item(spec.corner);
+              pieces.push({
+                kind: "cornerExt", item: ce, x: c[2], y: c[3], w: c[0], d: c[1],
+                cut: (c[0] < ce.w - 0.01 || c[1] < ce.d - 0.01) ? { w: ce.w, d: ce.d } : null,
+              });
+            } else warn.push("corner over 12\" — mitre two straights at 45° instead of a corner extension");
+          });
+        var lines = aggregate(pieces);
+        var cuts = pieces.filter(function (x) { return !!x.cut; }).length;
+        warn.unshift(seamWarning(pieces.length - 1));
+        if (trims) warn.push(trimWarning(fam));
+        cands.push({
+          id: "drainat", kind: "drainat",
+          title: p.sizeText + " base — drain set at " + inch(tx) + '", ' + inch(ty) + '"',
+          badges: ["Drain right there"].concat(trims ? ["Trim to fit"] : cuts ? [] : ["No cutting"]),
+          pieces: pieces,
+          drain: { type: p.drain.type, x: tx, y: ty, len: 0, axis: null, note: p.drain.note || "" },
+          warnings: warn, floorLines: lines, floorPrice: priceOf(lines), input: input,
+          room: { w: input.w, d: input.d }, pan: p, cuts: cuts, trims: trims,
+        });
+      });
+    });
+    cands.sort(function (a, b) {
+      return a.trims - b.trims || a.pieces.length - b.pieces.length || a.floorPrice - b.floorPrice;
+    });
+    var seen = {}, out = [];
+    cands.forEach(function (c) {
+      if (out.length >= 3 || seen[c.pan.key]) return;
+      seen[c.pan.key] = true;
+      out.push(c);
+    });
+    return out;
   }
 
   function cutdownOption(input, list, fam) {
@@ -925,6 +1024,8 @@
       curb: (input && input.curb) === "curbless" ? "curbless" : "curbed",
       drain: (input && input.drain) || "any",
       tolerance: +(input && input.tolerance) || 0,
+      drainX: +(input && input.drainX) || 0,
+      drainY: +(input && input.drainY) || 0,
     };
     if (!(input.w > 0) || !(input.d > 0)) return [];
     var fam = input.curb === "curbless" ? "curbless" : "fundo";
@@ -935,13 +1036,19 @@
     });
 
     var out = [];
-    if (input.drain !== "linear") {
-      [exactOption(input, list), extendOption(input, list, fam), cutdownOption(input, list, fam)]
-        .forEach(function (o) { if (o) out.push(o); });
-    }
-    if (input.curb === "curbed" && (input.drain === "any" || input.drain === "linear")) {
-      var lin = linearOption(input);
-      if (lin) out.push(lin);
+    if (input.drainX > 0 && input.drainY > 0) {
+      // The drain position is the constraint — every option honors it.
+      out = drainAtOptions(input, list, fam);
+    } else {
+      if (input.drain !== "linear") {
+        [exactOption(input, list)].concat(extendOption(input, list, fam))
+          .concat([cutdownOption(input, list, fam)])
+          .forEach(function (o) { if (o) out.push(o); });
+      }
+      if (input.curb === "curbed" && (input.drain === "any" || input.drain === "linear")) {
+        var lin = linearOption(input);
+        if (lin) out.push(lin);
+      }
     }
     out.sort(function (a, b) {
       return a.warnings.length - b.warnings.length || a.floorPrice - b.floorPrice;
@@ -953,6 +1060,78 @@
       if (few !== cheap && few.pieces.length < cheap.pieces.length) few.badges = few.badges.concat(["Fewest pieces"]);
     }
     return out;
+  }
+
+  // ==========================================================================
+  // wall panel planner
+  // ==========================================================================
+  //
+  // Sheets laid HORIZONTAL, stacked in level courses, mixing the three stocked
+  // ½" sizes — so the joints run level and vertical seams stay rare (owner
+  // rule 2026-07-29). A course is 48" tall (4×8 / 4×5 sheets) or 36" tall
+  // (3×5); a long course prefers one 4×8 cut down over two butted 4×5s.
+
+  var PANEL_SHEETS = [
+    { key: "US8000015", w: 48, len: 96 },
+    { key: "US8000014", w: 48, len: 60 },
+    { key: "US8000017", w: 36, len: 60 },
+  ];
+
+  function coursesFor(h) {
+    var best = null;
+    for (var a = 0; a <= 3; a++) for (var b = 0; b <= 3; b++) {
+      var tot = a * 48 + b * 36;
+      if (tot < h - 0.01 || (a === 0 && b === 0)) continue;
+      var cand = { n: a + b, over: round2(tot - h), a: a, b: b };
+      if (!best || cand.n < best.n || (cand.n === best.n && cand.over < best.over)) best = cand;
+    }
+    if (!best) return [];
+    var stack = [];
+    for (var i = 0; i < best.a; i++) stack.push(48);
+    for (var j = 0; j < best.b; j++) stack.push(36);
+    return stack;
+  }
+
+  function courseFill(ch, L) {
+    var long_ = PANEL_SHEETS.filter(function (s) { return s.w === ch && s.len === 96; })[0];
+    var short_ = PANEL_SHEETS.filter(function (s) { return s.w === ch && s.len === 60; })[0];
+    var best = null;
+    for (var n = 0; n <= Math.ceil(L / 96); n++) {
+      if (n > 0 && !long_) break;
+      var rem = round2(L - n * 96);
+      var m = rem > 0.01 ? Math.ceil(rem / 60) : 0;
+      if (m > 0 && !short_) continue;
+      var cand = { n96: n, n60: m, n: n + m, waste: round2(n * 96 + m * 60 - L) };
+      if (cand.n === 0) continue;
+      if (!best || cand.n < best.n || (cand.n === best.n && cand.waste < best.waste)) best = cand;
+    }
+    if (!best) return null;
+    var out = [];
+    for (var i = 0; i < best.n96; i++) out.push(long_.key);
+    for (var j = 0; j < best.n60; j++) out.push(short_.key);
+    return { sheets: out, vSeams: best.n - 1 };
+  }
+
+  function panelPlan(walls) {
+    var byKey = {}, order = [], vSeams = 0, courses = 0;
+    (walls || []).forEach(function (wall) {
+      var L = +wall.len || 0, H = +wall.h || 0;
+      if (!(L > 0) || !(H > 0)) return;
+      coursesFor(H).forEach(function (ch) {
+        var c = courseFill(ch, L);
+        if (!c) return;
+        courses++;
+        vSeams += c.vSeams;
+        c.sheets.forEach(function (k) {
+          if (!byKey[k]) { byKey[k] = 0; order.push(k); }
+          byKey[k]++;
+        });
+      });
+    });
+    return {
+      lines: order.map(function (k) { return { key: k, qty: byKey[k] }; }),
+      vSeams: vSeams, courses: courses,
+    };
   }
 
   // ==========================================================================
@@ -1066,7 +1245,7 @@
 
   var API = {
     catalog: catalog, item: item, group: group, pans: pans,
-    kitFor: kitFor, solve: solve, figureConsumables: figureConsumables,
+    kitFor: kitFor, solve: solve, figureConsumables: figureConsumables, panelPlan: panelPlan,
     TIERS: TIERS, tierPrice: tierPrice, lineItems: lineItems,
     queryHit: queryHit, parseQuery: parseQuery, querySummary: querySummary, seedFromQuery: seedFromQuery,
     factoryKit: factoryKit, linearCoverFor: linearCoverFor, dims: dims, round2: round2, inch: inch,
@@ -1318,6 +1497,68 @@
       return i === 0 || a[i - 1].warnings.length < o.warnings.length ||
         (a[i - 1].warnings.length === o.warnings.length && a[i - 1].floorPrice <= o.floorPrice);
     }));
+
+    // --- trim-to-fit (owner rule: up to 6" off a pan side) -------------------
+    var s8 = solve({ w: 54, d: 66, curb: "curbless", drain: "any" });
+    var tf = s8.filter(function (o) { return o.kind === "trimfit"; })[0];
+    ok("54×66 curbless: trim-to-fit finds 60×60 cut 6\" + one strip — 2 pieces", (function () {
+      if (!tf) return false;
+      return tf.pan.key === "US9200005" && tf.pieces.length === 2 && tf.pieces[0].cut &&
+        tf.pieces[1].item.key === "US3000035" &&
+        tf.warnings.some(function (w) { return /re-formed|trimmed/.test(w); });
+    })(), tf && tf.pieces.map(function (p) { return p.item.key + " " + p.w + "×" + p.d; }));
+    ok("54×66 curbless still offers the untrimmed corner-extension option", (function () {
+      var ex = s8.filter(function (o) { return o.kind === "extend"; })[0];
+      return ex && ex.pieces.some(function (p) { return p.kind === "cornerExt"; });
+    })());
+    ok("48×66 shows no trim card (trimming saves nothing there)", (function () {
+      return solve({ w: 48, d: 66, curb: "curbed", drain: "any" })
+        .every(function (o) { return o.kind !== "trimfit"; });
+    })());
+    ok("trim-to-fit pieces stay inside the room", s8.every(function (o) {
+      return o.pieces.every(function (p) { return p.x >= 0 && p.y >= 0 && p.x + p.w <= o.room.w + 0.01 && p.y + p.d <= o.room.d + 0.01; });
+    }));
+
+    // --- drain placed off two walls ------------------------------------------
+    var s9 = solve({ w: 60, d: 60, curb: "curbed", drain: "any", drainX: 24, drainY: 30 });
+    ok("60×60 with the drain 24\" / 30\" → 48×60 pan, drain exactly there, 1 gap", (function () {
+      if (!s9[0] || s9[0].kind !== "drainat") return false;
+      var o = s9[0];
+      return o.pan.key === "US9100009" && o.drain.x === 24 && o.drain.y === 30 &&
+        o.pieces.length === 2 && o.trims === 0;
+    })(), s9[0] && s9[0].pieces.map(function (p) { return p.item.key + " @" + p.x + "," + p.y + " " + p.w + "×" + p.d; }));
+    ok("drain-at options honor the target on every card", s9.every(function (o) {
+      return o.drain.x === 24 && o.drain.y === 30;
+    }));
+    var s10 = solve({ w: 48, d: 60, curb: "curbed", drain: "any", drainX: 20, drainY: 30 });
+    ok("48×60 with the drain at 20\" leans on the 6\" trim allowance", (function () {
+      return s10.length > 0 && s10.some(function (o) { return o.trims > 0; }) &&
+        s10.every(function (o) { return o.drain.x === 20; });
+    })(), s10.map(function (o) { return o.pan.key + " trims " + o.trims; }));
+    ok("drain-at pieces stay inside the room", s9.concat(s10).every(function (o) {
+      return o.pieces.every(function (p) { return p.x >= 0 && p.y >= 0 && p.x + p.w <= o.room.w + 0.01 && p.y + p.d <= o.room.d + 0.01; });
+    }));
+
+    // --- wall panel planner --------------------------------------------------
+    var pp = panelPlan([{ len: 60, h: 80 }, { len: 36, h: 80 }, { len: 36, h: 80 }]);
+    ok("36×60 default walls plan: level courses, zero vertical seams", pp.vSeams === 0 && pp.courses === 6, JSON.stringify(pp));
+    ok("plan mixes 4×5 + 3×5 sheets, one per course", (function () {
+      var by = {};
+      pp.lines.forEach(function (l) { by[l.key] = l.qty; });
+      return by.US8000014 === 3 && by.US8000017 === 3;
+    })(), JSON.stringify(pp.lines));
+    ok("96\" wall at 96\" high: two 4×8 courses, no vertical seams", (function () {
+      var p = panelPlan([{ len: 96, h: 96 }]);
+      return p.vSeams === 0 && p.lines.length === 1 && p.lines[0].key === "US8000015" && p.lines[0].qty === 2;
+    })());
+    ok("72\" course prefers one cut-down 4×8 over two butted 4×5s", (function () {
+      var p = panelPlan([{ len: 72, h: 48 }]);
+      return p.vSeams === 0 && p.lines[0].key === "US8000015" && p.lines[0].qty === 1;
+    })());
+    ok("half wall: one course covers a 24×40 pony wall", (function () {
+      var p = panelPlan([{ len: 24, h: 40 }]);
+      return p.courses === 1 && p.lines.reduce(function (s, l) { return s + l.qty; }, 0) === 1;
+    })());
 
     // --- line payloads -------------------------------------------------------
     var rows = lineItems(kit, { tier: "builder" });

@@ -57,13 +57,18 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
 ## Files
 
 - `prototype.html` + `proto-engine.js` + `proto-data.js` — the prototype
-- `P1`–`P9` `.png` — preview proof screenshots (`shoot.mjs` retakes them:
-  serve the repo root on :5199, `node shoot.mjs`): P1 the 36×60 house kit ·
-  P2 a curbless kit's waterproofing lines · P3 the 48×66 solver with both
-  diagrams · P4 two-side curbless extensions + corner piece on the Builder
-  lens · P5 the linear module + extension · P6 Browse with the consumables
-  figurer · P7 the payload modal · P8 the search-entry row · P9 the printed
-  layout sheet
+- `P1`–`P10` `.png` — preview proof screenshots (`shoot.mjs` retakes them:
+  serve the repo root on :5199, `node shoot.mjs`): P1 the 36×60 house kit
+  (wall editor + level-course panel plan) · P2 a curbless kit's
+  waterproofing lines · P3 the 48×66 solver with both diagrams · P4
+  two-side curbless extensions + corner piece on the Builder lens · P5 the
+  linear module + extension · P6 Browse (stock tinted green, consumables
+  figurer) · P7 the payload modal · P8 the search-entry row · P9 the
+  printed layout sheet · P10 the drain pinned 24"/30" off two walls
+- Owner feedback round 2026-07-29 (see ticket.md): tube-first sealant,
+  editable walls + half wall, drain-position solving with the 6" pan-trim
+  allowance, horizontal mixed-size panel courses, cover-finish swatches,
+  stock rows tinted
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)

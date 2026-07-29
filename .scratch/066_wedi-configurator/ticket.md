@@ -177,6 +177,30 @@ generalizes from the hard-coded Sheoga block to a two-entry descriptor list.
   sibling scripts, no CDN beyond the Manrope @import, same as 023).
 - `P*.png` — preview screenshots (the change-control preview proof).
 
+## Owner feedback — 2026-07-29, first prototype review
+
+Seven rules from the owner's first pass over the interactive prototype, all
+landed in the prototype (engine rules carry self-tests):
+
+1. **Sealant defaults to the 10.5 oz tube**, not the sausage — the sausage
+   (and its gun hint) stays one swap away.
+2. **Kit walls default to 1 long + 2 short**, editable: each wall has its own
+   length and height, a Flip swaps which side is the back.
+3. **Half / custom small walls** — per-wall heights cover half walls, and a
+   fourth "Half" wall row (off by default) adds a pony wall.
+4. **Custom rooms can pin the drain** — two inputs, distance from the left
+   and back walls; the solver floats the pan so its drain lands there,
+   trimming up to **6" off any pan side** (owner rule) and filling the
+   remaining gaps with extensions. The 6" trim allowance also joins the
+   ordinary solve as a "Trim to fit" card when it saves pieces.
+5. **Panels lay horizontal in level courses, mixed sizes** (`panelPlan`):
+   48"-tall courses from 4×8/4×5 sheets, 36"-tall from 3×5, a long course
+   prefers one cut-down 4×8 over two butted 4×5s — minimal vertical seams.
+   Default "Fit" mode; "One size" keeps the single-SKU area fill.
+6. **Drain-cover finishes get color swatches** — the finish codes were too
+   hard to tell apart as text.
+7. **Stock items read on a light green background**, special order on white.
+
 ## Assumptions to confirm before production
 
 1. Builder ×0.82 applies to **every** wedi line (pans, panels, consumables,

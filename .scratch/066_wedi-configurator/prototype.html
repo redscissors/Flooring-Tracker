@@ -115,8 +115,10 @@
   .figcard .fr{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--muted);font-weight:600}
   .figcard .fr b{color:var(--ink)}
   .figcard .inp{width:80px;padding:5px 8px;font-size:12.5px}
-  .brow{display:flex;align-items:center;gap:10px;padding:6px 4px;border-top:1px solid var(--rowline)}
+  .brow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-top:1px solid var(--rowline)}
   .brow:last-child{border-bottom:1px solid var(--rowline)}
+  .brow.stk{background:#F2F6E9}
+  .srow.stk{background:#F2F6E9}
   .brow .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--moss)}
   .brow .sdot.so{background:transparent;border:1.4px solid var(--faint)}
   .brow .bn{flex:1;min-width:0}
@@ -144,7 +146,17 @@
   .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
   .wtgl{border:1px solid var(--line-strong);background:var(--card);border-radius:4px;font-size:9px;font-weight:800;color:var(--faint);width:20px;height:17px;cursor:pointer;line-height:1}
   .wtgl.on{background:var(--moss);border-color:var(--moss);color:#fff}
-  .whin{width:34px;border:1px solid var(--line-strong);border-radius:4px;font-size:10px;font-weight:700;text-align:center;padding:1px 2px;background:var(--card);color:var(--ink);font-family:var(--ui)}
+  .wallrow{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px dashed var(--rowline);font-size:10px;color:var(--faint);font-weight:600}
+  .wname{border:1px solid var(--line-strong);background:var(--card);border-radius:5px;font-size:9.5px;font-weight:800;color:var(--faint);padding:2px 0;cursor:pointer;width:44px;text-align:center}
+  .wname.on{background:var(--moss);border-color:var(--moss);color:#fff}
+  .win{width:40px;border:1px solid var(--line-strong);border-radius:4px;font-size:10.5px;font-weight:700;text-align:center;padding:2px;background:var(--card);color:var(--ink);font-family:var(--ui)}
+  .win:disabled{opacity:.35}
+  .wallrow .wu{margin-left:auto;font-variant-numeric:tabular-nums}
+  .pfseg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden}
+  .pfseg button{border:none;background:var(--card);color:var(--faint);font-size:9px;font-weight:800;padding:2px 7px;cursor:pointer}
+  .pfseg button + button{border-left:1px solid var(--line-strong)}
+  .pfseg button.on{background:var(--ink);color:var(--paper)}
+  .fsw{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid rgba(28,26,23,.35);vertical-align:-1.5px;margin-right:5px;flex:none}
   .bline{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--rowline)}
   .bline .bn{flex:1;min-width:0}
   .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -344,6 +356,19 @@ const TIER_COLOR = {
 };
 const TIER_SUB = { retail: 'book price', builder: '× 0.82', employee: 'cost × 1.06', sale: '−10%', custom: null };
 
+// drain-cover finishes as swatches — the codes are hard to tell apart as text
+const FIN_SWATCH = {
+  SS: '#C6CBCE', SSP: '#C6CBCE', C: '#DEE4EA', CSL: '#DEE4EA', CP: '#DEE4EA',
+  B: '#C9A15C', BP: '#C9A15C', G: '#E0B63E', ORB: '#4A362A', MB: '#26231F',
+  CHA: '#DCC49B', WHT: '#F4F2EC',
+};
+function finDot(e) {
+  if (!e || (e.group !== 'cover' && e.group !== 'coverFrame') || !e.finish) return '';
+  const c = FIN_SWATCH[e.finish];
+  const style = c ? 'background:' + c : 'background:repeating-linear-gradient(45deg,#FFF 0 2px,#CBC4B0 2px 4px)';
+  return '<span class="fsw" style="' + style + '" title="' + esc(W.FINISHES[e.finish] || e.finish) + '"></span>';
+}
+
 const BUCKETS = [['floor', 'Floor'], ['walls', 'Walls'], ['drain', 'Drain & finish'], ['install', 'Install'], ['addon', 'Add-ons']];
 const BUCKET_OF = {
   pan: 'floor', module: 'floor', modExt: 'floor', extension: 'floor', cornerExt: 'floor', ramp: 'floor',
@@ -355,11 +380,19 @@ const bucketOf = e => BUCKET_OF[e.group] || 'addon';
 const S = {
   tab: 'kits', tier: 'retail', customPct: 15,
   panKey: null, option: null, qtyOv: {}, manual: [], addons: [],
-  opts: { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'sausage', recess: undefined },
-  inp: { w: 48, d: 66, curb: 'curbed', drain: 'any' },
-  wallSel: { back: true, left: true, right: true }, wallH: 80,
+  opts: { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'tube', recess: undefined },
+  inp: { w: 48, d: 66, curb: 'curbed', drain: 'any', drainX: '', drainY: '' },
+  walls: [
+    { id: 'back', label: 'Back', on: true, len: '', h: '' },
+    { id: 'left', label: 'Left', on: true, len: '', h: '' },
+    { id: 'right', label: 'Right', on: true, len: '', h: '' },
+    { id: 'half', label: 'Half', on: false, len: '24', h: '40' },
+  ],
+  wallFlip: false, wallH: 80, panelFit: true,
   results: [], selIdx: -1, q: '', grp: '', figSf: '',
 };
+const wallOn = id => S.walls.filter(w => w.id === id)[0].on;
+const wallOf = id => S.walls.filter(w => w.id === id)[0];
 
 function tierOf(item) {
   return W.tierPrice(item, S.tier, S.tier === 'custom' ? S.customPct : S.tier === 'sale' ? 10 : null);
@@ -368,16 +401,25 @@ function tierOf(item) {
 // ---------------------------------------------------------------------------
 // build assembly: engine kit + user quantity overrides + manual browse lines
 // ---------------------------------------------------------------------------
+function autoWallLens(pan, room) {
+  let hi, lo;
+  if (room) { hi = room.w; lo = room.d; }
+  else if (pan && pan.group === 'module') { hi = pan.len; lo = 72.5; }
+  else if (pan) { hi = Math.max(pan.w, pan.d); lo = Math.min(pan.w, pan.d); }
+  else { hi = 60; lo = 36; }
+  // default: 1 long side + 2 short sides; Flip swaps which side is the back
+  if (S.wallFlip) { const t = hi; hi = lo; lo = t; }
+  return { back: hi, left: lo, right: lo };
+}
 function wallsArr(pan, room) {
-  const h = +S.wallH || 80;
-  let bw, sd;
-  if (room) { bw = room.w; sd = room.d; }
-  else if (pan.group === 'module') { bw = pan.len; sd = 72.5; }
-  else { bw = Math.max(pan.w, pan.d); sd = Math.min(pan.w, pan.d); }
+  const auto = autoWallLens(pan, room);
   const out = [];
-  if (S.wallSel.back) out.push({ len: bw, h, side: 'back' });
-  if (S.wallSel.left) out.push({ len: sd, h, side: 'left' });
-  if (S.wallSel.right) out.push({ len: sd, h, side: 'right' });
+  S.walls.forEach(w => {
+    if (!w.on) return;
+    const len = +w.len || auto[w.id] || 0;
+    const h = +w.h || +S.wallH || 80;
+    if (len > 0 && h > 0) out.push({ len, h, side: w.id });
+  });
   return out;
 }
 
@@ -395,6 +437,18 @@ function currentBuild() {
       mode: S.option ? 'custom' : 'kit',
     });
     let lines = b.lines.map(l => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
+    if (S.panelFit) {
+      // level horizontal courses, mixed sheet sizes — minimal vertical seams
+      const plan = W.panelPlan(wallsArr(pan, room));
+      lines = lines.filter(l => !(l.group === 'walls' && l.auto !== false));
+      plan.lines.forEach((pl, i) => lines.push({
+        item: W.item(pl.key), qty: pl.qty, group: 'walls',
+        note: i === 0
+          ? r2(b.panelSf) + ' sf — level courses, ' + plan.vSeams + ' vertical seam' + (plan.vSeams === 1 ? '' : 's')
+          : 'level horizontal courses',
+        auto: true,
+      }));
+    }
     lines.forEach(l => {
       const ov = S.qtyOv[l.item.key];
       if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
@@ -447,7 +501,7 @@ function step(key, delta) {
 
 function pickPan(key) {
   S.panKey = key; S.option = null; S.qtyOv = {}; S.addons = []; S.manual = [];
-  S.opts = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'sausage', recess: undefined };
+  S.opts = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'tube', recess: undefined };
   renderAll();
 }
 
@@ -478,7 +532,7 @@ function svgTop(o, W_, H_, mini) {
   let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W_ + ' ' + H_ + '" width="' + W_ + '" height="' + H_ + '">';
   // wall bands on the wall sides; the entry side stays open
   const wallW = mini ? 2.5 : 5;
-  const wl = { back: S.wallSel.back, left: S.wallSel.left, right: S.wallSel.right };
+  const wl = { back: wallOn('back'), left: wallOn('left'), right: wallOn('right') };
   s += '<rect x="' + X(0) + '" y="' + Y(0) + '" width="' + r2(rw * sc) + '" height="' + r2(rd * sc) + '" fill="#FBFAF5" stroke="#8A8378" stroke-width="1"/>';
   if (wl.back) s += '<rect x="' + (X(0) - wallW) + '" y="' + (Y(0) - wallW) + '" width="' + r2(rw * sc + wallW * 2) + '" height="' + wallW + '" fill="#57534C"/>';
   if (wl.left) s += '<rect x="' + (X(0) - wallW) + '" y="' + (Y(0) - wallW) + '" width="' + wallW + '" height="' + r2(rd * sc + wallW * 2) + '" fill="#57534C"/>';
@@ -518,6 +572,13 @@ function svgTop(o, W_, H_, mini) {
     if (!mini && dr.type !== 'linear') {
       s += '<text x="' + X(dr.x) + '" y="' + (Y(dr.y) + 18) + '" text-anchor="middle" font-size="8.5" font-weight="700" fill="#1C1A17" font-family="Manrope,sans-serif">' + esc(dr.type) + ' drain @ ' + esc(W.inch(dr.x)) + '", ' + esc(W.inch(dr.y)) + '"</text>';
     }
+    if (!mini && o.kind === 'drainat') {
+      // the plumber's two measurements, drawn off their walls
+      s += '<line x1="' + X(0) + '" y1="' + Y(dr.y) + '" x2="' + (X(dr.x) - 9) + '" y2="' + Y(dr.y) + '" stroke="#B4552D" stroke-width="1" stroke-dasharray="3 3"/>';
+      s += '<text x="' + X(dr.x / 2) + '" y="' + (Y(dr.y) - 4) + '" text-anchor="middle" font-size="8.5" font-weight="800" fill="#B4552D" font-family="Manrope,sans-serif">' + esc(W.inch(dr.x)) + '"</text>';
+      s += '<line x1="' + X(dr.x) + '" y1="' + Y(0) + '" x2="' + X(dr.x) + '" y2="' + (Y(dr.y) - 9) + '" stroke="#B4552D" stroke-width="1" stroke-dasharray="3 3"/>';
+      s += '<text x="' + (X(dr.x) + 4) + '" y="' + Y(dr.y / 2) + '" font-size="8.5" font-weight="800" fill="#B4552D" font-family="Manrope,sans-serif">' + esc(W.inch(dr.y)) + '"</text>';
+    }
   }
   if (!mini) {
     // dimensions
@@ -538,8 +599,8 @@ function svgIso(o, W_, H_) {
   const P = (x, y, z) => [ (x - y) * cx_, (x + y) * cy_ - z ];
   // fit: collect extreme points
   const pts = [P(0,0,0), P(rw,0,0), P(0,rd,0), P(rw,rd,0), P(0,0,h), P(rw,0,h)];
-  if (S.wallSel.right) pts.push(P(rw, rd, h));
-  if (S.wallSel.left) pts.push(P(0, rd, h));
+  if (wallOn('right')) pts.push(P(rw, rd, h));
+  if (wallOn('left')) pts.push(P(0, rd, h));
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   pts.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
   const pad = 16;
@@ -552,8 +613,8 @@ function svgIso(o, W_, H_) {
   s += poly([M(-3, -3, 0), M(rw + 3, -3, 0), M(rw + 3, rd + 3, 0), M(-3, rd + 3, 0)], 'rgba(28,26,23,.06)');
   // back + left walls (behind the floor)
   const wallFill = 'rgba(87,112,58,.12)', wallLine = 'rgba(28,26,23,.4)';
-  if (S.wallSel.back) s += poly([M(0, 0, 0), M(rw, 0, 0), M(rw, 0, h), M(0, 0, h)], wallFill, wallLine, 1);
-  if (S.wallSel.left) s += poly([M(0, 0, 0), M(0, rd, 0), M(0, rd, h), M(0, 0, h)], wallFill, wallLine, 1);
+  if (wallOn('back')) s += poly([M(0, 0, 0), M(rw, 0, 0), M(rw, 0, h), M(0, 0, h)], wallFill, wallLine, 1);
+  if (wallOn('left')) s += poly([M(0, 0, 0), M(0, rd, 0), M(0, rd, h), M(0, 0, h)], wallFill, wallLine, 1);
   // floor pieces, painter's order
   const t = 4;   // slab height, exaggerated for read
   const pieces = o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y));
@@ -581,11 +642,11 @@ function svgIso(o, W_, H_) {
     }
   }
   // right wall as glass, over the floor
-  if (S.wallSel.right) {
+  if (wallOn('right')) {
     s += poly([M(rw, 0, 0), M(rw, rd, 0), M(rw, rd, h), M(rw, 0, h)], 'rgba(87,112,58,.07)', wallLine, 1);
   }
   // wall height label
-  if (S.wallSel.back || S.wallSel.left || S.wallSel.right) {
+  if (wallOn('back') || wallOn('left') || wallOn('right')) {
     const lp = M(0, 0, h).split(',');
     s += '<text x="' + (+lp[0] + 4) + '" y="' + (+lp[1] + 10) + '" font-size="9" font-weight="700" fill="#57534C" font-family="Manrope,sans-serif">walls ' + esc(W.inch(+S.wallH || 80)) + '"</text>';
   }
@@ -639,8 +700,9 @@ const FAM_DEFS = [
 function renderKits() {
   const el = $('main');
   let h = '<div class="kitnote"><b>One click builds the house kit from shop stock</b> — pan + Click&Seal drain (in the box)'
-    + ' + ½" panels for the picked walls + curb lean (curbed) / Subliner Dry + 620 + corner seals (curbless) + drain cover'
-    + ' + fasteners + sealant + both collars + trowel — mirroring wedi’s own boxed-kit recipe. Every line swaps or steps in the build column.</div>';
+    + ' + ½" panels laid in level courses for the walls (1 long + 2 short by default — edit each wall, add a half wall, or flip the layout'
+    + ' in the build column) + curb lean (curbed) / Subliner Dry + 620 + corner seals (curbless) + drain cover'
+    + ' + fasteners + sealant (10.5 oz tubes by default) + both collars + trowel — mirroring wedi’s own boxed-kit recipe.</div>';
   FAM_DEFS.forEach(fd => {
     const list = fd[0] === 'module'
       ? W.group('module').filter(m => m.sub === 'neo')
@@ -678,9 +740,12 @@ function renderCustom() {
     + '<div class="rf"><label>Drain preference</label><div class="seg" id="segdrain">'
     + ['any', 'center', 'offset', 'linear'].map(dv =>
       '<button data-v="' + dv + '"' + (i.drain === dv ? ' class="on"' : '') + '>' + dv[0].toUpperCase() + dv.slice(1) + '</button>').join('') + '</div></div>'
+    + '<div class="rf"><label>Drain — from left · from back</label><div class="dims">'
+    + '<input class="inp" id="rdx" style="width:58px" placeholder="auto" value="' + esc(S.inp.drainX) + '"><span>×</span>'
+    + '<input class="inp" id="rdy" style="width:58px" placeholder="auto" value="' + esc(S.inp.drainY) + '"><span>in</span></div></div>'
     + '<div class="rf"><label>Walls</label><div class="seg" id="segwalls">'
     + [['back', 'Back'], ['left', 'Left'], ['right', 'Right']].map(wv =>
-      '<button data-v="' + wv[0] + '"' + (S.wallSel[wv[0]] ? ' class="on"' : '') + '>' + wv[1] + '</button>').join('') + '</div></div>'
+      '<button data-v="' + wv[0] + '"' + (wallOn(wv[0]) ? ' class="on"' : '') + '>' + wv[1] + '</button>').join('') + '</div></div>'
     + '<div class="rf"><label>Wall height</label><div class="dims"><input class="inp" id="rh" style="width:58px" value="' + esc(S.wallH) + '"><span>in</span></div></div>'
     + '</div>';
 
@@ -724,15 +789,20 @@ function renderCustom() {
   const re = id => $(id);
   re('rw').onchange = () => { S.inp.w = +re('rw').value || 0; solveNow(); };
   re('rd').onchange = () => { S.inp.d = +re('rd').value || 0; solveNow(); };
+  re('rdx').onchange = () => { S.inp.drainX = re('rdx').value.trim(); solveNow(); };
+  re('rdy').onchange = () => { S.inp.drainY = re('rdy').value.trim(); solveNow(); };
   re('rh').onchange = () => { S.wallH = +re('rh').value || 80; solveNow(); };
   $('segcurb').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.curb = b.dataset.v; solveNow(); });
   $('segdrain').querySelectorAll('button').forEach(b => b.onclick = () => { S.inp.drain = b.dataset.v; solveNow(); });
-  $('segwalls').querySelectorAll('button').forEach(b => b.onclick = () => { S.wallSel[b.dataset.v] = !S.wallSel[b.dataset.v]; solveNow(); });
+  $('segwalls').querySelectorAll('button').forEach(b => b.onclick = () => { const w = wallOf(b.dataset.v); w.on = !w.on; solveNow(); });
   el.querySelectorAll('[data-opt]').forEach(b => b.onclick = () => selectOption(+b.dataset.opt));
 }
 
 function solveNow() {
-  S.results = W.solve({ w: S.inp.w, d: S.inp.d, curb: S.inp.curb, drain: S.inp.drain, tolerance: 0.51 });
+  S.results = W.solve({
+    w: S.inp.w, d: S.inp.d, curb: S.inp.curb, drain: S.inp.drain, tolerance: 0.51,
+    drainX: +S.inp.drainX || 0, drainY: +S.inp.drainY || 0,
+  });
   S.selIdx = S.results.length ? 0 : -1;
   if (S.results.length) selectOption(0); else { S.panKey = null; S.option = null; renderAll(); }
 }
@@ -743,7 +813,7 @@ function selectOption(k) {
   S.selIdx = k;
   S.panKey = o.pan.key; S.option = o;
   S.qtyOv = {}; S.addons = []; S.manual = [];
-  S.opts = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'sausage', recess: undefined };
+  S.opts = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: 'tube', recess: undefined };
   renderAll();
 }
 
@@ -756,8 +826,8 @@ function renderBrowse() {
   let h = '<div class="figcard"><div class="fh">Figure sealant &amp; fasteners — wedi’s own planning rates</div>'
     + '<div class="fr">Panel area <input class="inp" id="figsf" value="' + esc(S.figSf === '' ? (sfDefault ? String(sfDefault) : '') : S.figSf) + '" placeholder="' + esc(sfDefault || 'sf') + '"> sf'
     + ' · <span class="seg" id="segform" style="display:inline-flex">'
-    + '<button data-v="sausage"' + (S.opts.sealantForm === 'sausage' ? ' class="on"' : '') + '>20 oz sausage</button>'
-    + '<button data-v="tube"' + (S.opts.sealantForm === 'tube' ? ' class="on"' : '') + '>10.5 oz tube</button></span>'
+    + '<button data-v="tube"' + (S.opts.sealantForm === 'tube' ? ' class="on"' : '') + '>10.5 oz tube</button>'
+    + '<button data-v="sausage"' + (S.opts.sealantForm === 'sausage' ? ' class="on"' : '') + '>20 oz sausage</button></span>'
     + (sf > 0 ? ' → <b>' + fig.fastenerCount + '</b> fasteners = <b>' + fig.lines[0].qty + '</b> kit' + (fig.lines[0].qty > 1 ? 's' : '')
       + ' · <b>' + fig.sealantOz + '</b> oz = <b>' + fig.lines[1].qty + '</b> ' + (S.opts.sealantForm === 'tube' ? 'tubes' : 'sausages')
       + ' <button class="btn" style="flex:none;padding:5px 10px;margin-left:6px" id="figadd">Add to build</button>' : '')
@@ -784,8 +854,8 @@ function renderBrowse() {
   const shown = list.slice(0, MAX);
   h += shown.map(e => {
     const q = qtyIn(build, e.key);
-    return '<div class="brow"><span class="sdot' + (e.stock ? '' : ' so') + '" title="' + (e.stock ? 'stocked' : 'special order') + '"></span>'
-      + '<div class="bn"><div class="n">' + esc(e.name) + '</div><div class="s">' + esc([W.GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? 'stock' : 'special order'].filter(Boolean).join(' · ')) + '</div></div>'
+    return '<div class="brow' + (e.stock ? ' stk' : '') + '"><span class="sdot' + (e.stock ? '' : ' so') + '" title="' + (e.stock ? 'stocked' : 'special order') + '"></span>'
+      + '<div class="bn"><div class="n">' + finDot(e) + esc(e.name) + '</div><div class="s">' + esc([W.GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? 'stock' : 'special order'].filter(Boolean).join(' · ')) + '</div></div>'
       + '<div class="sku">' + esc(e.stock ? e.erp : e.us) + '</div>'
       + '<div class="pr" style="color:' + TIER_COLOR[S.tier].main + '">' + fm(tierOf(e)) + '<small>' + (S.tier !== 'retail' ? 'retail ' + fm(e.retail) : '&nbsp;') + '</small></div>'
       + '<div class="stepper"><button data-dec="' + esc(e.key) + '">−</button><span class="q' + (q ? '' : ' zero') + '">' + q + '</span><button data-inc="' + esc(e.key) + '">+</button></div>'
@@ -827,7 +897,7 @@ function swapChoices(line, build) {
   }
   if (g === 'curb') return { title: 'Curb', list: W.group('curb'), none: 'No curb', set: k => { S.opts.curbKey = k; } };
   if (g === 'sealant' && line.item.sub === 'joint') {
-    return { title: 'Joint sealant form', list: [W.item(W.SKU.sealantSausage), W.item(W.SKU.sealantTube)], set: k => { S.opts.sealantForm = k === W.SKU.sealantTube ? 'tube' : 'sausage'; } };
+    return { title: 'Joint sealant form', list: [W.item(W.SKU.sealantTube), W.item(W.SKU.sealantSausage)], set: k => { S.opts.sealantForm = k === W.SKU.sealantSausage ? 'sausage' : 'tube'; } };
   }
   if (g === 'recess' || g === 'ramp') {
     return { title: 'Curbless entry', list: [W.item(W.SKU.recessKit), W.item(W.SKU.ramp)], none: 'Recess the subfloor (no part)', set: k => { S.opts.recess = k === W.SKU.ramp ? 'ramp' : k ? 'kit' : 'none'; } };
@@ -850,9 +920,9 @@ function openSwap(btn, line, build) {
   let h = '<div class="ph">' + esc(ch.title) + '</div>';
   if (ch.none) h += '<button class="srow" data-k=""><span class="sdot so"></span><span class="n">' + esc(ch.none) + '</span><span class="p"></span></button>';
   ch.list.forEach(e => {
-    h += '<button class="srow' + (e.key === line.item.key ? ' on' : '') + '" data-k="' + esc(e.key) + '">'
+    h += '<button class="srow' + (e.key === line.item.key ? ' on' : '') + (e.stock ? ' stk' : '') + '" data-k="' + esc(e.key) + '">'
       + '<span class="sdot' + (e.stock ? '' : ' so') + '"></span>'
-      + '<span class="n">' + esc(e.name) + '<small>' + esc([e.sizeText, e.stock ? e.erp : 'SO — ' + e.us].filter(Boolean).join(' · ')) + '</small></span>'
+      + '<span class="n">' + finDot(e) + esc(e.name) + '<small>' + esc([e.sizeText, e.stock ? e.erp : 'SO — ' + e.us].filter(Boolean).join(' · ')) + '</small></span>'
       + '<span class="p">' + fm(tierOf(e)) + '</span></button>';
   });
   popEl.innerHTML = h;
@@ -896,17 +966,29 @@ function renderBuild() {
     h += '<div class="bgroup"><div class="bg-h">' + bk[1];
     if (bk[0] === 'walls' && pan) {
       h += '<span class="wallctl">'
-        + [['back', 'B'], ['left', 'L'], ['right', 'R']].map(wv =>
-          '<button class="wtgl' + (S.wallSel[wv[0]] ? ' on' : '') + '" data-w="' + wv[0] + '" title="' + wv[0] + ' wall">' + wv[1] + '</button>').join('')
-        + '<input class="whin" id="whin" value="' + esc(S.wallH) + '" title="wall height, in">″</span>';
+        + '<button class="wtgl" id="wflip" title="swap which side is the back (long ↔ short)">⇄</button>'
+        + '<span class="pfseg"><button data-pf="1"' + (S.panelFit ? ' class="on"' : '') + ' title="mixed sheet sizes, level courses, minimal vertical seams">Fit</button>'
+        + '<button data-pf="0"' + (!S.panelFit ? ' class="on"' : '') + ' title="one sheet size, by area">One size</button></span>'
+        + '</span>';
     }
     h += '</div>';
+    if (bk[0] === 'walls' && pan) {
+      const auto = autoWallLens(pan, S.option ? S.option.room : null);
+      h += S.walls.map(w =>
+        '<div class="wallrow">'
+        + '<button class="wname' + (w.on ? ' on' : '') + '" data-wt="' + w.id + '">' + w.label + '</button>'
+        + '<input class="win" data-wl="' + w.id + '" value="' + esc(w.len) + '" placeholder="' + (auto[w.id] || '') + '"' + (w.on ? '' : ' disabled') + ' title="length, in">'
+        + '<span>×</span>'
+        + '<input class="win" data-wh="' + w.id + '" value="' + esc(w.h) + '" placeholder="' + esc(S.wallH) + '"' + (w.on ? '' : ' disabled') + ' title="height, in — 40 for a half wall">'
+        + '<span class="wu">' + (w.on ? r2(((+w.len || auto[w.id] || 0) * (+w.h || +S.wallH || 80)) / 144) + ' sf' : 'off') + '</span>'
+        + '</div>').join('');
+    }
     lines.forEach(l => {
       const e = l.item;
       const price = tierOf(e);
-      const can = swapChoices(l, build);
+      const can = (e.group === 'panel' && S.panelFit) ? null : swapChoices(l, build);
       h += '<div class="bline">'
-        + '<div class="bn"><div class="n">' + esc(e.name) + '</div><div class="m"><b>' + esc(e.stock ? e.erp : 'SO ' + e.us) + '</b>'
+        + '<div class="bn"><div class="n">' + finDot(e) + esc(e.name) + '</div><div class="m"><b>' + esc(e.stock ? e.erp : 'SO ' + e.us) + '</b>'
         + (l.note ? ' · ' + esc(l.note) : e.sizeText ? ' · ' + esc(e.sizeText) : '') + '</div></div>'
         + (can ? '<button class="swapb" data-swap="' + esc(e.key) + '" title="swap">⇄</button>' : '')
         + '<div class="stepper"><button data-dec="' + esc(e.key) + '">−</button><span class="q' + (l.ov ? ' ov" title="hand-set — auto is ' + esc(l.autoQty) : '') + '">' + l.qty + '</span><button data-inc="' + esc(e.key) + '">+</button></div>'
@@ -947,9 +1029,12 @@ function renderBuild() {
     const line = build.lines.filter(l => l.item.key === b.dataset.swap)[0];
     if (line) openSwap(b, line, build);
   });
-  bc.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { S.wallSel[b.dataset.w] = !S.wallSel[b.dataset.w]; renderAll(); });
-  const wh = $('whin');
-  if (wh) wh.onchange = () => { S.wallH = +wh.value || 80; renderAll(); };
+  bc.querySelectorAll('[data-wt]').forEach(b => b.onclick = () => { const w = wallOf(b.dataset.wt); w.on = !w.on; renderAll(); });
+  bc.querySelectorAll('[data-wl]').forEach(i => i.onchange = () => { wallOf(i.dataset.wl).len = i.value; renderAll(); });
+  bc.querySelectorAll('[data-wh]').forEach(i => i.onchange = () => { wallOf(i.dataset.wh).h = i.value; renderAll(); });
+  const wf = $('wflip');
+  if (wf) wf.onclick = () => { S.wallFlip = !S.wallFlip; renderAll(); };
+  bc.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => { S.panelFit = b.dataset.pf === '1'; renderAll(); });
   const ag = bc.querySelector('[data-addgun]');
   if (ag) ag.onclick = () => { if (S.addons.indexOf(W.SKU.gun) < 0) S.addons.push(W.SKU.gun); renderAll(); };
   bc.querySelectorAll('[data-addon]').forEach(b => b.onclick = () => {

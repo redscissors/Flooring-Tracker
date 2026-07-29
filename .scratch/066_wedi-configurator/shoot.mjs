@@ -68,9 +68,28 @@ await pg.click('.overlay .xbtn');
 // P8 — search-entry demo (E section)
 await pg.locator('.ewrap').screenshot({ path: `${OUT}/P8-search-entry.png` });
 
+// P10 — custom: drain placed off two walls (60×60, drain 24" from left, 30" from back)
+await pg.click('[data-tab="custom"]');
+await pg.waitForTimeout(200);
+await pg.fill('#rw', '60'); await pg.dispatchEvent('#rw', 'change');
+await pg.waitForTimeout(150);
+await pg.fill('#rd', '60'); await pg.dispatchEvent('#rd', 'change');
+await pg.waitForTimeout(150);
+await pg.click('#segdrain [data-v="any"]');
+await pg.waitForTimeout(150);
+await pg.fill('#rdx', '24'); await pg.dispatchEvent('#rdx', 'change');
+await pg.waitForTimeout(150);
+await pg.fill('#rdy', '30'); await pg.dispatchEvent('#rdy', 'change');
+await pg.waitForTimeout(400);
+await popup.screenshot({ path: `${OUT}/P10-custom-drain-target.png` });
+
 // P9 — print layout sheet (emulate print media)
 await pg.click('[data-tab="custom"]');
 await pg.waitForTimeout(300);
+await pg.fill('#rdx', ''); await pg.dispatchEvent('#rdx', 'change');
+await pg.waitForTimeout(150);
+await pg.fill('#rdy', ''); await pg.dispatchEvent('#rdy', 'change');
+await pg.waitForTimeout(150);
 await pg.fill('#rw', '48'); await pg.dispatchEvent('#rw', 'change');
 await pg.waitForTimeout(150);
 await pg.fill('#rd', '66'); await pg.dispatchEvent('#rd', 'change');
