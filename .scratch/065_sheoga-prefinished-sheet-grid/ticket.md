@@ -61,16 +61,22 @@ there is no "option silently walks off the stock item" state to police.
   stocked tab need either a floor-cfg handoff or a stocked-cfg that prices
   off the derived sheet — decide at implementation.
 
-## Open questions for the owner
+## Owner decisions (2026-07-29) — ready to build
 
-1. Stocked tab's color buttons: list ALL sheet colors (stock ones marked ●,
-   white ones quote made-to-order) as mocked, or keep buttons stock-only
-   and let the grid be the only path to white cells?
-2. Sheen change on a green cell stays "$250 flat, no small-order fee"?
-3. "Rush" — if FAST TRACK differs from STOCK on lead time, we'd want two
-   green shades; today one green covers both, as on the vendor sheet.
-4. Cost vs Sell as the grid's default display? (Mock defaults to Cost, the
-   toggle is in the panel header; the old modal showed cost only.)
+1. **Grid only for white cells.** The stocked tab's buttons stay stock-only
+   (unchanged from today); the docked sheet is the only path to a white
+   cell. A white-cell click hands the pick to the Unfinished & custom tab
+   pre-filled (solid, grade, width, the color as an established stain /
+   Natural, the row's texture, micro bevel) — it prices identically
+   (verified cell-for-cell) and files honestly as a made-to-order custom.
+2. **Sheen change on a green cell stays** $250 flat, no small-order fee.
+3. **One green** for STOCK and FAST TRACK, like the vendor sheet.
+4. **Grids default to SELL** (through the job's tier lens, like the rail
+   chips); the Cost/Sell toggle stays in the panel header.
+5. **Live Sawn is unfinished-only.** Live Sawn White Oak cannot be ordered
+   prefinished: the engine stops pricing it with any prefinished finish,
+   the finishing dropdown disables those choices on Live Sawn, and the
+   grid's Live Sawn strips drop out when a prefinish is selected.
 
 ## Preview proof
 
