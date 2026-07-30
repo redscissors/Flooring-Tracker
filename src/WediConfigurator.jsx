@@ -1072,8 +1072,26 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const auto = autoWallLens(pan, option ? option.room : null);
     setWalls((ws) => ws.map((w) => (w.len !== "" && Math.abs(+w.len - (auto[w.id] || 0)) < 0.01 ? { ...w, len: "" } : w)));
   };
+  // The Custom shower form mirrors the chosen kit (owner rule 2026-07-30):
+  // size, curb, and drain TYPE seed from the pan; the typed drain placement
+  // clears — the plumbing position belongs to the room, not the kit.
+  const seedFormFromKit = (p, noFlip) => {
+    const auto = noFlip
+      ? (p.group === "module" ? { back: p.len, left: 72.5 } : { back: Math.max(p.w, p.d), left: Math.min(p.w, p.d) })
+      : autoWallLens(p, null);
+    const next = {
+      ...inp, w: auto.back, d: auto.left,
+      curb: p.sub === "curbless" ? "curbless" : "curbed",
+      drain: p.group === "module" ? "linear"
+        : p.drain && ["center", "offset", "linear"].includes(p.drain.type) ? p.drain.type : "any",
+      drainX: "", drainY: "",
+    };
+    setInp(next);
+    setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left" }));
+  };
   // A kit card is a hard reset (owner rule 2026-07-30): once a build is
   // customized it IS the custom shower, so a kit click asks before wiping it.
+  // The reset also re-seeds the Custom shower form from the kit.
   const hardReset = (key) => {
     setWalls(DEF_WALLS.map((w) => ({ ...w })));
     setExtraWalls([]);
@@ -1084,6 +1102,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     setOption(null);
     setPanKey(key);
     resetBuild();
+    const p = key ? item(key) : null;
+    if (p) seedFormFromKit(p, true);
+    else {
+      setInp({ ...DEF_INP });
+      setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51 }));
+    }
   };
   const pickPan = (key) => {
     if (option || kitDirty || manual.length) { setConfirmPan(key); return; }
@@ -1129,16 +1153,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const geomSig = JSON.stringify([walls, extraWalls, corners, wallFlip, wallH]);
   useEffect(() => {
     if (!(pan && !option && geomDirty && tab === "kits")) return;
-    const auto = autoWallLens(pan, null);
-    const next = {
-      ...inp, w: auto.back, d: auto.left,
-      curb: pan.sub === "curbless" ? "curbless" : "curbed",
-      drain: pan.group === "module" ? "linear"
-        : pan.drain && ["center", "offset", "linear"].includes(pan.drain.type) ? pan.drain.type : "any",
-      drainX: "", drainY: "",
-    };
-    setInp(next);
-    setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left" }));
+    seedFormFromKit(pan);
     setTab("custom");
     say("Modified kit — it's a custom shower now. Kit cards ask before overwriting it.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1401,6 +1416,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <div className="rf"><label>Wall height</label>
             <div className="dims"><NumIn className="inp" style={{ width: 58 }} value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
           </div>
+          <div className="rf" style={{ marginLeft: "auto" }}>
+            <label>&nbsp;</label>
+            <button className="wbtn" data-wedi-clear style={{ flex: "none", padding: "8px 13px" }}
+              title="wipe the build — walls, cuts, parts — and reset this form"
+              onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
+          </div>
         </div>
 
         {!results.length ? (
@@ -1632,7 +1653,15 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 <div className="bg-h">{bk[1]}
                   {bk[0] === "walls" && pan && (
                     <span className="wallctl">
-                      {!option && <button className="wtgl" title="swap which side is the back (long ↔ short)" onClick={() => { retuneWalls(); setWallFlip((v) => !v); }}>⇄</button>}
+                      <button className="wtgl"
+                        title={option ? "rotate the room — width ↔ depth, drain position follows, re-solves" : "swap which side is the back (long ↔ short)"}
+                        onClick={() => {
+                          if (option) {
+                            const next = { ...inp, w: +inp.d || 0, d: +inp.w || 0, drainX: inp.drainY, drainY: inp.drainX };
+                            setInp(next);
+                            runSolve(next);
+                          } else { retuneWalls(); setWallFlip((v) => !v); }
+                        }}>⇄</button>
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
                         <button className={!panelFit ? "on" : ""} title="one sheet size, by area" onClick={() => setPanelFit(false)}>One size</button>

@@ -3826,6 +3826,7 @@ export const BROWSE_SECTIONS = [
     { key: "square", label: "Square", hit: (e) => e.group === "cover" && e.sub === "point" },
     { key: "linear", label: "Linear", hit: (e) => e.group === "cover" && e.sub === "linear" },
     { key: "frames", label: "Frames", hit: (e) => e.group === "coverFrame" },
+    { key: "drains", label: "Drains", hit: (e) => e.group === "drainKit" },
   ] },
   { key: "addons", label: "Add-ons", subs: [
     { key: "curbs", label: "Curbs", hit: (e) => e.group === "curb" },
@@ -3838,7 +3839,6 @@ export const BROWSE_SECTIONS = [
     { key: "sealant", label: "Sealant", hit: (e) => e.group === "sealant" },
     { key: "fasteners", label: "Fasteners", hit: (e) => e.group === "fastener" },
     { key: "tapes", label: "Tapes", hit: (e) => e.group === "subliner" },
-    { key: "drains", label: "Drains", hit: (e) => e.group === "drainKit" },
     { key: "tools", label: "Tools", hit: (e) => e.group === "tool" || e.group === "recess" },
     { key: "collars", label: "Collars", hit: (e) => e.group === "collar" },
   ] },

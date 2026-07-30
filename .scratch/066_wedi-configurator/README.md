@@ -170,6 +170,17 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   ($2,001.27, zero vertical seams). The 60×84's 13" gaps keep the 24" layer
   (a 12" leaves a 1" sliver — worse than the butt seam); at 108" deep the
   gaps are exactly 12" and it takes the two clean 12×72s. V1/V2 refreshed
+- Owner round 8, 2026-07-30: four quality-of-life asks. (1) A "Clear
+  design" button in the Custom shower form header — wipes the build (walls,
+  cuts, parts, pan) and resets the form to the 48×66 default. (2) Picking a
+  kit (fresh or through the overwrite confirm) now re-seeds the Custom
+  shower form from the kit — size, curb, drain TYPE — with the typed drain
+  placement cleared to auto (the plumbing position belongs to the room, not
+  the kit; `seedFormFromKit`). (3) The ⇄ wall-swap works on a custom shower
+  too: with an option selected it rotates the room (width ↔ depth, typed
+  drain coordinates rotating along) and re-solves. (4) Browse: the Drains
+  sub-filter moved from Misc into the Covers column. `U1`–`U4` via
+  `shoot-clear.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)
