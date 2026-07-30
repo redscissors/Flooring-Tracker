@@ -290,11 +290,27 @@ function FinDot({ e }) {
     style={{ background: c || "repeating-linear-gradient(45deg,#FFF 0 2px,#CBC4B0 2px 4px)" }} />;
 }
 
-// Browse sub-line: drain covers & frames read Size · Type · Color (owner ask
-// 2026-07-30); everything else keeps color-first with its group label.
-const browseSub = (e) => (e.group === "cover" || e.group === "coverFrame"
-  ? [e.sizeText, e.sub === "linear" ? "Linear" : "Square", finName(e), e.stock ? "stock" : "special order"]
-  : [finName(e), GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? "stock" : "special order"])
+// Display-only (owner ask 2026-07-30): the popup drops the "wedi" branding
+// from names — everything in here is wedi — and Browse rows lead with the
+// size, stripping it out of names that embed it (either dimension order).
+// Payloads and the order-entry copy keep the vendor's full wording.
+const unwedi = (s) => (s || "").replace(/\bwedi\b\s*®?\s*/gi, "")
+  .replace(/\s{2,}/g, " ").replace(/^[\s—–-]+/, "").trim();
+const sizePat = (sz) => sz.trim().split("").map((c) =>
+  /\s/.test(c) ? "\\s*" : /[x×]/i.test(c) ? "\\s*[x×]\\s*" : /["″”]/.test(c) ? '["″”]?'
+    : c.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("");
+const stripSize = (name, sz) => {
+  if (!sz) return name;
+  const pats = [sizePat(sz)];
+  const two = /^(.+?")\s*[x×]\s*(.+?")$/.exec(sz.trim());
+  if (two) pats.push(sizePat(two[2] + " x " + two[1]));
+  let out = name;
+  pats.forEach((p) => { try { out = out.replace(new RegExp(p, "i"), " "); } catch (x) { } });
+  return out;
+};
+const browseName = (e) => unwedi(stripSize(e.name, e.sizeText))
+  .replace(/\s{2,}/g, " ").replace(/[\s—–-]+$/, "").trim() || unwedi(e.name);
+const browseSub = (e) => [finName(e), GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
   .filter(Boolean).join(" · ");
 
 const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
@@ -1358,7 +1374,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                   <div className="sz">
                     {p.group === "module" ? <>{inch(p.len)}″ <small>module</small></> : <>{inch(p.w)}×{inch(p.d)}<small>in</small></>}
                   </div>
-                  <div className="nm">{p.name.replace(/wedi\s*(®)?\s*/i, "")}</div>
+                  <div className="nm">{unwedi(p.name)}</div>
                   <div className="drn">{p.group === "module" ? inch(p.channel) + "″ channel" : p.drain.type + " drain"}</div>
                   <div className="pr" style={{ color: tierColor }}>{fm(tierOf(p))}</div>
                   <div className="fk">kit cost {fm0(kitCosts[p.key] || 0)} — our stock</div>
@@ -1605,9 +1621,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               <div className="bn">
                 {cf ? (<>
                   <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
-                  <div className="s">{e.name} · {e.stock ? "stock" : "special order"}</div>
+                  <div className="s">{unwedi(e.name)} · {e.stock ? "stock" : "special order"}</div>
                 </>) : (<>
-                  <div className="n"><FinDot e={e} />{e.name}</div>
+                  <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>
                   <div className="s">{browseSub(e)}</div>
                 </>)}
               </div>
@@ -1656,7 +1672,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">The build</div>
-            <div className="sub">{pan ? (option ? option.title : pan.name.replace(/wedi\s*®?\s*/i, "") + " " + pan.sizeText) : "manual — from Browse"}</div>
+            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name) + " " + pan.sizeText) : "manual — from Browse"}</div>
           </div>
 
           {BUCKETS.map((bk) => {
@@ -1744,7 +1760,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                   return (
                     <div className="bline" key={e.key + l.group}>
                       <div className="bn">
-                        <div className="n"><FinDot e={e} />{e.name}</div>
+                        <div className="n"><FinDot e={e} />{unwedi(e.name)}</div>
                         <div className="m"><b>{e.stock ? e.erp : "SO " + e.us}</b>
                           {l.note ? " · " + l.note : finName(e) ? " · " + finName(e) : e.sizeText ? " · " + e.sizeText : ""}</div>
                       </div>
@@ -1894,7 +1910,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         {ch.list.map((e) => (
           <button key={e.key} className={"srow" + (e.key === line.item.key ? " on" : "") + (e.stock ? " stk" : "")} onClick={() => choose(e.key)}>
             <span className={"sdot" + (e.stock ? "" : " so")} />
-            <span className="n"><FinDot e={e} />{e.name}
+            <span className="n"><FinDot e={e} />{unwedi(e.name)}
               <small>{[finName(e), e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
             <span className="p">{fm(tierOf(e))}</span>
           </button>
@@ -2082,7 +2098,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             return (
               <tr key={bk[0] + l.item.key}>
                 <td>{l.item.stock ? l.item.erp : "wedi " + l.item.us}</td>
-                <td>{l.item.name}</td><td>{l.item.sizeText || ""}</td>
+                <td>{unwedi(l.item.name)}</td><td>{l.item.sizeText || ""}</td>
                 <td className="num">{l.qty}</td><td className="num">{fm(p)}</td><td className="num">{fm(round2(p * l.qty))}</td>
               </tr>
             );
