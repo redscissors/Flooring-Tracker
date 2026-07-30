@@ -52,6 +52,24 @@ test("wedi catalog: 151 stock + 118 special-order-only entries, nothing in misc"
   assert.ok(cat.every((e) => e.retail > 0 || /sample/i.test(e.name)), "every entry priced");
 });
 
+test("wedi catalog: non-dimensional items keep their contents as sizeText", () => {
+  // The pricelist's size column mixes the contents into prose; a Fastener Kit
+  // row that doesn't say 100 ct reads as one screw at the order desk.
+  assert.equal(item(SKU.fastenerKit).sizeText, '100 ct 1 5/8" Screws & 100 ct. Washers with Tabs', "fastener kit shows its counts");
+  assert.equal(item("US5000086").sizeText, "100 ct Tabless washers and screws", "tabless kit count");
+  assert.equal(item("US5000009").sizeText, "1000 ct washers with tabs", "washer master pack count");
+  assert.equal(item("US5000012").sizeText, "1000 ct Screws", "screw master pack count");
+  assert.equal(item(SKU.sealantSausage).sizeText, "20 oz foil sausage", "sausage volume, prose cut");
+  assert.equal(item(SKU.sealantTube).sizeText, "10.5 oz cartridge", "tube volume");
+  assert.equal(item(SKU.sealant620Tube).sizeText, "10.5 oz cartridge", "620 cartridge volume");
+  assert.equal(item("US9400001").sizeText, "20 units", "lube kit unit count");
+  assert.equal(item("US5076012").sizeText, "25 lbs. Bag", "Pro-Set bag weight, pallet prose cut");
+  assert.equal(item(SKU.subliner53).sizeText, "53 sft roll", "Subliner roll coverage from the parenthetical");
+  assert.equal(item(SKU.subCornerIn).sizeText, "2 per bag", "corner bag count from details");
+  assert.equal(item("095225053").sizeText, "5 in. x 82'", "mesh tape keeps its real size text");
+  assert.equal(item(SKU.trowel).sizeText, "", "pure prose stays out of the size slot");
+});
+
 // --- pans ---------------------------------------------------------------------
 
 test("wedi pans: families, sizes, drains and the ERP/pricelist price pair", () => {

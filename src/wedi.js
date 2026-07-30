@@ -3939,6 +3939,23 @@ function cleanDesc(desc, us) {
   return s.replace(/\s+-\s*$/, "").replace(/\s+-\s+/g, " — ").replace(/\s{2,}/g, " ").trim();
 }
 
+// The pricelist prints a non-dimensional item's CONTENTS in its size column,
+// mixed into prose — "100 ct wedi 1 5/8" Screws & 100 ct. wedi Washers with
+// Tabs", "20 oz foil sausage of SMP hybrid sealant to waterproof…" — and a
+// bag count in details ("per 2 pieces/bag"). Keep the quantity statement and
+// drop the prose: a Fastener Kit row that doesn't say 100 ct reads as one
+// screw at the order desk.
+function contentOf(s) {
+  const t = String(s || "").replace(/\bwedi\b\s*®?\s*/gi, " ").replace(/\s{2,}/g, " ").trim();
+  const per = t.match(/\bper\s+(\d+)\s*(?:pieces?|pcs?\.?)?\s*\/\s*(?:bag|bg)\b/i);
+  if (per) return per[1] + " per bag";
+  if (!/^\d/.test(t)) {
+    const par = t.match(/\((\d[^)]*)\)/);
+    return par ? par[1].trim() : "";
+  }
+  return t.split(/\s+-\s+/)[0].replace(/\s+(?:of|to|for)\s.*$/i, "").trim();
+}
+
 // ============================================================================
 // classification
 // ============================================================================
@@ -4156,9 +4173,9 @@ function makeEntry(stockRow, soRow) {
   } else if (e.group === "subliner") {
     const sfm = String(text).match(/(\d+)\s*(?:sft|sf|ft2)\b/i);
     if (sfm) e.sf = +sfm[1];
-    e.sizeText = e.size || "";
+    e.sizeText = contentOf(e.size) || contentOf(e.details);
   } else {
-    e.sizeText = e.w && e.d ? sizeTextOf(e.w, e.d, e.t) : "";
+    e.sizeText = e.w && e.d ? sizeTextOf(e.w, e.d, e.t) : (contentOf(e.size) || contentOf(e.details));
   }
   return e;
 }

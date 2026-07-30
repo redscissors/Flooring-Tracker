@@ -2319,6 +2319,14 @@ export default function App({ user, onSignOut }) {
             addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
             addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
           }}
+          wedi={{
+            // wedi lines are the same product-row patches Sheoga emits, so the
+            // hub's destination flow reuses the Sheoga landing helpers whole.
+            builderPct: normPricing(settings.pricing).wediBuilderPct,
+            currentName: sel?._full ? (sel.name || "Untitled project") : null,
+            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
+            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
+          }}
         />
         </Suspense>
         </LazyBoundary>

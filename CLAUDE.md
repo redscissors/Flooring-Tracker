@@ -279,7 +279,11 @@ src/
                     # kills the seams), `figureConsumables` (1 screw+washer and
                     # 1.2 oz sealant per ft² of panel), `tierPrice`, `factoryKit`,
                     # and `lineItems` (build -> product rows; the pan anchors and
-                    # carries `product.wedi`, companions `wedi.part`). A pricelist
+                    # carries `product.wedi`, companions `wedi.part`). A
+                    # non-dimensional item keeps its pricelist CONTENTS as its
+                    # sizeText ("100 ct 1 5/8\" Screws…", "20 oz foil sausage",
+                    # "2 per bag" — contentOf), so a Fastener Kit row says what
+                    # one EA holds everywhere a size shows. A pricelist
                     # update is a re-transcription of this one file (wedi.test.js)
   wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
                     # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`
@@ -312,7 +316,11 @@ src/
                     # to the stock kit. Opened from a row's
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
-                    # Add previews then lands lineItems() via addWediLines
+                    # Add previews then lands lineItems() via addWediLines.
+                    # Also an Apps-hub tab beside Sheoga (embedded, still its
+                    # own lazy chunk): the tier bar falls back to a local
+                    # retail-seeded preview and Add raises the hub's shared
+                    # destination prompt (current project / new quick price)
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
