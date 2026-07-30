@@ -4328,12 +4328,19 @@ export function openEdges(dims, walls) {
 // neo-angle chamfer / a cut against the wall face). The straight runs give
 // up exactly those legs, so nothing is stranded behind the cut.
 export const CORNER_CUT = 12;    // the cut's default leg along each edge
+export const CURB_W = 3.5;       // the curb's plan width — ring fills + longest-point math
 export function curbRuns(dims, walls, corners) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
   const open = openEdges(dims, walls);
   const cov = open.cov;
   const cut = {};
   (corners || []).forEach((k) => { cut[k] = true; });
+  // Does a perpendicular wall band occupy the ring corner? Vertical bands
+  // reach the back corners whenever the wall exists at all, the entry
+  // corners only when the wall runs the full depth.
+  const wallFills = (corner) =>
+    corner === "bl" ? cov.left > 0.5 : corner === "br" ? cov.right > 0.5
+      : corner === "fl" ? cov.left >= rd - 0.5 : cov.right >= rd - 0.5;
   // Per adjacent edge of each corner (h = along the back/entry edge, v =
   // along the left/right edge): the open run touching the corner (0 = walled
   // to it) and how much wall the edge carries.
@@ -4344,9 +4351,15 @@ export function curbRuns(dims, walls, corners) {
     fr: { h: Math.max(0, rw - Math.min(cov.entry, rw)), v: Math.max(0, rd - Math.min(cov.right, rd)), ch: cov.entry, cv: cov.right },
   };
   const leg = (run, covered, max) => Math.min(max, run > 0.5 && covered > 0.5 ? run : CORNER_CUT);
+  // A diagonal's ends are squared to the edges (owner sketch 2026-07-30), so
+  // the band butts the wall/run faces with no gap — `cut` is its OUTER edge,
+  // the longest point the piece is figured and cut at.
   const diags = Object.keys(cut).sort().map((k) => {
     const h = leg(touch[k].h, touch[k].ch, rw), v = leg(touch[k].v, touch[k].cv, rd);
-    return { corner: k, h: round2(h), v: round2(v), len: round2(Math.sqrt(h * h + v * v)) };
+    return {
+      corner: k, h: round2(h), v: round2(v), len: round2(Math.sqrt(h * h + v * v)),
+      cut: round2(Math.hypot(h + CURB_W, v + CURB_W)),
+    };
   });
   const diagOf = {};
   diags.forEach((d) => { diagOf[d.corner] = d; });
@@ -4361,11 +4374,22 @@ export function curbRuns(dims, walls, corners) {
     const legAt = (k) => (horiz ? diagOf[k].h : diagOf[k].v);
     if (cut[ends[0]] && from <= 0.5) { const t = Math.min(legAt(ends[0]), len); from += t; len -= t; }
     if (cut[ends[1]]) len -= Math.min(legAt(ends[1]), len);
-    if (len > 0.5) segs.push({ side: e.side, from: round2(from), len: round2(len) });
+    if (len > 0.5) {
+      // A horizontal run reaching an open ring corner extends CURB_W into it
+      // (owner sketch): the curb butts the perpendicular run/wall square with
+      // no gap, and the piece is figured at this longest point. Vertical runs
+      // butt whatever fills the corner.
+      let ext0 = 0, ext1 = 0;
+      if (horiz) {
+        if (!cut[ends[0]] && from <= 0.5 && !wallFills(ends[0])) ext0 = CURB_W;
+        if (!cut[ends[1]] && from + len >= rw - 0.5 && !wallFills(ends[1])) ext1 = CURB_W;
+      }
+      segs.push({ side: e.side, from: round2(from), len: round2(len), ext0: ext0, ext1: ext1 });
+    }
   });
   return {
     segs: segs, diags: diags,
-    openLen: round2(segs.reduce((s, x) => s + x.len, 0) + diags.reduce((s, d) => s + d.len, 0)),
+    openLen: round2(segs.reduce((s, x) => s + x.len + x.ext0 + x.ext1, 0) + diags.reduce((s, d) => s + d.cut, 0)),
   };
 }
 

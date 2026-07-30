@@ -252,8 +252,8 @@ test("wedi open edges: curbs follow the open perimeter, corners only cut open", 
     "36×60 house kit: one 60\" curb, uncut (60\" entry)");
   const oneWall = kitFor("US9100004", { walls: [{ len: 60, h: 96, side: "back" }] });
   const curb = oneWall.lines.filter((l) => l.item.group === "curb")[0];
-  assert.ok(curb && curb.item.key === "US3000040" && curb.qty === 2 && /132.*open edge/.test(curb.note),
-    "back wall only → 132\" open takes 2 × 96\" lean curbs: " + JSON.stringify(curb && { key: curb.item.key, qty: curb.qty, note: curb.note }));
+  assert.ok(curb && curb.item.key === "US3000040" && curb.qty === 2 && /139.*open edge/.test(curb.note),
+    "back wall only → 139\" at the longest points takes 2 × 96\" lean curbs: " + JSON.stringify(curb && { key: curb.item.key, qty: curb.qty, note: curb.note }));
   const kit72 = kitFor("US9100006");
   assert.equal(lineFor(kit72, "US3000040").note, 'cut to 72"', "36×72: one 96\" curb cut to the 72\" entry");
 
@@ -289,19 +289,20 @@ test("wedi open edges: curbs follow the open perimeter, corners only cut open", 
   // the line lands on the wall's end — however far — and only a wall-less
   // edge (or one walled to the corner) takes the standard 12" leg.
   const r1 = curbRuns(dims, threeWalls, []);
-  assert.deepEqual(r1.segs, [{ side: "entry", from: 0, len: 60 }], "no cuts → curb = the open runs");
+  assert.deepEqual(r1.segs, [{ side: "entry", from: 0, len: 60, ext0: 0, ext1: 0 }],
+    "no cuts → curb = the open runs, butted between the full walls (no ring fills)");
   assert.equal(r1.openLen, 60, "no cuts → openLen unchanged");
   const r2 = curbRuns(dims, threeWalls, ["fr"]);
-  assert.deepEqual(r2.segs, [{ side: "entry", from: 0, len: 48 }], "fr cut trims the entry run 12\"");
-  assert.deepEqual(r2.diags, [{ corner: "fr", h: 12, v: 12, len: 16.97 }],
-    "full walls → the standard 12 × 12 (45°) cut against the wall face");
-  assert.ok(near(r2.openLen, 48 + 16.97), "openLen = 48 + 12√2: " + r2.openLen);
+  assert.deepEqual(r2.segs, [{ side: "entry", from: 0, len: 48, ext0: 0, ext1: 0 }], "fr cut trims the entry run 12\"");
+  assert.deepEqual(r2.diags, [{ corner: "fr", h: 12, v: 12, len: 16.97, cut: round2(Math.hypot(15.5, 15.5)) }],
+    "full walls → the standard 12 × 12 (45°) cut against the wall face; the piece figures at the squared outer edge");
+  assert.ok(near(r2.openLen, 48 + 21.92), "openLen = 48 + the diagonal's longest point: " + r2.openLen);
   const r3 = curbRuns(dims, [threeWalls[0], threeWalls[1], { len: 20, h: 96, side: "right" }], ["fr"]);
-  assert.deepEqual(r3.diags, [{ corner: "fr", h: 12, v: 16, len: 20 }],
+  assert.deepEqual(r3.diags, [{ corner: "fr", h: 12, v: 16, len: 20, cut: round2(Math.hypot(15.5, 19.5)) }],
     "right wall ends 16\" from the corner → the cut line lands on the wall end (12 × 16)");
-  assert.deepEqual(r3.segs, [{ side: "entry", from: 0, len: 48 }],
+  assert.deepEqual(r3.segs, [{ side: "entry", from: 0, len: 48, ext0: 0, ext1: 0 }],
     "the 16\" right sliver is absorbed into the diagonal — no dogleg");
-  assert.ok(near(r3.openLen, 48 + 20), "openLen = entry run + the wall-to-wall line: " + r3.openLen);
+  assert.ok(near(r3.openLen, 48 + 24.91), "openLen = entry run + the wall-to-wall line at its longest: " + r3.openLen);
   // The owner's 42×42 screenshot: an entry wall 14" in from the left and a
   // right wall 28" down — the curb is ONE straight line between the two wall
   // ends, whatever the distance, with no straight runs left over.
@@ -311,16 +312,27 @@ test("wedi open edges: curbs follow the open perimeter, corners only cut open", 
     { len: 28, h: 96, side: "right" }, { len: 14, h: 96, side: "entry", extra: true },
   ];
   const r4 = curbRuns(d42, w42, ["fr"]);
-  assert.deepEqual(r4.diags, [{ corner: "fr", h: 28, v: 14, len: round2(Math.sqrt(28 * 28 + 14 * 14)) }],
-    "42×42: the cut spans entry-wall end to right-wall end (28 × 14): " + JSON.stringify(r4.diags));
+  assert.deepEqual(r4.diags, [{
+    corner: "fr", h: 28, v: 14,
+    len: round2(Math.sqrt(28 * 28 + 14 * 14)), cut: round2(Math.hypot(31.5, 17.5)),
+  }], "42×42: the cut spans entry-wall end to right-wall end (28 × 14): " + JSON.stringify(r4.diags));
   assert.deepEqual(r4.segs, [], "wall-to-wall line leaves no straight curb runs");
-  assert.ok(near(r4.openLen, 31.3, 0.05), "openLen = just the one line: " + r4.openLen);
+  assert.ok(near(r4.openLen, 36.03, 0.05), "openLen = the one line at its longest (outer) edge: " + r4.openLen);
+  // Open ring corners: with only the back wall standing, the entry run picks
+  // up a CURB_W fill at each end so it butts the side runs with no gap — and
+  // the openLen (what the sticks are cut from) counts those longest points.
+  const r5 = curbRuns(dims, [threeWalls[0]], []);
+  const entry5 = r5.segs.filter((s) => s.side === "entry")[0];
+  assert.ok(entry5.ext0 === 3.5 && entry5.ext1 === 3.5, "open corners → the entry run extends into both ring corners");
+  assert.ok(r5.segs.filter((s) => s.side !== "entry").every((s) => !s.ext0 && !s.ext1),
+    "vertical runs never extend — they butt the fill");
+  assert.equal(r5.openLen, round2(36 + 36 + 60 + 7), "back wall only → 139\" figured at the longest points");
   // Cutting both entry corners of the 36×60 kit pushes the curb past 60",
   // so the default pick moves up to the 96" lean curb.
   const kitCut2 = kitFor("US9100004", { corners: ["fl", "fr"] });
   const curb2 = kitCut2.lines.filter((l) => l.item.group === "curb")[0];
   assert.ok(curb2.item.key === "US3000040" && curb2.qty === 1,
-    "36×60 with both entry corners cut → 69.94\" of curb → one 96\" lean: " + JSON.stringify({ key: curb2.item.key, qty: curb2.qty }));
+    "36×60 with both entry corners cut → 79.84\" of curb → one 96\" lean: " + JSON.stringify({ key: curb2.item.key, qty: curb2.qty }));
 });
 
 // --- browse taxonomy ----------------------------------------------------------

@@ -17,7 +17,7 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, CURB_W, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
 } from "./wedi.js";
@@ -228,6 +228,8 @@ const CSS = `
 .wedi-wallmenu .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
 .wedi-wallmenu .pfseg button.on{background:var(--ft-text);color:var(--ft-cream)}
 .wedi-wallmenu .wm-del{border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:#B4552D;padding:3px 8px;cursor:pointer}
+.wedi-wallmenu .wm-act{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:var(--ft-text);padding:3px 8px;cursor:pointer}
+.wedi-wallmenu .wm-act:hover{border-color:var(--ft-brand)}
 .wedi-wallmenu .wm-note{font-size:9px;color:var(--ft-faint);font-weight:600;padding:3px 2px 0;line-height:1.4}
 
 .wedi-pop .ptable{width:100%;border-collapse:collapse;font-size:11.5px}
@@ -370,7 +372,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       const full = len >= (horiz ? rw : rd) - 0.5;
       const fill = wl.extra ? MOSS : MUTED;
       if (wl.side === "back") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0) - wallW} y={Y(0) - wallW} width={round2(len * sc + wallW + (full ? wallW : 0))} height={wallW} fill={fill}>{bandTitle}</rect>);
-      else if (wl.side === "entry") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0)} y={Y(rd)} width={round2(len * sc)} height={wallW} fill={fill}>{bandTitle}</rect>);
+      else if (wl.side === "entry") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0) - wallW} y={Y(rd)} width={round2(len * sc + wallW + (full ? wallW : 0))} height={wallW} fill={fill}>{bandTitle}</rect>);
       else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(0) - wallW} width={wallW} height={round2(len * sc + wallW + (full ? wallW : 0))} fill={fill}>{bandTitle}</rect>);
     });
     // Extra wedi faces read as moss edges: the outside face when a wall
@@ -459,23 +461,16 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       if (d.h === d.v) push(<text key={`ct${d.corner}`} x={X(cx + dx * d.h * 0.42)} y={Y(cy + dy * d.v * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
     });
     // Curb runs sit IN the wall band, butted between the wall sections
-    // (owner sketch) — same ring the walls draw in, slightly thinner — and a
-    // cut corner's curb takes the one straight line across the cut.
-    const CD = 3.5;
-    const cw = round2(CD * sc);
-    const covD = { back: 0, left: 0, right: 0, entry: 0 };
-    (dw || []).forEach((wl) => {
-      covD[wl.side] = Math.max(covD[wl.side], Math.min(wl.len, wl.side === "back" || wl.side === "entry" ? rw : rd));
-    });
+    // (owner sketch) — same ring the walls draw in, slightly thinner. The
+    // engine's ext0/ext1 fill the open ring corners so runs meet square with
+    // no gap, and a cut corner's curb takes the one straight line across.
+    const cw = round2(CURB_W * sc);
     (curbs || []).forEach((cs, ci) => {
       const horiz = cs.side === "back" || cs.side === "entry";
       const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
       if (!(len > 0)) return;
       if (horiz) {
-        // fill the ring corner square when no wall band occupies it
-        const vCovAt = (side) => (cs.side === "back" ? covD[side] > 0.5 : covD[side] >= rd - 0.5);
-        const extL = cs.from <= 0.5 && !vCovAt("left") ? cw : 0;
-        const extR = cs.from + len >= rw - 0.5 && !vCovAt("right") ? cw : 0;
+        const extL = round2(cs.ext0 * sc), extR = round2(cs.ext1 * sc);
         const y0 = cs.side === "back" ? Y(0) - cw : Y(rd);
         push(<rect key={`cb${ci}`} x={X(cs.from) - extL} y={y0} width={round2(len * sc + extL + extR)} height={cw} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
         if (len * sc > 34) push(<text key={`cbt${ci}`} x={X(cs.from + len / 2)} y={y0 + cw / 2 + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
@@ -492,12 +487,12 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       const g2 = CGEOM[d.corner];
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
+      // the band rides the OUTSIDE of the cut edge (owner markup) — inner
+      // face on the cut line, ends squared to the edges so it butts the
+      // walls/runs flush; the outer edge is the piece's longest point
       const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
-      // the band rides the OUTSIDE of the cut edge (owner markup) — its
-      // inner face on the cut line, body over the cut-off triangle
-      const nrm = Math.sqrt(d.h * d.h + d.v * d.v) || 1;
-      const ox2 = -dx * CD * (d.v / nrm), oy2 = -dy * CD * (d.h / nrm);
-      push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(bx + ox2)},${Y(by + oy2)} ${X(ax + ox2)},${Y(ay + oy2)}`}
+      const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
+      push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(b2x)},${Y(b2y)} ${X(a2x)},${Y(a2y)}`}
         fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
     });
   }
@@ -589,7 +584,7 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
     const zh = Math.min(wl.h, 96);
     const full = span >= (vert ? rd : rw) - 0.5;
     if (wl.side === "back") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: -T, y1: 0 };
-    if (wl.side === "entry") return { span, zh, x0: 0, x1: span, y0: rd, y1: rd + T };
+    if (wl.side === "entry") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: rd, y1: rd + T };
     if (wl.side === "left") return { span, zh, x0: -T, x1: 0, y0: -T, y1: span + (full ? T : 0) };
     return { span, zh, x0: rw, x1: rw + T, y0: -T, y1: span + (full ? T : 0) };
   };
@@ -683,16 +678,17 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
   });
 
   // Curb runs as raised slabs in the wall ring, butted between the wall
-  // sections; a cut corner's curb takes the one straight line across.
-  const CBW = 3, CBH = 4.5;
+  // sections — the engine's ext0/ext1 fill the open ring corners so runs
+  // meet square; a cut corner's curb takes the one straight line across.
+  const CBH = 4.5;
   (curbs || []).forEach((cs, ci) => {
     const horiz = cs.side === "back" || cs.side === "entry";
     const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
     if (!(len > 0)) return;
-    const x0 = horiz ? cs.from : (cs.side === "left" ? -CBW : rw);
-    const y0 = horiz ? (cs.side === "back" ? -CBW : rd) : cs.from;
-    const x1 = horiz ? cs.from + len : x0 + CBW;
-    const y1 = horiz ? y0 + CBW : cs.from + len;
+    const x0 = horiz ? cs.from - cs.ext0 : (cs.side === "left" ? -CURB_W : rw);
+    const y0 = horiz ? (cs.side === "back" ? -CURB_W : rd) : cs.from;
+    const x1 = horiz ? cs.from + len + cs.ext1 : x0 + CURB_W;
+    const y1 = horiz ? y0 + CURB_W : cs.from + len;
     els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
@@ -701,11 +697,15 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
     const g2 = CGEOM[d.corner];
     if (!g2) return;
     const [cx, cy, dx, dy] = g2;
+    // ends squared to the edges (owner sketch): the band butts the walls and
+    // straight runs flush, its outer edge the piece's longest point
     const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
-    const nrm = Math.sqrt(d.h * d.h + d.v * d.v) || 1;
-    const ox = -dx * CBW * (d.v / nrm), oy = -dy * CBW * (d.h / nrm);
-    els.push(<polygon key={`cde${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx + ox, by + oy, CBH), M(ax + ox, ay + oy, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+    const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
+    els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cda${i}`} points={str([M(ax, ay, CBH), M(a2x, a2y, CBH), M(a2x, a2y, 0), M(ax, ay, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cdb${i}`} points={str([M(bx, by, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(bx, by, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
 
   const dr = o.drain;
@@ -1775,9 +1775,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
-          walls 4″ thick — right-click one in either view for size &amp; wedi faces (moss edge = extra face) ·
-          front walls draw clear in the isometric · seams dashed moss · cuts dashed rust — a cut corner keeps
-          the full pan, the ghosted triangle comes off on site · curb on the open edges ·{" "}
+          walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
+          turn it into a curb · front walls draw clear in the isometric · seams dashed moss · cuts dashed rust —
+          a cut corner keeps the full pan, the ghosted triangle comes off on site · curb on the open edges,
+          butted square to the walls and figured at its longest point ·{" "}
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
           {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
         </div>
@@ -1862,12 +1863,21 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             : faces === "in-end" ? 'the exposed 4" end takes a wedi strip too'
               : "wedi on the shower side only"}
         </div>
-        {wallMenu.extra && (
-          <div className="wm-row" style={{ paddingTop: 7 }}>
+        <div className="wm-row" style={{ paddingTop: 7, gap: 8 }}>
+          <button className="wm-act" title="remove the wall — the curb runs this edge instead, butted square to the standing walls and figured at its longest point"
+            onClick={() => {
+              if (wallMenu.extra) setExtraWalls((xs) => xs.filter((x) => x.id !== wallMenu.wid));
+              else setWalls((ws) => ws.map((x) => (x.id === wallMenu.wid ? { ...x, on: false, len: "", h: "", faces: "in" } : x)));
+              if (build && !build.lines.some((l) => l.item.group === "curb"))
+                setOpts((o) => ({ ...o, curbKey: pan && pan.sub === "curbless" ? SKU.curbLean60 : undefined }));
+              setWallMenu(null);
+              say("Wall turned into a curb — the run butts the walls square, figured at its longest point");
+            }}>Turn into a curb</button>
+          {wallMenu.extra && (
             <button className="wm-del" onClick={() => { setExtraWalls((xs) => xs.filter((x) => x.id !== wallMenu.wid)); setWallMenu(null); }}>
-              Remove this wall</button>
-          </div>
-        )}
+              Remove</button>
+          )}
+        </div>
       </div>, document.body);
   })();
 

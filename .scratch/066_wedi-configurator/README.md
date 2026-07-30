@@ -122,6 +122,20 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   planned via `expandWallFaces` (extra faces appended after the base list
   so plan-detail indexing holds), and marked as moss edges in the top-down.
   `X1`–`X10` shots via `shoot-round6.mjs`
+- Owner feedback round 6b, 2026-07-30 (the corner sketch): walls can turn
+  into curbs, and curbs fit the walls with NO GAP, figured at the longest
+  point. The wall right-click menu gains "Turn into a curb" (wall off /
+  removed; the open edge rides the existing curb logic, with the default
+  curb restored if the build had none). `curbRuns` now owns the corner
+  geometry: a horizontal run reaching an open ring corner extends `CURB_W`
+  (3.5") into it so it butts the perpendicular run square (`ext0`/`ext1`
+  on each seg); a cut corner's diagonal band gets its ends SQUARED to the
+  edges (the sketch) so it butts wall ends and straight runs flush, its
+  outer edge (`cut` = hypot(h+w, v+w)) being the longest point; `openLen`
+  — what the curb sticks are counted and cut from — sums those longest
+  points. Entry wall bands now fill the ring corners they reach in both
+  views (a side curb butts them flush), and the isometric curb width
+  unified to the same 3.5". `Y1`–`Y3` shots via `shoot-curb.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)
