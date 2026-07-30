@@ -353,7 +353,24 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
   const els = [];
   const push = (el) => els.push(el);
 
-  push(<rect key="floor" x={X(0)} y={Y(0)} width={round2(rw * sc)} height={round2(rd * sc)} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
+  // The room outline itself chamfers at a curbed cut corner — the off-cut is
+  // outside the shower, so nothing (not even the floor outline) draws there.
+  const diagOfC = {};
+  if (!mini) (curbDiags || []).forEach((d) => { diagOfC[d.corner] = d; });
+  if (Object.keys(diagOfC).length) {
+    const fp = [];
+    const cornerPts = (k, px, py, pre, post) => {
+      const d = diagOfC[k];
+      if (d) { fp.push(pre(d)); fp.push(post(d)); } else fp.push([px, py]);
+    };
+    cornerPts("bl", 0, 0, (d) => [0, d.v], (d) => [d.h, 0]);
+    cornerPts("br", rw, 0, (d) => [rw - d.h, 0], (d) => [rw, d.v]);
+    cornerPts("fr", rw, rd, (d) => [rw, rd - d.v], (d) => [rw - d.h, rd]);
+    cornerPts("fl", 0, rd, (d) => [d.h, rd], (d) => [0, rd - d.v]);
+    push(<polygon key="floor" points={fp.map((p) => X(p[0]) + "," + Y(p[1])).join(" ")} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
+  } else {
+    push(<rect key="floor" x={X(0)} y={Y(0)} width={round2(rw * sc)} height={round2(rd * sc)} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
+  }
   // The wall bands. With dWalls (the full drawing) every wall draws at its own
   // length so a shortened or added wall reads back; the thumbnails keep the
   // simple on/off full-span bands.
@@ -458,7 +475,11 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
       const curbed = (curbDiags || []).some((x) => x.corner === d.corner);
-      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`} fill={curbed ? PAPER : "#EFF3E6"} stroke={FAINT} strokeWidth="1" />);
+      // curbed: ERASE the off-cut — the paper stroke widens the wipe past the
+      // pan's own outline so no hairline of it survives; the rust cut line
+      // and the curb redraw the boundary. Curbless keeps the ghost.
+      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`}
+        fill={curbed ? PAPER : "#EFF3E6"} stroke={curbed ? PAPER : FAINT} strokeWidth={curbed ? 3 : 1} strokeLinejoin="round" />);
       push(<line key={`c${d.corner}`} x1={X(cx + dx * d.h)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * d.v)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
       if (d.h === d.v) push(<text key={`ct${d.corner}`} x={X(cx + dx * d.h * 0.42)} y={Y(cy + dy * d.v * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
     });
@@ -676,8 +697,20 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
     if (!g2) return;
     const [cx, cy, dx, dy] = g2;
     const curbed = (curbDiags || []).some((x) => x.corner === d.corner);
-    els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(cx + dx * d.h, cy, t), M(cx, cy + dy * d.v, t)])} fill={curbed ? PAPER : "#EFF3E6"} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
-    const a = M(cx + dx * d.h, cy, t), b = M(cx, cy + dy * d.v, t);
+    const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
+    if (curbed) {
+      // Erase the whole off-cut WEDGE — top face and the protruding side
+      // faces — to the ground tint (it's outside the shower), then draw the
+      // pan's new cut face so it reads as a solid slab cut on the line.
+      els.push(<polygon key={`cw${d.corner}`}
+        points={str([M(ax, ay, t), M(cx, cy, t), M(bx, by, t), M(bx, by, 0), M(cx, cy, 0), M(ax, ay, 0)])}
+        fill="#EEEDE8" stroke="#EEEDE8" strokeWidth="3" strokeLinejoin="round" />);
+      if (!(dx > 0 && dy > 0)) els.push(<polygon key={`cff${d.corner}`}
+        points={str([M(ax, ay, t), M(bx, by, t), M(bx, by, 0), M(ax, ay, 0)])} fill={PIECE_SIDE.pan} stroke={INK} strokeWidth=".8" />);
+    } else {
+      els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(ax, ay, t), M(bx, by, t)])} fill="#EFF3E6" stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
+    }
+    const a = M(ax, ay, t), b = M(bx, by, t);
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
 

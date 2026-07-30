@@ -140,7 +140,13 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   triangle beyond it is outside the shower — cut and HIDDEN (drawn as
   floor) in both views; only a curbless cut keeps the ghosted triangle.
   Owner clarified the rule applies to cut corners only — straight curbs
-  stay in the ring as approved. `Z1`/`Z2` via `shoot-cutcurb.mjs`
+  stay in the ring as approved. Second pass on owner's screenshots: the
+  first cut only tinted the top face — the pan's outline and its isometric
+  side faces still poked past the curb. Now the room outline itself
+  chamfers at a curbed cut, the off-cut erases completely (wide paper
+  stroke swallows the pan's own outline), and the isometric wipes the
+  whole 3-D wedge and draws the pan's new CUT FACE under the rust line.
+  `Z1`/`Z2` via `shoot-cutcurb.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)
