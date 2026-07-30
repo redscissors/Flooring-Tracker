@@ -447,16 +447,18 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
 
   if (!mini) {
     const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
-    // Corner cuts: the pan keeps its full size — the cut-off triangle stays
-    // drawn, ghosted to the extension tint, with the rust dashed cut line
-    // (owner rule 2026-07-30: same-size pan, shown cut). The legs come
+    // Corner cuts: the pan keeps its full size and the rust dashed line marks
+    // the cut. With a curb riding the cut, the off-cut triangle is OUTSIDE
+    // the shower — cut and hidden (owner rule 2026-07-30); with no curb
+    // (curbless) it stays ghosted to the extension tint. The legs come
     // from curbRuns — a wall ending near the corner pulls the line straight
     // to its end (owner rule: wall to wall, no dogleg).
     (cuts || []).forEach((d) => {
       const g2 = CGEOM[d.corner];
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
-      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`} fill="#EFF3E6" stroke={FAINT} strokeWidth="1" />);
+      const curbed = (curbDiags || []).some((x) => x.corner === d.corner);
+      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`} fill={curbed ? PAPER : "#EFF3E6"} stroke={FAINT} strokeWidth="1" />);
       push(<line key={`c${d.corner}`} x1={X(cx + dx * d.h)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * d.v)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
       if (d.h === d.v) push(<text key={`ct${d.corner}`} x={X(cx + dx * d.h * 0.42)} y={Y(cy + dy * d.v * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
     });
@@ -664,15 +666,17 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
     }
   });
 
-  // Corner cuts: the pan stays full size — the cut-off triangle ghosts to the
-  // extension tint on the top face, the cut line dashes rust. Legs come from
-  // curbRuns (a nearby wall end pulls the line to it).
+  // Corner cuts: the pan stays full size and the cut line dashes rust. With
+  // a curb riding the cut the off-cut triangle is outside the shower — cut
+  // and hidden (paper); with no curb it ghosts to the extension tint. Legs
+  // come from curbRuns (a nearby wall end pulls the line to it).
   const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
   (cuts || []).forEach((d) => {
     const g2 = CGEOM[d.corner];
     if (!g2) return;
     const [cx, cy, dx, dy] = g2;
-    els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(cx + dx * d.h, cy, t), M(cx, cy + dy * d.v, t)])} fill="#EFF3E6" stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
+    const curbed = (curbDiags || []).some((x) => x.corner === d.corner);
+    els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(cx + dx * d.h, cy, t), M(cx, cy + dy * d.v, t)])} fill={curbed ? PAPER : "#EFF3E6"} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
     const a = M(cx + dx * d.h, cy, t), b = M(cx, cy + dy * d.v, t);
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
@@ -1777,7 +1781,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="dc-legend">
           walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
           turn it into a curb · front walls draw clear in the isometric · seams dashed moss · cuts dashed rust —
-          a cut corner keeps the full pan, the ghosted triangle comes off on site · curb on the open edges,
+          a cut corner keeps the full pan; beyond the curb the off-cut is hidden (ghosted when curbless) · curb on the open edges,
           butted square to the walls and figured at its longest point ·{" "}
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
           {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end

@@ -135,7 +135,12 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   — what the curb sticks are counted and cut from — sums those longest
   points. Entry wall bands now fill the ring corners they reach in both
   views (a side curb butts them flush), and the isometric curb width
-  unified to the same 3.5". `Y1`–`Y3` shots via `shoot-curb.mjs`
+  unified to the same 3.5". `Y1`–`Y3` shots via `shoot-curb.mjs`.
+  Follow-up (same day): when a CUT corner carries the curb, the off-cut
+  triangle beyond it is outside the shower — cut and HIDDEN (drawn as
+  floor) in both views; only a curbless cut keeps the ghosted triangle.
+  Owner clarified the rule applies to cut corners only — straight curbs
+  stay in the ring as approved. `Z1`/`Z2` via `shoot-cutcurb.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)
