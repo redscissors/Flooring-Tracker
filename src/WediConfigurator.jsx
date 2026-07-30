@@ -1595,12 +1595,21 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
         {list.slice(0, MAX).map((e) => {
           const n = qtyIn(e.key);
+          // Drain covers & frames lead with what the buyer picks by — Size ·
+          // Type · COLOR (color a shade bolder) — the vendor name drops to
+          // the small line (owner ask 2026-07-30).
+          const cf = (e.group === "cover" || e.group === "coverFrame") && finName(e);
           return (
             <div className={"brow" + (e.stock ? " stk" : "")} key={e.key}>
               <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
               <div className="bn">
-                <div className="n"><FinDot e={e} />{e.name}</div>
-                <div className="s">{browseSub(e)}</div>
+                {cf ? (<>
+                  <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
+                  <div className="s">{e.name} · {e.stock ? "stock" : "special order"}</div>
+                </>) : (<>
+                  <div className="n"><FinDot e={e} />{e.name}</div>
+                  <div className="s">{browseSub(e)}</div>
+                </>)}
               </div>
               <div className="sku">{e.stock ? e.erp : e.us}</div>
               <button className={"starb" + (starred.has(e.key) ? " on" : "")}

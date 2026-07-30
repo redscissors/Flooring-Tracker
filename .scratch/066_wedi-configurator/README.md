@@ -182,7 +182,9 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   sub-filter moved from Misc into the Covers column. `U1`–`U4` via
   `shoot-clear.mjs`. (5) Browse rows for drain covers & frames read
   Size · Type (Square/Linear) · Color instead of color-first (`browseSub`;
-  drain kits carry no size/finish data so they keep the plain line).
+  drain kits carry no size/finish data so they keep the plain line);
+  second pass: Size · Type · COLOR is the MAIN line (color a shade
+  bolder), the vendor name drops to the small line.
   `U5` via `shoot-coverline.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
