@@ -262,6 +262,57 @@ src/
                     # only: rows Add/Move land RETAIL, the job sheet's own lens
                     # reprices them (ADR 0018). Opened from the Apps hub instead,
                     # the bar falls back to a local retail-seeded preview
+  wedi.js           # wedi shower-system configurator engine (issue 066): the
+                    # opposite of Sheoga on both axes — every piece has a part
+                    # number and wedi publishes retail, so nothing is marked up
+                    # (sell = book retail, cost = distributor net ≡ the ERP's
+                    # stocked cost) and the one wedi rule is Builder = retail ×
+                    # 0.82 (`BUILDER_MULT`, tunable as `wediBuilderPct`). Two
+                    # generated tables (the 151-row WEDI_1 stock export + 229 Jan
+                    # 2026 pricelist rows) behind a classified `catalog()`/`item`/
+                    # `group`/`pans`, plus the system solver a shower needs:
+                    # `kitFor` (the house-kit recipe per pan), `solve` (room ->
+                    # ranked options: exact pan · pan + extensions with the corner
+                    # rule · pan cut down · linear module + extension; a pinned
+                    # drain floats the pan, trimming up to 6" a side), `panelPlan`
+                    # (½" sheets in level courses, mixed sizes, vertical when that
+                    # kills the seams), `figureConsumables` (1 screw+washer and
+                    # 1.2 oz sealant per ft² of panel), `tierPrice`, `factoryKit`,
+                    # and `lineItems` (build -> product rows; the pan anchors and
+                    # carries `product.wedi`, companions `wedi.part`). A pricelist
+                    # update is a re-transcription of this one file (wedi.test.js)
+  wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
+                    # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`
+                    # over ~30 trade words and a size regex, so the pinned "Vendor
+                    # configurators" row can decide on every keystroke without the
+                    # ~2 000-row catalog. Must NEVER import wedi.js — wedi.js
+                    # re-exports these four (ADR 0026, wediquery.test.js)
+  WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
+                    # tables stay off boot: three tabs — Kits (every stocked pan a
+                    # card showing OUR stock kit cost; one click builds the house
+                    # kit), Custom shower (the solver's ranked option cards + cut
+                    # list) and Browse (the whole catalog, stock tinted green and
+                    # ranked first, + the sealant/fastener figurer) — over one
+                    # shared build column (grouped lines, swap popovers, steppers,
+                    # the wall editor, add-on chips, sausage-gun/small-order hints,
+                    # the factory-kit compare, Copy list, Print layout) and a
+                    # permanent drawings rail: a to-scale top-down (4"-thick wall
+                    # bands, panel-seam ticks, square drains, dashed cut edges,
+                    # drain callouts, corner cuts ghosting the full-size pan —
+                    # click an edge to add a wall, a corner to toggle a cut) over
+                    # an isometric with 4"-thick wall slabs at per-wall heights,
+                    # front (entry/right) walls drawn clear with dashed edges, and
+                    # the panel courses dotted on the inner faces. Right-clicking
+                    # a wall in either view opens its menu: size + which faces get
+                    # wedi (inside / both sides / inside + exposed end — the extra
+                    # faces feed the panel plan via expandWallFaces and read as
+                    # moss edges). Modifying a kit's geometry moves the build to
+                    # the Custom shower tab (owner rule 2026-07-30) and a kit card
+                    # clicked over a custom shower confirms before hard-resetting
+                    # to the stock kit. Opened from a row's
+                    # search ("wed" is enough) or its "wedi — reconfigure" chip;
+                    # the TierBar mirrors the job's tier both ways (ADR 0018) and
+                    # Add previews then lands lineItems() via addWediLines
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
@@ -441,7 +492,8 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
-           sheoga: { mode, cfg } | null }
+           sheoga: { mode, cfg } | null,
+           wedi: { mode, cfg } | { part: true } | null }
            // freight = the row's opt-OUT of its book's freight program
            // (ADR 0030). "" (the default) means the row rides the vendor's
            // shipment; only the explicit "off" is stored, so a row saved before
@@ -453,6 +505,10 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // "Reconfigure" reopens the popup pre-filled (src/sheoga.js
            // calcConfig/lineItems). Display/reopen attribute only — the row's
            // price stays the ADR 0003 snapshot; nothing reprices from it.
+           // wedi = the same marker for the wedi configurator (issue 066), on
+           // the ANCHOR line only (the pan): { mode, cfg } re-lands the whole
+           // kit through wedi.js kitFor, so "wedi — reconfigure" replaces the
+           // kit's lines. Every companion line carries { part: true } instead.
            // attached = add-on material categories (ADR 0016, PR 3): one entry
            // per custom category, keyed by the category id, resolved by NAME at
            // calc time (mortar convention, no snapshot). getAttached does the
@@ -481,9 +537,12 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // (ADR 0003), so a re-import never re-labels a saved row.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...},
-           pricing: { builderPct: 8, salePct: 10, quickMarkups: [30,50,100],
-                      descLimit: 30 } }
+           pricing: { builderPct: 8, salePct: 10, wediBuilderPct: 18,
+                      quickMarkups: [30,50,100], descLimit: 30 } }
            // builderPct/salePct = Builder/Sale tier %s (ADR 0018).
+           // wediBuilderPct = wedi's own Builder discount (issue 066) — 18
+           // resolves to the owner's × 0.82 stamp, which every wedi line
+           // carries in `tierPrice` and pricing.js prefers over builderPct.
            // quickMarkups = the price cell's cost-popup markup buttons
            // (costentry.js normQuickMarkups): up to 6, an absent list seeds
            // 30/50/100, an explicitly empty one means no buttons (the popup's

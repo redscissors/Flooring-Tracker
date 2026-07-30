@@ -25,11 +25,17 @@ test("normTier / normPrintPricing default invalid values", () => {
   assert.ok(TIER_IDS.includes("employee") && PRINT_PRICING_IDS.includes("none"));
 });
 
-test("normPricing defaults builder 8 / sale 10 / Sheoga markup 40 / vent markup 50 and clamps", () => {
-  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+test("normPricing defaults builder 8 / sale 10 / wedi builder 18 / Sheoga markup 40 / vent markup 50 and clamps", () => {
+  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  // The wedi Builder stamp (issue 066): a discount off retail, so it clamps like
+  // builderPct — 18 = the owner's ×0.82.
+  assert.equal(normPricing({ wediBuilderPct: 25 }).wediBuilderPct, 25);
+  assert.equal(normPricing({ wediBuilderPct: -4 }).wediBuilderPct, 0);
+  assert.equal(normPricing({ wediBuilderPct: 500 }).wediBuilderPct, 100);
+  assert.equal(normPricing({ wediBuilderPct: "abc" }).wediBuilderPct, 18);
   // Markup is a % over cost, not a discount — it may exceed 100.
   assert.equal(normPricing({ sheogaMarkupPct: 150 }).sheogaMarkupPct, 150);
   assert.equal(normPricing({ sheogaMarkupPct: -3 }).sheogaMarkupPct, 0);
@@ -88,6 +94,27 @@ test("employee = cost x 1.06 on priced rows with a cost, else null", () => {
   assert.equal(tierUnitPrice(row({ priceSqft: "", costSqft: "3.50" }), "employee", 0), null);
 });
 
+// A wedi pan: retail off the vendor's sheet, the Builder stamp the configurator
+// snapshotted at the owner's ×0.82 (issue 066). The flat 8% would read 520.73.
+const wediRow = (over = {}) => row({ priceSqft: "566.01", tierPrice: "464.13", ...over });
+
+test("builder prefers a row's own tierPrice over the flat percent", () => {
+  assert.equal(tierUnitPrice(wediRow(), "builder", 8), 464.13);
+  // a row with no stamp still takes the flat discount
+  assert.equal(tierUnitPrice(row({ priceSqft: "566.01" }), "builder", 8), 520.73);
+  // an unpriced row is invisible in the totals — a stamp can't resurrect it
+  assert.equal(tierUnitPrice(wediRow({ priceSqft: "" }), "builder", 8), null);
+  assert.equal(tierUnitPrice(row({ priceSqft: "566.01", tierPrice: "0" }), "builder", 8), 520.73);
+});
+
+test("only builder honors tierPrice — sale/custom stay flat, employee stays cost x 1.06", () => {
+  const p = wediRow({ costSqft: "400.00" });
+  assert.equal(tierUnitPrice(p, "sale", 10), 509.41);
+  assert.equal(tierUnitPrice(p, "custom", 20), 452.81);
+  assert.equal(tierUnitPrice(p, "employee", 0), 424);
+  assert.equal(tierUnitPrice(p, "retail", 0), null);
+});
+
 test("employeeNoCost flags priced rows without a snapshotted cost", () => {
   assert.equal(employeeNoCost(row()), true);
   assert.equal(employeeNoCost(row({ costSqft: "3.50" })), false);
@@ -137,6 +164,29 @@ test("builder view leaves the inputs unmutated and structure intact", () => {
   assert.equal(SETTINGS.grouts["PermaColor Select"].price, 20);
   assert.equal(tv.proj.categories[0].products[0].id, "p1");
   assert.equal(tv.proj.categories[0].id, "a1");
+});
+
+test("builder view maps a tierPrice row to its stamp, the rest to the percent", () => {
+  const p = proj({ priceTier: "builder" }, [wediRow(), row({ id: "p2", priceSqft: "5.00" })]);
+  const tv = tierView(p, SETTINGS);
+  const [r1, r2] = tv.proj.categories[0].products;
+  assert.equal(r1.priceSqft, "464.13");
+  assert.equal(r2.priceSqft, "4.6");
+  assert.equal(p.categories[0].products[0].priceSqft, "566.01", "inputs stay unmutated");
+});
+
+test("builder at 0% still maps tierPrice rows; with none it stays identity", () => {
+  const zero = { ...SETTINGS, pricing: { builderPct: 0, salePct: 10 } };
+  const p = proj({ priceTier: "builder" }, [wediRow(), row({ id: "p2", priceSqft: "5.00" })]);
+  const tv = tierView(p, zero);
+  assert.equal(tv.pct, 0);
+  assert.equal(tv.proj.categories[0].products[0].priceSqft, "464.13");
+  assert.equal(tv.proj.categories[0].products[1].priceSqft, "5.00", "a row with no stamp is untouched at 0%");
+  assert.equal(tv.settings, zero, "0% discounts no material — the maps stay the same objects");
+  const plain = proj({ priceTier: "builder" });
+  assert.equal(tierView(plain, zero).proj, plain, "no stamps at 0% keeps the identity fast path");
+  const s = proj({ priceTier: "sale" }, [wediRow()]);
+  assert.equal(tierView(s, { ...SETTINGS, pricing: { salePct: 0 } }).proj, s, "only builder reads the stamp");
 });
 
 test("employee view reprices only costed rows, settings untouched", () => {

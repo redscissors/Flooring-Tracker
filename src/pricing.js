@@ -9,6 +9,17 @@
 // the row-snapshotted caulk price. Employee is cost × 1.06 on rows that carry a
 // snapshotted vendor cost (ADR 0011) and leaves everything else at retail —
 // employeeNoCost flags those lines so the screen can say why.
+//
+// One exception, and only on Builder: a row that carries its own `tierPrice`
+// uses THAT instead of the flat builderPct. It's a snapshot (ADR 0003) — a
+// price the vendor's own contractor program set at pick time, not a percentage
+// the shop applies — so a live rate change must not overwrite it. The slot was
+// reserved for exactly this (docs/pricebook/design.md Q5: "a book's real tier
+// always outranks the flat fallback"); the wedi configurator is the first to
+// stamp it, at the owner's retail × 0.82 (issue 066,
+// .scratch/066_wedi-configurator/ticket.md "Pricing rules"). Sale and Custom
+// stay flat off retail — they're the shop's own discounts, not the vendor's —
+// and Employee stays cost × 1.06.
 
 import { num, normPricing } from "./catalog.js";
 
@@ -37,6 +48,11 @@ export function tierPct(proj, settings) {
   return 0;
 }
 
+// A row whose own Builder price outranks the flat percent. Guarded on the retail
+// price the same way every other tier is: an unpriced row is invisible in the
+// totals, so no lens may invent a price for it.
+const hasTierPrice = (p) => num(p?.tierPrice) > 0 && num(p?.priceSqft) > 0;
+
 // The tier unit price for one product row (per-sf, or per-piece on count/misc
 // lines — whatever frame priceSqft is in), or null when the tier leaves the row
 // unchanged. Employee only reprices rows that are priced AND carry a cost: an
@@ -46,6 +62,7 @@ export function tierUnitPrice(p, tier, pct) {
     const cost = num(p?.costSqft);
     return cost > 0 && num(p?.priceSqft) > 0 ? round2(cost * EMPLOYEE_MARKUP) : null;
   }
+  if (tier === "builder" && hasTierPrice(p)) return round2(num(p.tierPrice));
   if ((tier === "builder" || tier === "sale" || tier === "custom") && pct > 0) {
     const retail = num(p?.priceSqft);
     return retail > 0 ? round2(retail * (1 - pct / 100)) : null;
@@ -63,12 +80,18 @@ const mapProducts = (proj, fn) => ({
   categories: (proj.categories || []).map((a) => ({ ...a, products: (a.products || []).map(fn) })),
 });
 
+const anyTierPrice = (proj) => (proj.categories || []).some((a) => (a.products || []).some(hasTierPrice));
+
 // The tier-priced { proj, settings } pair. Identity (same references) for
-// retail and for a 0% discount, so the common path costs nothing.
+// retail and for a 0% discount, so the common path costs nothing. A Builder
+// project at 0% is the one 0% that can still reprice — its rows may carry their
+// own tierPrice — so it pays for a scan before taking the fast path. Retail
+// never gets that far.
 export function tierView(proj, settings) {
   const tier = normTier(proj?.priceTier);
   const pct = tierPct(proj, settings);
-  if (!proj || tier === "retail" || (tier !== "employee" && !(pct > 0))) return { proj, settings, tier, pct };
+  if (!proj || tier === "retail") return { proj, settings, tier, pct };
+  if (tier !== "employee" && !(pct > 0) && !(tier === "builder" && anyTierPrice(proj))) return { proj, settings, tier, pct };
   if (tier === "employee") {
     const mapped = mapProducts(proj, (p) => {
       const up = tierUnitPrice(p, "employee", 0);
@@ -77,22 +100,28 @@ export function tierView(proj, settings) {
     return { proj: mapped, settings, tier, pct };
   }
   const f = 1 - pct / 100;
+  // Rows go through tierUnitPrice so the grid's per-row price and the mapped
+  // project can't disagree about a tierPrice snapshot. The caulk snapshot and
+  // the material maps are shop prices, not the vendor's line, so they take the
+  // flat percent — and at 0% (the tierPrice-only pass) they aren't touched at
+  // all, rather than restringified to the same number.
   const mapped = mapProducts(proj, (p) => {
-    const caulk = num(p.grout?.caulkPrice) > 0;
+    const caulk = pct > 0 && num(p.grout?.caulkPrice) > 0;
     if (!(num(p.priceSqft) > 0) && !caulk) return p;
+    const up = tierUnitPrice(p, tier, pct);
     return {
       ...p,
-      ...(num(p.priceSqft) > 0 ? { priceSqft: String(round2(num(p.priceSqft) * f)) } : {}),
+      ...(up != null ? { priceSqft: String(up) } : {}),
       ...(caulk ? { grout: { ...p.grout, caulkPrice: String(round2(num(p.grout.caulkPrice) * f)) } } : {}),
     };
   });
-  const s = {
+  const s = pct > 0 ? {
     ...settings,
     grouts: mapVals(settings.grouts, (g) => ({ ...g, price: scaleN(g.price, f), ...(g.base ? { base: { ...g.base, price: scaleN(g.base.price, f) } } : {}) })),
     mortars: mapVals(settings.mortars, (m) => ({ ...m, price: scaleN(m.price, f) })),
     underlayments: mapVals(settings.underlayments, (u) => ({ ...u, price: scaleN(u.price, f), install: (u.install || []).map((d) => ({ ...d, price: scaleN(d.price, f) })) })),
     attached: mapVals(settings.attached, (m) => mapVals(m, (a) => ({ ...a, price: scaleN(a.price, f) }))),
-  };
+  } : settings;
   return { proj: mapped, settings: s, tier, pct };
 }
 

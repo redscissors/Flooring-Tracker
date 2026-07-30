@@ -13,6 +13,9 @@ import { freightList, freightTotal, freightPrintRows, freightOrderRows, freightS
 import { FreightMatRow } from "./freightui.jsx";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
+// The wedi search seed comes from wediquery.js, not wedi.js — the catalog and
+// engine stay inside the lazy WediConfigurator chunk (ADR 0026, issue 066).
+import { seedFromQuery as wediSeed } from "./wediquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, orderLineCost, printAreaFloor, KSHORT, u1, printMatList, orderEntryRow } from "./print.js";
@@ -40,6 +43,7 @@ import { useVersions } from "./useversions.js";
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
 const SheogaConfigurator = lazy(() => import("./SheogaConfigurator.jsx"));
+const WediConfigurator = lazy(() => import("./WediConfigurator.jsx"));
 const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ default: m.AppsWorkspace })));
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
 const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
@@ -196,6 +200,10 @@ export default function App({ user, onSignOut }) {
   // Sheoga vendor configurator popup (issue 023), tied to the product row it
   // was opened from: { aid, pid, seed } — seed is the { mode, cfg } it opens on.
   const [sheogaPop, setSheogaPop] = useState(null);
+  // wedi shower-system configurator popup (issue 066), same shape as the
+  // Sheoga one: { aid, pid, seed } — seed is a search parse or the row's
+  // saved { mode, cfg } marker.
+  const [wediPop, setWediPop] = useState(null);
   // Trims popup (2026-07-22 spec), tied to the floor row it was opened from:
   // { aid, pid }. Opens from the materials drawer's Trims row.
   const [trimsPop, setTrimsPop] = useState(null);
@@ -469,22 +477,22 @@ export default function App({ user, onSignOut }) {
   // Which overlay was on screen, per device ("ft-open-layer", beside
   // ft-last-open): a refresh reopens the popup/workspace it interrupted —
   // Settings on its last section (so the price book stays open), the Apps
-  // hub, the customer browser, the issues list, and the Sheoga configurator
+  // hub, the customer browser, the issues list, and either vendor configurator
   // (whose live { mode, cfg } rides along via onConfigChange, so it reopens
-  // mid-configuration). Restored once, after the last-open spot above; the
-  // Sheoga layer additionally waits for the restored project's full record so
-  // the row it was opened from exists again. A layer that can't be re-created
-  // (its project/row is gone) is simply dropped.
+  // mid-configuration). Restored once, after the last-open spot above; a
+  // configurator layer additionally waits for the restored project's full
+  // record so the row it was opened from exists again. A layer that can't be
+  // re-created (its project/row is gone) is simply dropped.
   const [restoreLayer, setRestoreLayer] = useState(() => { try { return JSON.parse(localStorage.getItem("ft-open-layer") || "null"); } catch { return null; } });
   useEffect(() => {
     if (loading || restoreSpot || !restoreLayer) return;
     const L = restoreLayer;
-    if (L.kind === "sheoga") {
+    if (L.kind === "sheoga" || L.kind === "wedi") {
       if (!sel) { setRestoreLayer(null); return; } // the spot restore didn't land a project
       if (!sel._full) return; // full record still loading — re-runs on sel
       setRestoreLayer(null);
       const row = sel.categories.find((a) => a.id === L.aid)?.products.find((p) => p.id === L.pid);
-      if (row) setSheogaPop({ aid: L.aid, pid: L.pid, seed: L.seed || null });
+      if (row) (L.kind === "wedi" ? setWediPop : setSheogaPop)({ aid: L.aid, pid: L.pid, seed: L.seed || null });
       return;
     }
     setRestoreLayer(null);
@@ -497,13 +505,14 @@ export default function App({ user, onSignOut }) {
   useEffect(() => {
     if (loading || restoreLayer) return;
     const layer = sheogaPop ? { kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: sheogaPop.seed || null }
-      : showSettings ? { kind: "settings", section: settingsSection }
-        : showApps ? { kind: "apps" }
-          : showBrowser ? { kind: "browser" }
-            : showTodos ? { kind: "todos" }
-              : null;
+      : wediPop ? { kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: wediPop.seed || null }
+        : showSettings ? { kind: "settings", section: settingsSection }
+          : showApps ? { kind: "apps" }
+            : showBrowser ? { kind: "browser" }
+              : showTodos ? { kind: "todos" }
+                : null;
     try { localStorage.setItem("ft-open-layer", JSON.stringify(layer)); } catch (x) { }
-  }, [sheogaPop, showSettings, settingsSection, showApps, showBrowser, showTodos, loading, restoreLayer]);
+  }, [sheogaPop, wediPop, showSettings, settingsSection, showApps, showBrowser, showTodos, loading, restoreLayer]);
   // The row search's instant in-memory tier: every active stock-kind book's
   // items, flattened from the ADR 0026 background cache (the ERP exports that
   // replaced the shop workbook, ADR 0027). stockKind marks a hit as shop
@@ -672,6 +681,20 @@ export default function App({ user, onSignOut }) {
   // mirroring addStockProducts. Payloads come from sheoga.js lineItems() —
   // snapshot rule, nothing reprices later.
   const addSheogaLines = (aid, pid, lines) => {
+    if (!lines.length) return;
+    const a = sel.categories.find((x) => x.id === aid);
+    if (!a || !a.products.some((p) => p.id === pid)) return;
+    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
+      { ...p, ...lines[0] },
+      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
+    ]);
+    updArea(aid, { products });
+  };
+  // wedi configurator add (issue 066): identical shape — the pan (the anchor
+  // line, the one carrying wedi:{mode,cfg}) fills the row the popup was opened
+  // from and every companion lands as its own new row after it. Payloads come
+  // from wedi.js lineItems(); nothing reprices later (ADR 0003).
+  const addWediLines = (aid, pid, lines) => {
     if (!lines.length) return;
     const a = sel.categories.find((x) => x.id === aid);
     if (!a || !a.products.some((p) => p.id === pid)) return;
@@ -1582,14 +1605,23 @@ export default function App({ user, onSignOut }) {
                         const goManual = (extra) => { const t = omniText.trim(); updProduct(a.id, p.id, { ...(t ? { brandColor: t } : {}), ...extra }); setManualRows((m) => ({ ...m, [p.id]: true })); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusProdBox(p.id); };
                         const fillFromStock = (items) => { addStockProducts(a.id, p.id, items); setOmniQ((o) => { const n = { ...o }; delete n[p.id]; return n; }); setFocusQty(p.id); };
                         // Drift / retired-SKU / base-variant chips render under the row on
-                        // both layouts, so the block is built once. A Sheoga row's chip
-                        // reopens the configurator pre-filled from its saved configuration.
-                        const driftBlock = (drift || oDrift || cDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg) ? (
+                        // both layouts, so the block is built once. A vendor-configurator
+                        // row's chip reopens it pre-filled from its saved configuration —
+                        // wedi only on the ANCHOR line (a companion carries wedi.part and
+                        // a browse pick carries no panKey, so neither is reconfigurable).
+                        const wediCfg = p.wedi?.cfg?.panKey && !p.wedi.part ? p.wedi : null;
+                        const driftBlock = (drift || oDrift || cDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                             {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
                                 className="rounded-full border px-2 py-0.5 font-medium hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>
                                 Sheoga — reconfigure
+                              </button>
+                            )}
+                            {wediCfg && (
+                              <button tabIndex={-1} onClick={() => setWediPop({ aid: a.id, pid: p.id, seed: wediCfg })} data-wedi-reconfig
+                                className="rounded-full border px-2 py-0.5 font-medium hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>
+                                wedi — reconfigure
                               </button>
                             )}
                             {drift && (<>
@@ -1626,7 +1658,11 @@ export default function App({ user, onSignOut }) {
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
-                            onOpenSheoga={(query) => { setRowSheet(null); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) }); }}
+                            onOpenVendor={(query, which) => {
+                              setRowSheet(null);
+                              if (which === "wedi") setWediPop({ aid: a.id, pid: p.id, seed: wediSeed(query) });
+                              else setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) });
+                            }}
                             onDelete={() => delProduct(a.id, p.id)}
                             onClose={() => setRowSheet(null)}
                             qtyRef={(el) => { if (el) qtyRefs.current[p.id] = el; }} />
@@ -1666,7 +1702,11 @@ export default function App({ user, onSignOut }) {
                                   onQuery={(v) => setOmniQ((o) => ({ ...o, [p.id]: v }))}
                                   onPick={(it) => fillFromStock([it])} onPickMany={(items) => fillFromStock(items)}
                                   onManual={() => goManual()} onAbandon={clearOmni}
-                                  onVendor={(q) => { clearOmni(); setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(q) }); }}
+                                  onVendor={(q, which) => {
+                                    clearOmni();
+                                    if (which === "wedi") setWediPop({ aid: a.id, pid: p.id, seed: wediSeed(q) });
+                                    else setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(q) });
+                                  }}
                                   searchOrder={searchOrder} bookName={bookName} strictness={searchStrictness} fallback={searchFallback}
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
@@ -2314,6 +2354,32 @@ export default function App({ user, onSignOut }) {
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setSheogaPop(null)} />
+          </Suspense>
+          </LazyBoundary>
+        );
+      })()}
+
+      {/* wedi vendor configurator (issue 066) — opened from a row's search
+          ("wed" pins the vendor row) or its "wedi — reconfigure" chip. wedi
+          publishes retail, so there is no markup knob; the one wedi rule is the
+          Builder stamp (retail × 0.82, wediBuilderPct in Settings → Price book)
+          that every emitted line carries in tierPrice. Add snapshots
+          lineItems() onto the row (ADR 0003) — rows land RETAIL, the job's own
+          lens reprices them (ADR 0018). */}
+      {wediPop && sel && (() => {
+        const row = sel.categories.find((x) => x.id === wediPop.aid)?.products.find((x) => x.id === wediPop.pid);
+        if (!row) { return null; }
+        return (
+          <LazyBoundary>
+          <Suspense fallback={null}>
+          <WediConfigurator seed={wediPop.seed}
+            wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
+            tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
+            onTierChange={(patch) => updateProject(sel.id, patch)}
+            areaName={sel.categories.find((x) => x.id === wediPop.aid)?.name || "this area"}
+            onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
+            onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
+            onClose={() => setWediPop(null)} />
           </Suspense>
           </LazyBoundary>
         );

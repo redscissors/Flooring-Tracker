@@ -4,6 +4,9 @@ import { Plus, ChevronDown, Check, Settings, X } from "lucide-react";
 import { TYPES, TLBL, TYPE_ACCENT, THICK, TIER_COLOR, TIER_LONG } from "./uiconst.js";
 import { money } from "./model.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
+// wediquery.js, never wedi.js: the recognizer is a few hundred bytes, the
+// catalog it fronts is ~150KB and stays inside the lazy popup chunk (ADR 0026).
+import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 import { useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
@@ -380,16 +383,21 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
       onAbandon?.(); close();
     }, 120);
   };
-  // Sheoga has no SKUs, so it can never be a book match — a query that starts
-  // spelling the vendor ("she" is enough) or hits its trade words pins a
-  // "Vendor configurators" row under the real matches (issue 023).
-  const vendor = !!onVendor && sheogaQueryHit(query);
-  const goVendor = () => { committedRef.current = true; onVendor(query); close(); };
+  // Neither configurator's goods can be a book match — a query that starts
+  // spelling the vendor ("she" / "wed" is enough) or hits its trade words pins
+  // a "Vendor configurators" row under the real matches (issues 023, 066).
+  // Both entries can hit at once; each renders only when its own recognizer does.
+  const vendorRows = !onVendor ? [] : [
+    sheogaQueryHit(query) && { id: "sheoga", attr: "data-sheoga-entry", title: "Sheoga Hardwood — configure by description", sub: sheogaQuerySummary(sheogaParseQuery(query)) },
+    wediQueryHit(query) && { id: "wedi", attr: "data-wedi-entry", title: "wedi shower systems — kits, custom rooms, catalog", sub: wediQuerySummary(wediParseQuery(query)) },
+  ].filter(Boolean);
+  const vendor = vendorRows.length > 0;
+  const goVendor = (which) => { committedRef.current = true; onVendor(query, which); close(); };
   const commitFromKey = () => {
     if (picked.length) commit();
     else if (results[hi]) pick(results[hi]);
     else if (results.length) pick(results[0]);
-    else if (vendor) goVendor();
+    else if (vendor) goVendor(vendorRows[0].id);
     // No results while the book is still loading is not "not in the book" —
     // Enter must not silently commit a real SKU to manual entry.
     else if (query.trim() && stockReady) goManual();
@@ -441,15 +449,17 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
           {vendor && (
             <div className="shrink-0 border-t border-slate-100">
               <div className="ft-eyebrow text-[9px] px-2.5 pt-1.5" style={{ color: "var(--ft-brand-deep)" }}>Vendor configurators</div>
-              <button onMouseDown={(e) => { e.preventDefault(); goVendor(); }} data-sheoga-entry
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left hover:bg-slate-50" style={{ background: "var(--ft-tint)" }}>
-                <span className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-brand)" }}><Settings size={12} /></span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-extrabold">Sheoga Hardwood — configure by description</span>
-                  <span className="block text-[11px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{sheogaQuerySummary(sheogaParseQuery(query))}</span>
-                </span>
-                <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
-              </button>
+              {vendorRows.map((v) => (
+                <button key={v.id} onMouseDown={(e) => { e.preventDefault(); goVendor(v.id); }} {...{ [v.attr]: true }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left hover:bg-slate-50" style={{ background: "var(--ft-tint)" }}>
+                  <span className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-brand)" }}><Settings size={12} /></span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-xs font-extrabold">{v.title}</span>
+                    <span className="block text-[11px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{v.sub}</span>
+                  </span>
+                  <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
+                </button>
+              ))}
             </div>
           )}
           <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">

@@ -244,8 +244,13 @@ function TierBar({ value, customPct, builderPct, salePct, onPick, onPct }) {
       <span className="flex items-center px-2 text-[9px] font-bold uppercase tracking-wider text-slate-400" style={{ background: "var(--ft-sand)" }}>Price level</span>
       {opts.map((o) => {
         const on = value === o.v;
-        const cls = "border-l border-slate-300 px-2.5 py-1.5 text-[11px] font-bold whitespace-nowrap " + (on ? (o.color ? "text-white" : "bg-slate-900 text-white") : "text-slate-500 hover:bg-slate-50");
-        const fill = on && o.color ? { background: o.color } : undefined;
+        // pressed like the project header's tier rows: weight 800 + inset
+        // shadow on the active cell (owner ask 2026-07-30, matching wedi)
+        const cls = "border-l border-slate-300 px-2.5 py-1.5 text-[11px] whitespace-nowrap "
+          + (on ? "font-extrabold " + (o.color ? "text-white" : "bg-slate-900 text-white") : "font-bold text-slate-500 hover:bg-slate-50");
+        const fill = on
+          ? { ...(o.color ? { background: o.color } : {}), boxShadow: "inset 0 2px 4px rgba(0,0,0,.28)" }
+          : undefined;
         if (o.input) return (
           <label key={o.v} title={o.title} style={fill} className={cls + " flex items-center gap-1 cursor-text"}>
             <span>{o.label}</span>
