@@ -87,5 +87,22 @@ await pg.waitForTimeout(250);
 await pg.screenshot({ path: `${OUT}/W4-print-curb-corners.png`, fullPage: true });
 await pg.emulateMedia({ media: "screen" });
 
+// W7 — the owner's 42×42 screenshot: 14" entry wall, 28" right wall, entry-
+// right corner cut — the curb is ONE straight line from the entry wall's end
+// to the right wall's end.
+await pg.locator(".modetab").nth(0).click();
+await pg.waitForTimeout(300);
+await pg.evaluate(() => { [...document.querySelectorAll(".pancard")].find((c) => c.textContent.includes("42×42")).click(); });
+await pg.waitForTimeout(400);
+const rightLen2 = pg.locator(".wallrow").nth(2).locator("input").first();
+await rightLen2.fill("28");
+await rightLen2.press("Enter");
+await pg.waitForTimeout(300);
+const entryLen = pg.locator(".wallrow").nth(3).locator("input").first();
+await entryLen.fill("14");
+await entryLen.press("Enter");
+await pg.waitForTimeout(500);
+await pg.locator(".diagcol").screenshot({ path: `${OUT}/W7-wall-to-wall-cut.png` });
+
 console.log(errs.length ? "PAGE ERRORS:\n" + errs.join("\n") : "no page errors");
 await b.close();

@@ -4305,13 +4305,13 @@ export function openEdges(dims, walls) {
 
 // Where the curb actually runs (owner sketches 2026-07-30): the open edge
 // runs, with a corner cut re-routing it as ONE straight line — never a
-// dogleg. Each cut carries a leg along each adjacent edge: when a wall ends
-// within 2×CORNER_CUT of the corner the leg reaches THAT WALL'S END (the
-// owner's "always a straight line from one wall to another"), otherwise it
-// takes the standard CORNER_CUT; an edge walled to the corner keeps the
-// standard leg too (the cut lands against the wall face). The straight runs
-// give up exactly those legs, so the leftover sliver a wall-end cut would
-// strand is absorbed into the diagonal.
+// dogleg. Each cut carries a leg along each adjacent edge: when that edge
+// HAS a wall, the leg spans the whole open run so the line lands on the
+// wall's end (the owner's "always a straight line from one wall to
+// another", however far that is); an edge with no wall at all — or walled
+// clear to the corner — takes the standard CORNER_CUT leg (the classic
+// neo-angle chamfer / a cut against the wall face). The straight runs give
+// up exactly those legs, so nothing is stranded behind the cut.
 export const CORNER_CUT = 12;    // the cut's default leg along each edge
 export function curbRuns(dims, walls, corners) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
@@ -4319,17 +4319,18 @@ export function curbRuns(dims, walls, corners) {
   const cov = open.cov;
   const cut = {};
   (corners || []).forEach((k) => { cut[k] = true; });
-  // The open run touching each corner, per adjacent edge (h = along the
-  // back/entry edge, v = along the left/right edge); 0 = walled to the corner.
+  // Per adjacent edge of each corner (h = along the back/entry edge, v =
+  // along the left/right edge): the open run touching the corner (0 = walled
+  // to it) and how much wall the edge carries.
   const touch = {
-    bl: { h: cov.back > 0.5 ? 0 : rw, v: cov.left > 0.5 ? 0 : rd },
-    br: { h: Math.max(0, rw - Math.min(cov.back, rw)), v: cov.right > 0.5 ? 0 : rd },
-    fl: { h: cov.entry > 0.5 ? 0 : rw, v: Math.max(0, rd - Math.min(cov.left, rd)) },
-    fr: { h: Math.max(0, rw - Math.min(cov.entry, rw)), v: Math.max(0, rd - Math.min(cov.right, rd)) },
+    bl: { h: cov.back > 0.5 ? 0 : rw, v: cov.left > 0.5 ? 0 : rd, ch: cov.back, cv: cov.left },
+    br: { h: Math.max(0, rw - Math.min(cov.back, rw)), v: cov.right > 0.5 ? 0 : rd, ch: cov.back, cv: cov.right },
+    fl: { h: cov.entry > 0.5 ? 0 : rw, v: Math.max(0, rd - Math.min(cov.left, rd)), ch: cov.entry, cv: cov.left },
+    fr: { h: Math.max(0, rw - Math.min(cov.entry, rw)), v: Math.max(0, rd - Math.min(cov.right, rd)), ch: cov.entry, cv: cov.right },
   };
-  const leg = (run, max) => Math.min(max, run > 0.5 && run <= 2 * CORNER_CUT ? run : CORNER_CUT);
+  const leg = (run, covered, max) => Math.min(max, run > 0.5 && covered > 0.5 ? run : CORNER_CUT);
   const diags = Object.keys(cut).sort().map((k) => {
-    const h = leg(touch[k].h, rw), v = leg(touch[k].v, rd);
+    const h = leg(touch[k].h, touch[k].ch, rw), v = leg(touch[k].v, touch[k].cv, rd);
     return { corner: k, h: round2(h), v: round2(v), len: round2(Math.sqrt(h * h + v * v)) };
   });
   const diagOf = {};

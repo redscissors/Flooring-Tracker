@@ -308,11 +308,13 @@ landed in the prototype (engine rules carry self-tests):
     the room to the same ring the walls draw in, ends butting the wall
     faces, ring corners filled where two open runs meet.
 31. **A corner cut is a straight line wall to wall, never a dogleg** (owner
-    correction): a wall ending within 2×12" of the corner pulls the cut
-    line straight to ITS END (`curbRuns` legs h × v — 12×16 for a 20" wall
-    in a 36" room; 45° only when even), absorbing the sliver the old fixed
-    12" chamfer left stranded. The chamfer, curb diagonal, cut lists, and
-    print notes all read the legs.
+    correction, refined by the 42×42 mockup): when an adjacent edge HAS a
+    wall, the cut's leg spans the whole open run so the line lands on that
+    wall's end — however far (a 14" entry wall + 28" right wall in 42×42
+    gives one 28×14 line and zero straight curb runs); only a wall-less
+    edge, or one walled to the corner, takes the standard 12" leg (the
+    classic neo-angle chamfer). `curbRuns` carries the legs; the chamfer,
+    curb diagonal, cut lists, and print notes all read them.
 
 ## Assumptions to confirm before production
 
