@@ -12,7 +12,7 @@
 // here pre-filled.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Printer, ClipboardList } from "lucide-react";
+import { X, Plus, Printer, Copy } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -42,8 +42,10 @@ const CSS = `
 .wedi-pop .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
 .wedi-pop .name small{font-weight:600;color:var(--ft-muted);font-size:12px;margin-left:6px}
 .wedi-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
-.wedi-pop .tierbar{margin-left:auto;display:flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden}
-.wedi-pop .tierbar button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;line-height:1.1}
+.wedi-pop .tierbar{margin-left:auto;display:flex;align-items:stretch;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
+.wedi-pop .tierbar button{border:none;background:none;color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer;line-height:1.1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.wedi-pop .tierbar button:not(.on):hover{background:var(--ft-hover)}
+.wedi-pop .tierbar button.on{font-weight:800;box-shadow:inset 0 2px 4px rgba(0,0,0,.28)}
 .wedi-pop .tierbar button + button{border-left:1px solid var(--ft-border-strong)}
 .wedi-pop .tierbar small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
 .wedi-pop .tierbar input{width:34px;border:none;background:transparent;font-size:11.5px;font-weight:700;text-align:center;color:inherit}
@@ -1336,14 +1338,14 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           ? (TIER_COLOR[t] ? { background: TIER_COLOR[t].main, color: "#fff" } : { background: "var(--ft-accent)", color: "var(--ft-accent-ink)" })
           : undefined;
         if (t === "custom") return (
-          <button key={t} onClick={() => setTier({ priceTier: "custom" })} style={fill} title="Custom % off retail">
+          <button key={t} className={on ? "on" : ""} onClick={() => setTier({ priceTier: "custom" })} style={fill} title="Custom % off retail">
             Custom
             <small>−<input value={customPct ?? ""} onClick={(e) => e.stopPropagation()}
               onChange={(e) => setTier({ priceTier: "custom", customPct: e.target.value })} />%</small>
           </button>
         );
         return (
-          <button key={t} onClick={() => setTier({ priceTier: t })} style={fill}>
+          <button key={t} className={on ? "on" : ""} onClick={() => setTier({ priceTier: t })} style={fill}>
             {t[0].toUpperCase() + t.slice(1)}{sub ? <small>{sub}</small> : null}
           </button>
         );
@@ -1660,7 +1662,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <div className="btnrow">
             <button className="wbtn primary" disabled>Add to product lines</button>
             <button className="wbtn" disabled>Print</button>
-            <button className="wbtn" disabled>Copy</button>
+            <button className="wbtn" disabled>Order entry</button>
           </div>
         </div>
       </>
@@ -1837,7 +1839,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> Add to product lines</button>
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)}><Printer size={13} /> Print layout</button>
-            <button className="wbtn" onClick={copyList}><ClipboardList size={13} /> Copy list</button>
+            <button className="wbtn" onClick={copyList}><Copy size={13} /> Order entry</button>
           </div>
         </div>
       </>
