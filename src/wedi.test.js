@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  openEdges, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
+  openEdges, openCorners, curbRuns, expandWallFaces, WALL_THICK, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
@@ -256,6 +256,28 @@ test("wedi open edges: curbs follow the open perimeter, corners only cut open", 
     "back wall only → 132\" open takes 2 × 96\" lean curbs: " + JSON.stringify(curb && { key: curb.item.key, qty: curb.qty, note: curb.note }));
   const kit72 = kitFor("US9100006");
   assert.equal(lineFor(kit72, "US3000040").note, 'cut to 72"', "36×72: one 96\" curb cut to the 72\" entry");
+
+  // Wall faces (owner, round 6): "both" plans the outside face as its own
+  // full-length wall, "in-end" adds a 4"-wide end strip; the extras append
+  // AFTER the base list so plan-detail indexing by wall stays aligned.
+  const fw = [{ len: 60, h: 96, side: "back" }, { len: 36, h: 96, side: "right", faces: "both" }];
+  const fx = expandWallFaces(fw);
+  assert.equal(fx.length, 3, "one 'both' wall expands to one extra face");
+  assert.ok(fx[2].face === "out" && fx[2].len === 36 && fx[2].side === "right", "outside face at full length, appended last");
+  const ex = expandWallFaces([{ len: 36, h: 96, side: "right", faces: "in-end" }]);
+  assert.ok(ex[1].face === "end" && ex[1].len === WALL_THICK, "in-end adds a WALL_THICK-wide strip");
+  assert.equal(expandWallFaces(fw.slice(0, 1)).length, 1, "default faces expand to nothing");
+
+  const plain = kitFor("US9100004", { walls: [{ len: 60, h: 96, side: "back" }] });
+  const both = kitFor("US9100004", { walls: [{ len: 60, h: 96, side: "back", faces: "both" }] });
+  assert.ok(near(both.panelSf, plain.panelSf * 2), "both-sides wall doubles the panel sf: " + both.panelSf);
+  const withEnd = kitFor("US9100004", { walls: [{ len: 60, h: 96, side: "back", faces: "in-end" }] });
+  assert.ok(near(withEnd.panelSf, plain.panelSf + WALL_THICK * 96 / 144),
+    "in-end adds the 4\"×h strip: " + withEnd.panelSf);
+  assert.equal(both.cfg.walls[0].faces, "both", "cfg carries a non-default faces");
+  assert.ok(!("faces" in plain.cfg.walls[0]), "default faces stays off the cfg");
+  const rebuilt = kitFor("US9100004", { walls: both.cfg.walls });
+  assert.equal(rebuilt.panelSf, both.panelSf, "cfg.walls round-trips the faces into the same sf");
 
   // cfg round-trips the corner cuts for Reconfigure.
   const kitCut = kitFor("US9100004", { corners: ["fl", "fr"] });

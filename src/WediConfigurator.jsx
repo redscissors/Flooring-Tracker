@@ -17,7 +17,7 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
 } from "./wedi.js";
@@ -144,6 +144,8 @@ const CSS = `
 .wedi-pop .diagcol .dc-legend{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.5;margin-top:8px}
 .wedi-pop .diagcol .dc-hint{background:var(--w-hint-bg);border:1px solid var(--w-hint-line);border-radius:6px;color:var(--w-hint-ink);font-size:10.5px;font-weight:700;padding:6px 9px;margin-bottom:6px}
 .wedi-pop .xdel{cursor:pointer;color:var(--w-rust);font-weight:800;padding:0 2px}
+.wedi-pop svg .wband{cursor:context-menu}
+.wedi-pop svg .wband:hover{opacity:.82}
 
 .wedi-pop .buildcol{flex:0 0 392px;border-left:1px solid var(--ft-border-strong);background:var(--ft-cream);display:flex;flex-direction:column;min-height:0;order:2}
 .wedi-pop .bc-scroll{flex:1;overflow-y:auto;padding:14px 16px 8px}
@@ -216,6 +218,17 @@ const CSS = `
 .wedi-swap .n{flex:1;min-width:0;font-size:11.5px;font-weight:700;color:var(--ft-text);line-height:1.3}
 .wedi-swap .n small{display:block;font-size:9.5px;color:var(--ft-faint);font-weight:600}
 .wedi-swap .p{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-text)}
+
+.wedi-wallmenu{width:256px;padding:9px 10px}
+.wedi-wallmenu .wm-row{display:flex;align-items:center;gap:6px;padding:4px 2px;font-size:10.5px;color:var(--ft-faint);font-weight:600}
+.wedi-wallmenu .wm-row label{width:38px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
+.wedi-wallmenu .win{width:46px;border:1px solid var(--ft-border-strong);border-radius:4px;font-size:11px;font-weight:700;text-align:center;padding:3px;background:var(--ft-card);color:var(--ft-text)}
+.wedi-wallmenu .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
+.wedi-wallmenu .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:3px 7px;cursor:pointer}
+.wedi-wallmenu .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
+.wedi-wallmenu .pfseg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-wallmenu .wm-del{border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:#B4552D;padding:3px 8px;cursor:pointer}
+.wedi-wallmenu .wm-note{font-size:9px;color:var(--ft-faint);font-weight:600;padding:3px 2px 0;line-height:1.4}
 
 .wedi-pop .ptable{width:100%;border-collapse:collapse;font-size:11.5px}
 .wedi-pop .ptable th{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-muted);text-align:left;padding:4px 8px;border-bottom:1px solid var(--ft-border-strong)}
@@ -327,7 +340,7 @@ function topGeom(o, W_, H_, mini) {
 // ticked on them, the pieces with their cut edges dashed, curb runs on the
 // open edges, the drain (with the plumber's two measurements when it was
 // pinned), 45° corner cuts chamfered off the pan, and dimensions.
-function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placing, onCorner, onEdge }) {
+function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placing, onCorner, onEdge, onWallMenu }) {
   const g = topGeom(o, w, h, mini);
   const { ox, oy, sc, rw, rd } = g;
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
@@ -343,6 +356,12 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
   // length so a shortened or added wall reads back; the thumbnails keep the
   // simple on/off full-span bands.
   const dw = !mini && dWalls && dWalls.length ? dWalls : null;
+  // Right-click a wall band for its menu (size + which faces get wedi).
+  const bandProps = (wl) => (onWallMenu ? {
+    className: "wband",
+    onContextMenu: (ev) => { ev.preventDefault(); ev.stopPropagation(); onWallMenu({ wid: wl.wid, extra: !!wl.extra }, ev.clientX, ev.clientY); },
+  } : {});
+  const bandTitle = onWallMenu ? <title>right-click — wall size &amp; wedi faces</title> : null;
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -350,9 +369,34 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       if (!(len > 0)) return;
       const full = len >= (horiz ? rw : rd) - 0.5;
       const fill = wl.extra ? MOSS : MUTED;
-      if (wl.side === "back") push(<rect key={`w${wi}`} x={X(0) - wallW} y={Y(0) - wallW} width={round2(len * sc + wallW + (full ? wallW : 0))} height={wallW} fill={fill} />);
-      else if (wl.side === "entry") push(<rect key={`w${wi}`} x={X(0)} y={Y(rd)} width={round2(len * sc)} height={wallW} fill={fill} />);
-      else push(<rect key={`w${wi}`} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(0) - wallW} width={wallW} height={round2(len * sc + wallW + (full ? wallW : 0))} fill={fill} />);
+      if (wl.side === "back") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0) - wallW} y={Y(0) - wallW} width={round2(len * sc + wallW + (full ? wallW : 0))} height={wallW} fill={fill}>{bandTitle}</rect>);
+      else if (wl.side === "entry") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0)} y={Y(rd)} width={round2(len * sc)} height={wallW} fill={fill}>{bandTitle}</rect>);
+      else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(0) - wallW} width={wallW} height={round2(len * sc + wallW + (full ? wallW : 0))} fill={fill}>{bandTitle}</rect>);
+    });
+    // Extra wedi faces read as moss edges: the outside face when a wall
+    // panels both sides, the end of the run when its exposed end is covered.
+    dw.forEach((wl, wi) => {
+      const f = wl.faces || "in";
+      if (f === "in") return;
+      const horiz = wl.side === "back" || wl.side === "entry";
+      const len = Math.min(wl.len, horiz ? rw : rd);
+      if (!(len > 0)) return;
+      if (f === "both") {
+        if (wl.side === "back") push(<line key={`fo${wi}`} x1={X(0)} y1={Y(0) - wallW} x2={X(len)} y2={Y(0) - wallW} stroke={MOSS} strokeWidth="2.4" />);
+        else if (wl.side === "entry") push(<line key={`fo${wi}`} x1={X(0)} y1={Y(rd) + wallW} x2={X(len)} y2={Y(rd) + wallW} stroke={MOSS} strokeWidth="2.4" />);
+        else {
+          const fx = wl.side === "left" ? X(0) - wallW : X(rw) + wallW;
+          push(<line key={`fo${wi}`} x1={fx} y1={Y(0)} x2={fx} y2={Y(len)} stroke={MOSS} strokeWidth="2.4" />);
+        }
+      } else if (f === "in-end") {
+        if (horiz) {
+          const ey = wl.side === "back" ? Y(0) - wallW : Y(rd);
+          push(<line key={`fe${wi}`} x1={X(len)} y1={ey} x2={X(len)} y2={ey + wallW} stroke={MOSS} strokeWidth="2.4" />);
+        } else {
+          const ex = wl.side === "left" ? X(0) - wallW : X(rw);
+          push(<line key={`fe${wi}`} x1={ex} y1={Y(len)} x2={ex + wallW} y2={Y(len)} stroke={MOSS} strokeWidth="2.4" />);
+        }
+      }
     });
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -401,15 +445,16 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
 
   if (!mini) {
     const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
-    // Corner cuts chamfer the pan itself: the cut-off triangle reads as floor
-    // again, the cut line dashes rust like every other cut. The legs come
+    // Corner cuts: the pan keeps its full size — the cut-off triangle stays
+    // drawn, ghosted to the extension tint, with the rust dashed cut line
+    // (owner rule 2026-07-30: same-size pan, shown cut). The legs come
     // from curbRuns — a wall ending near the corner pulls the line straight
     // to its end (owner rule: wall to wall, no dogleg).
     (cuts || []).forEach((d) => {
       const g2 = CGEOM[d.corner];
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
-      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
+      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`} fill="#EFF3E6" stroke={FAINT} strokeWidth="1" />);
       push(<line key={`c${d.corner}`} x1={X(cx + dx * d.h)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * d.v)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
       if (d.h === d.v) push(<text key={`ct${d.corner}`} x={X(cx + dx * d.h * 0.42)} y={Y(cy + dy * d.v * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
     });
@@ -465,8 +510,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       push(<rect key="dr" x={X(dr.x - hx)} y={Y(dr.y - hy)} width={round2(hx * 2 * sc)} height={round2(hy * 2 * sc)} rx="2.5" fill={INK} />);
       if (!mini && dr.axis === "w") push(<text key="drt" x={X(dr.x)} y={Y(dr.y + hy) + 11} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={INK} fontFamily={FONT}>{inch(dr.len) + '" channel'}</text>);
     } else {
-      push(<circle key="dr" cx={X(dr.x)} cy={Y(dr.y)} r={mini ? 3 : 7} fill={PAPER} stroke={INK} strokeWidth="1.4" />);
-      push(<circle key="dr2" cx={X(dr.x)} cy={Y(dr.y)} r={mini ? 1 : 2.2} fill={INK} />);
+      // Point drains draw square — the 4×4 cover is what the installer sees.
+      const ds = mini ? 6 : Math.max(10, round2(4 * sc));
+      push(<rect key="dr" x={round2(X(dr.x) - ds / 2)} y={round2(Y(dr.y) - ds / 2)} width={ds} height={ds} fill={PAPER} stroke={INK} strokeWidth="1.4" />);
+      push(<rect key="dr2" x={round2(X(dr.x) - ds / 6)} y={round2(Y(dr.y) - ds / 6)} width={round2(ds / 3)} height={round2(ds / 3)} fill={INK} />);
     }
     if (!mini && dr.type !== "linear") {
       push(<text key="drl" x={X(dr.x)} y={Y(dr.y) + 18} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={INK} fontFamily={FONT}>
@@ -510,54 +557,104 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
   );
 }
 
-// The isometric: each wall at its own height, the Fit plan's level courses and
-// butt joints dotted onto the wall planes, the pieces as 4"-thick slabs.
-function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags }) {
+// The isometric: walls as true 4"-thick slabs at their own heights, the Fit
+// plan's level courses and butt joints dotted on the inner faces, the pieces
+// as thick slabs. Walls in FRONT of the shower (entry + right side) draw
+// clear — dashed edges, no body — so they never hide the pan.
+function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
-  const bySide = {};
-  dw.forEach((x) => { bySide[x.side] = x; });
+  const T = WALL_THICK;
   const hmax = Math.min(dw.reduce((m, x) => Math.max(m, x.h), 0) || 80, 96);
   const P = (x, y, z) => [(x - y) * 0.866, (x + y) * 0.5 - z];
-  const pts = [P(0, 0, 0), P(rw, 0, 0), P(0, rd, 0), P(rw, rd, 0), P(0, 0, hmax), P(rw, 0, hmax)];
-  if (bySide.right) pts.push(P(rw, rd, Math.min(bySide.right.h, 96)));
-  if (bySide.left) pts.push(P(0, rd, Math.min(bySide.left.h, 96)));
+  const pts = [
+    P(-T - 3, -T - 3, 0), P(rw + T + 3, -T - 3, 0), P(-T - 3, rd + T + 3, 0), P(rw + T + 3, rd + T + 3, 0),
+    P(-T, -T, hmax), P(rw + T, -T, hmax), P(-T, rd + T, hmax), P(rw + T, rd + T, hmax),
+  ];
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   pts.forEach((p) => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
-  const pad = 16;
+  const pad = 14;
   const sc = Math.min((w - pad * 2) / (maxX - minX), (h - pad * 2) / (maxY - minY));
   const M = (x, y, z) => { const p = P(x, y, z); return [round2(pad + (p[0] - minX) * sc), round2(pad + (p[1] - minY) * sc)]; };
   const str = (arr) => arr.map((p) => p[0] + "," + p[1]).join(" ");
   const els = [];
-  const wallFill = "rgba(87,112,58,.12)", wallLine = "rgba(28,26,23,.4)", seamCol = "rgba(28,26,23,.5)";
+  const wallLine = "rgba(28,26,23,.45)", seamCol = "rgba(28,26,23,.5)";
 
-  els.push(<polygon key="ground" points={str([M(-3, -3, 0), M(rw + 3, -3, 0), M(rw + 3, rd + 3, 0), M(-3, rd + 3, 0)])} fill="rgba(28,26,23,.06)" />);
+  els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
 
-  const plane = (wl, at, glass, tag) => {
-    if (!wl) return;
-    const hh = Math.min(wl.h, 96);
-    const span = Math.min(wl.len, wl.side === "back" ? rw : rd);
-    if (!(span > 0)) return;
-    const pt = wl.side === "back" ? (u, z) => M(u, 0, z) : (u, z) => M(at, u, z);
-    els.push(<polygon key={`pl${tag}`} points={str([pt(0, 0), pt(span, 0), pt(span, hh), pt(0, hh)])}
-      fill={glass ? "rgba(87,112,58,.07)" : wallFill} stroke={wallLine} strokeWidth="1" />);
-    wl.courses.forEach((c, ci) => {
-      const top = Math.min(c.y0 + c.ch, hh);
-      if (c.y0 > 0 && c.y0 < hh) {
-        const a = pt(0, c.y0), b = pt(span, c.y0);
-        els.push(<line key={`cl${tag}-${ci}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={seamCol} strokeWidth="1" strokeDasharray="2 3" />);
+  const geomOf = (wl) => {
+    const vert = wl.side === "left" || wl.side === "right";
+    const span = Math.min(wl.len, vert ? rd : rw);
+    if (!(span > 0)) return null;
+    const zh = Math.min(wl.h, 96);
+    const full = span >= (vert ? rd : rw) - 0.5;
+    if (wl.side === "back") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: -T, y1: 0 };
+    if (wl.side === "entry") return { span, zh, x0: 0, x1: span, y0: rd, y1: rd + T };
+    if (wl.side === "left") return { span, zh, x0: -T, x1: 0, y0: -T, y1: span + (full ? T : 0) };
+    return { span, zh, x0: rw, x1: rw + T, y0: -T, y1: span + (full ? T : 0) };
+  };
+  // Panel joints dot the wall's INNER face — the plane the wedi actually
+  // lands on. Light on the solid walls, ink on the clear front ones.
+  const jointsOf = (wl, g, isFront, tag) => {
+    const pt = wl.side === "back" ? (u, z) => M(u, 0, z)
+      : wl.side === "entry" ? (u, z) => M(u, rd, z)
+        : wl.side === "left" ? (u, z) => M(0, u, z)
+          : (u, z) => M(rw, u, z);
+    const colr = isFront ? seamCol : "rgba(246,243,236,.8)";
+    (wl.courses || []).forEach((c, ci) => {
+      const top = Math.min(c.y0 + c.ch, g.zh);
+      if (c.y0 > 0 && c.y0 < g.zh) {
+        const a = pt(0, c.y0), b = pt(g.span, c.y0);
+        els.push(<line key={`cl${tag}-${ci}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={colr} strokeWidth="1" strokeDasharray="2 3" />);
       }
       let u = 0;
       c.lens.slice(0, -1).forEach((len, li) => {
         u = round2(u + len);
-        if (u >= span - 0.5) return;
+        if (u >= g.span - 0.5) return;
         const a = pt(u, c.y0), b = pt(u, top);
-        els.push(<line key={`bj${tag}-${ci}-${li}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={seamCol} strokeWidth="1" strokeDasharray="2 3" />);
+        els.push(<line key={`bj${tag}-${ci}-${li}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={colr} strokeWidth="1" strokeDasharray="2 3" />);
       });
     });
   };
-  plane(bySide.back, 0, false, "b");
-  plane(bySide.left, 0, false, "l");
+  // A wall as a slab: the three faces this camera sees (+x, +y, top). Front
+  // walls draw the same three faces clear with dashed edges.
+  const wallEls = (wl, wi) => {
+    const g = geomOf(wl);
+    if (!g) return;
+    const isFront = wl.side === "entry" || wl.side === "right";
+    const { x0, x1, y0, y1, zh } = g;
+    const faceE = str([M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, 0), M(x1, y0, 0)]);
+    const faceS = str([M(x0, y1, zh), M(x1, y1, zh), M(x1, y1, 0), M(x0, y1, 0)]);
+    const faceT = str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)]);
+    const mp = onWallMenu ? {
+      className: "wband",
+      onContextMenu: (ev) => { ev.preventDefault(); ev.stopPropagation(); onWallMenu({ wid: wl.wid, extra: !!wl.extra }, ev.clientX, ev.clientY); },
+    } : {};
+    const title = onWallMenu ? <title>right-click — wall size &amp; wedi faces</title> : null;
+    if (isFront) {
+      // pointer-events on the stroke only: a clear wall's body must not
+      // swallow right-clicks meant for the solid walls and pan behind it.
+      const dash = { fill: "rgba(87,112,58,.05)", stroke: wallLine, strokeWidth: 1, strokeDasharray: "3 3", pointerEvents: "stroke" };
+      els.push(
+        <g key={`w${wi}`} {...mp}>
+          {title}
+          <polygon points={faceE} {...dash} />
+          <polygon points={faceS} {...dash} />
+          <polygon points={faceT} {...dash} />
+        </g>);
+    } else {
+      const tones = wl.extra ? ["#46592F", "#57703A", "#68804A"] : ["#454239", "#57534C", "#6B665D"];
+      els.push(
+        <g key={`w${wi}`} {...mp}>
+          {title}
+          <polygon points={faceE} fill={wl.side === "left" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
+          <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
+          <polygon points={faceT} fill={tones[2]} stroke={wallLine} strokeWidth=".8" />
+        </g>);
+    }
+    jointsOf(wl, g, isFront, wi);
+  };
+  dw.forEach((wl, wi) => { if (!(wl.side === "entry" || wl.side === "right")) wallEls(wl, wi); });
 
   const t = 4;
   o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y)).forEach((p, i) => {
@@ -572,14 +669,15 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags }) {
     }
   });
 
-  // Corner cuts chamfer the floor's top face; the cut line dashes rust. Legs
-  // come from curbRuns (a nearby wall end pulls the line to it).
+  // Corner cuts: the pan stays full size — the cut-off triangle ghosts to the
+  // extension tint on the top face, the cut line dashes rust. Legs come from
+  // curbRuns (a nearby wall end pulls the line to it).
   const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
   (cuts || []).forEach((d) => {
     const g2 = CGEOM[d.corner];
     if (!g2) return;
     const [cx, cy, dx, dy] = g2;
-    els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(cx + dx * d.h, cy, t), M(cx, cy + dy * d.v, t)])} fill={PAPER} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
+    els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(cx + dx * d.h, cy, t), M(cx, cy + dy * d.v, t)])} fill="#EFF3E6" stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
     const a = M(cx + dx * d.h, cy, t), b = M(cx, cy + dy * d.v, t);
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
@@ -617,28 +715,17 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags }) {
       const hx = dr.axis === "w" ? half : 1.6, hy = dr.axis === "w" ? 1.6 : half;
       els.push(<polygon key="dr" points={str([M(dr.x - hx, dr.y - hy, t + 0.1), M(dr.x + hx, dr.y - hy, t + 0.1), M(dr.x + hx, dr.y + hy, t + 0.1), M(dr.x - hx, dr.y + hy, t + 0.1)])} fill={INK} />);
     } else {
-      const c = M(dr.x, dr.y, t + 0.1);
-      els.push(<ellipse key="dr" cx={c[0]} cy={c[1]} rx={round2(4.5 * sc)} ry={round2(2.6 * sc)} fill={PAPER} stroke={INK} strokeWidth="1.2" />);
-      els.push(<ellipse key="dr2" cx={c[0]} cy={c[1]} rx={round2(1.4 * sc)} ry={round2(0.8 * sc)} fill={INK} />);
+      // square drain — the 4×4 cover, projected flat on the pan
+      const dq = 2;
+      els.push(<polygon key="dr" points={str([M(dr.x - dq, dr.y - dq, t + 0.1), M(dr.x + dq, dr.y - dq, t + 0.1), M(dr.x + dq, dr.y + dq, t + 0.1), M(dr.x - dq, dr.y + dq, t + 0.1)])} fill={PAPER} stroke={INK} strokeWidth="1.2" />);
+      els.push(<polygon key="dr2" points={str([M(dr.x - 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y + 0.7, t + 0.1), M(dr.x - 0.7, dr.y + 0.7, t + 0.1)])} fill={INK} />);
     }
   }
-  plane(bySide.right, rw, true, "r");
-
-  dw.filter((x) => x.extra).forEach((wl, i) => {
-    const h2 = Math.min(wl.h, 96);
-    if (wl.side === "entry") {
-      const len = Math.min(wl.len, rw);
-      els.push(<polygon key={`xw${i}`} points={str([M(0, rd, 0), M(len, rd, 0), M(len, rd, h2), M(0, rd, h2)])} fill="rgba(87,112,58,.16)" stroke={wallLine} strokeWidth="1" />);
-    } else {
-      const span = Math.min(wl.len, wl.side === "back" ? rw : rd);
-      const pt = wl.side === "back" ? (u, z) => M(u, 0, z) : (u, z) => M(wl.side === "left" ? 0 : rw, u, z);
-      els.push(<polygon key={`xw${i}`} points={str([pt(0, 0), pt(span, 0), pt(span, h2), pt(0, h2)])} fill="rgba(87,112,58,.16)" stroke={wallLine} strokeWidth="1" />);
-    }
-  });
+  // Front walls draw last — clear, so the shower stays readable through them.
+  dw.forEach((wl, wi) => { if (wl.side === "entry" || wl.side === "right") wallEls(wl, wi); });
   if (dw.length) {
-    const lp = M(0, 0, hmax);
-    els.push(<text key="hl" x={lp[0] + 4} y={lp[1] + 10} fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
-      {'walls to ' + inch(hmax) + '"' + (panelFit ? " · panel joints dotted" : "")}</text>);
+    els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
+      {'walls 4" thick, to ' + inch(hmax) + '"' + (panelFit ? " · panel joints dotted" : "")}</text>);
   }
   return <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>{els}</svg>;
 }
@@ -648,9 +735,9 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags }) {
 // ============================================================================
 
 const DEF_WALLS = [
-  { id: "back", label: "Back", on: true, len: "", h: "" },
-  { id: "left", label: "Left", on: true, len: "", h: "" },
-  { id: "right", label: "Right", on: true, len: "", h: "" },
+  { id: "back", label: "Back", on: true, len: "", h: "", faces: "in" },
+  { id: "left", label: "Left", on: true, len: "", h: "", faces: "in" },
+  { id: "right", label: "Right", on: true, len: "", h: "", faces: "in" },
 ];
 const DEF_OPTS = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: "tube", recess: undefined };
 const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY: "", anchor: "left" };
@@ -680,8 +767,8 @@ function seedState(seed) {
     const rows = [];
     (cfg.walls || []).forEach((w) => {
       const base = s.walls.find((x) => x.id === w.side);
-      if (base && !w.extra && !rows.includes(base)) { base.on = true; base.len = String(w.len); base.h = String(w.h); rows.push(base); }
-      else s.extraWalls.push({ id: ++s.wallSeq, edge: w.side || "entry", len: String(w.len), h: String(w.h) });
+      if (base && !w.extra && !rows.includes(base)) { base.on = true; base.len = String(w.len); base.h = String(w.h); base.faces = w.faces || "in"; rows.push(base); }
+      else s.extraWalls.push({ id: ++s.wallSeq, edge: w.side || "entry", len: String(w.len), h: String(w.h), faces: w.faces || "in" });
     });
     s.walls.forEach((w) => { if (!rows.includes(w)) w.on = false; });
     (cfg.corners || []).forEach((k) => { if (s.corners[k] != null) s.corners[k] = true; });
@@ -737,6 +824,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return n;
   });
   const [swap, setSwap] = useState(null);     // { key, rect }
+  const [wallMenu, setWallMenu] = useState(null);   // { wid, extra, x, y } — right-clicked wall
+  const [confirmPan, setConfirmPan] = useState(null); // kit card clicked over a custom shower
   const [payload, setPayload] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState("");
@@ -762,6 +851,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   useEffect(() => () => clearTimeout(toastT.current), []);
   useEscClose(true, () => {
     if (payload) setPayload(null);
+    else if (confirmPan) setConfirmPan(null);
+    else if (wallMenu) setWallMenu(null);
     else if (swap) setSwap(null);
     else if (placing) setPlacing(false);
     else onClose();
@@ -786,6 +877,14 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     document.addEventListener("mousedown", away, true);
     return () => document.removeEventListener("mousedown", away, true);
   }, [swap]);
+  // The wall menu dismisses on an outside CLICK — click, not mousedown, so a
+  // blur-committed length lands before the menu unmounts.
+  useEffect(() => {
+    if (!wallMenu) return;
+    const away = (e) => { if (!e.target.closest?.(".wedi-wallmenu")) setWallMenu(null); };
+    document.addEventListener("click", away, true);
+    return () => document.removeEventListener("click", away, true);
+  }, [wallMenu]);
 
   // --- walls ----------------------------------------------------------------
   const wallOnMap = useMemo(() => Object.fromEntries(walls.map((w) => [w.id, w.on])), [walls]);
@@ -806,19 +905,23 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       if (!w.on) return;
       const len = +w.len || auto[w.id] || 0;
       const h = +w.h || +wallH || 96;
-      if (len > 0 && h > 0) out.push({ len, h, side: w.id });
+      if (len > 0 && h > 0) out.push({ len, h, side: w.id, faces: w.faces || "in", wid: w.id });
     });
     extraWalls.forEach((w) => {
       const len = +w.len || 0, h = +w.h || +wallH || 96;
-      if (len > 0 && h > 0) out.push({ len, h, side: w.edge, extra: true });
+      if (len > 0 && h > 0) out.push({ len, h, side: w.edge, extra: true, faces: w.faces || "in", wid: w.id });
     });
     return out;
   };
+  // A wall's wedi area with its faces counted — "both" doubles the plane, an
+  // exposed end adds the 4"-wide strip.
+  const sfOfWall = (len, h, faces) =>
+    round2(((+len || 0) * (+h || 0) * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * (+h || 0) : 0)) / 144);
 
   // The Fit plan (level courses, mixed sheet sizes, a vertical single sheet
   // where it kills the seams) replaces the engine's by-area panel line.
   const applyPanelFit = (lines, wl, panelSf) => {
-    const plan = panelPlan(wl);
+    const plan = panelPlan(expandWallFaces(wl));
     const out = lines.filter((l) => !(l.group === "walls" && l.auto !== false));
     const vWalls = plan.detail.filter((d) => d.vertical).length;
     plan.lines.forEach((pl, i) => out.push({
@@ -834,6 +937,21 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const pan = panKey ? item(panKey) : null;
   const room = option ? option.room : null;
   const buildWalls = useMemo(() => wallsArr(pan, room), [panKey, option, walls, extraWalls, wallH, wallFlip]);
+
+  // Has the build been customized? A typed wall value that only equals the
+  // kit's auto geometry doesn't count — it was tracking the kit (same
+  // doctrine as retuneWalls). Geometry changes make it a CUSTOM SHOWER and
+  // move the main pane to that tab; any change at all arms the kit-card
+  // overwrite confirm.
+  const autoNow = autoWallLens(pan, option ? option.room : null);
+  const wallsTouched = walls.some((w) => !w.on
+    || (w.len !== "" && Math.abs(+w.len - (autoNow[w.id] || 0)) >= 0.01)
+    || (w.h !== "" && Math.abs(+w.h - (+wallH || 96)) >= 0.01)
+    || (w.faces || "in") !== "in");
+  const geomDirty = wallsTouched || extraWalls.length > 0 || Object.values(corners).some(Boolean) || wallFlip || +wallH !== 96;
+  const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0 || addons.length > 0
+    || opts.panelKey !== undefined || opts.curbKey !== undefined || opts.coverKey !== undefined
+    || opts.sealantForm !== "tube" || opts.recess !== undefined);
 
   const build = useMemo(() => {
     if (panKey) {
@@ -910,14 +1028,30 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   };
 
   const resetBuild = () => { setQtyOv({}); setAddons([]); setManual([]); setOpts({ ...DEF_OPTS }); };
-  // Only a genuinely modified wall survives a kit/room change (owner rule):
+  // Only a genuinely modified wall survives a room/option change (owner rule):
   // a typed length that just equals the OUTGOING geometry's auto length was
   // only tracking the kit, so it clears back to auto and follows the new one.
   const retuneWalls = () => {
     const auto = autoWallLens(pan, option ? option.room : null);
     setWalls((ws) => ws.map((w) => (w.len !== "" && Math.abs(+w.len - (auto[w.id] || 0)) < 0.01 ? { ...w, len: "" } : w)));
   };
-  const pickPan = (key) => { retuneWalls(); setPanKey(key); setOption(null); resetBuild(); };
+  // A kit card is a hard reset (owner rule 2026-07-30): once a build is
+  // customized it IS the custom shower, so a kit click asks before wiping it.
+  const hardReset = (key) => {
+    setWalls(DEF_WALLS.map((w) => ({ ...w })));
+    setExtraWalls([]);
+    setCorners({ bl: false, br: false, fl: false, fr: false });
+    setWallFlip(false);
+    setWallH(96);
+    setPlacing(false);
+    setOption(null);
+    setPanKey(key);
+    resetBuild();
+  };
+  const pickPan = (key) => {
+    if (option || kitDirty || manual.length) { setConfirmPan(key); return; }
+    hardReset(key);
+  };
 
   const runSolve = (next) => {
     const i = next || inp;
@@ -950,6 +1084,28 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!s0.panKey) setPanKey(res[0].pan.key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once a kit's geometry is modified it IS a custom shower (owner rule
+  // 2026-07-30): the main pane moves to the Custom shower tab with the room
+  // form seeded from the kit. The option cards land unselected, so the build
+  // column keeps the modified kit until the user re-solves or picks a card.
+  const geomSig = JSON.stringify([walls, extraWalls, corners, wallFlip, wallH]);
+  useEffect(() => {
+    if (!(pan && !option && geomDirty && tab === "kits")) return;
+    const auto = autoWallLens(pan, null);
+    const next = {
+      ...inp, w: auto.back, d: auto.left,
+      curb: pan.sub === "curbless" ? "curbless" : "curbed",
+      drain: pan.group === "module" ? "linear"
+        : pan.drain && ["center", "offset", "linear"].includes(pan.drain.type) ? pan.drain.type : "any",
+      drainX: "", drainY: "",
+    };
+    setInp(next);
+    setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left" }));
+    setTab("custom");
+    say("Modified kit — it's a custom shower now. Kit cards ask before overwriting it.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geomSig]);
 
   // --- the drawings ---------------------------------------------------------
   const diag = useMemo(() => {
@@ -985,8 +1141,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
 
   const dWalls = useMemo(() => {
     if (!panKey) return [];
-    const det = panelFit ? panelPlan(buildWalls).detail : null;
-    return buildWalls.map((w, i) => ({ side: w.side, len: w.len, h: w.h, extra: !!w.extra, courses: det ? det[i].courses : [] }));
+    // expandWallFaces appends the extra faces AFTER the base walls, so
+    // detail[i] still belongs to buildWalls[i].
+    const det = panelFit ? panelPlan(expandWallFaces(buildWalls)).detail : null;
+    return buildWalls.map((w, i) => ({
+      side: w.side, len: w.len, h: w.h, extra: !!w.extra,
+      faces: w.faces || "in", wid: w.wid, courses: det ? det[i].courses : [],
+    }));
   }, [panKey, buildWalls, panelFit]);
 
   // Which corners can take a 45° cut (not boxed in by two walls), and where
@@ -1120,7 +1281,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       <div className="kitnote">
         <b>One click builds the house kit from shop stock</b> — pan + Click&amp;Seal drain (in the box)
         + ½" panels laid in level courses for the walls (1 long + 2 short by default — edit each wall, add one
-        by clicking the drawing, or flip the layout in the build column) + curb lean (curbed) / Subliner Dry +
+        by clicking the drawing, right-click a wall in the drawings for size &amp; wedi faces, or flip the layout
+        in the build column; modifying a kit moves it to Custom shower) + curb lean (curbed) / Subliner Dry +
         S-Dry Seal + corner seals (curbless) + drain cover + fasteners + sealant (10.5 oz tubes by default) +
         both collars + trowel — mirroring wedi's own boxed-kit recipe.
       </div>
@@ -1402,7 +1564,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       <>
         <div className="bc-scroll">
           <div className="bc-h"><div className="t">The build</div></div>
-          <div className="bc-empty">Nothing yet.<br /><br />Click a pan card to assemble its house kit, solve a custom room, or step items in from Browse.</div>
+          <div className="bc-empty">Nothing yet.<br /><br />Click a pan card to assemble its house kit, solve a custom shower, or step items in from Browse.</div>
         </div>
         <div className="bc-foot">
           <div className="btnrow">
@@ -1450,7 +1612,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                       <span>×</span>
                       <NumIn className="win" value={w.h} placeholder={String(wallH)} disabled={!w.on} title="height, in — 40 for a half wall"
                         onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
-                      <span className="wu">{w.on ? round2(((+w.len || auto[w.id] || 0) * (+w.h || +wallH || 96)) / 144) + " sf" : "off"}</span>
+                      <span className="wu">{w.on
+                        ? sfOfWall(+w.len || auto[w.id] || 0, +w.h || +wallH || 96, w.faces || "in") + " sf"
+                          + (w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : "")
+                        : "off"}</span>
                     </div>
                   ))}
                   {extraWalls.map((w) => (
@@ -1461,7 +1626,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                       <span>×</span>
                       <NumIn className="win" value={w.h} placeholder={String(wallH)} title="height, in"
                         onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
-                      <span className="wu">{round2(((+w.len || 0) * (+w.h || +wallH || 96)) / 144)} sf ·{" "}
+                      <span className="wu">{sfOfWall(+w.len || 0, +w.h || +wallH || 96, w.faces || "in")} sf
+                        {w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : ""} ·{" "}
                         <b className="xdel" onClick={() => setExtraWalls((xs) => xs.filter((x) => x.id !== w.id))}>×</b></span>
                     </div>
                   ))}
@@ -1584,11 +1750,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     <div className="diagcol">
       {!diag ? (<>
         <div className="dc-h">The shower</div>
-        <div className="dc-empty">Pick a pan or solve a room — the top-down layout and isometric view draw here for whatever is selected.</div>
+        <div className="dc-empty">Pick a pan or solve a custom shower — the top-down layout and isometric view draw here for whatever is selected.</div>
       </>) : (<>
         <div className="dc-h">Top-down layout</div>
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
         <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
+          onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })}
           onCorner={(c) => {
             if (cornerOpenMap && !cornerOpenMap[c]) { say("That corner sits between two walls — shorten or turn one off to cut it"); return; }
             setCorners((o) => ({ ...o, [c]: !o[c] }));
@@ -1599,15 +1766,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             setExtraWalls((xs) => [...xs, {
               id: wallSeq.current, edge,
               len: String(round2(edge === "entry" ? Math.min(24, geo.rw) : edge === "back" ? geo.rw : geo.rd)),
-              h: "",
+              h: "", faces: "in",
             }]);
             setPlacing(false);
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
-        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} />
+        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
+          onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
-          seams dashed moss · cuts dashed rust · curb drawn on the open edges ·{" "}
+          walls 4″ thick — right-click one in either view for size &amp; wedi faces (moss edge = extra face) ·
+          front walls draw clear in the isometric · seams dashed moss · cuts dashed rust — a cut corner keeps
+          the full pan, the ghosted triangle comes off on site · curb on the open edges ·{" "}
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
           {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
         </div>
@@ -1647,6 +1817,83 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           </button>
         ))}
       </div>, document.body);
+  })();
+
+  // The right-click wall menu: size + which faces get wedi. Anchored at the
+  // cursor, portalled like the swap popover; edits write straight into the
+  // walls / extraWalls rows the build already reads.
+  const wallMenuPanel = (() => {
+    if (!wallMenu) return null;
+    const row = wallMenu.extra ? extraWalls.find((x) => x.id === wallMenu.wid) : walls.find((x) => x.id === wallMenu.wid);
+    if (!row) return null;
+    const label = wallMenu.extra ? (EDGE_LBL[row.edge] || "Added").replace(" +", "") + " wall (added)" : row.label + " wall";
+    const faces = row.faces || "in";
+    const len = +row.len || (wallMenu.extra ? 0 : autoNow[row.id] || 0);
+    const hh = +row.h || +wallH || 96;
+    const upd = (patch) => (wallMenu.extra
+      ? setExtraWalls((xs) => xs.map((x) => (x.id === wallMenu.wid ? { ...x, ...patch } : x)))
+      : setWalls((ws) => ws.map((x) => (x.id === wallMenu.wid ? { ...x, ...patch } : x))));
+    const style = {
+      top: Math.min(window.innerHeight - 200, wallMenu.y + 4),
+      left: Math.min(window.innerWidth - 292, Math.max(12, wallMenu.x - 120)),
+    };
+    return createPortal(
+      <div className="wedi-swap wedi-wallmenu" style={style} data-wedi-wallmenu
+        onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
+        <div className="ph">{label} — {sfOfWall(len, hh, faces)} sf of wedi</div>
+        <div className="wm-row">
+          <label>Size</label>
+          <NumIn className="win" value={row.len} placeholder={wallMenu.extra ? "" : String(autoNow[row.id] || "")} title="length, in"
+            onCommit={(v) => upd({ len: v })} />
+          <span>×</span>
+          <NumIn className="win" value={row.h} placeholder={String(wallH)} title="height, in" onCommit={(v) => upd({ h: v })} />
+          <span>in</span>
+        </div>
+        <div className="wm-row">
+          <label>wedi</label>
+          <span className="pfseg">
+            <button className={faces === "in" ? "on" : ""} title="panel the inside face only" onClick={() => upd({ faces: "in" })}>Inside</button>
+            <button className={faces === "both" ? "on" : ""} title="panel both sides" onClick={() => upd({ faces: "both" })}>Both sides</button>
+            <button className={faces === "in-end" ? "on" : ""} title={'inside plus the exposed 4" end of the run'} onClick={() => upd({ faces: "in-end" })}>In + end</button>
+          </span>
+        </div>
+        <div className="wm-note">
+          {faces === "both" ? "both faces panel — this wall's wedi area doubles"
+            : faces === "in-end" ? 'the exposed 4" end takes a wedi strip too'
+              : "wedi on the shower side only"}
+        </div>
+        {wallMenu.extra && (
+          <div className="wm-row" style={{ paddingTop: 7 }}>
+            <button className="wm-del" onClick={() => { setExtraWalls((xs) => xs.filter((x) => x.id !== wallMenu.wid)); setWallMenu(null); }}>
+              Remove this wall</button>
+          </div>
+        )}
+      </div>, document.body);
+  })();
+
+  // Kit card over a custom shower: confirm before wiping it (owner rule
+  // 2026-07-30) — yes resets everything to the chosen kit's stock setup.
+  const confirmModal = confirmPan && (() => {
+    const p = item(confirmPan);
+    const nm = p ? (p.group === "module" ? inch(p.len) + '" module' : inch(p.w) + "×" + inch(p.d)) : "";
+    return (
+      <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
+        onClick={(e) => { e.stopPropagation(); setConfirmPan(null); }}>
+        <div className="wedi-pop w-full max-w-[460px] rounded-xl overflow-hidden shadow-2xl" style={{ background: "var(--ft-cream)" }}
+          onClick={(e) => e.stopPropagation()} data-wedi-overwrite>
+          <div className="px-5 pt-4 pb-1 text-[14px] font-extrabold">Overwrite the custom shower?</div>
+          <div className="px-5 pb-4 text-[12px] leading-relaxed" style={{ color: "var(--ft-muted)" }}>
+            This build has been customized — walls, cuts, or parts differ from a stock kit. Starting the{" "}
+            <b style={{ color: "var(--ft-text)" }}>{nm}</b> kit resets all of it.
+          </div>
+          <div className="flex gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
+            <button className="wbtn" onClick={() => setConfirmPan(null)}>Keep the custom shower</button>
+            <button className="wbtn primary" data-wedi-overwrite-yes
+              onClick={() => { hardReset(confirmPan); setConfirmPan(null); }}>Overwrite — start the kit</button>
+          </div>
+        </div>
+      </div>
+    );
   })();
 
   const payloadModal = payload && (
@@ -1759,7 +2006,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
 
   const TAB_DEFS = [
     ["kits", "Kits", pans().length + " pans"],
-    ["custom", "Custom room", "solver"],
+    ["custom", "Custom shower", "solver"],
     ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"],
   ];
 
@@ -1792,6 +2039,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
       </div>
       {swapPanel}
+      {wallMenuPanel}
+      {confirmModal}
       {payloadModal}
       {printSheet}
       {toast && createPortal(<div className="wedi-toast" onClick={(e) => e.stopPropagation()}>{toast}</div>, document.body)}

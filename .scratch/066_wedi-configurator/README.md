@@ -103,6 +103,25 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   drawings and in the curb line's length. `W1`–`W6` shots via
   `wedi-preview.html` + `src/wedipreview.jsx` (no-Supabase harness) and
   `shoot-walls.mjs`
+- Owner feedback round 6, 2026-07-30: the custom-shower flow and a drawing
+  overhaul. Flow: modifying a kit's geometry moves the build to the renamed
+  **Custom shower** tab (form seeded from the kit, option cards unselected,
+  the modified build kept); a kit card clicked over a custom shower asks
+  "Overwrite the custom shower?" and a yes hard-resets everything to the
+  chosen stock kit (replaces round 5c's silent walls-survive merge on kit
+  clicks; retuneWalls still governs room/option changes inside the solver).
+  Drawings: the isometric draws walls as true 4"-thick slabs (top-down
+  already did), walls in FRONT (entry + right) draw clear with dashed edges
+  so the pan stays visible (their bodies don't take pointer events — only
+  the dashed edges); point drains draw square (the 4×4 cover) in both
+  views; a cut corner keeps the FULL-SIZE pan with the cut-off triangle
+  ghosted to the extension tint behind the rust dashed line. Right-clicking
+  a wall in either view opens its menu: length × height plus which faces
+  get wedi — Inside (default) / Both sides / In + end (the exposed 4"
+  strip) — stored per wall (`faces`, round-tripped through cfg.walls),
+  planned via `expandWallFaces` (extra faces appended after the base list
+  so plan-detail indexing holds), and marked as moss edges in the top-down.
+  `X1`–`X10` shots via `shoot-round6.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)

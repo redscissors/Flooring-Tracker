@@ -290,17 +290,26 @@ src/
   WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
                     # tables stay off boot: three tabs — Kits (every stocked pan a
                     # card showing OUR stock kit cost; one click builds the house
-                    # kit), Custom room (the solver's ranked option cards + cut
+                    # kit), Custom shower (the solver's ranked option cards + cut
                     # list) and Browse (the whole catalog, stock tinted green and
                     # ranked first, + the sealant/fastener figurer) — over one
                     # shared build column (grouped lines, swap popovers, steppers,
                     # the wall editor, add-on chips, sausage-gun/small-order hints,
                     # the factory-kit compare, Copy list, Print layout) and a
-                    # permanent drawings rail: a to-scale top-down (wall bands,
-                    # panel-seam ticks, dashed cut edges, drain callouts, 45°
-                    # corner chamfers — click an edge to add a wall, a corner to
-                    # toggle a cut) over an isometric with per-wall heights and the
-                    # panel courses dotted on the planes. Opened from a row's
+                    # permanent drawings rail: a to-scale top-down (4"-thick wall
+                    # bands, panel-seam ticks, square drains, dashed cut edges,
+                    # drain callouts, corner cuts ghosting the full-size pan —
+                    # click an edge to add a wall, a corner to toggle a cut) over
+                    # an isometric with 4"-thick wall slabs at per-wall heights,
+                    # front (entry/right) walls drawn clear with dashed edges, and
+                    # the panel courses dotted on the inner faces. Right-clicking
+                    # a wall in either view opens its menu: size + which faces get
+                    # wedi (inside / both sides / inside + exposed end — the extra
+                    # faces feed the panel plan via expandWallFaces and read as
+                    # moss edges). Modifying a kit's geometry moves the build to
+                    # the Custom shower tab (owner rule 2026-07-30) and a kit card
+                    # clicked over a custom shower confirms before hard-resetting
+                    # to the stock kit. Opened from a row's
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines

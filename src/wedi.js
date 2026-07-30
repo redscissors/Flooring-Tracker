@@ -4283,6 +4283,21 @@ function wallSf(walls) {
   return round2((walls || []).reduce((s, w) => s + (+w.len || 0) * (+w.h || 0) / 144, 0));
 }
 
+// A wall's wedi coverage (owner, round 6): "in" — the inside face only, the
+// default — "both" sides, or "in-end" — inside plus the exposed 4" end of a
+// partial wall. The planner sees each extra face as its own wall: the outside
+// face at full length, the end as a WALL_THICK-wide strip, appended AFTER the
+// base list so callers indexing the plan's detail by wall still line up.
+export const WALL_THICK = 4;     // framing depth — the drawings draw it true
+export function expandWallFaces(walls) {
+  const out = (walls || []).slice();
+  (walls || []).forEach((w) => {
+    if (w.faces === "both") out.push({ len: w.len, h: w.h, side: w.side, face: "out" });
+    else if (w.faces === "in-end") out.push({ len: WALL_THICK, h: w.h, side: w.side, face: "end" });
+  });
+  return out;
+}
+
 // The room's open perimeter — the edge runs no wall covers. Walls anchor at
 // the drawing's origin corner of their side (back/entry at the left end,
 // left/right at the back end), so each edge's covered run starts there and
@@ -4410,7 +4425,7 @@ export function kitFor(panKey, opts) {
   const option = opts.option || null;
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
-  const panelSf = wallSf(walls);
+  const panelSf = wallSf(expandWallFaces(walls));
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
   const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
   const lines = [], hints = [];
@@ -4497,8 +4512,14 @@ export function kitFor(panKey, opts) {
   const fw = room ? room.w : pan.w, fd = room ? room.d : pan.d;
   const factory = factoryKit(fw, fd, fam, pan.drain ? pan.drain.type : null);
 
+  const cfgWalls = walls.map((w) => {
+    const o = { len: w.len, h: w.h, side: w.side };
+    if (w.extra) o.extra = true;
+    if (w.faces && w.faces !== "in") o.faces = w.faces;
+    return o;
+  });
   const cfg = {
-    panKey: pan.key, walls: walls, panelKey: panel ? panel.key : null,
+    panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
     curbKey: curbKey || null, coverKey: cover ? cover.key : null,
     sealantForm: form, recess: recess,
     addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
