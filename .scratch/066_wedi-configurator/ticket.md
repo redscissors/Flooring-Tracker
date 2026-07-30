@@ -256,6 +256,33 @@ landed in the prototype (engine rules carry self-tests):
     cost with the current wall setup) instead of wedi's boxed-kit price;
     the boxed-kit compare chip stays in the build column.
 
+### Round 5 (2026-07-30, on the production build — PR #276)
+
+21. **Wall edits draw true** — a wall's typed length now draws at that length
+    in both views (band stops short of the corner, iso plane too) instead of
+    the on/off full-span band, so shortening a wall visibly opens its run.
+    Both tabs share the same editor; the custom tab verified end to end
+    (W3): + Add wall by clicking the drawing, removable rows, live redraw.
+22. **Corner cuts are real cuts now**: clicking an open corner (or the new
+    "✂ Cut open corners" chip) chamfers the pan in both drawings — cut-off
+    triangle cleared, rust dashed diagonal, 45° tag — joins the cut list and
+    the print sheet's install notes, and round-trips through `cfg.corners`
+    so Reconfigure restores it. A corner boxed in by two walls refuses the
+    cut with a toast (`openCorners` in wedi.js); a wall change that boxes a
+    cut corner in drops the cut rather than draw through a wall.
+23. **Curbs draw where there is no wall** (owner ask): `openEdges` computes
+    the open runs of the room's perimeter, the top-down draws a labeled curb
+    band and the isometric a raised slab along each, and the curb LINE now
+    follows the open length too — one curb cut down when it covers, more
+    pieces when walls are toggled off ("132" of open edge — cut to fit").
+    Standard 3-wall rooms price exactly as before (open run = entry width).
+24. The print sheet unmounts on **afterprint** (2.5 s fallback), not right
+    after `window.print()` returns — Safari returns with the dialog still
+    up and printed a blank sheet.
+25. Preview harness: `wedi-preview.html` + `src/wedipreview.jsx` mount the
+    real component with no Supabase (the freight `preview.html` pattern);
+    `shoot-walls.mjs` retakes W1–W4.
+
 ## Assumptions to confirm before production
 
 1. Builder ×0.82 applies to **every** wedi line (pans, panels, consumables,

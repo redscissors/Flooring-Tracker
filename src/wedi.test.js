@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan, openEdges, openCorners,
   tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
@@ -218,6 +218,48 @@ test("wedi kit builder: the house kit mirrors wedi's own boxed recipe", () => {
   })(), "addons land un-auto in the addon group");
   assert.ok(lineFor(kitAdd, "US5000013").qty === 9 && kitAdd.hints.indexOf("sausage-gun") < 0,
     "tube form → 9 tubes (88 oz / 10.5), gun addon clears the hint: " + lineFor(kitAdd, "US5000013").qty);
+});
+
+// --- open edges, corners and the curb run -------------------------------------
+
+test("wedi open edges: curbs follow the open perimeter, corners only cut open", () => {
+  const dims = { w: 60, d: 36 };
+  const threeWalls = [{ len: 60, h: 96, side: "back" }, { len: 36, h: 96, side: "left" }, { len: 36, h: 96, side: "right" }];
+  const o1 = openEdges(dims, threeWalls);
+  assert.deepEqual(o1.edges, [{ side: "entry", from: 0, len: 60 }], "3 full walls → only the entry open");
+  assert.equal(o1.openLen, 60, "openLen = the entry width");
+  const o2 = openEdges(dims, [threeWalls[0], threeWalls[1], { len: 20, h: 96, side: "right" }]);
+  assert.deepEqual(o2.edges, [{ side: "right", from: 20, len: 16 }, { side: "entry", from: 0, len: 60 }],
+    "a shortened right wall opens its far run");
+  assert.equal(o2.openLen, 76, "openLen adds the exposed right run");
+  const o3 = openEdges(dims, [threeWalls[0]]);
+  assert.equal(o3.openLen, round2(36 + 36 + 60), "back wall only → both sides + entry open");
+  const entryWall = { len: 24, h: 96, side: "entry", extra: true };
+  assert.equal(openEdges(dims, threeWalls.concat([entryWall])).openLen, 36,
+    "a 24\" entry wall shrinks the entry run to 36\"");
+
+  const c1 = openCorners(dims, threeWalls);
+  assert.deepEqual(c1, { bl: false, br: false, fl: true, fr: true },
+    "3 walls: back corners boxed in, entry corners cuttable");
+  const c2 = openCorners(dims, [threeWalls[0], threeWalls[1], { len: 20, h: 96, side: "right" }, entryWall]);
+  assert.ok(!c2.bl && !c2.br && !c2.fl && c2.fr,
+    "short right wall keeps fr open; the 24\" entry wall reaches fl and closes it: " + JSON.stringify(c2));
+
+  // Curb quantity follows the open perimeter — walls off means more curb.
+  const kit = kitFor("US9100004");
+  assert.ok(lineFor(kit, "US3000038").qty === 1 && lineFor(kit, "US3000038").note === "",
+    "36×60 house kit: one 60\" curb, uncut (60\" entry)");
+  const oneWall = kitFor("US9100004", { walls: [{ len: 60, h: 96, side: "back" }] });
+  const curb = oneWall.lines.filter((l) => l.item.group === "curb")[0];
+  assert.ok(curb && curb.item.key === "US3000040" && curb.qty === 2 && /132.*open edge/.test(curb.note),
+    "back wall only → 132\" open takes 2 × 96\" lean curbs: " + JSON.stringify(curb && { key: curb.item.key, qty: curb.qty, note: curb.note }));
+  const kit72 = kitFor("US9100006");
+  assert.equal(lineFor(kit72, "US3000040").note, 'cut to 72"', "36×72: one 96\" curb cut to the 72\" entry");
+
+  // cfg round-trips the corner cuts for Reconfigure.
+  const kitCut = kitFor("US9100004", { corners: ["fl", "fr"] });
+  assert.deepEqual(kitCut.cfg.corners, ["fl", "fr"], "cfg.corners carries the cut corners");
+  assert.deepEqual(kitFor("US9100004").cfg.corners, [], "no cuts → cfg.corners []");
 });
 
 // --- solver -------------------------------------------------------------------

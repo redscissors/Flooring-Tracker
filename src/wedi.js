@@ -4248,6 +4248,41 @@ function wallSf(walls) {
   return round2((walls || []).reduce((s, w) => s + (+w.len || 0) * (+w.h || 0) / 144, 0));
 }
 
+// The room's open perimeter — the edge runs no wall covers. Walls anchor at
+// the drawing's origin corner of their side (back/entry at the left end,
+// left/right at the back end), so each edge's covered run starts there and
+// the open run is whatever remains toward the far corner. Curbs sit on these
+// runs, and a 45° corner cut only makes sense where they meet.
+export function openEdges(dims, walls) {
+  const rw = +dims.w || 0, rd = +dims.d || 0;
+  const cov = { back: 0, left: 0, right: 0, entry: 0 };
+  (walls || []).forEach((w) => {
+    if (cov[w.side] == null) return;
+    cov[w.side] = Math.max(cov[w.side], +w.len || 0);
+  });
+  const edges = [];
+  [["back", rw], ["left", rd], ["right", rd], ["entry", rw]].forEach((e) => {
+    const c = Math.min(cov[e[0]], e[1]);
+    if (e[1] - c > 0.5) edges.push({ side: e[0], from: round2(c), len: round2(e[1] - c) });
+  });
+  return { edges: edges, openLen: round2(edges.reduce((s, e) => s + e.len, 0)), cov: cov };
+}
+
+// Which corners are cuttable: a corner boxed in by two walls can't take a 45°
+// cut — the walls are standing on it. bl/br sit on the back, fl/fr on the entry.
+export function openCorners(dims, walls) {
+  const rw = +dims.w || 0, rd = +dims.d || 0;
+  const cov = openEdges(dims, walls).cov;
+  const near = (c) => c > 0.5;
+  const far = (c, len) => c >= len - 0.5;
+  return {
+    bl: !(near(cov.back) && near(cov.left)),
+    br: !(far(cov.back, rw) && near(cov.right)),
+    fl: !(near(cov.entry) && far(cov.left, rd)),
+    fr: !(far(cov.entry, rw) && far(cov.right, rd)),
+  };
+}
+
 function familyOf(pan) {
   if (pan.group === "module" || pan.group === "modExt") return "linear";
   return pan.sub === "sdry" ? "sdry" : pan.sub;
@@ -4312,17 +4347,22 @@ export function kitFor(panKey, opts) {
     round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
 
   // --- curb ------------------------------------------------------------------
+  // The curb runs the room's OPEN perimeter — every edge run no wall covers —
+  // so turning a wall off (or shortening it) grows the curb to match.
+  const roomDims = room
+    || (pan.group === "module" ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
+      : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
+  const openLen = openEdges(roomDims, walls).openLen || roomDims.w;
   let curbKey = opts.curbKey;
-  if (curbKey === undefined && fam === "fundo") {
-    const entry = room ? room.w : Math.max(pan.w, pan.d);
-    curbKey = entry > 60 ? SKU.curbLean96 : SKU.curbLean60;
-  }
+  if (curbKey === undefined && fam === "fundo") curbKey = openLen > 60 ? SKU.curbLean96 : SKU.curbLean60;
   if (curbKey === undefined && fam === "linear") curbKey = SKU.curbLean60;
   if (curbKey) {
     const curb = item(curbKey);
-    const entryLen = room ? room.w : Math.max(pan.w, pan.d);
-    push(lines, curb, 1, "floor",
-      curb && curb.len && curb.len > entryLen ? "cut to " + round2(entryLen) + '"' : "", true);
+    const per = curb && curb.len ? curb.len : 0;
+    const n = per ? Math.max(1, Math.ceil((openLen - 0.01) / per)) : 1;
+    push(lines, curb, n, "floor",
+      n > 1 ? round2(openLen) + '" of open edge — cut to fit'
+        : per > openLen ? "cut to " + round2(openLen) + '"' : "", true);
   }
 
   // --- drain finish ----------------------------------------------------------
@@ -4376,6 +4416,7 @@ export function kitFor(panKey, opts) {
     curbKey: curbKey || null, coverKey: cover ? cover.key : null,
     sealantForm: form, recess: recess,
     addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
+    corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
     tier: opts.tier || "retail",
   };
