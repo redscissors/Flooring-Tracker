@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  openEdges, openCorners, curbRuns, expandWallFaces, WALL_THICK, BROWSE_SECTIONS, sectionHit,
+  openEdges, openCorners, curbRuns, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
@@ -476,6 +476,29 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
   assert.ok(s9.concat(s10).every((o) =>
     o.pieces.every((p) => p.x >= 0 && p.y >= 0 && p.x + p.w <= o.room.w + 0.01 && p.y + p.d <= o.room.d + 0.01)),
     "drain-at pieces stay inside the room");
+
+  // Corners are never left blank (owner rule 2026-07-30): up to 12×12 the
+  // L-shaped corner extension wraps them; past that the straight bands run
+  // THROUGH the corner and mitre at 45° — pieces cover every room corner.
+  const s11 = solve({ w: 60, d: 110, curb: "curbed", drain: "center" });
+  const covers = (o, x, y) => o.pieces.some((p) =>
+    x >= p.x - 0.01 && x <= p.x + p.w + 0.01 && y >= p.y - 0.01 && y <= p.y + p.d + 0.01);
+  assert.ok(s11.length > 0 && s11.every((o) =>
+    covers(o, 0, 0) && covers(o, 60, 0) && covers(o, 0, 110) && covers(o, 60, 110)),
+    "60×110 center: every option covers all four room corners — no blanks");
+  assert.ok(s11.some((o) => /60" x 84"/.test(o.pan.sizeText)),
+    "the 60×84 big pan earns a card: " + s11.map((o) => o.pan.sizeText).join(" | "));
+  // The 2"-deep 60×84 pairs with 1 37/64" extensions: the option warns about
+  // the build-up and the kit carries the ½" sheet ripped into strips.
+  assert.equal(panThick({ sizeText: '60" x 84" x 2"' }), 2);
+  assert.equal(panThick({ sizeText: '36" x 60" x 1 37/64"' }), round2(1 + 37 / 64));
+  const big84 = s11.filter((o) => /60" x 84"/.test(o.pan.sizeText))[0];
+  assert.ok(big84.warnings.some((w) => /build the extensions up flush/.test(w)),
+    "2\" pan + extensions warns about the build-up: " + JSON.stringify(big84.warnings));
+  const kit84 = kitFor(big84.pan.key, { option: big84 });
+  const shim = kit84.lines.filter((l) => l.group === "floor" && /build-up strips/.test(l.note))[0];
+  assert.ok(shim && shim.item.key === "US8000015" && shim.qty >= 1,
+    "the kit adds ½\" sheet(s) for the build-up strips: " + JSON.stringify(shim && { key: shim.item.key, qty: shim.qty, note: shim.note }));
 });
 
 // --- center click + anchor ----------------------------------------------------

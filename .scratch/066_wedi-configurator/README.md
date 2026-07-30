@@ -147,6 +147,19 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   stroke swallows the pan's own outline), and the isometric wipes the
   whole 3-D wedge and draws the pan's new CUT FACE under the rust line.
   `Z1`/`Z2` via `shoot-cutcurb.mjs`
+- Owner round 7, 2026-07-30 (the 60×110 room + the corner-extension sheet):
+  three solver rules. (1) CORNERS ARE NEVER BLANK: the drain-pinned solver
+  used to only WARN "mitre two straights" on a corner cell over 12×12 and
+  left it unfilled and unfigured — now the straight extension bands run
+  THROUGH an oversized corner and mitre at 45°, each stick bought at its
+  full longest-point length (≤12×12 still takes the 16½" L corner
+  extension). Side effect: full-width pans that eliminate corner cells now
+  naturally rank first. (2) The BIGGEST PAN always earns a card (badge
+  "Biggest pan") even when its parts run dearer — the seller decides.
+  (3) A 2"-deep pan (60×84) pairing with 1 37/64" extensions warns about
+  the height step and the kit carries a ½" 4×8 building panel figured by
+  extension area — the shop rips it into build-up strips underneath
+  (`panThick`, `BUILDUP_SHEET`). `V1`/`V2` via `shoot-bigpan.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)

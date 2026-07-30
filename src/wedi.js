@@ -4413,6 +4413,26 @@ function familyOf(pan) {
   return pan.sub === "sdry" ? "sdry" : pan.sub;
 }
 
+// A pan's thickness off its size text ('… x 2"' / '… x 1 37/64"'). The deep
+// 2" pans pair with 1 37/64" extensions, which the shop shims flush with
+// ½" building-panel strips underneath (owner practice 2026-07-30).
+export function panThick(p) {
+  const m = /x\s*(\d+(?:\s+\d+\/\d+)?|\d+\/\d+)"\s*$/.exec((p && p.sizeText) || "");
+  if (!m) return 0;
+  let v = 0;
+  m[1].trim().split(/\s+/).forEach((s) => {
+    const f = s.split("/");
+    v += f.length === 2 ? +f[0] / +f[1] : +s;
+  });
+  return round2(v);
+}
+const BUILDUP_NOTE = 'the 2" pan runs deeper than the 1 37/64" extensions — build the extensions up flush with ½" building-panel strips underneath';
+const BUILDUP_SHEET = "US8000015";   // ½" 4×8 building panel — ripped into strips
+function extensionSf(option) {
+  return round2((option && option.pieces ? option.pieces : [])
+    .reduce((s, p) => s + (p.kind === "pan" || p.kind === "module" ? 0 : p.w * p.d / 144), 0));
+}
+
 export function factoryKit(w, d, family, drainType) {
   const fam = family === "curbless" ? "curbless" : family === "linear" ? "linear" : "fundo";
   const hits = group("kit").filter((k) => {
@@ -4465,6 +4485,16 @@ export function kitFor(panKey, opts) {
   (opts.floorExtra || []).forEach((x) => {
     push(lines, x.key || x.item, x.qty || 1, "floor", x.note || "", false);
   });
+  // A 2"-deep pan's extensions sit low — the kit carries the ½" sheet the
+  // shop rips into build-up strips underneath them (owner practice).
+  if (option && panThick(pan) >= 1.9) {
+    const extSf = extensionSf(option);
+    const sheet = item(BUILDUP_SHEET);
+    if (extSf > 0 && sheet && sheet.sf) {
+      push(lines, sheet, Math.ceil(extSf / sheet.sf), "floor",
+        extSf + ' sf of build-up strips — shims the extensions flush with the 2" pan', true);
+    }
+  }
 
   // --- walls -----------------------------------------------------------------
   const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
@@ -4767,23 +4797,36 @@ function drainAtOptions(input, list, fam) {
         if (!lay) { dead = true; return; }
         pieces = pieces.concat(runPieces("ext", lay, x0, y0, sideLen, horizontal));
       };
-      fill(gL, 0, py, pd, true);
-      fill(gR, px + pw, py, pd, true);
-      fill(gB, px, 0, pw, false);
-      fill(gF, px, py + pd, pw, false);
+      // Corner cells: up to 12×12 the 16½" L-shaped corner extension wraps
+      // the corner; past that the straight bands RUN THROUGH the corner and
+      // mitre at 45° — each stick bought at its full longest-point length —
+      // so a corner is always filled and figured, never left blank (owner
+      // rule 2026-07-30).
+      const cells = [
+        { k: "bl", gx: gL, gy: gB, x: 0, y: 0 },
+        { k: "br", gx: gR, gy: gB, x: px + pw, y: 0 },
+        { k: "fl", gx: gL, gy: gF, x: 0, y: py + pd },
+        { k: "fr", gx: gR, gy: gF, x: px + pw, y: py + pd },
+      ];
+      const mit = {};
+      cells.forEach((c) => {
+        if (!(c.gx > 0 && c.gy > 0)) return;
+        if (c.gx <= CORNER_MAX && c.gy <= CORNER_MAX) c.ext = true;
+        else { mit[c.k] = true; warn.push("corner over 12\" — the straights run through it, mitred at 45°"); }
+      });
+      fill(gL, 0, mit.bl ? 0 : py, (mit.bl ? gB : 0) + pd + (mit.fl ? gF : 0), true);
+      fill(gR, px + pw, mit.br ? 0 : py, (mit.br ? gB : 0) + pd + (mit.fr ? gF : 0), true);
+      fill(gB, mit.bl ? 0 : px, 0, (mit.bl ? gL : 0) + pw + (mit.br ? gR : 0), false);
+      fill(gF, mit.fl ? 0 : px, py + pd, (mit.fl ? gL : 0) + pw + (mit.fr ? gR : 0), false);
       if (dead) return;
-      // corner cells where two adjacent gaps meet
-      [[gL, gB, 0, 0], [gR, gB, px + pw, 0], [gL, gF, 0, py + pd], [gR, gF, px + pw, py + pd]]
-        .forEach((c) => {
-          if (!(c[0] > 0 && c[1] > 0) || dead) return;
-          if (c[0] <= CORNER_MAX && c[1] <= CORNER_MAX) {
-            const ce = item(spec.corner);
-            pieces.push({
-              kind: "cornerExt", item: ce, x: c[2], y: c[3], w: c[0], d: c[1],
-              cut: (c[0] < ce.w - 0.01 || c[1] < ce.d - 0.01) ? { w: ce.w, d: ce.d } : null,
-            });
-          } else warn.push("corner over 12\" — mitre two straights at 45° instead of a corner extension");
+      cells.forEach((c) => {
+        if (!c.ext) return;
+        const ce = item(spec.corner);
+        pieces.push({
+          kind: "cornerExt", item: ce, x: c.x, y: c.y, w: c.gx, d: c.gy,
+          cut: (c.gx < ce.w - 0.01 || c.gy < ce.d - 0.01) ? { w: ce.w, d: ce.d } : null,
         });
+      });
       const lines = aggregate(pieces);
       const cuts = pieces.filter((x) => !!x.cut).length;
       warn.unshift(seamWarning(pieces.length - 1));
@@ -4807,6 +4850,14 @@ function drainAtOptions(input, list, fam) {
     seen[c.pan.key] = true;
     out.push(c);
   });
+  // The biggest pan always earns a card (owner rule 2026-07-30): most of the
+  // floor in one piece even when the parts run dearer — the seller decides.
+  const big = cands.slice().sort((a, b) => (b.pan.w * b.pan.d) - (a.pan.w * a.pan.d)
+    || a.pieces.length - b.pieces.length || a.floorPrice - b.floorPrice)[0];
+  if (big && !seen[big.pan.key]) {
+    big.badges = ["Biggest pan"].concat(big.badges);
+    out.push(big);
+  }
   return out;
 }
 
@@ -4920,11 +4971,16 @@ export function solve(input) {
     return true;
   });
 
+  const buildupWarn = (opts_) => opts_.forEach((o) => {
+    if (panThick(o.pan) >= 1.9 && o.pieces.some((p) => p.kind !== "pan" && p.kind !== "module"))
+      o.warnings.push(BUILDUP_NOTE);
+  });
   let out = [];
   if (input.drainX > 0 && input.drainY > 0) {
     // The drain position is the constraint — every option honors it, and
     // the list arrives pre-ranked (pieces, trims, price): keep that order.
     out = drainAtOptions(input, list, fam);
+    buildupWarn(out);
   } else {
     if (input.drain !== "linear") {
       [exactOption(input, list)].concat(extendOption(input, list, fam))
@@ -4935,6 +4991,7 @@ export function solve(input) {
       const lin = linearOption(input);
       if (lin) out.push(lin);
     }
+    buildupWarn(out);
     out.sort((a, b) => a.warnings.length - b.warnings.length || a.floorPrice - b.floorPrice);
   }
   if (out.length) {
