@@ -1,9 +1,13 @@
-import { useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical } from "lucide-react";
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
+
+// Lazy so the wedi tables stay in their own chunk (ADR 0026) — opening the hub
+// for labels must not pay for ~2 000 catalog rows.
+const WediConfigurator = lazy(() => import("./WediConfigurator.jsx"));
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
@@ -95,27 +99,29 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
   );
 }
 
-export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga }) {
+export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi }) {
   const [app, setApp] = useState("labels");
-  // Sheoga (Apps hub): the basket stages locally — nothing touches a real
+  // Configurators (Apps hub): builds stage locally — nothing touches a real
   // project until the salesperson picks a destination. A commit request parks
-  // its lines in `pending` and raises the destination prompt when an order is
-  // open (accidental wrong-order guard); with nothing open there's no ambiguity,
-  // so it goes straight to a new quick price. pendingRef lets onClose ignore the
-  // popup's own auto-close (SheogaConfigurator closes itself after a bundle
-  // move) so a pending choice never unmounts the configurator and loses the build.
+  // its lines in `pending` (with the configurator's own commit handlers as
+  // `dest`, so Sheoga and wedi share one prompt) and raises the destination
+  // prompt when an order is open (accidental wrong-order guard); with nothing
+  // open there's no ambiguity, so it goes straight to a new quick price.
+  // pendingRef lets onClose ignore the popup's own auto-close
+  // (SheogaConfigurator closes itself after a bundle move) so a pending choice
+  // never unmounts the configurator and loses the build.
   const [sheogaBasket, setSheogaBasket] = useState([]);
   const [pending, setPendingState] = useState(null);
   const pendingRef = useRef(null);
   const setPending = (v) => { pendingRef.current = v; setPendingState(v); };
-  const requestCommit = (lines, nextBasket) => {
+  const requestCommit = (dest, lines, nextBasket) => {
     if (!lines || !lines.length) return;
-    if (sheoga?.currentName) setPending({ lines, nextBasket });
-    else commitTo("new", lines, nextBasket);
+    if (dest?.currentName) setPending({ dest, lines, nextBasket });
+    else commitTo("new", { dest, lines, nextBasket });
   };
-  const commitTo = (where, lines, nextBasket) => {
-    if (where === "current") sheoga.addToCurrent(lines); else sheoga.addToNew(lines);
-    setSheogaBasket(nextBasket || []);
+  const commitTo = (where, p) => {
+    if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
+    if (p.dest === sheoga) setSheogaBasket(p.nextBasket || []);
     setPending(null);
   };
   const first = presets[0] || normPreset({ id: "sample-tag" });
@@ -240,6 +246,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
           <nav className="px-2 space-y-0.5">
             <button onClick={() => setApp("labels")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "labels" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Label Generator</button>
             {sheoga && <button onClick={() => setApp("sheoga")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "sheoga" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Sheoga configurator</button>}
+            {wedi && <button onClick={() => setApp("wedi")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "wedi" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>wedi configurator</button>}
             <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-400">More coming soon</div>
           </nav>
           <div className="mt-auto p-4 text-[11px] text-slate-400 border-t border-slate-100">A home for shop tools.</div>
@@ -429,11 +436,22 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               basket={sheogaBasket}
               onBasketChange={setSheogaBasket}
               areaName={sheoga.currentName || "a new quick price"}
-              onAdd={(lines) => requestCommit(lines, null)}
-              onMove={(lines) => requestCommit(lines, null)}
-              onMoveEntries={(lines, nextBasket) => requestCommit(lines, nextBasket)}
+              onAdd={(lines) => requestCommit(sheoga, lines, null)}
+              onMove={(lines) => requestCommit(sheoga, lines, null)}
+              onMoveEntries={(lines, nextBasket) => requestCommit(sheoga, lines, nextBasket)}
               onClose={() => { if (!pendingRef.current) setApp("labels"); }}
             />
+          )}
+          {app === "wedi" && wedi && (
+            <Suspense fallback={null}>
+              <WediConfigurator
+                embedded
+                wediBuilderPct={wedi.builderPct}
+                areaName={wedi.currentName || "a new quick price"}
+                onAdd={(lines) => requestCommit(wedi, lines, null)}
+                onClose={() => { if (!pendingRef.current) setApp("labels"); }}
+              />
+            </Suspense>
           )}
         </div>
       </div>
@@ -443,11 +461,11 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
             <h3 className="ft-serif text-xl mb-1">Add to which project?</h3>
             <p className="text-sm text-slate-500 mb-4">{pending.lines.length} product line{pending.lines.length > 1 ? "s" : ""} ready to place.</p>
             <div className="space-y-2">
-              <button onClick={() => commitTo("current", pending.lines, pending.nextBasket)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
+              <button onClick={() => commitTo("current", pending)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
                 <div className="text-sm font-semibold text-slate-800">Current project</div>
-                <div className="text-xs text-slate-500 truncate">{sheoga.currentName}</div>
+                <div className="text-xs text-slate-500 truncate">{pending.dest.currentName}</div>
               </button>
-              <button onClick={() => commitTo("new", pending.lines, pending.nextBasket)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
+              <button onClick={() => commitTo("new", pending)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
                 <div className="text-sm font-semibold text-slate-800">New quick price</div>
                 <div className="text-xs text-slate-500">Start a fresh unnamed order</div>
               </button>

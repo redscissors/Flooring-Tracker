@@ -846,7 +846,7 @@ function seedState(seed) {
   return s;
 }
 
-export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, onAdd, onClose, areaName, onConfigChange }) {
+export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, onAdd, onClose, areaName, onConfigChange, embedded = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -1763,8 +1763,15 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     <div className="bline" key={e.key + l.group}>
                       <div className="bn">
                         <div className="n"><FinDot e={e} />{unwedi(e.name)}</div>
-                        <div className="m"><b>{e.stock ? e.erp : "SO " + e.us}</b>
-                          {l.note ? " · " + l.note : finName(e) ? " · " + finName(e) : e.sizeText ? " · " + e.sizeText : ""}</div>
+                        {(() => {
+                          // Contents lead, the auto note follows — the line truncates from
+                          // the right, and "100 ct" is the part that must survive it.
+                          const meta = [finName(e) || e.sizeText, l.note].filter(Boolean);
+                          return (
+                            <div className="m" title={meta.join(" · ") || undefined}><b>{e.stock ? e.erp : "SO " + e.us}</b>
+                              {meta.map((s) => " · " + s).join("")}</div>
+                          );
+                        })()}
                       </div>
                       {can && <button className="swapb" title="swap" onClick={(ev) => setSwap({ key: e.key, rect: ev.currentTarget.getBoundingClientRect() })}>⇄</button>}
                       <div className="stepper">
@@ -2121,19 +2128,28 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   ];
 
   return (
-    <div className="print:hidden fixed inset-0 z-[70] flex items-start justify-center overflow-auto p-4"
-      style={{ background: "rgba(20,15,10,.55)" }} onClick={onClose}>
+    // Embedded (the Apps hub, like Sheoga): no backdrop or fixed overlay — the
+    // hub's main column is the frame; the outer scroll keeps the 1120px body
+    // usable on narrow windows the way the popup's overlay scroll does.
+    <div className={embedded
+        ? "relative flex-1 min-h-0 flex flex-col overflow-auto"
+        : "print:hidden fixed inset-0 z-[70] flex items-start justify-center overflow-auto p-4"}
+      style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
       <style>{CSS}</style>
-      <div className="wedi-pop relative w-full max-w-[1680px] rounded-xl border shadow-2xl flex flex-col overflow-hidden"
-        style={{ background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: "min(940px, 94vh)", minHeight: 560 }}
-        onClick={(e) => e.stopPropagation()} data-wedi-pop>
+      <div className={`wedi-pop relative w-full flex flex-col overflow-hidden ${embedded
+          ? "flex-1 min-h-0 min-w-[1120px]"
+          : "max-w-[1680px] rounded-xl border shadow-2xl"}`}
+        style={embedded
+          ? { background: "var(--ft-cream)" }
+          : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: "min(940px, 94vh)", minHeight: 560 }}
+        onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-pop>
         <div className="pop-head">
           <div>
             <div className="eyebrow">Vendor configurator</div>
             <div className="name">wedi shower systems <small>sell = book retail · cost = distributor net</small></div>
           </div>
           {tierBar}
-          <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>
+          {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
         </div>
         <div className="modetabs">
           {TAB_DEFS.map((d) => (
