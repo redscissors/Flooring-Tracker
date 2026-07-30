@@ -448,8 +448,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
       const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
+      // the band rides the OUTSIDE of the cut edge (owner markup) — its
+      // inner face on the cut line, body over the cut-off triangle
       const nrm = Math.sqrt(d.h * d.h + d.v * d.v) || 1;
-      const ox2 = dx * CD * (d.v / nrm), oy2 = dy * CD * (d.h / nrm);
+      const ox2 = -dx * CD * (d.v / nrm), oy2 = -dy * CD * (d.h / nrm);
       push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(bx + ox2)},${Y(by + oy2)} ${X(ax + ox2)},${Y(ay + oy2)}`}
         fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
     });
@@ -603,7 +605,7 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags }) {
     const [cx, cy, dx, dy] = g2;
     const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
     const nrm = Math.sqrt(d.h * d.h + d.v * d.v) || 1;
-    const ox = dx * CBW * (d.v / nrm), oy = dy * CBW * (d.h / nrm);
+    const ox = -dx * CBW * (d.v / nrm), oy = -dy * CBW * (d.h / nrm);
     els.push(<polygon key={`cde${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx + ox, by + oy, CBH), M(ax + ox, ay + oy, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
@@ -908,7 +910,14 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   };
 
   const resetBuild = () => { setQtyOv({}); setAddons([]); setManual([]); setOpts({ ...DEF_OPTS }); };
-  const pickPan = (key) => { setPanKey(key); setOption(null); resetBuild(); };
+  // Only a genuinely modified wall survives a kit/room change (owner rule):
+  // a typed length that just equals the OUTGOING geometry's auto length was
+  // only tracking the kit, so it clears back to auto and follows the new one.
+  const retuneWalls = () => {
+    const auto = autoWallLens(pan, option ? option.room : null);
+    setWalls((ws) => ws.map((w) => (w.len !== "" && Math.abs(+w.len - (auto[w.id] || 0)) < 0.01 ? { ...w, len: "" } : w)));
+  };
+  const pickPan = (key) => { retuneWalls(); setPanKey(key); setOption(null); resetBuild(); };
 
   const runSolve = (next) => {
     const i = next || inp;
@@ -916,12 +925,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       w: +i.w || 0, d: +i.d || 0, curb: i.curb, drain: i.drain, tolerance: 0.51,
       drainX: +i.drainX || 0, drainY: +i.drainY || 0, anchor: i.anchor || "left",
     });
+    retuneWalls();
     setResults(res);
     if (res.length) { setOption(res[0]); setPanKey(res[0].pan.key); } else { setOption(null); setPanKey(null); }
     resetBuild();
   };
   const setInput = (patch) => { const next = { ...inp, ...patch }; setInp(next); runSolve(next); };
-  const selectOption = (k) => { const o = results[k]; if (!o) return; setOption(o); setPanKey(o.pan.key); resetBuild(); };
+  const selectOption = (k) => { const o = results[k]; if (!o) return; retuneWalls(); setOption(o); setPanKey(o.pan.key); resetBuild(); };
 
   // One-shot at mount: the room always arrives solved, so the Custom tab is
   // never a bare form claiming "no option fits" for a size it hasn't tried.
@@ -1423,7 +1433,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 <div className="bg-h">{bk[1]}
                   {bk[0] === "walls" && pan && (
                     <span className="wallctl">
-                      {!option && <button className="wtgl" title="swap which side is the back (long ↔ short)" onClick={() => setWallFlip((v) => !v)}>⇄</button>}
+                      {!option && <button className="wtgl" title="swap which side is the back (long ↔ short)" onClick={() => { retuneWalls(); setWallFlip((v) => !v); }}>⇄</button>}
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
                         <button className={!panelFit ? "on" : ""} title="one sheet size, by area" onClick={() => setPanelFit(false)}>One size</button>

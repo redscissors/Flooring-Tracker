@@ -104,5 +104,11 @@ await entryLen.press("Enter");
 await pg.waitForTimeout(500);
 await pg.locator(".diagcol").screenshot({ path: `${OUT}/W7-wall-to-wall-cut.png` });
 
+// W8 — kit-size change: only the modified walls (right 28", the 14" entry
+// wall) survive; the untouched back/left follow the new 60×60 kit.
+await pg.evaluate(() => { [...document.querySelectorAll(".pancard")].find((c) => c.textContent.includes("60×60")).click(); });
+await pg.waitForTimeout(500);
+await popup.screenshot({ path: `${OUT}/W8-kit-change-walls.png` });
+
 console.log(errs.length ? "PAGE ERRORS:\n" + errs.join("\n") : "no page errors");
 await b.close();

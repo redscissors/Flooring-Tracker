@@ -314,7 +314,13 @@ landed in the prototype (engine rules carry self-tests):
     gives one 28×14 line and zero straight curb runs); only a wall-less
     edge, or one walled to the corner, takes the standard 12" leg (the
     classic neo-angle chamfer). `curbRuns` carries the legs; the chamfer,
-    curb diagonal, cut lists, and print notes all read them.
+    curb diagonal, cut lists, and print notes all read them. The diagonal
+    curb band rides the OUTSIDE of the cut edge (owner markup) — inner face
+    on the cut line, body over the cut-off triangle — in both views.
+32. **Only a modified wall survives a kit change** (owner rule): picking a
+    different pan/option (or Flip) clears any typed wall length that just
+    equals the outgoing geometry's auto length, so untouched walls follow
+    the new kit size while genuinely edited walls (and added walls) stay.
 
 ## Assumptions to confirm before production
 
