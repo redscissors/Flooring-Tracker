@@ -106,6 +106,10 @@ const CSS = `
 .wedi-pop .browsebar{display:flex;gap:8px;margin-bottom:10px}
 .wedi-pop .browsebar .inp{flex:1;width:auto}
 .wedi-pop .gchips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.wedi-pop .seccols{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
+.wedi-pop .seccols .ft-hopt{flex:0 0 auto;width:100%;cursor:pointer}
+.wedi-pop .seccols small{margin-left:auto;font-weight:600;opacity:.55;padding-left:10px;font-size:9.5px}
+.wedi-pop .quickstack{display:flex;flex-direction:column;gap:6px;min-width:104px}
 .wedi-pop .gchip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--ft-muted);cursor:pointer}
 .wedi-pop .gchip.on{background:var(--ft-text);border-color:var(--ft-text);color:var(--ft-cream)}
 .wedi-pop .gchip small{font-weight:600;opacity:.65;margin-left:3px}
@@ -323,7 +327,7 @@ function topGeom(o, W_, H_, mini) {
 // ticked on them, the pieces with their cut edges dashed, curb runs on the
 // open edges, the drain (with the plumber's two measurements when it was
 // pinned), 45° corner cuts chamfered off the pan, and dimensions.
-function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, curbDiags, placing, onCorner, onEdge }) {
+function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placing, onCorner, onEdge }) {
   const g = topGeom(o, w, h, mini);
   const { ox, oy, sc, rw, rd } = g;
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
@@ -397,38 +401,55 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, curbDiags, pla
 
   if (!mini) {
     const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
-    // 45° corner cuts chamfer the pan itself: the cut-off triangle reads as
-    // floor again, the cut line dashes rust like every other cut.
-    Object.keys(CGEOM).forEach((k) => {
-      if (!corners || !corners[k]) return;
-      const [cx, cy, dx, dy] = CGEOM[k];
-      push(<polygon key={`cf${k}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * CORNER_CUT)},${Y(cy)} ${X(cx)},${Y(cy + dy * CORNER_CUT)}`} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
-      push(<line key={`c${k}`} x1={X(cx + dx * CORNER_CUT)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * CORNER_CUT)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
-      push(<text key={`ct${k}`} x={X(cx + dx * CORNER_CUT * 0.42)} y={Y(cy + dy * CORNER_CUT * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
+    // Corner cuts chamfer the pan itself: the cut-off triangle reads as floor
+    // again, the cut line dashes rust like every other cut. The legs come
+    // from curbRuns — a wall ending near the corner pulls the line straight
+    // to its end (owner rule: wall to wall, no dogleg).
+    (cuts || []).forEach((d) => {
+      const g2 = CGEOM[d.corner];
+      if (!g2) return;
+      const [cx, cy, dx, dy] = g2;
+      push(<polygon key={`cf${d.corner}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * d.h)},${Y(cy)} ${X(cx)},${Y(cy + dy * d.v)}`} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
+      push(<line key={`c${d.corner}`} x1={X(cx + dx * d.h)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * d.v)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
+      if (d.h === d.v) push(<text key={`ct${d.corner}`} x={X(cx + dx * d.h * 0.42)} y={Y(cy + dy * d.v * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
     });
-    // Curb runs on the open edges — where there is no wall, there is curb —
-    // and a cut corner re-routes it up the 45° diagonal (owner sketch).
+    // Curb runs sit IN the wall band, butted between the wall sections
+    // (owner sketch) — same ring the walls draw in, slightly thinner — and a
+    // cut corner's curb takes the one straight line across the cut.
     const CD = 3.5;
+    const cw = round2(CD * sc);
+    const covD = { back: 0, left: 0, right: 0, entry: 0 };
+    (dw || []).forEach((wl) => {
+      covD[wl.side] = Math.max(covD[wl.side], Math.min(wl.len, wl.side === "back" || wl.side === "entry" ? rw : rd));
+    });
     (curbs || []).forEach((cs, ci) => {
       const horiz = cs.side === "back" || cs.side === "entry";
       const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
       if (!(len > 0)) return;
-      const x0 = horiz ? cs.from : (cs.side === "left" ? 0 : rw - CD);
-      const y0 = horiz ? (cs.side === "back" ? 0 : rd - CD) : cs.from;
-      const cw = horiz ? len : CD, cd = horiz ? CD : len;
-      push(<rect key={`cb${ci}`} x={X(x0)} y={Y(y0)} width={round2(cw * sc)} height={round2(cd * sc)} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
-      if (len * sc > 34) {
-        const tx = X(x0 + cw / 2), ty = Y(y0 + cd / 2) + 2.5;
-        push(<text key={`cbt${ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED}
-          fontFamily={FONT} letterSpacing="1.5" transform={horiz ? undefined : `rotate(-90 ${tx} ${ty})`}>CURB</text>);
+      if (horiz) {
+        // fill the ring corner square when no wall band occupies it
+        const vCovAt = (side) => (cs.side === "back" ? covD[side] > 0.5 : covD[side] >= rd - 0.5);
+        const extL = cs.from <= 0.5 && !vCovAt("left") ? cw : 0;
+        const extR = cs.from + len >= rw - 0.5 && !vCovAt("right") ? cw : 0;
+        const y0 = cs.side === "back" ? Y(0) - cw : Y(rd);
+        push(<rect key={`cb${ci}`} x={X(cs.from) - extL} y={y0} width={round2(len * sc + extL + extR)} height={cw} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+        if (len * sc > 34) push(<text key={`cbt${ci}`} x={X(cs.from + len / 2)} y={y0 + cw / 2 + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
+      } else {
+        const x0 = cs.side === "left" ? X(0) - cw : X(rw);
+        push(<rect key={`cb${ci}`} x={x0} y={Y(cs.from)} width={cw} height={round2(len * sc)} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+        if (len * sc > 34) {
+          const tx = x0 + cw / 2, ty = Y(cs.from + len / 2) + 2.5;
+          push(<text key={`cbt${ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5" transform={`rotate(-90 ${tx} ${ty})`}>CURB</text>);
+        }
       }
     });
     (curbDiags || []).forEach((d, i) => {
       const g2 = CGEOM[d.corner];
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
-      const ax = cx + dx * CORNER_CUT, ay = cy, bx = cx, by = cy + dy * CORNER_CUT;
-      const ox2 = dx * CD * 0.707, oy2 = dy * CD * 0.707;
+      const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
+      const nrm = Math.sqrt(d.h * d.h + d.v * d.v) || 1;
+      const ox2 = dx * CD * (d.v / nrm), oy2 = dy * CD * (d.h / nrm);
       push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(bx + ox2)},${Y(by + oy2)} ${X(ax + ox2)},${Y(ay + oy2)}`}
         fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
     });
@@ -464,8 +485,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, curbDiags, pla
     push(<line key="dd" x1={dx} y1={Y(0)} x2={dx} y2={Y(rd)} stroke={FAINT} strokeWidth="1" />);
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
-    push(<text key="ent" x={X(rw / 2)} y={Y(rd) - 6 - ((curbs || []).some((c) => c.side === "entry") ? 3.5 * sc : 0)}
-      textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
+    push(<text key="ent" x={X(rw / 2)} y={Y(rd) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
   }
 
   const clickable = !mini && (onCorner || onEdge);
@@ -490,7 +510,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, curbDiags, pla
 
 // The isometric: each wall at its own height, the Fit plan's level courses and
 // butt joints dotted onto the wall planes, the pieces as 4"-thick slabs.
-function Iso({ o, w, h, dWalls, panelFit, corners, curbs, curbDiags }) {
+function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const bySide = {};
@@ -550,25 +570,27 @@ function Iso({ o, w, h, dWalls, panelFit, corners, curbs, curbDiags }) {
     }
   });
 
-  // 45° corner cuts chamfer the floor's top face; the cut line dashes rust.
+  // Corner cuts chamfer the floor's top face; the cut line dashes rust. Legs
+  // come from curbRuns (a nearby wall end pulls the line to it).
   const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
-  Object.keys(CGEOM).forEach((k) => {
-    if (!corners || !corners[k]) return;
-    const [cx, cy, dx, dy] = CGEOM[k];
-    els.push(<polygon key={`cf${k}`} points={str([M(cx, cy, t), M(cx + dx * CORNER_CUT, cy, t), M(cx, cy + dy * CORNER_CUT, t)])} fill={PAPER} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
-    const a = M(cx + dx * CORNER_CUT, cy, t), b = M(cx, cy + dy * CORNER_CUT, t);
-    els.push(<line key={`cfl${k}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
+  (cuts || []).forEach((d) => {
+    const g2 = CGEOM[d.corner];
+    if (!g2) return;
+    const [cx, cy, dx, dy] = g2;
+    els.push(<polygon key={`cf${d.corner}`} points={str([M(cx, cy, t), M(cx + dx * d.h, cy, t), M(cx, cy + dy * d.v, t)])} fill={PAPER} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
+    const a = M(cx + dx * d.h, cy, t), b = M(cx, cy + dy * d.v, t);
+    els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
 
-  // Curb runs as raised slabs along the open edges; a cut corner's curb turns
-  // up the 45° diagonal.
+  // Curb runs as raised slabs in the wall ring, butted between the wall
+  // sections; a cut corner's curb takes the one straight line across.
   const CBW = 3, CBH = 4.5;
   (curbs || []).forEach((cs, ci) => {
     const horiz = cs.side === "back" || cs.side === "entry";
     const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
     if (!(len > 0)) return;
-    const x0 = horiz ? cs.from : (cs.side === "left" ? 0 : rw - CBW);
-    const y0 = horiz ? (cs.side === "back" ? 0 : rd - CBW) : cs.from;
+    const x0 = horiz ? cs.from : (cs.side === "left" ? -CBW : rw);
+    const y0 = horiz ? (cs.side === "back" ? -CBW : rd) : cs.from;
     const x1 = horiz ? cs.from + len : x0 + CBW;
     const y1 = horiz ? y0 + CBW : cs.from + len;
     els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
@@ -579,8 +601,9 @@ function Iso({ o, w, h, dWalls, panelFit, corners, curbs, curbDiags }) {
     const g2 = CGEOM[d.corner];
     if (!g2) return;
     const [cx, cy, dx, dy] = g2;
-    const ax = cx + dx * CORNER_CUT, ay = cy, bx = cx, by = cy + dy * CORNER_CUT;
-    const ox = dx * CBW * 0.707, oy = dy * CBW * 0.707;
+    const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
+    const nrm = Math.sqrt(d.h * d.h + d.v * d.v) || 1;
+    const ox = dx * CBW * (d.v / nrm), oy = dy * CBW * (d.h / nrm);
     els.push(<polygon key={`cde${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx + ox, by + oy, CBH), M(ax + ox, ay + oy, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
@@ -959,9 +982,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // Which corners can take a 45° cut (not boxed in by two walls), and where
   // the curb runs — the open edges, drawn only when the build carries a curb.
   const cornerOpenMap = useMemo(() => (diag ? openCorners(diag.room, buildWalls) : null), [diag, buildWalls]);
+  // cuts drive the chamfer in both drawings (curbless showers cut too); the
+  // curb bands only draw when the build actually carries a curb line.
   const curb = useMemo(() => {
-    if (!diag || !build || !build.lines.some((l) => l.item.group === "curb")) return { segs: [], diags: [] };
-    return curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]));
+    if (!diag) return { segs: [], diags: [], cuts: [] };
+    const runs = curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]));
+    const hasCurb = !!build && build.lines.some((l) => l.item.group === "curb");
+    return { segs: hasCurb ? runs.segs : [], diags: hasCurb ? runs.diags : [], cuts: runs.diags };
   }, [diag, build, buildWalls, corners]);
   // A wall change can box a cut corner in — drop the cut rather than draw a
   // cut through a standing wall.
@@ -1200,11 +1227,16 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     {p.kind === "pan" ? "" : " — trim the thick edge; the slope lands on the pan"}</span>
                 </div>
               ))}
-              {CORNER_LBL.filter((c) => corners[c[0]]).map((c) => (
-                <div className="warnrow" key={"cc" + c[0]}><span className="ic">✂</span>
-                  <span>45° corner cut at {c[1]} — cut the pan across 12″ legs on site; glass or framing runs the diagonal</span>
-                </div>
-              ))}
+              {CORNER_LBL.filter((c) => corners[c[0]]).map((c) => {
+                const d = curb.cuts.find((x) => x.corner === c[0]);
+                const legs = d ? inch(d.h) + "″ × " + inch(d.v) + "″" : "12″ × 12″";
+                const even = !d || d.h === d.v;
+                return (
+                  <div className="warnrow" key={"cc" + c[0]}><span className="ic">✂</span>
+                    <span>Corner cut at {c[1]} — {legs} legs{even ? " (45°)" : ", straight to the wall end"}; cut the pan on site, glass or framing runs the line</span>
+                  </div>
+                );
+              })}
               {sel.warnings.map((wt, i) => (
                 <div className={"warnrow" + (/re-create|re-formed|mitre|off the room/.test(wt) ? " bad" : "")} key={"w" + i}>
                   <span className="ic">•</span><span>{wt}</span>
@@ -1271,29 +1303,59 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="figfoot">wedi's own planning rates: 1 screw + washer per ft² of panel · 1.2 oz sealant per ft² — Illustrated Price List pp. 19–21 · spacing 12″ walls / 6″ ceilings</div>
           </div>
         )}
-        <div className="gchips">
-          <button className={"gchip" + (!sec ? " on" : "")} onClick={() => { setSec(""); setSub(""); }}>All <small>{cat.length}</small></button>
-          {BROWSE_SECTIONS.map((s) => (
-            <button key={s.key} className={"gchip" + (sec === s.key ? " on" : "")}
-              onClick={() => { setSec(sec === s.key ? "" : s.key); setSub(""); }}>
-              {s.label} <small>{cat.filter((e) => sectionHit(s, e)).length}</small>
-            </button>
-          ))}
-          <button className={"gchip" + (sec === "starred" ? " on" : "")}
-            onClick={() => { setSec(sec === "starred" ? "" : "starred"); setSub(""); }}>
-            ★ Starred <small>{starred.size}</small>
-          </button>
-        </div>
-        {activeSec && activeSec.subs && (
-          <div className="gchips">
-            {activeSec.subs.map((sb) => (
-              <button key={sb.key} className={"gchip" + (sub === sb.key ? " on" : "")}
-                onClick={() => setSub(sub === sb.key ? "" : sb.key)}>
-                {sb.label} <small>{cat.filter(sb.hit).length}</small>
+        {/* The filter board (owner sketch 2026-07-30): the project header's
+            column cards — each section a labeled column of stacked rows, the
+            quick filters their own boxes down the right. One thing active at
+            a time; clicking it again returns to All. */}
+        <div className="seccols">
+          {BROWSE_SECTIONS.filter((s) => s.subs).map((s) => {
+            const secOn = sec === s.key && !sub;
+            return (
+              <div className="ft-hcol" style={{ minWidth: 116 }} key={s.key}>
+                <button className="ft-hhead w-full text-left cursor-pointer"
+                  style={secOn ? { background: "var(--ft-text)", color: "var(--ft-cream)" } : undefined}
+                  title={"everything in " + s.label}
+                  onClick={() => { const off = secOn; setSec(off ? "" : s.key); setSub(""); }}>
+                  {s.label}<small>{cat.filter((e) => sectionHit(s, e)).length}</small>
+                </button>
+                {s.subs.map((sb) => {
+                  const on = sec === s.key && sub === sb.key;
+                  return (
+                    <button key={sb.key} className={"ft-hopt" + (on ? " on bg-indigo-600" : "")}
+                      onClick={() => { setSec(on ? "" : s.key); setSub(on ? "" : sb.key); }}>
+                      {sb.label}<small>{cat.filter(sb.hit).length}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+          <div className="quickstack">
+            {BROWSE_SECTIONS.filter((s) => !s.subs).map((s) => {
+              const on = sec === s.key;
+              return (
+                <div className="ft-hcol" key={s.key}>
+                  <button className={"ft-hopt" + (on ? " on bg-indigo-600" : "")}
+                    onClick={() => { setSec(on ? "" : s.key); setSub(""); }}>
+                    {s.label}<small>{cat.filter((e) => sectionHit(s, e)).length}</small>
+                  </button>
+                </div>
+              );
+            })}
+            <div className="ft-hcol">
+              <button className={"ft-hopt" + (!sec ? " on bg-indigo-600" : "")} onClick={() => { setSec(""); setSub(""); }}>
+                All<small>{cat.length}</small>
               </button>
-            ))}
+            </div>
+            <div className="ft-hcol">
+              <button className={"ft-hopt" + (sec === "starred" ? " on bg-indigo-600" : "")}
+                title="items pinned with the row star"
+                onClick={() => { setSec(sec === "starred" ? "" : "starred"); setSub(""); }}>
+                ★ Starred<small>{starred.size}</small>
+              </button>
+            </div>
           </div>
-        )}
+        </div>
         {list.slice(0, MAX).map((e) => {
           const n = qtyIn(e.key);
           return (
@@ -1397,14 +1459,14 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     <button className={"addchip" + (placing ? " on" : "")} onClick={() => {
                       const next = !placing;
                       setPlacing(next);
-                      if (next) say("Click an edge on the top-down drawing to add a wall — an open corner toggles a 45° cut");
+                      if (next) say("Click an edge on the top-down drawing to add a wall — an open corner toggles a corner cut");
                     }}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
                     {(() => {
                       const openList = CORNER_LBL.filter((c) => cornerOpenMap && cornerOpenMap[c[0]]);
                       const allCut = openList.length > 0 && openList.every((c) => corners[c[0]]);
                       return (
                         <button className={"addchip" + (allCut ? " on" : "")} disabled={!openList.length}
-                          title="45° cut the pan at every corner not boxed in by walls — single corners click on the drawing"
+                          title="cut the pan at every corner not boxed in by walls — straight to a nearby wall end, 45° otherwise; single corners click on the drawing"
                           onClick={() => setCorners((o) => {
                             const n = { ...o };
                             openList.forEach((c) => { n[c[0]] = !allCut; });
@@ -1413,7 +1475,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                       );
                     })()}
                     {cornerOn.length > 0 && (
-                      <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>45° cuts: {cornerOn.map((c) => c[1]).join(", ")}</span>
+                      <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>corner cuts: {cornerOn.map((c) => c[1]).join(", ")}</span>
                     )}
                   </div>
                 </>)}
@@ -1515,8 +1577,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="dc-empty">Pick a pan or solve a room — the top-down layout and isometric view draw here for whatever is selected.</div>
       </>) : (<>
         <div className="dc-h">Top-down layout</div>
-        {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a 45° cut</div>}
-        <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} corners={corners} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
+        {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
+        <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
           onCorner={(c) => {
             if (cornerOpenMap && !cornerOpenMap[c]) { say("That corner sits between two walls — shorten or turn one off to cut it"); return; }
             setCorners((o) => ({ ...o, [c]: !o[c] }));
@@ -1533,11 +1595,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
-        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} corners={corners} curbs={curb.segs} curbDiags={curb.diags} />
+        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} />
         <div className="dc-legend">
           seams dashed moss · cuts dashed rust · curb drawn on the open edges ·{" "}
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
-          {" "}· an open corner clicks to toggle a 45° pan cut
+          {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
         </div>
       </>)}
     </div>
@@ -1643,9 +1705,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </div>
       <div className="ps-diags">
         <div className="d"><div className="dh">Top-down layout</div>
-          <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} corners={corners} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
         <div className="d"><div className="dh">Isometric</div>
-          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} corners={corners} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
       </div>
       {(diag.pieces.some((p) => p.cut) || (diag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>
@@ -1653,9 +1715,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <div className="ps-warn" key={"c" + i}>✂ Cut {p.item.us || p.item.erp} to {inch(p.w)}″ × {inch(p.d)}″ (from {inch(p.cut.w)}″ × {inch(p.cut.d)}″)</div>
         ))}
         {(diag.warnings || []).map((wt, i) => <div className="ps-warn" key={"w" + i}>• {wt}</div>)}
-        {CORNER_LBL.filter((c) => corners[c[0]]).map((c) => (
-          <div className="ps-warn" key={c[0]}>✂ 45° corner cut at {c[1]} — cut the pan across 12″ legs; glass or framing runs the diagonal</div>
-        ))}
+        {CORNER_LBL.filter((c) => corners[c[0]]).map((c) => {
+          const d = curb.cuts.find((x) => x.corner === c[0]);
+          const legs = d ? inch(d.h) + "″ × " + inch(d.v) + "″" : "12″ × 12″";
+          return (
+            <div className="ps-warn" key={c[0]}>✂ Corner cut at {c[1]} — {legs} legs{!d || d.h === d.v ? " (45°)" : ", straight to the wall end"}; glass or framing runs the line</div>
+          );
+        })}
         {diag.drain && diag.drain.note && <div className="ps-warn">• {diag.drain.note}</div>}
       </>)}
       <div className="ps-sec">Materials</div>

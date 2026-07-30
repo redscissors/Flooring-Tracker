@@ -282,23 +282,37 @@ landed in the prototype (engine rules carry self-tests):
 25. Preview harness: `wedi-preview.html` + `src/wedipreview.jsx` mount the
     real component with no Supabase (the freight `preview.html` pattern);
     `shoot-walls.mjs` retakes W1–W6.
-26. **Browse reorganized to the owner's sketch**: section chips — Pans
-    (Standard/Curbless/Linear/S-Dry) · Covers (Square/Linear/Frames) ·
-    Add-ons (Curbs/Extensions/Niches/Benches/Building panels) · Misc
-    (Sealant/Fasteners/Tapes/Drains/Tools/Collars) — plus Kits and S-Dry as
-    quick filters (`BROWSE_SECTIONS` in wedi.js; a test pins that every
-    catalog entry has a home). The big "Figure sealant & fasteners" header
-    card compacted into a button beside the search box.
+26. **Browse reorganized to the owner's sketch**: the filters render as the
+    sketch's COLUMNS, in the project header's card language (`ft-hcol` /
+    `ft-hhead` / `ft-hopt`, pressed-ink active row) — Pans (Standard /
+    Curbless / Linear / S-Dry) · Covers (Square/Linear/Frames) · Add-ons
+    (Curbs/Extensions/Niches/Benches/Building panels) · Misc (Sealant/
+    Fasteners/Tapes/Drains/Tools/Collars), with Kits · S-Dry · All ·
+    ★ Starred as their own boxes down the right (`BROWSE_SECTIONS` in
+    wedi.js; a test pins that every catalog entry has a home). Column
+    headers select the whole section; one filter active at a time. The big
+    "Figure sealant & fasteners" header card compacted into a button beside
+    the search box.
 27. **Starred items**: a ☆ on every Browse row pins it, the ★ Starred chip
     shows just the pins. Per-device (localStorage `ft-wedi-starred`), like
     the header-layout switch — a personal shortlist, not shared data.
 28. **Walls draw at their true 4" depth** in the top-down (owner sketch),
     not a hairline band; thumbnails keep the hairline.
-29. **The curb follows a 45° cut** (owner sketch): `curbRuns` trims the
-    straight runs 12" short of a cut corner and adds a 12√2 ≈ 17" mitred
-    diagonal piece — drawn in both views and counted in the curb line's
-    open length, so cutting both entry corners of a 36×60 kit moves the
+29. **The curb follows a corner cut** (owner sketch): `curbRuns` trims the
+    straight runs back by the cut's legs and adds the mitred diagonal
+    piece — drawn in both views and counted in the curb line's open
+    length, so cutting both entry corners of a 36×60 kit moves the
     default pick up to the 96" lean curb.
+30. **The curb sits IN the wall band, butted between the wall sections**
+    (owner correction) — both drawings moved it from an inset band inside
+    the room to the same ring the walls draw in, ends butting the wall
+    faces, ring corners filled where two open runs meet.
+31. **A corner cut is a straight line wall to wall, never a dogleg** (owner
+    correction): a wall ending within 2×12" of the corner pulls the cut
+    line straight to ITS END (`curbRuns` legs h × v — 12×16 for a 20" wall
+    in a 36" room; 45° only when even), absorbing the sliver the old fixed
+    12" chamfer left stranded. The chamfer, curb diagonal, cut lists, and
+    print notes all read the legs.
 
 ## Assumptions to confirm before production
 

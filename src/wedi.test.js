@@ -262,19 +262,23 @@ test("wedi open edges: curbs follow the open perimeter, corners only cut open", 
   assert.deepEqual(kitCut.cfg.corners, ["fl", "fr"], "cfg.corners carries the cut corners");
   assert.deepEqual(kitFor("US9100004").cfg.corners, [], "no cuts → cfg.corners []");
 
-  // A 45° cut re-routes the curb along the diagonal (owner sketch): the
-  // straight runs stop 12" short and one 12√2 ≈ 17" mitred piece joins.
+  // A corner cut re-routes the curb as ONE straight line (owner sketch):
+  // standard legs are 12", but a wall ending within 24" of the corner pulls
+  // the cut line straight to ITS END — no leftover sliver, no dogleg.
   const r1 = curbRuns(dims, threeWalls, []);
   assert.deepEqual(r1.segs, [{ side: "entry", from: 0, len: 60 }], "no cuts → curb = the open runs");
   assert.equal(r1.openLen, 60, "no cuts → openLen unchanged");
   const r2 = curbRuns(dims, threeWalls, ["fr"]);
   assert.deepEqual(r2.segs, [{ side: "entry", from: 0, len: 48 }], "fr cut trims the entry run 12\"");
-  assert.deepEqual(r2.diags, [{ corner: "fr" }], "one diagonal at fr");
+  assert.deepEqual(r2.diags, [{ corner: "fr", h: 12, v: 12, len: 16.97 }],
+    "full walls → the standard 12 × 12 (45°) cut against the wall face");
   assert.ok(near(r2.openLen, 48 + 16.97), "openLen = 48 + 12√2: " + r2.openLen);
   const r3 = curbRuns(dims, [threeWalls[0], threeWalls[1], { len: 20, h: 96, side: "right" }], ["fr"]);
-  assert.deepEqual(r3.segs, [{ side: "right", from: 20, len: 4 }, { side: "entry", from: 0, len: 48 }],
-    "fr cut trims BOTH its open legs — the 16\" right run and the entry run");
-  assert.ok(near(r3.openLen, 4 + 48 + 16.97), "openLen sums runs + the diagonal: " + r3.openLen);
+  assert.deepEqual(r3.diags, [{ corner: "fr", h: 12, v: 16, len: 20 }],
+    "right wall ends 16\" from the corner → the cut line lands on the wall end (12 × 16)");
+  assert.deepEqual(r3.segs, [{ side: "entry", from: 0, len: 48 }],
+    "the 16\" right sliver is absorbed into the diagonal — no dogleg");
+  assert.ok(near(r3.openLen, 48 + 20), "openLen = entry run + the wall-to-wall line: " + r3.openLen);
   // Cutting both entry corners of the 36×60 kit pushes the curb past 60",
   // so the default pick moves up to the 96" lean curb.
   const kitCut2 = kitFor("US9100004", { corners: ["fl", "fr"] });

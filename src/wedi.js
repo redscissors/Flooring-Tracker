@@ -4303,33 +4303,53 @@ export function openEdges(dims, walls) {
   return { edges: edges, openLen: round2(edges.reduce((s, e) => s + e.len, 0)), cov: cov };
 }
 
-// Where the curb actually runs (owner sketch 2026-07-30): the open edge runs,
-// but a 45° corner cut re-routes it — the straight runs stop CORNER_CUT short
-// of a cut corner and the curb turns up the diagonal to meet the wall, so a
-// cut corner swaps up to two 12" legs for one 17" mitred piece.
-export const CORNER_CUT = 12;    // the cut's legs along each edge
+// Where the curb actually runs (owner sketches 2026-07-30): the open edge
+// runs, with a corner cut re-routing it as ONE straight line — never a
+// dogleg. Each cut carries a leg along each adjacent edge: when a wall ends
+// within 2×CORNER_CUT of the corner the leg reaches THAT WALL'S END (the
+// owner's "always a straight line from one wall to another"), otherwise it
+// takes the standard CORNER_CUT; an edge walled to the corner keeps the
+// standard leg too (the cut lands against the wall face). The straight runs
+// give up exactly those legs, so the leftover sliver a wall-end cut would
+// strand is absorbed into the diagonal.
+export const CORNER_CUT = 12;    // the cut's default leg along each edge
 export function curbRuns(dims, walls, corners) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
   const open = openEdges(dims, walls);
+  const cov = open.cov;
   const cut = {};
   (corners || []).forEach((k) => { cut[k] = true; });
-  // Which cut corners each edge run can touch: [corner at the run's anchored
-  // end (touches only when the run starts at 0), corner at the far end (a run
-  // always reaches it)].
+  // The open run touching each corner, per adjacent edge (h = along the
+  // back/entry edge, v = along the left/right edge); 0 = walled to the corner.
+  const touch = {
+    bl: { h: cov.back > 0.5 ? 0 : rw, v: cov.left > 0.5 ? 0 : rd },
+    br: { h: Math.max(0, rw - Math.min(cov.back, rw)), v: cov.right > 0.5 ? 0 : rd },
+    fl: { h: cov.entry > 0.5 ? 0 : rw, v: Math.max(0, rd - Math.min(cov.left, rd)) },
+    fr: { h: Math.max(0, rw - Math.min(cov.entry, rw)), v: Math.max(0, rd - Math.min(cov.right, rd)) },
+  };
+  const leg = (run, max) => Math.min(max, run > 0.5 && run <= 2 * CORNER_CUT ? run : CORNER_CUT);
+  const diags = Object.keys(cut).sort().map((k) => {
+    const h = leg(touch[k].h, rw), v = leg(touch[k].v, rd);
+    return { corner: k, h: round2(h), v: round2(v), len: round2(Math.sqrt(h * h + v * v)) };
+  });
+  const diagOf = {};
+  diags.forEach((d) => { diagOf[d.corner] = d; });
+  // Corner at each run's anchored end (touches only when the run starts at 0)
+  // and far end (a run always reaches it).
   const ENDS = { back: ["bl", "br"], left: ["bl", "fl"], right: ["br", "fr"], entry: ["fl", "fr"] };
   const segs = [];
   open.edges.forEach((e) => {
     let from = e.from, len = e.len;
+    const horiz = e.side === "back" || e.side === "entry";
     const ends = ENDS[e.side];
-    if (cut[ends[0]] && from <= 0.5) { const t = Math.min(CORNER_CUT, len); from += t; len -= t; }
-    if (cut[ends[1]]) len -= Math.min(CORNER_CUT, len);
+    const legAt = (k) => (horiz ? diagOf[k].h : diagOf[k].v);
+    if (cut[ends[0]] && from <= 0.5) { const t = Math.min(legAt(ends[0]), len); from += t; len -= t; }
+    if (cut[ends[1]]) len -= Math.min(legAt(ends[1]), len);
     if (len > 0.5) segs.push({ side: e.side, from: round2(from), len: round2(len) });
   });
-  const diags = Object.keys(cut).filter((k) => cut[k]).sort().map((k) => ({ corner: k }));
-  const diagLen = round2(CORNER_CUT * Math.SQRT2);
   return {
     segs: segs, diags: diags,
-    openLen: round2(segs.reduce((s, x) => s + x.len, 0) + diags.length * diagLen),
+    openLen: round2(segs.reduce((s, x) => s + x.len, 0) + diags.reduce((s, d) => s + d.len, 0)),
   };
 }
 

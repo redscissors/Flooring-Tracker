@@ -43,9 +43,7 @@ console.log("boxed-corner toast:", toast || "(none)");
 // consumables figurer folded into a button beside the search box.
 await pg.locator(".modetab").nth(2).click();
 await pg.waitForTimeout(400);
-await pg.locator(".gchip", { hasText: "Add-ons" }).click();
-await pg.waitForTimeout(250);
-await pg.locator(".gchip", { hasText: "Niches" }).click();
+await pg.locator(".seccols .ft-hopt", { hasText: "Niches" }).click();
 await pg.waitForTimeout(300);
 await popup.screenshot({ path: `${OUT}/W5-browse-sections.png` });
 
@@ -54,12 +52,14 @@ await pg.locator(".brow .starb").nth(0).click();
 await pg.waitForTimeout(150);
 await pg.locator(".brow .starb").nth(1).click();
 await pg.waitForTimeout(150);
-await pg.locator(".gchip", { hasText: "Starred" }).click();
+await pg.locator(".quickstack .ft-hopt", { hasText: "Starred" }).click();
 await pg.waitForTimeout(250);
 await pg.locator(".browsebar .gchip").click();
 await pg.waitForTimeout(300);
 await popup.screenshot({ path: `${OUT}/W6-browse-starred.png` });
 await pg.locator(".browsebar .gchip").click();
+await pg.waitForTimeout(150);
+await pg.locator(".quickstack .ft-hopt", { hasText: "All" }).click();
 await pg.waitForTimeout(150);
 
 // W3 — Custom tab, 48×66: pick the top option, add an entry wall by clicking
