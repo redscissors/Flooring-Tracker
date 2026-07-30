@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan, openEdges, openCorners,
+  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  openEdges, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
@@ -260,6 +261,41 @@ test("wedi open edges: curbs follow the open perimeter, corners only cut open", 
   const kitCut = kitFor("US9100004", { corners: ["fl", "fr"] });
   assert.deepEqual(kitCut.cfg.corners, ["fl", "fr"], "cfg.corners carries the cut corners");
   assert.deepEqual(kitFor("US9100004").cfg.corners, [], "no cuts → cfg.corners []");
+
+  // A 45° cut re-routes the curb along the diagonal (owner sketch): the
+  // straight runs stop 12" short and one 12√2 ≈ 17" mitred piece joins.
+  const r1 = curbRuns(dims, threeWalls, []);
+  assert.deepEqual(r1.segs, [{ side: "entry", from: 0, len: 60 }], "no cuts → curb = the open runs");
+  assert.equal(r1.openLen, 60, "no cuts → openLen unchanged");
+  const r2 = curbRuns(dims, threeWalls, ["fr"]);
+  assert.deepEqual(r2.segs, [{ side: "entry", from: 0, len: 48 }], "fr cut trims the entry run 12\"");
+  assert.deepEqual(r2.diags, [{ corner: "fr" }], "one diagonal at fr");
+  assert.ok(near(r2.openLen, 48 + 16.97), "openLen = 48 + 12√2: " + r2.openLen);
+  const r3 = curbRuns(dims, [threeWalls[0], threeWalls[1], { len: 20, h: 96, side: "right" }], ["fr"]);
+  assert.deepEqual(r3.segs, [{ side: "right", from: 20, len: 4 }, { side: "entry", from: 0, len: 48 }],
+    "fr cut trims BOTH its open legs — the 16\" right run and the entry run");
+  assert.ok(near(r3.openLen, 4 + 48 + 16.97), "openLen sums runs + the diagonal: " + r3.openLen);
+  // Cutting both entry corners of the 36×60 kit pushes the curb past 60",
+  // so the default pick moves up to the 96" lean curb.
+  const kitCut2 = kitFor("US9100004", { corners: ["fl", "fr"] });
+  const curb2 = kitCut2.lines.filter((l) => l.item.group === "curb")[0];
+  assert.ok(curb2.item.key === "US3000040" && curb2.qty === 1,
+    "36×60 with both entry corners cut → 69.94\" of curb → one 96\" lean: " + JSON.stringify({ key: curb2.item.key, qty: curb2.qty }));
+});
+
+// --- browse taxonomy ----------------------------------------------------------
+
+test("wedi browse sections: every catalog entry has a home", () => {
+  const cat = catalog();
+  const orphans = cat.filter((e) => !BROWSE_SECTIONS.some((s) => sectionHit(s, e)));
+  assert.deepEqual(orphans.map((e) => e.group + " " + (e.us || e.erp)), [], "no orphaned entries");
+  const pansSec = BROWSE_SECTIONS[0];
+  assert.equal(cat.filter((e) => sectionHit(pansSec, e)).length,
+    cat.filter((e) => e.group === "pan" || e.group === "module").length,
+    "Pans = every pan + the linear modules");
+  const sdrySec = BROWSE_SECTIONS.filter((s) => s.key === "sdry")[0];
+  assert.ok(cat.filter((e) => sectionHit(sdrySec, e)).length === 35,
+    "S-Dry quick filter = 31 system pieces + 4 S-DRY bases");
 });
 
 // --- solver -------------------------------------------------------------------

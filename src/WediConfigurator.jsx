@@ -17,7 +17,8 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  openEdges, openCorners, tierPrice, lineItems, inch, round2, TIERS, SKU,
+  openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
 } from "./wedi.js";
 
@@ -174,6 +175,8 @@ const CSS = `
 .wedi-pop .bline .stepper .q.ov{color:var(--w-rust)}
 .wedi-pop .swapb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:20px;height:20px;font-size:11px;color:var(--ft-muted);cursor:pointer;line-height:1}
 .wedi-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.wedi-pop .starb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:22px;height:22px;font-size:12px;color:var(--ft-faint);cursor:pointer;line-height:1;padding:0}
+.wedi-pop .starb.on{color:#C9A050;border-color:#C9A050}
 .wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:7px 0 2px}
 .wedi-pop .addchip{border:1px dashed var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;color:var(--ft-muted);cursor:pointer}
 .wedi-pop .addchip.on{border-style:solid;background:var(--ft-brand-soft);border-color:var(--ft-brand);color:var(--ft-brand-deep)}
@@ -310,9 +313,9 @@ const RUST = "#B4552D", PAPER = "#FBFAF5";
 const FONT = "Manrope,sans-serif";
 
 function topGeom(o, W_, H_, mini) {
-  const pad = mini ? 6 : 42, padT = mini ? 6 : 30;
+  const pad = mini ? 6 : 46, padT = mini ? 6 : 30;
   const rw = o.room.w, rd = o.room.d;
-  const sc = Math.min((W_ - pad * 2) / rw, (H_ - padT - (mini ? 6 : 26)) / rd);
+  const sc = Math.min((W_ - pad * 2) / rw, (H_ - padT - (mini ? 6 : 42)) / rd);
   return { ox: (W_ - rw * sc) / 2, oy: padT, sc, rw, rd };
 }
 
@@ -320,11 +323,13 @@ function topGeom(o, W_, H_, mini) {
 // ticked on them, the pieces with their cut edges dashed, curb runs on the
 // open edges, the drain (with the plumber's two measurements when it was
 // pinned), 45° corner cuts chamfered off the pan, and dimensions.
-function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, placing, onCorner, onEdge }) {
+function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, curbDiags, placing, onCorner, onEdge }) {
   const g = topGeom(o, w, h, mini);
   const { ox, oy, sc, rw, rd } = g;
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
-  const wallW = mini ? 2.5 : 5;
+  // Walls draw at their true 4" framing depth (owner sketch 2026-07-30);
+  // the thumbnails keep a hairline band.
+  const wallW = mini ? 2.5 : round2(4 * sc);
   const on = wallOn || {};
   const els = [];
   const push = (el) => els.push(el);
@@ -390,8 +395,19 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, placing, onCor
     });
   }
 
-  // Curb runs on the open edges — where there is no wall, there is curb.
   if (!mini) {
+    const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
+    // 45° corner cuts chamfer the pan itself: the cut-off triangle reads as
+    // floor again, the cut line dashes rust like every other cut.
+    Object.keys(CGEOM).forEach((k) => {
+      if (!corners || !corners[k]) return;
+      const [cx, cy, dx, dy] = CGEOM[k];
+      push(<polygon key={`cf${k}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * CORNER_CUT)},${Y(cy)} ${X(cx)},${Y(cy + dy * CORNER_CUT)}`} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
+      push(<line key={`c${k}`} x1={X(cx + dx * CORNER_CUT)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * CORNER_CUT)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
+      push(<text key={`ct${k}`} x={X(cx + dx * CORNER_CUT * 0.42)} y={Y(cy + dy * CORNER_CUT * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
+    });
+    // Curb runs on the open edges — where there is no wall, there is curb —
+    // and a cut corner re-routes it up the 45° diagonal (owner sketch).
     const CD = 3.5;
     (curbs || []).forEach((cs, ci) => {
       const horiz = cs.side === "back" || cs.side === "entry";
@@ -407,15 +423,14 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, placing, onCor
           fontFamily={FONT} letterSpacing="1.5" transform={horiz ? undefined : `rotate(-90 ${tx} ${ty})`}>CURB</text>);
       }
     });
-    // 45° corner cuts chamfer the pan itself: the cut-off triangle reads as
-    // floor again, the cut line dashes rust like every other cut.
-    const CH = 12;
-    [["bl", 0, 0, 1, 1], ["br", rw, 0, -1, 1], ["fl", 0, rd, 1, -1], ["fr", rw, rd, -1, -1]].forEach((c) => {
-      if (!corners || !corners[c[0]]) return;
-      const cx = c[1], cy = c[2], dx = c[3], dy = c[4];
-      push(<polygon key={`cf${c[0]}`} points={`${X(cx)},${Y(cy)} ${X(cx + dx * CH)},${Y(cy)} ${X(cx)},${Y(cy + dy * CH)}`} fill={PAPER} stroke={FAINT} strokeWidth="1" />);
-      push(<line key={`c${c[0]}`} x1={X(cx + dx * CH)} y1={Y(cy)} x2={X(cx)} y2={Y(cy + dy * CH)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
-      push(<text key={`ct${c[0]}`} x={X(cx + dx * CH * 0.42)} y={Y(cy + dy * CH * 0.42) + 2.5} textAnchor="middle" fontSize="6.5" fontWeight="700" fill={RUST} fontFamily={FONT}>45°</text>);
+    (curbDiags || []).forEach((d, i) => {
+      const g2 = CGEOM[d.corner];
+      if (!g2) return;
+      const [cx, cy, dx, dy] = g2;
+      const ax = cx + dx * CORNER_CUT, ay = cy, bx = cx, by = cy + dy * CORNER_CUT;
+      const ox2 = dx * CD * 0.707, oy2 = dy * CD * 0.707;
+      push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(bx + ox2)},${Y(by + oy2)} ${X(ax + ox2)},${Y(ay + oy2)}`}
+        fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
     });
   }
 
@@ -443,7 +458,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, placing, onCor
   }
 
   if (!mini) {
-    const dy = Y(rd) + 16, dx = X(0) - 16;
+    const dy = Y(rd) + wallW + 12, dx = X(0) - wallW - 10;
     push(<line key="dw" x1={X(0)} y1={dy} x2={X(rw)} y2={dy} stroke={FAINT} strokeWidth="1" />);
     push(<text key="dwt" x={X(rw / 2)} y={dy - 3} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}>{inch(rw) + '"'}</text>);
     push(<line key="dd" x1={dx} y1={Y(0)} x2={dx} y2={Y(rd)} stroke={FAINT} strokeWidth="1" />);
@@ -475,7 +490,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, corners, curbs, placing, onCor
 
 // The isometric: each wall at its own height, the Fit plan's level courses and
 // butt joints dotted onto the wall planes, the pieces as 4"-thick slabs.
-function Iso({ o, w, h, dWalls, panelFit, corners, curbs }) {
+function Iso({ o, w, h, dWalls, panelFit, corners, curbs, curbDiags }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const bySide = {};
@@ -536,16 +551,17 @@ function Iso({ o, w, h, dWalls, panelFit, corners, curbs }) {
   });
 
   // 45° corner cuts chamfer the floor's top face; the cut line dashes rust.
-  const CH = 12;
-  [["bl", 0, 0, 1, 1], ["br", rw, 0, -1, 1], ["fl", 0, rd, 1, -1], ["fr", rw, rd, -1, -1]].forEach((c) => {
-    if (!corners || !corners[c[0]]) return;
-    const cx = c[1], cy = c[2], dx = c[3], dy = c[4];
-    els.push(<polygon key={`cf${c[0]}`} points={str([M(cx, cy, t), M(cx + dx * CH, cy, t), M(cx, cy + dy * CH, t)])} fill={PAPER} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
-    const a = M(cx + dx * CH, cy, t), b = M(cx, cy + dy * CH, t);
-    els.push(<line key={`cfl${c[0]}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
+  const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
+  Object.keys(CGEOM).forEach((k) => {
+    if (!corners || !corners[k]) return;
+    const [cx, cy, dx, dy] = CGEOM[k];
+    els.push(<polygon key={`cf${k}`} points={str([M(cx, cy, t), M(cx + dx * CORNER_CUT, cy, t), M(cx, cy + dy * CORNER_CUT, t)])} fill={PAPER} stroke="rgba(28,26,23,.25)" strokeWidth=".7" />);
+    const a = M(cx + dx * CORNER_CUT, cy, t), b = M(cx, cy + dy * CORNER_CUT, t);
+    els.push(<line key={`cfl${k}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
 
-  // Curb runs as raised slabs along the open edges.
+  // Curb runs as raised slabs along the open edges; a cut corner's curb turns
+  // up the 45° diagonal.
   const CBW = 3, CBH = 4.5;
   (curbs || []).forEach((cs, ci) => {
     const horiz = cs.side === "back" || cs.side === "entry";
@@ -558,6 +574,15 @@ function Iso({ o, w, h, dWalls, panelFit, corners, curbs }) {
     els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+  });
+  (curbDiags || []).forEach((d, i) => {
+    const g2 = CGEOM[d.corner];
+    if (!g2) return;
+    const [cx, cy, dx, dy] = g2;
+    const ax = cx + dx * CORNER_CUT, ay = cy, bx = cx, by = cy + dy * CORNER_CUT;
+    const ox = dx * CBW * 0.707, oy = dy * CBW * 0.707;
+    els.push(<polygon key={`cde${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx + ox, by + oy, CBH), M(ax + ox, ay + oy, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
 
   const dr = o.drain;
@@ -670,8 +695,22 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [wallH, setWallH] = useState(s0.wallH);
   const [panelFit, setPanelFit] = useState(true);
   const [q, setQ] = useState(s0.q);
-  const [grp, setGrp] = useState("");
+  const [sec, setSec] = useState("");      // "", "starred", or a BROWSE_SECTIONS key
+  const [sub, setSub] = useState("");      // sub-filter within the active section
+  const [figOpen, setFigOpen] = useState(false);
   const [figSf, setFigSf] = useState("");
+  // Starred items (owner sketch 2026-07-30): a per-device pin list, the ★
+  // filter shows just them. localStorage, not the shared record — it's a
+  // personal shortlist like the header-layout switch.
+  const [starred, setStarred] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("ft-wedi-starred") || "[]")); } catch (x) { return new Set(); }
+  });
+  const toggleStar = (key) => setStarred((s) => {
+    const n = new Set(s);
+    if (n.has(key)) n.delete(key); else n.add(key);
+    try { localStorage.setItem("ft-wedi-starred", JSON.stringify([...n])); } catch (x) { }
+    return n;
+  });
   const [swap, setSwap] = useState(null);     // { key, rect }
   const [payload, setPayload] = useState(null);
   const [printing, setPrinting] = useState(false);
@@ -920,10 +959,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // Which corners can take a 45° cut (not boxed in by two walls), and where
   // the curb runs — the open edges, drawn only when the build carries a curb.
   const cornerOpenMap = useMemo(() => (diag ? openCorners(diag.room, buildWalls) : null), [diag, buildWalls]);
-  const curbSegs = useMemo(() => {
-    if (!diag || !build || !build.lines.some((l) => l.item.group === "curb")) return [];
-    return openEdges(diag.room, buildWalls).edges;
-  }, [diag, build, buildWalls]);
+  const curb = useMemo(() => {
+    if (!diag || !build || !build.lines.some((l) => l.item.group === "curb")) return { segs: [], diags: [] };
+    return curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]));
+  }, [diag, build, buildWalls, corners]);
   // A wall change can box a cut corner in — drop the cut rather than draw a
   // cut through a standing wall.
   useEffect(() => {
@@ -1183,12 +1222,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const sfDefault = build ? build.panelSf : 0;
     const sf = figSf === "" ? sfDefault : +figSf || 0;
     const fig = figureConsumables(sf, opts.sealantForm);
-    const counts = {};
-    cat.forEach((e) => { counts[e.group] = (counts[e.group] || 0) + 1; });
-    const groups = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    const activeSec = BROWSE_SECTIONS.find((s) => s.key === sec) || null;
+    const activeSub = activeSec && activeSec.subs ? activeSec.subs.find((s) => s.key === sub) || null : null;
     const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
     const list = cat.filter((e) => {
-      if (grp && e.group !== grp) return false;
+      if (sec === "starred" && !starred.has(e.key)) return false;
+      if (activeSec && !(activeSub ? activeSub.hit(e) : sectionHit(activeSec, e))) return false;
       if (!toks.length) return true;
       const hay = (e.name + " " + e.us + " " + e.erp + " " + e.desc + " " + (GROUP_LABEL[e.group] || "") + " " + e.sizeText).toLowerCase();
       return toks.every((t) => hay.indexOf(t) >= 0);
@@ -1208,33 +1247,53 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     };
     return (
       <>
-        <div className="figcard">
-          <div className="fh">Figure sealant &amp; fasteners — wedi's own planning rates</div>
-          <div className="fr">
-            Panel area <NumIn className="inp" value={figSf === "" ? (sfDefault ? String(sfDefault) : "") : figSf}
-              placeholder={String(sfDefault || "sf")} onCommit={(v) => setFigSf(v)} /> sf
-            {" · "}
-            <span className="seg" style={{ display: "inline-flex" }}>
-              <button className={opts.sealantForm === "tube" ? "on" : ""} onClick={() => setOpts((o) => ({ ...o, sealantForm: "tube" }))}>10.5 oz tube</button>
-              <button className={opts.sealantForm === "sausage" ? "on" : ""} onClick={() => setOpts((o) => ({ ...o, sealantForm: "sausage" }))}>20 oz sausage</button>
-            </span>
-            {sf > 0 && (<>
-              {" → "}<b>{fig.fastenerCount}</b> fasteners = <b>{fig.lines[0].qty}</b> kit{fig.lines[0].qty > 1 ? "s" : ""}
-              {" · "}<b>{fig.sealantOz}</b> oz = <b>{fig.lines[1].qty}</b> {opts.sealantForm === "tube" ? "tubes" : "sausages"}
-              <button className="wbtn" style={{ flex: "none", padding: "5px 10px", marginLeft: 6 }} onClick={addFigured}>Add to build</button>
-            </>)}
-          </div>
-          <div className="figfoot">1 screw + washer per ft² of panel · 1.2 oz sealant per ft² — Illustrated Price List pp. 19–21 · spacing 12″ walls / 6″ ceilings</div>
-        </div>
         <div className="browsebar">
           <input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the wedi catalog — name, SKU, group…" />
+          <button className={"gchip" + (figOpen ? " on" : "")} style={{ flex: "none" }}
+            onClick={() => setFigOpen((v) => !v)}>Figure sealant &amp; fasteners</button>
         </div>
+        {figOpen && (
+          <div className="figcard">
+            <div className="fr">
+              Panel area <NumIn className="inp" value={figSf === "" ? (sfDefault ? String(sfDefault) : "") : figSf}
+                placeholder={String(sfDefault || "sf")} onCommit={(v) => setFigSf(v)} /> sf
+              {" · "}
+              <span className="seg" style={{ display: "inline-flex" }}>
+                <button className={opts.sealantForm === "tube" ? "on" : ""} onClick={() => setOpts((o) => ({ ...o, sealantForm: "tube" }))}>10.5 oz tube</button>
+                <button className={opts.sealantForm === "sausage" ? "on" : ""} onClick={() => setOpts((o) => ({ ...o, sealantForm: "sausage" }))}>20 oz sausage</button>
+              </span>
+              {sf > 0 && (<>
+                {" → "}<b>{fig.fastenerCount}</b> fasteners = <b>{fig.lines[0].qty}</b> kit{fig.lines[0].qty > 1 ? "s" : ""}
+                {" · "}<b>{fig.sealantOz}</b> oz = <b>{fig.lines[1].qty}</b> {opts.sealantForm === "tube" ? "tubes" : "sausages"}
+                <button className="wbtn" style={{ flex: "none", padding: "5px 10px", marginLeft: 6 }} onClick={addFigured}>Add to build</button>
+              </>)}
+            </div>
+            <div className="figfoot">wedi's own planning rates: 1 screw + washer per ft² of panel · 1.2 oz sealant per ft² — Illustrated Price List pp. 19–21 · spacing 12″ walls / 6″ ceilings</div>
+          </div>
+        )}
         <div className="gchips">
-          <button className={"gchip" + (!grp ? " on" : "")} onClick={() => setGrp("")}>All <small>{cat.length}</small></button>
-          {groups.map((g) => (
-            <button key={g} className={"gchip" + (grp === g ? " on" : "")} onClick={() => setGrp(g)}>{GROUP_LABEL[g] || g} <small>{counts[g]}</small></button>
+          <button className={"gchip" + (!sec ? " on" : "")} onClick={() => { setSec(""); setSub(""); }}>All <small>{cat.length}</small></button>
+          {BROWSE_SECTIONS.map((s) => (
+            <button key={s.key} className={"gchip" + (sec === s.key ? " on" : "")}
+              onClick={() => { setSec(sec === s.key ? "" : s.key); setSub(""); }}>
+              {s.label} <small>{cat.filter((e) => sectionHit(s, e)).length}</small>
+            </button>
           ))}
+          <button className={"gchip" + (sec === "starred" ? " on" : "")}
+            onClick={() => { setSec(sec === "starred" ? "" : "starred"); setSub(""); }}>
+            ★ Starred <small>{starred.size}</small>
+          </button>
         </div>
+        {activeSec && activeSec.subs && (
+          <div className="gchips">
+            {activeSec.subs.map((sb) => (
+              <button key={sb.key} className={"gchip" + (sub === sb.key ? " on" : "")}
+                onClick={() => setSub(sub === sb.key ? "" : sb.key)}>
+                {sb.label} <small>{cat.filter(sb.hit).length}</small>
+              </button>
+            ))}
+          </div>
+        )}
         {list.slice(0, MAX).map((e) => {
           const n = qtyIn(e.key);
           return (
@@ -1245,6 +1304,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 <div className="s">{[finName(e), GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</div>
               </div>
               <div className="sku">{e.stock ? e.erp : e.us}</div>
+              <button className={"starb" + (starred.has(e.key) ? " on" : "")}
+                title={starred.has(e.key) ? "unpin from Starred" : "pin to Starred"}
+                onClick={() => toggleStar(e.key)}>{starred.has(e.key) ? "★" : "☆"}</button>
               <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}<small>{tierId !== "retail" ? "retail " + fm(e.retail) : " "}</small></div>
               <div className="stepper">
                 <button onClick={() => step(e.key, -1)}>−</button>
@@ -1254,7 +1316,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             </div>
           );
         })}
-        {list.length > MAX && <div className="more">{list.length - MAX} more — narrow the search or pick a group chip</div>}
+        {list.length > MAX && <div className="more">{list.length - MAX} more — narrow the search or pick a section chip</div>}
+        {sec === "starred" && !starred.size && (
+          <div className="nores">Nothing starred yet — the ☆ on any row pins it here.</div>
+        )}
       </>
     );
   })();
@@ -1451,7 +1516,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </>) : (<>
         <div className="dc-h">Top-down layout</div>
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a 45° cut</div>}
-        <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} corners={corners} curbs={curbSegs} placing={placing}
+        <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} corners={corners} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
           onCorner={(c) => {
             if (cornerOpenMap && !cornerOpenMap[c]) { say("That corner sits between two walls — shorten or turn one off to cut it"); return; }
             setCorners((o) => ({ ...o, [c]: !o[c] }));
@@ -1468,7 +1533,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
-        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} corners={corners} curbs={curbSegs} />
+        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} corners={corners} curbs={curb.segs} curbDiags={curb.diags} />
         <div className="dc-legend">
           seams dashed moss · cuts dashed rust · curb drawn on the open edges ·{" "}
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
@@ -1578,9 +1643,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </div>
       <div className="ps-diags">
         <div className="d"><div className="dh">Top-down layout</div>
-          <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} corners={corners} curbs={curbSegs} /></div>
+          <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} corners={corners} curbs={curb.segs} curbDiags={curb.diags} /></div>
         <div className="d"><div className="dh">Isometric</div>
-          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} corners={corners} curbs={curbSegs} /></div>
+          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} corners={corners} curbs={curb.segs} curbDiags={curb.diags} /></div>
       </div>
       {(diag.pieces.some((p) => p.cut) || (diag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>

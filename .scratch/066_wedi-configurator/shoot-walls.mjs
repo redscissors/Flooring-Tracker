@@ -39,6 +39,29 @@ await pg.waitForTimeout(300);
 const toast = await pg.locator(".wedi-toast").textContent().catch(() => "");
 console.log("boxed-corner toast:", toast || "(none)");
 
+// W5 — Browse: the sketched taxonomy — section chips with sub-filters, the
+// consumables figurer folded into a button beside the search box.
+await pg.locator(".modetab").nth(2).click();
+await pg.waitForTimeout(400);
+await pg.locator(".gchip", { hasText: "Add-ons" }).click();
+await pg.waitForTimeout(250);
+await pg.locator(".gchip", { hasText: "Niches" }).click();
+await pg.waitForTimeout(300);
+await popup.screenshot({ path: `${OUT}/W5-browse-sections.png` });
+
+// W6 — star two rows, then the ★ Starred filter with the figurer opened.
+await pg.locator(".brow .starb").nth(0).click();
+await pg.waitForTimeout(150);
+await pg.locator(".brow .starb").nth(1).click();
+await pg.waitForTimeout(150);
+await pg.locator(".gchip", { hasText: "Starred" }).click();
+await pg.waitForTimeout(250);
+await pg.locator(".browsebar .gchip").click();
+await pg.waitForTimeout(300);
+await popup.screenshot({ path: `${OUT}/W6-browse-starred.png` });
+await pg.locator(".browsebar .gchip").click();
+await pg.waitForTimeout(150);
+
 // W3 — Custom tab, 48×66: pick the top option, add an entry wall by clicking
 // the drawing's bottom edge — the wall lands as a row, draws in moss, and the
 // curb run shrinks to the remaining doorway.

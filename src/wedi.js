@@ -3812,6 +3812,41 @@ export const GROUP_LABEL = {
   subliner: "Subliner & tapes", kit: "Factory kits", sdry: "S-DRY system", misc: "Other",
 };
 
+// The Browse tab's taxonomy (owner sketch 2026-07-30): four labeled sections
+// with sub-filters, plus Kits and S-Dry as their own quick filters. Every
+// catalog entry lands in at least one section (wedi.test.js pins it).
+export const BROWSE_SECTIONS = [
+  { key: "pans", label: "Pans", subs: [
+    { key: "standard", label: "Standard", hit: (e) => e.group === "pan" && e.sub === "fundo" },
+    { key: "curbless", label: "Curbless", hit: (e) => e.group === "pan" && e.sub === "curbless" },
+    { key: "linear", label: "Linear", hit: (e) => (e.group === "pan" && e.sub === "linear") || e.group === "module" },
+    { key: "sdry", label: "S-Dry", hit: (e) => e.group === "pan" && e.sub === "sdry" },
+  ] },
+  { key: "covers", label: "Covers", subs: [
+    { key: "square", label: "Square", hit: (e) => e.group === "cover" && e.sub === "point" },
+    { key: "linear", label: "Linear", hit: (e) => e.group === "cover" && e.sub === "linear" },
+    { key: "frames", label: "Frames", hit: (e) => e.group === "coverFrame" },
+  ] },
+  { key: "addons", label: "Add-ons", subs: [
+    { key: "curbs", label: "Curbs", hit: (e) => e.group === "curb" },
+    { key: "extensions", label: "Extensions", hit: (e) => e.group === "extension" || e.group === "cornerExt" || e.group === "modExt" || e.group === "ramp" },
+    { key: "niches", label: "Niches", hit: (e) => e.group === "niche" || e.group === "shelf" },
+    { key: "benches", label: "Benches", hit: (e) => e.group === "bench" || e.group === "seat" },
+    { key: "panel", label: "Building panels", hit: (e) => e.group === "panel" },
+  ] },
+  { key: "misc", label: "Misc", subs: [
+    { key: "sealant", label: "Sealant", hit: (e) => e.group === "sealant" },
+    { key: "fasteners", label: "Fasteners", hit: (e) => e.group === "fastener" },
+    { key: "tapes", label: "Tapes", hit: (e) => e.group === "subliner" },
+    { key: "drains", label: "Drains", hit: (e) => e.group === "drainKit" },
+    { key: "tools", label: "Tools", hit: (e) => e.group === "tool" || e.group === "recess" },
+    { key: "collars", label: "Collars", hit: (e) => e.group === "collar" },
+  ] },
+  { key: "kits", label: "Kits", hit: (e) => e.group === "kit" },
+  { key: "sdry", label: "S-Dry", hit: (e) => e.group === "sdry" || (e.group === "pan" && e.sub === "sdry") },
+];
+export const sectionHit = (sec, e) => (sec.hit ? sec.hit(e) : sec.subs.some((s) => s.hit(e)));
+
 // ============================================================================
 // number + dimension parsing
 // ============================================================================
@@ -4268,6 +4303,36 @@ export function openEdges(dims, walls) {
   return { edges: edges, openLen: round2(edges.reduce((s, e) => s + e.len, 0)), cov: cov };
 }
 
+// Where the curb actually runs (owner sketch 2026-07-30): the open edge runs,
+// but a 45° corner cut re-routes it — the straight runs stop CORNER_CUT short
+// of a cut corner and the curb turns up the diagonal to meet the wall, so a
+// cut corner swaps up to two 12" legs for one 17" mitred piece.
+export const CORNER_CUT = 12;    // the cut's legs along each edge
+export function curbRuns(dims, walls, corners) {
+  const rw = +dims.w || 0, rd = +dims.d || 0;
+  const open = openEdges(dims, walls);
+  const cut = {};
+  (corners || []).forEach((k) => { cut[k] = true; });
+  // Which cut corners each edge run can touch: [corner at the run's anchored
+  // end (touches only when the run starts at 0), corner at the far end (a run
+  // always reaches it)].
+  const ENDS = { back: ["bl", "br"], left: ["bl", "fl"], right: ["br", "fr"], entry: ["fl", "fr"] };
+  const segs = [];
+  open.edges.forEach((e) => {
+    let from = e.from, len = e.len;
+    const ends = ENDS[e.side];
+    if (cut[ends[0]] && from <= 0.5) { const t = Math.min(CORNER_CUT, len); from += t; len -= t; }
+    if (cut[ends[1]]) len -= Math.min(CORNER_CUT, len);
+    if (len > 0.5) segs.push({ side: e.side, from: round2(from), len: round2(len) });
+  });
+  const diags = Object.keys(cut).filter((k) => cut[k]).sort().map((k) => ({ corner: k }));
+  const diagLen = round2(CORNER_CUT * Math.SQRT2);
+  return {
+    segs: segs, diags: diags,
+    openLen: round2(segs.reduce((s, x) => s + x.len, 0) + diags.length * diagLen),
+  };
+}
+
 // Which corners are cuttable: a corner boxed in by two walls can't take a 45°
 // cut — the walls are standing on it. bl/br sit on the back, fl/fr on the entry.
 export function openCorners(dims, walls) {
@@ -4352,7 +4417,7 @@ export function kitFor(panKey, opts) {
   const roomDims = room
     || (pan.group === "module" ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
       : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
-  const openLen = openEdges(roomDims, walls).openLen || roomDims.w;
+  const openLen = curbRuns(roomDims, walls, opts.corners).openLen || roomDims.w;
   let curbKey = opts.curbKey;
   if (curbKey === undefined && fam === "fundo") curbKey = openLen > 60 ? SKU.curbLean96 : SKU.curbLean60;
   if (curbKey === undefined && fam === "linear") curbKey = SKU.curbLean60;

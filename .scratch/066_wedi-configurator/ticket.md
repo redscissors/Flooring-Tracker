@@ -281,7 +281,24 @@ landed in the prototype (engine rules carry self-tests):
     up and printed a blank sheet.
 25. Preview harness: `wedi-preview.html` + `src/wedipreview.jsx` mount the
     real component with no Supabase (the freight `preview.html` pattern);
-    `shoot-walls.mjs` retakes W1–W4.
+    `shoot-walls.mjs` retakes W1–W6.
+26. **Browse reorganized to the owner's sketch**: section chips — Pans
+    (Standard/Curbless/Linear/S-Dry) · Covers (Square/Linear/Frames) ·
+    Add-ons (Curbs/Extensions/Niches/Benches/Building panels) · Misc
+    (Sealant/Fasteners/Tapes/Drains/Tools/Collars) — plus Kits and S-Dry as
+    quick filters (`BROWSE_SECTIONS` in wedi.js; a test pins that every
+    catalog entry has a home). The big "Figure sealant & fasteners" header
+    card compacted into a button beside the search box.
+27. **Starred items**: a ☆ on every Browse row pins it, the ★ Starred chip
+    shows just the pins. Per-device (localStorage `ft-wedi-starred`), like
+    the header-layout switch — a personal shortlist, not shared data.
+28. **Walls draw at their true 4" depth** in the top-down (owner sketch),
+    not a hairline band; thumbnails keep the hairline.
+29. **The curb follows a 45° cut** (owner sketch): `curbRuns` trims the
+    straight runs 12" short of a cut corner and adds a 12√2 ≈ 17" mitred
+    diagonal piece — drawn in both views and counted in the curb line's
+    open length, so cutting both entry corners of a 36×60 kit moves the
+    default pick up to the 96" lean curb.
 
 ## Assumptions to confirm before production
 

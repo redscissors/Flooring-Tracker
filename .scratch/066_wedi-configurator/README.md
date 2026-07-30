@@ -96,7 +96,11 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   edits draw true in both views, corner cuts actually chamfer the pan (open
   corners only — `openCorners`; "Cut open corners" chip; saved in
   cfg.corners), and curbs draw on the open edges (`openEdges`) with the
-  curb line following the open length. `W1`–`W4` shots via
+  curb line following the open length. Plus the owner's two sketches:
+  Browse reorganized into the sketched sections + ★ Starred pins + the
+  consumables figurer folded into a button; walls at their true 4" depth;
+  and the curb turning up a cut corner's 45° diagonal (`curbRuns`) in both
+  drawings and in the curb line's length. `W1`–`W6` shots via
   `wedi-preview.html` + `src/wedipreview.jsx` (no-Supabase harness) and
   `shoot-walls.mjs`
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
