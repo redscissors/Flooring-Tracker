@@ -290,6 +290,13 @@ function FinDot({ e }) {
     style={{ background: c || "repeating-linear-gradient(45deg,#FFF 0 2px,#CBC4B0 2px 4px)" }} />;
 }
 
+// Browse sub-line: drain covers & frames read Size · Type · Color (owner ask
+// 2026-07-30); everything else keeps color-first with its group label.
+const browseSub = (e) => (e.group === "cover" || e.group === "coverFrame"
+  ? [e.sizeText, e.sub === "linear" ? "Linear" : "Square", finName(e), e.stock ? "stock" : "special order"]
+  : [finName(e), GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? "stock" : "special order"])
+  .filter(Boolean).join(" · ");
+
 const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
 const BUCKET_OF = {
   pan: "floor", module: "floor", modExt: "floor", extension: "floor", cornerExt: "floor", ramp: "floor",
@@ -1593,7 +1600,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
               <div className="bn">
                 <div className="n"><FinDot e={e} />{e.name}</div>
-                <div className="s">{[finName(e), GROUP_LABEL[e.group] || e.group, e.sizeText, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</div>
+                <div className="s">{browseSub(e)}</div>
               </div>
               <div className="sku">{e.stock ? e.erp : e.us}</div>
               <button className={"starb" + (starred.has(e.key) ? " on" : "")}
