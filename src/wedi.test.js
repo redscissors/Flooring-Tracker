@@ -415,10 +415,9 @@ test("wedi solver: exact · extend · cut down · linear, ranked", () => {
     if (!ex6) return false;
     const ext = ex6.pieces.slice(1);
     return ex6.pieces[0].item.key === "US9100016" && ext.length === 3 &&
-      ext[0].item.key === "073783528" && ext[0].w === 48 && ext[0].y === 72 && !ext[0].cut &&
-      ext[1].item.key === "073783528" && ext[1].w === 24 && ext[1].x === 48 && ext[1].cut.w === 48 &&
-      ext[2].item.key === "US3000036" && ext[2].d === 12 && ext[2].y === 96;
-  })(), "72×108 fundo stacks 24 + 12 and runs two pieces across the 72\" side");
+      ext.every((p) => p.item.key === "US3000036" && p.w === 72 && p.d === 12 && !p.cut) &&
+      ext[0].y === 72 && ext[1].y === 84 && ext[2].y === 96;
+  })(), "72×108 fundo stacks three full-width 12\" extensions — seams horizontal, none vertical (owner rule)");
   const s6 = solve({ w: 48, d: 72, curb: "curbless", drain: "any" });
   assert.ok(s6[0].kind === "exact" && s6[0].pieces[0].item.key === "US9200008", "48×72 curbless → exact US9200008");
   const s7 = solve({ w: 54, d: 66, curb: "curbless", drain: "any" });
@@ -488,6 +487,17 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
     "60×110 center: every option covers all four room corners — no blanks");
   assert.ok(s11.some((o) => /60" x 84"/.test(o.pan.sizeText)),
     "the 60×84 big pan earns a card: " + s11.map((o) => o.pan.sizeText).join(" | "));
+  // Seams run horizontal (owner rule 2026-07-30): the top pick is the 60×72
+  // with two full-width 12" extensions per side — the far one cut to 7" —
+  // never a deeper piece butted mid-run with a vertical seam.
+  assert.ok((() => {
+    const o = s11[0];
+    const ext = o.pieces.slice(1);
+    return /60" x 72"/.test(o.pan.sizeText) && ext.length === 4 &&
+      ext.every((p) => p.item.key === "US3000036" && p.w === 60) &&
+      ext.filter((p) => p.d === 7).length === 2;
+  })(), "60×110 centre: 60×72 + four full-width 12\" extensions, the far pair cut to 7\": "
+    + JSON.stringify(s11[0].pieces.map((p) => p.item.key + " " + p.w + "x" + p.d)));
   // The 2"-deep 60×84 pairs with 1 37/64" extensions: the option warns about
   // the build-up and the kit carries the ½" sheet ripped into strips.
   assert.equal(panThick({ sizeText: '60" x 84" x 2"' }), 2);

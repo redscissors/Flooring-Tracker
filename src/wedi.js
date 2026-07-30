@@ -4615,16 +4615,55 @@ function mapDrain(pan, rot, x0, y0) {
 }
 
 // A gap → the stacked extension layers that fill it, deepest against the pan.
-function layers(gap, fam) {
+// Seams lie HORIZONTAL by preference (owner rule 2026-07-30): a stack of
+// 12"-deep extensions that span the side in ONE piece beats a deeper layer
+// that has to butt mid-run (vertical seam), and a layer thinner than MIN_GAP
+// is the last resort. `sideLen` is the run the band has to cover.
+function layers(gap, fam, sideLen) {
   const spec = EXT[fam === "curbless" ? "curbless" : "fundo"];
   if (gap <= 0) return [];
   if (gap > spec.max + 0.01) return null;
-  const asc = spec.depths.slice().sort((a, b) => a - b);
-  const one = asc.filter((x) => x >= gap - 0.01)[0];
-  if (one != null) return [{ depth: gap, nominal: one, key: spec.items[one] }];
-  const big = asc[asc.length - 1];
-  const rest = layers(round2(gap - big), fam);
-  return rest ? [{ depth: big, nominal: big, key: spec.items[big] }].concat(rest) : null;
+  const L = +sideLen > 0 ? +sideLen : 0;
+  // every tight stack of nominal depths (none removable), deepest first
+  const stacks = [];
+  const walk = (stack, total) => {
+    if (total >= gap - 0.01) { stacks.push(stack.slice().sort((a, b) => b - a)); return; }
+    if (stack.length >= 3) return;
+    spec.depths.forEach((d) => walk(stack.concat([d]), total + d));
+  };
+  walk([], 0);
+  const seen = {};
+  let best = null;
+  stacks.forEach((st) => {
+    const key = st.join("+");
+    if (seen[key]) return;
+    seen[key] = true;
+    const tot = st.reduce((s, d) => s + d, 0);
+    if (st.length > 1 && st.some((d) => tot - d >= gap - 0.01)) return;   // a layer is superfluous
+    let rem = gap;
+    const lay = st.map((d, i) => {
+      const depth = i === st.length - 1 ? round2(rem) : Math.min(d, rem);
+      rem = round2(rem - depth);
+      return { depth: depth, nominal: d, key: spec.items[d] };
+    }).filter((l) => l.depth > 0.01);
+    const per = lay.map((l) => {
+      const it = item(l.key);
+      return { n: L ? (Math.ceil(round2(L / it.len - 0.0001)) || 1) : 1, retail: it.retail };
+    });
+    const cand = {
+      lay: lay,
+      sliver: lay.some((l) => l.depth < MIN_GAP - 0.01) ? 1 : 0,
+      vSeams: per.reduce((s, x) => s + x.n - 1, 0),
+      pieces: per.reduce((s, x) => s + x.n, 0),
+      cost: per.reduce((s, x) => s + x.n * x.retail, 0),
+    };
+    if (!best
+      || cand.sliver < best.sliver
+      || (cand.sliver === best.sliver && (cand.vSeams < best.vSeams
+        || (cand.vSeams === best.vSeams && (cand.pieces < best.pieces
+          || (cand.pieces === best.pieces && cand.cost < best.cost - 0.001)))))) best = cand;
+  });
+  return best ? best.lay : null;
 }
 
 // A gapped side → its pieces. Each layer is a band `depth` deep laid across
@@ -4711,11 +4750,11 @@ function extendOption(input, list, fam) {
       if (gw < -TRIM_MAX - 0.01 || gd < -TRIM_MAX - 0.01) return;
       if (gw <= 0 && gd <= 0) return;   // cutdown territory
       if ((gw > 0 && gw < MIN_GAP) || (gd > 0 && gd < MIN_GAP)) return;
-      const lw = gw > 0 ? layers(gw, fam) : [];
-      const ld = gd > 0 ? layers(gd, fam) : [];
+      const pw = Math.min(o.w, input.w), pd = Math.min(o.d, input.d);
+      const lw = gw > 0 ? layers(gw, fam, pd) : [];
+      const ld = gd > 0 ? layers(gd, fam, pw) : [];
       if (!lw || !ld) return;
       const trims = (gw < 0 ? 1 : 0) + (gd < 0 ? 1 : 0);
-      const pw = Math.min(o.w, input.w), pd = Math.min(o.d, input.d);
       let pieces = [{ kind: "pan", item: p, x: 0, y: 0, w: pw, d: pd, cut: trims ? { w: o.w, d: o.d } : null }];
       const warn = [];
       if (gw > 0) pieces = pieces.concat(runPieces("ext", lw, pw, 0, pd, true));
@@ -4729,7 +4768,7 @@ function extendOption(input, list, fam) {
           });
         } else {
           warn.push("corner over 12\" — mitre two straights at 45° instead of a corner extension");
-          const cw = gw > 0 ? layers(gw, fam) : [];
+          const cw = gw > 0 ? layers(gw, fam, gd) : [];
           pieces = pieces.concat(runPieces("ext", cw, pw, pd, gd, true));
         }
       }
@@ -4793,7 +4832,7 @@ function drainAtOptions(input, list, fam) {
       let dead = false;
       const fill = (g, x0, y0, sideLen, horizontal) => {
         if (!(g > 0) || dead) return;
-        const lay = layers(g, fam);
+        const lay = layers(g, fam, sideLen);
         if (!lay) { dead = true; return; }
         pieces = pieces.concat(runPieces("ext", lay, x0, y0, sideLen, horizontal));
       };

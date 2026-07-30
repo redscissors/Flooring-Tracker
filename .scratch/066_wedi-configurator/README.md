@@ -159,7 +159,17 @@ the pinned "Vendor configurators" row carrying Sheoga and wedi side by side.
   (3) A 2"-deep pan (60×84) pairing with 1 37/64" extensions warns about
   the height step and the kit carries a ½" 4×8 building panel figured by
   extension area — the shop rips it into build-up strips underneath
-  (`panThick`, `BUILDUP_SHEET`). `V1`/`V2` via `shoot-bigpan.mjs`
+  (`panThick`, `BUILDUP_SHEET`). `V1`/`V2` via `shoot-bigpan.mjs`.
+  Follow-up (same day, owner's 60×110 layout note): SEAMS RUN HORIZONTAL.
+  `layers()` now knows the side length it must span and scores every tight
+  stack by (sliver → vertical seams → pieces → cost): a stack of 12"-deep ×
+  72"-long extensions that cross the side in ONE piece beats a deeper 24"
+  piece that butts mid-run, and a layer thinner than MIN_GAP is the last
+  resort. The 60×110 centre room's top pick is now the owner's own build —
+  60×72 base + four full-width 12" extensions, the far pair cut to 7"
+  ($2,001.27, zero vertical seams). The 60×84's 13" gaps keep the 24" layer
+  (a 12" leaves a 1" sliver — worse than the butt seam); at 108" deep the
+  gaps are exactly 12" and it takes the two clean 12×72s. V1/V2 refreshed
 - Mobbin pattern references: [IKEA kitchen planner](https://mobbin.com/screens/46855235-8a29-4755-bf50-a856787778b0),
   [Walmart ingredients list](https://mobbin.com/screens/fd11011b-cfa3-4552-9d6f-caf36a1a2456),
   [Uber Eats item customize](https://mobbin.com/screens/c86d6d66-cc95-4ec3-9889-a0ceadf1eaeb)
