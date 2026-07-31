@@ -4269,10 +4269,11 @@ export function figureConsumables(panelSf, form) {
   const fastenerCount = Math.ceil(sf * CONSUMABLES.fastenersPerSf);
   const lines = [];
   if (sf > 0) {
+    // No per-ft² note (owner ask 2026-07-30): the line reads the kit's own
+    // contents — "100 ct … Screws & … Washers with Tabs" — nothing else.
     lines.push({
       item: item(SKU.fastenerKit), qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
-      group: "install", auto: true,
-      note: "1 screw + washer per ft² — " + round2(sf) + " sf, " + fastenerCount + " fasteners",
+      group: "install", auto: true, note: "",
     });
     lines.push({
       item: sealantItem(form, false), qty: Math.ceil(oz / per),
@@ -4548,7 +4549,9 @@ export function kitFor(panKey, opts) {
   push(lines, cover, 1, "drain", cover && cover.finish ? FINISHES[cover.finish] || "" : "", true);
 
   // --- curbless waterproofing ------------------------------------------------
-  const recess = opts.recess === undefined ? (fam === "curbless" ? "kit" : "none") : opts.recess;
+  // The bracket kit / ramp is an add-on PICK, not part of the curbless house
+  // kit (owner ask 2026-07-30) — the Recess chip sets opts.recess "kit"/"ramp".
+  const recess = opts.recess === undefined ? "none" : opts.recess;
   if (fam === "curbless") {
     push(lines, SKU.subliner53, 1, "install", "53 sf roll — field seal at the pan perimeter", true);
     push(lines, SKU.subCornerIn, 1, "install", "2 pcs/bag", true);

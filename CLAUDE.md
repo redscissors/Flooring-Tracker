@@ -298,8 +298,11 @@ src/
                     # list) and Browse (the whole catalog, stock tinted green and
                     # ranked first, + the sealant/fastener figurer) — over one
                     # shared build column (grouped lines, swap popovers, steppers,
-                    # the wall editor, add-on chips, sausage-gun/small-order hints,
-                    # the factory-kit compare, Copy list, Print layout) and a
+                    # the wall editor, add-on chips — a chip with several possible
+                    # parts opens a picker instead of auto-adding, and curbless
+                    # builds get a Recess chip since the bracket kit/ramp is a
+                    # pick, never part of the house kit (owner asks 2026-07-30) —
+                    # sausage-gun/small-order hints, Copy list, Print layout) and a
                     # permanent drawings rail: a to-scale top-down (4"-thick wall
                     # bands, panel-seam ticks, square drains, dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan —

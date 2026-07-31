@@ -190,10 +190,6 @@ const CSS = `
 .wedi-pop .addchip.on{border-style:solid;background:var(--ft-brand-soft);border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .wedi-pop .whint{display:flex;gap:8px;align-items:center;background:var(--w-hint-bg);border:1px solid var(--w-hint-line);border-radius:7px;padding:7px 10px;font-size:11px;color:var(--w-hint-ink);font-weight:600;margin-top:10px;line-height:1.4}
 .wedi-pop .whint button{border:1px solid #C9A050;background:#fff;border-radius:5px;font-size:10.5px;font-weight:800;color:var(--w-hint-ink);padding:3px 8px;cursor:pointer;flex:none;margin-left:auto}
-.wedi-pop .fcomp{margin-top:10px;background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:7px;padding:8px 11px;font-size:11px;color:var(--ft-muted);line-height:1.5}
-.wedi-pop .fcomp b{color:var(--ft-text)}
-.wedi-pop .fcomp .beat{color:var(--ft-brand-deep);font-weight:800}
-.wedi-pop .fcomp .over{color:var(--w-rust);font-weight:800}
 .wedi-pop .bc-foot{flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:10px 16px 12px}
 .wedi-pop .totrow{display:flex;align-items:baseline;gap:12px}
 .wedi-pop .totrow .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted)}
@@ -329,7 +325,9 @@ const FAM_DEFS = [
   ["linear", "Linear bases — 4-sided slope", "channel drain along the long wall"],
   ["module", "Riolito Neo modules", "one-way slope to a wall drain — pair with the module extension"],
 ];
-const ADDON_CHIPS = [["niche", "Niche"], ["seat", "Seat"], ["bench", "Bench"], ["shelf", "Glass shelf"], ["gun", "Sealant gun"]];
+// The Recess chip shows on curbless builds only — the bracket kit / ramp is a
+// pick there, not part of the house kit (owner ask 2026-07-30).
+const ADDON_CHIPS = [["niche", "Niche"], ["seat", "Seat"], ["bench", "Bench"], ["shelf", "Glass shelf"], ["gun", "Sealant gun"], ["recess", "Recess kit"]];
 const CORNER_LBL = [["bl", "back-left"], ["br", "back-right"], ["fl", "entry-left"], ["fr", "entry-right"]];
 const EDGE_LBL = { back: "Back +", left: "Left +", right: "Right +", entry: "Entry" };
 
@@ -886,6 +884,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return n;
   });
   const [swap, setSwap] = useState(null);     // { key, rect }
+  const [chipMenu, setChipMenu] = useState(null);   // { group, rect } — add-on chip picker
   const [wallMenu, setWallMenu] = useState(null);   // { wid, extra, x, y } — right-clicked wall
   const [confirmPan, setConfirmPan] = useState(null); // kit card clicked over a custom shower
   const [payload, setPayload] = useState(null);
@@ -916,6 +915,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     else if (confirmPan) setConfirmPan(null);
     else if (wallMenu) setWallMenu(null);
     else if (swap) setSwap(null);
+    else if (chipMenu) setChipMenu(null);
     else if (placing) setPlacing(false);
     else onClose();
   });
@@ -939,6 +939,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     document.addEventListener("mousedown", away, true);
     return () => document.removeEventListener("mousedown", away, true);
   }, [swap]);
+  // The chip picker dismisses like the swap popover — any outside press.
+  useEffect(() => {
+    if (!chipMenu) return;
+    const away = (e) => { if (!e.target.closest?.(".wedi-chipmenu")) setChipMenu(null); };
+    document.addEventListener("mousedown", away, true);
+    return () => document.removeEventListener("mousedown", away, true);
+  }, [chipMenu]);
   // The wall menu dismisses on an outside CLICK — click, not mousedown, so a
   // blur-committed length lands before the menu unmounts.
   useEffect(() => {
@@ -1277,10 +1284,17 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     }
     return null;
   };
-  const addonDefault = (g) => {
-    if (g === "gun") return SKU.gun;
-    const list = group(g).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
-    return list.length ? list[0].key : null;
+  // An add-on chip with one possible part adds it outright; more than one
+  // opens a picker (owner ask 2026-07-30) — stock first, then cheapest.
+  const chipChoices = (g) => {
+    if (g === "gun") return [item(SKU.gun)];
+    if (g === "recess") return [item(SKU.recessKit), item(SKU.ramp)];
+    return group(g).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
+  };
+  const chipPick = (g, key) => {
+    if (g === "recess") setOpts((o) => ({ ...o, recess: key === SKU.ramp ? "ramp" : "kit" }));
+    else setAddons((a) => [...a, key]);
+    setChipMenu(null);
   };
 
   // --- kit cards ------------------------------------------------------------
@@ -1786,19 +1800,26 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 })}
                 {isAddon && pan && (
                   <div className="addchips">
-                    {ADDON_CHIPS.map((ac) => {
-                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun) : build.lines.some((l) => l.item.group === ac[0]);
+                    {ADDON_CHIPS.filter((ac) => ac[0] !== "recess" || (pan && pan.sub === "curbless")).map((ac) => {
+                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun)
+                        : ac[0] === "recess" ? build.lines.some((l) => l.item.group === "recess" || l.item.group === "ramp")
+                          : build.lines.some((l) => l.item.group === ac[0]);
                       return (
-                        <button key={ac[0]} className={"addchip" + (on ? " on" : "")} onClick={() => {
+                        <button key={ac[0]} className={"addchip" + (on ? " on" : "")} onClick={(ev) => {
                           if (ac[0] === "gun") { setAddons((a) => (a.includes(SKU.gun) ? a.filter((k) => k !== SKU.gun) : [...a, SKU.gun])); return; }
-                          const cur = build.lines.find((l) => l.item.group === ac[0]);
+                          const cur = build.lines.find((l) => ac[0] === "recess"
+                            ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
                           if (cur) {
-                            setAddons((a) => a.filter((k) => { const it = item(k); return !it || it.group !== ac[0]; }));
-                            setManual((mm) => mm.filter((m) => { const it = item(m.key); return !it || it.group !== ac[0]; }));
+                            if (ac[0] === "recess") setOpts((o) => ({ ...o, recess: "none" }));
+                            else {
+                              setAddons((a) => a.filter((k) => { const it = item(k); return !it || it.group !== ac[0]; }));
+                              setManual((mm) => mm.filter((m) => { const it = item(m.key); return !it || it.group !== ac[0]; }));
+                            }
                             setQtyOv((o) => { const n = { ...o }; delete n[cur.item.key]; return n; });
                           } else {
-                            const dk = addonDefault(ac[0]);
-                            if (dk) setAddons((a) => [...a, dk]);
+                            const ch = chipChoices(ac[0]).filter(Boolean);
+                            if (ch.length > 1) setChipMenu({ group: ac[0], label: ac[1], rect: ev.currentTarget.getBoundingClientRect() });
+                            else if (ch.length) chipPick(ac[0], ch[0].key);
                           }
                         }}>{(on ? "✓ " : "+ ") + ac[1]}</button>
                       );
@@ -1818,18 +1839,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="whint">Special-order net {fm(build.soNet)} runs under wedi's $500 minimum — 10% small-order handling applies</div>
           )}
 
-          {build.factory && build.factory.kit && (() => {
-            const stockTotal = round2(build.lines.filter((l) => ["floor", "walls", "drain", "install"].includes(l.group))
-              .reduce((t, l) => t + l.item.retail * l.qty, 0));
-            const fk = build.factory.kit, diff = round2(fk.retail - stockTotal);
-            return (
-              <div className="fcomp">wedi's boxed kit for this size — <b>{fk.us}</b> {fm(fk.retail)}
-                {build.factory.nojs ? " · NOJS " + fm(build.factory.nojs.retail) : ""}
-                <br />stock build {fm(stockTotal)} —{" "}
-                {diff >= 0 ? <span className="beat">beats the box by {fm(diff)}</span> : <span className="over">over the box by {fm(-diff)}</span>}
-              </div>
-            );
-          })()}
         </div>
 
         <div className="bc-foot">
@@ -1918,6 +1927,27 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         )}
         {ch.list.map((e) => (
           <button key={e.key} className={"srow" + (e.key === line.item.key ? " on" : "") + (e.stock ? " stk" : "")} onClick={() => choose(e.key)}>
+            <span className={"sdot" + (e.stock ? "" : " so")} />
+            <span className="n"><FinDot e={e} />{unwedi(e.name)}
+              <small>{[finName(e), e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
+            <span className="p">{fm(tierOf(e))}</span>
+          </button>
+        ))}
+      </div>, document.body);
+  })();
+
+  // The add-on chip picker: same anchored popover as a swap, listing the
+  // chip's possible parts — a chip with one part never gets here.
+  const chipPanel = (() => {
+    if (!chipMenu) return null;
+    const listC = chipChoices(chipMenu.group).filter(Boolean);
+    const r = chipMenu.rect;
+    const style = { top: Math.min(window.innerHeight - 356, r.bottom + 6), left: Math.max(12, Math.min(window.innerWidth - 312, r.left)) };
+    return createPortal(
+      <div className="wedi-swap wedi-chipmenu" style={style} onClick={(e) => e.stopPropagation()}>
+        <div className="ph">{chipMenu.group === "recess" ? "Curbless entry" : GROUP_LABEL[chipMenu.group] || chipMenu.label}</div>
+        {listC.map((e) => (
+          <button key={e.key} className={"srow" + (e.stock ? " stk" : "")} onClick={() => chipPick(chipMenu.group, e.key)}>
             <span className={"sdot" + (e.stock ? "" : " so")} />
             <span className="n"><FinDot e={e} />{unwedi(e.name)}
               <small>{[finName(e), e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
@@ -2165,6 +2195,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
       </div>
       {swapPanel}
+      {chipPanel}
       {wallMenuPanel}
       {confirmModal}
       {payloadModal}

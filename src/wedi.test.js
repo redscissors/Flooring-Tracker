@@ -217,8 +217,14 @@ test("wedi kit builder: the house kit mirrors wedi's own boxed recipe", () => {
   assert.ok(!!lineFor(kit72, "US3000040") && !lineFor(kit72, "US3000038"), "36×72 entry takes the 96\" lean curb");
   const kitC = kitFor("US9200003");
   assert.ok(!lineFor(kitC, "US3000038") && !!lineFor(kitC, "US5000001") && !!lineFor(kitC, "US5000007") &&
-    !!lineFor(kitC, "US5076011") && !!lineFor(kitC, "US5000085"),
-    "curbless kit: no curb, + subliner, corners, S-Dry Seal and the recess kit");
+    !!lineFor(kitC, "US5076011"),
+    "curbless kit: no curb, + subliner, corners and S-Dry Seal");
+  // The bracket kit / ramp is an add-on pick, not part of the house kit
+  // (owner ask 2026-07-30) — opts.recess lands it when chosen.
+  assert.ok(!lineFor(kitC, SKU.recessKit) && !lineFor(kitC, SKU.ramp),
+    "curbless kit carries no recess kit or ramp by default");
+  assert.ok(!!lineFor(kitFor("US9200003", { recess: "kit" }), SKU.recessKit), "recess:'kit' adds the bracket kit");
+  assert.ok(!!lineFor(kitFor("US9200003", { recess: "ramp" }), SKU.ramp), "recess:'ramp' adds the ramp");
   assert.ok(lineFor(kitC, "US5076011").qty === 1 && !!lineFor(kitC, "US5076010") &&
     !lineFor(kitC, "US5000083") && !lineFor(kitC, "US5000088"),
     "field seal is S-Dry Seal + its trowel, not 620 (owner rule)");
