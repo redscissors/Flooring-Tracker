@@ -29,11 +29,10 @@ Area: wedi configurator (issue 066)
 
 - Curb cross-sections (`curbWidth`): every curb notches ½" over the pan
   (`CURB_LAP`), so it ADDS width − ½. Standard/full-foam/AT: 4½" across —
-  adds 4" (price list agrees, 5⅛ × 4½ H×W). Lean: owner puts it at 2½"
-  across — adds 2" (36" shower → 34" pan, drain 17" off the back) — but
-  the PRICE LIST reads the lean 3½ × 2 H×W, which under the standard
-  curb's convention would add only 1½". OPEN: owner to measure a physical
-  lean curb; one number in `curbWidth` changes if the sheet is right.
+  adds 4" (price list agrees, 5⅛ × 4½ H×W). Lean: 2" across — adds 1½"
+  (36" shower → 34½" pan, drain 17¼" off the back). RESOLVED 2026-07-31:
+  owner measured a physical lean curb at 2" across the top, matching the
+  price list's 3½ × 2 H×W; `curbWidth` corrected from the earlier 2½".
 - `curbInsets(dims, walls, curbKey)`: every FULLY open edge insets
   (width − lap); partially walled edges keep the curb in the ring (v1).
   `applyCurbInset` re-bases the reduced-room solve into the full footprint

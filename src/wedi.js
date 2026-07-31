@@ -4351,16 +4351,15 @@ export const CURB_W = 3.5;       // the curb's plan width — ring fills + longe
 // Real curb cross-sections (owner, 2026-07-30): every curb is notched on
 // its back edge to lap ½" onto the pan, so it ADDS (width − ½") of floor.
 // The standard/full-foam/AT curbs are 4½" across the top (price list
-// agrees: 5⅛ × 4½ H×W) — they add 4". The owner puts the lean at 2½"
-// across the top — adds 2" — though the price list reads it 3½ × 2 H×W,
-// which under the standard curb's convention would add only 1½"; owner to
-// verify against a physical piece. These drive the "overall max" solver
+// agrees: 5⅛ × 4½ H×W) — they add 4". The lean is 2" across the top
+// (owner measured a physical piece 2026-07-31, matching the price list's
+// 3½ × 2 H×W) — adds 1½". These drive the "overall max" solver
 // mode, where the stated dimensions INCLUDE the curb: each fully open edge
 // gives up (width − lap) of pan space and the curb draws inside the line.
 export const CURB_LAP = 0.5;
 export function curbWidth(key) {
   const it = typeof key === "string" ? item(key) : key;
-  return it && /lean/i.test(it.name || "") ? 2.5 : 4.5;
+  return it && /lean/i.test(it.name || "") ? 2 : 4.5;
 }
 
 // Per-edge inset when the stated dims are the overall footprint. Only an
