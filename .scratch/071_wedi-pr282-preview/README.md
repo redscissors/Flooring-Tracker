@@ -8,6 +8,17 @@ VITE_SUPABASE_URL=... VITE_SUPABASE_ANON_KEY=... npx vite --port 5199
 node .scratch/071_wedi-pr282-preview/shoot.mjs
 ```
 
+Round 3 (the bench–curb junctions, H1/H2) drives the issue-070 harness
+instead — copy `wedi_harness.{html,jsx}` to the repo root (vite serves
+`/wedi_harness.html`; this copy adds a `bjson` bench param and full-length
+seeded walls), then from the repo root:
+
+```
+node .scratch/071_wedi-pr282-preview/shoot-bench-kit.mjs   # kit-mode bench matrix, ring curb
+node .scratch/071_wedi-pr282-preview/shoot-bench-max.mjs   # custom tab + "Max — curb inside" + bench menu
+node .scratch/071_wedi-pr282-preview/inspect-bench.mjs '<bench json>'   # dump iso polygons
+```
+
 | Shot | What it proves |
 |---|---|
 | `A1-58x33-closest-fit` | **Issue 1.** The owner's repro — 58×33 curbed, Offset preference, drain pinned 6″ × 16½″ — used to show "No option fits". Three **Closest fit** cards now, each warning `drain lands at 12", 16 1/2" — 6" off the requested spot; move the waste line or accept` and `no offset-drain base fits this room — this is a center-drain base floated to the plumbing`. |
