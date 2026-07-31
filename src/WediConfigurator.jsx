@@ -752,6 +752,16 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
 
   els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
 
+  const spanOf = (side) => dw.reduce((m, x) => (x.side === side
+    ? Math.max(m, Math.min(x.len, side === "left" || side === "right" ? rd : rw)) : m), 0);
+  // Each ring corner cube belongs to exactly ONE slab: the back/entry walls run
+  // through their corners and the side walls butt into their faces. Two slabs
+  // claiming the same cube is what crossed the strokes at the apex.
+  const backSpan = spanOf("back"), entrySpan = spanOf("entry");
+  const owns = {
+    bl: backSpan > 0.5, br: backSpan >= rw - 0.5,
+    fl: entrySpan > 0.5, fr: entrySpan >= rw - 0.5,
+  };
   const geomOf = (wl) => {
     const vert = wl.side === "left" || wl.side === "right";
     const span = Math.min(wl.len, vert ? rd : rw);
@@ -760,16 +770,24 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     const full = span >= (vert ? rd : rw) - 0.5;
     if (wl.side === "back") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: -T, y1: 0 };
     if (wl.side === "entry") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: rd, y1: rd + T };
-    if (wl.side === "left") return { span, zh, x0: -T, x1: 0, y0: -T, y1: span + (full ? T : 0) };
-    return { span, zh, x0: rw, x1: rw + T, y0: -T, y1: span + (full ? T : 0) };
+    const left = wl.side === "left";
+    const butt = full && (left ? owns.fl : owns.fr);
+    return {
+      span, zh, butt,
+      x0: left ? -T : rw, x1: left ? 0 : rw + T,
+      y0: (left ? owns.bl : owns.br) ? 0 : -T,
+      y1: span + (full && !butt ? T : 0),
+    };
   };
-  // Panel joints dot the wall's INNER face — the plane the wedi actually
-  // lands on. One ink dot color everywhere now that covered faces read green.
+  // The face this camera reads as "the wall": the inner plane on the solid
+  // back/left, the outer plane on the clear front walls so the wedi green and
+  // the joint dots land on the same drawn surface.
+  const faceAt = (wl) => (wl.side === "back" ? (u, z) => M(u, 0, z)
+    : wl.side === "entry" ? (u, z) => M(u, rd + T, z)
+      : wl.side === "left" ? (u, z) => M(0, u, z)
+        : (u, z) => M(rw + T, u, z));
   const jointsOf = (wl, g, isFront, tag) => {
-    const pt = wl.side === "back" ? (u, z) => M(u, 0, z)
-      : wl.side === "entry" ? (u, z) => M(u, rd, z)
-        : wl.side === "left" ? (u, z) => M(0, u, z)
-          : (u, z) => M(rw, u, z);
+    const pt = faceAt(wl);
     const colr = seamCol;
     (wl.courses || []).forEach((c, ci) => {
       const top = Math.min(c.y0 + c.ch, g.zh);
@@ -811,33 +829,34 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     const isFront = wl.side === "entry" || wl.side === "right";
     const { x0, x1, y0, y1, zh } = g;
     const faceE = str([M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, 0), M(x1, y0, 0)]);
-    const faceS = str([M(x0, y1, zh), M(x1, y1, zh), M(x1, y1, 0), M(x0, y1, 0)]);
+    // a side wall running into the entry wall has no exposed far end
+    const faceS = g.butt ? null : str([M(x0, y1, zh), M(x1, y1, zh), M(x1, y1, 0), M(x0, y1, 0)]);
     const faceT = str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)]);
     const mp = onWallMenu ? {
       className: "wband",
       onContextMenu: (ev) => { ev.preventDefault(); ev.stopPropagation(); onWallMenu({ wid: wl.wid, extra: !!wl.extra }, ev.clientX, ev.clientY); },
     } : {};
     const title = onWallMenu ? <title>right-click — wall size &amp; wedi faces</title> : null;
+    const facePt = faceAt(wl);
+    // the panelled run is this slab's own extent — now that a ring corner
+    // belongs to one wall, its return is this wall's face too
     const horiz = wl.side === "back" || wl.side === "entry";
-    const facePt = wl.side === "back" ? (u, z) => M(u, 0, z)
-      : wl.side === "entry" ? (u, z) => M(u, rd + T, z)
-        : wl.side === "left" ? (u, z) => M(0, u, z)
-          : (u, z) => M(rw + T, u, z);
     const u0 = horiz ? x0 : y0, u1 = horiz ? x1 : y1;
     const sh = framedShadow(wl.side);
-    const rects = [];
-    if (sh) {
-      const L = Math.min(sh.L, u1);
-      if (L < u1 - 0.5) rects.push([L, u1, 0, zh]);
-      if (sh.H < zh - 0.5) rects.push([u0, L, sh.H, zh]);
-    } else rects.push([u0, u1, 0, zh]);
-    const quadOf = (r) => str([facePt(r[0], r[3]), facePt(r[1], r[3]), facePt(r[1], r[2]), facePt(r[0], r[2])]);
-    const cover = rects.map((r, ri) => (
-      <g key={`cv${ri}`} pointerEvents="none">
-        <polygon points={quadOf(r)} fill={isFront ? WEDI_FILL_CLEAR : WEDI_FILL} stroke={isFront ? "none" : wallLine} strokeWidth=".5" />
-        <polygon points={quadOf(r)} fill="url(#wedi-hatch)" />
+    // One outline for the covered region — the framed bench's shadow notches it
+    // into an L. Two abutting rectangles would stroke a seam where the panel
+    // is continuous.
+    const L = sh ? Math.max(u0, Math.min(sh.L, u1)) : u0;
+    const uz = !sh || sh.H >= zh - 0.5 ? [[L, 0], [u1, 0], [u1, zh], [L, zh]]
+      : L >= u1 - 0.5 ? [[u0, sh.H], [u1, sh.H], [u1, zh], [u0, zh]]
+        : [[L, 0], [u1, 0], [u1, zh], [u0, zh], [u0, sh.H], [L, sh.H]];
+    const face = str(uz.map((p) => facePt(p[0], p[1])));
+    const cover = (
+      <g key="cv" pointerEvents="none">
+        <polygon points={face} fill={isFront ? WEDI_FILL_CLEAR : WEDI_FILL} stroke={isFront ? "none" : wallLine} strokeWidth=".5" />
+        <polygon points={face} fill="url(#wedi-hatch)" />
       </g>
-    ));
+    );
     if (isFront) {
       // pointer-events on the stroke only: a clear wall's body must not
       // swallow right-clicks meant for the solid walls and pan behind it.
@@ -846,7 +865,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
         <g key={`w${wi}`} {...mp}>
           {title}
           <polygon points={faceE} {...dash} />
-          <polygon points={faceS} {...dash} />
+          {faceS ? <polygon points={faceS} {...dash} /> : null}
           <polygon points={faceT} {...dash} />
           {cover}
         </g>);
@@ -856,16 +875,47 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
         <g key={`w${wi}`} {...mp}>
           {title}
           <polygon points={faceE} fill={wl.side === "left" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
-          <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
+          {faceS ? <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" /> : null}
           <polygon points={faceT} fill={tones[2]} stroke={wallLine} strokeWidth=".8" />
           {cover}
         </g>);
     }
     jointsOf(wl, g, isFront, wi);
   };
-  dw.forEach((wl, wi) => { if (!(wl.side === "entry" || wl.side === "right")) wallEls(wl, wi); });
+  // Back/entry first inside each pass: they own the ring corners, so the side
+  // wall's inner face has to land on top of the corner return behind it.
+  const solidW = [], clearW = [];
+  dw.forEach((wl, wi) => { (wl.side === "entry" || wl.side === "right" ? clearW : solidW).push([wl, wi]); });
+  const wallRank = (p) => (p[0].side === "back" || p[0].side === "entry" ? 0 : 1);
+  solidW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
 
   const t = 4;
+  // Curb runs as raised slabs in the wall ring, butted between the wall
+  // sections — the engine's ext0/ext1 fill the open ring corners so runs meet
+  // square. The camera looks down (1,1,1): a back/left run is BEHIND the pan
+  // and has to be painted before it, or its body floats over the pan surface.
+  const CBH = 4.5;
+  const insI = o.inset || null;
+  const curbEls = (cs, ci) => {
+    const horiz = cs.side === "back" || cs.side === "entry";
+    const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
+    if (!(len > 0)) return;
+    // "overall max": the curb sits inside the stated line at its real width,
+    // lapping the pan by its ½" — no ring-corner ext fills inside.
+    const inEdge = insI && insI[cs.side] > 0;
+    const cwv = inEdge ? insI.cw : CURB_W;
+    const x0 = horiz ? cs.from - (inEdge ? 0 : cs.ext0)
+      : (cs.side === "left" ? (inEdge ? 0 : -CURB_W) : rw - (inEdge ? cwv : 0));
+    const y0 = horiz ? (cs.side === "back" ? (inEdge ? 0 : -CURB_W) : rd - (inEdge ? cwv : 0)) : cs.from;
+    const x1 = horiz ? cs.from + len + (inEdge ? 0 : cs.ext1) : x0 + cwv;
+    const y1 = horiz ? y0 + cwv : cs.from + len;
+    els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+  };
+  const behind = (cs) => cs.side === "back" || cs.side === "left";
+  (curbs || []).forEach((cs, ci) => { if (behind(cs)) curbEls(cs, ci); });
+
   o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y)).forEach((p, i) => {
     const f = PIECE_FILL[p.kind] || "#EFF3E6", side = PIECE_SIDE[p.kind] || "#D8DFC4";
     els.push(<polygon key={`e${i}`} points={str([M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t), M(p.x + p.w, p.y + p.d, 0), M(p.x + p.w, p.y, 0)])} fill={side} stroke={INK} strokeWidth=".8" />);
@@ -905,28 +955,9 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
 
-  // Curb runs as raised slabs in the wall ring, butted between the wall
-  // sections — the engine's ext0/ext1 fill the open ring corners so runs
-  // meet square; a cut corner's curb takes the one straight line across.
-  const CBH = 4.5;
-  const insI = o.inset || null;
-  (curbs || []).forEach((cs, ci) => {
-    const horiz = cs.side === "back" || cs.side === "entry";
-    const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
-    if (!(len > 0)) return;
-    // "overall max": the curb sits inside the stated line at its real width,
-    // lapping the pan by its ½" — no ring-corner ext fills inside.
-    const inEdge = insI && insI[cs.side] > 0;
-    const cwv = inEdge ? insI.cw : CURB_W;
-    const x0 = horiz ? cs.from - (inEdge ? 0 : cs.ext0)
-      : (cs.side === "left" ? (inEdge ? 0 : -CURB_W) : rw - (inEdge ? cwv : 0));
-    const y0 = horiz ? (cs.side === "back" ? (inEdge ? 0 : -CURB_W) : rd - (inEdge ? cwv : 0)) : cs.from;
-    const x1 = horiz ? cs.from + len + (inEdge ? 0 : cs.ext1) : x0 + cwv;
-    const y1 = horiz ? y0 + cwv : cs.from + len;
-    els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
-  });
+  // …and the entry/right runs, which stand in front of the pan.
+  (curbs || []).forEach((cs, ci) => { if (!behind(cs)) curbEls(cs, ci); });
+  // A cut corner's curb takes the one straight line across.
   (curbDiags || []).forEach((d, i) => {
     const g2 = CGEOM[d.corner];
     if (!g2) return;
@@ -935,10 +966,13 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     // straight runs flush, its outer edge the piece's longest point
     const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
     const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
-    els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cda${i}`} points={str([M(ax, ay, CBH), M(a2x, a2y, CBH), M(a2x, a2y, 0), M(ax, ay, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdb${i}`} points={str([M(bx, by, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(bx, by, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    // Only the long face this camera can see: the band's two ENDS are butted
+    // into the straight runs or the walls, and one of its long faces is always
+    // turned away — drawing them repaints the pan and the run beside it.
+    const cen = [(ax + bx + a2x + b2x) / 4, (ay + by + a2y + b2y) / 4];
+    const shows = (p, q) => (p[0] + q[0]) / 2 - cen[0] + ((p[1] + q[1]) / 2 - cen[1]) > 0.01;
+    if (shows([ax, ay], [bx, by])) els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    if (shows([a2x, a2y], [b2x, b2y])) els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
 
@@ -973,28 +1007,41 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
         bl: [[0, 0], [f.a, 0], [0, f.a]], br: [[rw, 0], [rw - f.a, 0], [rw, f.a]],
         fl: [[0, rd], [f.a, rd], [0, rd - f.a]], fr: [[rw, rd], [rw - f.a, rd], [rw, rd - f.a]],
       })[f.corner];
-      // side faces back-to-front (painter), hypotenuse in the deeper tone
-      [[tri[0], tri[1], BSIDE], [tri[0], tri[2], BSIDE], [tri[1], tri[2], BSIDE2]]
-        .sort((p, q) => (p[0][0] + p[0][1] + p[1][0] + p[1][1]) - (q[0][0] + q[0][1] + q[1][0] + q[1][1]))
+      // Only the faces turned toward the camera: the two legs sitting against
+      // the walls would otherwise repaint the wall they're buried in, and a
+      // hypotenuse square to the view collapses to a stroke.
+      const cen = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3];
+      const faces = [[tri[0], tri[1], BSIDE], [tri[0], tri[2], BSIDE], [tri[1], tri[2], BSIDE2]]
+        .filter((s) => (s[0][0] + s[1][0]) / 2 - cen[0] + (s[0][1] + s[1][1]) / 2 - cen[1] > 0.01);
+      faces.sort((p, q) => (p[0][0] + p[0][1] + p[1][0] + p[1][1]) - (q[0][0] + q[0][1] + q[1][0] + q[1][1]))
         .forEach((s, si) => benchQuad(s[0], s[1], z0, zh, s[2], `bn${bi}s${si}`));
       els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
       return;
     }
     const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
-    const x0 = f.x, x1 = f.x + f.w, y0 = f.y, y1 = f.y + f.d + out;
-    benchQuad([x1, y0], [x1, y1], z0, zh, BSIDE, `bn${bi}e`);
-    benchQuad([x0, y1], [x1, y1], z0, zh, BSIDE2, `bn${bi}f`);
+    const x0 = f.x, x1 = f.x + f.w, y0 = f.y, yc = f.y + f.d, y1 = yc + out;
+    // Past the pan line the bench IS the curb it displaced: it stands on the
+    // floor, so the oversail steps its faces down instead of floating on the
+    // pan's top surface.
+    const step = out > 0 && z0 > 0;
+    els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
+      points={str(step
+        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, 0), M(x1, yc, 0), M(x1, yc, z0), M(x1, y0, z0)]
+        : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
+    benchQuad([x0, y1], [x1, y1], step ? 0 : z0, zh, BSIDE2, `bn${bi}f`);
     els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
-    if (b.build === "framed" && !framedFit) {
-      const fx = b.side === "left" ? x1 : b.side === "right" ? x0 : null;
-      const a = fx != null ? M(fx, 0, t) : M(x0, f.d, t);
-      const b2 = fx != null ? M(fx, rd, t) : M(x1, f.d, t);
+    // The pan's cut edge only gets a rust mark where it lands on the bench face
+    // this camera sees; on a right-hand bench the cut is behind the box, and
+    // drawing it anyway drags a line straight across the seat.
+    if (b.build === "framed" && !framedFit && b.side !== "right") {
+      const a = b.side === "left" ? M(x1, 0, t) : M(x0, f.d, t);
+      const b2 = b.side === "left" ? M(x1, rd, t) : M(x1, f.d, t);
       els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
     }
   });
 
   // Front walls draw last — clear, so the shower stays readable through them.
-  dw.forEach((wl, wi) => { if (wl.side === "entry" || wl.side === "right") wallEls(wl, wi); });
+  clearW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
   if (dw.length) {
     els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
       {'walls 4" thick, to ' + inch(hmax) + '" · green hatch = wedi' + (panelFit ? " · joints dotted" : "")}</text>);
