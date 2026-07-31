@@ -282,7 +282,11 @@ src/
                     # foot), or installer-framed with a ½" wrap and the pan cut
                     # down / swapped smaller (`benchPanRoom`/`smallerPanFor`);
                     # every bench runs the full pan-AND-curb depth so `curbRuns`
-                    # subtracts its footprint and the curb butts its face; corner
+                    # subtracts its footprint and the curb butts its face — except
+                    # a premade whose pricelist details read "Suspended" (the
+                    # corner seats US3000001/2, Sanoasa 4): it hangs on the walls
+                    # at seat height, only its slab draws (`thick` — 4" seats,
+                    # 3 1/8" bench), and the curb runs beneath it untouched; corner
                     # benches measure from the corner out along each wall,
                     # 18" to the top, never framed),
                     # `figureConsumables` (1 screw+washer and

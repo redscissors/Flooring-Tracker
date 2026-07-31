@@ -518,7 +518,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       push(<text key={`bnt${bi}`} x={X(cx)} y={Y(cy) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT}>{inch(f.a) + '"'}</text>);
       return;
     }
-    const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
     push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
       fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
     if (b.build === "framed" && !framedFit) {
@@ -981,8 +981,10 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
   (benches || []).forEach((b, bi) => {
     const f = benchFootprint(b, o.room);
-    const z0 = b.build === "framed" ? 0 : t;
     const zh = b.h || 18;
+    // A suspended premade hangs on the walls: only its slab draws — bottom at
+    // top-minus-thickness, the floor (and any curb) clear beneath it.
+    const z0 = b.suspended ? Math.max(t, zh - (b.thick || 4)) : b.build === "framed" ? 0 : t;
     if (f.kind === "corner") {
       const tri = ({
         bl: [[0, 0], [f.a, 0], [0, f.a]], br: [[rw, 0], [rw - f.a, 0], [rw, f.a]],
@@ -999,7 +1001,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
       return;
     }
-    const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
     const x0 = f.x, x1 = f.x + f.w, y0 = f.y, yc = f.y + f.d, y1 = yc + out;
     // Past the pan line the bench IS the curb it displaced: it stands on the
     // floor, so the oversail steps its faces down instead of floating on the
@@ -2426,6 +2428,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const del = () => { setBenches((xs) => xs.filter((b) => b !== row)); setBenchMenu(null); };
     const norm = row ? normBench(row, room) : null;
     const pres = benchPremades(benchMenu.kind === "corner" ? "corner" : "wall");
+    // The pricelist's first sentence says what the piece IS — "Suspended
+    // Corner Seat", "Floor-mounted Triangular Corner Shower Bench Kit".
+    const blurb = (e) => String(e.details || "").split(". ")[0].replace(/\.$/, "");
     const framedPanNote = (() => {
       if (!pan || !norm || norm.build !== "framed") return "";
       const pr = benchPanRoom([norm], room);
@@ -2461,7 +2466,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           {pres.map((e) => (
             <button key={e.key} className={"srow" + (e.stock ? " stk" : "")} onClick={() => add({ part: e.key })}>
               <span className={"sdot" + (e.stock ? "" : " so")} />
-              <span className="n">{unwedi(e.name)}<small>{[e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
+              <span className="n">{unwedi(e.name)}<small>{[blurb(e), e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
               <span className="p">{fm(tierOf(e))}</span>
             </button>
           ))}
@@ -2490,6 +2495,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="wm-note">
               {unwedi((item(row.part) || {}).name || "")}{(item(row.part) || {}).sizeText ? " — " + item(row.part).sizeText : ""}
               {norm.kind === "corner" ? ". " + inch(norm.size) + '" out along each wall, triangle across the front.' : "."}
+              {norm.suspended ? " Suspended — hangs on the walls, " + inch(norm.thick) + "″ thick slab, top at " + inch(norm.h) + "″, floor clear beneath." : ""}
             </div>
           )}
           {norm.build !== "premade" && norm.kind !== "corner" && (

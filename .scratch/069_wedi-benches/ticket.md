@@ -71,3 +71,18 @@ that one menu "so that everything is kinda contained into that space."
 - UI (`WediConfigurator.jsx`): hover zones + right-click menu on the TopDown
   pan, bench drawn in plan (rust dashed pan-cut line when framed), a "Bench"
   group in the build column, kit-dirty arms like add-ons.
+
+## Follow-up (2026-07-31, owner): suspended premades
+
+US3000001/US3000002 (the corner seats) and US3000000 (Sanoasa Bench 4) are
+SUSPENDED pieces — wall-hung, no body to the floor. Their pricelist details
+now read "Suspended Corner Seat" / "Suspended Bench" and the bench menu
+surfaces the details' first sentence on every premade row. `dims()` drops
+digit-free parentheticals so "(wall sides)" stops hiding the seats' 4"
+thickness; the corner seats join `benchPremades("corner")`. `normBench`
+marks them `suspended` with `thick` (4" seats, 3 1/8" bench), keeps the
+18"-to-the-top default, `benchEdgeSpans` leaves the curb whole under them,
+and the isometric draws only the slab — bottom at top-minus-thickness,
+floor clear beneath. The corner-kit premades also stopped inheriting the
+sheet's 20" third figure as height once it parsed: corner premades always
+top at 18" (the owner's floating-bench rule, now explicit in the code).

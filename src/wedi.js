@@ -2590,7 +2590,7 @@ const WEDI_SO = [
   "us": "US3000001",
   "name": "wedi Shower Seat M",
   "size": "19 in. x 19 in. (wall sides) x 4 in.",
-  "details": "Suspended Seat",
+  "details": "Suspended Corner Seat",
   "retail": 197.41,
   "net": 119.64,
   "section": "OTHER SHOWER SEATS",
@@ -2601,7 +2601,7 @@ const WEDI_SO = [
   "us": "US3000002",
   "name": "wedi Shower Seat L",
   "size": "24 in. x 24 in. (wall sides) x 4 in.",
-  "details": "Suspended Seat",
+  "details": "Suspended Corner Seat",
   "retail": 221.97,
   "net": 134.53,
   "section": "OTHER SHOWER SEATS",
@@ -2710,7 +2710,7 @@ const WEDI_SO = [
  {
   "us": "US3000000",
   "name": "wedi Sanoasa® Shower Bench 4",
-  "size": "47 1/4 in. x 15 in. x 3 1/8 in. in.",
+  "size": "47 1/4 in. x 15 in. x 3 1/8 in.",
   "details": "Suspended Bench",
   "retail": 406.82,
   "net": 246.56,
@@ -3874,9 +3874,11 @@ function isFeet(u) { return !!u && /^(?:'|ft\.?|feet)$/i.test(u.trim()); }
 // Every dimension the two sheets print, in inches. Handles the pricelist's
 // "36 in. x 60 in. x 1 37/64 in." and the ERP's "3'x5'", "4'x8'x1/2\"",
 // "38x64", "32\"x5-3/4\"". Unit-less groups are read as FEET only when every
-// value is ≤ 12 — "4x8" is a sheet, "38x64" is an S-DRY base.
+// value is ≤ 12 — "4x8" is a sheet, "38x64" is an S-DRY base. A digit-free
+// parenthetical splits a group — "19 in. x 19 in. (wall sides) x 4 in." —
+// so those drop first; parens carrying digits ARE the dims and stay.
 export function dims(text) {
-  const m = String(text == null ? "" : text).replace(/≈/g, "").match(DIM_RE);
+  const m = String(text == null ? "" : text).replace(/≈/g, "").replace(/\([^)\d]*\)/g, " ").match(DIM_RE);
   if (!m) return null;
   const raw = [], units = [];
   for (let i = 1; i < 7; i += 2) {
@@ -4500,6 +4502,10 @@ export function openCorners(dims, walls) {
 // curbRuns subtracts bench footprints from the open-edge runs. Corner
 // benches are measured from the corner out along each wall with a triangle
 // across the front, always 18" to the top by default, and never framed.
+// A premade whose details read "Suspended" (the corner seats, Sanoasa 4)
+// hangs on the walls instead: the top still sits at seat height but only
+// its slab is there (`thick` — 4" seats, 3 1/8" bench), the floor stays
+// clear beneath it, and the curb runs under it untouched.
 
 export const BENCH_H = 18;
 export const BENCH_DEPTH = 14;     // default seat depth along a wall (owner, 2026-07-31)
@@ -4510,22 +4516,31 @@ const BENCH_SHEETS_2IN = ["US8000016", "US8000020"];   // 4×8×2" then 4×5×2"
 export const BENCH_CORNER_LBL = { bl: "back-left", br: "back-right", fl: "entry-left", fr: "entry-right" };
 
 export function benchPremades(kind) {
-  return group("bench")
-    .filter((e) => (kind === "corner") === /corner/i.test(e.name))
+  // The suspended corner seats file as group "seat" but place like any
+  // corner bench — their "(wall sides)" legs are the corner legs.
+  return group("bench").concat(group("seat"))
+    .filter((e) => (kind === "corner") === (e.group === "seat" || /corner/i.test(e.name)))
     .sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
 }
 
 export function normBench(b, dims) {
   b = b || {};
   const part = b.part ? item(b.part) : null;
+  // Suspended: the part's thickness is its SLAB, not its height off the floor.
+  const susp = !!part && /suspended/i.test(part.details || "");
   if (b.kind === "corner") {
-    return {
+    const o = {
       kind: "corner",
       corner: BENCH_CORNER_LBL[b.corner] ? b.corner : "bl",
       build: part ? "premade" : "site", part: part ? part.key : null,
       size: round2(+b.size || (part && part.w) || BENCH_CORNER_LEG),
-      h: round2(+b.h || (part && part.t) || BENCH_H),
+      // Always 18" to the top (owner's floating-bench rule) — the corner
+      // kits' sheet prints a 20" third figure, but it isn't the installed
+      // height, and a suspended seat's 4" is its slab.
+      h: round2(+b.h || BENCH_H),
     };
+    if (susp) { o.suspended = true; o.thick = part.t || 4; }   // 3 1/8 must not round to 3.13
+    return o;
   }
   const side = ["left", "right", "back"].indexOf(b.side) >= 0 ? b.side : "left";
   const run = dims ? (side === "back" ? +dims.w || 0 : +dims.d || 0) : 0;
@@ -4535,8 +4550,9 @@ export function normBench(b, dims) {
     kind: "wall", side: side, build: build, part: part ? part.key : null,
     len: round2(run ? Math.min(len, run) : len),
     depth: round2(+b.depth || (part && part.d) || BENCH_DEPTH),
-    h: round2(+b.h || (part && part.t) || BENCH_H),
+    h: round2(+b.h || (!susp && part && part.t) || BENCH_H),
   };
+  if (susp) { o.suspended = true; o.thick = part.t || 4; }   // 3 1/8 must not round to 3.13
   if (build === "framed") o.panFit = b.panFit === "smaller" ? "smaller" : "cut";
   return o;
 }
@@ -4556,6 +4572,7 @@ function benchEdgeSpans(benches, dims) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
   const spans = { back: [], left: [], right: [], entry: [] };
   (benches || []).forEach((b) => {
+    if (b.suspended) return;   // hangs on the walls — the curb runs beneath it
     const f = benchFootprint(b, dims);
     if (f.kind === "corner") {
       const a = f.a;

@@ -740,7 +740,8 @@ test("wedi benches: site-built 2\" math — top, face, and a support about every
 
 test("wedi benches: premades are one line; included sealant doesn't double", () => {
   const pres = benchPremades("corner");
-  assert.ok(pres.length >= 2 && pres.every((e) => /corner/i.test(e.name)), "corner premades are the corner kits");
+  assert.ok(pres.length >= 2 && pres.every((e) => e.group === "seat" || /corner/i.test(e.name)),
+    "corner premades are the corner kits plus the suspended corner seats");
   assert.ok(benchPremades("wall").some((e) => e.key === "US3000056"), "the 48\" bench kit files under wall");
   const kit = [normBench({ kind: "corner", corner: "bl", part: "US3000055" }, roomB)];
   const bk = benchLines(kit, roomB, item(SKU.panelDefault));
@@ -748,6 +749,33 @@ test("wedi benches: premades are one line; included sealant doesn't double", () 
   assert.equal(bk.surfSf, 0, "the kit includes wedi Joint Sealant — nothing extra to figure");
   const san = [normBench({ kind: "wall", side: "back", part: "US3000043" }, roomB)];
   assert.ok(benchLines(san, roomB, null).surfSf > 0, "a Sanoasa bench still takes sealant to set");
+});
+
+test("wedi benches: suspended premades hang at seat height — the slab is the thickness, not the height", () => {
+  // "(wall sides)" is prose inside the seats' size — it must not hide the 4".
+  assert.deepEqual(dims("19 in. x 19 in. (wall sides) x 4 in."), [19, 19, 4],
+    "a digit-free parenthetical drops before the dims read");
+  const seatM = item("US3000001"), seatL = item("US3000002"), san4 = item("US3000000");
+  assert.ok(seatM.t === 4 && seatL.t === 4, 'the corner seats are 4" thick');
+  assert.equal(seatM.details, "Suspended Corner Seat", "the seats say what they are");
+  assert.equal(san4.details, "Suspended Bench");
+  assert.equal(san4.sizeText, '47 1/4" x 15" x 3 1/8"', "Sanoasa 4 sizes clean — no doubled unit");
+  const corner = benchPremades("corner");
+  assert.ok(corner.some((e) => e.key === "US3000001") && corner.some((e) => e.key === "US3000002"),
+    "the suspended corner seats place from the corner bench menu");
+  const seat = normBench({ kind: "corner", corner: "bl", part: "US3000001" }, roomB);
+  assert.ok(seat.suspended && seat.thick === 4 && seat.h === BENCH_H && seat.size === 19,
+    'seat M: 19" legs, 4" slab, top still at 18"');
+  const bench = normBench({ kind: "wall", side: "back", part: "US3000000" }, roomB);
+  assert.ok(bench.suspended && bench.thick === 3.125 && bench.h === BENCH_H
+    && bench.len === 47.25 && bench.depth === 15,
+    'Sanoasa 4: 47 1/4×15" slab 3 1/8" thick, top at 18"');
+  const floor = normBench({ kind: "wall", side: "back", part: "US3000043" }, roomB);
+  assert.ok(!floor.suspended && floor.h === 15, "Sanoasa 1 L stays floor-mounted at its own 15\" height");
+  // A suspended piece hangs above the curb line — the curb runs beneath it.
+  const flSeat = [normBench({ kind: "corner", corner: "fl", part: "US3000002" }, roomB)];
+  assert.equal(curbRuns(roomB, threeWallsB, [], flSeat).openLen, 60,
+    "an entry-corner suspended seat leaves the curb whole");
 });
 
 test("wedi benches: framed — ½\" wrap, and the pan is cut down or swapped smaller", () => {
