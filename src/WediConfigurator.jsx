@@ -375,6 +375,16 @@ const curbHeight = (it) => (curbWidth(it) === 2 ? CURB_H_LEAN : CURB_H_STD);
 // toward the pan edge it butts. (The 1 37/64"-vs-2" build-up strips are about
 // the edge thickness at that joint, not flatness.)
 const EXT_SPAN = [0.16, 0.86];
+// A pan plane is far deeper than an extension strip, so a fraction of its run
+// draws a much longer arrow than the extension mark beside it. The pan's marks
+// carry their own cap (owner ask 2026-07-31): two short arrows per plane,
+// the extension arrow's size whatever the pan measures.
+const PAN_SPAN = [0.12, 0.62], PAN_ARROW = 9, PAN_HEAD = 4;
+const PLANE_AT = [1 / 3, 2 / 3];
+// Both drawings scale an axis-aligned inch to `sc` screen px — the isometric's
+// unit vectors are unit length — so the cap can be stated in inches and read
+// the same size in the plan and the iso.
+const panCap = (sc) => ({ max: PAN_ARROW * sc, head: PAN_HEAD });
 function slopeMarks(o) {
   const pieces = o.pieces || [];
   const pan = pieces.find((p) => p.kind === "pan" || p.kind === "module");
@@ -391,22 +401,25 @@ function slopeMarks(o) {
       ? [[y0, dr.y - half], [y1, dr.y + half]] : [[x0, dr.x - half], [x1, dr.x + half]];
     runs.forEach(([edge, chan]) => {
       if (Math.abs(chan - edge) < 4) return;
-      [0.28, 0.5, 0.72].forEach((f) => {
+      PLANE_AT.forEach((f) => {
         const u = along ? x0 + (x1 - x0) * f : y0 + (y1 - y0) * f;
-        arrows.push({ a: along ? [u, edge] : [edge, u], b: along ? [u, chan] : [chan, u], f: [0.14, 0.88] });
+        arrows.push({ a: along ? [u, edge] : [edge, u], b: along ? [u, chan] : [chan, u], f: PAN_SPAN, pan: true });
       });
     });
   } else {
     [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].forEach((c) => {
       if (Math.hypot(c[0] - dr.x, c[1] - dr.y) > 6) hips.push([c, [dr.x, dr.y]]);
     });
-    // One arrow per plane, square to its own edge (that IS the steepest
-    // descent) and pinwheeled off centre so it clears the drain's dimension
-    // lines and the piece label.
+    // Two arrows per plane, square to its own edge (that IS the steepest
+    // descent) and spaced a third in from each end, so they sit in the wide
+    // part of the plane clear of the drain, its dimension lines, the piece
+    // label and the hips.
     const w2 = x1 - x0, d2 = y1 - y0;
-    [[[x0 + w2 * 0.35, y0], [x0 + w2 * 0.35, dr.y]], [[x1, y0 + d2 * 0.35], [dr.x, y0 + d2 * 0.35]],
-    [[x0 + w2 * 0.65, y1], [x0 + w2 * 0.65, dr.y]], [[x0, y0 + d2 * 0.65], [dr.x, y0 + d2 * 0.65]]]
-      .forEach(([a, b2]) => { if (Math.hypot(b2[0] - a[0], b2[1] - a[1]) > 8) arrows.push({ a, b: b2 }); });
+    PLANE_AT.forEach((f) => {
+      const u = x0 + w2 * f, v = y0 + d2 * f;
+      [[[u, y0], [u, dr.y]], [[x1, v], [dr.x, v]], [[u, y1], [u, dr.y]], [[x0, v], [dr.x, v]]]
+        .forEach(([a, b2]) => { if (Math.hypot(b2[0] - a[0], b2[1] - a[1]) > 8) arrows.push({ a, b: b2, f: PAN_SPAN, pan: true }); });
+    });
   }
   // Each extension falls toward the pan edge it butts — a corner piece toward
   // both, with the hip between them running out from the pan's corner.
@@ -436,14 +449,17 @@ function slopeMarks(o) {
 
 // A fall arrow between two projected points. On the pan the shaft stops short
 // of the drain so the head sits in open field, not on the cover; across an
-// extension it runs nearly the full depth, its head at the pan joint.
-function fallArrow(a, b, key, col, wpx, span) {
+// extension it runs nearly the full depth, its head at the pan joint. `cap`
+// clamps the drawn length and head in screen px — a pan plane's run is many
+// times an extension's, so only a px cap keeps the two marks the same size.
+function fallArrow(a, b, key, col, wpx, span, cap) {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
   const ux = dx / L, uy = dy / L;
   const [f0, f1] = span || [0.12, 0.5];
+  const run = Math.min(L * (f1 - f0), cap ? cap.max : Infinity);
   const s = [a[0] + ux * L * f0, a[1] + uy * L * f0];
-  const e = [a[0] + ux * L * f1, a[1] + uy * L * f1];
-  const hd = Math.min(5, L * (f1 - f0) * 0.36), hw = hd * 0.48;
+  const e = [s[0] + ux * run, s[1] + uy * run];
+  const hd = Math.min(cap ? cap.head : 5, run * 0.36), hw = hd * 0.48;
   return (
     <g key={key} pointerEvents="none">
       <line x1={round2(s[0])} y1={round2(s[1])} x2={round2(e[0] - ux * hd * 0.6)} y2={round2(e[1] - uy * hd * 0.6)} stroke={col} strokeWidth={wpx} />
@@ -453,6 +469,66 @@ function fallArrow(a, b, key, col, wpx, span) {
       ].map((p) => round2(p[0]) + "," + round2(p[1])).join(" ")} />
     </g>
   );
+}
+
+// Where each curb run's band sits in plan, with the ring corners MITRED.
+// Two runs meeting at an open corner used to be two full boxes, one ending
+// inside the other: the buried faces still drew, the shared outer plane came
+// out as two polygons split by an ink line, and the tops butted on a seam that
+// read as a step. A miter gives each run a right-trapezoid — the OUTER edge
+// carries on to the corner point, the INNER edge stops at the joint — so the
+// outer plane is one face and the tops share a single 45° line.
+//
+// The engine already hands a horizontal run the corner square as ext0/ext1
+// (wedi.js curbRuns). That ext is exactly the miter's overhang, and it is set
+// only where no wall fills the corner — which is also the only place a
+// perpendicular run can continue — so it doubles as the "miter here" signal
+// for the vertical run reaching the same corner.
+function curbBands(curbs, rw, rd, inset) {
+  const mit = {};
+  (curbs || []).forEach((cs) => {
+    const k = cs.side === "back" ? ["bl", "br"] : cs.side === "entry" ? ["fl", "fr"] : null;
+    if (!k) return;
+    if (cs.ext0 > 0) mit[k[0]] = 1;
+    if (cs.ext1 > 0) mit[k[1]] = 1;
+  });
+  const out = [];
+  (curbs || []).forEach((cs, ci) => {
+    const horiz = cs.side === "back" || cs.side === "entry";
+    const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
+    if (!(len > 0)) return;
+    // "overall max": the curb sits inside the stated line at its real width,
+    // lapping the pan by its ½" — no ring-corner miter inside.
+    const inEdge = !!(inset && inset[cs.side] > 0);
+    const cw = inEdge ? inset.cw : CURB_W;
+    const c0 = horiz
+      ? (cs.side === "back" ? (inEdge ? 0 : -cw) : rd - (inEdge ? cw : 0))
+      : (cs.side === "left" ? (inEdge ? 0 : -cw) : rw - (inEdge ? cw : 0));
+    const lo = cs.from, hi = cs.from + len;
+    let mLo, mHi;
+    if (horiz) { mLo = !inEdge && cs.ext0 > 0; mHi = !inEdge && cs.ext1 > 0; }
+    else {
+      const left = cs.side === "left";
+      mLo = !inEdge && lo <= 0.5 && !!mit[left ? "bl" : "br"];
+      mHi = !inEdge && hi >= rd - 0.5 && !!mit[left ? "fl" : "fr"];
+    }
+    const outer = [lo - (mLo ? cw : 0), hi + (mHi ? cw : 0)], inner = [lo, hi];
+    // c1 is the edge this camera sees; on the entry/right runs it is also the
+    // one facing out of the room, so it is the edge that carries the overhang.
+    const outAtC1 = cs.side === "entry" || cs.side === "right";
+    out.push({
+      ci, side: cs.side, horiz, c0, c1: c0 + cw, lo, hi, mHi, len,
+      eC0: outAtC1 ? inner : outer, eC1: outAtC1 ? outer : inner,
+    });
+  });
+  return out;
+}
+// The band's plan outline: a rectangle, or a trapezoid where a corner miters.
+function bandPoly(b) {
+  const [a0, a1] = b.eC0, [z0, z1] = b.eC1;
+  return b.horiz
+    ? [[a0, b.c0], [a1, b.c0], [z1, b.c1], [z0, b.c1]]
+    : [[b.c0, a0], [b.c0, a1], [b.c1, z1], [b.c1, z0]];
 }
 
 function topGeom(o, W_, H_, mini) {
@@ -594,7 +670,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   if (slope) {
     slope.hips.forEach((s, i) => push(<line key={`sh${i}`} x1={X(s[0][0])} y1={Y(s[0][1])} x2={X(s[1][0])} y2={Y(s[1][1])}
       stroke="rgba(28,26,23,.22)" strokeWidth="1" pointerEvents="none" />));
-    slope.arrows.forEach((s, i) => push(fallArrow([X(s.a[0]), Y(s.a[1])], [X(s.b[0]), Y(s.b[1])], `sa${i}`, "rgba(28,26,23,.42)", 1.2, s.f)));
+    slope.arrows.forEach((s, i) => push(fallArrow([X(s.a[0]), Y(s.a[1])], [X(s.b[0]), Y(s.b[1])], `sa${i}`, "rgba(28,26,23,.42)", 1.2, s.f, s.pan ? panCap(sc) : null)));
   }
 
   const BENCH_CORNER_TRI = {
@@ -661,44 +737,19 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     });
     // Curb runs sit IN the wall band, butted between the wall sections
     // (owner sketch) — same ring the walls draw in, slightly thinner. The
-    // engine's ext0/ext1 fill the open ring corners so runs meet square with
-    // no gap, and a cut corner's curb takes the one straight line across.
-    const cw = round2(CURB_W * sc);
-    const ins = o.inset || null;
-    (curbs || []).forEach((cs, ci) => {
-      const horiz = cs.side === "back" || cs.side === "entry";
-      const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
-      if (!(len > 0)) return;
-      // "overall max": this edge's curb sits INSIDE the stated line, lapping
-      // the pan by its ½" — the band draws at the curb's real width.
-      if (ins && ins[cs.side] > 0) {
-        const cwr = round2(ins.cw * sc);
-        if (horiz) {
-          const y0 = cs.side === "back" ? Y(0) : Y(rd) - cwr;
-          push(<rect key={`cb${ci}`} x={X(cs.from)} y={y0} width={round2(len * sc)} height={cwr} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
-          if (len * sc > 34) push(<text key={`cbt${ci}`} x={X(cs.from + len / 2)} y={y0 + cwr / 2 + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
-        } else {
-          const x0 = cs.side === "left" ? X(0) : X(rw) - cwr;
-          push(<rect key={`cb${ci}`} x={x0} y={Y(cs.from)} width={cwr} height={round2(len * sc)} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
-          if (len * sc > 34) {
-            const tx = x0 + cwr / 2, ty = Y(cs.from + len / 2) + 2.5;
-            push(<text key={`cbt${ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5" transform={`rotate(-90 ${tx} ${ty})`}>CURB</text>);
-          }
-        }
-        return;
-      }
-      if (horiz) {
-        const extL = round2(cs.ext0 * sc), extR = round2(cs.ext1 * sc);
-        const y0 = cs.side === "back" ? Y(0) - cw : Y(rd);
-        push(<rect key={`cb${ci}`} x={X(cs.from) - extL} y={y0} width={round2(len * sc + extL + extR)} height={cw} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
-        if (len * sc > 34) push(<text key={`cbt${ci}`} x={X(cs.from + len / 2)} y={y0 + cw / 2 + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
+    // engine's ext0/ext1 fill the open ring corners, drawn as a MITER so two
+    // runs meeting there share one 45° line, and a cut corner's curb takes the
+    // one straight line across.
+    curbBands(curbs, rw, rd, o.inset).forEach((b) => {
+      push(<polygon key={`cb${b.ci}`} points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
+        fill="#E9E3D3" stroke={MUTED} strokeWidth="1" strokeLinejoin="round" />);
+      if (!(b.len * sc > 34)) return;
+      const mid = (b.lo + b.hi) / 2, cross = (b.c0 + b.c1) / 2;
+      if (b.horiz) {
+        push(<text key={`cbt${b.ci}`} x={X(mid)} y={Y(cross) + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
       } else {
-        const x0 = cs.side === "left" ? X(0) - cw : X(rw);
-        push(<rect key={`cb${ci}`} x={x0} y={Y(cs.from)} width={cw} height={round2(len * sc)} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
-        if (len * sc > 34) {
-          const tx = x0 + cw / 2, ty = Y(cs.from + len / 2) + 2.5;
-          push(<text key={`cbt${ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5" transform={`rotate(-90 ${tx} ${ty})`}>CURB</text>);
-        }
+        const tx = X(cross), ty = Y(mid) + 2.5;
+        push(<text key={`cbt${b.ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5" transform={`rotate(-90 ${tx} ${ty})`}>CURB</text>);
       }
     });
     (curbDiags || []).forEach((d, i) => {
@@ -927,7 +978,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // viewer reads as "the wall" then paints its wedi-covered region in the
   // pan green + a fine 45° hatch — bare framing stays dark (solid walls)
   // or clear (front walls), which is exactly the framed-bench shadow.
-  const wallEls = (wl, wi) => {
+  const wallEls = (wl, wi, phase) => {
     const g = geomOf(wl);
     if (!g) return;
     const isFront = wl.side === "entry" || wl.side === "right";
@@ -962,28 +1013,38 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       </g>
     );
     if (isFront) {
+      // A clear wall draws in two passes around the shower: its tinted body
+      // BEFORE the pan and curb, its dashed outline after. Painted whole at the
+      // end, the wash landed across the curb — and because a wall's clear faces
+      // draw on its OUTER plane while the curb butts the INNER one, that wash
+      // edge cut a curb end in half and read as a step with a pale gap beyond
+      // it. Now the floor assembly keeps its own tone and the dashes still
+      // cross it, which is what says "wall in front".
       // pointer-events on the stroke only: a clear wall's body must not
       // swallow right-clicks meant for the solid walls and pan behind it.
-      const dash = { fill: "rgba(87,112,58,.05)", stroke: wallLine, strokeWidth: 1, strokeDasharray: "3 3", pointerEvents: "stroke" };
+      const dash = phase === "line"
+        ? { fill: "none", stroke: wallLine, strokeWidth: 1, strokeDasharray: "3 3", pointerEvents: "stroke" }
+        : { fill: "rgba(87,112,58,.05)", stroke: "none" };
       els.push(
-        <g key={`w${wi}`} {...mp}>
-          {title}
+        <g key={`w${wi}${phase}`} {...(phase === "line" ? mp : {})}>
+          {phase === "line" ? title : null}
           <polygon points={faceE} {...dash} />
           {faceS ? <polygon points={faceS} {...dash} /> : null}
           <polygon points={faceT} {...dash} />
-          {cover}
+          {phase === "line" ? null : cover}
         </g>);
-    } else {
-      const tones = wl.extra ? ["#46592F", "#57703A", "#68804A"] : ["#454239", "#57534C", "#6B665D"];
-      els.push(
-        <g key={`w${wi}`} {...mp}>
-          {title}
-          <polygon points={faceE} fill={wl.side === "left" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
-          {faceS ? <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" /> : null}
-          <polygon points={faceT} fill={tones[2]} stroke={wallLine} strokeWidth=".8" />
-          {cover}
-        </g>);
+      if (phase === "line") jointsOf(wl, g, isFront, wi);
+      return;
     }
+    const tones = wl.extra ? ["#46592F", "#57703A", "#68804A"] : ["#454239", "#57534C", "#6B665D"];
+    els.push(
+      <g key={`w${wi}`} {...mp}>
+        {title}
+        <polygon points={faceE} fill={wl.side === "left" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
+        {faceS ? <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" /> : null}
+        <polygon points={faceT} fill={tones[2]} stroke={wallLine} strokeWidth=".8" />
+        {cover}
+      </g>);
     jointsOf(wl, g, isFront, wi);
   };
   // Back/entry first inside each pass: they own the ring corners, so the side
@@ -991,7 +1052,8 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const solidW = [], clearW = [];
   dw.forEach((wl, wi) => { (wl.side === "entry" || wl.side === "right" ? clearW : solidW).push([wl, wi]); });
   const wallRank = (p) => (p[0].side === "back" || p[0].side === "entry" ? 0 : 1);
-  solidW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
+  solidW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1], "solid"));
+  clearW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1], "fill"));
 
   // Pan and curb draw at their REAL heights (owner, 2026-07-31): the pan is a
   // thin slab — 1 37/64" (2" on the deep ones) — and every curb stands proud of
@@ -1005,25 +1067,26 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // and has to be painted before it, or its body floats over the pan surface.
   const CBH = curbH || CURB_H_LEAN;
   const insI = o.inset || null;
-  const curbEls = (cs, ci) => {
-    const horiz = cs.side === "back" || cs.side === "entry";
-    const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
-    if (!(len > 0)) return;
-    // "overall max": the curb sits inside the stated line at its real width,
-    // lapping the pan by its ½" — no ring-corner ext fills inside.
-    const inEdge = insI && insI[cs.side] > 0;
-    const cwv = inEdge ? insI.cw : CURB_W;
-    const x0 = horiz ? cs.from - (inEdge ? 0 : cs.ext0)
-      : (cs.side === "left" ? (inEdge ? 0 : -CURB_W) : rw - (inEdge ? cwv : 0));
-    const y0 = horiz ? (cs.side === "back" ? (inEdge ? 0 : -CURB_W) : rd - (inEdge ? cwv : 0)) : cs.from;
-    const x1 = horiz ? cs.from + len + (inEdge ? 0 : cs.ext1) : x0 + cwv;
-    const y1 = horiz ? y0 + cwv : cs.from + len;
-    els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+  // This camera only ever sees a band's +x face, its +y face and its top. On a
+  // horizontal run that makes the +x face the run's END; on a vertical run it
+  // is the long face and the +y face is the end. A mitered end has no square
+  // face to draw — the neighbouring run's own faces close the corner — and the
+  // long face stops at the joint, so nothing buried inside the miter is drawn.
+  const bands = curbBands(curbs, rw, rd, insI);
+  const curbEls = (b) => {
+    const { horiz, c0, c1, hi, mHi, ci } = b;
+    const [z0, z1] = b.eC1;
+    if (horiz) {
+      if (!mHi) els.push(<polygon key={`cbe${ci}`} points={str([M(hi, c0, CBH), M(hi, c1, CBH), M(hi, c1, 0), M(hi, c0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+      els.push(<polygon key={`cbs${ci}`} points={str([M(z0, c1, CBH), M(z1, c1, CBH), M(z1, c1, 0), M(z0, c1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    } else {
+      els.push(<polygon key={`cbe${ci}`} points={str([M(c1, z0, CBH), M(c1, z1, CBH), M(c1, z1, 0), M(c1, z0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+      if (!mHi) els.push(<polygon key={`cbs${ci}`} points={str([M(c0, hi, CBH), M(c1, hi, CBH), M(c1, hi, 0), M(c0, hi, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    }
+    els.push(<polygon key={`cbt${ci}`} points={str(bandPoly(b).map((p) => M(p[0], p[1], CBH)))} fill="#E4DDCB" stroke={INK} strokeWidth=".8" strokeLinejoin="round" />);
   };
   const behind = (cs) => cs.side === "back" || cs.side === "left";
-  (curbs || []).forEach((cs, ci) => { if (behind(cs)) curbEls(cs, ci); });
+  bands.forEach((b) => { if (behind(b)) curbEls(b); });
 
   o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y)).forEach((p, i) => {
     const f = PIECE_FILL[p.kind] || "#EFF3E6", side = PIECE_SIDE[p.kind] || "#D8DFC4";
@@ -1073,7 +1136,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       els.push(<line key={`sh${i}`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke="rgba(28,26,23,.2)" strokeWidth="1" />);
     });
     slope.arrows.forEach((s, i) => els.push(
-      fallArrow(M(s.a[0], s.a[1], t + 0.05), M(s.b[0], s.b[1], t + 0.05), `sa${i}`, "rgba(28,26,23,.38)", 1.1, s.f)));
+      fallArrow(M(s.a[0], s.a[1], t + 0.05), M(s.b[0], s.b[1], t + 0.05), `sa${i}`, "rgba(28,26,23,.38)", 1.1, s.f, s.pan ? panCap(sc) : null)));
   }
 
   const dr = o.drain;
@@ -1156,7 +1219,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // draws after its run.
   const onCurb = (b) => b.build !== "framed" && benchOut(b, benchFootprint(b, o.room)) > 0;
   (benches || []).forEach((b, bi) => { if (!onCurb(b)) benchDraw(b, bi); });
-  (curbs || []).forEach((cs, ci) => { if (!behind(cs)) curbEls(cs, ci); });
+  bands.forEach((b) => { if (!behind(b)) curbEls(b); });
   (benches || []).forEach((b, bi) => { if (onCurb(b)) benchDraw(b, bi); });
   // A cut corner's curb takes the one straight line across.
   (curbDiags || []).forEach((d, i) => {
@@ -1177,8 +1240,9 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
 
-  // Front walls draw last — clear, so the shower stays readable through them.
-  clearW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
+  // Front walls close last — only their dashed outline and joint dots, over the
+  // shower they stand in front of; the tint went down before the pan.
+  clearW.forEach((p) => wallEls(p[0], p[1], "line"));
   if (dw.length) {
     els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
       {'walls 4" thick, to ' + inch(hmax) + '" · green hatch = wedi' + (panelFit ? " · joints dotted" : "")}</text>);
