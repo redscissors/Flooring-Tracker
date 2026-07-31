@@ -497,18 +497,17 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     });
   }
 
-  // Benches draw over the pan. A wall bench reaching the entry runs on out
-  // over the curb line ("all the way out — the curb becomes smaller"); a
-  // framed bench marks the pan cut along its face in the same rust dash a
-  // cut-down pan wears.
   const BENCH_CORNER_TRI = {
     bl: (a) => [[0, 0], [a, 0], [0, a]], br: (a) => [[rw, 0], [rw - a, 0], [rw, a]],
     fl: (a) => [[0, rd], [a, rd], [0, rd - a]], fr: (a) => [[rw, rd], [rw - a, rd], [rw, rd - a]],
   };
   const benchTag = (b) => (b.build === "premade" ? (item(b.part) || {}).us || "premade"
     : b.build === "framed" ? "framed · ½\" wrap" : '2" wedi');
-  (benches || []).forEach((b, bi) => {
-    if (mini) return;
+  // Benches draw over the pan AND over the curb band: a bench reaching the
+  // entry runs on out over the curb line, riding a run that now carries on
+  // beneath it (only a framed bench displaces the curb, and it marks the pan
+  // cut along its face in the same rust dash a cut-down pan wears).
+  const benchBand = (b, bi) => {
     const f = benchFootprint(b, o.room);
     if (f.kind === "corner") {
       const pts = BENCH_CORNER_TRI[f.corner](f.a);
@@ -537,7 +536,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
         ? <text key={`bns${bi}`} x={cx} y={cy + 8} textAnchor="middle" fontSize="6.5" fontWeight="600" fill={MUTED} fontFamily={FONT}>{benchTag(b)}</text>
         : <text key={`bns${bi}`} x={cx + 9} y={cy} textAnchor="middle" fontSize="6.5" fontWeight="600" fill={MUTED} fontFamily={FONT} transform={`rotate(-90 ${cx + 9} ${cy})`}>{benchTag(b)}</text>);
     }
-  });
+  };
 
   if (!mini) {
     const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
@@ -614,6 +613,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(b2x)},${Y(b2y)} ${X(a2x)},${Y(a2y)}`}
         fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
     });
+    (benches || []).forEach(benchBand);
   }
 
   const dr = o.drain;
@@ -968,23 +968,26 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       els.push(<polygon key="dr2" points={str([M(dr.x - 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y + 0.7, t + 0.1), M(dr.x - 0.7, dr.y + 0.7, t + 0.1)])} fill={INK} />);
     }
   }
-  // Benches as slabs to their real top height (issue 069 follow-up). A
-  // site-built or premade bench's faces land on the pan surface — the pan
-  // runs underneath — while a framed bench meets the floor beside the cut
-  // pan and re-marks the pan cut in rust at its base, like the plan view.
-  // Corner benches are triangular prisms. Drawn BEFORE the entry/right curb
-  // runs: the shortened curb butts the bench's face, so its body stands in
-  // front of the bench's lower front corner, not the other way around
-  // (owner markup 2026-07-31).
+  // Benches as slabs to their real top height (issue 069 follow-up). Every
+  // bench body starts at the PAN SURFACE: a framed bench's frame does carry
+  // on down to the subfloor, but the cut pan butts its face and buries that
+  // last 4" — drawing it from the floor is what dragged the pan's surface,
+  // and with it the rust cut mark, 4" out of place. Corner benches are
+  // triangular prisms.
   const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
   const benchQuad = (a, b2, z0, z1, fill, key) =>
     els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
-  (benches || []).forEach((b, bi) => {
+  // How far a wall bench runs past the pan line at the entry — out over the
+  // curb, which it either rides (built on the finished shower) or replaced
+  // (framed).
+  const benchOut = (b, f) => (!b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0)
+    && f.kind === "rect" && f.y + f.d >= rd - 0.5 ? CURB_W : 0);
+  const benchDraw = (b, bi) => {
     const f = benchFootprint(b, o.room);
     const zh = b.h || 18;
     // A suspended premade hangs on the walls: only its slab draws — bottom at
     // top-minus-thickness, the floor (and any curb) clear beneath it.
-    const z0 = b.suspended ? Math.max(t, zh - (b.thick || 4)) : b.build === "framed" ? 0 : t;
+    const z0 = b.suspended ? Math.max(t, zh - (b.thick || 4)) : t;
     if (f.kind === "corner") {
       const tri = ({
         bl: [[0, 0], [f.a, 0], [0, f.a]], br: [[rw, 0], [rw - f.a, 0], [rw, f.a]],
@@ -1001,31 +1004,39 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
       return;
     }
-    const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const out = benchOut(b, f);
     const x0 = f.x, x1 = f.x + f.w, y0 = f.y, yc = f.y + f.d, y1 = yc + out;
-    // Past the pan line the bench IS the curb it displaced: it stands on the
-    // floor, so the oversail steps its faces down instead of floating on the
-    // pan's top surface.
-    const step = out > 0 && z0 > 0;
+    // Past the pan line the oversail rides the curb's top — except a framed
+    // bench, which took the curb's place and carries on to the subfloor.
+    const zOut = b.build === "framed" ? 0 : CBH;
+    const step = out > 0 && Math.abs(zOut - z0) > 0.01;
     els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
       points={str(step
-        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, 0), M(x1, yc, 0), M(x1, yc, z0), M(x1, y0, z0)]
+        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yc, zOut), M(x1, yc, z0), M(x1, y0, z0)]
         : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
-    benchQuad([x0, y1], [x1, y1], step ? 0 : z0, zh, BSIDE2, `bn${bi}f`);
+    benchQuad([x0, y1], [x1, y1], out > 0 ? zOut : z0, zh, BSIDE2, `bn${bi}f`);
     els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
-    // The pan's cut edge only gets a rust mark where it lands on the bench face
-    // this camera sees; on a right-hand bench the cut is behind the box, and
-    // drawing it anyway drags a line straight across the seat.
-    if (b.build === "framed" && !framedFit && b.side !== "right") {
-      const a = b.side === "left" ? M(x1, 0, t) : M(x0, f.d, t);
-      const b2 = b.side === "left" ? M(x1, rd, t) : M(x1, f.d, t);
-      els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
+    // The pan is cut wall to wall along the bench's face, but only the stretch
+    // the box doesn't stand in front of reads from this camera — a right-hand
+    // bench hides its own cut, so the mark starts where the seat ends.
+    if (b.build === "framed" && !framedFit) {
+      const seg = b.side === "left" ? [[x1, 0], [x1, rd]]
+        : b.side === "back" ? [[0, yc], [rw, yc]]
+          : yc < rd - 0.5 ? [[x0, yc], [x0, rd]] : null;
+      if (seg) {
+        const a = M(seg[0][0], seg[0][1], t), b2 = M(seg[1][0], seg[1][1], t);
+        els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
+      }
     }
-  });
-
-  // …then the entry/right curb runs, which stand in front of the pan AND of
-  // any bench whose face they butt.
+  };
+  // A framed bench displaced the curb, so its run butts the bench face and
+  // stands in front of it (owner markup 2026-07-31); a bench built on the
+  // finished shower rides over a curb that runs on beneath it, so that one
+  // draws after its run.
+  const onCurb = (b) => b.build !== "framed" && benchOut(b, benchFootprint(b, o.room)) > 0;
+  (benches || []).forEach((b, bi) => { if (!onCurb(b)) benchDraw(b, bi); });
   (curbs || []).forEach((cs, ci) => { if (!behind(cs)) curbEls(cs, ci); });
+  (benches || []).forEach((b, bi) => { if (onCurb(b)) benchDraw(b, bi); });
   // A cut corner's curb takes the one straight line across.
   (curbDiags || []).forEach((d, i) => {
     const g2 = CGEOM[d.corner];
