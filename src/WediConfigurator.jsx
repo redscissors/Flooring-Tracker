@@ -12,7 +12,7 @@
 // here pre-filled.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Printer, Copy } from "lucide-react";
+import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -196,7 +196,8 @@ const CSS = `
 .wedi-pop .totrow .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .totrow .sell{margin-left:auto;text-align:right}
 .wedi-pop .totrow .sell .v{font-size:22px}
-.wedi-pop .marginrow{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;display:flex}
+.wedi-pop .marginrow{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px;width:100%;background:none;border:0;padding:0;font-family:inherit;text-align:left;cursor:pointer}
+.wedi-pop .marginrow:hover{color:var(--ft-text)}
 .wedi-pop .marginrow span{margin-left:auto}
 .wedi-pop .btnrow{display:flex;gap:7px;margin-top:9px}
 .wedi-pop .wbtn{flex:1;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:12px;font-weight:800;padding:9px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
@@ -890,6 +891,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [payload, setPayload] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState("");
+  // Cost & margin stay hidden until clicked — a customer may be watching the
+  // screen while the build is put together (owner ask 2026-07-31).
+  const [showMargin, setShowMargin] = useState(false);
 
   // --- price level: a lens on the JOB's tier, exactly like Sheoga's ----------
   const [localTier, setLocalTier] = useState({ tier: "retail", customPct: "" });
@@ -1853,7 +1857,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               <div className="v" style={{ color: tierColor }} data-wedi-sell>{fm(totals.sell)}</div>
             </div>
           </div>
-          <div className="marginrow">cost {fm(totals.cost)}<span>margin {fm(totals.margin)} · {totals.sell ? Math.round(totals.margin / totals.sell * 100) : 0}%</span></div>
+          <button type="button" className="marginrow" onClick={() => setShowMargin((v) => !v)}
+            title={showMargin ? "Hide cost & margin" : "Show cost & margin"}>
+            {showMargin
+              ? <>cost {fm(totals.cost)}<span>margin {fm(totals.margin)} · {totals.sell ? Math.round(totals.margin / totals.sell * 100) : 0}%</span></>
+              : <><Eye size={11} /> cost &amp; margin</>}
+          </button>
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> Add to product lines</button>
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)}><Printer size={13} /> Print layout</button>
