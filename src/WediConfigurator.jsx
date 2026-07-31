@@ -1298,9 +1298,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   };
 
   // --- kit cards ------------------------------------------------------------
-  // What each house kit costs out of OUR stock with the current wall setup
-  // (owner feedback 20) — not wedi's boxed-kit price.
-  const kitCosts = useMemo(() => {
+  // What each house kit sells for through the tier lens with the current wall
+  // setup — ONE number per card, matching the build column's total (owner ask
+  // 2026-07-31; supersedes feedback 20's our-stock-cost line, which read as a
+  // second confusing price beside the pan's).
+  const kitTotals = useMemo(() => {
     const out = {};
     const fams = FAM_DEFS.map((f) => (f[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: f[0] })));
     fams.forEach((list) => list.forEach((p) => {
@@ -1309,11 +1311,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       const b = kitFor(p.key, { walls: wl, sealantForm: opts.sealantForm, room: { w: lens.back, d: lens.left } });
       if (!b) return;
       const lines = panelFit ? applyPanelFit(b.lines, wl, b.panelSf) : b.lines;
-      out[p.key] = round2(lines.reduce((t, l) => t + l.item.cost * l.qty, 0));
+      out[p.key] = round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     }));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walls, extraWalls, wallH, wallFlip, panelFit, opts.sealantForm]);
+  }, [walls, extraWalls, wallH, wallFlip, panelFit, opts.sealantForm, tierId, customPct, salePct, bPct]);
 
   const cat = catalog();
   const nStock = useMemo(() => cat.filter((e) => e.stock).length, [cat]);
@@ -1392,8 +1394,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                   </div>
                   <div className="nm">{unwedi(p.name)}</div>
                   <div className="drn">{p.group === "module" ? inch(p.channel) + "″ channel" : p.drain.type + " drain"}</div>
-                  <div className="pr" style={{ color: tierColor }}>{fm(tierOf(p))}</div>
-                  <div className="fk">kit cost {fm0(kitCosts[p.key] || 0)} — our stock</div>
+                  <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
+                  <div className="fk">{kitTotals[p.key] != null ? "full kit" : "pan only"}</div>
                 </button>
               ))}
             </div>

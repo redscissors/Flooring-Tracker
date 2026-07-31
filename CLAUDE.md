@@ -293,8 +293,10 @@ src/
                     # re-exports these four (ADR 0026, wediquery.test.js)
   WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
                     # tables stay off boot: three tabs — Kits (every stocked pan a
-                    # card showing OUR stock kit cost; one click builds the house
-                    # kit), Custom shower (the solver's ranked option cards + cut
+                    # card showing ONE price, the full kit through the tier lens —
+                    # matching the build column's total; owner ask 2026-07-31
+                    # replaced the earlier our-stock-cost line — one click builds
+                    # the house kit), Custom shower (the solver's ranked option cards + cut
                     # list) and Browse (the whole catalog, stock tinted green and
                     # ranked first, + the sealant/fastener figurer) — over one
                     # shared build column (grouped lines, swap popovers, steppers,
