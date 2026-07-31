@@ -699,22 +699,25 @@ test("wedi benches: defaults and footprints follow the owner's measuring rules",
     'premade corner kit measures by its 24" legs — 18" to the top, the owner\'s floating-bench rule');
 });
 
-test("wedi benches: the curb gets smaller — the bench comes all the way out over it", () => {
+test("wedi benches: the shower completes first — only a framed bench interrupts the curb", () => {
   const base = curbRuns(roomB, threeWallsB, []);
   assert.equal(base.openLen, 60, "baseline: entry curb runs the full 60");
-  const left = [normBench({ kind: "wall", side: "left" }, roomB)];
-  const r1 = curbRuns(roomB, threeWallsB, [], left);
-  assert.equal(r1.segs.length, 1);
-  assert.ok(r1.segs[0].from === 14 && r1.segs[0].len === 46, "left bench takes 14\" off the entry run");
-  assert.equal(r1.openLen, 46);
-  const short = [normBench({ kind: "wall", side: "left", len: 30 }, roomB)];
-  assert.equal(curbRuns(roomB, threeWallsB, [], short).openLen, 60,
-    "a bench that stops short of the entry leaves the curb alone");
-  const back = [normBench({ kind: "wall", side: "back" }, roomB)];
-  assert.equal(curbRuns(roomB, threeWallsB, [], back).openLen, 60, "a back bench never touches the entry curb");
+  const site = [normBench({ kind: "wall", side: "left" }, roomB)];
+  assert.equal(curbRuns(roomB, threeWallsB, [], site).openLen, 60,
+    'a 2" build-up sits ON the finished shower — the curb runs across beneath it');
   const fl = [normBench({ kind: "corner", corner: "fl" }, roomB)];
-  const r2 = curbRuns(roomB, threeWallsB, [], fl);
-  assert.ok(r2.segs[0].from === 24 && r2.openLen === 36, "an entry-corner bench trims its triangle off the curb");
+  assert.equal(curbRuns(roomB, threeWallsB, [], fl).openLen, 60,
+    "an entry-corner build-up leaves the curb whole too");
+  const framed = [normBench({ kind: "wall", side: "left", build: "framed" }, roomB)];
+  const r1 = curbRuns(roomB, threeWallsB, [], framed);
+  assert.equal(r1.segs.length, 1);
+  assert.ok(r1.segs[0].from === 14 && r1.segs[0].len === 46, "a framed bench takes 14\" off the entry run");
+  assert.equal(r1.openLen, 46);
+  const short = [normBench({ kind: "wall", side: "left", build: "framed", len: 30 }, roomB)];
+  assert.equal(curbRuns(roomB, threeWallsB, [], short).openLen, 60,
+    "a framed bench that stops short of the entry leaves the curb alone");
+  const back = [normBench({ kind: "wall", side: "back", build: "framed" }, roomB)];
+  assert.equal(curbRuns(roomB, threeWallsB, [], back).openLen, 60, "a back bench never touches the entry curb");
 });
 
 test("wedi benches: site-built 2\" math — top, face, and a support about every foot", () => {
@@ -872,13 +875,17 @@ test("wedi benches: framed 'smaller' re-solves the clear space with the drain ce
     "cfg round-trips the framed-smaller build");
 });
 
-test("wedi benches: kitFor files the group, shrinks the curb, feeds the sealant, round-trips cfg", () => {
+test("wedi benches: kitFor files the group, keeps the curb across, feeds the sealant, round-trips cfg", () => {
   const plain = kitFor("US9100004", { walls: threeWallsB });
   const k = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left" }] });
   const bench = k.lines.filter((l) => l.group === "bench");
   assert.ok(bench.length === 1 && bench[0].item.key === "US8000020", "site bench lands one 2\" sheet in its own group");
-  const curb = k.lines.filter((l) => l.item.group === "curb")[0];
-  assert.ok(/46/.test(curb.note), "the curb line is figured at the shortened 46\"");
+  const curbOf = (b) => b.lines.filter((l) => l.item.group === "curb")[0];
+  const curbK = curbOf(k), curbP = curbOf(plain);
+  assert.ok(curbK.item.key === curbP.item.key && curbK.qty === curbP.qty && curbK.note === curbP.note,
+    "the curb runs across — a build-up bench doesn't shorten it");
+  const kF = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
+  assert.ok(/46/.test(curbOf(kF).note), "a framed bench still butts the curb at the shortened 46\"");
   const seal = (b) => b.lines.filter((l) => l.item.group === "sealant")[0].qty;
   assert.ok(seal(k) >= seal(plain), "bench surface joins the sealant figuring");
   assert.equal(k.cfg.benches.length, 1, "cfg carries the bench for Reconfigure");

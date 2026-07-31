@@ -4498,8 +4498,11 @@ export function openCorners(dims, walls) {
 //   framed  — the installer frames it in and the pan butts AGAINST it, the
 //             framing wrapped with the build's ½" wall panel; the pan is cut
 //             down or swapped smaller to make room (panFit "cut"|"smaller").
-// A bench runs the full pan-AND-curb depth, so the curb butts its face —
-// curbRuns subtracts bench footprints from the open-edge runs. Corner
+// The shower is always completed first and the bench built ON it (owner
+// rule 2026-07-31): a 2" build-up or premade bench sits on the finished pan
+// and curb, so the curb runs across beneath it untouched. Only the
+// installer-FRAMED bench interrupts the envelope — the pan butts its face
+// and curbRuns subtracts its footprint from the open-edge runs. Corner
 // benches are measured from the corner out along each wall with a triangle
 // across the front, always 18" to the top by default, and never framed.
 // A premade whose details read "Suspended" (the corner seats, Sanoasa 4)
@@ -4568,11 +4571,13 @@ export function benchFootprint(b, dims) {
 }
 
 // The intervals of each room edge a bench sits on — what the curb gives up.
+// Only framed benches register: everything else goes on after the shower is
+// complete, curb and all.
 function benchEdgeSpans(benches, dims) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
   const spans = { back: [], left: [], right: [], entry: [] };
   (benches || []).forEach((b) => {
-    if (b.suspended) return;   // hangs on the walls — the curb runs beneath it
+    if (b.build !== "framed") return;
     const f = benchFootprint(b, dims);
     if (f.kind === "corner") {
       const a = f.a;

@@ -86,3 +86,15 @@ and the isometric draws only the slab — bottom at top-minus-thickness,
 floor clear beneath. The corner-kit premades also stopped inheriting the
 sheet's 20" third figure as height once it parsed: corner premades always
 top at 18" (the owner's floating-bench rule, now explicit in the code).
+
+## Follow-up (2026-07-31, owner): the shower completes first
+
+Revision of the original "the curb gets smaller" rule: **the shower is
+always completed and then the bench built on it.** A 2" build-up bench (and
+a premade) sits ON the finished pan and curb — the curb runs across beneath
+it, full length, and `curbRuns`/`benchEdgeSpans` no longer subtract its
+footprint. Only the installer-FRAMED bench interrupts the envelope (that
+rendering was confirmed correct): the pan and curb still butt its face and
+its footprint still leaves the open-edge runs. Drawings follow: the curb
+draws across under a build-up/premade bench, the bench resting on top;
+plus iso cleanup of the framed bench's cut-line height and wall junction.
