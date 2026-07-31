@@ -276,7 +276,16 @@ src/
                     # rule · pan cut down · linear module + extension; a pinned
                     # drain floats the pan, trimming up to 6" a side), `panelPlan`
                     # (½" sheets in level courses, mixed sizes, vertical when that
-                    # kills the seams), `figureConsumables` (1 screw+washer and
+                    # kills the seams), benches (issue 069: `normBench`/
+                    # `benchFootprint`/`benchLines` — a premade catalog piece,
+                    # site-built 2" material (top + face + a support about every
+                    # foot), or installer-framed with a ½" wrap and the pan cut
+                    # down / swapped smaller (`benchPanRoom`/`smallerPanFor`);
+                    # every bench runs the full pan-AND-curb depth so `curbRuns`
+                    # subtracts its footprint and the curb butts its face; corner
+                    # benches measure from the corner out along each wall,
+                    # 18" to the top, never framed),
+                    # `figureConsumables` (1 screw+washer and
                     # 1.2 oz sealant per ft² of panel), `tierPrice`, `factoryKit`,
                     # and `lineItems` (build -> product rows; the pan anchors and
                     # carries `product.wedi`, companions `wedi.part`). A
@@ -308,7 +317,11 @@ src/
                     # permanent drawings rail: a to-scale top-down (4"-thick wall
                     # bands, panel-seam ticks, square drains, dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan —
-                    # click an edge to add a wall, a corner to toggle a cut) over
+                    # click an edge to add a wall, a corner to toggle a cut, and
+                    # hover the pan along a wall or into a corner for a BENCH
+                    # zone — click/right-click opens the bench menu (issue 069):
+                    # premades, 2" build-up, or framed with the pan cut/swapped,
+                    # the bench drawn in plan with the curb butting its face) over
                     # an isometric with 4"-thick wall slabs at per-wall heights,
                     # front (entry/right) walls drawn clear with dashed edges, and
                     # the panel courses dotted on the inner faces. Right-clicking
