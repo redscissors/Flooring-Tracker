@@ -8,6 +8,7 @@ import {
   queryHit, parseQuery, querySummary, seedFromQuery,
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
+  curbWidth, curbInsets, applyCurbInset, CURB_LAP, benchWallShadowSf,
 } from "./wedi.js";
 
 // Ported whole from the prototype's self-test
@@ -775,6 +776,28 @@ test("wedi benches: a framed bench's framing shadow leaves the wall figure", () 
   const site = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left" }] });
   assert.ok(near(plain.panelSf - framed.panelSf, 4.5), "framed: 36×18 shadow leaves the wall sf");
   assert.equal(site.panelSf, plain.panelSf, "site-built: wall fully paneled behind the bench");
+});
+
+// --- curb inside the stated dims ("overall max", owner ask 2026-07-30) -------
+
+test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fits", () => {
+  assert.equal(curbWidth(SKU.curbLean60), 2, 'a lean curb runs 2" on the floor');
+  assert.equal(curbWidth("US3000039"), 4.5, 'a full-foam curb runs 4.5"');
+  const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60);
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: round2(2 - CURB_LAP), cw: 2 },
+    "three walls: only the entry gives up its curb's width minus the ½\" pan lap");
+  assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60), null,
+    "fully walled: nothing to inset");
+  const sub = solve({ w: 60, d: round2(36 - ins.entry), curb: "curbed", drain: "center", tolerance: 0.51 });
+  assert.ok(sub.length, "the reduced 60×34.5 room still solves");
+  const o = applyCurbInset(sub[0], ins, roomB);
+  assert.deepEqual(o.room, { w: 60, d: 36 }, "the option re-bases into the full stated footprint");
+  assert.ok(o.pieces.every((p) => p.y + p.d <= 36 - ins.entry + 0.01), "every piece stops short of the inside curb");
+  assert.deepEqual(o.inset, ins, "the inset rides along for the drawings");
+  // walls and the curb run keep figuring on the FULL room
+  const k = kitFor(o.pan.key, { option: o, walls: threeWallsB, maxIn: true });
+  assert.ok(k.lines.some((l) => l.item.group === "curb"), "the curb still spans the full opening");
+  assert.equal(k.cfg.maxIn, true, "cfg carries the mode for Reconfigure");
 });
 
 test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {

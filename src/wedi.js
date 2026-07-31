@@ -4347,6 +4347,44 @@ export function openEdges(dims, walls) {
 // up exactly those legs, so nothing is stranded behind the cut.
 export const CORNER_CUT = 12;    // the cut's default leg along each edge
 export const CURB_W = 3.5;       // the curb's plan width — ring fills + longest-point math
+
+// Real curb cross-sections (owner, 2026-07-30): the lean curbs run ~2" wide
+// on the floor, the standard/full-foam/AT curbs ~4½", and every curb laps
+// ½" up onto the pan's edge. These drive the "overall max" custom-solver
+// mode, where the stated dimensions INCLUDE the curb: each fully open edge
+// gives up (width − lap) of pan space and the curb draws inside the line.
+export const CURB_LAP = 0.5;
+export function curbWidth(key) {
+  const it = typeof key === "string" ? item(key) : key;
+  return it && /lean/i.test(it.name || "") ? 2 : 4.5;
+}
+
+// Per-edge inset when the stated dims are the overall footprint. Only an
+// edge with NO wall at all pulls its curb in (a partially walled edge keeps
+// the curb in the ring — v1); curbless builds inset nothing.
+export function curbInsets(dims, walls, curbKey) {
+  if (!curbKey) return null;
+  const cov = openEdges(dims, walls).cov;
+  const ins = round2(curbWidth(curbKey) - CURB_LAP);
+  const at = (side) => (cov[side] < 0.5 ? ins : 0);
+  const o = { back: at("back"), left: at("left"), right: at("right"), entry: at("entry"), cw: curbWidth(curbKey) };
+  return o.back || o.left || o.right || o.entry ? o : null;
+}
+
+// Re-base a solved option (solved on the inset dims) into the full shower:
+// pieces and drain shift past the left/back insets, the room reads the full
+// stated size — walls and curb runs keep figuring on it — and `inset` rides
+// along so the drawings pull the curb inside the line.
+export function applyCurbInset(o, insets, dims) {
+  const ox = insets.left, oy = insets.back;
+  return {
+    ...o,
+    pieces: o.pieces.map((p) => ({ ...p, x: round2(p.x + ox), y: round2(p.y + oy) })),
+    drain: o.drain ? { ...o.drain, x: round2(o.drain.x + ox), y: round2(o.drain.y + oy) } : null,
+    room: { w: round2(+dims.w || 0), d: round2(+dims.d || 0) },
+    inset: insets,
+  };
+}
 export function curbRuns(dims, walls, corners, benches) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
   const open = openEdges(dims, walls);
@@ -4763,9 +4801,15 @@ export function kitFor(panKey, opts) {
   // the pan AND, in custom mode, the outer option's extensions, which were
   // sized for the full room the bench now takes a bite of. Only when nothing
   // solves does "smaller" fall back to the plain largest-fitting-pan swap.
-  const panRoom = benchPanRoom(benches, roomDims);
-  const framedIn = panRoom.w < roomDims.w - 0.01 || panRoom.d < roomDims.d - 0.01;
-  const panPlan = benchPanPlan(pan, benches, roomDims);
+  // With "overall max" on, the option arrived inset (applyCurbInset): the
+  // pan's space already gave up the curb, so benches subtract from THAT.
+  const inset = option && option.inset ? option.inset : null;
+  const panDims = inset
+    ? { w: round2(roomDims.w - inset.left - inset.right), d: round2(roomDims.d - inset.back - inset.entry) }
+    : roomDims;
+  const panRoom = benchPanRoom(benches, panDims);
+  const framedIn = panRoom.w < panDims.w - 0.01 || panRoom.d < panDims.d - 0.01;
+  const panPlan = benchPanPlan(pan, benches, panDims);
   let floorPan = pan;
   if (panPlan) {
     floorPan = panPlan.option.pan;
@@ -4901,6 +4945,7 @@ export function kitFor(panKey, opts) {
     benches: benches.map((b) => ({ ...b })),
     corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
+    maxIn: !!opts.maxIn,
     tier: opts.tier || "retail",
   };
 

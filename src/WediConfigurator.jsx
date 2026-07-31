@@ -17,7 +17,7 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, CURB_W, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, CURB_W, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
@@ -518,7 +518,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       push(<text key={`bnt${bi}`} x={X(cx)} y={Y(cy) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT}>{inch(f.a) + '"'}</text>);
       return;
     }
-    const out = curbs && curbs.length && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
     push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
       fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
     if (b.build === "framed" && !framedFit) {
@@ -565,10 +565,29 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     // engine's ext0/ext1 fill the open ring corners so runs meet square with
     // no gap, and a cut corner's curb takes the one straight line across.
     const cw = round2(CURB_W * sc);
+    const ins = o.inset || null;
     (curbs || []).forEach((cs, ci) => {
       const horiz = cs.side === "back" || cs.side === "entry";
       const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
       if (!(len > 0)) return;
+      // "overall max": this edge's curb sits INSIDE the stated line, lapping
+      // the pan by its ½" — the band draws at the curb's real width.
+      if (ins && ins[cs.side] > 0) {
+        const cwr = round2(ins.cw * sc);
+        if (horiz) {
+          const y0 = cs.side === "back" ? Y(0) : Y(rd) - cwr;
+          push(<rect key={`cb${ci}`} x={X(cs.from)} y={y0} width={round2(len * sc)} height={cwr} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+          if (len * sc > 34) push(<text key={`cbt${ci}`} x={X(cs.from + len / 2)} y={y0 + cwr / 2 + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
+        } else {
+          const x0 = cs.side === "left" ? X(0) : X(rw) - cwr;
+          push(<rect key={`cb${ci}`} x={x0} y={Y(cs.from)} width={cwr} height={round2(len * sc)} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+          if (len * sc > 34) {
+            const tx = x0 + cwr / 2, ty = Y(cs.from + len / 2) + 2.5;
+            push(<text key={`cbt${ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5" transform={`rotate(-90 ${tx} ${ty})`}>CURB</text>);
+          }
+        }
+        return;
+      }
       if (horiz) {
         const extL = round2(cs.ext0 * sc), extR = round2(cs.ext1 * sc);
         const y0 = cs.side === "back" ? Y(0) - cw : Y(rd);
@@ -629,7 +648,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<line key="dd" x1={dx} y1={Y(0)} x2={dx} y2={Y(rd)} stroke={FAINT} strokeWidth="1" />);
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
-    push(<text key="ent" x={X(rw / 2)} y={Y(rd) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
+    push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? o.inset.cw : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
   }
 
   // Bench zones. The tight 10" corner radius keeps the corner-CUT toggle;
@@ -890,14 +909,20 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // sections — the engine's ext0/ext1 fill the open ring corners so runs
   // meet square; a cut corner's curb takes the one straight line across.
   const CBH = 4.5;
+  const insI = o.inset || null;
   (curbs || []).forEach((cs, ci) => {
     const horiz = cs.side === "back" || cs.side === "entry";
     const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
     if (!(len > 0)) return;
-    const x0 = horiz ? cs.from - cs.ext0 : (cs.side === "left" ? -CURB_W : rw);
-    const y0 = horiz ? (cs.side === "back" ? -CURB_W : rd) : cs.from;
-    const x1 = horiz ? cs.from + len + cs.ext1 : x0 + CURB_W;
-    const y1 = horiz ? y0 + CURB_W : cs.from + len;
+    // "overall max": the curb sits inside the stated line at its real width,
+    // lapping the pan by its ½" — no ring-corner ext fills inside.
+    const inEdge = insI && insI[cs.side] > 0;
+    const cwv = inEdge ? insI.cw : CURB_W;
+    const x0 = horiz ? cs.from - (inEdge ? 0 : cs.ext0)
+      : (cs.side === "left" ? (inEdge ? 0 : -CURB_W) : rw - (inEdge ? cwv : 0));
+    const y0 = horiz ? (cs.side === "back" ? (inEdge ? 0 : -CURB_W) : rd - (inEdge ? cwv : 0)) : cs.from;
+    const x1 = horiz ? cs.from + len + (inEdge ? 0 : cs.ext1) : x0 + cwv;
+    const y1 = horiz ? y0 + cwv : cs.from + len;
     els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
     els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
@@ -955,7 +980,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
       return;
     }
-    const out = curbs && curbs.length && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
     const x0 = f.x, x1 = f.x + f.w, y0 = f.y, y1 = f.y + f.d + out;
     benchQuad([x1, y0], [x1, y1], z0, zh, BSIDE, `bn${bi}e`);
     benchQuad([x0, y1], [x1, y1], z0, zh, BSIDE2, `bn${bi}f`);
@@ -1005,11 +1030,12 @@ function seedState(seed) {
   const s = {
     tab: "kits", inp: { ...DEF_INP }, q: "", panKey: null, opts: { ...DEF_OPTS },
     addons: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
-    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null,
+    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false,
   };
   if (!seed) return s;
   const cfg = seed.cfg;
   if (cfg && cfg.panKey) {
+    s.maxIn = !!cfg.maxIn;
     s.tab = seed.mode === "custom" ? "custom" : seed.mode === "browse" ? "browse" : "kits";
     s.panKey = cfg.panKey;
     s.opts = {
@@ -1056,6 +1082,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [benches, setBenches] = useState(s0.benches);
   const [opts, setOpts] = useState(s0.opts);
   const [inp, setInp] = useState(s0.inp);
+  // "Overall max" (owner ask 2026-07-30): the typed sizes are the whole
+  // footprint — every fully open edge pulls its curb inside the line and
+  // the pan space gives up (curb width − the ½" pan lap).
+  const [maxIn, setMaxIn] = useState(!!s0.maxIn);
   const [walls, setWalls] = useState(s0.walls);
   const [extraWalls, setExtraWalls] = useState(s0.extraWalls);
   const wallSeq = useRef(s0.wallSeq);
@@ -1248,7 +1278,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         sealantForm: opts.sealantForm, recess: opts.recess,
         addons: addons.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
-        mode: option ? "custom" : "kit",
+        mode: option ? "custom" : "kit", maxIn: maxIn,
       });
       if (!b) return null;
       let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
@@ -1280,7 +1310,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       return { pan: null, lines, panelSf: 0, factory: null, hints, mode: "browse", cfg: {}, soNet };
     }
     return null;
-  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners]);
+  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn]);
 
   // The live { mode, cfg } upward, in seed shape, so App's ft-open-layer
   // restore reopens mid-configuration rather than on the original seed.
@@ -1331,6 +1361,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       drainX: "", drainY: "",
     };
     setInp(next);
+    // a kit's size IS the pan size — the seeded form reads it that way
+    setMaxIn(false);
     setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left" }));
   };
   // A kit card is a hard reset (owner rule 2026-07-30): once a build is
@@ -1350,6 +1382,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (p) seedFormFromKit(p, true);
     else {
       setInp({ ...DEF_INP });
+      setMaxIn(false);
       setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51 }));
     }
   };
@@ -1358,12 +1391,33 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     hardReset(key);
   };
 
-  const runSolve = (next) => {
-    const i = next || inp;
+  // Solve the room. With "overall max" on, every fully open edge gives up
+  // its curb's width (minus the ½" pan lap) before the solver runs, and the
+  // options come back re-based into the full stated footprint
+  // (applyCurbInset) — a typed drain position is measured from the room's
+  // own origin, so it shifts into the reduced space the same way.
+  const insetFor = (i, maxOn) => {
+    if (!maxOn || i.curb === "curbless" || opts.curbKey === null) return null;
+    const wl = walls.filter((x) => x.on).map((x) => ({ side: x.id, len: +x.len || (x.id === "back" ? +i.w || 0 : +i.d || 0) }));
+    extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0 }));
+    return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60);
+  };
+  const solveRoom = (i, maxOn) => {
+    const ins = insetFor(i, maxOn);
+    const dx = +i.drainX || 0, dy = +i.drainY || 0;
     const res = solve({
-      w: +i.w || 0, d: +i.d || 0, curb: i.curb, drain: i.drain, tolerance: 0.51,
-      drainX: +i.drainX || 0, drainY: +i.drainY || 0, anchor: i.anchor || "left",
+      w: round2((+i.w || 0) - (ins ? ins.left + ins.right : 0)),
+      d: round2((+i.d || 0) - (ins ? ins.back + ins.entry : 0)),
+      curb: i.curb, drain: i.drain, tolerance: 0.51,
+      drainX: dx > 0 ? Math.max(0, round2(dx - (ins ? ins.left : 0))) : 0,
+      drainY: dy > 0 ? Math.max(0, round2(dy - (ins ? ins.back : 0))) : 0,
+      anchor: i.anchor || "left",
     });
+    return ins ? res.map((o) => applyCurbInset(o, ins, { w: +i.w || 0, d: +i.d || 0 })) : res;
+  };
+  const runSolve = (next, nextMax) => {
+    const i = next || inp;
+    const res = solveRoom(i, nextMax === undefined ? maxIn : nextMax);
     retuneWalls();
     setResults(res);
     if (res.length) { setOption(res[0]); setPanKey(res[0].pan.key); } else { setOption(null); setPanKey(null); }
@@ -1381,7 +1435,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (solved.current) return;
     solved.current = true;
     const i = { ...inp, ...(s0.solveInput || {}) };
-    const res = solve({ w: +i.w || 0, d: +i.d || 0, curb: i.curb, drain: i.drain, tolerance: 0.51, drainX: +i.drainX || 0, drainY: +i.drainY || 0, anchor: i.anchor || "left" });
+    const res = solveRoom(i, !!s0.maxIn);
     setResults(res);
     if (!s0.solveInput || !res.length) return;
     // A saved cfg keeps its own pan; a fresh room seed takes the top option.
@@ -1402,6 +1456,25 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     say("Modified kit — it's a custom shower now. Kit cards ask before overwriting it.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geomSig]);
+
+  // With "overall max" on, the walls and the curb pick shape the pan space —
+  // re-fit the option cards when they change, without wiping the build.
+  const insetSig = maxIn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge),
+    opts.curbKey === undefined ? "" : opts.curbKey]) : "";
+  const insetSeen = useRef(insetSig);
+  useEffect(() => {
+    if (insetSig === insetSeen.current) return;
+    insetSeen.current = insetSig;
+    if (!maxIn) return;
+    const res = solveRoom(inp, true);
+    setResults(res);
+    if (option) {
+      const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
+      setOption(same);
+      setPanKey(same ? same.pan.key : null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insetSig]);
 
   // --- the drawings ---------------------------------------------------------
   const diag = useMemo(() => {
@@ -1443,7 +1516,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const drawDiag = useMemo(() => {
     const plan = build && build.panPlan;
     if (!diag || !plan) return diag;
-    const { x: ox, y: oy } = plan.offset;
+    // the plan's pieces live in the pan-space coords: past the framed bench
+    // AND past any curb pulled inside the line ("overall max")
+    const ox = plan.offset.x + (diag.inset ? diag.inset.left : 0);
+    const oy = plan.offset.y + (diag.inset ? diag.inset.back : 0);
     return {
       ...diag,
       kind: "drainat",
@@ -1649,6 +1725,15 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               <span>×</span>
               <NumIn className="inp" value={inp.d} onCommit={(v) => setInput({ d: +v || 0 })} />
               <span>in</span>
+            </div>
+          </div>
+          <div className="rf"><label>Sizes are</label>
+            <div className="seg">
+              <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
+                onClick={() => { if (maxIn) { setMaxIn(false); runSolve(undefined, false); } }}>Pan size</button>
+              <button className={maxIn ? "on" : ""}
+                title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
+                onClick={() => { if (!maxIn) { setMaxIn(true); runSolve(undefined, true); } }}>Max — curb inside</button>
             </div>
           </div>
           <div className="rf"><label>Curb</label>
