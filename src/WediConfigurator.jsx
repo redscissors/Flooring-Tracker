@@ -955,27 +955,6 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
 
-  // …and the entry/right runs, which stand in front of the pan.
-  (curbs || []).forEach((cs, ci) => { if (!behind(cs)) curbEls(cs, ci); });
-  // A cut corner's curb takes the one straight line across.
-  (curbDiags || []).forEach((d, i) => {
-    const g2 = CGEOM[d.corner];
-    if (!g2) return;
-    const [cx, cy, dx, dy] = g2;
-    // ends squared to the edges (owner sketch): the band butts the walls and
-    // straight runs flush, its outer edge the piece's longest point
-    const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
-    const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
-    // Only the long face this camera can see: the band's two ENDS are butted
-    // into the straight runs or the walls, and one of its long faces is always
-    // turned away — drawing them repaints the pan and the run beside it.
-    const cen = [(ax + bx + a2x + b2x) / 4, (ay + by + a2y + b2y) / 4];
-    const shows = (p, q) => (p[0] + q[0]) / 2 - cen[0] + ((p[1] + q[1]) / 2 - cen[1]) > 0.01;
-    if (shows([ax, ay], [bx, by])) els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    if (shows([a2x, a2y], [b2x, b2y])) els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
-  });
-
   const dr = o.drain;
   if (dr) {
     if (dr.type === "linear" && dr.len) {
@@ -993,8 +972,10 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // site-built or premade bench's faces land on the pan surface — the pan
   // runs underneath — while a framed bench meets the floor beside the cut
   // pan and re-marks the pan cut in rust at its base, like the plan view.
-  // Corner benches are triangular prisms. Drawn after the curbs so a bench
-  // reaching the entry paints over the curb line it displaced.
+  // Corner benches are triangular prisms. Drawn BEFORE the entry/right curb
+  // runs: the shortened curb butts the bench's face, so its body stands in
+  // front of the bench's lower front corner, not the other way around
+  // (owner markup 2026-07-31).
   const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
   const benchQuad = (a, b2, z0, z1, fill, key) =>
     els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
@@ -1038,6 +1019,28 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       const b2 = b.side === "left" ? M(x1, rd, t) : M(x1, f.d, t);
       els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
     }
+  });
+
+  // …then the entry/right curb runs, which stand in front of the pan AND of
+  // any bench whose face they butt.
+  (curbs || []).forEach((cs, ci) => { if (!behind(cs)) curbEls(cs, ci); });
+  // A cut corner's curb takes the one straight line across.
+  (curbDiags || []).forEach((d, i) => {
+    const g2 = CGEOM[d.corner];
+    if (!g2) return;
+    const [cx, cy, dx, dy] = g2;
+    // ends squared to the edges (owner sketch): the band butts the walls and
+    // straight runs flush, its outer edge the piece's longest point
+    const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
+    const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
+    // Only the long face this camera can see: the band's two ENDS are butted
+    // into the straight runs or the walls, and one of its long faces is always
+    // turned away — drawing them repaints the pan and the run beside it.
+    const cen = [(ax + bx + a2x + b2x) / 4, (ay + by + a2y + b2y) / 4];
+    const shows = (p, q) => (p[0] + q[0]) / 2 - cen[0] + ((p[1] + q[1]) / 2 - cen[1]) > 0.01;
+    if (shows([ax, ay], [bx, by])) els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    if (shows([a2x, a2y], [b2x, b2y])) els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
 
   // Front walls draw last — clear, so the shower stays readable through them.
