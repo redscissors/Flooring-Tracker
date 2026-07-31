@@ -17,7 +17,7 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, CURB_W, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, CURB_LAP, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
@@ -365,8 +365,12 @@ const FONT = "Manrope,sans-serif";
 // wedi.js curbWidth reads): the lean curb is 3½ × 2, the standard/AT curb
 // 5⅛ × 4½ (H×W), and the thinnest pan is 1 37/64" (the deep ones read 2" off
 // their size text).
-const CURB_H_LEAN = 3.5, CURB_H_STD = 5.125, PAN_T_MIN = 1.58;
-const curbHeight = (it) => (curbWidth(it) === 2 ? CURB_H_LEAN : CURB_H_STD);
+const CURB_H_LEAN = 3.5, CURB_H_STD = 5.125, PAN_T_MIN = 1.58, CURB_W_LEAN = 2;
+const curbHeight = (it) => (curbWidth(it) === CURB_W_LEAN ? CURB_H_LEAN : CURB_H_STD);
+// The plan bands draw that same profile ACROSS: the band is the whole width,
+// straddling the pan line, since the curb is notched to lap ½" onto the pan and
+// adds (width − lap) of floor outside it. Both views take the one number off
+// the build's own curb line, so a build reads one width everywhere.
 
 // The whole floor field falls to the drain at ¼ in./ft. The PAN breaks into
 // four planes whose hips run corner → drain (a point drain) or one plane across
@@ -479,12 +483,14 @@ function fallArrow(a, b, key, col, wpx, span, cap) {
 // carries on to the corner point, the INNER edge stops at the joint — so the
 // outer plane is one face and the tops share a single 45° line.
 //
-// The engine already hands a horizontal run the corner square as ext0/ext1
-// (wedi.js curbRuns). That ext is exactly the miter's overhang, and it is set
-// only where no wall fills the corner — which is also the only place a
-// perpendicular run can continue — so it doubles as the "miter here" signal
-// for the vertical run reaching the same corner.
-function curbBands(curbs, rw, rd, inset) {
+// The engine hands a horizontal run the corner square as ext0/ext1 (wedi.js
+// curbRuns) only where no wall fills the corner — which is also the only place
+// a perpendicular run can continue — so it reads as the "miter here" signal for
+// both runs reaching that corner. The overhang itself draws off `cw`, this
+// build's own curb profile: the two bands overlap in a cw square at the corner,
+// so the 45° joint runs from its inner point (the lap, `cw − add` inside each
+// pan edge) to its outer one (`add` outside both).
+function curbBands(curbs, rw, rd, inset, cw) {
   const mit = {};
   (curbs || []).forEach((cs) => {
     const k = cs.side === "back" ? ["bl", "br"] : cs.side === "entry" ? ["fl", "fr"] : null;
@@ -493,17 +499,18 @@ function curbBands(curbs, rw, rd, inset) {
     if (cs.ext1 > 0) mit[k[1]] = 1;
   });
   const out = [];
+  // What the curb adds outside the pan line; the remaining ½" laps over it.
+  const add = round2(cw - CURB_LAP);
   (curbs || []).forEach((cs, ci) => {
     const horiz = cs.side === "back" || cs.side === "entry";
     const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
     if (!(len > 0)) return;
-    // "overall max": the curb sits inside the stated line at its real width,
-    // lapping the pan by its ½" — no ring-corner miter inside.
+    // "overall max": the curb sits inside the stated line — the pan gave up
+    // exactly `add`, so the band runs from the line in — and no corner miters.
     const inEdge = !!(inset && inset[cs.side] > 0);
-    const cw = inEdge ? inset.cw : CURB_W;
     const c0 = horiz
-      ? (cs.side === "back" ? (inEdge ? 0 : -cw) : rd - (inEdge ? cw : 0))
-      : (cs.side === "left" ? (inEdge ? 0 : -cw) : rw - (inEdge ? cw : 0));
+      ? (cs.side === "back" ? (inEdge ? 0 : -add) : rd - (inEdge ? cw : CURB_LAP))
+      : (cs.side === "left" ? (inEdge ? 0 : -add) : rw - (inEdge ? cw : CURB_LAP));
     const lo = cs.from, hi = cs.from + len;
     let mLo, mHi;
     if (horiz) { mLo = !inEdge && cs.ext0 > 0; mHi = !inEdge && cs.ext1 > 0; }
@@ -512,7 +519,8 @@ function curbBands(curbs, rw, rd, inset) {
       mLo = !inEdge && lo <= 0.5 && !!mit[left ? "bl" : "br"];
       mHi = !inEdge && hi >= rd - 0.5 && !!mit[left ? "fl" : "fr"];
     }
-    const outer = [lo - (mLo ? cw : 0), hi + (mHi ? cw : 0)], inner = [lo, hi];
+    const outer = [lo - (mLo ? add : 0), hi + (mHi ? add : 0)];
+    const inner = [lo + (mLo ? CURB_LAP : 0), hi - (mHi ? CURB_LAP : 0)];
     // c1 is the edge this camera sees; on the entry/right runs it is also the
     // one facing out of the room, so it is the edge that carries the overhang.
     const outAtC1 = cs.side === "entry" || cs.side === "right";
@@ -542,8 +550,10 @@ function topGeom(o, W_, H_, mini) {
 // ticked on them, the pieces with their cut edges dashed, curb runs on the
 // open edges, the drain (with the plumber's two measurements when it was
 // pinned), 45° corner cuts chamfered off the pan, and dimensions.
-function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curbs, curbDiags, placing, onCorner, onEdge, onWallMenu, onBenchMenu }) {
+function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curbs, curbDiags, curbW, placing, onCorner, onEdge, onWallMenu, onBenchMenu }) {
   const g = topGeom(o, w, h, mini);
+  // the build's curb profile and what it adds outside the pan line
+  const CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
   const { ox, oy, sc, rw, rd } = g;
   // The pan divides into bench zones (owner spec, issue 069): a band along
   // each walled side and a box at each corner. Hover previews the footprint,
@@ -693,7 +703,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       push(<text key={`bnt${bi}`} x={X(cx)} y={Y(cy) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT}>{inch(f.a) + '"'}</text>);
       return;
     }
-    const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CADD : 0;
     push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
       fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
     if (b.build === "framed" && !framedFit) {
@@ -740,7 +750,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     // engine's ext0/ext1 fill the open ring corners, drawn as a MITER so two
     // runs meeting there share one 45° line, and a cut corner's curb takes the
     // one straight line across.
-    curbBands(curbs, rw, rd, o.inset).forEach((b) => {
+    curbBands(curbs, rw, rd, o.inset, CW).forEach((b) => {
       push(<polygon key={`cb${b.ci}`} points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
         fill="#E9E3D3" stroke={MUTED} strokeWidth="1" strokeLinejoin="round" />);
       if (!(b.len * sc > 34)) return;
@@ -756,13 +766,17 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       const g2 = CGEOM[d.corner];
       if (!g2) return;
       const [cx, cy, dx, dy] = g2;
-      // the band rides the OUTSIDE of the cut edge (owner markup) — inner
-      // face on the cut line, ends squared to the edges so it butts the
-      // walls/runs flush; the outer edge is the piece's longest point
+      // the band rides the OUTSIDE of the cut edge (owner markup) — its notch
+      // laps the pan by ½" past the cut line, ends squared to the edges so it
+      // butts the walls/runs flush; the outer edge is the piece's longest point
       const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
-      const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
-      push(<polygon key={`cdg${i}`} points={`${X(ax)},${Y(ay)} ${X(bx)},${Y(by)} ${X(b2x)},${Y(b2y)} ${X(a2x)},${Y(a2y)}`}
+      const a1x = ax, a1y = ay + dy * CURB_LAP, b1x = bx + dx * CURB_LAP, b1y = by;
+      const a2x = ax, a2y = ay - dy * CADD, b2x = bx - dx * CADD, b2y = by;
+      push(<polygon key={`cdg${i}`} points={`${X(a1x)},${Y(a1y)} ${X(b1x)},${Y(b1y)} ${X(b2x)},${Y(b2y)} ${X(a2x)},${Y(a2y)}`}
         fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+      // the lap buries the pan's cut mark — restate it over the band, since
+      // where to cut is the whole point of the line
+      push(<line key={`cdc${i}`} x1={X(ax)} y1={Y(ay)} x2={X(bx)} y2={Y(by)} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
     });
     (benches || []).forEach(benchBand);
   }
@@ -799,7 +813,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<line key="dd" x1={dx} y1={Y(0)} x2={dx} y2={Y(rd)} stroke={FAINT} strokeWidth="1" />);
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
-    push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? o.inset.cw : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
+    push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? CADD : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
     const notes = [];
     if (slope) notes.push((o.pieces.length > 1 ? "pan & extensions fall" : "pan falls") + ' ¼"/ft to drain');
     if (curbs && curbs.length) notes.push('curb laps ½" over pan');
@@ -886,7 +900,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
 // plan's level courses and butt joints dotted on the inner faces, the pieces
 // as thick slabs. Walls in FRONT of the shower (entry + right side) draw
 // clear — dashed edges, no body — so they never hide the pan.
-function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbDiags, curbH, onWallMenu }) {
+function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbDiags, curbH, curbW, onWallMenu }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const T = WALL_THICK;
@@ -1065,14 +1079,14 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // sections — the engine's ext0/ext1 fill the open ring corners so runs meet
   // square. The camera looks down (1,1,1): a back/left run is BEHIND the pan
   // and has to be painted before it, or its body floats over the pan surface.
-  const CBH = curbH || CURB_H_LEAN;
+  const CBH = curbH || CURB_H_LEAN, CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
   const insI = o.inset || null;
   // This camera only ever sees a band's +x face, its +y face and its top. On a
   // horizontal run that makes the +x face the run's END; on a vertical run it
   // is the long face and the +y face is the end. A mitered end has no square
   // face to draw — the neighbouring run's own faces close the corner — and the
   // long face stops at the joint, so nothing buried inside the miter is drawn.
-  const bands = curbBands(curbs, rw, rd, insI);
+  const bands = curbBands(curbs, rw, rd, insI, CW);
   const curbEls = (b) => {
     const { horiz, c0, c1, hi, mHi, ci } = b;
     const [z0, z1] = b.eC1;
@@ -1165,7 +1179,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // curb, which it either rides (built on the finished shower) or replaced
   // (framed).
   const benchOut = (b, f) => (!b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0)
-    && f.kind === "rect" && f.y + f.d >= rd - 0.5 ? CURB_W : 0);
+    && f.kind === "rect" && f.y + f.d >= rd - 0.5 ? CADD : 0);
   const benchDraw = (b, bi) => {
     const f = benchFootprint(b, o.room);
     const zh = b.h || 18;
@@ -1194,9 +1208,13 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     // bench, which took the curb's place and carries on to the subfloor.
     const zOut = b.build === "framed" ? 0 : CBH;
     const step = out > 0 && Math.abs(zOut - z0) > 0.01;
+    // The curb's top begins ½" INSIDE the pan line — its notch laps the pan —
+    // so a bench riding it steps up there, not at the line, or the lap strip
+    // shows out in front of a bench that is sitting on it.
+    const yStep = b.build === "framed" ? yc : round2(yc - CURB_LAP);
     els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
       points={str(step
-        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yc, zOut), M(x1, yc, z0), M(x1, y0, z0)]
+        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yStep, zOut), M(x1, yStep, z0), M(x1, y0, z0)]
         : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
     benchQuad([x0, y1], [x1, y1], out > 0 ? zOut : z0, zh, BSIDE2, `bn${bi}f`);
     els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
@@ -1227,17 +1245,19 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     if (!g2) return;
     const [cx, cy, dx, dy] = g2;
     // ends squared to the edges (owner sketch): the band butts the walls and
-    // straight runs flush, its outer edge the piece's longest point
+    // straight runs flush, its outer edge the piece's longest point; the inner
+    // face sits ½" past the cut line, where the notch laps the pan
     const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
-    const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
+    const a1x = ax, a1y = ay + dy * CURB_LAP, b1x = bx + dx * CURB_LAP, b1y = by;
+    const a2x = ax, a2y = ay - dy * CADD, b2x = bx - dx * CADD, b2y = by;
     // Only the long face this camera can see: the band's two ENDS are butted
     // into the straight runs or the walls, and one of its long faces is always
     // turned away — drawing them repaints the pan and the run beside it.
-    const cen = [(ax + bx + a2x + b2x) / 4, (ay + by + a2y + b2y) / 4];
+    const cen = [(a1x + b1x + a2x + b2x) / 4, (a1y + b1y + a2y + b2y) / 4];
     const shows = (p, q) => (p[0] + q[0]) / 2 - cen[0] + ((p[1] + q[1]) / 2 - cen[1]) > 0.01;
-    if (shows([ax, ay], [bx, by])) els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    if (shows([a1x, a1y], [b1x, b1y])) els.push(<polygon key={`cdi${i}`} points={str([M(a1x, a1y, CBH), M(b1x, b1y, CBH), M(b1x, b1y, 0), M(a1x, a1y, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
     if (shows([a2x, a2y], [b2x, b2y])) els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+    els.push(<polygon key={`cdt${i}`} points={str([M(a1x, a1y, CBH), M(b1x, b1y, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
   });
 
   // Front walls close last — only their dashed outline and joint dots, over the
@@ -1849,7 +1869,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const line = build && build.lines.find((l) => l.item.group === "curb");
     return {
       segs: line ? runs.segs : [], diags: line ? runs.diags : [], cuts: runs.diags,
-      h: line ? curbHeight(line.item) : 0,
+      h: line ? curbHeight(line.item) : 0, w: line ? curbWidth(line.item) : 0,
     };
   }, [diag, build, buildWalls, corners]);
   // A wall change can box a cut corner in — drop the cut rather than draw a
@@ -2495,7 +2515,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
         <TopDown o={drawDiag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
-          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
+          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} placing={placing}
           onBenchMenu={(z, x, y) => setBenchMenu({ ...z, x, y })}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })}
           onCorner={(c) => {
@@ -2516,7 +2536,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
         <Iso o={drawDiag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
-          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h}
+          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
           walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
@@ -2868,10 +2888,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       <div className="ps-diags">
         <div className="d"><div className="dh">Top-down layout</div>
           <TopDown o={drawDiag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
-            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} /></div>
         <div className="d"><div className="dh">Isometric</div>
           <Iso o={drawDiag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
-            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} /></div>
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w} /></div>
       </div>
       {(drawDiag.pieces.some((p) => p.cut) || (drawDiag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>
