@@ -709,8 +709,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
       fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
     if (b.build === "framed" && !framedFit) {
+      // wall to wall along the PAN — short of the line when the curb is inside it
+      const yPan = rd - (o.inset && o.inset.entry > 0 ? o.inset.entry : 0);
       const fx = b.side === "left" ? f.x + f.w : b.side === "right" ? f.x : null;
-      if (fx != null) push(<line key={`bnc${bi}`} x1={X(fx)} y1={Y(0)} x2={X(fx)} y2={Y(rd)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
+      if (fx != null) push(<line key={`bnc${bi}`} x1={X(fx)} y1={Y(0)} x2={X(fx)} y2={Y(yPan)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
       else push(<line key={`bnc${bi}`} x1={X(f.x)} y1={Y(f.d)} x2={X(f.x + f.w)} y2={Y(f.d)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
     }
     const horiz = b.side === "back";
@@ -1190,11 +1192,15 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
   const benchQuad = (a, b2, z0, z1, fill, key) =>
     els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
-  // How far a wall bench runs past the pan line at the entry — out over the
-  // curb, which it either rides (built on the finished shower) or replaced
-  // (framed).
-  const benchOut = (b, f) => (!b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0)
-    && f.kind === "rect" && f.y + f.d >= rd - 0.5 ? CADD : 0);
+  // A wall bench reaching the entry meets the curb whichever side of the room
+  // line the curb sits on: in the usual ring it oversails CADD past the line;
+  // in "overall max" the curb is inside the line, so the bench stops AT the
+  // line but still rides the curb's top (or, framed, replaces it) from the
+  // curb's own inner edge.
+  const insetEntry = !!(o.inset && o.inset.entry > 0);
+  const meetsEntry = (b, f) => !!(curbs && curbs.length && !b.suspended
+    && f.kind === "rect" && f.y + f.d >= rd - 0.5);
+  const benchOut = (b, f) => (meetsEntry(b, f) && !insetEntry ? CADD : 0);
   const benchDraw = (b, bi) => {
     const f = benchFootprint(b, o.room);
     const zh = b.h || 18;
@@ -1222,24 +1228,29 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     // Past the pan line the oversail rides the curb's top — except a framed
     // bench, which took the curb's place and carries on to the subfloor.
     const zOut = b.build === "framed" ? 0 : CBH;
-    const step = out > 0 && Math.abs(zOut - z0) > 0.01;
-    // The curb's top begins ½" INSIDE the pan line — its notch laps the pan —
-    // so a bench riding it steps up there, not at the line, or the lap strip
-    // shows out in front of a bench that is sitting on it.
-    const yStep = b.build === "framed" ? yc : round2(yc - CURB_LAP);
+    const step = meetsEntry(b, f) && Math.abs(zOut - z0) > 0.01;
+    // The bench's bottom breaks where the curb's top begins — ½" inside the
+    // pan line in the ring (the notch laps the pan), the curb's inner edge
+    // when "overall max" pulls it inside the line. Both are CW back from the
+    // bench's outer plane; a framed bench instead drops at the PAN's edge
+    // (flush with its face in the ring, the inset pan edge in max).
+    const yStep = round2(y1 - CW + (b.build === "framed" ? CURB_LAP : 0));
     els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
       points={str(step
         ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yStep, zOut), M(x1, yStep, z0), M(x1, y0, z0)]
         : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
-    benchQuad([x0, y1], [x1, y1], out > 0 ? zOut : z0, zh, BSIDE2, `bn${bi}f`);
+    benchQuad([x0, y1], [x1, y1], step ? zOut : z0, zh, BSIDE2, `bn${bi}f`);
     els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
     // The pan is cut wall to wall along the bench's face, but only the stretch
     // the box doesn't stand in front of reads from this camera — a right-hand
     // bench hides its own cut, so the mark starts where the seat ends.
     if (b.build === "framed" && !framedFit) {
-      const seg = b.side === "left" ? [[x1, 0], [x1, rd]]
+      // the cut runs wall to wall along the PAN — which stops short of the
+      // line when "overall max" pulls the curb inside it
+      const yPan = insetEntry ? round2(rd - o.inset.entry) : rd;
+      const seg = b.side === "left" ? [[x1, 0], [x1, yPan]]
         : b.side === "back" ? [[0, yc], [rw, yc]]
-          : yc < rd - 0.5 ? [[x0, yc], [x0, rd]] : null;
+          : yc < rd - 0.5 ? [[x0, yc], [x0, yPan]] : null;
       if (seg) {
         const a = M(seg[0][0], seg[0][1], t), b2 = M(seg[1][0], seg[1][1], t);
         els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
@@ -1249,8 +1260,8 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // A framed bench displaced the curb, so its run butts the bench face and
   // stands in front of it (owner markup 2026-07-31); a bench built on the
   // finished shower rides over a curb that runs on beneath it, so that one
-  // draws after its run.
-  const onCurb = (b) => b.build !== "framed" && benchOut(b, benchFootprint(b, o.room)) > 0;
+  // draws after its run — on either side of the line (inset curbs too).
+  const onCurb = (b) => b.build !== "framed" && meetsEntry(b, benchFootprint(b, o.room));
   (benches || []).forEach((b, bi) => { if (!onCurb(b)) benchDraw(b, bi); });
   bands.forEach((b) => { if (!behind(b)) curbEls(b); });
   (benches || []).forEach((b, bi) => { if (onCurb(b)) benchDraw(b, bi); });
