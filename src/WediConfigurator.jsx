@@ -413,8 +413,13 @@ function slopeMarks(o) {
       });
     });
   } else {
+    // A square-drain pan folds on hips that run pan corner → COVER corner —
+    // the 4×4 grate has four corners of its own, and drawing to the drain's
+    // centre point put a kink where the real fold line lands.
+    const dq = 2;
     [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].forEach((c) => {
-      if (Math.hypot(c[0] - dr.x, c[1] - dr.y) > 6) hips.push([c, [dr.x, dr.y]]);
+      const e = [dr.x + (c[0] >= dr.x ? dq : -dq), dr.y + (c[1] >= dr.y ? dq : -dq)];
+      if (Math.hypot(c[0] - e[0], c[1] - e[1]) > 3) hips.push([c, e]);
     });
     // Two arrows per plane, square to its own edge (that IS the steepest
     // descent) and spaced a third in from each end, so they sit in the wide
