@@ -4842,6 +4842,34 @@ export function linearCoverFor(channel, finish) {
   return hits[0] || null;
 }
 
+// wedi's channel frame is a trim ring the linear cover drops into — a design
+// pick, never part of the house kit, so it rides in as an add-on. wedi lists
+// no perforated frame: a perforated cover wears the plain frame of its own
+// metal, and a tileable cover can take any of the four.
+const FRAME_FINISH = { SS: "SS", SSP: "SS", MB: "MB", MBP: "MB", B: "B", BP: "B", C: "C", CP: "C" };
+const byStockThenPrice = (a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail;
+export function coverFrames(cover) {
+  const c = typeof cover === "string" ? item(cover) : cover;
+  if (!c || c.sub !== "linear" || !c.len) return [];
+  const want = FRAME_FINISH[c.finish] || null;
+  return group("coverFrame")
+    .filter((f) => f.len === c.len && (!want || f.finish === want))
+    .sort(byStockThenPrice);
+}
+// What's stored is a FINISH, not a part number: the length always follows the
+// cover, so re-sizing the drain re-sizes the frame. A finish picked by hand is
+// honored even when it isn't the cover's own metal — the frame is a design
+// choice — and falls back to the matching one only if that length lacks it.
+export function coverFrameFor(cover, finish) {
+  const c = typeof cover === "string" ? item(cover) : cover;
+  const match = coverFrames(c);
+  if (finish && c && c.len) {
+    const hit = group("coverFrame").filter((f) => f.len === c.len && f.finish === finish).sort(byStockThenPrice)[0];
+    if (hit) return hit;
+  }
+  return match[0] || null;
+}
+
 function push(lines, key, qty, grp, note, auto) {
   const it = typeof key === "string" ? item(key) : key;
   if (!it || !(qty > 0)) return;
@@ -4968,6 +4996,8 @@ export function kitFor(panKey, opts) {
     cover = linearCoverFor(ch, opts.coverFinish || "SS");
   } else cover = item(SKU.coverSS);
   push(lines, cover, 1, "drain", cover && cover.finish ? FINISHES[cover.finish] || "" : "", true);
+  const frame = opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
+  if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
   // --- curbless waterproofing ------------------------------------------------
   // The bracket kit / ramp is an add-on PICK, not part of the curbless house
@@ -5018,6 +5048,7 @@ export function kitFor(panKey, opts) {
   const cfg = {
     panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
     curbKey: curbKey || null, coverKey: cover ? cover.key : null,
+    coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
     addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
     benches: benches.map((b) => ({ ...b })),
