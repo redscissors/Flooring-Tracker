@@ -3,8 +3,10 @@
 Status: done
 Shipped: 2026-07-31 — engine (wedi.js benches section + curbRuns/kitFor
 integration, wedi.test.js), UI (TopDown zones + drawing, bench menu popover,
-"Bench" build group). Not in v1: the isometric view doesn't draw benches yet
-(the top-down is the working drawing); premade wall benches don't resize the
+"Bench" build group). Follow-up on the same PR: the isometric draws benches
+too — wall benches as slabs to their top height (on the pan, or to the floor
+when framed, with the pan-cut rust dash across the face), corner benches as
+triangular prisms. Still not in v1: premade wall benches don't resize the
 zone band drawing to their catalog length until placed.
 Opened: 2026-07-31 (owner, spoken spec)
 Area: wedi configurator (issue 066)

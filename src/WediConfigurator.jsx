@@ -712,7 +712,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, cuts, curbs, curbDiag
 // plan's level courses and butt joints dotted on the inner faces, the pieces
 // as thick slabs. Walls in FRONT of the shower (entry + right side) draw
 // clear — dashed edges, no body — so they never hide the pan.
-function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) {
+function Iso({ o, w, h, dWalls, panelFit, benches, cuts, curbs, curbDiags, onWallMenu }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const T = WALL_THICK;
@@ -891,6 +891,44 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
       els.push(<polygon key="dr2" points={str([M(dr.x - 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y + 0.7, t + 0.1), M(dr.x - 0.7, dr.y + 0.7, t + 0.1)])} fill={INK} />);
     }
   }
+  // Benches as slabs to their real top height (issue 069 follow-up). A
+  // site-built or premade bench's faces land on the pan surface — the pan
+  // runs underneath — while a framed bench meets the floor beside the cut
+  // pan and re-marks the pan cut in rust at its base, like the plan view.
+  // Corner benches are triangular prisms. Drawn after the curbs so a bench
+  // reaching the entry paints over the curb line it displaced.
+  const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
+  const benchQuad = (a, b2, z0, z1, fill, key) =>
+    els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
+  (benches || []).forEach((b, bi) => {
+    const f = benchFootprint(b, o.room);
+    const z0 = b.build === "framed" ? 0 : t;
+    const zh = b.h || 18;
+    if (f.kind === "corner") {
+      const tri = ({
+        bl: [[0, 0], [f.a, 0], [0, f.a]], br: [[rw, 0], [rw - f.a, 0], [rw, f.a]],
+        fl: [[0, rd], [f.a, rd], [0, rd - f.a]], fr: [[rw, rd], [rw - f.a, rd], [rw, rd - f.a]],
+      })[f.corner];
+      // side faces back-to-front (painter), hypotenuse in the deeper tone
+      [[tri[0], tri[1], BSIDE], [tri[0], tri[2], BSIDE], [tri[1], tri[2], BSIDE2]]
+        .sort((p, q) => (p[0][0] + p[0][1] + p[1][0] + p[1][1]) - (q[0][0] + q[0][1] + q[1][0] + q[1][1]))
+        .forEach((s, si) => benchQuad(s[0], s[1], z0, zh, s[2], `bn${bi}s${si}`));
+      els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+      return;
+    }
+    const out = curbs && curbs.length && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const x0 = f.x, x1 = f.x + f.w, y0 = f.y, y1 = f.y + f.d + out;
+    benchQuad([x1, y0], [x1, y1], z0, zh, BSIDE, `bn${bi}e`);
+    benchQuad([x0, y1], [x1, y1], z0, zh, BSIDE2, `bn${bi}f`);
+    els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+    if (b.build === "framed") {
+      const fx = b.side === "left" ? x1 : b.side === "right" ? x0 : null;
+      const a = fx != null ? M(fx, 0, t) : M(x0, f.d, t);
+      const b2 = fx != null ? M(fx, rd, t) : M(x1, f.d, t);
+      els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
+    }
+  });
+
   // Front walls draw last — clear, so the shower stays readable through them.
   dw.forEach((wl, wi) => { if (wl.side === "entry" || wl.side === "right") wallEls(wl, wi); });
   if (dw.length) {
@@ -2024,7 +2062,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
-        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
+        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
           walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
@@ -2034,7 +2073,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
           {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
           {" "}· hover the pan along a wall or into a corner and click for a <b>bench</b> — premade, 2″ build-up,
-          or installer-framed, drawn in plan with the curb butting its face
+          or installer-framed, drawn in both views with the curb butting its face
         </div>
       </>)}
     </div>
@@ -2364,7 +2403,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="d"><div className="dh">Top-down layout</div>
           <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
         <div className="d"><div className="dh">Isometric</div>
-          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
       </div>
       {(diag.pieces.some((p) => p.cut) || (diag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>
