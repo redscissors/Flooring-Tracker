@@ -20,7 +20,7 @@ import {
   expandWallFaces, WALL_THICK, CURB_W, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
-  normBench, benchFootprint, benchPremades, benchPanRoom, smallerPanFor,
+  normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_DEPTH, BENCH_CORNER_LBL,
 } from "./wedi.js";
 
@@ -373,7 +373,7 @@ function topGeom(o, W_, H_, mini) {
 // ticked on them, the pieces with their cut edges dashed, curb runs on the
 // open edges, the drain (with the plumber's two measurements when it was
 // pinned), 45° corner cuts chamfered off the pan, and dimensions.
-function TopDown({ o, w, h, mini, wallOn, dWalls, benches, cuts, curbs, curbDiags, placing, onCorner, onEdge, onWallMenu, onBenchMenu }) {
+function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curbs, curbDiags, placing, onCorner, onEdge, onWallMenu, onBenchMenu }) {
   const g = topGeom(o, w, h, mini);
   const { ox, oy, sc, rw, rd } = g;
   // The pan divides into bench zones (owner spec, issue 069): a band along
@@ -521,7 +521,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, cuts, curbs, curbDiag
     const out = curbs && curbs.length && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
     push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
       fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
-    if (b.build === "framed") {
+    if (b.build === "framed" && !framedFit) {
       const fx = b.side === "left" ? f.x + f.w : b.side === "right" ? f.x : null;
       if (fx != null) push(<line key={`bnc${bi}`} x1={X(fx)} y1={Y(0)} x2={X(fx)} y2={Y(rd)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
       else push(<line key={`bnc${bi}`} x1={X(f.x)} y1={Y(f.d)} x2={X(f.x + f.w)} y2={Y(f.d)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
@@ -712,7 +712,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, cuts, curbs, curbDiag
 // plan's level courses and butt joints dotted on the inner faces, the pieces
 // as thick slabs. Walls in FRONT of the shower (entry + right side) draw
 // clear — dashed edges, no body — so they never hide the pan.
-function Iso({ o, w, h, dWalls, panelFit, benches, cuts, curbs, curbDiags, onWallMenu }) {
+function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbDiags, onWallMenu }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const T = WALL_THICK;
@@ -921,7 +921,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, cuts, curbs, curbDiags, onWal
     benchQuad([x1, y0], [x1, y1], z0, zh, BSIDE, `bn${bi}e`);
     benchQuad([x0, y1], [x1, y1], z0, zh, BSIDE2, `bn${bi}f`);
     els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
-    if (b.build === "framed") {
+    if (b.build === "framed" && !framedFit) {
       const fx = b.side === "left" ? x1 : b.side === "right" ? x0 : null;
       const a = fx != null ? M(fx, 0, t) : M(x0, f.d, t);
       const b2 = fx != null ? M(fx, rd, t) : M(x1, f.d, t);
@@ -1387,6 +1387,26 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     };
   }, [panKey, option, wallFlip]);
 
+  // Framed bench + "smaller": the drawings show the CLEAR space's re-solved
+  // layout — the sub-option's pieces and centered drain shifted past the
+  // bench — while the room (and the walls figured on it) stays the full
+  // shower size. kind "drainat" turns on the two rust drain measurements,
+  // taken from the shower's own origin like any pinned drain.
+  const drawDiag = useMemo(() => {
+    const plan = build && build.panPlan;
+    if (!diag || !plan) return diag;
+    const { x: ox, y: oy } = plan.offset;
+    return {
+      ...diag,
+      kind: "drainat",
+      pieces: plan.option.pieces.map((p) => ({ ...p, x: round2(p.x + ox), y: round2(p.y + oy) })),
+      drain: plan.option.drain
+        ? { ...plan.option.drain, x: round2(plan.option.drain.x + ox), y: round2(plan.option.drain.y + oy) }
+        : diag.drain,
+      warnings: (diag.warnings || []).concat(plan.option.warnings || []),
+    };
+  }, [diag, build]);
+
   const dWalls = useMemo(() => {
     if (!panKey) return [];
     // expandWallFaces appends the extra faces AFTER the base walls, so
@@ -1575,7 +1595,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return (
       <>
         <div className="roomform">
-          <div className="rf"><label>Pan size — width × depth</label>
+          <div className="rf"><label>Shower size — width × depth</label>
             <div className="dims">
               <NumIn className="inp" value={inp.w} onCommit={(v) => setInput({ w: +v || 0 })} />
               <span>×</span>
@@ -2042,7 +2062,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </>) : (<>
         <div className="dc-h">Top-down layout</div>
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
-        <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
+        <TopDown o={drawDiag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
+          framedFit={!!(build && build.panPlan)}
           cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
           onBenchMenu={(z, x, y) => setBenchMenu({ ...z, x, y })}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })}
@@ -2062,7 +2083,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
-        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+        <Iso o={drawDiag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+          framedFit={!!(build && build.panPlan)}
           cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
@@ -2223,6 +2245,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       if (!pan || !norm || norm.build !== "framed") return "";
       const pr = benchPanRoom([norm], room);
       if (norm.panFit === "smaller") {
+        const pl = benchPanPlan(pan, [norm], room);
+        if (pl) {
+          const p2 = pl.option.pan;
+          return "re-solves the clear " + inch(pl.clear.w) + "×" + inch(pl.clear.d) + '" space — '
+            + inch(Math.max(p2.w, p2.d)) + "×" + inch(Math.min(p2.w, p2.d)) + '" pan ('
+            + (p2.stock ? p2.erp : "SO — " + p2.us) + "), drain centered";
+        }
         const sw = smallerPanFor(pan, pr.w, pr.d);
         return sw
           ? "swaps to the " + inch(Math.max(sw.w, sw.d)) + "×" + inch(Math.min(sw.w, sw.d)) + '" pan (' + (sw.stock ? sw.erp : "SO — " + sw.us) + ")"
@@ -2240,7 +2269,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           </button>
           {benchMenu.kind !== "corner" && (
             <button className="bm-opt" onClick={() => add({ build: "framed" })}>
-              <b>Framed by the installer</b><small>wrapped with ½″ panel — the pan butts the bench: cut it down or go a size smaller</small>
+              <b>Framed by the installer</b><small>wrapped with ½″ panel — the pan butts the bench: cut it down, or solve a smaller pan with the drain centered</small>
             </button>
           )}
           <div className="ph">Premade wedi benches</div>
@@ -2401,16 +2430,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </div>
       <div className="ps-diags">
         <div className="d"><div className="dh">Top-down layout</div>
-          <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <TopDown o={drawDiag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
         <div className="d"><div className="dh">Isometric</div>
-          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <Iso o={drawDiag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
       </div>
-      {(diag.pieces.some((p) => p.cut) || (diag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
+      {(drawDiag.pieces.some((p) => p.cut) || (drawDiag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>
-        {diag.pieces.filter((p) => p.cut).map((p, i) => (
+        {drawDiag.pieces.filter((p) => p.cut).map((p, i) => (
           <div className="ps-warn" key={"c" + i}>✂ Cut {p.item.us || p.item.erp} to {inch(p.w)}″ × {inch(p.d)}″ (from {inch(p.cut.w)}″ × {inch(p.cut.d)}″)</div>
         ))}
-        {(diag.warnings || []).map((wt, i) => <div className="ps-warn" key={"w" + i}>• {wt}</div>)}
+        {(drawDiag.warnings || []).map((wt, i) => <div className="ps-warn" key={"w" + i}>• {wt}</div>)}
         {CORNER_LBL.filter((c) => corners[c[0]]).map((c) => {
           const d = curb.cuts.find((x) => x.corner === c[0]);
           const legs = d ? inch(d.h) + "″ × " + inch(d.v) + "″" : "12″ × 12″";
@@ -2418,7 +2449,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="ps-warn" key={c[0]}>✂ Corner cut at {c[1]} — {legs} legs{!d || d.h === d.v ? " (45°)" : ", straight to the wall end"}; glass or framing runs the line</div>
           );
         })}
-        {diag.drain && diag.drain.note && <div className="ps-warn">• {diag.drain.note}</div>}
+        {drawDiag.drain && drawDiag.drain.note && <div className="ps-warn">• {drawDiag.drain.note}</div>}
       </>)}
       <div className="ps-sec">Materials</div>
       <table className="ps-table">

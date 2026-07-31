@@ -48,6 +48,14 @@ that one menu "so that everything is kinda contained into that space."
 
 ## Implementation notes
 
+- Owner follow-up (2026-07-30, spoken): the custom solver's size field is the
+  SHOWER size, not the pan ("Shower size — width × depth") — a bench never
+  shrinks the room, walls still figure the full space. And framed + "smaller"
+  doesn't just grab the largest pan that fits: `benchPanPlan` re-solves the
+  clear space (shower minus bench) with the drain pinned at its center; the
+  drawings shift the solved layout past the bench and drop the bench-face cut
+  dash (the sub-pan's own trim dashes instead). Plain `smallerPanFor` swap
+  stays as the no-solve fallback.
 - Engine (`wedi.js`): `normBench`/`benchFootprint`/`benchLines` +
   `benchPremades`; `curbRuns` takes a `benches` arg and subtracts the
   footprints that reach an open edge; `kitFor` takes `opts.benches`, files the

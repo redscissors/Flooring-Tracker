@@ -6,7 +6,7 @@ import {
   tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
-  normBench, benchFootprint, benchLines, benchPanRoom, smallerPanFor, benchPremades,
+  normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
 } from "./wedi.js";
 
@@ -760,15 +760,42 @@ test("wedi benches: framed — ½\" wrap, and the pan is cut down or swapped sma
   const kCut = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
   assert.ok(kCut.lines[0].item.key === "US9100004" && /cut to 46×36/.test(kCut.lines[0].note),
     "panFit 'cut' keeps the pan and notes the cut");
+  const sw = smallerPanFor(item("US9100004"), 46, 36);
+  assert.ok(sw && sw.sub === "fundo" && Math.max(sw.w, sw.d) <= 46.01 && Math.min(sw.w, sw.d) <= 36.01,
+    "smallerPanFor (the no-solve fallback) still names the largest fitting same-family pan");
+});
+
+test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {
+  // 60×36 shower, 14" framed bench on the left → 46×36 clear; the solver
+  // places a pan so the drain lands dead center of THAT space (owner ask
+  // 2026-07-30), and the layout shifts past the bench in the drawings.
+  const framedSm = [normBench({ kind: "wall", side: "left", build: "framed", panFit: "smaller" }, roomB)];
+  const plan = benchPanPlan(item("US9100004"), framedSm, roomB);
+  assert.ok(plan, "the 46×36 clear space solves");
+  assert.deepEqual(plan.clear, { w: 46, d: 36 });
+  assert.deepEqual(plan.offset, { x: 14, y: 0 }, "the clear space starts past the 14\" bench");
+  assert.ok(near(plan.option.drain.x, 23) && near(plan.option.drain.y, 18), "drain at the clear-space center");
+  plan.option.pieces.forEach((p) => {
+    assert.ok(p.x >= -0.01 && p.y >= -0.01 && p.x + p.w <= 46.01 && p.y + p.d <= 36.01,
+      "every piece stays inside the clear space");
+  });
   const kSm = kitFor("US9100004", {
     walls: threeWallsB,
     benches: [{ kind: "wall", side: "left", build: "framed", panFit: "smaller" }],
   });
-  const p2 = kSm.lines[0].item;
-  assert.ok(p2.key !== "US9100004" && p2.sub === "fundo", "panFit 'smaller' swaps to a same-family pan");
-  assert.ok(Math.max(p2.w, p2.d) <= 46.01 && Math.min(p2.w, p2.d) <= 36.01, "…that fits the reduced footprint");
-  const sw = smallerPanFor(item("US9100004"), 46, 36);
-  assert.equal(kSm.lines[0].item.key, sw.key, "the swap is the largest fitting pan");
+  assert.ok(kSm.panPlan, "kitFor carries the plan out for the drawings");
+  assert.equal(kSm.lines[0].item.key, kSm.panPlan.option.pan.key, "the floor line is the solved pan");
+  assert.ok(/drain centered in the 46×36" clear space/.test(kSm.lines[0].note), "…and the note says why");
+  // A bench never shrinks the SHOWER: the walls still figure the full room.
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  assert.equal(kSm.panelSf, plain.panelSf, "wall panel figures the full shower size, bench or not");
+  // 'cut' is untouched by the solver path
+  const kCut = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
+  assert.equal(kCut.panPlan, null, "panFit 'cut' never re-solves");
+  // and the whole thing still round-trips through cfg
+  const again = kitFor("US9100004", { walls: threeWallsB, benches: kSm.cfg.benches });
+  assert.deepEqual(again.lines.map((l) => [l.item.key, l.qty]), kSm.lines.map((l) => [l.item.key, l.qty]),
+    "cfg round-trips the framed-smaller build");
 });
 
 test("wedi benches: kitFor files the group, shrinks the curb, feeds the sealant, round-trips cfg", () => {

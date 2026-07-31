@@ -4573,6 +4573,38 @@ export function smallerPanFor(pan, w, d) {
   return fits[0].p;
 }
 
+// Framed bench, "smaller" fit (owner ask 2026-07-30): don't just grab the
+// largest pan that fits beside the bench — RE-SOLVE the clear space with the
+// drain pinned at its center, so the standard solver places the pan (floating
+// it, trimming up to 6" a side, filling with extensions) exactly as it would
+// any room. The shower keeps its full size — walls, curb ring and bench all
+// figure on `dims`; only the floor moves into the clear space. Returns
+// { option, offset, clear } — the option's pieces live in clear-space coords,
+// offset is where that space starts in the shower (a left/back framed bench
+// shifts it by its depth). Null when no framed bench shrinks the room, none
+// asks for "smaller", the family can't re-solve (modules/sdry), or nothing
+// lands the drain — callers fall back to the plain smallerPanFor swap.
+export function benchPanPlan(pan, benches, dims) {
+  const panRoom = benchPanRoom(benches, dims);
+  if (!(panRoom.w > 0 && panRoom.d > 0)) return null;
+  if (panRoom.w >= dims.w - 0.01 && panRoom.d >= dims.d - 0.01) return null;
+  if (!(benches || []).some((b) => b.build === "framed" && b.panFit === "smaller")) return null;
+  if (pan.sub !== "fundo" && pan.sub !== "curbless") return null;
+  const sub = solve({
+    w: panRoom.w, d: panRoom.d,
+    curb: pan.sub === "curbless" ? "curbless" : "curbed",
+    drainX: round2(panRoom.w / 2), drainY: round2(panRoom.d / 2),
+  });
+  if (!sub.length) return null;
+  let ox = 0, oy = 0;
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    if (b.side === "left") ox = round2(ox + b.depth);
+    else if (b.side === "back") oy = round2(oy + b.depth);
+  });
+  return { option: sub[0], offset: { x: ox, y: oy }, clear: panRoom };
+}
+
 // Bench BOM. Site-built 2" material aggregates across benches and fills
 // sheets greedily (4×8s, then one 4×5 when the remainder fits it); framed
 // wraps figure in the build's wall panel. surfSf is what feeds the sealant/
@@ -4707,33 +4739,52 @@ export function kitFor(panKey, opts) {
   const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
 
   // --- floor -----------------------------------------------------------------
-  // A framed bench sits on the subfloor, so the pan stops at its face: cut
-  // the pan down, or swap to the largest same-family pan that fits clear.
+  // A framed bench sits on the subfloor, so the pan stops at its face. "Cut"
+  // keeps the pan and notes the cut; "smaller" re-solves the CLEAR space with
+  // the drain pinned at its center (benchPanPlan) — its floor lines replace
+  // the pan AND, in custom mode, the outer option's extensions, which were
+  // sized for the full room the bench now takes a bite of. Only when nothing
+  // solves does "smaller" fall back to the plain largest-fitting-pan swap.
   const panRoom = benchPanRoom(benches, roomDims);
   const framedIn = panRoom.w < roomDims.w - 0.01 || panRoom.d < roomDims.d - 0.01;
-  let floorPan = pan, floorNote = pan.sizeText;
-  if (framedIn) {
-    const sw = benches.some((b) => b.build === "framed" && b.panFit === "smaller")
-      ? smallerPanFor(pan, panRoom.w, panRoom.d) : null;
-    if (sw) {
-      floorPan = sw;
-      floorNote = sw.sizeText + " — sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
-    } else floorNote = pan.sizeText + " — cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
-  }
-  push(lines, floorPan, 1, "floor", floorNote, true);
-  if (option) {
-    option.floorLines.forEach((fl) => {
-      if (fl.item.key === pan.key) return;
-      push(lines, fl.item, fl.qty, "floor", fl.note || "", true);
+  const panPlan = benchPanPlan(pan, benches, roomDims);
+  let floorPan = pan;
+  if (panPlan) {
+    floorPan = panPlan.option.pan;
+    const pp = panPlan.option.pieces[0];
+    const cutTxt = pp.cut ? ", cut to " + inch(pp.w) + "×" + inch(pp.d) + '"' : "";
+    panPlan.option.floorLines.forEach((fl, i) => {
+      push(lines, fl.item, fl.qty, "floor", i === 0
+        ? (fl.item.sizeText || "") + " — beside the framed bench" + cutTxt
+          + ", drain centered in the " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear space'
+        : "", true);
     });
+  } else {
+    let floorNote = pan.sizeText;
+    if (framedIn) {
+      const sw = benches.some((b) => b.build === "framed" && b.panFit === "smaller")
+        ? smallerPanFor(pan, panRoom.w, panRoom.d) : null;
+      if (sw) {
+        floorPan = sw;
+        floorNote = sw.sizeText + " — sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
+      } else floorNote = pan.sizeText + " — cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
+    }
+    push(lines, floorPan, 1, "floor", floorNote, true);
+    if (option) {
+      option.floorLines.forEach((fl) => {
+        if (fl.item.key === pan.key) return;
+        push(lines, fl.item, fl.qty, "floor", fl.note || "", true);
+      });
+    }
   }
   (opts.floorExtra || []).forEach((x) => {
     push(lines, x.key || x.item, x.qty || 1, "floor", x.note || "", false);
   });
   // A 2"-deep pan's extensions sit low — the kit carries the ½" sheet the
   // shop rips into build-up strips underneath them (owner practice).
-  if (option && panThick(pan) >= 1.9) {
-    const extSf = extensionSf(option);
+  const floorOpt = panPlan ? panPlan.option : option;
+  if (floorOpt && panThick(floorPan) >= 1.9) {
+    const extSf = extensionSf(floorOpt);
     const sheet = item(BUILDUP_SHEET);
     if (extSf > 0 && sheet && sheet.sf) {
       push(lines, sheet, Math.ceil(extSf / sheet.sf), "floor",
@@ -4838,7 +4889,7 @@ export function kitFor(panKey, opts) {
   return {
     pan: pan, lines: lines, panelSf: round2(panelSf), factory: factory, hints: hints,
     mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg,
-    consumables: con, soNet: round2(soNet), benches: benches,
+    consumables: con, soNet: round2(soNet), benches: benches, panPlan: panPlan,
   };
 }
 
