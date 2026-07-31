@@ -23,6 +23,9 @@ const benches = {
   ],
   seatM: [{ kind: "corner", corner: "bl", part: "US3000001" }],
 }[params.get("benches") || "mix"];
+// bjson=<url-encoded JSON array> overrides the named sets for one-off repros
+const bjson = params.get("bjson");
+const benchList = bjson ? JSON.parse(bjson) : benches;
 
 const corners = (params.get("corners") || "").split(",").filter(Boolean);
 const walls = (params.get("walls") || "back,left,right").split(",").filter(Boolean);
@@ -39,8 +42,8 @@ const seed = params.get("tab") === "custom"
     cfg: {
       panKey: pan.key,
       curbKey: params.get("curbKey") || undefined,
-      walls: walls.map((side) => ({ side, len: side === "back" || side === "entry" ? pan.w : pan.d, h: 96 })),
-      benches,
+      walls: walls.map((side) => ({ side, len: "", h: 96 })),
+      benches: benchList,
       corners,
     },
   };

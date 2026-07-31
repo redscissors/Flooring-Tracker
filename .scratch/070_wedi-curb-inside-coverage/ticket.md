@@ -52,3 +52,18 @@ Area: wedi configurator (issue 066)
   screws/sealant always). Not in v1: the panel-fit course layout still lays
   full walls (its sheet count ignores the shadow); plan-view wall bands
   keep the dark tone (coverage is the isometric's story).
+
+## Follow-up 2026-07-31 — the toggle keeps the build
+
+Owner: "when the button is clicked for curb inside or outside pan dimensions,
+keep the other modifications, just adjust everything." The toggle used to run
+the full `runSolve`, which ends in `resetBuild()` — benches, add-ons, stepped
+quantities and manual lines were wiped every flip. It now re-fits the way the
+wall toggles and the curb swap already did (`setMaxMode`): flip `maxIn`,
+re-solve for the new reading, re-pick the option on the same pan (top card if
+that pan no longer solves), and leave benches/walls/corners/add-ons/qty
+overrides/manual/panel-fit alone — the build memo re-figures the lines. It
+stamps `insetSeen` with the signature the flip is about to produce, so the
+`insetSig` effect doesn't solve the same flip a second time (measured: 1 solve
+per flip, 2 without the stamp). Size-input edits and option-card picks still
+reset, as before.

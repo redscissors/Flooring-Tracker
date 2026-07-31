@@ -273,17 +273,36 @@ src/
                     # `group`/`pans`, plus the system solver a shower needs:
                     # `kitFor` (the house-kit recipe per pan), `solve` (room ->
                     # ranked options: exact pan · pan + extensions with the corner
-                    # rule · pan cut down · linear module + extension; a pinned
-                    # drain floats the pan, trimming up to 6" a side), `panelPlan`
+                    # rule · pan cut down · Riolito neo module + same-length
+                    # extension, at the wall or centred with one leading away each
+                    # side; a pinned drain floats the pan, trimming a side 6"
+                    # freely or up to 12" as a labeled "Deep cut" card (the 6"
+                    # rule is SOFT — the offset bases are designed to cut up to
+                    # a foot off to meet an existing waste line, owner
+                    # 2026-07-31 — a deep cut never stands alone: the closest
+                    # shallow placement rides along and the salesman chooses),
+                    # and never dead-ends — no exact hit falls back to
+                    # "Closest fit" cards that say how far the drain lands off the
+                    # pin, then to the whole family, then to the plain layouts.
+                    # Drain positions are transcribed per SKU off the 2026
+                    # illustrated price list drawings — `OFFSET_DRAIN`,
+                    # `LINEAR_DRAIN`, `moduleDrain` (channel + outlet dead centre
+                    # of the module) — not derived), `panelPlan`
                     # (½" sheets in level courses, mixed sizes, vertical when that
                     # kills the seams), benches (issue 069: `normBench`/
                     # `benchFootprint`/`benchLines` — a premade catalog piece,
                     # site-built 2" material (top + face + a support about every
                     # foot), or installer-framed with a ½" wrap and the pan cut
                     # down / swapped smaller (`benchPanRoom`/`smallerPanFor`);
-                    # every bench runs the full pan-AND-curb depth so `curbRuns`
-                    # subtracts its footprint and the curb butts its face; corner
-                    # benches measure from the corner out along each wall,
+                    # the shower always completes first and the bench goes ON it
+                    # (owner rule 2026-07-31): only an installer-framed bench
+                    # interrupts the envelope (`curbRuns` subtracts just framed
+                    # footprints — the pan and curb butt its face); a 2" build-up
+                    # or premade sits on the finished pan with the curb running
+                    # across beneath it, and a suspended premade (corner seats
+                    # US3000001/2, Sanoasa 4) hangs on the walls at seat height,
+                    # only its slab drawn (`thick` — 4" seats, 3 1/8" bench);
+                    # corner benches measure from the corner out along each wall,
                     # 18" to the top, never framed),
                     # `figureConsumables` (1 screw+washer and
                     # 1.2 oz sealant per ft² of panel), `tierPrice`, `factoryKit`,
@@ -329,9 +348,17 @@ src/
                     # wedi (inside / both sides / inside + exposed end — the extra
                     # faces feed the panel plan via expandWallFaces and read as
                     # moss edges). Modifying a kit's geometry moves the build to
-                    # the Custom shower tab (owner rule 2026-07-30) and a kit card
+                    # the Custom shower tab (owner rule 2026-07-30), and so does a
+                    # framed bench whose Smaller-pan choice RESOLVES — the swapped
+                    # pan means it's no longer the kit (owner rule 2026-07-31);
+                    # every other bench (2" build-up, premade, suspended, framed +
+                    # cut down) stays a kit add-on. Both moves are one-way and keep
+                    # the build. A kit card
                     # clicked over a custom shower confirms before hard-resetting
-                    # to the stock kit. Opened from a row's
+                    # to the stock kit. The custom form's "Sizes are — Pan size |
+                    # Max — curb inside" toggle re-fits like the wall/curb changes
+                    # do — re-solve, re-pick the equivalent option, benches and
+                    # add-ons left standing — it never wipes the build. Opened from a row's
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines.
