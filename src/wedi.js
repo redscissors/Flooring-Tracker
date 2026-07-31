@@ -3783,7 +3783,11 @@ const EXT = {
 };
 const MIN_GAP = 6;         // below this, cut the pan rather than shim a strip
 const CORNER_MAX = 12;     // the 16½" corner piece wraps 12" of two straights
-const TRIM_MAX = 6;        // a pan edge may be cut up to 6" to help fit (owner rule 2026-07-29)
+const TRIM_MAX = 6;        // the PREFERRED cut — up to 6" off an edge fits without comment (owner rule 2026-07-29)
+const TRIM_HARD = 12;      // the ceiling: the offset bases are designed to cut up to a foot off to
+                           // meet an existing waste line, so 6" is a soft rule (owner, 2026-07-31) —
+                           // past it a placement is a separate "Deep cut" card the salesman chooses,
+                           // never the only answer. Pinned-drain search only; the plain fit keeps 6".
 
 // Riolito neo modules, off the 2026 illustrated price list's Channel Length
 // column (p9). The ERP prints the 32"'s channel as 27-1/2 where the pricelist
@@ -5248,9 +5252,9 @@ function extendOption(input, list, fam) {
 // a gap the extensions can fill ({0} ∪ [MIN_GAP, spec.max]) or as an overhang
 // the trim allowance can cut off. Two intervals per side, so at most four
 // spans of valid offset.
-function offsetSpans(room, len, spec) {
+function offsetSpans(room, len, spec, trimMax) {
   const slack = round2(room - len);
-  const side = [[-TRIM_MAX, 0], [MIN_GAP, spec.max]];
+  const side = [[-(trimMax || TRIM_MAX), 0], [MIN_GAP, spec.max]];
   const out = [];
   side.forEach((a) => side.forEach((b) => {
     const lo = Math.max(a[0], slack - b[1]), hi = Math.min(a[1], slack - b[0]);
@@ -5260,9 +5264,9 @@ function offsetSpans(room, len, spec) {
 }
 
 // The offset closest to where the drain WANTS the pan, and how far it misses.
-function nearestOffset(ideal, room, len, spec) {
+function nearestOffset(ideal, room, len, spec, trimMax) {
   let best = null;
-  offsetSpans(room, len, spec).forEach((s) => {
+  offsetSpans(room, len, spec, trimMax).forEach((s) => {
     const t = Math.min(Math.max(ideal, s[0]), s[1]);
     const miss = Math.abs(t - ideal);
     if (!best || miss < best.miss - 0.001) best = { t: round2(t), miss: round2(miss) };
@@ -5288,21 +5292,23 @@ function placements(p) {
 }
 
 // The drain lands where the plumbing is: the pan floats to put its drain at
-// (drainX, drainY) — measured off the left and back walls — trims soak up to
-// 6" of overhang per side, and extensions fill whatever gaps remain. When
-// nothing reaches the pin, the same search returns its CLOSEST placements
-// instead of nothing (owner report 2026-07-31): the seller moves the waste
-// line or accepts the miss, but never faces a blank tab.
+// (drainX, drainY) — measured off the left and back walls — trims soak the
+// overhang per side (6" freely, up to the 12" ceiling as a labeled "Deep cut"
+// card — the bases are designed to cut down to meet a waste line, owner
+// 2026-07-31), and extensions fill whatever gaps remain. When nothing reaches
+// the pin, the same search returns its CLOSEST placements instead of nothing
+// (owner report 2026-07-31): the seller moves the waste line or accepts the
+// miss, but never faces a blank tab.
 function drainAtOptions(input, list, fam) {
   const tx = input.drainX, ty = input.drainY;
   const spec = EXT[fam === "curbless" ? "curbless" : "fundo"];
   const cands = [];
   list.forEach((p) => {
     if (!p.drain || p.drain.type === "linear") return;
-    placements(p).forEach((o) => {
+    placements(p).forEach((o) => [TRIM_MAX, TRIM_HARD].forEach((allow) => {
       const drx = o.dx, dry = o.dy;
-      const fx = nearestOffset(round2(tx - drx), input.w, o.w, spec);
-      const fy = nearestOffset(round2(ty - dry), input.d, o.d, spec);
+      const fx = nearestOffset(round2(tx - drx), input.w, o.w, spec, allow);
+      const fy = nearestOffset(round2(ty - dry), input.d, o.d, spec, allow);
       if (!fx || !fy) return;
       const miss = round2(Math.hypot(fx.miss, fy.miss));
       const ox = fx.t, oy = fy.t;
@@ -5310,7 +5316,12 @@ function drainAtOptions(input, list, fam) {
       const tL = ox < 0 ? -ox : 0, tB = oy < 0 ? -oy : 0;
       const pr = round2(ox + o.w), pf = round2(oy + o.d);
       const tR = pr > input.w ? round2(pr - input.w) : 0, tF = pf > input.d ? round2(pf - input.d) : 0;
-      if ([tL, tB, tR, tF].some((t) => t > TRIM_MAX + 0.01)) return;
+      if ([tL, tB, tR, tF].some((t) => t > allow + 0.01)) return;
+      // The hard pass only contributes placements the soft one couldn't reach
+      // — a deep-allowance search that settled on ≤6" cuts is the same card.
+      const deepT = round2(Math.max(tL, tB, tR, tF));
+      const deep = deepT > TRIM_MAX + 0.01;
+      if (allow > TRIM_MAX && !deep) return;
       const px = round2(Math.max(ox, 0)), py = round2(Math.max(oy, 0));
       const pw = round2(Math.min(pr, input.w) - px), pd = round2(Math.min(pf, input.d) - py);
       if (pw <= 0 || pd <= 0) return;
@@ -5363,6 +5374,10 @@ function drainAtOptions(input, list, fam) {
       const off = miss > 0.01;
       warn.unshift(seamWarning(pieces.length - 1));
       if (trims) warn.push(trimWarning(fam));
+      if (deep) {
+        warn.push("deep cut — " + inch(deepT) + '" comes off a side to land the drain; past the usual 6", '
+          + "but the bases are designed to cut down to meet an existing waste line");
+      }
       if (off) {
         warn.unshift("drain lands at " + inch(dx) + '", ' + inch(dy) + '" — ' + inch(miss)
           + '" off the requested spot; move the waste line or accept');
@@ -5370,33 +5385,46 @@ function drainAtOptions(input, list, fam) {
       cands.push({
         id: off ? "drainnear" : "drainat", kind: "drainat",
         title: p.sizeText + " base — drain " + (off ? "lands" : "set") + " at " + inch(dx) + '", ' + inch(dy) + '"',
-        badges: (off ? ["Closest fit"] : ["Drain right there"]).concat(trims ? ["Trim to fit"] : cuts ? [] : ["No cutting"]),
+        badges: (off ? ["Closest fit"] : ["Drain right there"])
+          .concat(deep ? ["Deep cut"] : trims ? ["Trim to fit"] : cuts ? [] : ["No cutting"]),
         pieces: pieces,
         drain: { type: p.drain.type, x: dx, y: dy, len: 0, axis: null, note: p.drain.note || "" },
         warnings: warn, floorLines: lines, floorPrice: priceOf(lines), input: input,
-        room: { w: input.w, d: input.d }, pan: p, cuts: cuts, trims: trims, miss: miss,
+        room: { w: input.w, d: input.d }, pan: p, cuts: cuts, trims: trims, miss: miss, deep: deep,
       });
-    });
+    }));
   });
   // Nearest-fit cards are a compromise, not an answer: they only show when
   // nothing lands on the pin at all.
   const hits = cands.filter((c) => c.miss <= 0.01);
   const pool = hits.length ? hits : cands;
-  // Closest first, then fewest pieces — "cut the pan to fit" beats a patchwork
-  // of strips.
-  pool.sort((a, b) => a.miss - b.miss || a.pieces.length - b.pieces.length || a.trims - b.trims || a.floorPrice - b.floorPrice);
+  // Closest first — a shallow cut outranks a deep one at the same miss — then
+  // fewest pieces: "cut the pan to fit" beats a patchwork of strips.
+  const rank = (a, b) => a.miss - b.miss || (a.deep ? 1 : 0) - (b.deep ? 1 : 0)
+    || a.pieces.length - b.pieces.length || a.trims - b.trims || a.floorPrice - b.floorPrice;
+  pool.sort(rank);
   const seen = {}, out = [];
   pool.forEach((c) => {
-    if (out.length >= 3 || seen[c.pan.key]) return;
-    seen[c.pan.key] = true;
+    // a pan may hold two cards when one is its deep-cut placement — the
+    // salesman picks between "lands exact, cut deep" and "shallow cut, off"
+    const k = c.pan.key + (c.deep ? "|deep" : "");
+    if (out.length >= 3 || seen[k]) return;
+    seen[k] = true;
     out.push(c);
   });
+  // A pin that only lands with a deep cut keeps the closest SHALLOW placement
+  // on the board too (owner rule 2026-07-31: 6" is soft — offer the options,
+  // the salesman chooses).
+  if (out.length && out.every((c) => c.deep)) {
+    const soft = cands.filter((c) => !c.deep).sort(rank)[0];
+    if (soft) out.push(soft);
+  }
   // The biggest pan always earns a card (owner rule 2026-07-30): most of the
   // floor in one piece even when the parts run dearer — the seller decides.
   const big = pool.slice().sort((a, b) => (b.pan.w * b.pan.d) - (a.pan.w * a.pan.d)
     || a.miss - b.miss || a.pieces.length - b.pieces.length || a.floorPrice - b.floorPrice)[0];
   // …but not when the extra floor costs the plumber another foot of travel.
-  if (big && !seen[big.pan.key] && out.length && big.miss <= out[0].miss + 0.01) {
+  if (big && !seen[big.pan.key + (big.deep ? "|deep" : "")] && out.length && big.miss <= out[0].miss + 0.01) {
     big.badges = ["Biggest pan"].concat(big.badges);
     out.push(big);
   }
@@ -5633,6 +5661,17 @@ export function solve(input) {
       out = drainAtOptions(input, group("pan").filter((p) => p.sub === fam), fam);
       out.forEach((o) => o.warnings.unshift("no " + input.drain + "-drain base fits this room — this is a "
         + o.drain.type + "-drain base floated to the plumbing"));
+    }
+    // A deep cut never stands alone (owner rule 2026-07-31): when every card
+    // of the requested type cuts past 6", the whole family's closest SHALLOW
+    // placements ride along so the salesman chooses.
+    if (out.length && out.every((o) => o.deep) && input.drain !== "any") {
+      drainAtOptions(input, group("pan").filter((p) => p.sub === fam), fam)
+        .filter((o) => !o.deep).slice(0, 2).forEach((o) => {
+          o.warnings.unshift('shallow alternative — cuts stay under 6"; a ' + o.drain.type
+            + "-drain base floated toward the plumbing");
+          out.push(o);
+        });
     }
     if (linearOk) moduleOptions(input, { x: input.drainX, y: input.drainY }).forEach((o) => out.push(o));
     buildupWarn(out);

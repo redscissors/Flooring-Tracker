@@ -571,26 +571,42 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
 
 // --- nearest fit: a pinned drain never dead-ends -------------------------------
 
-test("wedi drain placement: nothing reaches the pin → the CLOSEST placements, badged and warned", () => {
-  // The owner's 58×33 with the waste at 6", 16½": every offset base is 72"
-  // long, so none of them fits the room at all, let alone on the pin.
+test("wedi drain placement: the 6\" cut is a SOFT rule — deep cuts land the pin, options stay plural", () => {
+  // The owner's 58×33 with the waste at 6", 16½": at the old hard 6" this
+  // dead-ended into closest-fit compromises. The offset bases are DESIGNED to
+  // cut up to a foot off to meet an existing waste line (owner, 2026-07-31),
+  // so the 36×72 now lands the drain EXACTLY with a deep cut — and the
+  // shallow closest placement stays on the board for the salesman to choose.
   const s = solve({ w: 58, d: 33, curb: "curbed", drain: "offset", tolerance: 0.51, drainX: 6, drainY: 16.5 });
-  assert.ok(s.length > 0, "58×33 with the drain pinned at 6\", 16½\" still returns options");
-  assert.ok(s.every((o) => o.badges.indexOf("Closest fit") >= 0), "every card reads as a compromise, not a hit");
-  assert.ok(s.every((o) => o.warnings.some((w) => /off the requested spot/.test(w))),
-    "every card says how far off the drain lands: " + JSON.stringify(s.map((o) => o.warnings[0])));
-  assert.ok(s.every((o) => o.warnings.some((w) => /no offset-drain base fits/.test(w))),
-    "…and that the base is not the requested drain type");
-  assert.ok(s[0].miss === 6 && s[0].drain.x === 12 && s[0].drain.y === 16.5,
-    "the closest lands 6\" off — 12\", 16½\": " + JSON.stringify(s.map((o) => o.pan.key + " miss " + o.miss)));
-  assert.ok(s.every((o, i, a) => i === 0 || a[i - 1].miss <= o.miss), "ranked by how far they miss");
-  assert.ok(s.every((o) => o.pieces.every((p) => p.x >= -0.01 && p.y >= -0.01
-    && p.x + p.w <= o.room.w + 0.01 && p.y + p.d <= o.room.d + 0.01)), "nearest-fit pieces stay inside the room");
+  assert.ok(s.length >= 2, "deep hit + shallow alternative: " + JSON.stringify(s.map((o) => o.pan.key + " miss " + o.miss)));
+  assert.ok(s[0].miss === 0 && s[0].deep && s[0].drain.x === 6 && s[0].drain.y === 16.5,
+    "the offset base lands ON the pin via a deep cut: " + JSON.stringify({ miss: s[0].miss, drain: s[0].drain }));
+  assert.ok(s[0].badges.indexOf("Deep cut") >= 0 && s[0].warnings.some((w) => /deep cut — .*comes off a side/.test(w)),
+    "the deep cut is badged and says how much comes off: " + JSON.stringify(s[0].warnings));
+  assert.ok(s[0].pieces.every((p) => p.x >= -0.01 && p.y >= -0.01
+    && p.x + p.w <= s[0].room.w + 0.01 && p.y + p.d <= s[0].room.d + 0.01), "deep-cut pieces stay inside the room");
+  const soft = s.filter((o) => !o.deep && o.kind === "drainat");
+  assert.ok(soft.length > 0 && soft.every((o) => o.badges.indexOf("Closest fit") >= 0
+    && o.warnings.some((w) => /off the requested spot/.test(w))
+    && o.warnings.some((w) => /shallow alternative/.test(w))),
+    "the shallow closest fit rides along, labeled: " + JSON.stringify(soft.map((o) => o.warnings[0])));
+  assert.ok(soft.every((o) => o.pieces.every((p) => p.kind !== "pan" || !p.cut
+    || ((p.cut.w - p.w) <= 12.01 && (p.cut.d - p.d) <= 12.01))),
+    "shallow cards keep their cuts inside the 6\"-a-side rule");
 
-  // An exact hit is untouched: no compromise card rides along with it.
+  // An exact soft hit is untouched: soft hits rank first, no compromise cards.
   const hit = solve({ w: 60, d: 60, curb: "curbed", drain: "any", drainX: 24, drainY: 30 });
   assert.ok(hit.length > 0 && hit.every((o) => o.miss === 0 && o.badges.indexOf("Closest fit") < 0),
     "60×60 pinned at 24\", 30\" still returns exact hits only");
+  assert.ok(!hit[0].deep, "the first card never needs the deep allowance when a shallow hit exists");
+  assert.ok(hit.filter((o) => o.deep).every((o) => o.badges.indexOf("Deep cut") >= 0),
+    "any deep extra (the biggest-pan card) is labeled");
+
+  // No side is ever cut past the 12" ceiling.
+  s.concat(hit).forEach((o) => o.pieces.forEach((p) => {
+    if (p.kind !== "pan" || !p.cut) return;
+    assert.ok(p.cut.w - p.w <= 24.01 && p.cut.d - p.d <= 24.01, "≤12\" per side: " + JSON.stringify(p));
+  }));
 });
 
 // --- Riolito neo modular ------------------------------------------------------

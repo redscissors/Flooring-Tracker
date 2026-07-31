@@ -275,8 +275,13 @@ src/
                     # ranked options: exact pan · pan + extensions with the corner
                     # rule · pan cut down · Riolito neo module + same-length
                     # extension, at the wall or centred with one leading away each
-                    # side; a pinned drain floats the pan, trimming up to 6" a
-                    # side, and never dead-ends — no exact hit falls back to
+                    # side; a pinned drain floats the pan, trimming a side 6"
+                    # freely or up to 12" as a labeled "Deep cut" card (the 6"
+                    # rule is SOFT — the offset bases are designed to cut up to
+                    # a foot off to meet an existing waste line, owner
+                    # 2026-07-31 — a deep cut never stands alone: the closest
+                    # shallow placement rides along and the salesman chooses),
+                    # and never dead-ends — no exact hit falls back to
                     # "Closest fit" cards that say how far the drain lands off the
                     # pin, then to the whole family, then to the plain layouts.
                     # Drain positions are transcribed per SKU off the 2026
