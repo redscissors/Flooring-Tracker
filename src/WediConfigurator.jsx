@@ -17,7 +17,7 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, CURB_W, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, CURB_W, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
@@ -361,6 +361,99 @@ const PIECE_SIDE = { pan: "#C2CFA8", module: "#C2CFA8", ext: "#D8DFC4", cornerEx
 const INK = "#1C1A17", MUTED = "#57534C", FAINT = "#8A8378", MOSS = "#57703A", MOSS_DEEP = "#40542A";
 const RUST = "#B4552D", PAPER = "#FBFAF5";
 const FONT = "Manrope,sans-serif";
+// Real z-heights the isometric draws to, off the price list (the profiles
+// wedi.js curbWidth reads): the lean curb is 3½ × 2, the standard/AT curb
+// 5⅛ × 4½ (H×W), and the thinnest pan is 1 37/64" (the deep ones read 2" off
+// their size text).
+const CURB_H_LEAN = 3.5, CURB_H_STD = 5.125, PAN_T_MIN = 1.58;
+const curbHeight = (it) => (curbWidth(it) === 2 ? CURB_H_LEAN : CURB_H_STD);
+
+// The whole floor field falls to the drain at ¼ in./ft. The PAN breaks into
+// four planes whose hips run corner → drain (a point drain) or one plane across
+// to the channel (linear); every EXTENSION is sloped too — the pricelist reads
+// "sloped 1/4 in./ft", the corner pieces "sloped … on two sides" — falling
+// toward the pan edge it butts. (The 1 37/64"-vs-2" build-up strips are about
+// the edge thickness at that joint, not flatness.)
+const EXT_SPAN = [0.16, 0.86];
+function slopeMarks(o) {
+  const pieces = o.pieces || [];
+  const pan = pieces.find((p) => p.kind === "pan" || p.kind === "module");
+  const dr = o.drain;
+  if (!pan || !dr) return null;
+  const x0 = pan.x, y0 = pan.y, x1 = pan.x + pan.w, y1 = pan.y + pan.d;
+  if (dr.x < x0 - 1 || dr.x > x1 + 1 || dr.y < y0 - 1 || dr.y > y1 + 1) return null;
+  const hips = [], arrows = [];
+  const linear = dr.type === "linear" && dr.len;
+  if (linear) {
+    const along = dr.axis !== "d";      // channel runs across the width
+    const half = 1.6;
+    const runs = along
+      ? [[y0, dr.y - half], [y1, dr.y + half]] : [[x0, dr.x - half], [x1, dr.x + half]];
+    runs.forEach(([edge, chan]) => {
+      if (Math.abs(chan - edge) < 4) return;
+      [0.28, 0.5, 0.72].forEach((f) => {
+        const u = along ? x0 + (x1 - x0) * f : y0 + (y1 - y0) * f;
+        arrows.push({ a: along ? [u, edge] : [edge, u], b: along ? [u, chan] : [chan, u], f: [0.14, 0.88] });
+      });
+    });
+  } else {
+    [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].forEach((c) => {
+      if (Math.hypot(c[0] - dr.x, c[1] - dr.y) > 6) hips.push([c, [dr.x, dr.y]]);
+    });
+    // One arrow per plane, square to its own edge (that IS the steepest
+    // descent) and pinwheeled off centre so it clears the drain's dimension
+    // lines and the piece label.
+    const w2 = x1 - x0, d2 = y1 - y0;
+    [[[x0 + w2 * 0.35, y0], [x0 + w2 * 0.35, dr.y]], [[x1, y0 + d2 * 0.35], [dr.x, y0 + d2 * 0.35]],
+    [[x0 + w2 * 0.65, y1], [x0 + w2 * 0.65, dr.y]], [[x0, y0 + d2 * 0.65], [dr.x, y0 + d2 * 0.65]]]
+      .forEach(([a, b2]) => { if (Math.hypot(b2[0] - a[0], b2[1] - a[1]) > 8) arrows.push({ a, b: b2 }); });
+  }
+  // Each extension falls toward the pan edge it butts — a corner piece toward
+  // both, with the hip between them running out from the pan's corner.
+  pieces.forEach((p) => {
+    if (p === pan) return;
+    const ex0 = p.x, ey0 = p.y, ex1 = p.x + p.w, ey1 = p.y + p.d;
+    const ov = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0);
+    const sides = [];
+    if (Math.abs(ex1 - x0) < 0.6 && ov(ey0, ey1, y0, y1) > 3) sides.push(["x", ex0, ex1, Math.max(ey0, y0), Math.min(ey1, y1)]);
+    if (Math.abs(ex0 - x1) < 0.6 && ov(ey0, ey1, y0, y1) > 3) sides.push(["x", ex1, ex0, Math.max(ey0, y0), Math.min(ey1, y1)]);
+    if (Math.abs(ey1 - y0) < 0.6 && ov(ex0, ex1, x0, x1) > 3) sides.push(["y", ey0, ey1, Math.max(ex0, x0), Math.min(ex1, x1)]);
+    if (Math.abs(ey0 - y1) < 0.6 && ov(ex0, ex1, x0, x1) > 3) sides.push(["y", ey1, ey0, Math.max(ex0, x0), Math.min(ex1, x1)]);
+    sides.forEach(([axis, from, to, u0, u1]) => {
+      const n = u1 - u0 > 34 ? 3 : u1 - u0 > 17 ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        const u = u0 + (u1 - u0) * ((i + 0.5) / n);
+        arrows.push({ a: axis === "x" ? [from, u] : [u, from], b: axis === "x" ? [to, u] : [u, to], f: EXT_SPAN });
+      }
+    });
+    if (sides.length === 2) {
+      const cx = Math.abs(ex1 - x0) < 0.6 ? ex1 : ex0, cy = Math.abs(ey1 - y0) < 0.6 ? ey1 : ey0;
+      hips.push([[cx === ex1 ? ex0 : ex1, cy === ey1 ? ey0 : ey1], [cx, cy]]);
+    }
+  });
+  return hips.length || arrows.length ? { hips, arrows } : null;
+}
+
+// A fall arrow between two projected points. On the pan the shaft stops short
+// of the drain so the head sits in open field, not on the cover; across an
+// extension it runs nearly the full depth, its head at the pan joint.
+function fallArrow(a, b, key, col, wpx, span) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+  const ux = dx / L, uy = dy / L;
+  const [f0, f1] = span || [0.12, 0.5];
+  const s = [a[0] + ux * L * f0, a[1] + uy * L * f0];
+  const e = [a[0] + ux * L * f1, a[1] + uy * L * f1];
+  const hd = Math.min(5, L * (f1 - f0) * 0.36), hw = hd * 0.48;
+  return (
+    <g key={key} pointerEvents="none">
+      <line x1={round2(s[0])} y1={round2(s[1])} x2={round2(e[0] - ux * hd * 0.6)} y2={round2(e[1] - uy * hd * 0.6)} stroke={col} strokeWidth={wpx} />
+      <polygon fill={col} points={[
+        [e[0], e[1]], [e[0] - ux * hd + uy * hw, e[1] - uy * hd - ux * hw],
+        [e[0] - ux * hd - uy * hw, e[1] - uy * hd + ux * hw],
+      ].map((p) => round2(p[0]) + "," + round2(p[1])).join(" ")} />
+    </g>
+  );
+}
 
 function topGeom(o, W_, H_, mini) {
   const pad = mini ? 6 : 46, padT = mini ? 6 : 30;
@@ -495,6 +588,13 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     o.pieces.slice(1).forEach((p, i) => {
       push(<rect key={`sm${i}`} x={X(p.x)} y={Y(p.y)} width={round2(p.w * sc)} height={round2(p.d * sc)} fill="none" stroke={MOSS} strokeWidth="1" strokeDasharray="2 2" />);
     });
+  }
+  // The fall to the drain — hips corner→drain, one arrow per slope plane.
+  const slope = mini ? null : slopeMarks(o);
+  if (slope) {
+    slope.hips.forEach((s, i) => push(<line key={`sh${i}`} x1={X(s[0][0])} y1={Y(s[0][1])} x2={X(s[1][0])} y2={Y(s[1][1])}
+      stroke="rgba(28,26,23,.22)" strokeWidth="1" pointerEvents="none" />));
+    slope.arrows.forEach((s, i) => push(fallArrow([X(s.a[0]), Y(s.a[1])], [X(s.b[0]), Y(s.b[1])], `sa${i}`, "rgba(28,26,23,.42)", 1.2, s.f)));
   }
 
   const BENCH_CORNER_TRI = {
@@ -649,6 +749,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
     push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? o.inset.cw : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
+    const notes = [];
+    if (slope) notes.push((o.pieces.length > 1 ? "pan & extensions fall" : "pan falls") + ' ¼"/ft to drain');
+    if (curbs && curbs.length) notes.push('curb laps ½" over pan');
+    if (notes.length) push(<text key="note" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>{notes.join(" · ")}</text>);
   }
 
   // Bench zones. The tight 10" corner radius keeps the corner-CUT toggle;
@@ -731,7 +835,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
 // plan's level courses and butt joints dotted on the inner faces, the pieces
 // as thick slabs. Walls in FRONT of the shower (entry + right side) draw
 // clear — dashed edges, no body — so they never hide the pan.
-function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbDiags, onWallMenu }) {
+function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbDiags, curbH, onWallMenu }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const T = WALL_THICK;
@@ -889,12 +993,17 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const wallRank = (p) => (p[0].side === "back" || p[0].side === "entry" ? 0 : 1);
   solidW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
 
-  const t = 4;
+  // Pan and curb draw at their REAL heights (owner, 2026-07-31): the pan is a
+  // thin slab — 1 37/64" (2" on the deep ones) — and every curb stands proud of
+  // it, the lean 3½" and the standard/AT 5⅛". Drawing the pan 4" thick under a
+  // 4½" curb read as one flat step.
+  const panPc = o.pieces.find((p) => p.kind === "pan" || p.kind === "module");
+  const t = Math.max(panThick(panPc) || 0, PAN_T_MIN);
   // Curb runs as raised slabs in the wall ring, butted between the wall
   // sections — the engine's ext0/ext1 fill the open ring corners so runs meet
   // square. The camera looks down (1,1,1): a back/left run is BEHIND the pan
   // and has to be painted before it, or its body floats over the pan surface.
-  const CBH = 4.5;
+  const CBH = curbH || CURB_H_LEAN;
   const insI = o.inset || null;
   const curbEls = (cs, ci) => {
     const horiz = cs.side === "back" || cs.side === "entry";
@@ -954,6 +1063,18 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     const a = M(ax, ay, t), b = M(bx, by, t);
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
+
+  // The fall, projected on the floor field: the hips a four-plane pan really
+  // breaks on, one arrow per plane, and each extension's own fall to the pan.
+  const slope = slopeMarks(o);
+  if (slope) {
+    slope.hips.forEach((s, i) => {
+      const a = M(s[0][0], s[0][1], t + 0.05), b2 = M(s[1][0], s[1][1], t + 0.05);
+      els.push(<line key={`sh${i}`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke="rgba(28,26,23,.2)" strokeWidth="1" />);
+    });
+    slope.arrows.forEach((s, i) => els.push(
+      fallArrow(M(s.a[0], s.a[1], t + 0.05), M(s.b[0], s.b[1], t + 0.05), `sa${i}`, "rgba(28,26,23,.38)", 1.1, s.f)));
+  }
 
   const dr = o.drain;
   if (dr) {
@@ -1062,6 +1183,13 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
       {'walls 4" thick, to ' + inch(hmax) + '" · green hatch = wedi' + (panelFit ? " · joints dotted" : "")}</text>);
   }
+  // The assembly note sits bottom-left: the isometric's diamond always leaves
+  // that corner empty, and the top line is already at the wall apex.
+  const sub = [curbs && curbs.length
+    ? 'curb ' + inch(CBH) + '" · pan ' + inch(t) + '" · ½" lap'
+    : 'pan ' + inch(t) + '"'];
+  if (slope) sub.push('fall ¼"/ft to drain');
+  els.push(<text key="hl2" x="6" y={h - 5} fontSize="9" fontWeight="700" fill={FAINT} fontFamily={FONT}>{sub.join(" · ")}</text>);
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
       <defs>
@@ -1614,8 +1742,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!diag) return { segs: [], diags: [], cuts: [] };
     const runs = curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
       (build && build.benches) || []);
-    const hasCurb = !!build && build.lines.some((l) => l.item.group === "curb");
-    return { segs: hasCurb ? runs.segs : [], diags: hasCurb ? runs.diags : [], cuts: runs.diags };
+    const line = build && build.lines.find((l) => l.item.group === "curb");
+    return {
+      segs: line ? runs.segs : [], diags: line ? runs.diags : [], cuts: runs.diags,
+      h: line ? curbHeight(line.item) : 0,
+    };
   }, [diag, build, buildWalls, corners]);
   // A wall change can box a cut corner in — drop the cut rather than draw a
   // cut through a standing wall.
@@ -2281,7 +2412,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
         <Iso o={drawDiag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
-          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
+          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
           walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
@@ -2636,7 +2767,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
         <div className="d"><div className="dh">Isometric</div>
           <Iso o={drawDiag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
-            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} /></div>
       </div>
       {(drawDiag.pieces.some((p) => p.cut) || (drawDiag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>

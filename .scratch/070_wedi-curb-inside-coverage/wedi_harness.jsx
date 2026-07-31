@@ -17,16 +17,28 @@ const benches = {
   framed: [{ kind: "wall", side: "right", build: "framed", panFit: "cut" }],
   smaller: [{ kind: "wall", side: "left", build: "framed", panFit: "smaller" }],
   back: [{ kind: "wall", side: "back", build: "site" }],
+  suspended: [
+    { kind: "wall", side: "back", part: "US3000000" },
+    { kind: "corner", corner: "br", part: "US3000002" },
+  ],
+  seatM: [{ kind: "corner", corner: "bl", part: "US3000001" }],
 }[params.get("benches") || "mix"];
 
 const corners = (params.get("corners") || "").split(",").filter(Boolean);
 const walls = (params.get("walls") || "back,left,right").split(",").filter(Boolean);
 const seed = params.get("tab") === "custom"
-  ? { tab: "custom", input: { w: 60, d: 36, curb: "curbed", drain: "center" } }
+  ? {
+    tab: "custom",
+    input: {
+      w: +(params.get("w") || 60), d: +(params.get("d") || 36),
+      curb: params.get("curb") || "curbed", drain: params.get("drain") || "center",
+    },
+  }
   : {
     mode: "kits",
     cfg: {
       panKey: pan.key,
+      curbKey: params.get("curbKey") || undefined,
       walls: walls.map((side) => ({ side, len: side === "back" || side === "entry" ? pan.w : pan.d, h: 96 })),
       benches,
       corners,
