@@ -335,9 +335,17 @@ src/
                     # wedi (inside / both sides / inside + exposed end — the extra
                     # faces feed the panel plan via expandWallFaces and read as
                     # moss edges). Modifying a kit's geometry moves the build to
-                    # the Custom shower tab (owner rule 2026-07-30) and a kit card
+                    # the Custom shower tab (owner rule 2026-07-30), and so does a
+                    # framed bench whose Smaller-pan choice RESOLVES — the swapped
+                    # pan means it's no longer the kit (owner rule 2026-07-31);
+                    # every other bench (2" build-up, premade, suspended, framed +
+                    # cut down) stays a kit add-on. Both moves are one-way and keep
+                    # the build. A kit card
                     # clicked over a custom shower confirms before hard-resetting
-                    # to the stock kit. Opened from a row's
+                    # to the stock kit. The custom form's "Sizes are — Pan size |
+                    # Max — curb inside" toggle re-fits like the wall/curb changes
+                    # do — re-solve, re-pick the equivalent option, benches and
+                    # add-ons left standing — it never wipes the build. Opened from a row's
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines.

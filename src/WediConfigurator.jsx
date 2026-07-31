@@ -1670,9 +1670,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     });
     return ins ? res.map((o) => applyCurbInset(o, ins, { w: +i.w || 0, d: +i.d || 0 })) : res;
   };
-  const runSolve = (next, nextMax) => {
+  const runSolve = (next) => {
     const i = next || inp;
-    const res = solveRoom(i, nextMax === undefined ? maxIn : nextMax);
+    const res = solveRoom(i, maxIn);
     retuneWalls();
     setResults(res);
     if (res.length) { setOption(res[0]); setPanKey(res[0].pan.key); } else { setOption(null); setPanKey(null); }
@@ -1712,10 +1712,32 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geomSig]);
 
+  // A framed bench that asks for a smaller pan and GETS one takes the kit's own
+  // pan out of the build (owner rule 2026-07-31), so it moves to the Custom
+  // shower tab like a geometry change — one-way, and the build column keeps
+  // what's there. Every other bench is an add-on the kit still carries: a 2"
+  // build-up, a premade, a suspended seat, and framed + "cut it down" all leave
+  // the pan alone. The swap lands either as the re-solved clear-space plan
+  // (panPlan) or the plain largest-that-fits fallback, so the test is the floor
+  // pan the build actually figured, not the choice.
+  const floorPanKey = !build ? null
+    : build.panPlan ? build.panPlan.option.pan.key
+      : build.lines.find((l) => l.group === "floor" && (l.item.group === "pan" || l.item.group === "module"))?.item.key || null;
+  const panSwapped = !!(panKey && floorPanKey && floorPanKey !== panKey
+    && benches.some((b) => b.build === "framed" && b.panFit === "smaller"));
+  useEffect(() => {
+    if (!(pan && !option && panSwapped && tab === "kits")) return;
+    seedFormFromKit(pan);
+    setTab("custom");
+    say("Framed bench swapped the pan — it's a custom shower now. Kit cards ask before overwriting it.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panSwapped]);
+
   // With "overall max" on, the walls and the curb pick shape the pan space —
   // re-fit the option cards when they change, without wiping the build.
-  const insetSig = maxIn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge),
-    opts.curbKey === undefined ? "" : opts.curbKey]) : "";
+  const insetSigOf = (maxOn) => (maxOn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge),
+    opts.curbKey === undefined ? "" : opts.curbKey]) : "");
+  const insetSig = insetSigOf(maxIn);
   const insetSeen = useRef(insetSig);
   useEffect(() => {
     if (insetSig === insetSeen.current) return;
@@ -1730,6 +1752,24 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insetSig]);
+
+  // "Sizes are" restates what the typed numbers MEAN, so it re-fits the build
+  // the way the wall and curb changes above do (owner ask 2026-07-31) rather
+  // than starting over: re-solve for the new reading, re-pick the equivalent
+  // option, and leave the benches, walls, add-ons, overrides and manual lines
+  // standing — the build re-figures itself from the new pan. Stamping
+  // insetSeen keeps the effect above from solving the same flip twice.
+  const setMaxMode = (nextMax) => {
+    if (nextMax === maxIn) return;
+    setMaxIn(nextMax);
+    insetSeen.current = insetSigOf(nextMax);
+    const res = solveRoom(inp, nextMax);
+    setResults(res);
+    if (!option) return;
+    const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
+    setOption(same);
+    setPanKey(same ? same.pan.key : null);
+  };
 
   // --- the drawings ---------------------------------------------------------
   const diag = useMemo(() => {
@@ -1988,10 +2028,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <div className="rf"><label>Sizes are</label>
             <div className="seg">
               <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
-                onClick={() => { if (maxIn) { setMaxIn(false); runSolve(undefined, false); } }}>Pan size</button>
+                onClick={() => setMaxMode(false)}>Pan size</button>
               <button className={maxIn ? "on" : ""}
                 title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
-                onClick={() => { if (!maxIn) { setMaxIn(true); runSolve(undefined, true); } }}>Max — curb inside</button>
+                onClick={() => setMaxMode(true)}>Max — curb inside</button>
             </div>
           </div>
           <div className="rf"><label>Curb</label>

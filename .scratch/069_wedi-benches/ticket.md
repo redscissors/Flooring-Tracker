@@ -98,3 +98,18 @@ rendering was confirmed correct): the pan and curb still butt its face and
 its footprint still leaves the open-edge runs. Drawings follow: the curb
 draws across under a build-up/premade bench, the bench resting on top;
 plus iso cleanup of the framed bench's cut-line height and wall junction.
+
+## Follow-up (2026-07-31, owner): framed + smaller pan leaves the kit
+
+A Kits-tab build moves to the **Custom shower** tab when — and only when — a
+framed bench's "Smaller pan" choice actually **resolves** to a different pan
+than the kit's (the `benchPanPlan` re-solve, or the plain `smallerPanFor`
+fallback swap). Once the pan is swapped the build is no longer that kit plus
+add-ons, so it moves like a geometry change does: the custom form seeds from
+the kit, the option cards land unselected, the build column keeps everything,
+the kit cards' overwrite confirm stays armed, and the move is one-way. Every
+other bench remains a kit add-on and does NOT move the tab — 2" build-up,
+premade, suspended, and framed with "Cut it down" — as does a "Smaller pan"
+with nothing smaller to swap to (the menu's "no smaller pan fits" case).
+Detected in `WediConfigurator.jsx` off the floor pan the build actually
+figured, not off the choice.
