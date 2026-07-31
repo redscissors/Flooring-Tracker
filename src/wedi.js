@@ -4461,7 +4461,7 @@ export function openCorners(dims, walls) {
 // across the front, always 18" to the top by default, and never framed.
 
 export const BENCH_H = 18;
-export const BENCH_DEPTH = 18;
+export const BENCH_DEPTH = 14;     // default seat depth along a wall (owner, 2026-07-31)
 export const BENCH_CORNER_LEG = 24;
 const BENCH_SUPPORT_EVERY = 12;
 const BENCH_THICK = 2;

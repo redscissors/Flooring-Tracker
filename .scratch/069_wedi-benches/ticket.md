@@ -36,6 +36,7 @@ that one menu "so that everything is kinda contained into that space."
 
 - Default height is **18" to the top** — for the floating corner benches
   always, and for everything else by default (custom dimensions allowed).
+- Default seat depth along a wall is **14"** (owner follow-up, 2026-07-31).
 - Benches "come all the way out": the bench spans the full pan **and curb**
   depth, so **the curb gets smaller** — it butts the bench's face instead of
   running the full opening.

@@ -686,9 +686,9 @@ test("wedi benches: defaults and footprints follow the owner's measuring rules",
   assert.equal(b.len, 36, "wall bench defaults to the full run");
   assert.ok(b.depth === BENCH_DEPTH && b.h === BENCH_H && b.build === "site", '18" deep, 18" to the top, site-built');
   const f = benchFootprint(b, roomB);
-  assert.deepEqual([f.x, f.y, f.w, f.d], [0, 0, 18, 36], "left bench: an 18\" strip the full depth");
+  assert.deepEqual([f.x, f.y, f.w, f.d], [0, 0, 14, 36], "left bench: a 14\" strip the full depth");
   const r = benchFootprint(normBench({ kind: "wall", side: "right", len: 24 }, roomB), roomB);
-  assert.deepEqual([r.x, r.y, r.w, r.d], [42, 0, 18, 24], "right bench anchors at the back");
+  assert.deepEqual([r.x, r.y, r.w, r.d], [46, 0, 14, 24], "right bench anchors at the back");
   const c = normBench({ kind: "corner", corner: "bl" }, roomB);
   assert.ok(c.size === BENCH_CORNER_LEG && c.h === BENCH_H && !c.panFit, '24" legs, 18" top, never framed');
   const cf = benchFootprint(c, roomB);
@@ -704,8 +704,8 @@ test("wedi benches: the curb gets smaller — the bench comes all the way out ov
   const left = [normBench({ kind: "wall", side: "left" }, roomB)];
   const r1 = curbRuns(roomB, threeWallsB, [], left);
   assert.equal(r1.segs.length, 1);
-  assert.ok(r1.segs[0].from === 18 && r1.segs[0].len === 42, "left bench takes 18\" off the entry run");
-  assert.equal(r1.openLen, 42);
+  assert.ok(r1.segs[0].from === 14 && r1.segs[0].len === 46, "left bench takes 14\" off the entry run");
+  assert.equal(r1.openLen, 46);
   const short = [normBench({ kind: "wall", side: "left", len: 30 }, roomB)];
   assert.equal(curbRuns(roomB, threeWallsB, [], short).openLen, 60,
     "a bench that stops short of the entry leaves the curb alone");
@@ -717,11 +717,11 @@ test("wedi benches: the curb gets smaller — the bench comes all the way out ov
 });
 
 test("wedi benches: site-built 2\" math — top, face, and a support about every foot", () => {
-  const wall = [normBench({ kind: "wall", side: "left" }, roomB)];   // 36×18×18
+  const wall = [normBench({ kind: "wall", side: "left" }, roomB)];   // 36×14×18
   const bw = benchLines(wall, roomB, item(SKU.panelDefault));
-  // top 36×18 + face 36×18 + 4 supports (both ends + every foot) 16×16 = 2320 in²
-  assert.equal(bw.sf2, round2(2320 / 144), "16.11 sf of 2\" material");
-  assert.equal(bw.surfSf, 9, "top + face feed the sealant figuring");
+  // top 36×14 + face 36×18 + 4 supports (both ends + every foot) 12×16 = 1920 in²
+  assert.equal(bw.sf2, round2(1920 / 144), "13.33 sf of 2\" material");
+  assert.equal(bw.surfSf, 8, "top + face feed the sealant figuring");
   assert.equal(bw.lines.length, 1);
   assert.ok(bw.lines[0].item.key === "US8000020" && bw.lines[0].qty === 1,
     "fits one 4×5×2\" sheet — no 4×8 needed");
@@ -752,13 +752,13 @@ test("wedi benches: premades are one line; included sealant doesn't double", () 
 test("wedi benches: framed — ½\" wrap, and the pan is cut down or swapped smaller", () => {
   const framed = [normBench({ kind: "wall", side: "left", build: "framed" }, roomB)];
   assert.equal(framed[0].panFit, "cut", "framed defaults to cutting the current pan");
-  assert.deepEqual(benchPanRoom(framed, roomB), { w: 42, d: 36 }, "an 18\" framed bench leaves 42×36 clear");
+  assert.deepEqual(benchPanRoom(framed, roomB), { w: 46, d: 36 }, "a 14\" framed bench leaves 46×36 clear");
   const bf = benchLines(framed, roomB, item(SKU.panelDefault));
-  // wrap: top 648 + face 648 + open end 324 = 11.25 sf → one 3×5×½ sheet
-  assert.ok(near(bf.wrapSf, 11.25) && bf.lines.length === 1 && bf.lines[0].item.key === SKU.panelDefault,
+  // wrap: top 504 + face 648 + open end 252 = 9.75 sf → one 3×5×½ sheet
+  assert.ok(near(bf.wrapSf, 9.75) && bf.lines.length === 1 && bf.lines[0].item.key === SKU.panelDefault,
     "the wrap figures in the build's own ½\" panel");
   const kCut = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
-  assert.ok(kCut.lines[0].item.key === "US9100004" && /cut to 42×36/.test(kCut.lines[0].note),
+  assert.ok(kCut.lines[0].item.key === "US9100004" && /cut to 46×36/.test(kCut.lines[0].note),
     "panFit 'cut' keeps the pan and notes the cut");
   const kSm = kitFor("US9100004", {
     walls: threeWallsB,
@@ -766,8 +766,8 @@ test("wedi benches: framed — ½\" wrap, and the pan is cut down or swapped sma
   });
   const p2 = kSm.lines[0].item;
   assert.ok(p2.key !== "US9100004" && p2.sub === "fundo", "panFit 'smaller' swaps to a same-family pan");
-  assert.ok(Math.max(p2.w, p2.d) <= 42.01 && Math.min(p2.w, p2.d) <= 36.01, "…that fits the reduced footprint");
-  const sw = smallerPanFor(item("US9100004"), 42, 36);
+  assert.ok(Math.max(p2.w, p2.d) <= 46.01 && Math.min(p2.w, p2.d) <= 36.01, "…that fits the reduced footprint");
+  const sw = smallerPanFor(item("US9100004"), 46, 36);
   assert.equal(kSm.lines[0].item.key, sw.key, "the swap is the largest fitting pan");
 });
 
@@ -777,7 +777,7 @@ test("wedi benches: kitFor files the group, shrinks the curb, feeds the sealant,
   const bench = k.lines.filter((l) => l.group === "bench");
   assert.ok(bench.length === 1 && bench[0].item.key === "US8000020", "site bench lands one 2\" sheet in its own group");
   const curb = k.lines.filter((l) => l.item.group === "curb")[0];
-  assert.ok(/42/.test(curb.note), "the curb line is figured at the shortened 42\"");
+  assert.ok(/46/.test(curb.note), "the curb line is figured at the shortened 46\"");
   const seal = (b) => b.lines.filter((l) => l.item.group === "sealant")[0].qty;
   assert.ok(seal(k) >= seal(plain), "bench surface joins the sealant figuring");
   assert.equal(k.cfg.benches.length, 1, "cfg carries the bench for Reconfigure");
