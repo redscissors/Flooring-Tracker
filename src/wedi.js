@@ -3785,14 +3785,23 @@ const MIN_GAP = 6;         // below this, cut the pan rather than shim a strip
 const CORNER_MAX = 12;     // the 16½" corner piece wraps 12" of two straights
 const TRIM_MAX = 6;        // a pan edge may be cut up to 6" to help fit (owner rule 2026-07-29)
 
-// Riolito neo modules. The ERP prints the 32"'s channel as 27-1/2 where the
-// pricelist prints 27 19/32 — the pricelist figure is the one that matches the
-// cover plates, so the table wins over either description.
+// Riolito neo modules, off the 2026 illustrated price list's Channel Length
+// column (p9). The ERP prints the 32"'s channel as 27-1/2 where the pricelist
+// prints 27 19/32, so the table wins over either description — and the 54"
+// module takes the same 43 19/64 channel as the 48", which is why both "fit
+// with" the 43" covers.
 const MODULE_LENGTHS = [32, 36, 42, 48, 54];
-export const MODULE_CHANNEL = { 32: 27.59, 36: 31.5, 42: 35.0, 48: 43.31, 54: 48.9 };
-const MODULE_DEPTH = 5.75;
-const MODEXT_DEPTH = 66.75;
+export const MODULE_CHANNEL = { 32: 27.59, 36: 31.5, 42: 35.44, 48: 43.31, 54: 43.31 };
+export const MODULE_DEPTH = 5.75;
+export const MODEXT_DEPTH = 66.75;
 const COVER_NOMINALS = [27, 31, 35, 43];
+// A module may be shortened at its ENDS only — wedi's cut rule keeps the line
+// 1" clear of the drain channel's installation panel — so the margin outside
+// the channel, less that inch, is all a module gives per end.
+function moduleEndTrim(len) {
+  const ch = MODULE_CHANNEL[len];
+  return ch ? Math.max(0, round2((len - ch) / 2 - 1)) : 0;
+}
 
 export const FINISHES = {
   SS: "Stainless, brushed natural", T14: 'Tileable — ¼" tile', T38: 'Tileable — ⅜" tile',
@@ -4046,6 +4055,28 @@ function unitOf(stockRow, soRow) {
   return "EA";
 }
 
+// Where wedi puts an off-centre drain, base by base — read off the dimensioned
+// drawings in the 2026 illustrated price list (pp. 5, 7, 32). It is no fixed
+// fraction of the base: the drain is centred ACROSS the width and this far
+// along from the near end. A base the pricelist doesn't draw keeps the
+// quarter-length estimate below and says so on the card.
+const OFFSET_DRAIN = {
+  US9100005: { x: 18, y: 13.75 },   // fundo 36 x 72
+  US9200007: { x: 18, y: 11.25 },   // curbless 36 x 60
+  US9176002: { x: 19, y: 12 },      // S-DRY 38 x 64
+};
+
+// And where the linear bases put their channel (same drawings, p9). There is
+// no rule to derive: the 48x60 runs its channel along the SHORT wall while its
+// two siblings run theirs along the long one, and the inset off that wall is
+// 6" on one and 8" on the others. `along` is the side the channel is parallel
+// to, `inset` its distance from that wall; the outlet is the channel's centre.
+const LINEAR_DRAIN = {
+  US9310001: { along: 60, inset: 6 },
+  US9310002: { along: 48, inset: 8 },
+  US9310003: { along: 72, inset: 8 },
+};
+
 function drainOf(entry, text) {
   const t = String(text || "").toLowerCase();
   let type = /linear|4 sided slope|channel/.test(t) ? "linear"
@@ -4054,18 +4085,30 @@ function drainOf(entry, text) {
   const w = entry.w, d = entry.d;
   if (type === "linear") {
     const ch = entry.channel || 0;
-    // The channel runs along the long side, set 2" in from that wall.
-    return d >= w
-      ? { type: type, x: 2, y: round2(d / 2), len: ch, axis: "d", note: "" }
-      : { type: type, x: round2(w / 2), y: 2, len: ch, axis: "w", note: "" };
+    const spec = LINEAR_DRAIN[entry.us];
+    const alongD = spec ? spec.along === d : d >= w;
+    const inset = spec ? spec.inset : 6;
+    return alongD
+      ? { type: type, x: inset, y: round2(d / 2), len: ch, axis: "d", note: "" }
+      : { type: type, x: round2(w / 2), y: inset, len: ch, axis: "w", note: "" };
   }
   if (type === "offset") {
+    const known = OFFSET_DRAIN[entry.us];
+    if (known) return { type: type, x: known.x, y: known.y, len: 0, axis: null, note: "" };
     return {
       type: type, x: round2(w / 2), y: round2(d * 0.25), len: 0, axis: null,
-      note: "offset drain — read the exact position off the wedi spec sheet at install",
+      note: "offset drain — estimated position; read the exact one off the wedi spec sheet at install",
     };
   }
   return { type: type, x: round2(w / 2), y: round2(d / 2), len: 0, axis: null, note: "" };
+}
+
+// The neo line module's own drain (p9 drawings): the channel runs the module's
+// length, and both the channel and the click-and-seal outlet sit dead centre —
+// the half/half length marks and the 2 7/8" off a 5 3/4" depth.
+function moduleDrain(e) {
+  if (!e.channel || !(e.len > 0)) return null;
+  return { type: "linear", x: round2(e.len / 2), y: round2((e.d || MODULE_DEPTH) / 2), len: e.channel, axis: "w", note: "" };
 }
 
 function finishOf(name, desc) {
@@ -4140,6 +4183,7 @@ function makeEntry(stockRow, soRow) {
       const dc = String(text).match(/channel length\s*([\d.]+)/i);
       e.channel = dc ? +dc[1] : null;
     }
+    e.drain = moduleDrain(e);
     e.sizeText = sizeTextOf(e.w, e.d, null);
   } else if (e.group === "modExt") {
     // Every module extension is 66¾" deep, so the module length is the other
@@ -4862,6 +4906,11 @@ export function kitFor(panKey, opts) {
         if (fl.item.key === pan.key) return;
         push(lines, fl.item, fl.qty, "floor", fl.note || "", true);
       });
+    } else if (floorPan.group === "module") {
+      // A line module is 5¾" of channel, not a floor: on its own it takes the
+      // extension module of its own length to become one.
+      push(lines, group("modExt").filter((m) => m.len === floorPan.len)[0], 1, "floor",
+        inch(MODEXT_DEPTH) + '" of pre-sloped floor — the module\'s own extension', true);
     }
   }
   (opts.floorExtra || []).forEach((x) => {
@@ -4870,7 +4919,7 @@ export function kitFor(panKey, opts) {
   // A 2"-deep pan's extensions sit low — the kit carries the ½" sheet the
   // shop rips into build-up strips underneath them (owner practice).
   const floorOpt = panPlan ? panPlan.option : option;
-  if (floorOpt && panThick(floorPan) >= 1.9) {
+  if (floorOpt && floorPan.group !== "module" && panThick(floorPan) >= 1.9) {
     const extSf = extensionSf(floorOpt);
     const sheet = item(BUILDUP_SHEET);
     if (extSf > 0 && sheet && sheet.sf) {
@@ -5195,18 +5244,69 @@ function extendOption(input, list, fam) {
   return out;
 }
 
+// Where a pan edge may sit on one axis: each side of it has to read either as
+// a gap the extensions can fill ({0} ∪ [MIN_GAP, spec.max]) or as an overhang
+// the trim allowance can cut off. Two intervals per side, so at most four
+// spans of valid offset.
+function offsetSpans(room, len, spec) {
+  const slack = round2(room - len);
+  const side = [[-TRIM_MAX, 0], [MIN_GAP, spec.max]];
+  const out = [];
+  side.forEach((a) => side.forEach((b) => {
+    const lo = Math.max(a[0], slack - b[1]), hi = Math.min(a[1], slack - b[0]);
+    if (hi >= lo - 0.001) out.push([lo, hi]);
+  }));
+  return out;
+}
+
+// The offset closest to where the drain WANTS the pan, and how far it misses.
+function nearestOffset(ideal, room, len, spec) {
+  let best = null;
+  offsetSpans(room, len, spec).forEach((s) => {
+    const t = Math.min(Math.max(ideal, s[0]), s[1]);
+    const miss = Math.abs(t - ideal);
+    if (!best || miss < best.miss - 0.001) best = { t: round2(t), miss: round2(miss) };
+  });
+  return best;
+}
+
+// Every way a pan can be TURNED, drain and all: 90° swaps its sides, 180°
+// swings its drain to the opposite end. A centred drain reads the same all
+// four ways, but an off-centre one has a near end and a far one, and which
+// way round the pan goes in is the installer's choice.
+function placements(p) {
+  const out = [];
+  orientations(p).forEach((o) => {
+    const dx = o.rot ? p.drain.y : p.drain.x, dy = o.rot ? p.drain.x : p.drain.y;
+    out.push({ w: o.w, d: o.d, rot: o.rot, dx: dx, dy: dy });
+    const bx = round2(o.w - dx), by = round2(o.d - dy);
+    if (Math.abs(bx - dx) > 0.01 || Math.abs(by - dy) > 0.01) {
+      out.push({ w: o.w, d: o.d, rot: o.rot, dx: bx, dy: by });
+    }
+  });
+  return out;
+}
+
 // The drain lands where the plumbing is: the pan floats to put its drain at
 // (drainX, drainY) — measured off the left and back walls — trims soak up to
-// 6" of overhang per side, and extensions fill whatever gaps remain.
+// 6" of overhang per side, and extensions fill whatever gaps remain. When
+// nothing reaches the pin, the same search returns its CLOSEST placements
+// instead of nothing (owner report 2026-07-31): the seller moves the waste
+// line or accepts the miss, but never faces a blank tab.
 function drainAtOptions(input, list, fam) {
   const tx = input.drainX, ty = input.drainY;
   const spec = EXT[fam === "curbless" ? "curbless" : "fundo"];
   const cands = [];
   list.forEach((p) => {
     if (!p.drain || p.drain.type === "linear") return;
-    orientations(p).forEach((o) => {
-      const drx = o.rot ? p.drain.y : p.drain.x, dry = o.rot ? p.drain.x : p.drain.y;
-      const ox = round2(tx - drx), oy = round2(ty - dry);
+    placements(p).forEach((o) => {
+      const drx = o.dx, dry = o.dy;
+      const fx = nearestOffset(round2(tx - drx), input.w, o.w, spec);
+      const fy = nearestOffset(round2(ty - dry), input.d, o.d, spec);
+      if (!fx || !fy) return;
+      const miss = round2(Math.hypot(fx.miss, fy.miss));
+      const ox = fx.t, oy = fy.t;
+      const dx = round2(ox + drx), dy = round2(oy + dry);
       const tL = ox < 0 ? -ox : 0, tB = oy < 0 ? -oy : 0;
       const pr = round2(ox + o.w), pf = round2(oy + o.d);
       const tR = pr > input.w ? round2(pr - input.w) : 0, tF = pf > input.d ? round2(pf - input.d) : 0;
@@ -5260,32 +5360,43 @@ function drainAtOptions(input, list, fam) {
       });
       const lines = aggregate(pieces);
       const cuts = pieces.filter((x) => !!x.cut).length;
+      const off = miss > 0.01;
       warn.unshift(seamWarning(pieces.length - 1));
       if (trims) warn.push(trimWarning(fam));
+      if (off) {
+        warn.unshift("drain lands at " + inch(dx) + '", ' + inch(dy) + '" — ' + inch(miss)
+          + '" off the requested spot; move the waste line or accept');
+      }
       cands.push({
-        id: "drainat", kind: "drainat",
-        title: p.sizeText + " base — drain set at " + inch(tx) + '", ' + inch(ty) + '"',
-        badges: ["Drain right there"].concat(trims ? ["Trim to fit"] : cuts ? [] : ["No cutting"]),
+        id: off ? "drainnear" : "drainat", kind: "drainat",
+        title: p.sizeText + " base — drain " + (off ? "lands" : "set") + " at " + inch(dx) + '", ' + inch(dy) + '"',
+        badges: (off ? ["Closest fit"] : ["Drain right there"]).concat(trims ? ["Trim to fit"] : cuts ? [] : ["No cutting"]),
         pieces: pieces,
-        drain: { type: p.drain.type, x: tx, y: ty, len: 0, axis: null, note: p.drain.note || "" },
+        drain: { type: p.drain.type, x: dx, y: dy, len: 0, axis: null, note: p.drain.note || "" },
         warnings: warn, floorLines: lines, floorPrice: priceOf(lines), input: input,
-        room: { w: input.w, d: input.d }, pan: p, cuts: cuts, trims: trims,
+        room: { w: input.w, d: input.d }, pan: p, cuts: cuts, trims: trims, miss: miss,
       });
     });
   });
-  // Fewest pieces first — "cut the pan to fit" beats a patchwork of strips.
-  cands.sort((a, b) => a.pieces.length - b.pieces.length || a.trims - b.trims || a.floorPrice - b.floorPrice);
+  // Nearest-fit cards are a compromise, not an answer: they only show when
+  // nothing lands on the pin at all.
+  const hits = cands.filter((c) => c.miss <= 0.01);
+  const pool = hits.length ? hits : cands;
+  // Closest first, then fewest pieces — "cut the pan to fit" beats a patchwork
+  // of strips.
+  pool.sort((a, b) => a.miss - b.miss || a.pieces.length - b.pieces.length || a.trims - b.trims || a.floorPrice - b.floorPrice);
   const seen = {}, out = [];
-  cands.forEach((c) => {
+  pool.forEach((c) => {
     if (out.length >= 3 || seen[c.pan.key]) return;
     seen[c.pan.key] = true;
     out.push(c);
   });
   // The biggest pan always earns a card (owner rule 2026-07-30): most of the
   // floor in one piece even when the parts run dearer — the seller decides.
-  const big = cands.slice().sort((a, b) => (b.pan.w * b.pan.d) - (a.pan.w * a.pan.d)
-    || a.pieces.length - b.pieces.length || a.floorPrice - b.floorPrice)[0];
-  if (big && !seen[big.pan.key]) {
+  const big = pool.slice().sort((a, b) => (b.pan.w * b.pan.d) - (a.pan.w * a.pan.d)
+    || a.miss - b.miss || a.pieces.length - b.pieces.length || a.floorPrice - b.floorPrice)[0];
+  // …but not when the extra floor costs the plumber another foot of travel.
+  if (big && !seen[big.pan.key] && out.length && big.miss <= out[0].miss + 0.01) {
     big.badges = ["Biggest pan"].concat(big.badges);
     out.push(big);
   }
@@ -5330,44 +5441,127 @@ function linearOption(input) {
       if (!base || p.retail < base.pan.retail) base = { pan: p, o: o };
     });
   });
-  if (base) {
-    const pieces = [{ kind: "pan", item: base.pan, x: 0, y: 0, w: base.o.w, d: base.o.d, cut: null }];
-    const lines = aggregate(pieces);
-    return {
-      id: "linear", kind: "linear", title: base.pan.name + " " + base.pan.sizeText,
-      badges: ["Drain at wall", "Perfect fit — no cutting"], pieces: pieces,
-      drain: mapDrain(base.pan, base.o.rot, 0, 0), warnings: [],
-      floorLines: lines, floorPrice: priceOf(lines), input: input,
-      room: { w: input.w, d: input.d }, pan: base.pan,
-    };
-  }
-  // The module carries the channel and cannot be cut through it, so the room
-  // width has to be a module length; the extension takes the depth cut.
-  const len = MODULE_LENGTHS.filter((L) => Math.abs(L - input.w) <= tol)[0];
-  if (!len) return null;
-  const extDepth = round2(input.d - MODULE_DEPTH);
-  if (extDepth <= 0 || extDepth > MODEXT_DEPTH + 0.01) return null;
+  if (!base) return null;
+  const pieces = [{ kind: "pan", item: base.pan, x: 0, y: 0, w: base.o.w, d: base.o.d, cut: null }];
+  const lines = aggregate(pieces);
+  return {
+    id: "linear", kind: "linear", title: base.pan.name + " " + base.pan.sizeText,
+    badges: ["Drain at wall", "Perfect fit — no cutting"], pieces: pieces,
+    drain: mapDrain(base.pan, base.o.rot, 0, 0), warnings: [],
+    floorLines: lines, floorPrice: priceOf(lines), input: input,
+    room: { w: input.w, d: input.d }, pan: base.pan,
+  };
+}
+
+// Riolito neo modular: a line module carrying the channel plus extension
+// modules of the SAME length, pre-sloped ¼"/ft toward it. wedi builds it two
+// ways — "drainage close to the wall, or two extension modules each leading
+// away from either side with a centered drain module" — and both are here.
+// The module's length has to span the run: it pairs with an extension of its
+// own length and may only lose moduleEndTrim() an end, so nothing else fills a
+// short-fall.
+function modulePair(len) {
   const mod = group("module").filter((m) => m.sub === "neo" && m.len === len)
     .sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0))[0];
   const ext = group("modExt").filter((m) => m.len === len)[0];
-  if (!mod || !ext) return null;
-  const mp = [
-    { kind: "module", item: mod, x: 0, y: 0, w: len, d: MODULE_DEPTH, cut: null },
-    {
-      kind: "modExt", item: ext, x: 0, y: MODULE_DEPTH, w: len, d: extDepth,
-      cut: extDepth < MODEXT_DEPTH - 0.01 ? { w: len, d: MODEXT_DEPTH } : null,
-    },
-  ];
-  const ml = aggregate(mp);
-  const mw = [seamWarning(1)];
-  if (mp[1].cut) mw.push("extension cut to " + extDepth + "\" deep — the module sets the width");
-  return {
-    id: "linear", kind: "linear", title: len + '" linear module + extension',
-    badges: ["Drain at wall"], pieces: mp,
-    drain: { type: "linear", x: round2(len / 2), y: round2(MODULE_DEPTH / 2), len: mod.channel, axis: "w", note: "" },
-    warnings: mw, floorLines: ml, floorPrice: priceOf(ml), input: input,
-    room: { w: input.w, d: input.d }, pan: mod,
+  return mod && ext ? { mod: mod, ext: ext, len: len } : null;
+}
+
+function moduleSpans(span, tol) {
+  const out = [];
+  MODULE_LENGTHS.forEach((L) => {
+    const pr = modulePair(L);
+    if (!pr) return;
+    const over = round2(L - span);
+    if (over < -(tol || 0) - 0.01) return;
+    if (over > 2 * moduleEndTrim(L) + 0.01) return;
+    out.push(Object.assign({ over: Math.max(over, 0) }, pr));
+  });
+  return out.sort((a, b) => a.over - b.over || a.len - b.len);
+}
+
+// One layout: the module band `across` in from the back (or left) wall, an
+// extension leading away on each side that has depth. `axis` "w" runs the
+// module along the room's width, "d" along its depth.
+function moduleLayout(input, fit, axis, across) {
+  const along = axis === "w" ? input.w : input.d;
+  const run = axis === "w" ? input.d : input.w;
+  // `across` stays unrounded so the channel line lands on a whole inch — the
+  // rough-in callout reads "36", not "36 1/64".
+  const before = round2(across), after = round2(run - before - MODULE_DEPTH);
+  if (before < -0.01 || after < -0.01) return null;
+  if (before > 0.01 && (before < MIN_GAP || before > MODEXT_DEPTH + 0.01)) return null;
+  if (after > 0.01 && (after < MIN_GAP || after > MODEXT_DEPTH + 0.01)) return null;
+  if (before <= 0.01 && after <= 0.01) return null;
+  const cutLen = fit.over > 0.01;
+  const pieces = [];
+  const band = (item_, kind, from, depth) => {
+    const w = axis === "w" ? along : depth, d = axis === "w" ? depth : along;
+    pieces.push({
+      kind: kind, item: item_,
+      x: axis === "w" ? 0 : round2(from), y: axis === "w" ? round2(from) : 0,
+      w: round2(w), d: round2(d),
+      cut: (kind === "module" ? cutLen : cutLen || depth < MODEXT_DEPTH - 0.01)
+        ? (axis === "w" ? { w: fit.len, d: kind === "module" ? MODULE_DEPTH : MODEXT_DEPTH }
+          : { w: kind === "module" ? MODULE_DEPTH : MODEXT_DEPTH, d: fit.len })
+        : null,
+    });
   };
+  if (before > 0.01) band(fit.ext, "modExt", 0, before);
+  band(fit.mod, "module", before, MODULE_DEPTH);
+  if (after > 0.01) band(fit.ext, "modExt", round2(before + MODULE_DEPTH), after);
+  const lines = aggregate(pieces);
+  const mid = before > 0.01 && after > 0.01;
+  const chan = round2(across + MODULE_DEPTH / 2);
+  const warn = [seamWarning(pieces.length - 1)];
+  const deep = pieces.filter((p) => p.kind === "modExt" && p.cut)
+    .map((p) => inch(axis === "w" ? p.d : p.w));
+  if (deep.length) {
+    warn.push("extension cut to " + deep.join('" and ') + '" deep — trim the high edge; the fall still lands in the channel');
+  }
+  if (cutLen) warn.push('module trimmed ' + inch(fit.over) + '" — take it off the ENDS, keeping 1" clear of the channel');
+  return {
+    id: mid ? "linearmid" : "linear", kind: "linear",
+    title: fit.len + '" linear module ' + (mid ? "centred + 2 extensions" : "+ extension"),
+    badges: [mid ? "Drain mid-floor" : "Drain at wall"], pieces: pieces,
+    drain: {
+      type: "linear", len: fit.mod.channel, axis: axis, note: "",
+      x: axis === "w" ? round2(along / 2) : chan,
+      y: axis === "w" ? chan : round2(along / 2),
+    },
+    warnings: warn, floorLines: lines, floorPrice: priceOf(lines), input: input,
+    room: { w: input.w, d: input.d }, pan: fit.mod,
+  };
+}
+
+// Every neo layout the room allows. With a pinned drain the channel has to
+// land ON it: the module slides across the room to meet the pin, and the pin's
+// other coordinate has to be the channel's own centre (the outlet sits at the
+// middle of the channel, which is the middle of the module).
+function moduleOptions(input, pin) {
+  const tol = input.tolerance || 0;
+  const out = [];
+  ["w", "d"].forEach((axis) => {
+    if (axis === "d" && Math.abs(input.w - input.d) < 0.01) return;   // square room: the same layout turned
+    const along = axis === "w" ? input.w : input.d;
+    const run = axis === "w" ? input.d : input.w;
+    // Only the tightest-fitting module earns a card: a longer one sawn down to
+    // the same run is the same layout with more cutting.
+    moduleSpans(along, tol).slice(0, 1).forEach((fit) => {
+      if (pin) {
+        const at = axis === "w" ? pin.x : pin.y;
+        if (Math.abs(at - along / 2) > 1) return;
+        const o = moduleLayout(input, fit, axis, (axis === "w" ? pin.y : pin.x) - MODULE_DEPTH / 2);
+        if (o) out.push(o);
+        return;
+      }
+      const wall = moduleLayout(input, fit, axis, 0);
+      if (wall) out.push(wall);
+      const mid = moduleLayout(input, fit, axis, (run - MODULE_DEPTH) / 2);
+      if (mid) out.push(mid);
+    });
+  });
+  return out;
 }
 
 function mirrorOption(o) {
@@ -5402,28 +5596,53 @@ export function solve(input) {
     return true;
   });
 
+  // Only a PAN can be the deep one — a module's "thickness" reads off its 5¾"
+  // depth, and the neo modules and their extensions are flush by design.
   const buildupWarn = (opts_) => opts_.forEach((o) => {
+    if (o.pan.group === "module") return;
     if (panThick(o.pan) >= 1.9 && o.pieces.some((p) => p.kind !== "pan" && p.kind !== "module"))
       o.warnings.push(BUILDUP_NOTE);
   });
-  let out = [];
-  if (input.drainX > 0 && input.drainY > 0) {
-    // The drain position is the constraint — every option honors it, and
-    // the list arrives pre-ranked (pieces, trims, price): keep that order.
-    out = drainAtOptions(input, list, fam);
-    buildupWarn(out);
-  } else {
+  const linearOk = input.curb === "curbed" && (input.drain === "any" || input.drain === "linear");
+  const looseFit = () => {
+    const o2 = [];
     if (input.drain !== "linear") {
       [exactOption(input, list)].concat(extendOption(input, list, fam))
         .concat([cutdownOption(input, list, fam)])
-        .forEach((o) => { if (o) out.push(o); });
+        .forEach((o) => { if (o) o2.push(o); });
     }
-    if (input.curb === "curbed" && (input.drain === "any" || input.drain === "linear")) {
+    if (linearOk) {
       const lin = linearOption(input);
-      if (lin) out.push(lin);
+      if (lin) o2.push(lin);
+      moduleOptions(input, null).forEach((o) => o2.push(o));
     }
+    buildupWarn(o2);
+    o2.sort((a, b) => a.warnings.length - b.warnings.length || a.floorPrice - b.floorPrice);
+    return o2;
+  };
+  let out = [];
+  if (input.drainX > 0 && input.drainY > 0) {
+    // The drain position is the constraint — every option honors it, and
+    // the list arrives pre-ranked (miss, pieces, trims, price): keep that order.
+    out = drainAtOptions(input, list, fam);
+    // A pinned drain must never dead-end (owner report 2026-07-31). When no
+    // base of the requested TYPE reaches it, the whole family gets a look —
+    // with a pin the factory drain position only decides how the base sits —
+    // and failing that the plain layouts stand in, saying the pin can't be met.
+    if (!out.length && input.drain !== "any") {
+      out = drainAtOptions(input, group("pan").filter((p) => p.sub === fam), fam);
+      out.forEach((o) => o.warnings.unshift("no " + input.drain + "-drain base fits this room — this is a "
+        + o.drain.type + "-drain base floated to the plumbing"));
+    }
+    if (linearOk) moduleOptions(input, { x: input.drainX, y: input.drainY }).forEach((o) => out.push(o));
     buildupWarn(out);
-    out.sort((a, b) => a.warnings.length - b.warnings.length || a.floorPrice - b.floorPrice);
+    if (!out.length) {
+      out = looseFit();
+      out.forEach((o) => o.warnings.unshift('no base reaches ' + inch(input.drainX) + '", ' + inch(input.drainY)
+        + '" — this layout drains where its own base does'));
+    }
+  } else {
+    out = looseFit();
   }
   if (out.length) {
     const cheap = out.slice().sort((a, b) => a.floorPrice - b.floorPrice)[0];

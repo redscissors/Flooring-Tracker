@@ -93,15 +93,34 @@ test("wedi pans: families, sizes, drains and the ERP/pricelist price pair", () =
     const p = item("US9100004");
     return p.cost === 343.04 && p.retail === 566.01 && p.soNet === 343.03;
   })(), "US9100004 prices: ERP 343.04 cost / 566.01 retail (pricelist net 343.03 rides along)");
+  // wedi publishes this one: "13 3/4 in. to center off of the 36 in. side".
   assert.ok((() => {
     const p = item("US9100005");
-    return p.drain.type === "offset" && p.drain.x === 18 && p.drain.y === 18 && /spec sheet/.test(p.drain.note);
-  })(), "US9100005 (36×72) is the offset fundo, drain at (18,18) + spec-sheet note");
-  assert.ok(item("US9200007").drain.type === "offset" && item("US9200007").sub === "curbless",
-    "US9200007 (36×60 curbless) is offset");
-  assert.equal(item("US9100013").drain.type, "offset", "US9100013 Primo (60×72 corner/offset) reads offset");
+    return p.drain.type === "offset" && p.drain.x === 18 && p.drain.y === 13.75 && !p.drain.note;
+  })(), "US9100005 (36×72) offset drain sits at wedi's 18\", 13 3/4\" — a known figure, no estimate note");
+  assert.ok((() => {
+    const p = item("US9200007");
+    return p.drain.type === "offset" && p.sub === "curbless" && p.drain.x === 18 && p.drain.y === 11.25 && !p.drain.note;
+  })(), "US9200007 (36×60 curbless) offset drain sits at 18\", 11 1/4\"");
+  assert.ok(item("US9176002").drain.x === 19 && item("US9176002").drain.y === 12,
+    "US9176002 (38×64 S-DRY) offset drain sits at 19\", 12\"");
+  // The Primo corner/offset is not in the 2026 pricelist — its position is
+  // still a guess, and the card says so.
+  assert.ok((() => {
+    const p = item("US9100013");
+    return p.drain.type === "offset" && /estimated position/.test(p.drain.note);
+  })(), "US9100013 Primo (60×72 corner/offset) keeps the estimate + its note");
   assert.ok(near(item("US9310001").channel, 43.3) && near(item("US9310002").channel, 27.59) && near(item("US9310003").channel, 43.3),
     "linear base channels 43.30 / 27.59 / 43.30");
+  // Off the pricelist's own drawings: the 48×60 runs its channel along the
+  // SHORT wall, the other two along the long one, and the inset is 6" or 8".
+  assert.deepEqual(
+    ["US9310001", "US9310002", "US9310003"].map((k) => {
+      const dr = item(k).drain;
+      return [dr.x, dr.y, dr.len, dr.axis];
+    }),
+    [[6, 30, 43.3, "d"], [24, 8, 27.59, "w"], [8, 36, 43.3, "d"]],
+    "linear base channels sit where the pricelist draws them");
 });
 
 // --- other groups -------------------------------------------------------------
@@ -411,13 +430,25 @@ test("wedi solver: exact · extend · cut down · linear, ranked", () => {
   })(), "32×72 linear → module US9320001 + extension US9330001");
   assert.ok(s4[0] && s4[0].pieces[1].d === 66.25 && !!s4[0].pieces[1].cut,
     "32×72 module extension cut to 66.25\" deep (72 − 5.75)");
-  assert.ok(s4[0] && s4[0].drain.type === "linear" && s4[0].drain.y === 2.88 && s4[0].drain.len === 27.59,
-    "32×72 drain sits at the module wall, 27.59\" channel");
+  assert.ok(s4[0] && s4[0].drain.type === "linear" && s4[0].drain.x === 16 && s4[0].drain.y === 2.88
+    && s4[0].drain.axis === "w" && s4[0].drain.len === 27.59,
+    "32×72 channel runs the module's length, its outlet dead centre — 27.59\" long");
   assert.ok((() => {
     const k = kitFor(s4[0].pan.key, { option: s4[0] });
     return k.factory && k.factory.kit.key === "US2000062" && k.factory.nojs.key === "US2100015";
   })(), "32×72 matches the US2000062 factory linear kit");
-  assert.ok(s4.length === 1 && s4.every((o) => o.kind === "linear"), "linear-only solve returns just the linear option");
+  assert.ok(s4.every((o) => o.kind === "linear"), "linear-only solve returns nothing but linear layouts");
+  // wedi's second modular layout: the module mid-floor with an extension
+  // leading away from either side.
+  assert.ok((() => {
+    const mid = s4.filter((o) => o.id === "linearmid")[0];
+    if (!mid) return false;
+    const [a, m, b] = mid.pieces;
+    return mid.pieces.length === 3 && a.kind === "modExt" && m.kind === "module" && b.kind === "modExt"
+      && a.d === 33.13 && m.y === 33.13 && b.y === 38.88 && b.d === 33.12
+      && near(mid.drain.y, 36) && mid.badges.indexOf("Drain mid-floor") >= 0;
+  })(), "32×72 also offers the centred module with an extension either side: "
+    + JSON.stringify(s4.map((o) => o.id + " " + o.pieces.map((p) => p.item.key + " " + p.w + "x" + p.d).join("+"))));
   assert.ok((() => {
     const lin = s1.filter((o) => o.kind === "linear")[0];
     return lin && lin.pieces[0].item.key === "US9310001" && lin.badges.indexOf("Drain at wall") >= 0;
@@ -536,6 +567,82 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
   const shim = kit84.lines.filter((l) => l.group === "floor" && /build-up strips/.test(l.note))[0];
   assert.ok(shim && shim.item.key === "US8000015" && shim.qty >= 1,
     "the kit adds ½\" sheet(s) for the build-up strips: " + JSON.stringify(shim && { key: shim.item.key, qty: shim.qty, note: shim.note }));
+});
+
+// --- nearest fit: a pinned drain never dead-ends -------------------------------
+
+test("wedi drain placement: nothing reaches the pin → the CLOSEST placements, badged and warned", () => {
+  // The owner's 58×33 with the waste at 6", 16½": every offset base is 72"
+  // long, so none of them fits the room at all, let alone on the pin.
+  const s = solve({ w: 58, d: 33, curb: "curbed", drain: "offset", tolerance: 0.51, drainX: 6, drainY: 16.5 });
+  assert.ok(s.length > 0, "58×33 with the drain pinned at 6\", 16½\" still returns options");
+  assert.ok(s.every((o) => o.badges.indexOf("Closest fit") >= 0), "every card reads as a compromise, not a hit");
+  assert.ok(s.every((o) => o.warnings.some((w) => /off the requested spot/.test(w))),
+    "every card says how far off the drain lands: " + JSON.stringify(s.map((o) => o.warnings[0])));
+  assert.ok(s.every((o) => o.warnings.some((w) => /no offset-drain base fits/.test(w))),
+    "…and that the base is not the requested drain type");
+  assert.ok(s[0].miss === 6 && s[0].drain.x === 12 && s[0].drain.y === 16.5,
+    "the closest lands 6\" off — 12\", 16½\": " + JSON.stringify(s.map((o) => o.pan.key + " miss " + o.miss)));
+  assert.ok(s.every((o, i, a) => i === 0 || a[i - 1].miss <= o.miss), "ranked by how far they miss");
+  assert.ok(s.every((o) => o.pieces.every((p) => p.x >= -0.01 && p.y >= -0.01
+    && p.x + p.w <= o.room.w + 0.01 && p.y + p.d <= o.room.d + 0.01)), "nearest-fit pieces stay inside the room");
+
+  // An exact hit is untouched: no compromise card rides along with it.
+  const hit = solve({ w: 60, d: 60, curb: "curbed", drain: "any", drainX: 24, drainY: 30 });
+  assert.ok(hit.length > 0 && hit.every((o) => o.miss === 0 && o.badges.indexOf("Closest fit") < 0),
+    "60×60 pinned at 24\", 30\" still returns exact hits only");
+});
+
+// --- Riolito neo modular ------------------------------------------------------
+
+test("wedi neo modules: every module carries its channel, and the two wedi layouts solve", () => {
+  const mods = group("module").filter((m) => m.sub === "neo");
+  assert.equal(mods.length, 5, "5 neo line modules");
+  assert.ok(mods.every((m) => m.drain && m.drain.type === "linear" && m.drain.len === MODULE_CHANNEL[m.len]
+    && m.drain.axis === "w" && m.drain.x === m.len / 2 && m.drain.y === 2.88),
+    "each module's channel runs its own length, outlet at its centre (2 7/8\" of 5 3/4\"): "
+    + JSON.stringify(mods.map((m) => m.len + "→" + JSON.stringify(m.drain))));
+  // A module on its own is 5¾" of channel — the kit pairs it with the
+  // extension module of its own length.
+  const km = kitFor("US9320001");
+  assert.ok(km.lines.some((l) => l.item.key === "US9330001" && l.group === "floor"),
+    "picking the 32\" module alone still lists its 32\" extension: " + JSON.stringify(km.lines.filter((l) => l.group === "floor").map((l) => l.item.key)));
+
+  // Layout 1 — drainage close to the wall.
+  const m36 = solve({ w: 36, d: 72, curb: "curbed", drain: "linear", tolerance: 0.51 });
+  const wall = m36.filter((o) => o.id === "linear")[0];
+  assert.ok((() => {
+    if (!wall) return false;
+    const [m, e] = wall.pieces;
+    return m.item.key === "US9320003" && e.item.key === "US9330003" && e.d === 66.25 && !!e.cut
+      && wall.drain.y === 2.88 && wall.drain.x === 18 && wall.drain.len === 31.5;
+  })(), "36×72 → 36\" module at the wall + its extension cut to 66¼\": "
+    + JSON.stringify(m36.map((o) => o.id + " " + o.pieces.map((p) => p.item.key + " " + p.w + "x" + p.d).join("+"))));
+  // Layout 2 — a centred module with an extension leading away from either
+  // side; the only one that reaches past 72½" of depth.
+  const deep = solve({ w: 36, d: 100, curb: "curbed", drain: "linear", tolerance: 0.51 });
+  assert.ok(deep.length === 1 && deep[0].id === "linearmid" && deep[0].pieces.length === 3
+    && near(deep[0].drain.y, 50),
+    "36×100 only solves as the centred module: " + JSON.stringify(deep.map((o) => o.id)));
+
+  // The module is cut at its ENDS only, and only as far as the margin outside
+  // the channel allows — 42" spans 40", 48" will not span 44".
+  const m40 = solve({ w: 40, d: 72, curb: "curbed", drain: "linear", tolerance: 0.51 });
+  assert.ok(m40.length && m40[0].pieces[0].item.key === "US9320004" && m40[0].pieces[0].w === 40
+    && m40[0].pieces[0].cut.w === 42 && m40[0].warnings.some((w) => /off the ENDS/.test(w)),
+    "40×72 trims the 42\" module 2\" at the ends: " + JSON.stringify(m40.map((o) => o.title)));
+  assert.deepEqual(solve({ w: 44, d: 72, curb: "curbed", drain: "linear", tolerance: 0.51 }), [],
+    "44\" wide takes no module — cutting a 48\" one down would go through the channel");
+
+  // A pinned drain can be a channel too, when the pin sits on the module's own
+  // centre line: the module slides across the room to meet it.
+  const pinned = solve({ w: 48, d: 66, curb: "curbed", drain: "any", tolerance: 0.51, drainX: 24, drainY: 33 });
+  const chan = pinned.filter((o) => o.drain.type === "linear")[0];
+  assert.ok(chan && chan.id === "linearmid" && chan.drain.x === 24 && chan.drain.y === 33
+    && chan.pieces[1].kind === "module" && chan.pieces[1].y === 30.13,
+    "48×66 pinned at 24\", 33\" also offers the neo channel there: " + JSON.stringify(pinned.map((o) => o.id)));
+  assert.ok(solve({ w: 48, d: 66, curb: "curbed", drain: "center" }).every((o) => o.drain.type !== "linear"),
+    "a CENTER-drain job never gets a channel card");
 });
 
 // --- center click + anchor ----------------------------------------------------

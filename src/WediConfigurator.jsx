@@ -18,7 +18,7 @@ import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, CURB_LAP, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, inch, round2, TIERS, SKU,
+  tierPrice, lineItems, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_DEPTH, BENCH_CORNER_LBL,
@@ -382,8 +382,10 @@ const EXT_SPAN = [0.16, 0.86];
 // A pan plane is far deeper than an extension strip, so a fraction of its run
 // draws a much longer arrow than the extension mark beside it. The pan's marks
 // carry their own cap (owner ask 2026-07-31): two short arrows per plane,
-// the extension arrow's size whatever the pan measures.
-const PAN_SPAN = [0.12, 0.62], PAN_ARROW = 9, PAN_HEAD = 4;
+// the extension arrow's size whatever the pan measures — and at a third of
+// the length they first shipped at (owner ask 2026-07-31).
+const PAN_TRIM = 3;
+const PAN_SPAN = [0.12, round2(0.12 + 0.5 / PAN_TRIM)], PAN_ARROW = 9 / PAN_TRIM, PAN_HEAD = 4;
 const PLANE_AT = [1 / 3, 2 / 3];
 // Both drawings scale an axis-aligned inch to `sc` screen px — the isometric's
 // unit vectors are unit length — so the cap can be stated in inches and read
@@ -787,7 +789,11 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       const half = dr.len / 2;
       const hx = dr.axis === "w" ? half : 1.4, hy = dr.axis === "w" ? 1.4 : half;
       push(<rect key="dr" x={X(dr.x - hx)} y={Y(dr.y - hy)} width={round2(hx * 2 * sc)} height={round2(hy * 2 * sc)} rx="2.5" fill={INK} />);
-      if (!mini && dr.axis === "w") push(<text key="drt" x={X(dr.x)} y={Y(dr.y + hy) + 11} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={INK} fontFamily={FONT}>{inch(dr.len) + '" channel'}</text>);
+      if (!mini) {
+        const lx = dr.axis === "w" ? X(dr.x) : X(dr.x + hx) + 11, ly = dr.axis === "w" ? Y(dr.y + hy) + 11 : Y(dr.y);
+        push(<text key="drt" x={lx} y={ly} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={INK} fontFamily={FONT}
+          transform={dr.axis === "w" ? undefined : `rotate(-90 ${lx} ${ly})`}>{inch(dr.len) + '" channel'}</text>);
+      }
     } else {
       // Point drains draw square — the 4×4 cover is what the installer sees.
       const ds = mini ? 6 : Math.max(10, round2(4 * sc));
@@ -798,11 +804,19 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       push(<text key="drl" x={X(dr.x)} y={Y(dr.y) + 18} textAnchor="middle" fontSize="8.5" fontWeight="700" fill={INK} fontFamily={FONT}>
         {dr.type + " drain @ " + inch(dr.x) + '", ' + inch(dr.y) + '"'}</text>);
     }
-    if (!mini && o.kind === "drainat") {
-      push(<line key="mx" x1={X(0)} y1={Y(dr.y)} x2={X(dr.x) - 9} y2={Y(dr.y)} stroke={RUST} strokeWidth="1" strokeDasharray="3 3" />);
-      push(<text key="mxt" x={X(dr.x / 2)} y={Y(dr.y) - 4} textAnchor="middle" fontSize="8.5" fontWeight="800" fill={RUST} fontFamily={FONT}>{inch(dr.x) + '"'}</text>);
-      push(<line key="my" x1={X(dr.x)} y1={Y(0)} x2={X(dr.x)} y2={Y(dr.y) - 9} stroke={RUST} strokeWidth="1" strokeDasharray="3 3" />);
-      push(<text key="myt" x={X(dr.x) + 4} y={Y(dr.y / 2)} fontSize="8.5" fontWeight="800" fill={RUST} fontFamily={FONT}>{inch(dr.y) + '"'}</text>);
+    // The plumber's two measurements. A channel takes them too: its 2" waste
+    // sits under the middle of the channel, which is the point drawn.
+    // A run too short to carry its own figure is left off — a channel 2 7/8"
+    // off the wall would draw a dimension shorter than the text on it.
+    if (!mini && (o.kind === "drainat" || (dr.type === "linear" && dr.len))) {
+      if (dr.x * sc > 26) {
+        push(<line key="mx" x1={X(0)} y1={Y(dr.y)} x2={X(dr.x) - 9} y2={Y(dr.y)} stroke={RUST} strokeWidth="1" strokeDasharray="3 3" />);
+        push(<text key="mxt" x={X(dr.x / 2)} y={Y(dr.y) - (dr.type === "linear" ? 9 : 4)} textAnchor="middle" fontSize="8.5" fontWeight="800" fill={RUST} fontFamily={FONT}>{inch(dr.x) + '"'}</text>);
+      }
+      if (dr.y * sc > 26) {
+        push(<line key="my" x1={X(dr.x)} y1={Y(0)} x2={X(dr.x)} y2={Y(dr.y) - 9} stroke={RUST} strokeWidth="1" strokeDasharray="3 3" />);
+        push(<text key="myt" x={X(dr.x) + 4} y={Y(dr.y / 2)} fontSize="8.5" fontWeight="800" fill={RUST} fontFamily={FONT}>{inch(dr.y) + '"'}</text>);
+      }
     }
   }
 
@@ -816,6 +830,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? CADD : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
     const notes = [];
     if (slope) notes.push((o.pieces.length > 1 ? "pan & extensions fall" : "pan falls") + ' ¼"/ft to drain');
+    if (dr && dr.type === "linear" && dr.len) notes.push('2" waste at the channel centre');
     if (curbs && curbs.length) notes.push('curb laps ½" over pan');
     if (notes.length) push(<text key="note" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>{notes.join(" · ")}</text>);
   }
@@ -1797,10 +1812,16 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!panKey) return null;
     const p = item(panKey);
     if (p.group === "module") {
+      // The module is the channel; the floor is the module plus the extension
+      // of its own length, exactly as kitFor lists it.
+      const ext = group("modExt").filter((m) => m.len === p.len)[0];
+      const pieces = [{ kind: "module", item: p, x: 0, y: 0, w: p.len, d: MODULE_DEPTH, cut: null }];
+      if (ext) pieces.push({ kind: "modExt", item: ext, x: 0, y: MODULE_DEPTH, w: p.len, d: MODEXT_DEPTH, cut: null });
       return {
-        pieces: [{ kind: "module", item: p, x: 0, y: 0, w: p.len, d: 5.75, cut: null }],
+        pieces: pieces,
         drain: p.drain ? { ...p.drain } : null,
-        room: { w: p.len, d: 72.5 }, warnings: [], title: p.name + " " + p.sizeText,
+        room: { w: p.len, d: round2(MODULE_DEPTH + (ext ? MODEXT_DEPTH : 0)) },
+        warnings: [], title: p.name + " " + p.sizeText,
       };
     }
     // Orient the pan the way the walls read: the BACK wall is the long side (or

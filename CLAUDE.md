@@ -273,8 +273,16 @@ src/
                     # `group`/`pans`, plus the system solver a shower needs:
                     # `kitFor` (the house-kit recipe per pan), `solve` (room ->
                     # ranked options: exact pan · pan + extensions with the corner
-                    # rule · pan cut down · linear module + extension; a pinned
-                    # drain floats the pan, trimming up to 6" a side), `panelPlan`
+                    # rule · pan cut down · Riolito neo module + same-length
+                    # extension, at the wall or centred with one leading away each
+                    # side; a pinned drain floats the pan, trimming up to 6" a
+                    # side, and never dead-ends — no exact hit falls back to
+                    # "Closest fit" cards that say how far the drain lands off the
+                    # pin, then to the whole family, then to the plain layouts.
+                    # Drain positions are transcribed per SKU off the 2026
+                    # illustrated price list drawings — `OFFSET_DRAIN`,
+                    # `LINEAR_DRAIN`, `moduleDrain` (channel + outlet dead centre
+                    # of the module) — not derived), `panelPlan`
                     # (½" sheets in level courses, mixed sizes, vertical when that
                     # kills the seams), benches (issue 069: `normBench`/
                     # `benchFootprint`/`benchLines` — a premade catalog piece,
