@@ -765,6 +765,18 @@ test("wedi benches: framed — ½\" wrap, and the pan is cut down or swapped sma
     "smallerPanFor (the no-solve fallback) still names the largest fitting same-family pan");
 });
 
+test("wedi benches: a framed bench's framing shadow leaves the wall figure", () => {
+  // No wedi runs behind an installer-framed bench — the panel stops at the
+  // bench top (the default bench runs the full 36" left wall × 18" high =
+  // 4.5 sf) and the ½" wrap files under the bench group instead. Site-built
+  // benches shadow nothing: the wall stays fully paneled behind them.
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  const framed = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
+  const site = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left" }] });
+  assert.ok(near(plain.panelSf - framed.panelSf, 4.5), "framed: 36×18 shadow leaves the wall sf");
+  assert.equal(site.panelSf, plain.panelSf, "site-built: wall fully paneled behind the bench");
+});
+
 test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {
   // 60×36 shower, 14" framed bench on the left → 46×36 clear; the solver
   // places a pan so the drain lands dead center of THAT space (owner ask
@@ -786,9 +798,10 @@ test("wedi benches: framed 'smaller' re-solves the clear space with the drain ce
   assert.ok(kSm.panPlan, "kitFor carries the plan out for the drawings");
   assert.equal(kSm.lines[0].item.key, kSm.panPlan.option.pan.key, "the floor line is the solved pan");
   assert.ok(/drain centered in the 46×36" clear space/.test(kSm.lines[0].note), "…and the note says why");
-  // A bench never shrinks the SHOWER: the walls still figure the full room.
+  // A bench never shrinks the SHOWER: the walls still run the full room —
+  // only the framed bench's own 36×18 framing shadow leaves the figure.
   const plain = kitFor("US9100004", { walls: threeWallsB });
-  assert.equal(kSm.panelSf, plain.panelSf, "wall panel figures the full shower size, bench or not");
+  assert.ok(near(plain.panelSf - kSm.panelSf, 4.5), "wall panel = full shower walls minus the framing shadow");
   // 'cut' is untouched by the solver path
   const kCut = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
   assert.equal(kCut.panPlan, null, "panFit 'cut' never re-solves");

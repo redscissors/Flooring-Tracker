@@ -4668,6 +4668,22 @@ export function benchLines(benches, dims, panel) {
   return { lines: lines, surfSf: round2(surfSf), sf2: round2(sf2), wrapSf: round2(wrapSf) };
 }
 
+// The wall panel a framed bench's framing shadows out (owner, 2026-07-30):
+// the wedi stops at the bench top on that wall and the bench's own ½" wrap
+// takes over, so the shadowed rectangle leaves the wall figure. Site-built
+// and premade benches sit against a fully paneled wall and shadow nothing.
+export function benchWallShadowSf(benches, walls) {
+  let sf = 0;
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    const wl = (walls || []).filter((w) => w.side === b.side && !w.face)
+      .sort((a, c) => (+c.len || 0) - (+a.len || 0))[0];
+    if (!wl) return;
+    sf += (Math.min(b.len, +wl.len || 0) * Math.min(b.h, +wl.h || 0)) / 144;
+  });
+  return round2(sf);
+}
+
 function familyOf(pan) {
   if (pan.group === "module" || pan.group === "modExt") return "linear";
   return pan.sub === "sdry" ? "sdry" : pan.sub;
@@ -4729,7 +4745,6 @@ export function kitFor(panKey, opts) {
   const option = opts.option || null;
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
-  const panelSf = wallSf(expandWallFaces(walls));
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
   const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
   const lines = [], hints = [];
@@ -4737,6 +4752,9 @@ export function kitFor(panKey, opts) {
     || (pan.group === "module" ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
       : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
   const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
+  // A framed bench's framing shadow leaves the wall figure — no wedi runs
+  // behind it (its wrap files under the bench group instead).
+  const panelSf = Math.max(0, round2(wallSf(expandWallFaces(walls)) - benchWallShadowSf(benches, walls)));
 
   // --- floor -----------------------------------------------------------------
   // A framed bench sits on the subfloor, so the pan stops at its face. "Cut"

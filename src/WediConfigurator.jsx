@@ -745,13 +745,13 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     return { span, zh, x0: rw, x1: rw + T, y0: -T, y1: span + (full ? T : 0) };
   };
   // Panel joints dot the wall's INNER face — the plane the wedi actually
-  // lands on. Light on the solid walls, ink on the clear front ones.
+  // lands on. One ink dot color everywhere now that covered faces read green.
   const jointsOf = (wl, g, isFront, tag) => {
     const pt = wl.side === "back" ? (u, z) => M(u, 0, z)
       : wl.side === "entry" ? (u, z) => M(u, rd, z)
         : wl.side === "left" ? (u, z) => M(0, u, z)
           : (u, z) => M(rw, u, z);
-    const colr = isFront ? seamCol : "rgba(246,243,236,.8)";
+    const colr = seamCol;
     (wl.courses || []).forEach((c, ci) => {
       const top = Math.min(c.y0 + c.ch, g.zh);
       if (c.y0 > 0 && c.y0 < g.zh) {
@@ -767,8 +767,25 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       });
     });
   };
+  // Which part of a wall's big face actually carries wedi (owner ask
+  // 2026-07-30): the whole face, minus the framing shadow of an
+  // installer-framed bench on that side — the panel stops at the bench top
+  // and the bench's own ½" wrap takes over. A 2" build-up or premade bench
+  // leaves the wall fully paneled behind it, so it casts no shadow.
+  const framedShadow = (side) => {
+    let L = 0, H = 0;
+    (benches || []).forEach((b) => {
+      if (b.kind !== "wall" || b.build !== "framed" || b.side !== side) return;
+      L = Math.max(L, b.len); H = Math.max(H, b.h);
+    });
+    return L > 0 && H > 0 ? { L, H } : null;
+  };
+  const WEDI_FILL = PIECE_FILL.pan, WEDI_FILL_CLEAR = "rgba(220,229,205,.4)";
   // A wall as a slab: the three faces this camera sees (+x, +y, top). Front
-  // walls draw the same three faces clear with dashed edges.
+  // walls draw the same three faces clear with dashed edges. The face the
+  // viewer reads as "the wall" then paints its wedi-covered region in the
+  // pan green + a fine 45° hatch — bare framing stays dark (solid walls)
+  // or clear (front walls), which is exactly the framed-bench shadow.
   const wallEls = (wl, wi) => {
     const g = geomOf(wl);
     if (!g) return;
@@ -782,6 +799,26 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
       onContextMenu: (ev) => { ev.preventDefault(); ev.stopPropagation(); onWallMenu({ wid: wl.wid, extra: !!wl.extra }, ev.clientX, ev.clientY); },
     } : {};
     const title = onWallMenu ? <title>right-click — wall size &amp; wedi faces</title> : null;
+    const horiz = wl.side === "back" || wl.side === "entry";
+    const facePt = wl.side === "back" ? (u, z) => M(u, 0, z)
+      : wl.side === "entry" ? (u, z) => M(u, rd + T, z)
+        : wl.side === "left" ? (u, z) => M(0, u, z)
+          : (u, z) => M(rw + T, u, z);
+    const u0 = horiz ? x0 : y0, u1 = horiz ? x1 : y1;
+    const sh = framedShadow(wl.side);
+    const rects = [];
+    if (sh) {
+      const L = Math.min(sh.L, u1);
+      if (L < u1 - 0.5) rects.push([L, u1, 0, zh]);
+      if (sh.H < zh - 0.5) rects.push([u0, L, sh.H, zh]);
+    } else rects.push([u0, u1, 0, zh]);
+    const quadOf = (r) => str([facePt(r[0], r[3]), facePt(r[1], r[3]), facePt(r[1], r[2]), facePt(r[0], r[2])]);
+    const cover = rects.map((r, ri) => (
+      <g key={`cv${ri}`} pointerEvents="none">
+        <polygon points={quadOf(r)} fill={isFront ? WEDI_FILL_CLEAR : WEDI_FILL} stroke={isFront ? "none" : wallLine} strokeWidth=".5" />
+        <polygon points={quadOf(r)} fill="url(#wedi-hatch)" />
+      </g>
+    ));
     if (isFront) {
       // pointer-events on the stroke only: a clear wall's body must not
       // swallow right-clicks meant for the solid walls and pan behind it.
@@ -792,6 +829,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
           <polygon points={faceE} {...dash} />
           <polygon points={faceS} {...dash} />
           <polygon points={faceT} {...dash} />
+          {cover}
         </g>);
     } else {
       const tones = wl.extra ? ["#46592F", "#57703A", "#68804A"] : ["#454239", "#57534C", "#6B665D"];
@@ -801,6 +839,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
           <polygon points={faceE} fill={wl.side === "left" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
           <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
           <polygon points={faceT} fill={tones[2]} stroke={wallLine} strokeWidth=".8" />
+          {cover}
         </g>);
     }
     jointsOf(wl, g, isFront, wi);
@@ -933,9 +972,18 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   dw.forEach((wl, wi) => { if (wl.side === "entry" || wl.side === "right") wallEls(wl, wi); });
   if (dw.length) {
     els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
-      {'walls 4" thick, to ' + inch(hmax) + '"' + (panelFit ? " · panel joints dotted" : "")}</text>);
+      {'walls 4" thick, to ' + inch(hmax) + '" · green hatch = wedi' + (panelFit ? " · joints dotted" : "")}</text>);
   }
-  return <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>{els}</svg>;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
+      <defs>
+        <pattern id="wedi-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="7" stroke={MOSS_DEEP} strokeWidth="1" opacity=".26" />
+        </pattern>
+      </defs>
+      {els}
+    </svg>
+  );
 }
 
 // ============================================================================
@@ -2096,6 +2144,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
           {" "}· hover the pan along a wall or into a corner and click for a <b>bench</b> — premade, 2″ build-up,
           or installer-framed, drawn in both views with the curb butting its face
+          {" "}· in the isometric, <b>wedi-covered</b> faces read pan-green with a fine hatch — bare framing
+          (behind a framed bench) stays dark, and the wall figure drops that shadow too
         </div>
       </>)}
     </div>
