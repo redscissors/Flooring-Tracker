@@ -781,23 +781,33 @@ test("wedi benches: a framed bench's framing shadow leaves the wall figure", () 
 // --- curb inside the stated dims ("overall max", owner ask 2026-07-30) -------
 
 test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fits", () => {
-  assert.equal(curbWidth(SKU.curbLean60), 2, 'a lean curb runs 2" on the floor');
-  assert.equal(curbWidth("US3000039"), 4.5, 'a full-foam curb runs 4.5"');
+  // Owner's cross-sections (2026-07-30): the lean curb is 2½" across the
+  // top, notched ½" over the pan — it ADDS 2". The standard/full-foam is
+  // 4½" across — adds 4". So a 36"-deep shower with the lean curb inside
+  // runs a 34" pan, drain centered at 17" off the back wall.
+  assert.equal(curbWidth(SKU.curbLean60), 2.5, 'a lean curb is 2½" across the top');
+  assert.equal(curbWidth("US3000039"), 4.5, 'a full-foam curb is 4½" across');
   const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60);
-  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: round2(2 - CURB_LAP), cw: 2 },
-    "three walls: only the entry gives up its curb's width minus the ½\" pan lap");
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 2, cw: 2.5 },
+    "three walls: the entry gives up curb width minus the ½\" pan lap — the lean adds 2\"");
   assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60), null,
     "fully walled: nothing to inset");
-  const sub = solve({ w: 60, d: round2(36 - ins.entry), curb: "curbed", drain: "center", tolerance: 0.51 });
-  assert.ok(sub.length, "the reduced 60×34.5 room still solves");
+  const sub = solve({ w: 60, d: 34, curb: "curbed", drain: "center", tolerance: 0.51 });
+  assert.ok(sub.length, "the reduced 60×34 room still solves");
+  assert.ok(near(sub[0].drain.x, 30) && near(sub[0].drain.y, 17),
+    "drain centered between the back wall and the curb — 17\" off the back");
   const o = applyCurbInset(sub[0], ins, roomB);
   assert.deepEqual(o.room, { w: 60, d: 36 }, "the option re-bases into the full stated footprint");
-  assert.ok(o.pieces.every((p) => p.y + p.d <= 36 - ins.entry + 0.01), "every piece stops short of the inside curb");
+  assert.ok(o.pieces.every((p) => p.y + p.d <= 34.01), "every piece stops at the curb's notch line");
   assert.deepEqual(o.inset, ins, "the inset rides along for the drawings");
-  // walls and the curb run keep figuring on the FULL room
+  // walls and the curb run keep figuring on the FULL room — and the wedi
+  // wall figure never grows past the stated line for the curb's sake
   const k = kitFor(o.pan.key, { option: o, walls: threeWallsB, maxIn: true });
   assert.ok(k.lines.some((l) => l.item.group === "curb"), "the curb still spans the full opening");
   assert.equal(k.cfg.maxIn, true, "cfg carries the mode for Reconfigure");
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  assert.equal(k.panelSf, plain.panelSf,
+    "wall wedi figures to the stated line (the curb's front face) — never extra for the curb");
 });
 
 test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {
