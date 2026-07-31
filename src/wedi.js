@@ -4347,7 +4347,49 @@ export function openEdges(dims, walls) {
 // up exactly those legs, so nothing is stranded behind the cut.
 export const CORNER_CUT = 12;    // the cut's default leg along each edge
 export const CURB_W = 3.5;       // the curb's plan width — ring fills + longest-point math
-export function curbRuns(dims, walls, corners) {
+
+// Real curb cross-sections (owner, 2026-07-30): every curb is notched on
+// its back edge to lap ½" onto the pan, so it ADDS (width − ½") of floor.
+// The standard/full-foam/AT curbs are 4½" across the top (price list
+// agrees: 5⅛ × 4½ H×W) — they add 4". The owner puts the lean at 2½"
+// across the top — adds 2" — though the price list reads it 3½ × 2 H×W,
+// which under the standard curb's convention would add only 1½"; owner to
+// verify against a physical piece. These drive the "overall max" solver
+// mode, where the stated dimensions INCLUDE the curb: each fully open edge
+// gives up (width − lap) of pan space and the curb draws inside the line.
+export const CURB_LAP = 0.5;
+export function curbWidth(key) {
+  const it = typeof key === "string" ? item(key) : key;
+  return it && /lean/i.test(it.name || "") ? 2.5 : 4.5;
+}
+
+// Per-edge inset when the stated dims are the overall footprint. Only an
+// edge with NO wall at all pulls its curb in (a partially walled edge keeps
+// the curb in the ring — v1); curbless builds inset nothing.
+export function curbInsets(dims, walls, curbKey) {
+  if (!curbKey) return null;
+  const cov = openEdges(dims, walls).cov;
+  const ins = round2(curbWidth(curbKey) - CURB_LAP);
+  const at = (side) => (cov[side] < 0.5 ? ins : 0);
+  const o = { back: at("back"), left: at("left"), right: at("right"), entry: at("entry"), cw: curbWidth(curbKey) };
+  return o.back || o.left || o.right || o.entry ? o : null;
+}
+
+// Re-base a solved option (solved on the inset dims) into the full shower:
+// pieces and drain shift past the left/back insets, the room reads the full
+// stated size — walls and curb runs keep figuring on it — and `inset` rides
+// along so the drawings pull the curb inside the line.
+export function applyCurbInset(o, insets, dims) {
+  const ox = insets.left, oy = insets.back;
+  return {
+    ...o,
+    pieces: o.pieces.map((p) => ({ ...p, x: round2(p.x + ox), y: round2(p.y + oy) })),
+    drain: o.drain ? { ...o.drain, x: round2(o.drain.x + ox), y: round2(o.drain.y + oy) } : null,
+    room: { w: round2(+dims.w || 0), d: round2(+dims.d || 0) },
+    inset: insets,
+  };
+}
+export function curbRuns(dims, walls, corners, benches) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
   const open = openEdges(dims, walls);
   const cov = open.cov;
@@ -4405,9 +4447,25 @@ export function curbRuns(dims, walls, corners) {
       segs.push({ side: e.side, from: round2(from), len: round2(len), ext0: ext0, ext1: ext1 });
     }
   });
+  // A bench "comes all the way out" over the curb line, so the curb gives up
+  // the edge intervals its footprint sits on and butts the bench's face — a
+  // trimmed end loses its ring-corner extension, it's a butt now.
+  let outSegs = segs;
+  if (benches && benches.length) {
+    const spans = benchEdgeSpans(benches, dims);
+    outSegs = [];
+    segs.forEach((s) => {
+      subSpans(s.from, s.len, spans[s.side]).forEach((p) => {
+        outSegs.push({
+          side: s.side, from: round2(p[0]), len: round2(p[1] - p[0]),
+          ext0: p[2] ? s.ext0 : 0, ext1: p[3] ? s.ext1 : 0,
+        });
+      });
+    });
+  }
   return {
-    segs: segs, diags: diags,
-    openLen: round2(segs.reduce((s, x) => s + x.len + x.ext0 + x.ext1, 0) + diags.reduce((s, d) => s + d.cut, 0)),
+    segs: outSegs, diags: diags,
+    openLen: round2(outSegs.reduce((s, x) => s + x.len + x.ext0 + x.ext1, 0) + diags.reduce((s, d) => s + d.cut, 0)),
   };
 }
 
@@ -4424,6 +4482,248 @@ export function openCorners(dims, walls) {
     fl: !(near(cov.entry) && far(cov.left, rd)),
     fr: !(far(cov.entry, rw) && far(cov.right, rd)),
   };
+}
+
+// ============================================================================
+// benches (issue 069 — owner spec 2026-07-31)
+// ============================================================================
+//
+// Placed on the top-down drawing: along a wall or across a corner. Three
+// constructions:
+//   premade — a catalog bench kit / Sanoasa piece, one line.
+//   site    — wedi 2" building panel with the pan running UNDERNEATH: a 2"
+//             slab on the top, a 2" slab on the face, and a 2" support
+//             closing each open end plus one about every foot inside.
+//   framed  — the installer frames it in and the pan butts AGAINST it, the
+//             framing wrapped with the build's ½" wall panel; the pan is cut
+//             down or swapped smaller to make room (panFit "cut"|"smaller").
+// A bench runs the full pan-AND-curb depth, so the curb butts its face —
+// curbRuns subtracts bench footprints from the open-edge runs. Corner
+// benches are measured from the corner out along each wall with a triangle
+// across the front, always 18" to the top by default, and never framed.
+
+export const BENCH_H = 18;
+export const BENCH_DEPTH = 14;     // default seat depth along a wall (owner, 2026-07-31)
+export const BENCH_CORNER_LEG = 24;
+const BENCH_SUPPORT_EVERY = 12;
+const BENCH_THICK = 2;
+const BENCH_SHEETS_2IN = ["US8000016", "US8000020"];   // 4×8×2" then 4×5×2" — both stocked
+export const BENCH_CORNER_LBL = { bl: "back-left", br: "back-right", fl: "entry-left", fr: "entry-right" };
+
+export function benchPremades(kind) {
+  return group("bench")
+    .filter((e) => (kind === "corner") === /corner/i.test(e.name))
+    .sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
+}
+
+export function normBench(b, dims) {
+  b = b || {};
+  const part = b.part ? item(b.part) : null;
+  if (b.kind === "corner") {
+    return {
+      kind: "corner",
+      corner: BENCH_CORNER_LBL[b.corner] ? b.corner : "bl",
+      build: part ? "premade" : "site", part: part ? part.key : null,
+      size: round2(+b.size || (part && part.w) || BENCH_CORNER_LEG),
+      h: round2(+b.h || (part && part.t) || BENCH_H),
+    };
+  }
+  const side = ["left", "right", "back"].indexOf(b.side) >= 0 ? b.side : "left";
+  const run = dims ? (side === "back" ? +dims.w || 0 : +dims.d || 0) : 0;
+  const build = part ? "premade" : b.build === "framed" ? "framed" : "site";
+  const len = +b.len || (part && part.w) || run || 48;
+  const o = {
+    kind: "wall", side: side, build: build, part: part ? part.key : null,
+    len: round2(run ? Math.min(len, run) : len),
+    depth: round2(+b.depth || (part && part.d) || BENCH_DEPTH),
+    h: round2(+b.h || (part && part.t) || BENCH_H),
+  };
+  if (build === "framed") o.panFit = b.panFit === "smaller" ? "smaller" : "cut";
+  return o;
+}
+
+// Plan-view footprint in room coords (origin back-left). Wall benches anchor
+// at the back (a back bench at the left wall), corners wrap their corner.
+export function benchFootprint(b, dims) {
+  const rw = +dims.w || 0, rd = +dims.d || 0;
+  if (b.kind === "corner") return { kind: "corner", corner: b.corner, a: Math.min(b.size, rw || b.size, rd || b.size) };
+  if (b.side === "left") return { kind: "rect", x: 0, y: 0, w: Math.min(b.depth, rw), d: Math.min(b.len, rd) };
+  if (b.side === "right") return { kind: "rect", x: Math.max(0, rw - b.depth), y: 0, w: Math.min(b.depth, rw), d: Math.min(b.len, rd) };
+  return { kind: "rect", x: 0, y: 0, w: Math.min(b.len, rw), d: Math.min(b.depth, rd) };
+}
+
+// The intervals of each room edge a bench sits on — what the curb gives up.
+function benchEdgeSpans(benches, dims) {
+  const rw = +dims.w || 0, rd = +dims.d || 0;
+  const spans = { back: [], left: [], right: [], entry: [] };
+  (benches || []).forEach((b) => {
+    const f = benchFootprint(b, dims);
+    if (f.kind === "corner") {
+      const a = f.a;
+      if (f.corner === "bl") { spans.back.push([0, a]); spans.left.push([0, a]); }
+      else if (f.corner === "br") { spans.back.push([rw - a, rw]); spans.right.push([0, a]); }
+      else if (f.corner === "fl") { spans.entry.push([0, a]); spans.left.push([rd - a, rd]); }
+      else { spans.entry.push([rw - a, rw]); spans.right.push([rd - a, rd]); }
+      return;
+    }
+    if (f.y <= 0.5) spans.back.push([f.x, f.x + f.w]);
+    if (f.y + f.d >= rd - 0.5) spans.entry.push([f.x, f.x + f.w]);
+    if (f.x <= 0.5) spans.left.push([f.y, f.y + f.d]);
+    if (f.x + f.w >= rw - 0.5) spans.right.push([f.y, f.y + f.d]);
+  });
+  return spans;
+}
+
+// Interval subtraction for the curb runs. Returns [a, b, startKept, endKept]
+// parts — the kept flags say whether that end is still the run's original
+// end (its ext into a ring corner survives) or a fresh butt against a bench.
+function subSpans(from, len, spans) {
+  let parts = [[from, from + len, true, true]];
+  (spans || []).forEach((sp) => {
+    const a = sp[0], b = sp[1], next = [];
+    parts.forEach((p) => {
+      if (b <= p[0] + 0.5 || a >= p[1] - 0.5) { next.push(p); return; }
+      if (a > p[0] + 0.5) next.push([p[0], a, p[2], false]);
+      if (b < p[1] - 0.5) next.push([b, p[1], false, p[3]]);
+    });
+    parts = next;
+  });
+  return parts.filter((p) => p[1] - p[0] > 0.5);
+}
+
+// The room a framed bench leaves for the pan.
+export function benchPanRoom(benches, dims) {
+  let w = +dims.w || 0, d = +dims.d || 0;
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    if (b.side === "back") d -= b.depth; else w -= b.depth;
+  });
+  return { w: round2(Math.max(0, w)), d: round2(Math.max(0, d)) };
+}
+
+// The largest same-family catalog pan that fits the reduced footprint (either
+// orientation, stock outranks at equal area). Null when nothing fits.
+export function smallerPanFor(pan, w, d) {
+  const fits = pans({ family: familyOf(pan) }).filter((p) => p.key !== pan.key)
+    .map((p) => {
+      const o = p.w <= w + 0.01 && p.d <= d + 0.01 ? p.w * p.d
+        : p.d <= w + 0.01 && p.w <= d + 0.01 ? p.w * p.d : null;
+      return o == null ? null : { p: p, area: o };
+    }).filter(Boolean);
+  if (!fits.length) return null;
+  fits.sort((a, b) => b.area - a.area || (b.p.stock ? 1 : 0) - (a.p.stock ? 1 : 0) || a.p.retail - b.p.retail);
+  return fits[0].p;
+}
+
+// Framed bench, "smaller" fit (owner ask 2026-07-30): don't just grab the
+// largest pan that fits beside the bench — RE-SOLVE the clear space with the
+// drain pinned at its center, so the standard solver places the pan (floating
+// it, trimming up to 6" a side, filling with extensions) exactly as it would
+// any room. The shower keeps its full size — walls, curb ring and bench all
+// figure on `dims`; only the floor moves into the clear space. Returns
+// { option, offset, clear } — the option's pieces live in clear-space coords,
+// offset is where that space starts in the shower (a left/back framed bench
+// shifts it by its depth). Null when no framed bench shrinks the room, none
+// asks for "smaller", the family can't re-solve (modules/sdry), or nothing
+// lands the drain — callers fall back to the plain smallerPanFor swap.
+export function benchPanPlan(pan, benches, dims) {
+  const panRoom = benchPanRoom(benches, dims);
+  if (!(panRoom.w > 0 && panRoom.d > 0)) return null;
+  if (panRoom.w >= dims.w - 0.01 && panRoom.d >= dims.d - 0.01) return null;
+  if (!(benches || []).some((b) => b.build === "framed" && b.panFit === "smaller")) return null;
+  if (pan.sub !== "fundo" && pan.sub !== "curbless") return null;
+  const sub = solve({
+    w: panRoom.w, d: panRoom.d,
+    curb: pan.sub === "curbless" ? "curbless" : "curbed",
+    drainX: round2(panRoom.w / 2), drainY: round2(panRoom.d / 2),
+  });
+  if (!sub.length) return null;
+  let ox = 0, oy = 0;
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    if (b.side === "left") ox = round2(ox + b.depth);
+    else if (b.side === "back") oy = round2(oy + b.depth);
+  });
+  return { option: sub[0], offset: { x: ox, y: oy }, clear: panRoom };
+}
+
+// Bench BOM. Site-built 2" material aggregates across benches and fills
+// sheets greedily (4×8s, then one 4×5 when the remainder fits it); framed
+// wraps figure in the build's wall panel. surfSf is what feeds the sealant/
+// fastener consumables — a premade whose details say the sealant is included
+// contributes nothing.
+export function benchLines(benches, dims, panel) {
+  const lines = [];
+  let sf2 = 0, wrapSf = 0, surfSf = 0;
+  const notes2 = [];
+  (benches || []).forEach((b) => {
+    const where = b.kind === "corner" ? BENCH_CORNER_LBL[b.corner] + " corner" : b.side + " wall";
+    if (b.build === "premade") {
+      const it = item(b.part);
+      if (!it) return;
+      push(lines, it, 1, "bench", where + (it.sizeText ? " — " + it.sizeText : ""), false);
+      if (!/includes wedi joint sealant/i.test(it.details || ""))
+        surfSf += ((it.w || 0) * ((it.d || 0) + (it.t || 0))) / 144;
+      return;
+    }
+    if (b.build === "framed") {
+      const wrap = (b.len * b.depth + b.len * b.h + b.depth * b.h) / 144;
+      wrapSf += wrap;
+      surfSf += wrap;
+      return;
+    }
+    let top, face, n, deep, label;
+    if (b.kind === "corner") {
+      const a = Math.min(b.size, +dims.w || b.size, +dims.d || b.size);
+      const hyp = a * Math.SQRT2;
+      top = a * a / 2; face = hyp * b.h;
+      n = Math.floor(hyp / BENCH_SUPPORT_EVERY) + 1;
+      deep = a / 2;
+      label = inch(a) + '" ' + where;
+    } else {
+      top = b.len * b.depth; face = b.len * b.h;
+      n = Math.floor(b.len / BENCH_SUPPORT_EVERY) + 1;
+      deep = b.depth;
+      label = inch(b.len) + "×" + inch(b.depth) + "×" + inch(b.h) + '" ' + where;
+    }
+    const supports = n * Math.max(0, deep - BENCH_THICK) * Math.max(0, b.h - BENCH_THICK);
+    sf2 += (top + face + supports) / 144;
+    surfSf += (top + face) / 144;
+    notes2.push(label + " — top + face + " + n + " supports");
+  });
+  if (sf2 > 0.01) {
+    const big = item(BENCH_SHEETS_2IN[0]), small = item(BENCH_SHEETS_2IN[1]);
+    const note = round2(sf2) + ' sf of 2" build-up — ' + notes2.join(" · ");
+    if (big && big.sf && small && small.sf) {
+      const nBig = Math.max(0, Math.ceil((sf2 - small.sf) / big.sf));
+      const rem = sf2 - nBig * big.sf;
+      if (nBig > 0) push(lines, big, nBig, "bench", note, true);
+      if (rem > 0.01) push(lines, small, 1, "bench", nBig > 0 ? "the remainder" : note, true);
+    } else if (big && big.sf) {
+      push(lines, big, Math.ceil(sf2 / big.sf), "bench", note, true);
+    }
+  }
+  if (wrapSf > 0.01 && panel && panel.sf) {
+    push(lines, panel, Math.ceil(wrapSf / panel.sf), "bench",
+      round2(wrapSf) + ' sf — ½" wrap over the installer-framed bench', true);
+  }
+  return { lines: lines, surfSf: round2(surfSf), sf2: round2(sf2), wrapSf: round2(wrapSf) };
+}
+
+// The wall panel a framed bench's framing shadows out (owner, 2026-07-30):
+// the wedi stops at the bench top on that wall and the bench's own ½" wrap
+// takes over, so the shadowed rectangle leaves the wall figure. Site-built
+// and premade benches sit against a fully paneled wall and shadow nothing.
+export function benchWallShadowSf(benches, walls) {
+  let sf = 0;
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    const wl = (walls || []).filter((w) => w.side === b.side && !w.face)
+      .sort((a, c) => (+c.len || 0) - (+a.len || 0))[0];
+    if (!wl) return;
+    sf += (Math.min(b.len, +wl.len || 0) * Math.min(b.h, +wl.h || 0)) / 144;
+  });
+  return round2(sf);
 }
 
 function familyOf(pan) {
@@ -4487,26 +4787,70 @@ export function kitFor(panKey, opts) {
   const option = opts.option || null;
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
-  const panelSf = wallSf(expandWallFaces(walls));
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
   const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
   const lines = [], hints = [];
+  const roomDims = room
+    || (pan.group === "module" ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
+      : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
+  const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
+  // A framed bench's framing shadow leaves the wall figure — no wedi runs
+  // behind it (its wrap files under the bench group instead).
+  const panelSf = Math.max(0, round2(wallSf(expandWallFaces(walls)) - benchWallShadowSf(benches, walls)));
 
   // --- floor -----------------------------------------------------------------
-  push(lines, pan, 1, "floor", pan.sizeText, true);
-  if (option) {
-    option.floorLines.forEach((fl) => {
-      if (fl.item.key === pan.key) return;
-      push(lines, fl.item, fl.qty, "floor", fl.note || "", true);
+  // A framed bench sits on the subfloor, so the pan stops at its face. "Cut"
+  // keeps the pan and notes the cut; "smaller" re-solves the CLEAR space with
+  // the drain pinned at its center (benchPanPlan) — its floor lines replace
+  // the pan AND, in custom mode, the outer option's extensions, which were
+  // sized for the full room the bench now takes a bite of. Only when nothing
+  // solves does "smaller" fall back to the plain largest-fitting-pan swap.
+  // With "overall max" on, the option arrived inset (applyCurbInset): the
+  // pan's space already gave up the curb, so benches subtract from THAT.
+  const inset = option && option.inset ? option.inset : null;
+  const panDims = inset
+    ? { w: round2(roomDims.w - inset.left - inset.right), d: round2(roomDims.d - inset.back - inset.entry) }
+    : roomDims;
+  const panRoom = benchPanRoom(benches, panDims);
+  const framedIn = panRoom.w < panDims.w - 0.01 || panRoom.d < panDims.d - 0.01;
+  const panPlan = benchPanPlan(pan, benches, panDims);
+  let floorPan = pan;
+  if (panPlan) {
+    floorPan = panPlan.option.pan;
+    const pp = panPlan.option.pieces[0];
+    const cutTxt = pp.cut ? ", cut to " + inch(pp.w) + "×" + inch(pp.d) + '"' : "";
+    panPlan.option.floorLines.forEach((fl, i) => {
+      push(lines, fl.item, fl.qty, "floor", i === 0
+        ? (fl.item.sizeText || "") + " — beside the framed bench" + cutTxt
+          + ", drain centered in the " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear space'
+        : "", true);
     });
+  } else {
+    let floorNote = pan.sizeText;
+    if (framedIn) {
+      const sw = benches.some((b) => b.build === "framed" && b.panFit === "smaller")
+        ? smallerPanFor(pan, panRoom.w, panRoom.d) : null;
+      if (sw) {
+        floorPan = sw;
+        floorNote = sw.sizeText + " — sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
+      } else floorNote = pan.sizeText + " — cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
+    }
+    push(lines, floorPan, 1, "floor", floorNote, true);
+    if (option) {
+      option.floorLines.forEach((fl) => {
+        if (fl.item.key === pan.key) return;
+        push(lines, fl.item, fl.qty, "floor", fl.note || "", true);
+      });
+    }
   }
   (opts.floorExtra || []).forEach((x) => {
     push(lines, x.key || x.item, x.qty || 1, "floor", x.note || "", false);
   });
   // A 2"-deep pan's extensions sit low — the kit carries the ½" sheet the
   // shop rips into build-up strips underneath them (owner practice).
-  if (option && panThick(pan) >= 1.9) {
-    const extSf = extensionSf(option);
+  const floorOpt = panPlan ? panPlan.option : option;
+  if (floorOpt && panThick(floorPan) >= 1.9) {
+    const extSf = extensionSf(floorOpt);
     const sheet = item(BUILDUP_SHEET);
     if (extSf > 0 && sheet && sheet.sf) {
       push(lines, sheet, Math.ceil(extSf / sheet.sf), "floor",
@@ -4519,17 +4863,20 @@ export function kitFor(panKey, opts) {
   push(lines, panel, sheets, "walls",
     round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
 
+  // --- benches ---------------------------------------------------------------
+  const bl = benchLines(benches, roomDims, panel);
+  bl.lines.forEach((l) => { lines.push(l); });
+
   // --- curb ------------------------------------------------------------------
   // The curb runs the room's OPEN perimeter — every edge run no wall covers —
-  // so turning a wall off (or shortening it) grows the curb to match.
-  const roomDims = room
-    || (pan.group === "module" ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
-      : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
-  const openLen = curbRuns(roomDims, walls, opts.corners).openLen || roomDims.w;
+  // minus what the benches take, so turning a wall off (or shortening it)
+  // grows the curb to match and a bench shrinks it.
+  const openLen = curbRuns(roomDims, walls, opts.corners, benches).openLen
+    || (benches.length ? 0 : roomDims.w);
   let curbKey = opts.curbKey;
   if (curbKey === undefined && fam === "fundo") curbKey = openLen > 60 ? SKU.curbLean96 : SKU.curbLean60;
   if (curbKey === undefined && fam === "linear") curbKey = SKU.curbLean60;
-  if (curbKey) {
+  if (curbKey && openLen > 0) {
     const curb = item(curbKey);
     const per = curb && curb.len ? curb.len : 0;
     const n = per ? Math.max(1, Math.ceil((openLen - 0.01) / per)) : 1;
@@ -4565,7 +4912,9 @@ export function kitFor(panKey, opts) {
   if (recess === "ramp") push(lines, SKU.ramp, 1, "install", "surface mount — ADA slope", true);
 
   // --- consumables + install -------------------------------------------------
-  const con = figureConsumables(panelSf, form);
+  // Bench surfaces (tops + faces, framed wraps) seal and fasten like wall
+  // panel; premades whose kit already includes the sealant contribute nothing.
+  const con = figureConsumables(panelSf + bl.surfSf, form);
   con.lines.forEach((l) => { lines.push(l); });
   push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
   push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
@@ -4597,15 +4946,17 @@ export function kitFor(panKey, opts) {
     curbKey: curbKey || null, coverKey: cover ? cover.key : null,
     sealantForm: form, recess: recess,
     addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
+    benches: benches.map((b) => ({ ...b })),
     corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
+    maxIn: !!opts.maxIn,
     tier: opts.tier || "retail",
   };
 
   return {
     pan: pan, lines: lines, panelSf: round2(panelSf), factory: factory, hints: hints,
     mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg,
-    consumables: con, soNet: round2(soNet),
+    consumables: con, soNet: round2(soNet), benches: benches, panPlan: panPlan,
   };
 }
 

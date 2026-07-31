@@ -6,6 +6,9 @@ import {
   tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
+  normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
+  BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
+  curbWidth, curbInsets, applyCurbInset, CURB_LAP, benchWallShadowSf,
 } from "./wedi.js";
 
 // Ported whole from the prototype's self-test
@@ -670,4 +673,190 @@ test("wedi helpers: factoryKit, linearCoverFor and the group index", () => {
   assert.equal(item("nope"), null);
   assert.deepEqual(lineItems(null), []);
   assert.deepEqual(solve({ w: 0, d: 60 }), []);
+});
+
+// --- benches (issue 069) ------------------------------------------------------
+
+const threeWallsB = [
+  { len: 60, h: 96, side: "back" }, { len: 36, h: 96, side: "left" }, { len: 36, h: 96, side: "right" },
+];
+const roomB = { w: 60, d: 36 };
+
+test("wedi benches: defaults and footprints follow the owner's measuring rules", () => {
+  const b = normBench({ kind: "wall", side: "left" }, roomB);
+  assert.equal(b.len, 36, "wall bench defaults to the full run");
+  assert.ok(b.depth === BENCH_DEPTH && b.h === BENCH_H && b.build === "site", '18" deep, 18" to the top, site-built');
+  const f = benchFootprint(b, roomB);
+  assert.deepEqual([f.x, f.y, f.w, f.d], [0, 0, 14, 36], "left bench: a 14\" strip the full depth");
+  const r = benchFootprint(normBench({ kind: "wall", side: "right", len: 24 }, roomB), roomB);
+  assert.deepEqual([r.x, r.y, r.w, r.d], [46, 0, 14, 24], "right bench anchors at the back");
+  const c = normBench({ kind: "corner", corner: "bl" }, roomB);
+  assert.ok(c.size === BENCH_CORNER_LEG && c.h === BENCH_H && !c.panFit, '24" legs, 18" top, never framed');
+  const cf = benchFootprint(c, roomB);
+  assert.ok(cf.kind === "corner" && cf.a === 24, "corner bench: legs out along each wall");
+  const pre = normBench({ kind: "corner", corner: "br", part: "US3000055" }, roomB);
+  assert.ok(pre.build === "premade" && pre.size === 24 && pre.h === BENCH_H,
+    'premade corner kit measures by its 24" legs — 18" to the top, the owner\'s floating-bench rule');
+});
+
+test("wedi benches: the curb gets smaller — the bench comes all the way out over it", () => {
+  const base = curbRuns(roomB, threeWallsB, []);
+  assert.equal(base.openLen, 60, "baseline: entry curb runs the full 60");
+  const left = [normBench({ kind: "wall", side: "left" }, roomB)];
+  const r1 = curbRuns(roomB, threeWallsB, [], left);
+  assert.equal(r1.segs.length, 1);
+  assert.ok(r1.segs[0].from === 14 && r1.segs[0].len === 46, "left bench takes 14\" off the entry run");
+  assert.equal(r1.openLen, 46);
+  const short = [normBench({ kind: "wall", side: "left", len: 30 }, roomB)];
+  assert.equal(curbRuns(roomB, threeWallsB, [], short).openLen, 60,
+    "a bench that stops short of the entry leaves the curb alone");
+  const back = [normBench({ kind: "wall", side: "back" }, roomB)];
+  assert.equal(curbRuns(roomB, threeWallsB, [], back).openLen, 60, "a back bench never touches the entry curb");
+  const fl = [normBench({ kind: "corner", corner: "fl" }, roomB)];
+  const r2 = curbRuns(roomB, threeWallsB, [], fl);
+  assert.ok(r2.segs[0].from === 24 && r2.openLen === 36, "an entry-corner bench trims its triangle off the curb");
+});
+
+test("wedi benches: site-built 2\" math — top, face, and a support about every foot", () => {
+  const wall = [normBench({ kind: "wall", side: "left" }, roomB)];   // 36×14×18
+  const bw = benchLines(wall, roomB, item(SKU.panelDefault));
+  // top 36×14 + face 36×18 + 4 supports (both ends + every foot) 12×16 = 1920 in²
+  assert.equal(bw.sf2, round2(1920 / 144), "13.33 sf of 2\" material");
+  assert.equal(bw.surfSf, 8, "top + face feed the sealant figuring");
+  assert.equal(bw.lines.length, 1);
+  assert.ok(bw.lines[0].item.key === "US8000020" && bw.lines[0].qty === 1,
+    "fits one 4×5×2\" sheet — no 4×8 needed");
+  const corner = [normBench({ kind: "corner", corner: "bl" }, roomB)];   // 24" legs
+  const bc = benchLines(corner, roomB, item(SKU.panelDefault));
+  // top 24²/2 + face 33.94×18 + 3 supports 10×16
+  assert.ok(near(bc.sf2, (288 + 24 * Math.SQRT2 * 18 + 3 * 160) / 144), "corner: triangle top, diagonal face");
+  const big = [normBench({ kind: "wall", side: "back", len: 60, depth: 24, h: 20 }, roomB)];
+  const bb = benchLines(big, roomB, item(SKU.panelDefault));
+  // top 1440 + face 1200 + 6 supports 22×18 = 5016 in² = 34.83 sf → one 4×8 + one 4×5
+  assert.equal(bb.lines.length, 2);
+  assert.ok(bb.lines[0].item.key === "US8000016" && bb.lines[0].qty === 1 && bb.lines[1].item.key === "US8000020",
+    "over one sheet: 4×8s first, a 4×5 finishes the remainder");
+});
+
+test("wedi benches: premades are one line; included sealant doesn't double", () => {
+  const pres = benchPremades("corner");
+  assert.ok(pres.length >= 2 && pres.every((e) => /corner/i.test(e.name)), "corner premades are the corner kits");
+  assert.ok(benchPremades("wall").some((e) => e.key === "US3000056"), "the 48\" bench kit files under wall");
+  const kit = [normBench({ kind: "corner", corner: "bl", part: "US3000055" }, roomB)];
+  const bk = benchLines(kit, roomB, item(SKU.panelDefault));
+  assert.ok(bk.lines.length === 1 && bk.lines[0].item.key === "US3000055" && bk.lines[0].qty === 1);
+  assert.equal(bk.surfSf, 0, "the kit includes wedi Joint Sealant — nothing extra to figure");
+  const san = [normBench({ kind: "wall", side: "back", part: "US3000043" }, roomB)];
+  assert.ok(benchLines(san, roomB, null).surfSf > 0, "a Sanoasa bench still takes sealant to set");
+});
+
+test("wedi benches: framed — ½\" wrap, and the pan is cut down or swapped smaller", () => {
+  const framed = [normBench({ kind: "wall", side: "left", build: "framed" }, roomB)];
+  assert.equal(framed[0].panFit, "cut", "framed defaults to cutting the current pan");
+  assert.deepEqual(benchPanRoom(framed, roomB), { w: 46, d: 36 }, "a 14\" framed bench leaves 46×36 clear");
+  const bf = benchLines(framed, roomB, item(SKU.panelDefault));
+  // wrap: top 504 + face 648 + open end 252 = 9.75 sf → one 3×5×½ sheet
+  assert.ok(near(bf.wrapSf, 9.75) && bf.lines.length === 1 && bf.lines[0].item.key === SKU.panelDefault,
+    "the wrap figures in the build's own ½\" panel");
+  const kCut = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
+  assert.ok(kCut.lines[0].item.key === "US9100004" && /cut to 46×36/.test(kCut.lines[0].note),
+    "panFit 'cut' keeps the pan and notes the cut");
+  const sw = smallerPanFor(item("US9100004"), 46, 36);
+  assert.ok(sw && sw.sub === "fundo" && Math.max(sw.w, sw.d) <= 46.01 && Math.min(sw.w, sw.d) <= 36.01,
+    "smallerPanFor (the no-solve fallback) still names the largest fitting same-family pan");
+});
+
+test("wedi benches: a framed bench's framing shadow leaves the wall figure", () => {
+  // No wedi runs behind an installer-framed bench — the panel stops at the
+  // bench top (the default bench runs the full 36" left wall × 18" high =
+  // 4.5 sf) and the ½" wrap files under the bench group instead. Site-built
+  // benches shadow nothing: the wall stays fully paneled behind them.
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  const framed = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
+  const site = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left" }] });
+  assert.ok(near(plain.panelSf - framed.panelSf, 4.5), "framed: 36×18 shadow leaves the wall sf");
+  assert.equal(site.panelSf, plain.panelSf, "site-built: wall fully paneled behind the bench");
+});
+
+// --- curb inside the stated dims ("overall max", owner ask 2026-07-30) -------
+
+test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fits", () => {
+  // Owner's cross-sections (2026-07-30): the lean curb is 2½" across the
+  // top, notched ½" over the pan — it ADDS 2". The standard/full-foam is
+  // 4½" across — adds 4". So a 36"-deep shower with the lean curb inside
+  // runs a 34" pan, drain centered at 17" off the back wall.
+  assert.equal(curbWidth(SKU.curbLean60), 2.5, 'a lean curb is 2½" across the top');
+  assert.equal(curbWidth("US3000039"), 4.5, 'a full-foam curb is 4½" across');
+  const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60);
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 2, cw: 2.5 },
+    "three walls: the entry gives up curb width minus the ½\" pan lap — the lean adds 2\"");
+  assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60), null,
+    "fully walled: nothing to inset");
+  const sub = solve({ w: 60, d: 34, curb: "curbed", drain: "center", tolerance: 0.51 });
+  assert.ok(sub.length, "the reduced 60×34 room still solves");
+  assert.ok(near(sub[0].drain.x, 30) && near(sub[0].drain.y, 17),
+    "drain centered between the back wall and the curb — 17\" off the back");
+  const o = applyCurbInset(sub[0], ins, roomB);
+  assert.deepEqual(o.room, { w: 60, d: 36 }, "the option re-bases into the full stated footprint");
+  assert.ok(o.pieces.every((p) => p.y + p.d <= 34.01), "every piece stops at the curb's notch line");
+  assert.deepEqual(o.inset, ins, "the inset rides along for the drawings");
+  // walls and the curb run keep figuring on the FULL room — and the wedi
+  // wall figure never grows past the stated line for the curb's sake
+  const k = kitFor(o.pan.key, { option: o, walls: threeWallsB, maxIn: true });
+  assert.ok(k.lines.some((l) => l.item.group === "curb"), "the curb still spans the full opening");
+  assert.equal(k.cfg.maxIn, true, "cfg carries the mode for Reconfigure");
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  assert.equal(k.panelSf, plain.panelSf,
+    "wall wedi figures to the stated line (the curb's front face) — never extra for the curb");
+});
+
+test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {
+  // 60×36 shower, 14" framed bench on the left → 46×36 clear; the solver
+  // places a pan so the drain lands dead center of THAT space (owner ask
+  // 2026-07-30), and the layout shifts past the bench in the drawings.
+  const framedSm = [normBench({ kind: "wall", side: "left", build: "framed", panFit: "smaller" }, roomB)];
+  const plan = benchPanPlan(item("US9100004"), framedSm, roomB);
+  assert.ok(plan, "the 46×36 clear space solves");
+  assert.deepEqual(plan.clear, { w: 46, d: 36 });
+  assert.deepEqual(plan.offset, { x: 14, y: 0 }, "the clear space starts past the 14\" bench");
+  assert.ok(near(plan.option.drain.x, 23) && near(plan.option.drain.y, 18), "drain at the clear-space center");
+  plan.option.pieces.forEach((p) => {
+    assert.ok(p.x >= -0.01 && p.y >= -0.01 && p.x + p.w <= 46.01 && p.y + p.d <= 36.01,
+      "every piece stays inside the clear space");
+  });
+  const kSm = kitFor("US9100004", {
+    walls: threeWallsB,
+    benches: [{ kind: "wall", side: "left", build: "framed", panFit: "smaller" }],
+  });
+  assert.ok(kSm.panPlan, "kitFor carries the plan out for the drawings");
+  assert.equal(kSm.lines[0].item.key, kSm.panPlan.option.pan.key, "the floor line is the solved pan");
+  assert.ok(/drain centered in the 46×36" clear space/.test(kSm.lines[0].note), "…and the note says why");
+  // A bench never shrinks the SHOWER: the walls still run the full room —
+  // only the framed bench's own 36×18 framing shadow leaves the figure.
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  assert.ok(near(plain.panelSf - kSm.panelSf, 4.5), "wall panel = full shower walls minus the framing shadow");
+  // 'cut' is untouched by the solver path
+  const kCut = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left", build: "framed" }] });
+  assert.equal(kCut.panPlan, null, "panFit 'cut' never re-solves");
+  // and the whole thing still round-trips through cfg
+  const again = kitFor("US9100004", { walls: threeWallsB, benches: kSm.cfg.benches });
+  assert.deepEqual(again.lines.map((l) => [l.item.key, l.qty]), kSm.lines.map((l) => [l.item.key, l.qty]),
+    "cfg round-trips the framed-smaller build");
+});
+
+test("wedi benches: kitFor files the group, shrinks the curb, feeds the sealant, round-trips cfg", () => {
+  const plain = kitFor("US9100004", { walls: threeWallsB });
+  const k = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left" }] });
+  const bench = k.lines.filter((l) => l.group === "bench");
+  assert.ok(bench.length === 1 && bench[0].item.key === "US8000020", "site bench lands one 2\" sheet in its own group");
+  const curb = k.lines.filter((l) => l.item.group === "curb")[0];
+  assert.ok(/46/.test(curb.note), "the curb line is figured at the shortened 46\"");
+  const seal = (b) => b.lines.filter((l) => l.item.group === "sealant")[0].qty;
+  assert.ok(seal(k) >= seal(plain), "bench surface joins the sealant figuring");
+  assert.equal(k.cfg.benches.length, 1, "cfg carries the bench for Reconfigure");
+  const again = kitFor("US9100004", { walls: threeWallsB, benches: k.cfg.benches });
+  assert.deepEqual(
+    again.lines.map((l) => [l.item.key, l.qty]), k.lines.map((l) => [l.item.key, l.qty]),
+    "cfg.benches round-trips to the identical build");
+  assert.equal(kitFor("US9100004", { walls: threeWallsB }).cfg.benches.length, 0, "no benches → cfg says so");
 });

@@ -12,14 +12,16 @@
 // here pre-filled.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Printer, Copy } from "lucide-react";
+import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, CURB_W, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, CURB_W, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, inch, round2, TIERS, SKU,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
+  normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
+  BENCH_DEPTH, BENCH_CORNER_LBL,
 } from "./wedi.js";
 
 const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -196,7 +198,8 @@ const CSS = `
 .wedi-pop .totrow .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .totrow .sell{margin-left:auto;text-align:right}
 .wedi-pop .totrow .sell .v{font-size:22px}
-.wedi-pop .marginrow{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;display:flex}
+.wedi-pop .marginrow{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px;width:100%;background:none;border:0;padding:0;font-family:inherit;text-align:left;cursor:pointer}
+.wedi-pop .marginrow:hover{color:var(--ft-text)}
 .wedi-pop .marginrow span{margin-left:auto}
 .wedi-pop .btnrow{display:flex;gap:7px;margin-top:9px}
 .wedi-pop .wbtn{flex:1;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:12px;font-weight:800;padding:9px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
@@ -229,6 +232,11 @@ const CSS = `
 .wedi-wallmenu .wm-act{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:var(--ft-text);padding:3px 8px;cursor:pointer}
 .wedi-wallmenu .wm-act:hover{border-color:var(--ft-brand)}
 .wedi-wallmenu .wm-note{font-size:9px;color:var(--ft-faint);font-weight:600;padding:3px 2px 0;line-height:1.4}
+.wedi-benchmenu{width:300px}
+.wedi-benchmenu .bm-opt{display:block;width:100%;text-align:left;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:7px;padding:7px 9px;cursor:pointer;margin:4px 0;color:var(--ft-text)}
+.wedi-benchmenu .bm-opt:hover{border-color:var(--ft-brand)}
+.wedi-benchmenu .bm-opt b{display:block;font-size:11px;font-weight:800}
+.wedi-benchmenu .bm-opt small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600;line-height:1.35;margin-top:1px}
 
 .wedi-pop .ptable{width:100%;border-collapse:collapse;font-size:11.5px}
 .wedi-pop .ptable th{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-muted);text-align:left;padding:4px 8px;border-bottom:1px solid var(--ft-border-strong)}
@@ -311,7 +319,7 @@ const browseName = (e) => unwedi(stripSize(e.name, e.sizeText))
 const browseSub = (e) => [finName(e), GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
   .filter(Boolean).join(" · ");
 
-const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
+const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["bench", "Bench"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
 const BUCKET_OF = {
   pan: "floor", module: "floor", modExt: "floor", extension: "floor", cornerExt: "floor", ramp: "floor",
   curb: "floor", kit: "floor", panel: "walls", cover: "drain", coverFrame: "drain", drainKit: "drain",
@@ -365,9 +373,13 @@ function topGeom(o, W_, H_, mini) {
 // ticked on them, the pieces with their cut edges dashed, curb runs on the
 // open edges, the drain (with the plumber's two measurements when it was
 // pinned), 45° corner cuts chamfered off the pan, and dimensions.
-function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placing, onCorner, onEdge, onWallMenu }) {
+function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curbs, curbDiags, placing, onCorner, onEdge, onWallMenu, onBenchMenu }) {
   const g = topGeom(o, w, h, mini);
   const { ox, oy, sc, rw, rd } = g;
+  // The pan divides into bench zones (owner spec, issue 069): a band along
+  // each walled side and a box at each corner. Hover previews the footprint,
+  // click or right-click opens the bench menu for that spot.
+  const [benchZone, setBenchZone] = useState(null);
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
   // Walls draw at their true 4" framing depth (owner sketch 2026-07-30);
   // the thumbnails keep a hairline band.
@@ -485,6 +497,48 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
     });
   }
 
+  // Benches draw over the pan. A wall bench reaching the entry runs on out
+  // over the curb line ("all the way out — the curb becomes smaller"); a
+  // framed bench marks the pan cut along its face in the same rust dash a
+  // cut-down pan wears.
+  const BENCH_CORNER_TRI = {
+    bl: (a) => [[0, 0], [a, 0], [0, a]], br: (a) => [[rw, 0], [rw - a, 0], [rw, a]],
+    fl: (a) => [[0, rd], [a, rd], [0, rd - a]], fr: (a) => [[rw, rd], [rw - a, rd], [rw, rd - a]],
+  };
+  const benchTag = (b) => (b.build === "premade" ? (item(b.part) || {}).us || "premade"
+    : b.build === "framed" ? "framed · ½\" wrap" : '2" wedi');
+  (benches || []).forEach((b, bi) => {
+    if (mini) return;
+    const f = benchFootprint(b, o.room);
+    if (f.kind === "corner") {
+      const pts = BENCH_CORNER_TRI[f.corner](f.a);
+      push(<polygon key={`bn${bi}`} points={pts.map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
+        fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
+      const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3;
+      push(<text key={`bnt${bi}`} x={X(cx)} y={Y(cy) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT}>{inch(f.a) + '"'}</text>);
+      return;
+    }
+    const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
+      fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
+    if (b.build === "framed" && !framedFit) {
+      const fx = b.side === "left" ? f.x + f.w : b.side === "right" ? f.x : null;
+      if (fx != null) push(<line key={`bnc${bi}`} x1={X(fx)} y1={Y(0)} x2={X(fx)} y2={Y(rd)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
+      else push(<line key={`bnc${bi}`} x1={X(f.x)} y1={Y(f.d)} x2={X(f.x + f.w)} y2={Y(f.d)} stroke={RUST} strokeWidth="2" strokeDasharray="5 3" />);
+    }
+    const horiz = b.side === "back";
+    const cx = X(f.x + f.w / 2), cy = Y(f.y + (f.d + out) / 2);
+    const lbl = "BENCH " + (horiz ? inch(f.w) : inch(f.d)) + "×" + (horiz ? inch(f.d) : inch(f.w)) + '"';
+    if ((horiz ? f.w : f.d) * sc >= 40) {
+      push(horiz
+        ? <text key={`bnt${bi}`} x={cx} y={cy - 2} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT} letterSpacing=".5">{lbl}</text>
+        : <text key={`bnt${bi}`} x={cx} y={cy} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT} letterSpacing=".5" transform={`rotate(-90 ${cx} ${cy})`}>{lbl}</text>);
+      push(horiz
+        ? <text key={`bns${bi}`} x={cx} y={cy + 8} textAnchor="middle" fontSize="6.5" fontWeight="600" fill={MUTED} fontFamily={FONT}>{benchTag(b)}</text>
+        : <text key={`bns${bi}`} x={cx + 9} y={cy} textAnchor="middle" fontSize="6.5" fontWeight="600" fill={MUTED} fontFamily={FONT} transform={`rotate(-90 ${cx + 9} ${cy})`}>{benchTag(b)}</text>);
+    }
+  });
+
   if (!mini) {
     const CGEOM = { bl: [0, 0, 1, 1], br: [rw, 0, -1, 1], fl: [0, rd, 1, -1], fr: [rw, rd, -1, -1] };
     // Corner cuts: the pan keeps its full size and the rust dashed line marks
@@ -511,10 +565,29 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
     // engine's ext0/ext1 fill the open ring corners so runs meet square with
     // no gap, and a cut corner's curb takes the one straight line across.
     const cw = round2(CURB_W * sc);
+    const ins = o.inset || null;
     (curbs || []).forEach((cs, ci) => {
       const horiz = cs.side === "back" || cs.side === "entry";
       const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
       if (!(len > 0)) return;
+      // "overall max": this edge's curb sits INSIDE the stated line, lapping
+      // the pan by its ½" — the band draws at the curb's real width.
+      if (ins && ins[cs.side] > 0) {
+        const cwr = round2(ins.cw * sc);
+        if (horiz) {
+          const y0 = cs.side === "back" ? Y(0) : Y(rd) - cwr;
+          push(<rect key={`cb${ci}`} x={X(cs.from)} y={y0} width={round2(len * sc)} height={cwr} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+          if (len * sc > 34) push(<text key={`cbt${ci}`} x={X(cs.from + len / 2)} y={y0 + cwr / 2 + 2.5} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5">CURB</text>);
+        } else {
+          const x0 = cs.side === "left" ? X(0) : X(rw) - cwr;
+          push(<rect key={`cb${ci}`} x={x0} y={Y(cs.from)} width={cwr} height={round2(len * sc)} fill="#E9E3D3" stroke={MUTED} strokeWidth="1" />);
+          if (len * sc > 34) {
+            const tx = x0 + cwr / 2, ty = Y(cs.from + len / 2) + 2.5;
+            push(<text key={`cbt${ci}`} x={tx} y={ty} textAnchor="middle" fontSize="7" fontWeight="700" fill={MUTED} fontFamily={FONT} letterSpacing="1.5" transform={`rotate(-90 ${tx} ${ty})`}>CURB</text>);
+          }
+        }
+        return;
+      }
       if (horiz) {
         const extL = round2(cs.ext0 * sc), extR = round2(cs.ext1 * sc);
         const y0 = cs.side === "back" ? Y(0) - cw : Y(rd);
@@ -575,25 +648,81 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
     push(<line key="dd" x1={dx} y1={Y(0)} x2={dx} y2={Y(rd)} stroke={FAINT} strokeWidth="1" />);
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
-    push(<text key="ent" x={X(rw / 2)} y={Y(rd) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
+    push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? o.inset.cw : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
   }
 
-  const clickable = !mini && (onCorner || onEdge);
-  const click = (ev) => {
+  // Bench zones. The tight 10" corner radius keeps the corner-CUT toggle;
+  // past it — but still on the pan — the corner boxes and the side bands are
+  // bench territory, previewed on hover.
+  const zoneKey = (z) => (z ? z.kind + ":" + (z.side || z.corner) : "");
+  const zoneAt = (x, y) => {
+    if (!onBenchMenu || x < -1 || y < -1 || x > rw + 1 || y > rd + 1) return null;
+    // the tight radius right at a corner stays the corner-CUT toggle
+    if (Math.hypot(x, y) < 10 || Math.hypot(x - rw, y) < 10 || Math.hypot(x, y - rd) < 10 || Math.hypot(x - rw, y - rd) < 10) return null;
+    const cz = 15;
+    if (x < cz && y < cz) return { kind: "corner", corner: "bl" };
+    if (x > rw - cz && y < cz) return { kind: "corner", corner: "br" };
+    if (x < cz && y > rd - cz) return { kind: "corner", corner: "fl" };
+    if (x > rw - cz && y > rd - cz) return { kind: "corner", corner: "fr" };
+    const cand = [["back", y], ["left", x], ["right", rw - x]].filter((c) => c[1] <= BENCH_DEPTH);
+    if (!cand.length) return null;
+    cand.sort((a, c) => a[1] - c[1]);
+    return { kind: "wall", side: cand[0][0] };
+  };
+  if (!mini && benchZone && !placing && !(benches || []).some((b) => zoneKey(b) === zoneKey(benchZone))) {
+    const f = benchFootprint(normBench(benchZone, o.room), o.room);
+    const zf = "rgba(87,112,58,.15)";
+    if (f.kind === "corner") {
+      const pts = BENCH_CORNER_TRI[f.corner](f.a);
+      push(<polygon key="bz" points={pts.map((p) => X(p[0]) + "," + Y(p[1])).join(" ")} fill={zf} stroke={MOSS} strokeWidth="1.2" strokeDasharray="4 3" />);
+      push(<text key="bzt" x={X((pts[0][0] + pts[1][0] + pts[2][0]) / 3)} y={Y((pts[0][1] + pts[1][1] + pts[2][1]) / 3) + 3}
+        textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS} fontFamily={FONT}>+ bench</text>);
+    } else {
+      push(<rect key="bz" x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc)} fill={zf} stroke={MOSS} strokeWidth="1.2" strokeDasharray="4 3" />);
+      push(<text key="bzt" x={X(f.x + f.w / 2)} y={Y(f.y + f.d / 2) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS} fontFamily={FONT}>+ bench</text>);
+    }
+  }
+
+  const clickable = !mini && (onCorner || onEdge || onBenchMenu);
+  const ptIn = (ev) => {
     const r = ev.currentTarget.getBoundingClientRect();
-    const x = ((ev.clientX - r.left) * (w / r.width) - ox) / sc;
-    const y = ((ev.clientY - r.top) * (h / r.height) - oy) / sc;
+    return {
+      x: ((ev.clientX - r.left) * (w / r.width) - ox) / sc,
+      y: ((ev.clientY - r.top) * (h / r.height) - oy) / sc,
+    };
+  };
+  const click = (ev) => {
+    const { x, y } = ptIn(ev);
     const near = 10;
     const corner = Math.hypot(x, y) < near ? "bl" : Math.hypot(x - rw, y) < near ? "br"
       : Math.hypot(x, y - rd) < near ? "fl" : Math.hypot(x - rw, y - rd) < near ? "fr" : null;
     if (corner) { onCorner?.(corner); return; }
-    if (!placing) return;
-    const dists = [["back", Math.abs(y)], ["entry", Math.abs(y - rd)], ["left", Math.abs(x)], ["right", Math.abs(x - rw)]];
-    dists.sort((a, b) => a[1] - b[1]);
-    onEdge?.(dists[0][0], { rw, rd });
+    if (placing) {
+      const dists = [["back", Math.abs(y)], ["entry", Math.abs(y - rd)], ["left", Math.abs(x)], ["right", Math.abs(x - rw)]];
+      dists.sort((a, b) => a[1] - b[1]);
+      onEdge?.(dists[0][0], { rw, rd });
+      return;
+    }
+    const z = zoneAt(x, y);
+    if (z) onBenchMenu(z, ev.clientX, ev.clientY);
+  };
+  const ctx = (ev) => {
+    const { x, y } = ptIn(ev);
+    const z = zoneAt(x, y);
+    if (!z) return;
+    ev.preventDefault();
+    onBenchMenu(z, ev.clientX, ev.clientY);
+  };
+  const move = (ev) => {
+    const { x, y } = ptIn(ev);
+    const z = zoneAt(x, y);
+    setBenchZone((cur) => (zoneKey(cur) === zoneKey(z) ? cur : z));
   };
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} onClick={clickable ? click : undefined}
+      onContextMenu={!mini && onBenchMenu ? ctx : undefined}
+      onMouseMove={!mini && onBenchMenu ? move : undefined}
+      onMouseLeave={!mini && onBenchMenu ? () => setBenchZone(null) : undefined}
       style={clickable ? { cursor: placing ? "crosshair" : "pointer" } : undefined}>{els}</svg>
   );
 }
@@ -602,7 +731,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, cuts, curbs, curbDiags, placin
 // plan's level courses and butt joints dotted on the inner faces, the pieces
 // as thick slabs. Walls in FRONT of the shower (entry + right side) draw
 // clear — dashed edges, no body — so they never hide the pan.
-function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) {
+function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbDiags, onWallMenu }) {
   const rw = o.room.w, rd = o.room.d;
   const dw = dWalls || [];
   const T = WALL_THICK;
@@ -623,6 +752,16 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
 
   els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
 
+  const spanOf = (side) => dw.reduce((m, x) => (x.side === side
+    ? Math.max(m, Math.min(x.len, side === "left" || side === "right" ? rd : rw)) : m), 0);
+  // Each ring corner cube belongs to exactly ONE slab: the back/entry walls run
+  // through their corners and the side walls butt into their faces. Two slabs
+  // claiming the same cube is what crossed the strokes at the apex.
+  const backSpan = spanOf("back"), entrySpan = spanOf("entry");
+  const owns = {
+    bl: backSpan > 0.5, br: backSpan >= rw - 0.5,
+    fl: entrySpan > 0.5, fr: entrySpan >= rw - 0.5,
+  };
   const geomOf = (wl) => {
     const vert = wl.side === "left" || wl.side === "right";
     const span = Math.min(wl.len, vert ? rd : rw);
@@ -631,17 +770,25 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
     const full = span >= (vert ? rd : rw) - 0.5;
     if (wl.side === "back") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: -T, y1: 0 };
     if (wl.side === "entry") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: rd, y1: rd + T };
-    if (wl.side === "left") return { span, zh, x0: -T, x1: 0, y0: -T, y1: span + (full ? T : 0) };
-    return { span, zh, x0: rw, x1: rw + T, y0: -T, y1: span + (full ? T : 0) };
+    const left = wl.side === "left";
+    const butt = full && (left ? owns.fl : owns.fr);
+    return {
+      span, zh, butt,
+      x0: left ? -T : rw, x1: left ? 0 : rw + T,
+      y0: (left ? owns.bl : owns.br) ? 0 : -T,
+      y1: span + (full && !butt ? T : 0),
+    };
   };
-  // Panel joints dot the wall's INNER face — the plane the wedi actually
-  // lands on. Light on the solid walls, ink on the clear front ones.
+  // The face this camera reads as "the wall": the inner plane on the solid
+  // back/left, the outer plane on the clear front walls so the wedi green and
+  // the joint dots land on the same drawn surface.
+  const faceAt = (wl) => (wl.side === "back" ? (u, z) => M(u, 0, z)
+    : wl.side === "entry" ? (u, z) => M(u, rd + T, z)
+      : wl.side === "left" ? (u, z) => M(0, u, z)
+        : (u, z) => M(rw + T, u, z));
   const jointsOf = (wl, g, isFront, tag) => {
-    const pt = wl.side === "back" ? (u, z) => M(u, 0, z)
-      : wl.side === "entry" ? (u, z) => M(u, rd, z)
-        : wl.side === "left" ? (u, z) => M(0, u, z)
-          : (u, z) => M(rw, u, z);
-    const colr = isFront ? seamCol : "rgba(246,243,236,.8)";
+    const pt = faceAt(wl);
+    const colr = seamCol;
     (wl.courses || []).forEach((c, ci) => {
       const top = Math.min(c.y0 + c.ch, g.zh);
       if (c.y0 > 0 && c.y0 < g.zh) {
@@ -657,21 +804,59 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
       });
     });
   };
+  // Which part of a wall's big face actually carries wedi (owner ask
+  // 2026-07-30): the whole face, minus the framing shadow of an
+  // installer-framed bench on that side — the panel stops at the bench top
+  // and the bench's own ½" wrap takes over. A 2" build-up or premade bench
+  // leaves the wall fully paneled behind it, so it casts no shadow.
+  const framedShadow = (side) => {
+    let L = 0, H = 0;
+    (benches || []).forEach((b) => {
+      if (b.kind !== "wall" || b.build !== "framed" || b.side !== side) return;
+      L = Math.max(L, b.len); H = Math.max(H, b.h);
+    });
+    return L > 0 && H > 0 ? { L, H } : null;
+  };
+  const WEDI_FILL = PIECE_FILL.pan, WEDI_FILL_CLEAR = "rgba(220,229,205,.4)";
   // A wall as a slab: the three faces this camera sees (+x, +y, top). Front
-  // walls draw the same three faces clear with dashed edges.
+  // walls draw the same three faces clear with dashed edges. The face the
+  // viewer reads as "the wall" then paints its wedi-covered region in the
+  // pan green + a fine 45° hatch — bare framing stays dark (solid walls)
+  // or clear (front walls), which is exactly the framed-bench shadow.
   const wallEls = (wl, wi) => {
     const g = geomOf(wl);
     if (!g) return;
     const isFront = wl.side === "entry" || wl.side === "right";
     const { x0, x1, y0, y1, zh } = g;
     const faceE = str([M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, 0), M(x1, y0, 0)]);
-    const faceS = str([M(x0, y1, zh), M(x1, y1, zh), M(x1, y1, 0), M(x0, y1, 0)]);
+    // a side wall running into the entry wall has no exposed far end
+    const faceS = g.butt ? null : str([M(x0, y1, zh), M(x1, y1, zh), M(x1, y1, 0), M(x0, y1, 0)]);
     const faceT = str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)]);
     const mp = onWallMenu ? {
       className: "wband",
       onContextMenu: (ev) => { ev.preventDefault(); ev.stopPropagation(); onWallMenu({ wid: wl.wid, extra: !!wl.extra }, ev.clientX, ev.clientY); },
     } : {};
     const title = onWallMenu ? <title>right-click — wall size &amp; wedi faces</title> : null;
+    const facePt = faceAt(wl);
+    // the panelled run is this slab's own extent — now that a ring corner
+    // belongs to one wall, its return is this wall's face too
+    const horiz = wl.side === "back" || wl.side === "entry";
+    const u0 = horiz ? x0 : y0, u1 = horiz ? x1 : y1;
+    const sh = framedShadow(wl.side);
+    // One outline for the covered region — the framed bench's shadow notches it
+    // into an L. Two abutting rectangles would stroke a seam where the panel
+    // is continuous.
+    const L = sh ? Math.max(u0, Math.min(sh.L, u1)) : u0;
+    const uz = !sh || sh.H >= zh - 0.5 ? [[L, 0], [u1, 0], [u1, zh], [L, zh]]
+      : L >= u1 - 0.5 ? [[u0, sh.H], [u1, sh.H], [u1, zh], [u0, zh]]
+        : [[L, 0], [u1, 0], [u1, zh], [u0, zh], [u0, sh.H], [L, sh.H]];
+    const face = str(uz.map((p) => facePt(p[0], p[1])));
+    const cover = (
+      <g key="cv" pointerEvents="none">
+        <polygon points={face} fill={isFront ? WEDI_FILL_CLEAR : WEDI_FILL} stroke={isFront ? "none" : wallLine} strokeWidth=".5" />
+        <polygon points={face} fill="url(#wedi-hatch)" />
+      </g>
+    );
     if (isFront) {
       // pointer-events on the stroke only: a clear wall's body must not
       // swallow right-clicks meant for the solid walls and pan behind it.
@@ -680,8 +865,9 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
         <g key={`w${wi}`} {...mp}>
           {title}
           <polygon points={faceE} {...dash} />
-          <polygon points={faceS} {...dash} />
+          {faceS ? <polygon points={faceS} {...dash} /> : null}
           <polygon points={faceT} {...dash} />
+          {cover}
         </g>);
     } else {
       const tones = wl.extra ? ["#46592F", "#57703A", "#68804A"] : ["#454239", "#57534C", "#6B665D"];
@@ -689,15 +875,47 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
         <g key={`w${wi}`} {...mp}>
           {title}
           <polygon points={faceE} fill={wl.side === "left" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
-          <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" />
+          {faceS ? <polygon points={faceS} fill={wl.side === "back" ? tones[1] : tones[0]} stroke={wallLine} strokeWidth=".7" /> : null}
           <polygon points={faceT} fill={tones[2]} stroke={wallLine} strokeWidth=".8" />
+          {cover}
         </g>);
     }
     jointsOf(wl, g, isFront, wi);
   };
-  dw.forEach((wl, wi) => { if (!(wl.side === "entry" || wl.side === "right")) wallEls(wl, wi); });
+  // Back/entry first inside each pass: they own the ring corners, so the side
+  // wall's inner face has to land on top of the corner return behind it.
+  const solidW = [], clearW = [];
+  dw.forEach((wl, wi) => { (wl.side === "entry" || wl.side === "right" ? clearW : solidW).push([wl, wi]); });
+  const wallRank = (p) => (p[0].side === "back" || p[0].side === "entry" ? 0 : 1);
+  solidW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
 
   const t = 4;
+  // Curb runs as raised slabs in the wall ring, butted between the wall
+  // sections — the engine's ext0/ext1 fill the open ring corners so runs meet
+  // square. The camera looks down (1,1,1): a back/left run is BEHIND the pan
+  // and has to be painted before it, or its body floats over the pan surface.
+  const CBH = 4.5;
+  const insI = o.inset || null;
+  const curbEls = (cs, ci) => {
+    const horiz = cs.side === "back" || cs.side === "entry";
+    const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
+    if (!(len > 0)) return;
+    // "overall max": the curb sits inside the stated line at its real width,
+    // lapping the pan by its ½" — no ring-corner ext fills inside.
+    const inEdge = insI && insI[cs.side] > 0;
+    const cwv = inEdge ? insI.cw : CURB_W;
+    const x0 = horiz ? cs.from - (inEdge ? 0 : cs.ext0)
+      : (cs.side === "left" ? (inEdge ? 0 : -CURB_W) : rw - (inEdge ? cwv : 0));
+    const y0 = horiz ? (cs.side === "back" ? (inEdge ? 0 : -CURB_W) : rd - (inEdge ? cwv : 0)) : cs.from;
+    const x1 = horiz ? cs.from + len + (inEdge ? 0 : cs.ext1) : x0 + cwv;
+    const y1 = horiz ? y0 + cwv : cs.from + len;
+    els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+  };
+  const behind = (cs) => cs.side === "back" || cs.side === "left";
+  (curbs || []).forEach((cs, ci) => { if (behind(cs)) curbEls(cs, ci); });
+
   o.pieces.slice().sort((a, b) => (a.x + a.y) - (b.x + b.y)).forEach((p, i) => {
     const f = PIECE_FILL[p.kind] || "#EFF3E6", side = PIECE_SIDE[p.kind] || "#D8DFC4";
     els.push(<polygon key={`e${i}`} points={str([M(p.x + p.w, p.y, t), M(p.x + p.w, p.y + p.d, t), M(p.x + p.w, p.y + p.d, 0), M(p.x + p.w, p.y, 0)])} fill={side} stroke={INK} strokeWidth=".8" />);
@@ -737,37 +955,6 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
     els.push(<line key={`cfl${d.corner}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={RUST} strokeWidth="1.6" strokeDasharray="5 3" />);
   });
 
-  // Curb runs as raised slabs in the wall ring, butted between the wall
-  // sections — the engine's ext0/ext1 fill the open ring corners so runs
-  // meet square; a cut corner's curb takes the one straight line across.
-  const CBH = 4.5;
-  (curbs || []).forEach((cs, ci) => {
-    const horiz = cs.side === "back" || cs.side === "entry";
-    const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
-    if (!(len > 0)) return;
-    const x0 = horiz ? cs.from - cs.ext0 : (cs.side === "left" ? -CURB_W : rw);
-    const y0 = horiz ? (cs.side === "back" ? -CURB_W : rd) : cs.from;
-    const x1 = horiz ? cs.from + len + cs.ext1 : x0 + CURB_W;
-    const y1 = horiz ? y0 + CURB_W : cs.from + len;
-    els.push(<polygon key={`cbe${ci}`} points={str([M(x1, y0, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x1, y0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cbs${ci}`} points={str([M(x0, y1, CBH), M(x1, y1, CBH), M(x1, y1, 0), M(x0, y1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cbt${ci}`} points={str([M(x0, y0, CBH), M(x1, y0, CBH), M(x1, y1, CBH), M(x0, y1, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
-  });
-  (curbDiags || []).forEach((d, i) => {
-    const g2 = CGEOM[d.corner];
-    if (!g2) return;
-    const [cx, cy, dx, dy] = g2;
-    // ends squared to the edges (owner sketch): the band butts the walls and
-    // straight runs flush, its outer edge the piece's longest point
-    const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
-    const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
-    els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cda${i}`} points={str([M(ax, ay, CBH), M(a2x, a2y, CBH), M(a2x, a2y, 0), M(ax, ay, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdb${i}`} points={str([M(bx, by, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(bx, by, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
-  });
-
   const dr = o.drain;
   if (dr) {
     if (dr.type === "linear" && dr.len) {
@@ -781,13 +968,97 @@ function Iso({ o, w, h, dWalls, panelFit, cuts, curbs, curbDiags, onWallMenu }) 
       els.push(<polygon key="dr2" points={str([M(dr.x - 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y - 0.7, t + 0.1), M(dr.x + 0.7, dr.y + 0.7, t + 0.1), M(dr.x - 0.7, dr.y + 0.7, t + 0.1)])} fill={INK} />);
     }
   }
+  // Benches as slabs to their real top height (issue 069 follow-up). A
+  // site-built or premade bench's faces land on the pan surface — the pan
+  // runs underneath — while a framed bench meets the floor beside the cut
+  // pan and re-marks the pan cut in rust at its base, like the plan view.
+  // Corner benches are triangular prisms. Drawn BEFORE the entry/right curb
+  // runs: the shortened curb butts the bench's face, so its body stands in
+  // front of the bench's lower front corner, not the other way around
+  // (owner markup 2026-07-31).
+  const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
+  const benchQuad = (a, b2, z0, z1, fill, key) =>
+    els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
+  (benches || []).forEach((b, bi) => {
+    const f = benchFootprint(b, o.room);
+    const z0 = b.build === "framed" ? 0 : t;
+    const zh = b.h || 18;
+    if (f.kind === "corner") {
+      const tri = ({
+        bl: [[0, 0], [f.a, 0], [0, f.a]], br: [[rw, 0], [rw - f.a, 0], [rw, f.a]],
+        fl: [[0, rd], [f.a, rd], [0, rd - f.a]], fr: [[rw, rd], [rw - f.a, rd], [rw, rd - f.a]],
+      })[f.corner];
+      // Only the faces turned toward the camera: the two legs sitting against
+      // the walls would otherwise repaint the wall they're buried in, and a
+      // hypotenuse square to the view collapses to a stroke.
+      const cen = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3];
+      const faces = [[tri[0], tri[1], BSIDE], [tri[0], tri[2], BSIDE], [tri[1], tri[2], BSIDE2]]
+        .filter((s) => (s[0][0] + s[1][0]) / 2 - cen[0] + (s[0][1] + s[1][1]) / 2 - cen[1] > 0.01);
+      faces.sort((p, q) => (p[0][0] + p[0][1] + p[1][0] + p[1][1]) - (q[0][0] + q[0][1] + q[1][0] + q[1][1]))
+        .forEach((s, si) => benchQuad(s[0], s[1], z0, zh, s[2], `bn${bi}s${si}`));
+      els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+      return;
+    }
+    const out = curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CURB_W : 0;
+    const x0 = f.x, x1 = f.x + f.w, y0 = f.y, yc = f.y + f.d, y1 = yc + out;
+    // Past the pan line the bench IS the curb it displaced: it stands on the
+    // floor, so the oversail steps its faces down instead of floating on the
+    // pan's top surface.
+    const step = out > 0 && z0 > 0;
+    els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
+      points={str(step
+        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, 0), M(x1, yc, 0), M(x1, yc, z0), M(x1, y0, z0)]
+        : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
+    benchQuad([x0, y1], [x1, y1], step ? 0 : z0, zh, BSIDE2, `bn${bi}f`);
+    els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+    // The pan's cut edge only gets a rust mark where it lands on the bench face
+    // this camera sees; on a right-hand bench the cut is behind the box, and
+    // drawing it anyway drags a line straight across the seat.
+    if (b.build === "framed" && !framedFit && b.side !== "right") {
+      const a = b.side === "left" ? M(x1, 0, t) : M(x0, f.d, t);
+      const b2 = b.side === "left" ? M(x1, rd, t) : M(x1, f.d, t);
+      els.push(<line key={`bn${bi}c`} x1={a[0]} y1={a[1]} x2={b2[0]} y2={b2[1]} stroke={RUST} strokeWidth="1.8" strokeDasharray="5 3" />);
+    }
+  });
+
+  // …then the entry/right curb runs, which stand in front of the pan AND of
+  // any bench whose face they butt.
+  (curbs || []).forEach((cs, ci) => { if (!behind(cs)) curbEls(cs, ci); });
+  // A cut corner's curb takes the one straight line across.
+  (curbDiags || []).forEach((d, i) => {
+    const g2 = CGEOM[d.corner];
+    if (!g2) return;
+    const [cx, cy, dx, dy] = g2;
+    // ends squared to the edges (owner sketch): the band butts the walls and
+    // straight runs flush, its outer edge the piece's longest point
+    const ax = cx + dx * d.h, ay = cy, bx = cx, by = cy + dy * d.v;
+    const a2x = ax, a2y = ay - dy * CURB_W, b2x = bx - dx * CURB_W, b2y = by;
+    // Only the long face this camera can see: the band's two ENDS are butted
+    // into the straight runs or the walls, and one of its long faces is always
+    // turned away — drawing them repaints the pan and the run beside it.
+    const cen = [(ax + bx + a2x + b2x) / 4, (ay + by + a2y + b2y) / 4];
+    const shows = (p, q) => (p[0] + q[0]) / 2 - cen[0] + ((p[1] + q[1]) / 2 - cen[1]) > 0.01;
+    if (shows([ax, ay], [bx, by])) els.push(<polygon key={`cdi${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(bx, by, 0), M(ax, ay, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+    if (shows([a2x, a2y], [b2x, b2y])) els.push(<polygon key={`cdo${i}`} points={str([M(a2x, a2y, CBH), M(b2x, b2y, CBH), M(b2x, b2y, 0), M(a2x, a2y, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
+    els.push(<polygon key={`cdt${i}`} points={str([M(ax, ay, CBH), M(bx, by, CBH), M(b2x, b2y, CBH), M(a2x, a2y, CBH)])} fill="#E4DDCB" stroke={INK} strokeWidth=".8" />);
+  });
+
   // Front walls draw last — clear, so the shower stays readable through them.
-  dw.forEach((wl, wi) => { if (wl.side === "entry" || wl.side === "right") wallEls(wl, wi); });
+  clearW.sort((a, b) => wallRank(a) - wallRank(b)).forEach((p) => wallEls(p[0], p[1]));
   if (dw.length) {
     els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
-      {'walls 4" thick, to ' + inch(hmax) + '"' + (panelFit ? " · panel joints dotted" : "")}</text>);
+      {'walls 4" thick, to ' + inch(hmax) + '" · green hatch = wedi' + (panelFit ? " · joints dotted" : "")}</text>);
   }
-  return <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>{els}</svg>;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
+      <defs>
+        <pattern id="wedi-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="7" stroke={MOSS_DEEP} strokeWidth="1" opacity=".26" />
+        </pattern>
+      </defs>
+      {els}
+    </svg>
+  );
 }
 
 // ============================================================================
@@ -808,12 +1079,13 @@ const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY
 function seedState(seed) {
   const s = {
     tab: "kits", inp: { ...DEF_INP }, q: "", panKey: null, opts: { ...DEF_OPTS },
-    addons: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
-    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null,
+    addons: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
+    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false,
   };
   if (!seed) return s;
   const cfg = seed.cfg;
   if (cfg && cfg.panKey) {
+    s.maxIn = !!cfg.maxIn;
     s.tab = seed.mode === "custom" ? "custom" : seed.mode === "browse" ? "browse" : "kits";
     s.panKey = cfg.panKey;
     s.opts = {
@@ -824,6 +1096,7 @@ function seedState(seed) {
       recess: cfg.recess || undefined,
     };
     s.addons = (cfg.addons || []).slice();
+    s.benches = (cfg.benches || []).map((b) => ({ ...b }));
     const rows = [];
     (cfg.walls || []).forEach((w) => {
       const base = s.walls.find((x) => x.id === w.side);
@@ -856,8 +1129,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [qtyOv, setQtyOv] = useState({});
   const [manual, setManual] = useState([]);
   const [addons, setAddons] = useState(s0.addons);
+  const [benches, setBenches] = useState(s0.benches);
   const [opts, setOpts] = useState(s0.opts);
   const [inp, setInp] = useState(s0.inp);
+  // "Overall max" (owner ask 2026-07-30): the typed sizes are the whole
+  // footprint — every fully open edge pulls its curb inside the line and
+  // the pan space gives up (curb width − the ½" pan lap).
+  const [maxIn, setMaxIn] = useState(!!s0.maxIn);
   const [walls, setWalls] = useState(s0.walls);
   const [extraWalls, setExtraWalls] = useState(s0.extraWalls);
   const wallSeq = useRef(s0.wallSeq);
@@ -886,10 +1164,14 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [swap, setSwap] = useState(null);     // { key, rect }
   const [chipMenu, setChipMenu] = useState(null);   // { group, rect } — add-on chip picker
   const [wallMenu, setWallMenu] = useState(null);   // { wid, extra, x, y } — right-clicked wall
+  const [benchMenu, setBenchMenu] = useState(null); // { kind, side|corner, x, y } — pan zone clicked
   const [confirmPan, setConfirmPan] = useState(null); // kit card clicked over a custom shower
   const [payload, setPayload] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState("");
+  // Cost & margin stay hidden until clicked — a customer may be watching the
+  // screen while the build is put together (owner ask 2026-07-31).
+  const [showMargin, setShowMargin] = useState(false);
 
   // --- price level: a lens on the JOB's tier, exactly like Sheoga's ----------
   const [localTier, setLocalTier] = useState({ tier: "retail", customPct: "" });
@@ -913,6 +1195,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   useEscClose(true, () => {
     if (payload) setPayload(null);
     else if (confirmPan) setConfirmPan(null);
+    else if (benchMenu) setBenchMenu(null);
     else if (wallMenu) setWallMenu(null);
     else if (swap) setSwap(null);
     else if (chipMenu) setChipMenu(null);
@@ -954,6 +1237,14 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     document.addEventListener("click", away, true);
     return () => document.removeEventListener("click", away, true);
   }, [wallMenu]);
+  // The bench menu dismisses like the wall menu — outside click, so a
+  // blur-committed size lands before it unmounts.
+  useEffect(() => {
+    if (!benchMenu) return;
+    const away = (e) => { if (!e.target.closest?.(".wedi-benchmenu")) setBenchMenu(null); };
+    document.addEventListener("click", away, true);
+    return () => document.removeEventListener("click", away, true);
+  }, [benchMenu]);
 
   // --- walls ----------------------------------------------------------------
   const wallOnMap = useMemo(() => Object.fromEntries(walls.map((w) => [w.id, w.on])), [walls]);
@@ -1019,6 +1310,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     || (w.faces || "in") !== "in");
   const geomDirty = wallsTouched || extraWalls.length > 0 || Object.values(corners).some(Boolean) || wallFlip || +wallH !== 96;
   const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0 || addons.length > 0
+    || benches.length > 0
     || opts.panelKey !== undefined || opts.curbKey !== undefined || opts.coverKey !== undefined
     || opts.sealantForm !== "tube" || opts.recess !== undefined);
 
@@ -1034,9 +1326,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         walls: buildWalls, wallHeight: +wallH || 80,
         panelKey: opts.panelKey, curbKey: opts.curbKey, coverKey: opts.coverKey,
         sealantForm: opts.sealantForm, recess: opts.recess,
-        addons: addons.slice(), tier: tierId,
+        addons: addons.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
-        mode: option ? "custom" : "kit",
+        mode: option ? "custom" : "kit", maxIn: maxIn,
       });
       if (!b) return null;
       let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
@@ -1068,7 +1360,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       return { pan: null, lines, panelSf: 0, factory: null, hints, mode: "browse", cfg: {}, soNet };
     }
     return null;
-  }, [panKey, option, buildWalls, wallH, opts, addons, qtyOv, manual, panelFit, tierId, corners]);
+  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn]);
 
   // The live { mode, cfg } upward, in seed shape, so App's ft-open-layer
   // restore reopens mid-configuration rather than on the original seed.
@@ -1096,7 +1388,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (delta < 0 && addons.includes(key) && !next.some((x) => x.key === key && x.qty > 0)) setAddons((a) => a.filter((k) => k !== key));
   };
 
-  const resetBuild = () => { setQtyOv({}); setAddons([]); setManual([]); setOpts({ ...DEF_OPTS }); };
+  const resetBuild = () => { setQtyOv({}); setAddons([]); setBenches([]); setBenchMenu(null); setManual([]); setOpts({ ...DEF_OPTS }); };
   // Only a genuinely modified wall survives a room/option change (owner rule):
   // a typed length that just equals the OUTGOING geometry's auto length was
   // only tracking the kit, so it clears back to auto and follows the new one.
@@ -1119,6 +1411,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       drainX: "", drainY: "",
     };
     setInp(next);
+    // a kit's size IS the pan size — the seeded form reads it that way
+    setMaxIn(false);
     setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left" }));
   };
   // A kit card is a hard reset (owner rule 2026-07-30): once a build is
@@ -1138,6 +1432,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (p) seedFormFromKit(p, true);
     else {
       setInp({ ...DEF_INP });
+      setMaxIn(false);
       setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51 }));
     }
   };
@@ -1146,12 +1441,33 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     hardReset(key);
   };
 
-  const runSolve = (next) => {
-    const i = next || inp;
+  // Solve the room. With "overall max" on, every fully open edge gives up
+  // its curb's width (minus the ½" pan lap) before the solver runs, and the
+  // options come back re-based into the full stated footprint
+  // (applyCurbInset) — a typed drain position is measured from the room's
+  // own origin, so it shifts into the reduced space the same way.
+  const insetFor = (i, maxOn) => {
+    if (!maxOn || i.curb === "curbless" || opts.curbKey === null) return null;
+    const wl = walls.filter((x) => x.on).map((x) => ({ side: x.id, len: +x.len || (x.id === "back" ? +i.w || 0 : +i.d || 0) }));
+    extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0 }));
+    return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60);
+  };
+  const solveRoom = (i, maxOn) => {
+    const ins = insetFor(i, maxOn);
+    const dx = +i.drainX || 0, dy = +i.drainY || 0;
     const res = solve({
-      w: +i.w || 0, d: +i.d || 0, curb: i.curb, drain: i.drain, tolerance: 0.51,
-      drainX: +i.drainX || 0, drainY: +i.drainY || 0, anchor: i.anchor || "left",
+      w: round2((+i.w || 0) - (ins ? ins.left + ins.right : 0)),
+      d: round2((+i.d || 0) - (ins ? ins.back + ins.entry : 0)),
+      curb: i.curb, drain: i.drain, tolerance: 0.51,
+      drainX: dx > 0 ? Math.max(0, round2(dx - (ins ? ins.left : 0))) : 0,
+      drainY: dy > 0 ? Math.max(0, round2(dy - (ins ? ins.back : 0))) : 0,
+      anchor: i.anchor || "left",
     });
+    return ins ? res.map((o) => applyCurbInset(o, ins, { w: +i.w || 0, d: +i.d || 0 })) : res;
+  };
+  const runSolve = (next, nextMax) => {
+    const i = next || inp;
+    const res = solveRoom(i, nextMax === undefined ? maxIn : nextMax);
     retuneWalls();
     setResults(res);
     if (res.length) { setOption(res[0]); setPanKey(res[0].pan.key); } else { setOption(null); setPanKey(null); }
@@ -1169,7 +1485,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (solved.current) return;
     solved.current = true;
     const i = { ...inp, ...(s0.solveInput || {}) };
-    const res = solve({ w: +i.w || 0, d: +i.d || 0, curb: i.curb, drain: i.drain, tolerance: 0.51, drainX: +i.drainX || 0, drainY: +i.drainY || 0, anchor: i.anchor || "left" });
+    const res = solveRoom(i, !!s0.maxIn);
     setResults(res);
     if (!s0.solveInput || !res.length) return;
     // A saved cfg keeps its own pan; a fresh room seed takes the top option.
@@ -1190,6 +1506,25 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     say("Modified kit — it's a custom shower now. Kit cards ask before overwriting it.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geomSig]);
+
+  // With "overall max" on, the walls and the curb pick shape the pan space —
+  // re-fit the option cards when they change, without wiping the build.
+  const insetSig = maxIn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge),
+    opts.curbKey === undefined ? "" : opts.curbKey]) : "";
+  const insetSeen = useRef(insetSig);
+  useEffect(() => {
+    if (insetSig === insetSeen.current) return;
+    insetSeen.current = insetSig;
+    if (!maxIn) return;
+    const res = solveRoom(inp, true);
+    setResults(res);
+    if (option) {
+      const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
+      setOption(same);
+      setPanKey(same ? same.pan.key : null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insetSig]);
 
   // --- the drawings ---------------------------------------------------------
   const diag = useMemo(() => {
@@ -1223,6 +1558,29 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     };
   }, [panKey, option, wallFlip]);
 
+  // Framed bench + "smaller": the drawings show the CLEAR space's re-solved
+  // layout — the sub-option's pieces and centered drain shifted past the
+  // bench — while the room (and the walls figured on it) stays the full
+  // shower size. kind "drainat" turns on the two rust drain measurements,
+  // taken from the shower's own origin like any pinned drain.
+  const drawDiag = useMemo(() => {
+    const plan = build && build.panPlan;
+    if (!diag || !plan) return diag;
+    // the plan's pieces live in the pan-space coords: past the framed bench
+    // AND past any curb pulled inside the line ("overall max")
+    const ox = plan.offset.x + (diag.inset ? diag.inset.left : 0);
+    const oy = plan.offset.y + (diag.inset ? diag.inset.back : 0);
+    return {
+      ...diag,
+      kind: "drainat",
+      pieces: plan.option.pieces.map((p) => ({ ...p, x: round2(p.x + ox), y: round2(p.y + oy) })),
+      drain: plan.option.drain
+        ? { ...plan.option.drain, x: round2(plan.option.drain.x + ox), y: round2(plan.option.drain.y + oy) }
+        : diag.drain,
+      warnings: (diag.warnings || []).concat(plan.option.warnings || []),
+    };
+  }, [diag, build]);
+
   const dWalls = useMemo(() => {
     if (!panKey) return [];
     // expandWallFaces appends the extra faces AFTER the base walls, so
@@ -1241,7 +1599,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // curb bands only draw when the build actually carries a curb line.
   const curb = useMemo(() => {
     if (!diag) return { segs: [], diags: [], cuts: [] };
-    const runs = curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]));
+    const runs = curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
+      (build && build.benches) || []);
     const hasCurb = !!build && build.lines.some((l) => l.item.group === "curb");
     return { segs: hasCurb ? runs.segs : [], diags: hasCurb ? runs.diags : [], cuts: runs.diags };
   }, [diag, build, buildWalls, corners]);
@@ -1298,9 +1657,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   };
 
   // --- kit cards ------------------------------------------------------------
-  // What each house kit costs out of OUR stock with the current wall setup
-  // (owner feedback 20) — not wedi's boxed-kit price.
-  const kitCosts = useMemo(() => {
+  // What each house kit sells for through the tier lens with the current wall
+  // setup — ONE number per card, matching the build column's total (owner ask
+  // 2026-07-31; supersedes feedback 20's our-stock-cost line, which read as a
+  // second confusing price beside the pan's).
+  const kitTotals = useMemo(() => {
     const out = {};
     const fams = FAM_DEFS.map((f) => (f[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: f[0] })));
     fams.forEach((list) => list.forEach((p) => {
@@ -1309,11 +1670,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       const b = kitFor(p.key, { walls: wl, sealantForm: opts.sealantForm, room: { w: lens.back, d: lens.left } });
       if (!b) return;
       const lines = panelFit ? applyPanelFit(b.lines, wl, b.panelSf) : b.lines;
-      out[p.key] = round2(lines.reduce((t, l) => t + l.item.cost * l.qty, 0));
+      out[p.key] = round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     }));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walls, extraWalls, wallH, wallFlip, panelFit, opts.sealantForm]);
+  }, [walls, extraWalls, wallH, wallFlip, panelFit, opts.sealantForm, tierId, customPct, salePct, bPct]);
 
   const cat = catalog();
   const nStock = useMemo(() => cat.filter((e) => e.stock).length, [cat]);
@@ -1392,8 +1753,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                   </div>
                   <div className="nm">{unwedi(p.name)}</div>
                   <div className="drn">{p.group === "module" ? inch(p.channel) + "″ channel" : p.drain.type + " drain"}</div>
-                  <div className="pr" style={{ color: tierColor }}>{fm(tierOf(p))}</div>
-                  <div className="fk">kit cost {fm0(kitCosts[p.key] || 0)} — our stock</div>
+                  <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
+                  <div className="fk">{kitTotals[p.key] != null ? "full kit" : "pan only"}</div>
                 </button>
               ))}
             </div>
@@ -1408,12 +1769,21 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return (
       <>
         <div className="roomform">
-          <div className="rf"><label>Pan size — width × depth</label>
+          <div className="rf"><label>Shower size — width × depth</label>
             <div className="dims">
               <NumIn className="inp" value={inp.w} onCommit={(v) => setInput({ w: +v || 0 })} />
               <span>×</span>
               <NumIn className="inp" value={inp.d} onCommit={(v) => setInput({ d: +v || 0 })} />
               <span>in</span>
+            </div>
+          </div>
+          <div className="rf"><label>Sizes are</label>
+            <div className="seg">
+              <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
+                onClick={() => { if (maxIn) { setMaxIn(false); runSolve(undefined, false); } }}>Pan size</button>
+              <button className={maxIn ? "on" : ""}
+                title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
+                onClick={() => { if (!maxIn) { setMaxIn(true); runSolve(undefined, true); } }}>Max — curb inside</button>
             </div>
           </div>
           <div className="rf"><label>Curb</label>
@@ -1851,7 +2221,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               <div className="v" style={{ color: tierColor }} data-wedi-sell>{fm(totals.sell)}</div>
             </div>
           </div>
-          <div className="marginrow">cost {fm(totals.cost)}<span>margin {fm(totals.margin)} · {totals.sell ? Math.round(totals.margin / totals.sell * 100) : 0}%</span></div>
+          <button type="button" className="marginrow" onClick={() => setShowMargin((v) => !v)}
+            title={showMargin ? "Hide cost & margin" : "Show cost & margin"}>
+            {showMargin
+              ? <>cost {fm(totals.cost)}<span>margin {fm(totals.margin)} · {totals.sell ? Math.round(totals.margin / totals.sell * 100) : 0}%</span></>
+              : <><Eye size={11} /> cost &amp; margin</>}
+          </button>
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> Add to product lines</button>
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)}><Printer size={13} /> Print layout</button>
@@ -1870,7 +2245,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </>) : (<>
         <div className="dc-h">Top-down layout</div>
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
-        <TopDown o={diag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
+        <TopDown o={drawDiag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
+          framedFit={!!(build && build.panPlan)}
+          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} placing={placing}
+          onBenchMenu={(z, x, y) => setBenchMenu({ ...z, x, y })}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })}
           onCorner={(c) => {
             if (cornerOpenMap && !cornerOpenMap[c]) { say("That corner sits between two walls — shorten or turn one off to cut it"); return; }
@@ -1888,7 +2266,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
         <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
-        <Iso o={diag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
+        <Iso o={drawDiag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+          framedFit={!!(build && build.panPlan)}
+          cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
         <div className="dc-legend">
           walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
@@ -1897,6 +2277,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           butted square to the walls and figured at its longest point ·{" "}
           {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
           {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
+          {" "}· hover the pan along a wall or into a corner and click for a <b>bench</b> — premade, 2″ build-up,
+          or installer-framed, drawn in both views with the curb butting its face
+          {" "}· in the isometric, <b>wedi-covered</b> faces read pan-green with a fine hatch — bare framing
+          (behind a framed bench) stays dark, and the wall figure drops that shadow too
         </div>
       </>)}
     </div>
@@ -2018,6 +2402,128 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </div>, document.body);
   })();
 
+  // The bench menu (issue 069): everything about the zone's bench lives in
+  // this one popover — premade vs built, sizes, the framed pan choice —
+  // anchored at the click like the wall menu.
+  const benchMenuPanel = (() => {
+    if (!benchMenu) return null;
+    const zid = benchMenu.side || benchMenu.corner;
+    const row = benches.find((b) => b.kind === benchMenu.kind && (b.side || b.corner) === zid);
+    const room = diag ? diag.room : { w: 60, d: 36 };
+    const title = benchMenu.kind === "corner"
+      ? "Corner bench — " + (BENCH_CORNER_LBL[benchMenu.corner] || "")
+      : "Bench — " + benchMenu.side + " wall";
+    const style = {
+      top: Math.min(window.innerHeight - 320, benchMenu.y + 4),
+      left: Math.min(window.innerWidth - 312, Math.max(12, benchMenu.x - 140)),
+    };
+    const add = (spec) => setBenches((xs) => [...xs, {
+      kind: benchMenu.kind,
+      ...(benchMenu.kind === "corner" ? { corner: benchMenu.corner } : { side: benchMenu.side }),
+      ...spec,
+    }]);
+    const upd = (patch) => setBenches((xs) => xs.map((b) => (b === row ? { ...b, ...patch } : b)));
+    const del = () => { setBenches((xs) => xs.filter((b) => b !== row)); setBenchMenu(null); };
+    const norm = row ? normBench(row, room) : null;
+    const pres = benchPremades(benchMenu.kind === "corner" ? "corner" : "wall");
+    const framedPanNote = (() => {
+      if (!pan || !norm || norm.build !== "framed") return "";
+      const pr = benchPanRoom([norm], room);
+      if (norm.panFit === "smaller") {
+        const pl = benchPanPlan(pan, [norm], room);
+        if (pl) {
+          const p2 = pl.option.pan;
+          return "re-solves the clear " + inch(pl.clear.w) + "×" + inch(pl.clear.d) + '" space — '
+            + inch(Math.max(p2.w, p2.d)) + "×" + inch(Math.min(p2.w, p2.d)) + '" pan ('
+            + (p2.stock ? p2.erp : "SO — " + p2.us) + "), drain centered";
+        }
+        const sw = smallerPanFor(pan, pr.w, pr.d);
+        return sw
+          ? "swaps to the " + inch(Math.max(sw.w, sw.d)) + "×" + inch(Math.min(sw.w, sw.d)) + '" pan (' + (sw.stock ? sw.erp : "SO — " + sw.us) + ")"
+          : "no smaller pan fits — the current one cuts to " + inch(pr.w) + "×" + inch(pr.d) + '"';
+      }
+      return "the pan cuts to " + inch(pr.w) + "×" + inch(pr.d) + '" and the bench sits on the subfloor';
+    })();
+    return createPortal(
+      <div className="wedi-swap wedi-wallmenu wedi-benchmenu" style={style} data-wedi-benchmenu
+        onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
+        <div className="ph">{title}</div>
+        {!row ? (<>
+          <button className="bm-opt" onClick={() => add({ build: "site" })}>
+            <b>wedi 2″ build-up</b><small>the pan runs underneath — 2″ top &amp; face, a support about every foot</small>
+          </button>
+          {benchMenu.kind !== "corner" && (
+            <button className="bm-opt" onClick={() => add({ build: "framed" })}>
+              <b>Framed by the installer</b><small>wrapped with ½″ panel — the pan butts the bench: cut it down, or solve a smaller pan with the drain centered</small>
+            </button>
+          )}
+          <div className="ph">Premade wedi benches</div>
+          {pres.map((e) => (
+            <button key={e.key} className={"srow" + (e.stock ? " stk" : "")} onClick={() => add({ part: e.key })}>
+              <span className={"sdot" + (e.stock ? "" : " so")} />
+              <span className="n">{unwedi(e.name)}<small>{[e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
+              <span className="p">{fm(tierOf(e))}</span>
+            </button>
+          ))}
+        </>) : (<>
+          {norm.build !== "premade" && norm.kind === "corner" && (
+            <div className="wm-row">
+              <label>Legs</label>
+              <NumIn className="win" value={row.size ?? ""} placeholder={String(norm.size)} title="from the corner out along each wall, in" onCommit={(v) => upd({ size: v })} />
+              <span>× h</span>
+              <NumIn className="win" value={row.h ?? ""} placeholder={String(norm.h)} title="to the top, in" onCommit={(v) => upd({ h: v })} />
+              <span>in</span>
+            </div>
+          )}
+          {norm.build !== "premade" && norm.kind !== "corner" && (
+            <div className="wm-row">
+              <label>Size</label>
+              <NumIn className="win" value={row.len ?? ""} placeholder={String(norm.len)} title="length along the wall, in" onCommit={(v) => upd({ len: v })} />
+              <span>×</span>
+              <NumIn className="win" value={row.depth ?? ""} placeholder={String(norm.depth)} title="seat depth, in" onCommit={(v) => upd({ depth: v })} />
+              <span>×</span>
+              <NumIn className="win" value={row.h ?? ""} placeholder={String(norm.h)} title="to the top, in" onCommit={(v) => upd({ h: v })} />
+              <span>in</span>
+            </div>
+          )}
+          {norm.build === "premade" && (
+            <div className="wm-note">
+              {unwedi((item(row.part) || {}).name || "")}{(item(row.part) || {}).sizeText ? " — " + item(row.part).sizeText : ""}
+              {norm.kind === "corner" ? ". " + inch(norm.size) + '" out along each wall, triangle across the front.' : "."}
+            </div>
+          )}
+          {norm.build !== "premade" && norm.kind !== "corner" && (
+            <div className="wm-row">
+              <label>Build</label>
+              <span className="pfseg">
+                <button className={norm.build === "site" ? "on" : ""} title='2" wedi material — the pan runs underneath' onClick={() => upd({ build: "site" })}>2″ build-up</button>
+                <button className={norm.build === "framed" ? "on" : ""} title='installer-framed, wrapped with ½" panel — the pan stops at its face' onClick={() => upd({ build: "framed" })}>Framed</button>
+              </span>
+            </div>
+          )}
+          {norm.build !== "premade" && norm.build === "framed" && (
+            <div className="wm-row">
+              <label>Pan</label>
+              <span className="pfseg">
+                <button className={norm.panFit !== "smaller" ? "on" : ""} onClick={() => upd({ panFit: "cut" })}>Cut it down</button>
+                <button className={norm.panFit === "smaller" ? "on" : ""} onClick={() => upd({ panFit: "smaller" })}>Smaller pan</button>
+              </span>
+            </div>
+          )}
+          {norm.build !== "premade" && (
+            <div className="wm-note">
+              {norm.build === "framed" ? framedPanNote
+                : norm.kind === "corner" ? inch(norm.size) + '" out along each wall, triangle across the front — 2" top, face & supports, sealant figured in'
+                  : '2" top & face with a support about every foot; the pan runs underneath'}
+            </div>
+          )}
+          <div className="wm-row" style={{ paddingTop: 7 }}>
+            <button className="wm-del" onClick={del}>Remove bench</button>
+          </div>
+        </>)}
+      </div>, document.body);
+  })();
+
   // Kit card over a custom shower: confirm before wiping it (owner rule
   // 2026-07-30) — yes resets everything to the chosen kit's stock setup.
   const confirmModal = confirmPan && (() => {
@@ -2109,16 +2615,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       </div>
       <div className="ps-diags">
         <div className="d"><div className="dh">Top-down layout</div>
-          <TopDown o={diag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <TopDown o={drawDiag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
         <div className="d"><div className="dh">Isometric</div>
-          <Iso o={diag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
+          <Iso o={drawDiag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+            framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} /></div>
       </div>
-      {(diag.pieces.some((p) => p.cut) || (diag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
+      {(drawDiag.pieces.some((p) => p.cut) || (drawDiag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>
-        {diag.pieces.filter((p) => p.cut).map((p, i) => (
+        {drawDiag.pieces.filter((p) => p.cut).map((p, i) => (
           <div className="ps-warn" key={"c" + i}>✂ Cut {p.item.us || p.item.erp} to {inch(p.w)}″ × {inch(p.d)}″ (from {inch(p.cut.w)}″ × {inch(p.cut.d)}″)</div>
         ))}
-        {(diag.warnings || []).map((wt, i) => <div className="ps-warn" key={"w" + i}>• {wt}</div>)}
+        {(drawDiag.warnings || []).map((wt, i) => <div className="ps-warn" key={"w" + i}>• {wt}</div>)}
         {CORNER_LBL.filter((c) => corners[c[0]]).map((c) => {
           const d = curb.cuts.find((x) => x.corner === c[0]);
           const legs = d ? inch(d.h) + "″ × " + inch(d.v) + "″" : "12″ × 12″";
@@ -2126,7 +2634,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="ps-warn" key={c[0]}>✂ Corner cut at {c[1]} — {legs} legs{!d || d.h === d.v ? " (45°)" : ", straight to the wall end"}; glass or framing runs the line</div>
           );
         })}
-        {diag.drain && diag.drain.note && <div className="ps-warn">• {diag.drain.note}</div>}
+        {drawDiag.drain && drawDiag.drain.note && <div className="ps-warn">• {drawDiag.drain.note}</div>}
       </>)}
       <div className="ps-sec">Materials</div>
       <table className="ps-table">
@@ -2197,6 +2705,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       {swapPanel}
       {chipPanel}
       {wallMenuPanel}
+      {benchMenuPanel}
       {confirmModal}
       {payloadModal}
       {printSheet}
