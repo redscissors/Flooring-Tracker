@@ -18,7 +18,7 @@ import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, CURB_LAP, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
+  tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_DEPTH, BENCH_CORNER_LBL,
@@ -333,9 +333,11 @@ const FAM_DEFS = [
   ["linear", "Linear bases — 4-sided slope", "channel drain along the long wall"],
   ["module", "Riolito Neo modules", "one-way slope to a wall drain — pair with the module extension"],
 ];
-// The Recess chip shows on curbless builds only — the bracket kit / ramp is a
-// pick there, not part of the house kit (owner ask 2026-07-30).
-const ADDON_CHIPS = [["niche", "Niche"], ["seat", "Seat"], ["bench", "Bench"], ["shelf", "Glass shelf"], ["gun", "Sealant gun"], ["recess", "Recess kit"]];
+// Two chips are conditional: Recess on curbless builds only — the bracket kit
+// / ramp is a pick there, not part of the house kit (owner ask 2026-07-30) —
+// and Cover frame only while the drain cover is a linear one, since a 4×4
+// point cover has no frame to match (owner ask 2026-07-31).
+const ADDON_CHIPS = [["niche", "Niche"], ["seat", "Seat"], ["bench", "Bench"], ["shelf", "Glass shelf"], ["gun", "Sealant gun"], ["recess", "Recess kit"], ["coverFrame", "Cover frame"]];
 const CORNER_LBL = [["bl", "back-left"], ["br", "back-right"], ["fl", "entry-left"], ["fr", "entry-right"]];
 const EDGE_LBL = { back: "Back +", left: "Left +", right: "Right +", entry: "Entry" };
 
@@ -1326,7 +1328,7 @@ const DEF_WALLS = [
   { id: "left", label: "Left", on: true, len: "", h: "", faces: "in" },
   { id: "right", label: "Right", on: true, len: "", h: "", faces: "in" },
 ];
-const DEF_OPTS = { panelKey: undefined, curbKey: undefined, coverKey: undefined, sealantForm: "tube", recess: undefined };
+const DEF_OPTS = { panelKey: undefined, curbKey: undefined, coverKey: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
 const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY: "", anchor: "left" };
 
 // The seed is either a search parse (seedFromQuery: { tab, input, search }) or a
@@ -1348,6 +1350,7 @@ function seedState(seed) {
       panelKey: cfg.panelKey || undefined,
       curbKey: cfg.curbKey === undefined ? undefined : cfg.curbKey,
       coverKey: cfg.coverKey || undefined,
+      coverFrame: cfg.coverFrame || undefined,
       sealantForm: cfg.sealantForm === "sausage" ? "sausage" : "tube",
       recess: cfg.recess || undefined,
     };
@@ -1568,6 +1571,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0 || addons.length > 0
     || benches.length > 0
     || opts.panelKey !== undefined || opts.curbKey !== undefined || opts.coverKey !== undefined
+    || opts.coverFrame !== undefined
     || opts.sealantForm !== "tube" || opts.recess !== undefined);
 
   const build = useMemo(() => {
@@ -1581,7 +1585,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         room: option ? option.room : { w: auto.back, d: auto.left },
         walls: buildWalls, wallHeight: +wallH || 80,
         panelKey: opts.panelKey, curbKey: opts.curbKey, coverKey: opts.coverKey,
-        sealantForm: opts.sealantForm, recess: opts.recess,
+        coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
         addons: addons.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
         mode: option ? "custom" : "kit", maxIn: maxIn,
@@ -1930,6 +1934,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       const nom = line.item.len;
       return { title: "Linear cover — " + nom + '" channel', list: group("cover").filter((c) => c.sub === "linear" && c.len === nom), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
     }
+    if (g === "coverFrame") {
+      return {
+        title: "Cover frame — " + line.item.len + '" channel',
+        list: group("coverFrame").filter((f) => f.len === line.item.len), none: "No frame",
+        set: (k) => setOpts((o) => ({ ...o, coverFrame: k ? item(k).finish : undefined })),
+      };
+    }
     if (g === "curb") return { title: "Curb", list: group("curb"), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
     if (g === "sealant" && line.item.sub === "joint") {
       return { title: "Joint sealant form", list: [item(SKU.sealantTube), item(SKU.sealantSausage)], set: (k) => setOpts((o) => ({ ...o, sealantForm: k === SKU.sealantSausage ? "sausage" : "tube" })) };
@@ -1948,15 +1959,23 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     }
     return null;
   };
+  // The channel frames that match the build's linear cover — empty (so the
+  // chip stays hidden) on a 4×4 point drain, which has no frame.
+  const frameOpts = useMemo(() => {
+    const cl = build && build.lines.find((l) => l.item.group === "cover");
+    return cl ? coverFrames(cl.item) : [];
+  }, [build]);
   // An add-on chip with one possible part adds it outright; more than one
   // opens a picker (owner ask 2026-07-30) — stock first, then cheapest.
   const chipChoices = (g) => {
     if (g === "gun") return [item(SKU.gun)];
     if (g === "recess") return [item(SKU.recessKit), item(SKU.ramp)];
+    if (g === "coverFrame") return frameOpts;
     return group(g).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
   };
   const chipPick = (g, key) => {
     if (g === "recess") setOpts((o) => ({ ...o, recess: key === SKU.ramp ? "ramp" : "kit" }));
+    else if (g === "coverFrame") setOpts((o) => ({ ...o, coverFrame: (item(key) || {}).finish }));
     else setAddons((a) => [...a, key]);
     setChipMenu(null);
   };
@@ -2475,7 +2494,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 })}
                 {isAddon && pan && (
                   <div className="addchips">
-                    {ADDON_CHIPS.filter((ac) => ac[0] !== "recess" || (pan && pan.sub === "curbless")).map((ac) => {
+                    {ADDON_CHIPS.filter((ac) => (ac[0] === "recess" ? pan && pan.sub === "curbless"
+                      : ac[0] === "coverFrame" ? frameOpts.length > 0 : true)).map((ac) => {
                       const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun)
                         : ac[0] === "recess" ? build.lines.some((l) => l.item.group === "recess" || l.item.group === "ramp")
                           : build.lines.some((l) => l.item.group === ac[0]);
@@ -2486,6 +2506,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                             ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
                           if (cur) {
                             if (ac[0] === "recess") setOpts((o) => ({ ...o, recess: "none" }));
+                            else if (ac[0] === "coverFrame") setOpts((o) => ({ ...o, coverFrame: undefined }));
                             else {
                               setAddons((a) => a.filter((k) => { const it = item(k); return !it || it.group !== ac[0]; }));
                               setManual((mm) => mm.filter((m) => { const it = item(m.key); return !it || it.group !== ac[0]; }));

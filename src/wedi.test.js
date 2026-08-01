@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, factoryKit, linearCoverFor, dims, round2, inch,
+  tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
@@ -265,6 +265,42 @@ test("wedi kit builder: the house kit mirrors wedi's own boxed recipe", () => {
   })(), "addons land un-auto in the addon group");
   assert.ok(lineFor(kitAdd, "US5000013").qty === 9 && kitAdd.hints.indexOf("sausage-gun") < 0,
     "tube form → 9 tubes (88 oz / 10.5), gun addon clears the hint: " + lineFor(kitAdd, "US5000013").qty);
+});
+
+// --- linear cover frames ------------------------------------------------------
+
+test("wedi cover frames: the linear drain's matching trim ring, opt-in", () => {
+  // A 4×4 point cover has no frame — the chip that reads this stays hidden.
+  assert.equal(coverFrames(item(SKU.coverSS)).length, 0, "point covers offer no frame");
+  const ss43 = coverFrames(item("US1000085"));
+  assert.ok(ss43.length === 1 && ss43[0].key === "676800064",
+    "SS43 cover → the stocked 43\" SS frame: " + JSON.stringify(ss43.map((f) => f.key)));
+  // Perforated is the same metal — wedi lists no perforated frame.
+  assert.equal(coverFrames(item("US1000122"))[0].key, "676800064", "SSP43 wears the plain SS43 frame");
+  assert.equal(coverFrames(item("US1000113"))[0].key, "US1000099", "MBP31 wears the plain MB31 frame");
+  // A tileable cover takes any of the four metals — the chip opens a picker.
+  const t27 = coverFrames(item("US1000086"));
+  assert.ok(t27.length === 4 && t27[0].key === "676800061" && t27[1].key === "US1000088",
+    "T27 offers all four 27\" frames, the two stocked ones first: " + JSON.stringify(t27.map((f) => f.key)));
+
+  // The stored value is a FINISH: length follows the cover, a hand-picked
+  // metal is honored, and a length that lacks it falls back to the match.
+  assert.equal(coverFrameFor(item("US1000085"), "B").key, "US1000093", "hand-picked brass sticks on an SS43 cover");
+  assert.equal(coverFrameFor(item("US1000094"), "B").key, "US1000100", "…and re-sizes with the cover (43 → 31)");
+  assert.equal(coverFrameFor(item("US1000085"), "T").key, "676800064", "a finish no frame comes in falls back to the match");
+  assert.equal(coverFrameFor(item(SKU.coverSS), "SS"), null, "no frame for a point cover, whatever the pick");
+
+  const bare = kitFor("US9310001");
+  assert.ok(!bare.lines.some((l) => l.item.group === "coverFrame"), "no frame in the house kit by default");
+  assert.equal(bare.cfg.coverFrame, null, "…and the cfg says so");
+  const framed = kitFor("US9310001", { coverFrame: true });
+  const fl = lineFor(framed, "676800064");
+  assert.ok(fl && fl.group === "drain" && fl.qty === 1, "coverFrame:true lands the matching frame beside the cover");
+  assert.equal(framed.cfg.coverFrame, "SS", "the cfg round-trips the finish, not the part");
+  assert.equal(lineFor(kitFor("US9310001", { coverFrame: "MB" }), "US1000089").qty, 1, "an explicit finish lands its own frame");
+  // The frame follows a cover swap: same build, a matte-black 27" cover.
+  assert.equal(lineFor(kitFor("US9310001", { coverKey: "US1000082", coverFrame: true }), "US1000088").qty, 1,
+    "swapping to the MB27 cover re-metals AND re-sizes the frame");
 });
 
 // --- open edges, corners and the curb run -------------------------------------

@@ -305,7 +305,13 @@ src/
                     # corner benches measure from the corner out along each wall,
                     # 18" to the top, never framed),
                     # `figureConsumables` (1 screw+washer and
-                    # 1.2 oz sealant per ft² of panel), `tierPrice`, `factoryKit`,
+                    # 1.2 oz sealant per ft² of panel), `coverFrames`/
+                    # `coverFrameFor` (issue 072: the channel frame a LINEAR
+                    # cover drops into — a design opt-in, never in the house
+                    # kit, so `opts.coverFrame` stores a FINISH and the length
+                    # follows the cover; a perforated cover wears the plain
+                    # frame of its metal, a tileable one can take any of the
+                    # four so the chip opens a picker), `tierPrice`, `factoryKit`,
                     # and `lineItems` (build -> product rows; the pan anchors and
                     # carries `product.wedi`, companions `wedi.part`). A
                     # non-dimensional item keeps its pricelist CONTENTS as its
@@ -331,7 +337,9 @@ src/
                     # the wall editor, add-on chips — a chip with several possible
                     # parts opens a picker instead of auto-adding, and curbless
                     # builds get a Recess chip since the bracket kit/ramp is a
-                    # pick, never part of the house kit (owner asks 2026-07-30) —
+                    # pick, never part of the house kit (owner asks 2026-07-30),
+                    # and a LINEAR drain gets a Cover frame chip landing the
+                    # matching channel frame under the cover (issue 072) —
                     # sausage-gun/small-order hints, Copy list, Print layout) and a
                     # permanent drawings rail: a to-scale top-down (4"-thick wall
                     # bands, panel-seam ticks, square drains, dashed cut edges,
