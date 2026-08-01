@@ -8,8 +8,10 @@
 // (floors and their at-cost fee lines). Sheoga sells by description, not SKU,
 // so those rows say so where the SKU would sit and copy the qty inline — the
 // copied text is the whole order, since there's no SKU for the desk to key.
-// A per-line copy button grabs the whole item (tag included) and then stays a
-// green check, so you can track which specials you've already keyed. Stock
+// A per-line copy button grabs the description field (the unit tag leads it, as
+// on screen) and then stays a green check, so you can track which specials
+// you've already keyed. Freight rides this list too — one line per vendor, keyed
+// as 1 EA at that vendor's whole charge (freightOrderRow). Stock
 // lines follow with per-line checkboxes plus "Copy all" / "Copy selected",
 // each line as SKU⇥quantity (the order desk's Cut & Order format). The
 // estimated materials (mortar, grout, grout base, caulk, underlayment) are

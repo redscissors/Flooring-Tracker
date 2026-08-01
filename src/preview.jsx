@@ -11,7 +11,7 @@ import { FreightCard } from "./pricebooklib.jsx";
 import { FreightMatRow, FreightColumn } from "./freightui.jsx";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { EstimatePaper } from "./EstimatePrint.jsx";
-import { freightList, freightTotal, freightPrintRows, freightOrderRows, SHEET_GOODS_WORDS } from "./freight.js";
+import { freightList, freightTotal, freightPrintRows, freightOrderRow, SHEET_GOODS_WORDS } from "./freight.js";
 import { printMatList, orderEntryRow, printAreaFloor } from "./print.js";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, newProject, money, areaLabel } from "./model.js";
@@ -104,7 +104,7 @@ function Harness() {
   const pMats = [...printMatList(JOB, settings), ...freightPrintRows(lines)];
   const special = [
     ...JOB.categories[0].products.map((p) => orderEntryRow(p, settings, areaLabel(JOB.categories[0], 0), 30, new Set())).filter((r) => r.special),
-    ...lines.flatMap((l) => freightOrderRows(l, 30)),
+    ...lines.map((l) => freightOrderRow(l, 30)),
   ];
   // The same line math the app runs, so the paper's lines and its total agree
   // (a carton-sold row bills its ordered cartons, not its measured footage).

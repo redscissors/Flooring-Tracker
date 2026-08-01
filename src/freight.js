@@ -306,32 +306,35 @@ export function freightPrintRows(lines) {
   return out;
 }
 
-// Freight rows for the order-entry panel. They file as SPECIAL ORDER: freight is
-// billed by the vendor whose book carries the program, on the same order as the
-// material, and it has no SKU the desk can key — so it reads like a Sheoga line,
-// by description. One row per part, because each part bills in its own unit and
-// at its own rate.
+// The freight row for the order-entry panel — ONE per book, keyed as a single
+// unit at the whole charge. It files as SPECIAL ORDER: freight is billed by the
+// vendor whose book carries the program, on the same order as the material, and
+// it has no SKU the desk can key — so it reads like a Sheoga line, by
+// description.
+//
+// The parts stay broken out everywhere the customer reads the number (the
+// estimate's freight group, the row chip, the drawer) because that's where the
+// vendor's rates have to be shown. The ERP is the other way round: the desk
+// keys shipping as one charge, and a book that bills two tables would otherwise
+// take three lines whose quantities (pallets, feet, pieces) all mean different
+// things and none of which is what the vendor invoices. So the parts collapse
+// to a summary in the description and the line is 1 EA at the total.
+//
+// Combined per BOOK, not across books: two vendors with freight are two orders
+// on two POs, and one merged line couldn't be keyed against either.
 //
 // No markup: `perSell` mirrors `perCost`. The customer is charged what the
 // vendor charges, so the panel's two columns agree on purpose (ADR 0030).
-export function freightOrderRows(line, descLimit) {
-  return (line.parts || []).map((x, i) => {
-    const qty = x.qty > 0 ? x.qty : 1;
-    // Every part names its table: a book can bill two or three of them on one
-    // order, and "Freight — Glazzio Tiles" three times over is unkeyable.
-    const name = `Freight — ${line.book} ${x.label.toLowerCase()}`;
-    const r = {
-      id: `freight|${line.bookId}|${x.basis}|${i}`,
-      special: true, byDesc: true, freight: true, area: "whole order",
-      tag: "", sizePlain: "", name, sku: "",
-      coverage: [x.label, line.destination].filter(Boolean).join(" · "),
-      qty, qtyAssumed: false,
-      unitCode: x.unit === "sf" ? "SF" : x.unit === "pallets" ? "PLT" : "PC",
-      qtyText: `${qty} ${x.unit}`,
-      perCost: x.cost / qty,
-      perSell: x.cost / qty,
-    };
-    const desc = orderDescription(r, descLimit);
-    return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
-  });
+export function freightOrderRow(line, descLimit) {
+  const r = {
+    id: `freight|${line.bookId}`,
+    special: true, byDesc: true, freight: true, area: "whole order",
+    tag: "", sizePlain: "", name: `Freight — ${line.book}`, sku: "",
+    coverage: [freightSummary(line), line.destination].filter(Boolean).join(" · "),
+    coverageShort: line.destination,
+    qty: 1, qtyAssumed: false, unitCode: "EA", qtyText: "1 EA",
+    perCost: line.cost, perSell: line.cost,
+  };
+  const desc = orderDescription(r, descLimit);
+  return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
 }

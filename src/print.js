@@ -1,7 +1,7 @@
 import { num, ceilQty, getGrout, getMortar, groutBaseList, getCarton, getPieceCarton, getUnderlay, getUnderlayInstall, getAttached } from "./catalog.js";
 import { JOINTS, THICK, underlayLabel } from "./uiconst.js";
 import { money, miscQty, sf1 } from "./model.js";
-import { isSpecialOrder, orderCopyText, orderDescription, orderQty, ORDER_MIN_QTY } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription, orderQty, tightSize, ORDER_MIN_QTY } from "./orderentry.js";
 import { unitCode } from "./units.js";
 
 // Extended line total at `unit` (the row's per-sf or per-each price): pieces
@@ -149,7 +149,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   // Anything the desk can't key as a plain "each" gets the tag — the bundling
   // units, and now a line whose own sell unit isn't a piece (a Schluter roll).
   const tag = c.C || c.PC || (code !== "EA" && code !== "SF") ? code : "";
-  const sizePlain = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
+  const sizePlain = tightSize(p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || ""));
   const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${code}` : c.PC ? `${c.PC.per} PC/${code}` : "";
   const extSell = c.line;
   const extCost = orderLineCost(row, s, extSell);

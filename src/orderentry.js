@@ -39,33 +39,55 @@ export const orderQty = (qty) => (Number(qty) > 0 ? { qty: Number(qty), qtyAssum
 // screen but out of the fitted description.
 const VENDOR_PREFIX = /^Sheoga\s*—\s*/;
 
+// A dimension is one token to whoever reads the order — `2"x18"`, not
+// `2" × 18"`. The spaces cost three characters of a 30-character field that the
+// product text needs more, and the multiplication sign is not something every
+// ERP field takes cleanly. Only collapsed between digits, so a "Hex Tile" keeps
+// its space.
+export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[x×]\s*(?=\d)/gi, "$1x");
+
 // A special line → what belongs in the ERP's description field, via the fit
 // ladder. A Sheoga row abbreviates losslessly because its description is built
 // from known enums (descParts); everything else is arbitrary vendor text with no
 // short form, so it either fits or splits.
 //
-// A line always flows size · product/color · SKU · coverage. The SKU and
+// A line always flows unit · size · product/color · SKU · coverage. The SKU and
 // coverage trail because neither is part of the description proper — they're
 // handy in the same paste when there's room, and when the field is tight the
 // least identifying goes first: coverage (rank 2), then the SKU (rank 1). Both
 // always survive into the extended text.
+//
+// The buy/sell unit leads and never drops (rank 0, two characters): the ERP
+// keys every line as "each", so a carton line that doesn't say CT in its own
+// text is an order for 12 tiles instead of 12 cartons. It's the same tag the
+// panel shows in front of the item, so what pastes is what's on screen.
 export function orderDescription(r, limit) {
   const body = String(r.name || "").replace(VENDOR_PREFIX, "").trim();
-  const spec = [r.sizePlain, body].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  const spec = [tightSize(r.sizePlain), body].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   // Structured parts win over the row's name text: they're the same description
   // (descfit.test.js asserts the join matches across every configuration) but
   // carry the per-category short forms that make the abbreviated rung possible.
-  const parts = (r.sheoga && descParts(r.sheoga)) || textParts(spec);
+  const parts = [
+    ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
+    ...((r.sheoga && descParts(r.sheoga)) || textParts(spec)),
+  ];
   const tail = [];
   if (r.sku) tail.push({ full: String(r.sku), rank: 1 });
-  if (r.coverage) tail.push({ full: String(r.coverage), rank: 2 });
+  // `coverageShort` is for a row whose on-screen coverage is a readout rather
+  // than a spec — a freight line's "2 pallets · 84 sf · 24 pieces · Ohio". The
+  // desk needs the destination, not the arithmetic, and without a short form the
+  // whole line would descend to the split rung and wear a "+" promising an
+  // extended text that adds nothing.
+  if (r.coverage) tail.push({ full: String(r.coverage), short: String(r.coverageShort || ""), rank: 2 });
   return fitDescription([...parts, ...tail], limit);
 }
 
 // What a special line's copy button puts on the clipboard: the description
 // field's contents and nothing else. Quantity, cost and sell are separate ERP
 // fields and have their own columns in the panel — pasting them into a
-// description is what overran the field in the first place.
+// description is what overran the field in the first place. The unit tag is not
+// one of those: the ERP has no field for it, so it lives inside the description
+// (orderDescription) and copies with it.
 export const orderCopyText = (r) => (r.desc ? r.desc.main : "");
 
 // How many characters of the product/color text still let the WHOLE flow —
@@ -76,6 +98,6 @@ export const orderCopyText = (r) => (r.desc ? r.desc.main : "");
 // 7-char size already splits a 70-char field.
 export function nameBudget(r, limit) {
   if (!(Number(limit) > 0)) return Infinity;
-  const others = [r.sizePlain, r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
+  const others = [r.tag, tightSize(r.sizePlain), r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
   return Math.max(0, Number(limit) - others.reduce((n, s) => n + s.length + 1, 0));
 }
