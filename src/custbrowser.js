@@ -66,6 +66,32 @@ export function filterRows(rows, q) {
     r.projs.some((p) => has(p.name)));
 }
 
+// Every salesperson the shop's saved jobs carry, A–Z. The boot's light rows
+// project each project's salesperson name (LIST_SELECT), so the roster costs
+// nothing to build and is always current — nobody maintains a team list.
+// Deduped case-insensitively, keeping the first spelling seen.
+export function salesRoster(projects = []) {
+  const seen = new Map();
+  for (const p of projects) {
+    const name = salesNameOf(p);
+    const key = name.toLowerCase();
+    if (name && !seen.has(key)) seen.set(key, name);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+// What the salesperson box should open on. The browser defaults to the signed-in
+// salesman's own customers, but ONLY when their name actually matches a job —
+// a profile name that no project carries (unset, or "Marcus" against jobs
+// stamped "Marcus Mast" is fine, "M. Mast" is not) would open the browser onto
+// an empty grid, which reads as data loss.
+export function defaultSalesFilter(projects = [], myName = "") {
+  const me = (myName || "").trim();
+  if (!me) return "";
+  const s = me.toLowerCase();
+  return projects.some((p) => salesNameOf(p).toLowerCase().includes(s)) ? me : "";
+}
+
 // The salesperson box (the ERP order screen's Salesperson filter + "Me"
 // button): only customers any of whose projects carry a matching salesperson
 // name — not just the row's derived latest one, so a shared customer still

@@ -44,11 +44,11 @@ const OPEN_JOB = {
   ],
 };
 
-const projRow = (id, customerId, name, daysAgo, data = {}) => ({
+const projRow = (id, customerId, name, daysAgo, data = {}, sales = "Marcus") => ({
   id, customer_id: customerId, owner_id: "u1",
   created_at: iso(daysAgo + 3), updated_at: iso(daysAgo),
   name, address: data.address || "", phone: data.phone || "", email: "",
-  quick: data.quick ? "true" : null, sales: "Marcus",
+  quick: data.quick ? "true" : null, sales,
   data: { name, ...data },
 });
 
@@ -65,12 +65,12 @@ export const SEED = () => {
     projRow("p2", "c0", "Kisling — basement", 6),
     projRow("p3", "c1", "Pappas — main floor", 1),
     projRow("p4", "c2", "Yoder — bath remodel", 3),
-    projRow("p5", "c3", "Hostetler — new build", 4),
-    projRow("p6", "c4", "Byler — laundry", 9),
-    projRow("p7", "c5", "Coblentz — entry tile", 12),
-    projRow("p8", "c6", "Troyer — kitchen", 14),
+    projRow("p5", "c3", "Hostetler — new build", 4, {}, "Gina Boyd"),
+    projRow("p6", "c4", "Byler — laundry", 9, {}, "Alan Yoder"),
+    projRow("p7", "c5", "Coblentz — entry tile", 12, {}, "Gina Boyd"),
+    projRow("p8", "c6", "Troyer — kitchen", 14, {}, "Rhoda Weaver"),
     projRow("p9", null, "Q-Arctic White-7/20", 2, { quick: true }),
-    projRow("p10", null, "Walk-in — sample pricing", 5),
+    projRow("p10", null, "Walk-in — sample pricing", 5, {}, "Alan Yoder"),
   ];
 
   return {

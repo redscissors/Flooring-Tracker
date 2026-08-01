@@ -56,6 +56,30 @@ blank row's dashed chip line reads "＋ Extras" instead of listing every addable
 ("＋ Grout · Mortar · Backer…"). The list moved to the button's tooltip; the
 drawer still names each one.
 
+## Follow-up: the customer browser's salesperson box
+
+Second request, same session: "when browsing in the customer button, in the
+salesperson search box — make it default to the salesperson… and give it a
+little dropdown with the other salespeople alphabetically."
+
+- `salesRoster(projects)` (`custbrowser.js`) — every salesperson the shop's
+  saved jobs carry, A–Z, deduped case-insensitively. The boot's light rows
+  already project each project's salesperson name, so the roster costs no fetch
+  and needs no team list to maintain.
+- `defaultSalesFilter(projects, myName)` — the box opens on the signed-in
+  salesman, but **only when their name actually matches a job**. A profile name
+  no project carries would otherwise open the browser onto an empty grid, which
+  reads as data loss. Substring, so a profile "Marcus" still matches jobs
+  stamped "Marcus Mast".
+- The box's trailing button is now a ▾ opening the roster (Everyone · divider ·
+  names A–Z, current one checked, the signed-in user tagged "me"). The ✕ still
+  clears, and typing still narrows freely. The old "Me" button is retired — its
+  job is the default now.
+
+Filtering-by-default is visible three ways so nobody thinks customers vanished:
+the header count reads "3 of 10", the salesman band shows above the rows, and
+the ✕ sits in the box. `shots/browser-default.png`, `shots/browser-roster.png`.
+
 ## Proof
 
 `shots/` — `before-*` / `after-*` at 1440 / 1150 / 960 / 820, plus `rail-*` and
