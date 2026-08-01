@@ -285,12 +285,10 @@ test("freightOrderRow: several tables key as ONE line at the combined total", ()
   assert.equal(row.unitCode, "EA");
   assert.equal(row.perCost, line.cost);
   assert.equal(row.perCost, freightTotal([line]));
-  // The parts survive as the line's readable breakdown, not as its quantity.
-  assert.match(row.coverage, /pallet/);
-  assert.match(row.coverage, /Ohio$/);
-  // …and the ERP field takes the destination instead of the arithmetic, so a
-  // complete description never wears a "+" pointing at an extended text that
-  // would only repeat the breakdown.
-  assert.equal(row.desc.main, "Freight — Glazzio Ohio");
+  // The line names the vendor and nothing else: the parts and the destination
+  // justify the price on the estimate, not on a PO that already names both. So
+  // it also never wears the split rung's "+" pointing at an extended text.
+  assert.equal(row.desc.main, "Freight — Glazzio");
+  assert.equal(row.desc.tier, "full");
   assert.equal(row.desc.ext, null);
 });

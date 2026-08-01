@@ -396,9 +396,7 @@ src/
                     # carton line not saying CT in its own text orders 44 tiles
                     # instead of 44 cartons; `tightSize` makes a dimension one
                     # token, `12"x24"`, collapsing only between digits so a "Hex
-                    # Tile" keeps its spaces; a row may carry `coverageShort`
-                    # when its coverage is a readout rather than a spec, so a
-                    # complete line doesn't descend to the split rung's "+") and
+                    # Tile" keeps its spaces) and
                     # `orderCopyText` (the description field's contents, nothing
                     # else — qty/cost/sell are separate ERP fields with their own
                     # columns; the unit tag is NOT one of them, so it rides
@@ -421,10 +419,11 @@ src/
                     # count in the section footer. A Sheoga line has
                     # no SKU to key, so it reads "by description — no SKU".
                     # Vendor freight rides the Special list too — ONE line per
-                    # book (freightOrderRow), keyed 1 EA at that vendor's whole
-                    # charge: the parts break out where the customer reads them,
-                    # but the desk keys shipping as a single charge and pallets/
-                    # feet/pieces can't share a quantity column
+                    # book (freightOrderRow), reading "Freight — <vendor>" and
+                    # keyed 1 EA at that vendor's whole charge: the parts and
+                    # the destination justify the price on the ESTIMATE, but the
+                    # desk keys shipping as a single charge and pallets/feet/
+                    # pieces can't share a quantity column
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

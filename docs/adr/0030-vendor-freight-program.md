@@ -88,11 +88,13 @@ Neither reserved mode fits: `perSqft` has no minimum and no threshold, and flat
    price tiers.** It prints in the estimate's extras band as its own "Freight"
    group naming the vendor, the destination, and each part's unit and rate; the
    order-entry panel files it with the **special orders**, by description (there
-   is no SKU to key), with cost and sell matching — as **one line per book, keyed
-   1 EA at that book's whole charge** (amended 2026-08-01, issue 073: the parts
-   break out wherever the customer reads the number, but the ERP takes shipping
-   as a single charge, and a book billing pallets *and* feet *and* pieces has no
-   one quantity to key). Builder/Sale/Custom discount
+   is no SKU to key), with cost and sell matching — as **one line per book
+   reading "Freight — «vendor»", keyed 1 EA at that book's whole charge**
+   (amended 2026-08-01, issue 073). The parts and the destination justify the
+   price on the estimate; the ERP takes shipping as a single charge, a book
+   billing pallets *and* feet *and* pieces has no one quantity to key, and a PO
+   that already names the vendor and ships to one address needs neither readout.
+   Builder/Sale/Custom discount
    the shop's prices, not the trucking company's — ADR 0018 already excluded
    freight from Employee pricing, and this extends the same reading to the
    discount tiers. `freightList` accordingly reads the raw project, never the

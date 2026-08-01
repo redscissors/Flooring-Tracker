@@ -73,12 +73,7 @@ export function orderDescription(r, limit) {
   ];
   const tail = [];
   if (r.sku) tail.push({ full: String(r.sku), rank: 1 });
-  // `coverageShort` is for a row whose on-screen coverage is a readout rather
-  // than a spec — a freight line's "2 pallets · 84 sf · 24 pieces · Ohio". The
-  // desk needs the destination, not the arithmetic, and without a short form the
-  // whole line would descend to the split rung and wear a "+" promising an
-  // extended text that adds nothing.
-  if (r.coverage) tail.push({ full: String(r.coverage), short: String(r.coverageShort || ""), rank: 2 });
+  if (r.coverage) tail.push({ full: String(r.coverage), rank: 2 });
   return fitDescription([...parts, ...tail], limit);
 }
 

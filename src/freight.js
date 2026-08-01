@@ -318,10 +318,15 @@ export function freightPrintRows(lines) {
 // keys shipping as one charge, and a book that bills two tables would otherwise
 // take three lines whose quantities (pallets, feet, pieces) all mean different
 // things and none of which is what the vendor invoices. So the parts collapse
-// to a summary in the description and the line is 1 EA at the total.
+// into the total and the line is 1 EA at it.
 //
 // Combined per BOOK, not across books: two vendors with freight are two orders
 // on two POs, and one merged line couldn't be keyed against either.
+//
+// The line is the vendor and nothing else — no destination, no pallet/footage
+// readout. Those are the estimate's job (they justify the price to a customer);
+// on a PO that already names the vendor and ships to one address, they're
+// characters the desk reads past.
 //
 // No markup: `perSell` mirrors `perCost`. The customer is charged what the
 // vendor charges, so the panel's two columns agree on purpose (ADR 0030).
@@ -329,9 +334,7 @@ export function freightOrderRow(line, descLimit) {
   const r = {
     id: `freight|${line.bookId}`,
     special: true, byDesc: true, freight: true, area: "whole order",
-    tag: "", sizePlain: "", name: `Freight — ${line.book}`, sku: "",
-    coverage: [freightSummary(line), line.destination].filter(Boolean).join(" · "),
-    coverageShort: line.destination,
+    tag: "", sizePlain: "", name: `Freight — ${line.book}`, sku: "", coverage: "",
     qty: 1, qtyAssumed: false, unitCode: "EA", qtyText: "1 EA",
     perCost: line.cost, perSell: line.cost,
   };

@@ -26,13 +26,18 @@ book billing two or three tables was producing three lines whose quantities —
 pallets, feet, pieces — all meant different things and none of which was what
 the vendor invoices.
 
-So the parts collapse into the description's readout and the line is
-**1 EA at the book's whole charge**. Still combined per BOOK, not across books:
-two vendors with freight are two orders on two POs, and one merged line
-couldn't be keyed against either.
+So the parts collapse into the total and the line is **1 EA at the book's whole
+charge**. Still combined per BOOK, not across books: two vendors with freight
+are two orders on two POs, and one merged line couldn't be keyed against either.
 
 Glazzio example: was 3 lines (`2 PLT @ $79`, `84 SF @ $0.99`, `24 PC @ $0.33`),
-now 1 line — `Freight — Glazzio Tiles · 1 EA · $256.01`.
+now 1 line — `Freight — Glazzio · 1 EA · $256.01`.
+
+The line is **the vendor and nothing else** (owner, 2026-08-01) — no
+destination, no pallet/footage readout. Those justify the price to a customer
+on the estimate; on a PO that already names the vendor and ships to one
+address, they're characters the desk reads past. It also means the description
+sits on the clean "full" rung: no chip, no `+`, no Ext.
 
 ### 2. The size is one token
 
@@ -57,14 +62,6 @@ text doesn't say **CT** is an order for 44 tiles instead of 44 cartons.
 The tag now leads the description as a **rank-0 part** — never dropped, two
 characters — so the flow is `unit · size · product · SKU · coverage`, and what
 pastes is what the panel shows in front of the item. Stale comments fixed.
-
-### 4. (fallout) `coverageShort`, so a complete line doesn't wear a "+"
-
-The freight line's coverage is a readout — `2 pallets · 84 sf · 24 pieces ·
-Ohio` — not a spec. It overran 30 characters and dropped the whole line to the
-split rung, so a description that was already complete wore a "+" promising an
-extended text that added nothing. A part may now carry a `short`, and freight's
-is the destination: `Freight — Glazzio Tiles Ohio`, 28/30, full stop.
 
 ## Proof
 
