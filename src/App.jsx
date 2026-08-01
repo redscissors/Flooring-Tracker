@@ -9,7 +9,7 @@ import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } f
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
-import { freightList, freightTotal, freightPrintRows, freightOrderRows, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
+import { freightList, freightTotal, freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
@@ -2431,7 +2431,7 @@ export default function App({ user, onSignOut }) {
         });
         // Freight files with the special orders: it's billed by the same vendor
         // on the same order, and like a Sheoga line it has no SKU to key.
-        const freightRows = fList.flatMap((l) => freightOrderRows(l, descLimit));
+        const freightRows = fList.map((l) => freightOrderRow(l, descLimit));
         return <OrderEntryPanel name={sel.name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
       })()}
 

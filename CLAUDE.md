@@ -387,12 +387,20 @@ src/
                     # is a special order when it carries a price-book `bookId` OR
                     # a `sheoga` marker — Sheoga floors AND their at-cost fee
                     # lines, which carry `sheoga` with no `cfg`), plus
-                    # `orderDescription` (the row -> descfit ladder; a Sheoga row
+                    # `orderDescription` (the row -> descfit ladder, flowing
+                    # unit · size · product · SKU · coverage; a Sheoga row
                     # abbreviates losslessly off `sheoga.descParts`, anything else
-                    # is arbitrary vendor text with no short rung) and
+                    # is arbitrary vendor text with no short rung. The buy/sell
+                    # unit tag LEADS and never drops (rank 0, 2026-08-01) — the
+                    # ERP has no unit field and keys every line as each, so a
+                    # carton line not saying CT in its own text orders 44 tiles
+                    # instead of 44 cartons; `tightSize` makes a dimension one
+                    # token, `12"x24"`, collapsing only between digits so a "Hex
+                    # Tile" keeps its spaces) and
                     # `orderCopyText` (the description field's contents, nothing
                     # else — qty/cost/sell are separate ERP fields with their own
-                    # columns), and `orderQty` (2026-07-27): a line with no
+                    # columns; the unit tag is NOT one of them, so it rides
+                    # inside the description), and `orderQty` (2026-07-27): a line with no
                     # quantity is keyed as ONE of its sell unit — the ERP takes
                     # no zero-quantity line, and a zero qty also blanks the
                     # per-unit cost/sell, which are extended totals ÷ qty.
@@ -409,8 +417,13 @@ src/
                     # A `qtyAssumed`
                     # line reads amber (tint + edge bar + "ASSUMED") with a
                     # count in the section footer. A Sheoga line has
-                    # no SKU to key, so it reads "by description — no SKU" and
-                    # copies its qty inline
+                    # no SKU to key, so it reads "by description — no SKU".
+                    # Vendor freight rides the Special list too — ONE line per
+                    # book (freightOrderRow), reading "Freight — <vendor>" and
+                    # keyed 1 EA at that vendor's whole charge: the parts and
+                    # the destination justify the price on the ESTIMATE, but the
+                    # desk keys shipping as a single charge and pallets/feet/
+                    # pieces can't share a quantity column
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct, normP, normC, newProject } from "./model.js";
-import { normFreight, hasFreightProgram, rowFreightOn, rowSqin, freightBasis, matchesSeries, SHEET_GOODS_WORDS, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRows, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
+import { normFreight, hasFreightProgram, rowFreightOn, rowSqin, freightBasis, matchesSeries, SHEET_GOODS_WORDS, freightTally, freightParts, freightList, freightTotal, freightSummary, freightOrderRow, FREIGHT_SEED, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 
 const s = normalizeSettings();
 
@@ -256,16 +256,39 @@ test("a 12x12 ships by the pallet; a 12x12 mosaic ships by the foot", () => {
   assert.equal(accent.cost, 29.7);
 });
 
-test("freightOrderRows: special-order lines, by description, never marked up", () => {
+test("freightOrderRow: a special-order line, by description, never marked up", () => {
   const p = proj([tile({ L: "24", W: "24", qty: "600" })]);
   const [line] = freightList(p, s, [book()]);
-  const [row] = freightOrderRows(line, 30);
+  const row = freightOrderRow(line, 30);
   assert.equal(row.special, true);
   assert.equal(row.byDesc, true);                                // no SKU for the desk to key
-  assert.equal(row.name, "Freight — Glazzio large format");   // every part names its own table
-  assert.equal(row.qty, 2);
-  assert.equal(row.unitCode, "PLT");
-  assert.equal(row.perCost, 79);
+  assert.equal(row.name, "Freight — Glazzio");
+  assert.equal(row.qty, 1);
+  assert.equal(row.unitCode, "EA");
+  assert.equal(row.perCost, line.cost);
   assert.equal(row.perSell, row.perCost);                        // charged at cost
   assert.ok(row.desc.main.length > 0);
+});
+
+test("freightOrderRow: several tables key as ONE line at the combined total", () => {
+  // Three tables on one Glazzio order: large-format pallets, small-format feet,
+  // and trim pieces. The estimate breaks them out; the desk keys one charge.
+  const p = proj([
+    tile({ L: "24", W: "24", qty: "600" }),
+    tile({ L: "6", W: "6", qty: "200" }),
+    tile({ qtyType: "count", qty: "24", brandColor: "Chair rail" }),
+  ]);
+  const [line] = freightList(p, s, [book()]);
+  assert.equal(line.parts.length, 3);
+  const row = freightOrderRow(line, 30);
+  assert.equal(row.qty, 1);
+  assert.equal(row.unitCode, "EA");
+  assert.equal(row.perCost, line.cost);
+  assert.equal(row.perCost, freightTotal([line]));
+  // The line names the vendor and nothing else: the parts and the destination
+  // justify the price on the estimate, not on a PO that already names both. So
+  // it also never wears the split rung's "+" pointing at an extended text.
+  assert.equal(row.desc.main, "Freight — Glazzio");
+  assert.equal(row.desc.tier, "full");
+  assert.equal(row.desc.ext, null);
 });

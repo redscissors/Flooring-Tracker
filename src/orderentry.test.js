@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSpecialOrder, orderCopyText, orderDescription, nameBudget } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription, nameBudget, tightSize } from "./orderentry.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), sp: "White Oak", w: 5.25, ...over });
@@ -64,11 +64,29 @@ const book = { tag: "CT", sizePlain: '12" × 24"', name: "Anatolia Carrara Bianc
 const sheogaRow = (cfg) => ({ tag: "CT", sizePlain: '5¼"', name: "Sheoga — ignored, parts win", sku: "", sheoga: { mode: "floor", cfg } });
 const floorCfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" };
 
-test("orderDescription: with no limit the line flows size · product · SKU · coverage", () => {
+test("orderDescription: with no limit the line flows unit · size · product · SKU · coverage", () => {
   const d = orderDescription(book, 0);
   assert.equal(d.tier, "full");
-  assert.equal(d.main, '12" × 24" Anatolia Carrara Bianco ANA-CAR-1224 15.5 SF/CT');
+  assert.equal(d.main, 'CT 12"x24" Anatolia Carrara Bianco ANA-CAR-1224 15.5 SF/CT');
   assert.equal(d.ext, null);
+});
+
+test("orderDescription: the unit tag leads and never drops — the ERP keys every line as each", () => {
+  // A carton line whose text doesn't say CT is an order for 20 tiles.
+  for (const limit of [0, 58, 50, 24, 12]) {
+    assert.ok(orderDescription(book, limit).main.startsWith("CT "), `lost the tag at ${limit}`);
+  }
+  // Pieces need no tag, and a row without one gets no stray leading space.
+  assert.equal(orderDescription({ ...book, tag: "" }, 0).main.startsWith("1"), true);
+});
+
+test("tightSize: a dimension is one token, and only between digits", () => {
+  assert.equal(tightSize('12" × 24"'), '12"x24"');
+  assert.equal(tightSize('2" x 18"'), '2"x18"');
+  assert.equal(tightSize("6 X 36"), "6x36");
+  assert.equal(tightSize("2 x 10 x 5/8"), "2x10x5/8");
+  assert.equal(tightSize("Hex Tile"), "Hex Tile", "a word carrying an x keeps its spaces");
+  assert.equal(tightSize(""), "");
 });
 
 test("orderDescription: the copy button carries the description field, nothing else", () => {
@@ -81,7 +99,7 @@ test("orderDescription: the copy button carries the description field, nothing e
 test("orderDescription: a Sheoga row abbreviates from its configuration, dropping the vendor prefix", () => {
   const d = orderDescription(sheogaRow(floorCfg), 30);
   assert.equal(d.tier, "short");
-  assert.equal(d.main, '5¼" WO Char Sol T-1 30sh');
+  assert.equal(d.main, 'CT 5¼" WO Char Sol T-1 30sh');
   assert.ok(!d.main.includes("Sheoga"), "the PO already names the vendor");
   assert.ok(!d.main.includes("ignored"), "structured parts beat the row's name text");
   assert.equal(d.ext, null);
@@ -111,11 +129,11 @@ test("orderDescription: SKU and coverage trail — coverage drops first, then th
   assert.ok(tight.ext.includes("15.5 SF/CT"), "and neither is coverage");
 });
 
-test("nameBudget: what the limit leaves the product text after size, SKU and coverage", () => {
-  // size 9 + SKU 12 + coverage 10, each costing one joining space = 34
-  assert.equal(nameBudget(book, 70), 36);
-  // "Anatolia Carrara Bianco" is 23 chars: at limit 57 the whole flow fits exactly
-  assert.equal(nameBudget(book, 57), "Anatolia Carrara Bianco".length);
+test("nameBudget: what the limit leaves the product text after the tag, size, SKU and coverage", () => {
+  // tag 2 + size 7 + SKU 12 + coverage 10, each costing one joining space = 35
+  assert.equal(nameBudget(book, 70), 35);
+  // "Anatolia Carrara Bianco" is 23 chars: at limit 58 the whole flow fits exactly
+  assert.equal(nameBudget(book, 58), "Anatolia Carrara Bianco".length);
   assert.equal(nameBudget(book, 0), Infinity, "no limit configured — nothing to trim against");
   assert.equal(nameBudget({ sizePlain: "", sku: "", coverage: "" }, 30), 30);
   assert.equal(nameBudget({ sizePlain: "0.5x10", sku: "WOWPOWIEDGEG", coverage: "10 PC/CT" }, 20), 0, "never negative");
