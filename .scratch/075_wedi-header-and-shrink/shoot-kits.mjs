@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 
 const OUT = ".scratch/075_wedi-header-and-shrink/shots";
 const URL = "http://127.0.0.1:5199/.scratch/075_wedi-header-and-shrink/kitsproto.html";
-const KEYS = ["today", "k1", "k2", "k3", "k4"];
+const KEYS = (process.argv[2] || "today,k1,k2,k3,k4,k5").split(",");
 
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const rows = [];
@@ -13,7 +13,7 @@ const rows = [];
 for (const k of KEYS) {
   const pg = await b.newPage({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: 2 });
   await pg.goto(URL + "?k=" + k, { waitUntil: "load" });
-  await pg.waitForTimeout(1800);
+  await pg.waitForTimeout(2400);
   const card = await pg.locator(".pancard").first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
   const scrollH = await pg.locator(".main").evaluate((el) => el.scrollHeight);
   const firstFam = await pg.locator(".fam").first().evaluate((el) => Math.round(el.getBoundingClientRect().height));

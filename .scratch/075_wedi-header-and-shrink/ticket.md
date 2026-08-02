@@ -260,6 +260,45 @@ family's most common", faked in the prototype by a post-paint pass
 Shots: `shots/kits-{today,k1,k2,k3,k4}.png`, plus `shots/kits-before-{1680,1280,1024}.png`
 for the tab in its full frame.
 
+### K5 — K3 reworked to the owner's notes (2026-08-02)
+
+> "let's take a look at k3. But instead of it going along the lines of 36×36 inch
+> shower base, we can drop the shower pan… let's just do 36×36 inch, and then it
+> could be blank unless it is an offset or the corner pan. I'm also thinking,
+> could we do them by feet first in bold and then in lighter text in inches. And
+> then the price on the right hand side. But then also do the pans in order to
+> where it's 36×36 and then 36×48, so the smallest size is always first with the
+> long size second. So it's easy to find all the three foots, all the four foots."
+
+`?k=k5` — 25px rows, first family 247px, whole tab 834px (from 120 / 655 / 1729).
+
+- **Feet lead in bold, inches follow in light.** `3′ × 4′` `36 × 48`. The two
+  off-foot sizes read `3′6″` (42″) and `4′6″` (54″ module); a module shows its
+  single length, `2′8″` `32″ module`.
+- **The name column is gone.** A tag appears only where a pan breaks its
+  family's pattern — the three offset pans read OFFSET DRAIN and the Primo
+  reads CORNER PAN; everything else is blank.
+- **Sorted smallest side, then longest**, so all the 3-footers sit together,
+  then the 3′6″s, then the 4-footers. No pan in the catalog stores `w > d`
+  (checked all 30), so leading with the smaller number never misstates an
+  offset pan's drain position.
+- **Flows down the first column, then over.** A grid's `auto-fill` runs
+  *across*, which zig-zagged the size order and defeated the sort — so the
+  cards are a flex column-wrap instead, which honours `order`. (CSS multi-column
+  ignores `order`, and reordering the DOM is off the table while React owns
+  those nodes.)
+
+Two rules needed a second pass after the first shot, both visible in
+`shots/kits-k5.png`'s earlier revision:
+
+- Every module was tagged `FUNDO® LINEA…` — each module's name carries its own
+  length, so no name is a majority. A "usual" now needs at least two pans
+  agreeing, otherwise nothing is an exception.
+- `CORNER PAN · OFFSET DRAIN` truncated at the column. The corner pan's own name
+  already reads "Corner/Offset Drain", so it never appends the drain.
+
+Shots: `shots/kits-k5.png` (the tab), `shots/kits-k5-inframe.png` (in the popup).
+
 ### The note box
 
 Removed in every variant, as asked. Its content (what the house kit contains)
