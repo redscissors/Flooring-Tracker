@@ -417,6 +417,46 @@ C1 costs the drawings 218px against K9 at 1680 (559 vs 777). So the choice is
 "three fair columns" versus "the drawings get the width", not a free win either
 way.
 
+### C1 on all three tabs (owner, 2026-08-02)
+
+> "the reason I like C1 is that I think it could be used in all three tabs… so
+> the build column is always consistent no matter what tab you're in. The
+> drawings would always be consistent too, and the main would always be
+> consistent as well."
+
+**It works, and it also fixes a jump that is already in the shipped build.**
+
+Measured on every tab, `.main` / `.buildcol` / `.diagcol`, nothing built:
+
+| | 1680 | 1400 | 1200 |
+|---|---|---|---|
+| Today — all three tabs | 932 / 392 / 356 | 652 / 392 / 356 | 452 / 392 / 356 |
+| **C1** — all three tabs | 566 / 543 / 571 | 473 / 450 / 478 | 406 / 383 / 411 |
+
+Identical on Kits, Custom shower and Browse at every width, which is exactly the
+ask.
+
+**The jump C1 also fixes.** `.buildcol` is written `flex: 0 0 392px`, but that
+has never been what renders: as soon as a kit is loaded, the column's own
+content floors it at ~567px, and the 175px comes straight out of `.main`. So
+today the columns move when you click a pan. Under C1 that same shift is 12px at
+1680 (566 → 554) because the other two columns are already near the floor.
+It is still 92px at 1200 (406 → 314) — the content floor asserts itself when
+there is less to go round — but that beats 175px at every width.
+
+Two costs, both on tabs that currently get the whole surplus:
+
+- **Browse item names truncate more.** At 566px the catalogue rows read
+  `47" x 18" x 15" · Sanoasa…` and `16 1/2" x 16 1/2" x 1 1/16"…`; at today's
+  932px they don't (`shots/c1-browse-1680.png`).
+- **Custom shower shows fewer option cards** — about 2½ of the 240px cards at
+  1680 against today's 3.9 (`shots/c1-custom-1680.png`). The A1 header drops to
+  two groups per row, which it already does at most real widths.
+
+And against K9, C1 leaves the drawings 206px narrower at 1680 (571 vs 777),
+because the Kits list keeps 566px it no longer needs. That is the price of one
+rule for all three tabs rather than a per-tab rule.
+
 > A measuring bug worth recording, because it made the first set of sub-1200
 > numbers wrong: the harness sized the column-wrap container from
 > `getBoundingClientRect().height`, which is **device** pixels, while the
