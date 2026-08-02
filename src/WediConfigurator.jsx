@@ -28,6 +28,15 @@ const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2,
 const fm0 = (n) => "$" + Math.round(+n).toLocaleString("en-US");
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
+// Three columns — solver, build, drawings — that only work side by side, so the
+// body is drawn at a fixed 1120px. Below that the popup SHRINKS rather than
+// scrolling sideways (the same call App.jsx made for the desktop shell): a
+// narrow window used to hide the drawings rail behind a horizontal scrollbar,
+// which reads as "the drawings are gone". PAD is the two 18px gutters the body
+// sits in. The floor is where 9px type stops being readable.
+const WEDI_DESIGN_W = 1120 + 36;
+const WEDI_ZOOM_FLOOR = 0.62;
+
 // The prototype's stylesheet, scoped to the popup and re-based on the theme's
 // --ft-* tokens so it themes (and darkens) with the rest of the app. Two
 // values are the configurator's own: the rust that marks a CUT (amber already
@@ -1403,6 +1412,35 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [wallFlip, setWallFlip] = useState(false);
   const [wallH, setWallH] = useState(s0.wallH);
   const [panelFit, setPanelFit] = useState(true);
+
+  // Shrink-to-fit: measure the frame the popup sits in and scale the whole
+  // thing so the drawings rail always stays on screen. `zoom` (not transform)
+  // because it is a real layout scale — the popup keeps its own scrollbars, and
+  // getBoundingClientRect still reports viewport pixels, so the swap/chip/wall
+  // popovers that portal to document.body land on their anchors unscaled.
+  const shellRef = useRef(null);
+  const [fit, setFit] = useState({ zoom: 1, h: 940 });
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const pad = embedded ? 0 : 32;   // the overlay's p-4 gutters
+    const on = () => {
+      const w = el.clientWidth - pad;
+      if (w <= 0) return;
+      const zoom = Math.round(Math.min(1, Math.max(WEDI_ZOOM_FLOOR, w / WEDI_DESIGN_W)) * 1000) / 1000;
+      // The overlay's height was 94vh, but a viewport unit inside a zoomed box
+      // is not the pixel it is outside one — so it is measured here and handed
+      // over in the popup's own (zoomed) pixels.
+      const h = Math.round(Math.min(940, (el.clientHeight - pad) / zoom));
+      setFit((p) => (p.zoom === zoom && p.h === h ? p : { zoom, h }));
+    };
+    on();
+    const ro = new ResizeObserver(on);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [embedded]);
+  const uiZoom = fit.zoom;
+
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");      // "", "starred", or a BROWSE_SECTIONS key
   const [sub, setSub] = useState("");      // sub-filter within the active section
@@ -2999,7 +3037,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // Embedded (the Apps hub, like Sheoga): no backdrop or fixed overlay — the
     // hub's main column is the frame; the outer scroll keeps the 1120px body
     // usable on narrow windows the way the popup's overlay scroll does.
-    <div className={embedded
+    <div ref={shellRef} className={embedded
         ? "relative flex-1 min-h-0 flex flex-col overflow-auto"
         : "print:hidden fixed inset-0 z-[70] flex items-start justify-center overflow-auto p-4"}
       style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
@@ -3008,8 +3046,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           ? "flex-1 min-h-0 min-w-[1120px]"
           : "max-w-[1680px] rounded-xl border shadow-2xl"}`}
         style={embedded
-          ? { background: "var(--ft-cream)" }
-          : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: "min(940px, 94vh)", minHeight: 560 }}
+          ? { background: "var(--ft-cream)", zoom: uiZoom }
+          : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: uiZoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-pop>
         <div className="pop-head">
           <div>
