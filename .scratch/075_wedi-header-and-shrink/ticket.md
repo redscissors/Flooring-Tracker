@@ -196,6 +196,77 @@ node .scratch/075_wedi-header-and-shrink/shoot-slim.mjs      # + prints heights
 `hub.html` mounts the real `AppsWorkspace` with mock commit handlers — no
 credentials, no network, no writes to the live project.
 
+---
+
+## 4 · Kits tab — condensing (owner ask 2026-08-02, awaiting a pick)
+
+> "in the kits, the box of text telling what it is does not need to be there.
+> And I think we could condense the actual kit selection boxes as well… maybe we
+> could aim for about half the size. Show me some prototype options."
+
+`kitsproto.html` (+ `kitsproto.jsx`), `shoot-kits.mjs` shoots and measures.
+These mount the **real** `WediConfigurator`, so every price on screen is the
+real kit total through the real tier lens — invented prices would be worse than
+no prototype here. Each variant is a stylesheet layered over the shipped markup
+(`?k=<key>`), which is also honest about cost: anything reachable in CSS is a
+CSS-only change to the component's own block.
+
+> A note on the harness: `WediConfigurator` renders its `<style>` from inside
+> its own tree, i.e. **after** the variant sheet, so a variant rule at equal
+> specificity silently loses every property the base also sets. The first run
+> looked plausible and was wrong — `display`, `padding` and
+> `grid-template-columns` overrides were all no-ops while the `display:none`
+> ones worked. `bump()` doubles the scope class to win the tie.
+
+### What is actually taking the space
+
+Almost none of it is the card; it is the same words repeated on every card:
+
+- **"Fundo® Shower Base"** on all 18 curbed cards — the family heading directly
+  above already says FUNDO — CURBED.
+- **"full kit"** on every card — the whole tab is priced as full kits.
+- **"CENTER DRAIN"** on 16 of 18 — the two OFFSET pans are the entire signal,
+  and they are invisible in the noise.
+- The 124px note box above the first family (which is what the owner opened on).
+
+| | Variant | Card | 1st family | Whole tab |
+|---|---|---|---|---|
+| | **Today** | 120px | 655px | 1729px |
+| **K1** | Two-line card — size + drain chip, then price | 68px | 312px | 851px |
+| **K2** | One line — size and price only | 28px | 182px | 851px |
+| **K3** | Rows, two columns, aligned price track | 24px | 238px | 834px |
+| **K4** | Two-line, **drain chip only where it differs** | 49px | 236px | 834px |
+
+All four land at roughly half the tab (−51 to −52%), because dropping the note
+and the two repeated captions is most of the win regardless of card shape.
+
+Two things the shots make obvious that the numbers don't:
+
+- **K2 breaks a real distinction.** With the drain chip gone, the two 36×72
+  pans both read `36×72 in · $1,624.17` and the two 60×72 both read
+  `$2,272.81` — identical rows that are actually a centre-drain pan and an
+  offset one. Densest, but it hides the thing a salesman needs.
+- **K3's name column is dead weight** — "Fundo® Shower Base" eighteen times down
+  a column, truncated to "Fundo® Curbless Shower B…" in the next family.
+  Dropping it makes K3 essentially K2-as-rows.
+
+**K4 is the recommendation.** It is the only one that removes the repetition
+*and* keeps the exception legible — the two OFFSET pans jump straight out of an
+otherwise plain grid of size + price. It is also the only variant needing more
+than CSS: the rule is "show the chip when this pan's drain differs from the
+family's most common", faked in the prototype by a post-paint pass
+(`markCommonDrains`), and about six lines in `kitsTab` for real.
+
+Shots: `shots/kits-{today,k1,k2,k3,k4}.png`, plus `shots/kits-before-{1680,1280,1024}.png`
+for the tab in its full frame.
+
+### The note box
+
+Removed in every variant, as asked. Its content (what the house kit contains)
+is real information with nowhere else to live — worth deciding whether it
+becomes a "What's in a kit?" disclosure by the family headings, moves into the
+build column where the kit is actually assembled, or simply goes.
+
 ## Open
 
 - **The Browse tab still wears the old segment.** A1 brought its own classes
