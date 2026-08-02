@@ -381,6 +381,42 @@ surfaces, and at 300px the Custom shower tab loses its option cards past the
 first (`shots/cols-k9-custom.png`) and Browse loses its catalogue rows. The real
 change is a modifier on `.pop-body` keyed to `tab === "kits"`, not a bare rule.
 
+### C1 / C2 / C3 — "can all three columns just stay equal?" (owner, 2026-08-02)
+
+Short answer: **above ~1700px yes and for free; below that only by letting the
+build column truncate its own content.**
+
+The build column has a min-content floor of about **567px** — its rows (name,
+SKU sub-line, stepper, price) will not compress past it, and a flex item does
+not shrink below min-content unless told to. That floor, not the stylesheet, is
+what actually sets the layout. It is also why the shipped `flex: 0 0 392px` on
+`.buildcol` has never been true: the column renders at 567px today.
+
+Measured with a 36×72 kit built, list / build / drawings:
+
+| Policy | 1680 | 1400 | 1200 |
+|---|---|---|---|
+| Today | 757 / 567 / 356 | 477 / 567 / 356 | 277 / 567 / 356 |
+| **C1** thirds (`flex:1 1 0`) | 554 / 567 / 559 | 414 / 567 / 419 | 314 / 567 / 319 |
+| **C2** equal growth, own minimums | 511 / 603 / 567 | 389 / 567 / 445 | 290 / 567 / 344 |
+| **C3** forced thirds (`min-width:0`) | 566 / 543 / 571 | — | 406 / 383 / 411 |
+| **K9** narrow list, drawings favoured | 300 / 603 / 777 | 300 / 567 / 533 | 300 / 567 / 333 |
+
+- **C1 is the honest version of the ask.** At 1680 it lands 554/567/559 —
+  thirds, with nothing forced. Below that it stops being thirds and becomes
+  *"the list and the drawings stay equal to each other, and the build column
+  keeps what it needs"*, which is the only sensible direction to degrade.
+- **C3 forces true thirds** and `shots/cols-c3-1200.png` is the bill: at a 383px
+  build column, "Fundo® Shower Curb Lea…", "1504181 · Stainless, brushed n…"
+  and "47828 · 48" x 96" x 1/2" · 96 sf — 0 v…" all truncate, and *Add to
+  product lines* wraps to three lines. The drawings gain 55px over C1 for it.
+- **C2 buys almost nothing over C1** — the basis only matters while there is
+  spare width to share, and by 1400 both have converged.
+
+C1 costs the drawings 218px against K9 at 1680 (559 vs 777). So the choice is
+"three fair columns" versus "the drawings get the width", not a free win either
+way.
+
 > A measuring bug worth recording, because it made the first set of sub-1200
 > numbers wrong: the harness sized the column-wrap container from
 > `getBoundingClientRect().height`, which is **device** pixels, while the

@@ -147,6 +147,37 @@ VARIANTS.k9 = ["K9 · narrow list, drawings take most of the gain",
   "Same 300px list, but the drawings rail grows twice as fast as the build column — the plan and isometric are the only things here that get genuinely better with pixels; the build column is a line list.",
   narrowMain(1, 2)];
 
+// Column policies, for "can all three just stay equal?". The difference between
+// them is entirely the flex BASIS: what each column is owed before any spare
+// width is shared out.
+VARIANTS.c1 = ["C1 · exact thirds",
+  "All three columns `flex: 1 1 0` — literally a third each at every width, whatever they contain.",
+  K7_ROWS + `
+.wedi-pop .pop-body .main{flex:1 1 0}
+.wedi-pop .pop-body .buildcol{flex:1 1 0}
+.wedi-pop .pop-body .diagcol{flex:1 1 0}
+`];
+
+// C1 doesn't actually reach thirds below ~1700px: a flex item won't shrink past
+// its own min-content, and the build column's rows floor it at ~567px. C3 is
+// C1 with that floor released — the only way three genuinely equal columns
+// happen, and the reason it isn't free.
+VARIANTS.c3 = ["C3 · forced thirds (build column allowed to compress)",
+  "C1 plus `min-width: 0` on the build column, which is what it takes to actually get three equal columns below ~1700px. The build column stops respecting its own content width.",
+  K7_ROWS + `
+.wedi-pop .pop-body .main{flex:1 1 0}
+.wedi-pop .pop-body .buildcol{flex:1 1 0;min-width:0}
+.wedi-pop .pop-body .diagcol{flex:1 1 0}
+`];
+
+VARIANTS.c2 = ["C2 · equal growth, own minimums",
+  "Each column starts at what it actually needs — 300px list, 392px build, 356px drawings — and the three share every spare pixel equally. Same idea as thirds, but nobody is starved on the way down.",
+  K7_ROWS + `
+.wedi-pop .pop-body .main{flex:1 1 300px}
+.wedi-pop .pop-body .buildcol{flex:1 1 392px}
+.wedi-pop .pop-body .diagcol{flex:1 1 356px}
+`];
+
 // The family headings the owner wants: the one word that distinguishes them,
 // with the descriptive hint dropped.
 const FAM_SHORT = [[/curbless|ligno/i, "Curbless"], [/module|riolito/i, "Neo modules"], [/linear/i, "Linear"], [/fundo|curbed/i, "Curbed"]];
@@ -279,7 +310,7 @@ function App() {
     const pass = key === "k4" ? markCommonDrains
       : key === "k5" ? () => applyK5()
         : key === "k6" ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 3, colMin: 235 })
-          : ["k7", "k8", "k9"].includes(key) ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 1 })
+          : ["k7", "k8", "k9", "c1", "c2", "c3"].includes(key) ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 1 })
             : null;
     if (!pass) return;
     const t = setInterval(() => { try { pass(); } catch (x) { /* mid-render */ } }, 400);
