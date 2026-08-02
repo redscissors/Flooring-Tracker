@@ -296,11 +296,22 @@ src/
                     # ~2 000-row catalog. Must NEVER import wedi.js — wedi.js
                     # re-exports these four (ADR 0026, wediquery.test.js)
   WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
-                    # tables stay off boot: three tabs — Kits (every stocked pan a
-                    # card showing ONE price, the full kit through the tier lens —
-                    # matching the build column's total; owner ask 2026-07-31
-                    # replaced the earlier our-stock-cost line — one click builds
-                    # the house kit), Custom shower (the solver's ranked option cards + cut
+                    # tables stay off boot: three tabs — Kits (every stocked pan
+                    # a 21px ROW showing ONE price, the full kit through the tier
+                    # lens — matching the build column's total; owner ask
+                    # 2026-07-31 replaced the earlier our-stock-cost line — one
+                    # click builds the house kit. Issue 075 retired the 120px
+                    # cards: the size leads in FEET with inches behind it
+                    # (`ftIn`), each family is sorted smallest side then longest
+                    # (`panOrder`) so every 3-footer sits together, and a row is
+                    # tagged ONLY where it breaks its family's pattern —
+                    # `majority` + `panTag`, needing two pans to agree before
+                    # anything counts as usual, or each Neo module's own length
+                    # in its name makes every module an exception. The product
+                    # name, the "full kit" caption, the per-card drain chip and
+                    # the explanatory note box are all gone: they repeated on
+                    # every card and buried the two pans that differ),
+                    # Custom shower (the solver's ranked option cards + cut
                     # list) and Browse (the whole catalog, stock tinted green and
                     # ranked first, + the sealant/fastener figurer) — over one
                     # shared build column (grouped lines, swap popovers, steppers,
@@ -311,7 +322,12 @@ src/
                     # and a LINEAR drain gets a Cover frame chip landing the
                     # matching channel frame under the cover (issue 072) —
                     # sausage-gun/small-order hints, Copy list, Print layout) and a
-                    # permanent drawings rail: a to-scale top-down (4"-thick wall
+                    # permanent drawings rail. All three columns carry
+                    # `flex: 1 1 0` (issue 075) so they hold an equal share on
+                    # EVERY tab and nothing moves when you switch surfaces; the
+                    # build column's own content still floors it near 567px once
+                    # a kit is loaded, which is the one place the split shifts.
+                    # The rail draws a to-scale top-down (4"-thick wall
                     # bands, panel-seam ticks, square drains, dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan —
                     # click an edge to add a wall, a corner to toggle a cut, and

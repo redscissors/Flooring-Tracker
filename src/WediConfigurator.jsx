@@ -37,6 +37,36 @@ const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? M
 const WEDI_DESIGN_W = 1120 + 36;
 const WEDI_ZOOM_FLOOR = 0.62;
 
+// Kits list (issue 075). Sizes lead in FEET because that is how a shower gets
+// asked for; the inches follow for the tape measure.
+const ftIn = (n) => {
+  const f = Math.floor(n / 12), i = Math.round(n % 12);
+  return i ? `${f}′${i}″` : `${f}′`;
+};
+// Smallest side, then the longest — so every 3-footer sits together and a
+// 4-footer is never buried between them. No pan stores w > d, so leading with
+// the smaller number never misstates an offset drain's position.
+const panOrder = (a, b) => (a.group === "module"
+  ? (a.len || 0) - (b.len || 0)
+  : (a.w - b.w) || (a.d - b.d));
+// What most of a family agrees on. A "usual" needs at least two pans agreeing,
+// or every Neo module — each named for its own length — reads as an exception.
+const majority = (list, get) => {
+  const c = {};
+  list.forEach((p) => { const k = get(p); c[k] = (c[k] || 0) + 1; });
+  const [top] = Object.entries(c).sort((a, b) => b[1] - a[1]);
+  return top && top[1] > 1 ? top[0] : null;
+};
+// A row earns a tag only where it breaks its family's pattern. "CENTER DRAIN"
+// on 16 of 18 cards taught nobody anything and hid the two that were offset.
+const panTag = (p, usualDrain, usualName) => {
+  if (/corner/i.test(p.name)) return "Corner";           // its name already says Corner/Offset Drain
+  const drain = p.group === "module" ? "module" : p.drain?.type || "";
+  if (usualDrain && drain && drain !== usualDrain) return drain[0].toUpperCase() + drain.slice(1);
+  if (usualName && p.name !== usualName) return unwedi(p.name);
+  return "";
+};
+
 // The prototype's stylesheet, scoped to the popup and re-based on the theme's
 // --ft-* tokens so it themes (and darkens) with the rest of the app. Two
 // values are the configurator's own: the rust that marks a CUT (amber already
@@ -67,25 +97,32 @@ const CSS = `
 .wedi-pop .modetab.on{background:var(--ft-card);color:var(--ft-text);border-color:var(--ft-border-strong);position:relative}
 .wedi-pop .modetab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ft-card)}
 .wedi-pop .pop-body{flex:1;display:flex;min-height:0;min-width:1120px;background:var(--ft-card)}
-.wedi-pop .main{flex:1;min-width:0;overflow-y:auto;background:var(--ft-card);padding:16px 18px 30px}
+/* One rule for all three tabs (owner 2026-08-02): the columns hold an equal
+   share, so nothing moves when you switch surfaces. .buildcol was written
+   0 0 392px, which was never what rendered — a loaded kit floors it at ~567px
+   on its own content and took the 175px out of .main, so the columns jumped
+   the moment you clicked a pan. Equal basis makes that shift 12px at 1680. */
+.wedi-pop .main{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--ft-card);padding:10px 12px 16px}
 
-.wedi-pop .fam{margin-bottom:22px}
-.wedi-pop .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:9px}
-.wedi-pop .fam-h .t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-brand-deep)}
-.wedi-pop .fam-h .hint{font-size:11px;color:var(--ft-faint)}
-.wedi-pop .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
-.wedi-pop .pancard{border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 11px 9px;cursor:pointer;text-align:left;position:relative;color:inherit}
-.wedi-pop .pancard:hover{border-color:var(--ft-brand)}
-.wedi-pop .pancard.on{outline:2px solid var(--ft-brand);outline-offset:-1px;background:var(--ft-tint)}
-.wedi-pop .pancard .sz{font-size:16.5px;font-weight:800;letter-spacing:-.01em}
-.wedi-pop .pancard .sz small{font-size:10.5px;font-weight:600;color:var(--ft-faint);margin-left:4px}
-.wedi-pop .pancard .nm{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;line-height:1.3;min-height:26px}
-.wedi-pop .pancard .pr{font-size:13px;font-weight:800;margin-top:5px;font-variant-numeric:tabular-nums}
-.wedi-pop .pancard .fk{font-size:9.5px;color:var(--ft-faint);font-weight:600;margin-top:2px}
-.wedi-pop .pancard .dot{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
-.wedi-pop .pancard .drn{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted);background:var(--ft-sand);border-radius:4px;padding:1px 5px;margin-top:5px}
-.wedi-pop .kitnote{font-size:11.5px;color:var(--ft-muted);background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:9px 12px;margin-bottom:16px;line-height:1.5}
-.wedi-pop .kitnote b{color:var(--ft-text)}
+/* The Kits list (issue 075). It was a 120px card per pan carrying the product
+   name, a drain chip and "full kit" — three captions that repeat on nearly
+   every card in a family and buried the two pans that actually differ. It is
+   now one 21px row: size, an exception tag when there is one, price. The whole
+   catalogue reads in ~815px instead of ~1540px, and the explanatory note box
+   above the first family is gone entirely (owner 2026-08-02). */
+.wedi-pop .fam{margin-bottom:9px}
+.wedi-pop .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:2px}
+.wedi-pop .fam-h .t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand-deep)}
+.wedi-pop .cards{display:flex;flex-direction:column}
+.wedi-pop .pancard{display:flex;align-items:center;gap:10px;padding:1px 5px;border:0;border-bottom:1px solid var(--ft-row-line);background:none;cursor:pointer;text-align:left;color:inherit}
+.wedi-pop .pancard:hover{background:var(--ft-hover)}
+.wedi-pop .pancard.on{background:var(--ft-tint);box-shadow:inset 2px 0 0 var(--ft-brand)}
+.wedi-pop .pancard .sz{font-size:10px;font-weight:600;color:var(--ft-faint);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .sz b{font-size:12px;font-weight:800;color:var(--ft-text);margin-right:4px}
+.wedi-pop .pancard .nm{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--w-rust);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .pr{font-size:11.5px;font-weight:800;margin-left:auto;line-height:1.5;font-variant-numeric:tabular-nums}
+/* a flex item, not absolutely positioned — outside the row box the pane clips it */
+.wedi-pop .pancard .dot{flex:none;width:5px;height:5px;border-radius:50%;background:var(--ft-brand)}
 
 /* The custom-shower header (issue 075, candidate A1). It was nine fields
    wrapping in one row, in an order that changed with every width; it is now
@@ -181,7 +218,7 @@ const CSS = `
 .wedi-pop .stepper .q.zero{color:var(--ft-faint);font-weight:600}
 .wedi-pop .more{font-size:11px;color:var(--ft-faint);padding:8px 4px}
 
-.wedi-pop .diagcol{flex:0 0 356px;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:12px 14px 20px;order:3}
+.wedi-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:12px 14px 20px;order:3}
 .wedi-pop .diagcol .dc-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);margin:4px 0}
 .wedi-pop .diagcol .dc-h:first-child{margin-top:0}
 .wedi-pop .diagcol svg{display:block;width:100%;height:auto;background:var(--w-paper);border:1px solid var(--ft-border);border-radius:8px}
@@ -192,7 +229,7 @@ const CSS = `
 .wedi-pop svg .wband{cursor:context-menu}
 .wedi-pop svg .wband:hover{opacity:.82}
 
-.wedi-pop .buildcol{flex:0 0 392px;border-left:1px solid var(--ft-border-strong);background:var(--ft-cream);display:flex;flex-direction:column;min-height:0;order:2}
+.wedi-pop .buildcol{flex:1 1 0;border-left:1px solid var(--ft-border-strong);background:var(--ft-cream);display:flex;flex-direction:column;min-height:0;order:2}
 .wedi-pop .bc-scroll{flex:1;overflow-y:auto;padding:14px 16px 8px}
 .wedi-pop .bc-h{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
 .wedi-pop .bc-h .t{font-size:14px;font-weight:800}
@@ -368,11 +405,13 @@ const BUCKET_OF = {
 };
 const bucketOf = (e) => BUCKET_OF[e.group] || "addon";
 
+// One word each, no descriptive line (owner 2026-08-02): the Kits tab is a
+// price list to scan, and the difference between these four is the one word.
 const FAM_DEFS = [
-  ["fundo", "Fundo — curbed", 'center & offset drains · 1 37/64" thick, pre-sloped'],
-  ["curbless", "Fundo Ligno — curbless", '¾" perimeter — recess the subfloor, bracket kit, or ramp'],
-  ["linear", "Linear bases — 4-sided slope", "channel drain along the long wall"],
-  ["module", "Riolito Neo modules", "one-way slope to a wall drain — pair with the module extension"],
+  ["fundo", "Curbed"],
+  ["curbless", "Curbless"],
+  ["linear", "Linear"],
+  ["module", "Neo modules"],
 ];
 // Two chips are conditional: Recess on curbless builds only — the bracket kit
 // / ramp is a pick there, not part of the house kit (owner ask 2026-07-30) —
@@ -2124,33 +2163,31 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
 
   const kitsTab = (
     <>
-      <div className="kitnote">
-        <b>One click builds the house kit from shop stock</b> — pan + Click&amp;Seal drain (in the box)
-        + ½" panels laid in level courses for the walls (1 long + 2 short by default — edit each wall, add one
-        by clicking the drawing, right-click a wall in the drawings for size &amp; wedi faces, or flip the layout
-        in the build column; modifying a kit moves it to Custom shower) + curb lean (curbed) / Subliner Dry +
-        S-Dry Seal + corner seals (curbless) + drain cover + fasteners + sealant (10.5 oz tubes by default) +
-        both collars + trowel — mirroring wedi's own boxed-kit recipe.
-      </div>
       {FAM_DEFS.map((fd) => {
         const list = fd[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: fd[0] });
         if (!list.length) return null;
+        const usualDrain = majority(list, (p) => (p.group === "module" ? "module" : p.drain?.type || ""));
+        const usualName = majority(list, (p) => p.name);
         return (
           <div className="fam" key={fd[0]}>
-            <div className="fam-h"><div className="t">{fd[1]}</div><div className="hint">{fd[2]}</div></div>
+            <div className="fam-h"><div className="t">{fd[1]}</div></div>
             <div className="cards">
-              {list.map((p) => (
-                <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}>
-                  {p.stock && <div className="dot" title="stocked" />}
-                  <div className="sz">
-                    {p.group === "module" ? <>{inch(p.len)}″ <small>module</small></> : <>{inch(p.w)}×{inch(p.d)}<small>in</small></>}
-                  </div>
-                  <div className="nm">{unwedi(p.name)}</div>
-                  <div className="drn">{p.group === "module" ? inch(p.channel) + "″ channel" : p.drain.type + " drain"}</div>
-                  <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
-                  <div className="fk">{kitTotals[p.key] != null ? "full kit" : "pan only"}</div>
-                </button>
-              ))}
+              {[...list].sort(panOrder).map((p) => {
+                const tag = panTag(p, usualDrain, usualName);
+                return (
+                  <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}
+                    title={unwedi(p.name) + (p.group === "module" ? ` · ${inch(p.channel)}″ channel` : ` · ${p.drain.type} drain`)}>
+                    {p.stock && <div className="dot" title="stocked" />}
+                    <div className="sz">
+                      {p.group === "module"
+                        ? <><b>{ftIn(p.len)}</b>{inch(p.len)}″</>
+                        : <><b>{ftIn(p.w)} × {ftIn(p.d)}</b>{inch(p.w)} × {inch(p.d)}</>}
+                    </div>
+                    {tag && <div className="nm">{tag}</div>}
+                    <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );

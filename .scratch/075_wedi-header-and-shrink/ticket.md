@@ -1,7 +1,6 @@
 # 075 — wedi configurator: custom-shower header candidates + shrink to fit
 
-Status: in-review (header candidates await an owner pick; the two layout
-changes below are implemented and shot)
+Status: in-review (all owner asks ported; awaiting merge)
 Opened: 2026-08-02 (owner)
 Area: wedi configurator (issue 066), Apps hub
 
@@ -22,7 +21,7 @@ whole configurator shrinks instead of scrolling sideways on a small screen,
 
 ---
 
-## 1 · Custom shower header — four candidates (awaiting a pick)
+## 1 · Custom shower header — four candidates (A1 picked and ported)
 
 `headerproto.html` (+ `headerproto.jsx`), served by vite; `shoot-header.mjs`
 takes the shots. Every candidate drives the same state, so only layout and
@@ -416,6 +415,44 @@ Measured with a 36×72 kit built, list / build / drawings:
 C1 costs the drawings 218px against K9 at 1680 (559 vs 777). So the choice is
 "three fair columns" versus "the drawings get the width", not a free win either
 way.
+
+### Ported (owner confirmed C1 for all three tabs, 2026-08-02)
+
+`src/WediConfigurator.jsx`. The Kits list is rows, the note box is deleted, and
+all three columns carry `flex: 1 1 0`.
+
+Measured in the **real** configurator through the Apps hub (`measure-ported.mjs`),
+`.main` / `.buildcol` / `.diagcol`:
+
+| Viewport | All three tabs | Kits, with a kit built |
+|---|---|---|
+| 1680 | 477 / 454 / 482 | 421 / 567 / 426 |
+| 1440 | 397 / 374 / 402 | 301 / 567 / 306 |
+| 1280 | 391 / 368 / 396 | 292 / 567 / 297 |
+| 1024 | 391 / 369 / 397 | 293 / 566 / 298 |
+
+Identical on Kits, Custom shower and Browse at every width — the thing that was
+asked for. The Kits list content is 814–823px at every width (one column of
+21px rows), against ~1540px before.
+
+**The residual shift is the first pan click, not the tab.** The build column is
+empty until then; once it holds a kit its own content floors it at ~567px and
+the other two give up ~50–95px each. It settles there and stays for every
+subsequent selection. Today's build does the same thing but concentrates the
+whole 175px on `.main`.
+
+Two bugs found while porting, both mine, both the same shape as ones earlier in
+this ticket:
+
+- The C1 comment used backticks around `.buildcol` and `.main` **inside the CSS
+  template literal**, which closed the string early and made the rest a tagged
+  template — `TypeError: "…css…" is not a function`, the whole lazy chunk dead.
+  Exactly the mistake the header port made. The CSS block takes no backticks.
+- `measure-ported.mjs` read the columns before the `React.lazy` chunk had
+  mounted, so `.diagcol` was null. It waits on the selector now.
+
+`shots/final-{1680,1440,1280,1024}-kits.png`, `final-1680-kits-built.png`,
+`final-1680-{custom,browse}.png`.
 
 ### C1 on all three tabs (owner, 2026-08-02)
 
