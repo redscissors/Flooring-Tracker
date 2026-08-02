@@ -1,5 +1,5 @@
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
-import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronLeft } from "lucide-react";
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
@@ -12,6 +12,7 @@ const WediConfigurator = lazy(() => import("./WediConfigurator.jsx"));
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
+const APP_NAME = { labels: "Label Generator", sheoga: "Sheoga configurator", wedi: "wedi configurator" };
 const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
 
 // ── The dark label card, data-driven over `lines` (screen render) ──────────────
@@ -101,6 +102,22 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
 
 export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi }) {
   const [app, setApp] = useState("labels");
+  // Below the breakpoint the 224px rail is width the open app needs more than
+  // the nav does — the configurators are three columns wide and pay for it in
+  // shrink. So the rail folds away into a "‹ Apps" button and comes back as an
+  // overlay drawer (the App.jsx mobile-sidebar pattern), which is also why
+  // picking an app closes it again.
+  const [wideHub, setWideHub] = useState(() => (typeof window !== "undefined" && window.matchMedia
+    ? window.matchMedia("(min-width: 1100px)").matches : true));
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1100px)");
+    const on = () => setWideHub(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const [railOpen, setRailOpen] = useState(false);
+  const pickApp = (k) => { setApp(k); setRailOpen(false); };
   // Configurators (Apps hub): builds stage locally — nothing touches a real
   // project until the salesperson picks a destination. A commit request parks
   // its lines in `pending` (with the configurator's own commit handlers as
@@ -236,17 +253,20 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
 
   return (
     <div className="print:hidden fixed inset-0 z-50 p-2 md:p-5" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {/* nav rail */}
-        <aside className="w-56 shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col">
+      <div className="relative bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* nav rail — a fixed column when there's room, a drawer when there isn't */}
+        {!wideHub && railOpen && <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setRailOpen(false)} />}
+        <aside className={`w-56 shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col ${wideHub
+          ? ""
+          : `absolute inset-y-0 left-0 z-40 shadow-xl transition-transform duration-200 ${railOpen ? "translate-x-0" : "-translate-x-full"}`}`}>
           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
             <h3 className="ft-serif text-2xl">Apps</h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            <button onClick={wideHub ? onClose : () => setRailOpen(false)} className="text-slate-400 hover:text-slate-600" title={wideHub ? "Close" : "Hide the app list"}><X size={18} /></button>
           </div>
           <nav className="px-2 space-y-0.5">
-            <button onClick={() => setApp("labels")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "labels" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Label Generator</button>
-            {sheoga && <button onClick={() => setApp("sheoga")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "sheoga" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Sheoga configurator</button>}
-            {wedi && <button onClick={() => setApp("wedi")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "wedi" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>wedi configurator</button>}
+            <button onClick={() => pickApp("labels")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "labels" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Label Generator</button>
+            {sheoga && <button onClick={() => pickApp("sheoga")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "sheoga" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Sheoga configurator</button>}
+            {wedi && <button onClick={() => pickApp("wedi")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "wedi" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>wedi configurator</button>}
             <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-400">More coming soon</div>
           </nav>
           <div className="mt-auto p-4 text-[11px] text-slate-400 border-t border-slate-100">A home for shop tools.</div>
@@ -254,6 +274,15 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
 
         {/* main */}
         <div className="flex-1 flex flex-col min-w-0">
+          {!wideHub && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-slate-200 bg-slate-50/50 shrink-0">
+              <button onClick={() => setRailOpen(true)} className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100" title="Back to the app list">
+                <ChevronLeft size={14} />Apps
+              </button>
+              <span className="text-xs font-semibold text-slate-500 truncate">{APP_NAME[app]}</span>
+              <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-600" title="Close"><X size={17} /></button>
+            </div>
+          )}
           {app === "labels" && (<>
           {/* preset strip */}
           <div className="flex items-end gap-3 px-5 py-3 border-b border-slate-100 overflow-x-auto">

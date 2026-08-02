@@ -28,6 +28,52 @@ const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2,
 const fm0 = (n) => "$" + Math.round(+n).toLocaleString("en-US");
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
+// Three columns — solver, build, drawings — that only work side by side, so the
+// popup is DRAWN at one width and scaled to whatever frame it is given, rather
+// than reflowing. Between the floor and the cap the layout is pixel-identical
+// at every window size and only the scale changes (owner 2026-08-02: "as it
+// gets narrower, everything gets smaller, including the text size"), which is
+// also why nothing truncates differently from one width to the next.
+//
+// 1420 is the width the three columns are comfortable at, not the width they
+// merely fit in — drawn at 1120 they fit but sit spread out on a big monitor,
+// which is the other half of the same ask (that half is mostly the spacing
+// pass; at a 1680 window the scale is barely off 1). The floor caps how small
+// the type is allowed to get — 11.5px body text lands at 7.6px there — and
+// below it the popup scrolls the last few pixels rather than shrinking on.
+const WEDI_DESIGN_W = 1420;
+const WEDI_ZOOM_FLOOR = 0.66;
+
+// Kits list (issue 075). Sizes lead in FEET because that is how a shower gets
+// asked for; the inches follow for the tape measure.
+const ftIn = (n) => {
+  const f = Math.floor(n / 12), i = Math.round(n % 12);
+  return i ? `${f}′${i}″` : `${f}′`;
+};
+// Smallest side, then the longest — so every 3-footer sits together and a
+// 4-footer is never buried between them. No pan stores w > d, so leading with
+// the smaller number never misstates an offset drain's position.
+const panOrder = (a, b) => (a.group === "module"
+  ? (a.len || 0) - (b.len || 0)
+  : (a.w - b.w) || (a.d - b.d));
+// What most of a family agrees on. A "usual" needs at least two pans agreeing,
+// or every Neo module — each named for its own length — reads as an exception.
+const majority = (list, get) => {
+  const c = {};
+  list.forEach((p) => { const k = get(p); c[k] = (c[k] || 0) + 1; });
+  const [top] = Object.entries(c).sort((a, b) => b[1] - a[1]);
+  return top && top[1] > 1 ? top[0] : null;
+};
+// A row earns a tag only where it breaks its family's pattern. "CENTER DRAIN"
+// on 16 of 18 cards taught nobody anything and hid the two that were offset.
+const panTag = (p, usualDrain, usualName) => {
+  if (/corner/i.test(p.name)) return "Corner";           // its name already says Corner/Offset Drain
+  const drain = p.group === "module" ? "module" : p.drain?.type || "";
+  if (usualDrain && drain && drain !== usualDrain) return drain[0].toUpperCase() + drain.slice(1);
+  if (usualName && p.name !== usualName) return unwedi(p.name);
+  return "";
+};
+
 // The prototype's stylesheet, scoped to the popup and re-based on the theme's
 // --ft-* tokens so it themes (and darkens) with the rest of the app. Two
 // values are the configurator's own: the rust that marks a CUT (amber already
@@ -58,37 +104,77 @@ const CSS = `
 .wedi-pop .modetab.on{background:var(--ft-card);color:var(--ft-text);border-color:var(--ft-border-strong);position:relative}
 .wedi-pop .modetab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ft-card)}
 .wedi-pop .pop-body{flex:1;display:flex;min-height:0;min-width:1120px;background:var(--ft-card)}
-.wedi-pop .main{flex:1;min-width:0;overflow-y:auto;background:var(--ft-card);padding:16px 18px 30px}
+/* One rule for all three tabs (owner 2026-08-02): the columns hold an equal
+   share, so nothing moves when you switch surfaces. .buildcol was written
+   0 0 392px, which was never what rendered — a loaded kit floors it at ~567px
+   on its own content and took the 175px out of .main, so the columns jumped
+   the moment you clicked a pan. Equal basis makes that shift 12px at 1680. */
+.wedi-pop .main{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--ft-card);padding:9px 11px 14px}
 
-.wedi-pop .fam{margin-bottom:22px}
-.wedi-pop .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:9px}
-.wedi-pop .fam-h .t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-brand-deep)}
-.wedi-pop .fam-h .hint{font-size:11px;color:var(--ft-faint)}
-.wedi-pop .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
-.wedi-pop .pancard{border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 11px 9px;cursor:pointer;text-align:left;position:relative;color:inherit}
-.wedi-pop .pancard:hover{border-color:var(--ft-brand)}
-.wedi-pop .pancard.on{outline:2px solid var(--ft-brand);outline-offset:-1px;background:var(--ft-tint)}
-.wedi-pop .pancard .sz{font-size:16.5px;font-weight:800;letter-spacing:-.01em}
-.wedi-pop .pancard .sz small{font-size:10.5px;font-weight:600;color:var(--ft-faint);margin-left:4px}
-.wedi-pop .pancard .nm{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;line-height:1.3;min-height:26px}
-.wedi-pop .pancard .pr{font-size:13px;font-weight:800;margin-top:5px;font-variant-numeric:tabular-nums}
-.wedi-pop .pancard .fk{font-size:9.5px;color:var(--ft-faint);font-weight:600;margin-top:2px}
-.wedi-pop .pancard .dot{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
-.wedi-pop .pancard .drn{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted);background:var(--ft-sand);border-radius:4px;padding:1px 5px;margin-top:5px}
-.wedi-pop .kitnote{font-size:11.5px;color:var(--ft-muted);background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:9px 12px;margin-bottom:16px;line-height:1.5}
-.wedi-pop .kitnote b{color:var(--ft-text)}
+/* The Kits list (issue 075). It was a 120px card per pan carrying the product
+   name, a drain chip and "full kit" — three captions that repeat on nearly
+   every card in a family and buried the two pans that actually differ. It is
+   now one 21px row: size, an exception tag when there is one, price. The whole
+   catalogue reads in ~815px instead of ~1540px, and the explanatory note box
+   above the first family is gone entirely (owner 2026-08-02). */
+.wedi-pop .fam{margin-bottom:9px}
+.wedi-pop .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:2px}
+.wedi-pop .fam-h .t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand-deep)}
+.wedi-pop .cards{display:flex;flex-direction:column}
+.wedi-pop .pancard{display:flex;align-items:center;gap:10px;padding:1px 5px;border:0;border-bottom:1px solid var(--ft-row-line);background:none;cursor:pointer;text-align:left;color:inherit}
+.wedi-pop .pancard:hover{background:var(--ft-hover)}
+.wedi-pop .pancard.on{background:var(--ft-tint);box-shadow:inset 2px 0 0 var(--ft-brand)}
+.wedi-pop .pancard .sz{font-size:10px;font-weight:600;color:var(--ft-faint);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .sz b{font-size:12px;font-weight:800;color:var(--ft-text);margin-right:4px}
+.wedi-pop .pancard .nm{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--w-rust);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .pr{font-size:11.5px;font-weight:800;margin-left:auto;line-height:1.5;font-variant-numeric:tabular-nums}
+/* a flex item, not absolutely positioned — outside the row box the pane clips it */
+.wedi-pop .pancard .dot{flex:none;width:5px;height:5px;border-radius:50%;background:var(--ft-brand)}
 
-.wedi-pop .roomform{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:12px 14px;margin-bottom:14px}
-.wedi-pop .rf{display:flex;flex-direction:column;gap:4px}
-.wedi-pop .rf label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-muted)}
+/* The custom-shower header (issue 075, candidate A1). It was nine fields
+   wrapping in one row, in an order that changed with every width; it is now
+   three named groups in an auto-fit grid (3 → 2 → 1 columns).
+   Two treatment rules travel with it, and they are the reason the old one read
+   as "a mess":
+   · A selection reads as a SELECTION. .seg button.on is a near-black fill —
+     five of them across one bar read as five headings, not five answers. The
+     header's own .rseg uses --ft-seg-on-bg, the same moss the rest of the
+     app's segmented controls use. (.seg/.inp still dress the Browse tab.)
+   · Walls is a MULTI-select. Drawn as a segment, three toggles merged into one
+     unbroken bar when all three were on; as ticked chips it reads as three
+     switches, which is what it is. */
+.wedi-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:8px;margin-bottom:14px}
+.wedi-pop .rfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:6px}
+.wedi-pop .rfgrp{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:8px;padding:5px 8px 7px}
+.wedi-pop .rfgrp > .h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ft-brand-deep);margin-bottom:4px}
+.wedi-pop .rfflow{display:flex;flex-wrap:wrap;gap:7px 10px}
+.wedi-pop .rf{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.wedi-pop .rf label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
 .wedi-pop .rf .dims{display:flex;align-items:center;gap:6px}
 .wedi-pop .rf .dims span{font-size:12px;color:var(--ft-faint);font-weight:700}
+.wedi-pop .rinp{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);color:var(--ft-text);font-size:12.5px;font-weight:700;padding:4px 6px;width:48px}
+.wedi-pop .rinp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
+.wedi-pop .rseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:var(--ft-card)}
+.wedi-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.wedi-pop .rseg button + button{border-left:1px solid var(--ft-border)}
+.wedi-pop .rseg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.wedi-pop .rseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
+.wedi-pop .rchips{display:flex;flex-wrap:wrap;gap:5px}
+.wedi-pop .rchip{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:4px 6px;cursor:pointer;display:flex;align-items:center;gap:3px}
+.wedi-pop .rchip:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.wedi-pop .rchip.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;border-color:var(--ft-brand);box-shadow:inset 0 0 0 .5px var(--ft-brand)}
+.wedi-pop .rchip .tick{font-size:10px;line-height:1;opacity:.35}
+.wedi-pop .rchip.on .tick{opacity:1}
+.wedi-pop .rfgrp > .rowh{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
+.wedi-pop .rclear:hover{background:var(--ft-hover-red);color:var(--w-rust);border-color:#E3B9A8}
 .wedi-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px}
 .wedi-pop .inp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
 .wedi-pop .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .wedi-pop .seg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:12px;font-weight:700;padding:8px 12px;cursor:pointer}
-.wedi-pop .seg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-pop .seg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-pop .seg button + button{border-left:1px solid var(--ft-border)}
+.wedi-pop .seg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.wedi-pop .seg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-pop .optrow{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
 .wedi-pop .optcard{flex:0 0 240px;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 12px;cursor:pointer;text-align:left;color:inherit}
 .wedi-pop .optcard:hover{border-color:var(--ft-brand)}
@@ -115,7 +201,7 @@ const CSS = `
 .wedi-pop .seccols small{margin-left:auto;font-weight:600;opacity:.55;padding-left:10px;font-size:9.5px}
 .wedi-pop .quickstack{display:flex;flex-direction:column;gap:6px;min-width:104px}
 .wedi-pop .gchip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--ft-muted);cursor:pointer}
-.wedi-pop .gchip.on{background:var(--ft-text);border-color:var(--ft-text);color:var(--ft-cream)}
+.wedi-pop .gchip.on{background:var(--ft-seg-on-bg);border-color:var(--ft-brand);color:var(--ft-brand-deep);box-shadow:inset 0 0 0 .5px var(--ft-brand)}
 .wedi-pop .gchip small{font-weight:600;opacity:.65;margin-left:3px}
 .wedi-pop .figcard{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:11px 13px;margin-bottom:12px}
 .wedi-pop .figcard .fh{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand-deep);margin-bottom:6px}
@@ -123,16 +209,20 @@ const CSS = `
 .wedi-pop .figcard .fr b{color:var(--ft-text)}
 .wedi-pop .figcard .inp{width:80px;padding:5px 8px;font-size:12.5px}
 .wedi-pop .figfoot{font-size:10px;color:var(--ft-faint);font-weight:600;margin-top:5px}
-.wedi-pop .brow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-top:1px solid var(--ft-row-line)}
+/* Two stacked lines: the description owns the full column width, the SKU,
+   price and quantity sit under it. On one line the name got whatever the fixed
+   tracks left over — about 170px once the columns went equal. */
+.wedi-pop .brow{display:flex;flex-direction:column;gap:1px;padding:5px 8px 6px;border-top:1px solid var(--ft-row-line)}
 .wedi-pop .brow:last-child{border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .brow.stk,.wedi-pop .srow.stk{background:var(--w-stock)}
 .wedi-pop .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
 .wedi-pop .sdot.so{background:transparent;border:1.4px solid var(--ft-faint)}
-.wedi-pop .brow .bn{flex:1;min-width:0}
+.wedi-pop .brow .bn{display:flex;align-items:center;gap:8px;min-width:0}
 .wedi-pop .brow .bn .n{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wedi-pop .brow .bn .s{font-size:10.5px;color:var(--ft-faint);font-weight:600}
-.wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;width:88px;text-align:right}
-.wedi-pop .brow .pr{flex:none;width:84px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.wedi-pop .brow .bmeta{display:flex;align-items:center;gap:8px;padding-left:15px}
+.wedi-pop .brow .bmeta .s{flex:1;min-width:0;font-size:10.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.wedi-pop .brow .pr{flex:none;width:74px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .brow .pr small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .stepper{flex:none;display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:6px;overflow:hidden}
 .wedi-pop .stepper button{border:none;background:var(--ft-card);width:24px;height:24px;font-size:13px;font-weight:800;color:var(--ft-muted);cursor:pointer;line-height:1}
@@ -140,7 +230,7 @@ const CSS = `
 .wedi-pop .stepper .q.zero{color:var(--ft-faint);font-weight:600}
 .wedi-pop .more{font-size:11px;color:var(--ft-faint);padding:8px 4px}
 
-.wedi-pop .diagcol{flex:0 0 356px;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:12px 14px 20px;order:3}
+.wedi-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:10px 12px 14px;order:3}
 .wedi-pop .diagcol .dc-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);margin:4px 0}
 .wedi-pop .diagcol .dc-h:first-child{margin-top:0}
 .wedi-pop .diagcol svg{display:block;width:100%;height:auto;background:var(--w-paper);border:1px solid var(--ft-border);border-radius:8px}
@@ -151,18 +241,18 @@ const CSS = `
 .wedi-pop svg .wband{cursor:context-menu}
 .wedi-pop svg .wband:hover{opacity:.82}
 
-.wedi-pop .buildcol{flex:0 0 392px;border-left:1px solid var(--ft-border-strong);background:var(--ft-cream);display:flex;flex-direction:column;min-height:0;order:2}
-.wedi-pop .bc-scroll{flex:1;overflow-y:auto;padding:14px 16px 8px}
+.wedi-pop .buildcol{flex:1 1 0;border-left:1px solid var(--ft-border-strong);background:var(--ft-cream);display:flex;flex-direction:column;min-height:0;order:2}
+.wedi-pop .bc-scroll{flex:1;overflow-y:auto;padding:10px 13px 6px}
 .wedi-pop .bc-h{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
 .wedi-pop .bc-h .t{font-size:14px;font-weight:800}
 .wedi-pop .bc-h .sub{font-size:10.5px;color:var(--ft-faint);font-weight:600;margin-left:auto;text-align:right}
 .wedi-pop .bc-empty{font-size:12px;color:var(--ft-faint);line-height:1.6;padding:22px 6px}
-.wedi-pop .bgroup{margin-top:11px}
+.wedi-pop .bgroup{margin-top:8px}
 .wedi-pop .bg-h{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted);padding-bottom:4px;border-bottom:1px solid var(--ft-border-strong)}
 .wedi-pop .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
 .wedi-pop .wtgl{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:4px;font-size:9px;font-weight:800;color:var(--ft-faint);width:20px;height:17px;cursor:pointer;line-height:1}
 .wedi-pop .wtgl.on{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
-.wedi-pop .wallrow{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px dashed var(--ft-row-line);font-size:10px;color:var(--ft-faint);font-weight:600}
+.wedi-pop .wallrow{display:flex;align-items:center;gap:5px;padding:2px 0;border-bottom:1px dashed var(--ft-row-line);font-size:10px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .wname{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:5px;font-size:9.5px;font-weight:800;color:var(--ft-faint);padding:2px 0;cursor:pointer;width:44px;text-align:center;flex:none}
 .wedi-pop .wname.on{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
 .wedi-pop .win{width:40px;flex:none;border:1px solid var(--ft-border-strong);border-radius:4px;font-size:10.5px;font-weight:700;text-align:center;padding:2px;background:var(--ft-card);color:var(--ft-text)}
@@ -171,9 +261,9 @@ const CSS = `
 .wedi-pop .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
 .wedi-pop .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:2px 7px;cursor:pointer}
 .wedi-pop .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-pop .pfseg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-pop .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-pop .fsw{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid var(--ft-border-strong);vertical-align:-1.5px;margin-right:5px;flex:none}
-.wedi-pop .bline{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--ft-row-line)}
+.wedi-pop .bline{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .bline .bn{flex:1;min-width:0}
 .wedi-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .wedi-pop .bline .bn .m{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -187,22 +277,22 @@ const CSS = `
 .wedi-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .wedi-pop .starb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:22px;height:22px;font-size:12px;color:var(--ft-faint);cursor:pointer;line-height:1;padding:0}
 .wedi-pop .starb.on{color:#C9A050;border-color:#C9A050}
-.wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:7px 0 2px}
+.wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 0 2px}
 .wedi-pop .addchip{border:1px dashed var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;color:var(--ft-muted);cursor:pointer}
 .wedi-pop .addchip.on{border-style:solid;background:var(--ft-brand-soft);border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .wedi-pop .whint{display:flex;gap:8px;align-items:center;background:var(--w-hint-bg);border:1px solid var(--w-hint-line);border-radius:7px;padding:7px 10px;font-size:11px;color:var(--w-hint-ink);font-weight:600;margin-top:10px;line-height:1.4}
 .wedi-pop .whint button{border:1px solid #C9A050;background:#fff;border-radius:5px;font-size:10.5px;font-weight:800;color:var(--w-hint-ink);padding:3px 8px;cursor:pointer;flex:none;margin-left:auto}
-.wedi-pop .bc-foot{flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:10px 16px 12px}
+.wedi-pop .bc-foot{flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:8px 13px 9px}
 .wedi-pop .totrow{display:flex;align-items:baseline;gap:12px}
 .wedi-pop .totrow .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted)}
 .wedi-pop .totrow .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .totrow .sell{margin-left:auto;text-align:right}
-.wedi-pop .totrow .sell .v{font-size:22px}
+.wedi-pop .totrow .sell .v{font-size:19px}
 .wedi-pop .marginrow{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px;width:100%;background:none;border:0;padding:0;font-family:inherit;text-align:left;cursor:pointer}
 .wedi-pop .marginrow:hover{color:var(--ft-text)}
 .wedi-pop .marginrow span{margin-left:auto}
 .wedi-pop .btnrow{display:flex;gap:7px;margin-top:9px}
-.wedi-pop .wbtn{flex:1;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:12px;font-weight:800;padding:9px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+.wedi-pop .wbtn{flex:1;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11.5px;font-weight:800;padding:7px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
 .wedi-pop .wbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
 .wedi-pop .wbtn.primary:hover{background:var(--ft-brand-deep)}
 .wedi-pop .wbtn:disabled{opacity:.45;cursor:not-allowed}
@@ -227,7 +317,7 @@ const CSS = `
 .wedi-wallmenu .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
 .wedi-wallmenu .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:3px 7px;cursor:pointer}
 .wedi-wallmenu .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-wallmenu .pfseg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-wallmenu .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-wallmenu .wm-del{border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:#B4552D;padding:3px 8px;cursor:pointer}
 .wedi-wallmenu .wm-act{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:var(--ft-text);padding:3px 8px;cursor:pointer}
 .wedi-wallmenu .wm-act:hover{border-color:var(--ft-brand)}
@@ -327,11 +417,13 @@ const BUCKET_OF = {
 };
 const bucketOf = (e) => BUCKET_OF[e.group] || "addon";
 
+// One word each, no descriptive line (owner 2026-08-02): the Kits tab is a
+// price list to scan, and the difference between these four is the one word.
 const FAM_DEFS = [
-  ["fundo", "Fundo — curbed", 'center & offset drains · 1 37/64" thick, pre-sloped'],
-  ["curbless", "Fundo Ligno — curbless", '¾" perimeter — recess the subfloor, bracket kit, or ramp'],
-  ["linear", "Linear bases — 4-sided slope", "channel drain along the long wall"],
-  ["module", "Riolito Neo modules", "one-way slope to a wall drain — pair with the module extension"],
+  ["fundo", "Curbed"],
+  ["curbless", "Curbless"],
+  ["linear", "Linear"],
+  ["module", "Neo modules"],
 ];
 // Two chips are conditional: Recess on curbless builds only — the bracket kit
 // / ramp is a pick there, not part of the house kit (owner ask 2026-07-30) —
@@ -1403,6 +1495,35 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [wallFlip, setWallFlip] = useState(false);
   const [wallH, setWallH] = useState(s0.wallH);
   const [panelFit, setPanelFit] = useState(true);
+
+  // Shrink-to-fit: measure the frame the popup sits in and scale the whole
+  // thing so the drawings rail always stays on screen. `zoom` (not transform)
+  // because it is a real layout scale — the popup keeps its own scrollbars, and
+  // getBoundingClientRect still reports viewport pixels, so the swap/chip/wall
+  // popovers that portal to document.body land on their anchors unscaled.
+  const shellRef = useRef(null);
+  const [fit, setFit] = useState({ zoom: 1, h: 940 });
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const pad = embedded ? 0 : 32;   // the overlay's p-4 gutters
+    const on = () => {
+      const w = el.clientWidth - pad;
+      if (w <= 0) return;
+      const zoom = Math.round(Math.min(1, Math.max(WEDI_ZOOM_FLOOR, w / WEDI_DESIGN_W)) * 1000) / 1000;
+      // The overlay's height was 94vh, but a viewport unit inside a zoomed box
+      // is not the pixel it is outside one — so it is measured here and handed
+      // over in the popup's own (zoomed) pixels.
+      const h = Math.round(Math.min(940, (el.clientHeight - pad) / zoom));
+      setFit((p) => (p.zoom === zoom && p.h === h ? p : { zoom, h }));
+    };
+    on();
+    const ro = new ResizeObserver(on);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [embedded]);
+  const uiZoom = fit.zoom;
+
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");      // "", "starred", or a BROWSE_SECTIONS key
   const [sub, setSub] = useState("");      // sub-filter within the active section
@@ -2054,33 +2175,31 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
 
   const kitsTab = (
     <>
-      <div className="kitnote">
-        <b>One click builds the house kit from shop stock</b> — pan + Click&amp;Seal drain (in the box)
-        + ½" panels laid in level courses for the walls (1 long + 2 short by default — edit each wall, add one
-        by clicking the drawing, right-click a wall in the drawings for size &amp; wedi faces, or flip the layout
-        in the build column; modifying a kit moves it to Custom shower) + curb lean (curbed) / Subliner Dry +
-        S-Dry Seal + corner seals (curbless) + drain cover + fasteners + sealant (10.5 oz tubes by default) +
-        both collars + trowel — mirroring wedi's own boxed-kit recipe.
-      </div>
       {FAM_DEFS.map((fd) => {
         const list = fd[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: fd[0] });
         if (!list.length) return null;
+        const usualDrain = majority(list, (p) => (p.group === "module" ? "module" : p.drain?.type || ""));
+        const usualName = majority(list, (p) => p.name);
         return (
           <div className="fam" key={fd[0]}>
-            <div className="fam-h"><div className="t">{fd[1]}</div><div className="hint">{fd[2]}</div></div>
+            <div className="fam-h"><div className="t">{fd[1]}</div></div>
             <div className="cards">
-              {list.map((p) => (
-                <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}>
-                  {p.stock && <div className="dot" title="stocked" />}
-                  <div className="sz">
-                    {p.group === "module" ? <>{inch(p.len)}″ <small>module</small></> : <>{inch(p.w)}×{inch(p.d)}<small>in</small></>}
-                  </div>
-                  <div className="nm">{unwedi(p.name)}</div>
-                  <div className="drn">{p.group === "module" ? inch(p.channel) + "″ channel" : p.drain.type + " drain"}</div>
-                  <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
-                  <div className="fk">{kitTotals[p.key] != null ? "full kit" : "pan only"}</div>
-                </button>
-              ))}
+              {[...list].sort(panOrder).map((p) => {
+                const tag = panTag(p, usualDrain, usualName);
+                return (
+                  <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}
+                    title={unwedi(p.name) + (p.group === "module" ? ` · ${inch(p.channel)}″ channel` : ` · ${p.drain.type} drain`)}>
+                    {p.stock && <div className="dot" title="stocked" />}
+                    <div className="sz">
+                      {p.group === "module"
+                        ? <><b>{ftIn(p.len)}</b>{inch(p.len)}″</>
+                        : <><b>{ftIn(p.w)} × {ftIn(p.d)}</b>{inch(p.w)} × {inch(p.d)}</>}
+                    </div>
+                    {tag && <div className="nm">{tag}</div>}
+                    <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
@@ -2093,67 +2212,84 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return (
       <>
         <div className="roomform">
-          <div className="rf"><label>Shower size — width × depth</label>
-            <div className="dims">
-              <NumIn className="inp" value={inp.w} onCommit={(v) => setInput({ w: +v || 0 })} />
-              <span>×</span>
-              <NumIn className="inp" value={inp.d} onCommit={(v) => setInput({ d: +v || 0 })} />
-              <span>in</span>
+          <div className="rfgrid">
+            <div className="rfgrp">
+              <div className="h">Size &amp; curb</div>
+              <div className="rfflow">
+                <div className="rf"><label>Shower size</label>
+                  <div className="dims">
+                    <NumIn className="rinp" value={inp.w} onCommit={(v) => setInput({ w: +v || 0 })} />
+                    <span>×</span>
+                    <NumIn className="rinp" value={inp.d} onCommit={(v) => setInput({ d: +v || 0 })} />
+                    <span>in</span>
+                  </div>
+                </div>
+                <div className="rf"><label>Curb</label>
+                  <div className="rseg">
+                    {["curbed", "curbless"].map((v) => (
+                      <button key={v} className={inp.curb === v ? "on" : ""} onClick={() => setInput({ curb: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rf"><label>Sizes are</label>
+                  <div className="rseg">
+                    <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
+                      onClick={() => setMaxMode(false)}>Pan size</button>
+                    <button className={maxIn ? "on" : ""}
+                      title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
+                      onClick={() => setMaxMode(true)}>Max — curb inside</button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rf"><label>Sizes are</label>
-            <div className="seg">
-              <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
-                onClick={() => setMaxMode(false)}>Pan size</button>
-              <button className={maxIn ? "on" : ""}
-                title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
-                onClick={() => setMaxMode(true)}>Max — curb inside</button>
+            <div className="rfgrp">
+              <div className="h">Drain</div>
+              <div className="rfflow">
+                <div className="rf"><label>Preference</label>
+                  <div className="rseg">
+                    {["any", "center", "offset", "linear"].map((v) => (
+                      <button key={v} className={inp.drain === v ? "on" : ""} onClick={() => setInput({ drain: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rf"><label>Drain — from left × back</label>
+                  <div className="dims">
+                    <NumIn className="rinp" placeholder="auto" value={inp.drainX} onCommit={(v) => setInput({ drainX: v.trim() })} />
+                    <span>×</span>
+                    <NumIn className="rinp" placeholder="auto" value={inp.drainY} onCommit={(v) => setInput({ drainY: v.trim() })} />
+                    <span>in</span>
+                  </div>
+                </div>
+                <div className="rf"><label>Pan against</label>
+                  <div className="rseg">
+                    <button className={inp.anchor !== "right" ? "on" : ""} onClick={() => setInput({ anchor: "left" })}>Left</button>
+                    <button className={inp.anchor === "right" ? "on" : ""} onClick={() => setInput({ anchor: "right" })}>Right</button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rf"><label>Curb</label>
-            <div className="seg">
-              {["curbed", "curbless"].map((v) => (
-                <button key={v} className={inp.curb === v ? "on" : ""} onClick={() => setInput({ curb: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
-              ))}
+            <div className="rfgrp">
+              <div className="h rowh">Walls
+                <button className="rclear" data-wedi-clear
+                  title="wipe the build — walls, cuts, parts — and reset this form"
+                  onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
+              </div>
+              <div className="rfflow">
+                <div className="rf"><label>Which get wedi</label>
+                  <div className="rchips">
+                    {walls.map((w) => (
+                      <button key={w.id} className={"rchip" + (w.on ? " on" : "")}
+                        onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>
+                        <span className="tick">{w.on ? "✓" : "○"}</span>{w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rf"><label>Height</label>
+                  <div className="dims"><NumIn className="rinp" value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rf"><label>Drain preference</label>
-            <div className="seg">
-              {["any", "center", "offset", "linear"].map((v) => (
-                <button key={v} className={inp.drain === v ? "on" : ""} onClick={() => setInput({ drain: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
-              ))}
-            </div>
-          </div>
-          <div className="rf"><label>Drain — from left · from back</label>
-            <div className="dims">
-              <NumIn className="inp" style={{ width: 58 }} placeholder="auto" value={inp.drainX} onCommit={(v) => setInput({ drainX: v.trim() })} />
-              <span>×</span>
-              <NumIn className="inp" style={{ width: 58 }} placeholder="auto" value={inp.drainY} onCommit={(v) => setInput({ drainY: v.trim() })} />
-              <span>in</span>
-            </div>
-          </div>
-          <div className="rf"><label>Pan against</label>
-            <div className="seg">
-              <button className={inp.anchor !== "right" ? "on" : ""} onClick={() => setInput({ anchor: "left" })}>Left</button>
-              <button className={inp.anchor === "right" ? "on" : ""} onClick={() => setInput({ anchor: "right" })}>Right</button>
-            </div>
-          </div>
-          <div className="rf"><label>Walls</label>
-            <div className="seg">
-              {walls.map((w) => (
-                <button key={w.id} className={w.on ? "on" : ""}
-                  onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>{w.label}</button>
-              ))}
-            </div>
-          </div>
-          <div className="rf"><label>Wall height</label>
-            <div className="dims"><NumIn className="inp" style={{ width: 58 }} value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
-          </div>
-          <div className="rf" style={{ marginLeft: "auto" }}>
-            <label>&nbsp;</label>
-            <button className="wbtn" data-wedi-clear style={{ flex: "none", padding: "8px 13px" }}
-              title="wipe the build — walls, cuts, parts — and reset this form"
-              onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
           </div>
         </div>
 
@@ -2325,27 +2461,30 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           // Type · COLOR (color a shade bolder) — the vendor name drops to
           // the small line (owner ask 2026-07-30).
           const cf = (e.group === "cover" || e.group === "coverFrame") && finName(e);
+          // Two lines, not one (owner 2026-08-02): the description owns the full
+          // column width and the SKU / price / quantity sit under it. Sharing one
+          // line with them left ~170px for a name once the columns went equal,
+          // which truncated nearly everything to "Subli…".
           return (
             <div className={"brow" + (e.stock ? " stk" : "")} key={e.key}>
-              <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
-              <div className="bn">
-                {cf ? (<>
-                  <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
-                  <div className="s">{unwedi(e.name)} · {e.stock ? "stock" : "special order"}</div>
-                </>) : (<>
-                  <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>
-                  <div className="s">{browseSub(e)}</div>
-                </>)}
+              <div className="bn" title={[unwedi(e.name), e.sizeText, e.stock ? e.erp : e.us].filter(Boolean).join(" · ")}>
+                <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
+                {cf
+                  ? <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
+                  : <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
               </div>
-              <div className="sku">{e.stock ? e.erp : e.us}</div>
-              <button className={"starb" + (starred.has(e.key) ? " on" : "")}
-                title={starred.has(e.key) ? "unpin from Starred" : "pin to Starred"}
-                onClick={() => toggleStar(e.key)}>{starred.has(e.key) ? "★" : "☆"}</button>
-              <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}<small>{tierId !== "retail" ? "retail " + fm(e.retail) : " "}</small></div>
-              <div className="stepper">
-                <button onClick={() => step(e.key, -1)}>−</button>
-                <span className={"q" + (n ? "" : " zero")}>{n}</span>
-                <button onClick={() => step(e.key, 1)}>+</button>
+              <div className="bmeta">
+                <div className="s">{cf ? unwedi(e.name) + (e.stock ? " · stock" : " · special order") : browseSub(e)}</div>
+                <div className="sku">{e.stock ? e.erp : e.us}</div>
+                <button className={"starb" + (starred.has(e.key) ? " on" : "")}
+                  title={starred.has(e.key) ? "unpin from Starred" : "pin to Starred"}
+                  onClick={() => toggleStar(e.key)}>{starred.has(e.key) ? "★" : "☆"}</button>
+                <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}<small>{tierId !== "retail" ? "retail " + fm(e.retail) : " "}</small></div>
+                <div className="stepper">
+                  <button onClick={() => step(e.key, -1)}>−</button>
+                  <span className={"q" + (n ? "" : " zero")}>{n}</span>
+                  <button onClick={() => step(e.key, 1)}>+</button>
+                </div>
               </div>
             </div>
           );
@@ -2999,7 +3138,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // Embedded (the Apps hub, like Sheoga): no backdrop or fixed overlay — the
     // hub's main column is the frame; the outer scroll keeps the 1120px body
     // usable on narrow windows the way the popup's overlay scroll does.
-    <div className={embedded
+    <div ref={shellRef} className={embedded
         ? "relative flex-1 min-h-0 flex flex-col overflow-auto"
         : "print:hidden fixed inset-0 z-[70] flex items-start justify-center overflow-auto p-4"}
       style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
@@ -3008,8 +3147,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           ? "flex-1 min-h-0 min-w-[1120px]"
           : "max-w-[1680px] rounded-xl border shadow-2xl"}`}
         style={embedded
-          ? { background: "var(--ft-cream)" }
-          : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: "min(940px, 94vh)", minHeight: 560 }}
+          ? { background: "var(--ft-cream)", zoom: uiZoom }
+          : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: uiZoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-pop>
         <div className="pop-head">
           <div>
