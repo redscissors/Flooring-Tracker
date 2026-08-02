@@ -29,13 +29,20 @@ const fm0 = (n) => "$" + Math.round(+n).toLocaleString("en-US");
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
 // Three columns — solver, build, drawings — that only work side by side, so the
-// body is drawn at a fixed 1120px. Below that the popup SHRINKS rather than
-// scrolling sideways (the same call App.jsx made for the desktop shell): a
-// narrow window used to hide the drawings rail behind a horizontal scrollbar,
-// which reads as "the drawings are gone". PAD is the two 18px gutters the body
-// sits in. The floor is where 9px type stops being readable.
-const WEDI_DESIGN_W = 1120 + 36;
-const WEDI_ZOOM_FLOOR = 0.62;
+// popup is DRAWN at one width and scaled to whatever frame it is given, rather
+// than reflowing. Between the floor and the cap the layout is pixel-identical
+// at every window size and only the scale changes (owner 2026-08-02: "as it
+// gets narrower, everything gets smaller, including the text size"), which is
+// also why nothing truncates differently from one width to the next.
+//
+// 1420 is the width the three columns are comfortable at, not the width they
+// merely fit in — drawn at 1120 they fit but sit spread out on a big monitor,
+// which is the other half of the same ask (that half is mostly the spacing
+// pass; at a 1680 window the scale is barely off 1). The floor caps how small
+// the type is allowed to get — 11.5px body text lands at 7.6px there — and
+// below it the popup scrolls the last few pixels rather than shrinking on.
+const WEDI_DESIGN_W = 1420;
+const WEDI_ZOOM_FLOOR = 0.66;
 
 // Kits list (issue 075). Sizes lead in FEET because that is how a shower gets
 // asked for; the inches follow for the tape measure.
@@ -102,7 +109,7 @@ const CSS = `
    0 0 392px, which was never what rendered — a loaded kit floors it at ~567px
    on its own content and took the 175px out of .main, so the columns jumped
    the moment you clicked a pan. Equal basis makes that shift 12px at 1680. */
-.wedi-pop .main{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--ft-card);padding:10px 12px 16px}
+.wedi-pop .main{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--ft-card);padding:9px 11px 14px}
 
 /* The Kits list (issue 075). It was a 120px card per pan carrying the product
    name, a drain chip and "full kit" — three captions that repeat on nearly
@@ -223,7 +230,7 @@ const CSS = `
 .wedi-pop .stepper .q.zero{color:var(--ft-faint);font-weight:600}
 .wedi-pop .more{font-size:11px;color:var(--ft-faint);padding:8px 4px}
 
-.wedi-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:12px 14px 20px;order:3}
+.wedi-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:10px 12px 14px;order:3}
 .wedi-pop .diagcol .dc-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);margin:4px 0}
 .wedi-pop .diagcol .dc-h:first-child{margin-top:0}
 .wedi-pop .diagcol svg{display:block;width:100%;height:auto;background:var(--w-paper);border:1px solid var(--ft-border);border-radius:8px}
@@ -235,17 +242,17 @@ const CSS = `
 .wedi-pop svg .wband:hover{opacity:.82}
 
 .wedi-pop .buildcol{flex:1 1 0;border-left:1px solid var(--ft-border-strong);background:var(--ft-cream);display:flex;flex-direction:column;min-height:0;order:2}
-.wedi-pop .bc-scroll{flex:1;overflow-y:auto;padding:14px 16px 8px}
+.wedi-pop .bc-scroll{flex:1;overflow-y:auto;padding:10px 13px 6px}
 .wedi-pop .bc-h{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
 .wedi-pop .bc-h .t{font-size:14px;font-weight:800}
 .wedi-pop .bc-h .sub{font-size:10.5px;color:var(--ft-faint);font-weight:600;margin-left:auto;text-align:right}
 .wedi-pop .bc-empty{font-size:12px;color:var(--ft-faint);line-height:1.6;padding:22px 6px}
-.wedi-pop .bgroup{margin-top:11px}
+.wedi-pop .bgroup{margin-top:8px}
 .wedi-pop .bg-h{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted);padding-bottom:4px;border-bottom:1px solid var(--ft-border-strong)}
 .wedi-pop .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
 .wedi-pop .wtgl{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:4px;font-size:9px;font-weight:800;color:var(--ft-faint);width:20px;height:17px;cursor:pointer;line-height:1}
 .wedi-pop .wtgl.on{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
-.wedi-pop .wallrow{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px dashed var(--ft-row-line);font-size:10px;color:var(--ft-faint);font-weight:600}
+.wedi-pop .wallrow{display:flex;align-items:center;gap:5px;padding:2px 0;border-bottom:1px dashed var(--ft-row-line);font-size:10px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .wname{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:5px;font-size:9.5px;font-weight:800;color:var(--ft-faint);padding:2px 0;cursor:pointer;width:44px;text-align:center;flex:none}
 .wedi-pop .wname.on{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
 .wedi-pop .win{width:40px;flex:none;border:1px solid var(--ft-border-strong);border-radius:4px;font-size:10.5px;font-weight:700;text-align:center;padding:2px;background:var(--ft-card);color:var(--ft-text)}
@@ -256,7 +263,7 @@ const CSS = `
 .wedi-pop .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
 .wedi-pop .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-pop .fsw{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid var(--ft-border-strong);vertical-align:-1.5px;margin-right:5px;flex:none}
-.wedi-pop .bline{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--ft-row-line)}
+.wedi-pop .bline{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .bline .bn{flex:1;min-width:0}
 .wedi-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .wedi-pop .bline .bn .m{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -270,22 +277,22 @@ const CSS = `
 .wedi-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .wedi-pop .starb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:22px;height:22px;font-size:12px;color:var(--ft-faint);cursor:pointer;line-height:1;padding:0}
 .wedi-pop .starb.on{color:#C9A050;border-color:#C9A050}
-.wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:7px 0 2px}
+.wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 0 2px}
 .wedi-pop .addchip{border:1px dashed var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;color:var(--ft-muted);cursor:pointer}
 .wedi-pop .addchip.on{border-style:solid;background:var(--ft-brand-soft);border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .wedi-pop .whint{display:flex;gap:8px;align-items:center;background:var(--w-hint-bg);border:1px solid var(--w-hint-line);border-radius:7px;padding:7px 10px;font-size:11px;color:var(--w-hint-ink);font-weight:600;margin-top:10px;line-height:1.4}
 .wedi-pop .whint button{border:1px solid #C9A050;background:#fff;border-radius:5px;font-size:10.5px;font-weight:800;color:var(--w-hint-ink);padding:3px 8px;cursor:pointer;flex:none;margin-left:auto}
-.wedi-pop .bc-foot{flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:10px 16px 12px}
+.wedi-pop .bc-foot{flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:8px 13px 9px}
 .wedi-pop .totrow{display:flex;align-items:baseline;gap:12px}
 .wedi-pop .totrow .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted)}
 .wedi-pop .totrow .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .totrow .sell{margin-left:auto;text-align:right}
-.wedi-pop .totrow .sell .v{font-size:22px}
+.wedi-pop .totrow .sell .v{font-size:19px}
 .wedi-pop .marginrow{font-size:10.5px;color:var(--ft-muted);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px;width:100%;background:none;border:0;padding:0;font-family:inherit;text-align:left;cursor:pointer}
 .wedi-pop .marginrow:hover{color:var(--ft-text)}
 .wedi-pop .marginrow span{margin-left:auto}
 .wedi-pop .btnrow{display:flex;gap:7px;margin-top:9px}
-.wedi-pop .wbtn{flex:1;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:12px;font-weight:800;padding:9px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+.wedi-pop .wbtn{flex:1;border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11.5px;font-weight:800;padding:7px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
 .wedi-pop .wbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
 .wedi-pop .wbtn.primary:hover{background:var(--ft-brand-deep)}
 .wedi-pop .wbtn:disabled{opacity:.45;cursor:not-allowed}

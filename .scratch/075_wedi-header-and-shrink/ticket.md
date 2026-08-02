@@ -507,6 +507,45 @@ cannot sit between `return (` and the element it precedes — it parses as a
 second expression — and once vite has served a parse error it keeps the overlay
 up until the dev server is restarted, which reads as "the click did nothing".
 
+### Scale continuously, and tighten (owner, 2026-08-02)
+
+> "as it gets narrower, are we able to just have everything shrink a little bit?
+> So that as it gets smaller, everything gets smaller, including the text size…
+> also the text and everything is just so big and so spread out."
+
+Two changes, one for each half.
+
+**The popup is now DRAWN at one width and scaled to whatever frame it gets.**
+`WEDI_DESIGN_W` went 1156 → **1420**, so the zoom is live across the whole real
+range instead of only kicking in below ~1160px. Between the floor and the cap
+the layout is pixel-identical and only the scale moves — which also means
+nothing truncates differently from one window size to the next:
+
+| Viewport | Zoom | Layout width | Body text on screen | Columns |
+|---|---|---|---|---|
+| 1920 | 1.00 | 1654px | 11.5px | 545 / 561 / 548 |
+| 1680 | 1.00 | 1420px | 11.5px | 428 / 560 / 431 |
+| 1440 | 0.83 | 1420px | 9.5px | 428 / 561 / 431 |
+| 1280 | 0.71 | 1420px | 8.2px | 428 / 561 / 431 |
+| 1024 | 0.69 | 1419px | 8.0px | 427 / 561 / 431 |
+
+No horizontal scroll at any of them.
+
+`WEDI_ZOOM_FLOOR` went 0.62 → **0.66**, which is the readability knob: it caps
+how small the body text is allowed to get (8.0px at the bottom instead of 7.6),
+and below it the popup scrolls the last few pixels rather than shrinking on.
+1480 was tried first and gave 7.9px at 1280 for no visible gain at 1680, since
+the scale there was already 0.96.
+
+**Spacing, not type sizes.** The build column's text is 9.5–11.5px already;
+cutting it as well would have double-penalised the shrunk end. So the second
+half is whitespace — `.bc-scroll` padding 14/16 → 10/13, `.bline` 5 → 3,
+`.wallrow` 4 → 2, `.bgroup` margin 11 → 8, the footer 10/16/12 → 8/13/9, the
+total 22 → 19px, the action buttons 9 → 7, and both rails' padding. At 1680 that
+is where all of the "smaller, cleaner" comes from — the zoom there is 1.00.
+
+`shots/scale-{1920,1680,1440,1280,1024}.png`.
+
 ### C1 on all three tabs (owner, 2026-08-02)
 
 > "the reason I like C1 is that I think it could be used in all three tabs… so
