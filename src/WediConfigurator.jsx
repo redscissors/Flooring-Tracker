@@ -87,11 +87,43 @@ const CSS = `
 .wedi-pop .kitnote{font-size:11.5px;color:var(--ft-muted);background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:9px 12px;margin-bottom:16px;line-height:1.5}
 .wedi-pop .kitnote b{color:var(--ft-text)}
 
-.wedi-pop .roomform{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:12px 14px;margin-bottom:14px}
-.wedi-pop .rf{display:flex;flex-direction:column;gap:4px}
-.wedi-pop .rf label{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-muted)}
+/* The custom-shower header (issue 075, candidate A1). It was nine fields
+   wrapping in one row, in an order that changed with every width; it is now
+   three named groups in an auto-fit grid (3 → 2 → 1 columns).
+   Two treatment rules travel with it, and they are the reason the old one read
+   as "a mess":
+   · A selection reads as a SELECTION. .seg button.on is a near-black fill —
+     five of them across one bar read as five headings, not five answers. The
+     header's own .rseg uses --ft-seg-on-bg, the same moss the rest of the
+     app's segmented controls use. (.seg/.inp still dress the Browse tab.)
+   · Walls is a MULTI-select. Drawn as a segment, three toggles merged into one
+     unbroken bar when all three were on; as ticked chips it reads as three
+     switches, which is what it is. */
+.wedi-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:8px;margin-bottom:14px}
+.wedi-pop .rfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:6px}
+.wedi-pop .rfgrp{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:8px;padding:5px 8px 7px}
+.wedi-pop .rfgrp > .h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ft-brand-deep);margin-bottom:4px}
+.wedi-pop .rfflow{display:flex;flex-wrap:wrap;gap:7px 10px}
+.wedi-pop .rf{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.wedi-pop .rf label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
 .wedi-pop .rf .dims{display:flex;align-items:center;gap:6px}
 .wedi-pop .rf .dims span{font-size:12px;color:var(--ft-faint);font-weight:700}
+.wedi-pop .rinp{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);color:var(--ft-text);font-size:12.5px;font-weight:700;padding:4px 6px;width:48px}
+.wedi-pop .rinp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
+.wedi-pop .rseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:var(--ft-card)}
+.wedi-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.wedi-pop .rseg button + button{border-left:1px solid var(--ft-border)}
+.wedi-pop .rseg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.wedi-pop .rseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
+.wedi-pop .rchips{display:flex;flex-wrap:wrap;gap:5px}
+.wedi-pop .rchip{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:4px 6px;cursor:pointer;display:flex;align-items:center;gap:3px}
+.wedi-pop .rchip:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.wedi-pop .rchip.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;border-color:var(--ft-brand);box-shadow:inset 0 0 0 .5px var(--ft-brand)}
+.wedi-pop .rchip .tick{font-size:10px;line-height:1;opacity:.35}
+.wedi-pop .rchip.on .tick{opacity:1}
+.wedi-pop .rfgrp > .rowh{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
+.wedi-pop .rclear:hover{background:var(--ft-hover-red);color:var(--w-rust);border-color:#E3B9A8}
 .wedi-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px}
 .wedi-pop .inp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
 .wedi-pop .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
@@ -2131,67 +2163,84 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return (
       <>
         <div className="roomform">
-          <div className="rf"><label>Shower size — width × depth</label>
-            <div className="dims">
-              <NumIn className="inp" value={inp.w} onCommit={(v) => setInput({ w: +v || 0 })} />
-              <span>×</span>
-              <NumIn className="inp" value={inp.d} onCommit={(v) => setInput({ d: +v || 0 })} />
-              <span>in</span>
+          <div className="rfgrid">
+            <div className="rfgrp">
+              <div className="h">Size &amp; curb</div>
+              <div className="rfflow">
+                <div className="rf"><label>Shower size</label>
+                  <div className="dims">
+                    <NumIn className="rinp" value={inp.w} onCommit={(v) => setInput({ w: +v || 0 })} />
+                    <span>×</span>
+                    <NumIn className="rinp" value={inp.d} onCommit={(v) => setInput({ d: +v || 0 })} />
+                    <span>in</span>
+                  </div>
+                </div>
+                <div className="rf"><label>Curb</label>
+                  <div className="rseg">
+                    {["curbed", "curbless"].map((v) => (
+                      <button key={v} className={inp.curb === v ? "on" : ""} onClick={() => setInput({ curb: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rf"><label>Sizes are</label>
+                  <div className="rseg">
+                    <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
+                      onClick={() => setMaxMode(false)}>Pan size</button>
+                    <button className={maxIn ? "on" : ""}
+                      title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
+                      onClick={() => setMaxMode(true)}>Max — curb inside</button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rf"><label>Sizes are</label>
-            <div className="seg">
-              <button className={!maxIn ? "on" : ""} title="the pan's size — a curb adds its width outside the line"
-                onClick={() => setMaxMode(false)}>Pan size</button>
-              <button className={maxIn ? "on" : ""}
-                title={'the overall footprint — every open edge pulls its curb inside the line and the pan gives up its width (the curb laps ½" onto the pan)'}
-                onClick={() => setMaxMode(true)}>Max — curb inside</button>
+            <div className="rfgrp">
+              <div className="h">Drain</div>
+              <div className="rfflow">
+                <div className="rf"><label>Preference</label>
+                  <div className="rseg">
+                    {["any", "center", "offset", "linear"].map((v) => (
+                      <button key={v} className={inp.drain === v ? "on" : ""} onClick={() => setInput({ drain: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rf"><label>Drain — from left × back</label>
+                  <div className="dims">
+                    <NumIn className="rinp" placeholder="auto" value={inp.drainX} onCommit={(v) => setInput({ drainX: v.trim() })} />
+                    <span>×</span>
+                    <NumIn className="rinp" placeholder="auto" value={inp.drainY} onCommit={(v) => setInput({ drainY: v.trim() })} />
+                    <span>in</span>
+                  </div>
+                </div>
+                <div className="rf"><label>Pan against</label>
+                  <div className="rseg">
+                    <button className={inp.anchor !== "right" ? "on" : ""} onClick={() => setInput({ anchor: "left" })}>Left</button>
+                    <button className={inp.anchor === "right" ? "on" : ""} onClick={() => setInput({ anchor: "right" })}>Right</button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rf"><label>Curb</label>
-            <div className="seg">
-              {["curbed", "curbless"].map((v) => (
-                <button key={v} className={inp.curb === v ? "on" : ""} onClick={() => setInput({ curb: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
-              ))}
+            <div className="rfgrp">
+              <div className="h rowh">Walls
+                <button className="rclear" data-wedi-clear
+                  title="wipe the build — walls, cuts, parts — and reset this form"
+                  onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
+              </div>
+              <div className="rfflow">
+                <div className="rf"><label>Which get wedi</label>
+                  <div className="rchips">
+                    {walls.map((w) => (
+                      <button key={w.id} className={"rchip" + (w.on ? " on" : "")}
+                        onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>
+                        <span className="tick">{w.on ? "✓" : "○"}</span>{w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rf"><label>Height</label>
+                  <div className="dims"><NumIn className="rinp" value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rf"><label>Drain preference</label>
-            <div className="seg">
-              {["any", "center", "offset", "linear"].map((v) => (
-                <button key={v} className={inp.drain === v ? "on" : ""} onClick={() => setInput({ drain: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
-              ))}
-            </div>
-          </div>
-          <div className="rf"><label>Drain — from left · from back</label>
-            <div className="dims">
-              <NumIn className="inp" style={{ width: 58 }} placeholder="auto" value={inp.drainX} onCommit={(v) => setInput({ drainX: v.trim() })} />
-              <span>×</span>
-              <NumIn className="inp" style={{ width: 58 }} placeholder="auto" value={inp.drainY} onCommit={(v) => setInput({ drainY: v.trim() })} />
-              <span>in</span>
-            </div>
-          </div>
-          <div className="rf"><label>Pan against</label>
-            <div className="seg">
-              <button className={inp.anchor !== "right" ? "on" : ""} onClick={() => setInput({ anchor: "left" })}>Left</button>
-              <button className={inp.anchor === "right" ? "on" : ""} onClick={() => setInput({ anchor: "right" })}>Right</button>
-            </div>
-          </div>
-          <div className="rf"><label>Walls</label>
-            <div className="seg">
-              {walls.map((w) => (
-                <button key={w.id} className={w.on ? "on" : ""}
-                  onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>{w.label}</button>
-              ))}
-            </div>
-          </div>
-          <div className="rf"><label>Wall height</label>
-            <div className="dims"><NumIn className="inp" style={{ width: 58 }} value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
-          </div>
-          <div className="rf" style={{ marginLeft: "auto" }}>
-            <label>&nbsp;</label>
-            <button className="wbtn" data-wedi-clear style={{ flex: "none", padding: "8px 13px" }}
-              title="wipe the build — walls, cuts, parts — and reset this form"
-              onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
           </div>
         </div>
 

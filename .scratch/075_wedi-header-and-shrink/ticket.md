@@ -90,7 +90,43 @@ Two slimmed rebuilds of A, both keeping its three groups and its order.
   to bottom instead of left to right; at 660 a band wraps within itself and the
   grouping still holds.
 
-**A2 is the one to port.** Shots: `shots/slim-{0-today,A-grouped,A1-compressed,A2-bands}-{940,660}.png`.
+Shots: `shots/slim-{0-today,A-grouped,A1-compressed,A2-bands}-{940,660}.png`.
+
+### Ported: A1 (owner pick, 2026-08-02)
+
+**The prototype's widths were wrong.** It was drawn at 940px; the solver column
+never gets that. `measure.mjs` reads the header's own box in the real popup:
+
+| Viewport | Header gets | Shipped | A1 | |
+|---|---|---|---|---|
+| 1920 | 868px | 195px | **172px** | −12% |
+| 1680 | 628px | 256px | **249px** | −3% |
+| 1440 | 388px | 439px | **321px** | −27% |
+| 1280 | 370px | 388px | **283px** | −27% |
+| 1024 | 370px | 370px | **279px** | −25% |
+| 860 | 369px | 317px | **239px** | −25% |
+| 720 | 345px | 274px | **205px** | −25% |
+
+Only at a 1920 viewport does the three-column grid actually get three columns —
+`minmax(248px, 1fr)` needs ~760px and the column is 370–630px nearly always. So
+the "199px at 940" figure from the prototype is a best case that only the widest
+monitors see; the real win is the 25% off the narrow half of the range, where
+the shipped header was 370–439px and A1 is 205–321px.
+
+Two tuning passes got it there, and both were measured rather than eyeballed:
+
+- The absolutely-positioned "Clear design" was costing a 31px band of board
+  padding at every width. It moved into the Walls group's **heading row**, which
+  had slack — the whole button now costs zero rows.
+- Field gaps, input widths and chip padding came down enough for "Shower size"
+  and "Curb" to share a row in a 285px group instead of wrapping.
+
+Before that the 1680 case was a *regression* (275px against the shipped 256px):
+the grid drops to two columns there while the old `flex-wrap` row packed
+tighter. It is now 249px — the narrowest margin of the seven, worth watching if
+the groups gain a field.
+
+Shots: `shots/ported-{1680,1280,1024,860,720}-{custom,header}.png`.
 
 ---
 
@@ -162,8 +198,11 @@ credentials, no network, no writes to the live project.
 
 ## Open
 
-- **A2 confirmed?** Nothing is ported into `WediConfigurator.jsx` yet — every
-  candidate lives only in the prototype. Porting A2 means replacing `.roomform`
-  and the nine `.rf` blocks in `customTab`, and it takes the moss selection
-  treatment with it, which is a change the Kits and Browse tabs' segments
-  should probably follow in the same pass.
+- **The Browse tab still wears the old segment.** A1 brought its own classes
+  (`.rseg`/`.rchip`/`.rinp`) so `.seg`/`.inp` could keep dressing Browse's
+  sealant-form toggle and search box untouched. That leaves one near-black
+  segment in the popup against the header's moss — a two-line change to
+  `.seg button.on` would settle it, but it repaints Browse and Kits, so it
+  wants its own preview pass rather than riding along here.
+- **1680 is the tight one** at 249px against the shipped 256px. The grid falls
+  to two columns there; a fourth field in any group would put it back over.
