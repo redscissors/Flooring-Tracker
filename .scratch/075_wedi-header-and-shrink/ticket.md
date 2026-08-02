@@ -1,6 +1,6 @@
 # 075 — wedi configurator: custom-shower header candidates + shrink to fit
 
-Status: in-review (all owner asks ported; awaiting merge)
+Status: done (2026-08-02 — every ask ported and merged via PR #287)
 Opened: 2026-08-02 (owner)
 Area: wedi configurator (issue 066), Apps hub
 
