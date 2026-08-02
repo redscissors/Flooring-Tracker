@@ -454,6 +454,40 @@ this ticket:
 `shots/final-{1680,1440,1280,1024}-kits.png`, `final-1680-kits-built.png`,
 `final-1680-{custom,browse}.png`.
 
+### The Browse segment, and what the equal columns did to Browse rows (2026-08-02)
+
+Owner: "fix the browse segment too."
+
+Every wedi-local selected state now uses the header's moss instead of a
+near-black fill — `.seg` (the sealant-form toggle), `.gchip` (the figurer chip)
+and `.pfseg` (**Fit | One size** in the build column, and the same control in
+the wall menu). `.pfseg` matters most: it sits beside the new header on every
+tab, so leaving it black would have kept the inconsistency in the most visible
+place while fixing the least visible one.
+
+**One black state is staying, deliberately.** The Browse section board's active
+cell (`All`, `Pans`, …) is `.ft-hopt.on` + `bg-indigo-600` — the app-wide
+active-cell pattern from `index.css`, used identically by the price-book board.
+It is ink-on-paper on purpose (`index.css` line 354). Recolouring it inside the
+wedi popup only would make wedi inconsistent with the rest of the app to make it
+consistent with itself.
+
+**A regression I under-reported.** I had described the equal-column cost to
+Browse as "item names truncate more". At a 477px column it was worse than that:
+the row's sub-line had no `nowrap`, so it wrapped to three or four lines and the
+rows became ragged and tall while the name shrank to `Subli…`. Fixed:
+
+- the sub-line ellipsizes instead of wrapping, so every row is two lines;
+- the SKU (88 → 72px) and price (84 → 74px) tracks and the row gap (10 → 8px)
+  give ~40px back to the name;
+- and the name block carries a `title` with the full name · size · SKU, because
+  both of its lines now ellipsize and a third of the popup is not enough width
+  to guarantee either fits.
+
+Names still truncate at that width — that is the accepted price of the equal
+columns — but the rows are uniform and the full text is one hover away.
+`shots/seg-browse-{1680,1280}.png`, `shots/seg-buildcol.png`.
+
 ### C1 on all three tabs (owner, 2026-08-02)
 
 > "the reason I like C1 is that I think it could be used in all three tabs… so

@@ -165,8 +165,9 @@ const CSS = `
 .wedi-pop .inp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
 .wedi-pop .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .wedi-pop .seg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:12px;font-weight:700;padding:8px 12px;cursor:pointer}
-.wedi-pop .seg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-pop .seg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-pop .seg button + button{border-left:1px solid var(--ft-border)}
+.wedi-pop .seg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.wedi-pop .seg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-pop .optrow{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
 .wedi-pop .optcard{flex:0 0 240px;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 12px;cursor:pointer;text-align:left;color:inherit}
 .wedi-pop .optcard:hover{border-color:var(--ft-brand)}
@@ -193,7 +194,7 @@ const CSS = `
 .wedi-pop .seccols small{margin-left:auto;font-weight:600;opacity:.55;padding-left:10px;font-size:9.5px}
 .wedi-pop .quickstack{display:flex;flex-direction:column;gap:6px;min-width:104px}
 .wedi-pop .gchip{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;color:var(--ft-muted);cursor:pointer}
-.wedi-pop .gchip.on{background:var(--ft-text);border-color:var(--ft-text);color:var(--ft-cream)}
+.wedi-pop .gchip.on{background:var(--ft-seg-on-bg);border-color:var(--ft-brand);color:var(--ft-brand-deep);box-shadow:inset 0 0 0 .5px var(--ft-brand)}
 .wedi-pop .gchip small{font-weight:600;opacity:.65;margin-left:3px}
 .wedi-pop .figcard{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:11px 13px;margin-bottom:12px}
 .wedi-pop .figcard .fh{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand-deep);margin-bottom:6px}
@@ -201,16 +202,16 @@ const CSS = `
 .wedi-pop .figcard .fr b{color:var(--ft-text)}
 .wedi-pop .figcard .inp{width:80px;padding:5px 8px;font-size:12.5px}
 .wedi-pop .figfoot{font-size:10px;color:var(--ft-faint);font-weight:600;margin-top:5px}
-.wedi-pop .brow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-top:1px solid var(--ft-row-line)}
+.wedi-pop .brow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid var(--ft-row-line)}
 .wedi-pop .brow:last-child{border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .brow.stk,.wedi-pop .srow.stk{background:var(--w-stock)}
 .wedi-pop .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
 .wedi-pop .sdot.so{background:transparent;border:1.4px solid var(--ft-faint)}
 .wedi-pop .brow .bn{flex:1;min-width:0}
 .wedi-pop .brow .bn .n{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wedi-pop .brow .bn .s{font-size:10.5px;color:var(--ft-faint);font-weight:600}
-.wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;width:88px;text-align:right}
-.wedi-pop .brow .pr{flex:none;width:84px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.wedi-pop .brow .bn .s{font-size:10.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;width:72px;text-align:right}
+.wedi-pop .brow .pr{flex:none;width:74px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .brow .pr small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .stepper{flex:none;display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:6px;overflow:hidden}
 .wedi-pop .stepper button{border:none;background:var(--ft-card);width:24px;height:24px;font-size:13px;font-weight:800;color:var(--ft-muted);cursor:pointer;line-height:1}
@@ -249,7 +250,7 @@ const CSS = `
 .wedi-pop .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
 .wedi-pop .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:2px 7px;cursor:pointer}
 .wedi-pop .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-pop .pfseg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-pop .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-pop .fsw{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid var(--ft-border-strong);vertical-align:-1.5px;margin-right:5px;flex:none}
 .wedi-pop .bline{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .bline .bn{flex:1;min-width:0}
@@ -305,7 +306,7 @@ const CSS = `
 .wedi-wallmenu .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
 .wedi-wallmenu .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:3px 7px;cursor:pointer}
 .wedi-wallmenu .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-wallmenu .pfseg button.on{background:var(--ft-text);color:var(--ft-cream)}
+.wedi-wallmenu .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-wallmenu .wm-del{border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:#B4552D;padding:3px 8px;cursor:pointer}
 .wedi-wallmenu .wm-act{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:5px;font-size:10px;font-weight:800;color:var(--ft-text);padding:3px 8px;cursor:pointer}
 .wedi-wallmenu .wm-act:hover{border-color:var(--ft-brand)}
@@ -2452,7 +2453,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           return (
             <div className={"brow" + (e.stock ? " stk" : "")} key={e.key}>
               <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
-              <div className="bn">
+              {/* Both lines ellipsize, and the column is a third of the popup
+                  now, so the full text has to be reachable somewhere. */}
+              <div className="bn" title={[unwedi(e.name), e.sizeText, e.stock ? e.erp : e.us].filter(Boolean).join(" · ")}>
                 {cf ? (<>
                   <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
                   <div className="s">{unwedi(e.name)} · {e.stock ? "stock" : "special order"}</div>
