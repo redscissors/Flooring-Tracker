@@ -348,6 +348,39 @@ The 452px column is the weak point: one column of rows, 814px. That is the same
 shape of problem as the header's 1680 case — the middle widths are where the
 column is narrowest relative to its content.
 
+### K8 / K9 — the narrow list, width to the other two (owner ask 2026-08-02)
+
+> "the kit column doesn't need to be that wide. I would rather the build column
+> or the drawing column gain some of that width… the actual kit column should be
+> narrow compared to the other two."
+
+Today `.main` is `flex:1` while `.buildcol` (392px) and `.diagcol` (356px) are
+fixed, so **every extra pixel goes to the selection list** — the one column that
+needs it least, and now needs it least of all at K7's row height. These pin the
+list at 300px and let the other two grow into what it gives up.
+
+At a 1500 viewport, with a kit built so the build column and drawings have
+something in them:
+
+| | List | Build | Drawings | Drawing SVG |
+|---|---|---|---|---|
+| Today / K7 | 577px | 567px | 356px | 327px |
+| **K8** — build and drawings share the gain | 300px | 618px | 582px | **553px** (+69%) |
+| **K9** — drawings grow twice as fast | 300px | 567px | 633px | **604px** (+85%) |
+
+`shots/cols-{today,k7,k8,k9}.png`. The difference is not subtle: in K9 the
+top-down layout's callouts — `offset drain @ 13 3/4", 18"`, the fall arrows, the
+part number — are legible at a glance where today they are 8px text in a 327px
+box, and the build column's line descriptions stop truncating.
+
+300px is the floor for the row: dot + `3′6″ × 3′6″ 42 × 42` + an OFFSET tag +
+the price needs ~282px, so 300 leaves a little air and no more.
+
+**This must be scoped to the Kits tab.** `.main` is shared by all three
+surfaces, and at 300px the Custom shower tab loses its option cards past the
+first (`shots/cols-k9-custom.png`) and Browse loses its catalogue rows. The real
+change is a modifier on `.pop-body` keyed to `tab === "kits"`, not a bare rule.
+
 > A measuring bug worth recording, because it made the first set of sub-1200
 > numbers wrong: the harness sized the column-wrap container from
 > `getBoundingClientRect().height`, which is **device** pixels, while the

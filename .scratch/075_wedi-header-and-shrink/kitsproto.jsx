@@ -128,6 +128,25 @@ const VARIANTS = {
 `],
 };
 
+// K8/K9 share K7's rows and only change how the three columns split the width.
+// Today `.main` is flex:1 while the build (392px) and drawings (356px) columns
+// are fixed, so every extra pixel goes to the selection list — which is the one
+// column that needs the least. These pin the list and let the other two grow.
+const K7_ROWS = VARIANTS.k7[2];
+const narrowMain = (buildGrow, diagGrow) => K7_ROWS + `
+.wedi-pop .pop-body .main{flex:0 0 300px}
+.wedi-pop .pop-body .buildcol{flex:${buildGrow} 1 392px}
+.wedi-pop .pop-body .diagcol{flex:${diagGrow} 1 356px}
+`;
+
+VARIANTS.k8 = ["K8 · narrow list, build and drawings share the gain",
+  "K7's single column pinned to 300px. The build column and the drawings rail grow equally into everything it gives up, instead of the list taking it all.",
+  narrowMain(1, 1)];
+
+VARIANTS.k9 = ["K9 · narrow list, drawings take most of the gain",
+  "Same 300px list, but the drawings rail grows twice as fast as the build column — the plan and isometric are the only things here that get genuinely better with pixels; the build column is a line list.",
+  narrowMain(1, 2)];
+
 // The family headings the owner wants: the one word that distinguishes them,
 // with the descriptive hint dropped.
 const FAM_SHORT = [[/curbless|ligno/i, "Curbless"], [/module|riolito/i, "Neo modules"], [/linear/i, "Linear"], [/fundo|curbed/i, "Curbed"]];
@@ -260,7 +279,7 @@ function App() {
     const pass = key === "k4" ? markCommonDrains
       : key === "k5" ? () => applyK5()
         : key === "k6" ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 3, colMin: 235 })
-          : key === "k7" ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 1 })
+          : ["k7", "k8", "k9"].includes(key) ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 1 })
             : null;
     if (!pass) return;
     const t = setInterval(() => { try { pass(); } catch (x) { /* mid-render */ } }, 400);
