@@ -63,6 +63,38 @@ const BASE = `
 .hp .a-top .t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ft-muted)}
 .hp .a-top .n-clear{margin-left:auto}
 
+/* ── A1 · A, compressed ───────────────────────────────────────────────── */
+/* Same three groups, same order. The height comes out of chrome, not out of
+   controls: the board's own title row goes (the tab already says "Custom
+   shower"), the fields inside a group flow across instead of stacking, and
+   every control drops to the size the build column's rows already use. */
+.hp .a1-board{position:relative;background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:31px 10px 9px}
+.hp .a1-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:7px}
+.hp .a1-grp{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:8px;padding:6px 9px 8px}
+.hp .a1-grp > .h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ft-brand-deep);margin-bottom:5px}
+.hp .a1-flow{display:flex;flex-wrap:wrap;gap:7px 12px}
+.hp .a1-board .n-lab{font-size:9px;letter-spacing:.08em}
+.hp .a1-board .n-field{gap:3px}
+.hp .a1-board .n-seg button{font-size:11.5px;padding:4px 10px}
+.hp .a1-board .n-chip{font-size:11.5px;padding:4px 8px;gap:4px}
+.hp .a1-board .n-inp{font-size:12.5px;padding:4px 7px;width:52px}
+.hp .a1-clear{position:absolute;top:7px;right:9px;z-index:1}
+
+/* ── A2 · A as stacked bands ──────────────────────────────────────────── */
+/* The group name moves into a left gutter, so a group costs no heading row —
+   one band per group, one row of controls each, field labels inline. */
+.hp .a2-board{position:relative;background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:10px;padding:0 10px}
+.hp .a2-band{display:flex;align-items:center;gap:9px;padding:7px 0;min-height:38px}
+.hp .a2-band + .a2-band{border-top:1px solid var(--ft-row-line)}
+.hp .a2-band > .h{flex:none;width:64px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-brand-deep);line-height:1.2}
+.hp .a2-flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;min-width:0}
+.hp .a2-f{display:flex;align-items:center;gap:6px}
+.hp .a2-board .n-lab{font-size:9px;letter-spacing:.08em;white-space:nowrap}
+.hp .a2-board .n-seg button{font-size:11.5px;padding:4px 10px}
+.hp .a2-board .n-chip{font-size:11.5px;padding:4px 8px;gap:4px}
+.hp .a2-board .n-inp{font-size:12.5px;padding:4px 7px;width:52px}
+.hp .a2-band .n-clear{margin-left:auto;white-space:nowrap;align-self:center}
+
 /* ── B · two-tier toolbar ─────────────────────────────────────────────── */
 .hp .b-wrap{border:1px solid var(--ft-tint-border);border-radius:10px;overflow:hidden}
 .hp .b-top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px;background:var(--ft-card);padding:11px 14px}
@@ -226,6 +258,82 @@ function VarA() {
   );
 }
 
+// ── A1 · A, compressed ───────────────────────────────────────────────────
+function VarA1() {
+  const [c, p, toggleWall] = useCfg();
+  return (
+    <div className="a1-board">
+      <button className="n-clear a1-clear">Clear design</button>
+      <div className="a1-grid">
+        <div className="a1-grp">
+          <div className="h">Size &amp; curb</div>
+          <div className="a1-flow">
+            <Field label="Width × depth"><SizeRow c={c} p={p} /></Field>
+            <Field label="Curb"><Seg opts={CURB} value={c.curb} onPick={(v) => p({ curb: v })} /></Field>
+            <Field label="Sizes are"><Seg opts={[[false, "Pan size"], [true, "Max — curb inside"]]} value={c.max} onPick={(v) => p({ max: v })} /></Field>
+          </div>
+        </div>
+        <div className="a1-grp">
+          <div className="h">Drain</div>
+          <div className="a1-flow">
+            <Field label="Preference"><Seg opts={DRAIN} value={c.drain} onPick={(v) => p({ drain: v })} /></Field>
+            <Field label="From left × back"><DrainRow c={c} p={p} /></Field>
+            <Field label="Pan against"><Seg opts={["Left", "Right"]} value={c.anchor} onPick={(v) => p({ anchor: v })} /></Field>
+          </div>
+        </div>
+        <div className="a1-grp">
+          <div className="h">Walls</div>
+          <div className="a1-flow">
+            <Field label="Which get wedi"><WallChips walls={c.walls} onToggle={toggleWall} /></Field>
+            <Field label="Height">
+              <div className="n-row"><input className="n-inp" value={c.wallH} onChange={(e) => p({ wallH: e.target.value })} /><span className="n-unit">in</span></div>
+            </Field>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── A2 · A as stacked bands ──────────────────────────────────────────────
+const Inline = ({ label, children }) => (
+  <div className="a2-f"><span className="n-lab">{label}</span>{children}</div>
+);
+
+function VarA2() {
+  const [c, p, toggleWall] = useCfg();
+  return (
+    <div className="a2-board">
+      <div className="a2-band">
+        <span className="h">Shower</span>
+        <div className="a2-flow">
+          <SizeRow c={c} p={p} />
+          <Inline label="Curb"><Seg opts={CURB} value={c.curb} onPick={(v) => p({ curb: v })} /></Inline>
+          <Inline label="Sizes are"><Seg opts={[[false, "Pan size"], [true, "Max — curb inside"]]} value={c.max} onPick={(v) => p({ max: v })} /></Inline>
+        </div>
+      </div>
+      <div className="a2-band">
+        <span className="h">Drain</span>
+        <div className="a2-flow">
+          <Seg opts={DRAIN} value={c.drain} onPick={(v) => p({ drain: v })} />
+          <Inline label="From left × back"><DrainRow c={c} p={p} /></Inline>
+          <Inline label="Pan against"><Seg opts={["Left", "Right"]} value={c.anchor} onPick={(v) => p({ anchor: v })} /></Inline>
+        </div>
+      </div>
+      <div className="a2-band">
+        <span className="h">Walls</span>
+        <div className="a2-flow">
+          <WallChips walls={c.walls} onToggle={toggleWall} />
+          <Inline label="Height">
+            <div className="n-row"><input className="n-inp" value={c.wallH} onChange={(e) => p({ wallH: e.target.value })} /><span className="n-unit">in</span></div>
+          </Inline>
+        </div>
+        <button className="n-clear">Clear design</button>
+      </div>
+    </div>
+  );
+}
+
 // ── B · two-tier toolbar ─────────────────────────────────────────────────
 function VarB() {
   const [c, p, toggleWall] = useCfg();
@@ -306,6 +414,8 @@ function VarD() {
 const PANELS = [
   ["today", "Today", "As shipped — nine groups in one wrapping row; five near-black slabs; “Left | Right” butted against “Back | Left | Right”.", Today],
   ["a", "A · Grouped board", "Three named groups — Size & curb / Drain / Walls. Wraps 3 → 2 → 1 columns, so the order on screen never changes. Selection is moss, not black; Walls become tick chips because they are a multi-select.", VarA],
+  ["a1", "A1 · A, compressed", "A's three groups and A's order. The height comes out of chrome, not controls: the board's own title row goes, the fields inside a group flow across instead of stacking, and the controls drop to the size the build column already uses.", VarA1],
+  ["a2", "A2 · A as stacked bands", "The group name moves into a left gutter, so a group costs no heading row — one band per group, one row of controls each, field labels inline. Same three groups, read top to bottom instead of left to right.", VarA2],
   ["b", "B · Two-tier toolbar", "What gets touched on every shower is big and on top (size, curb, drain); the fine-tuning sits in a quiet band underneath. Half the vertical height of A.", VarB],
   ["c", "C · Summary that opens", "Collapsed to one readable line of the current shower; Edit opens board A. Gives the option cards and the drawings back ~150px.", VarC],
   ["d", "D · Spec rows", "Labels in a fixed left gutter, one control per row, two columns. Nothing wraps mid-group and the labels line up as a column you can scan.", VarD],

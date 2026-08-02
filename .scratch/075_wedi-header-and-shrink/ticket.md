@@ -67,6 +67,31 @@ Shots per candidate at 940px (full width) and 660px (the solver column at the
 shrink floor): `shots/header-{0-today,A-grouped,B-two-tier,C-summary,D-specrows}-{940,660}.png`,
 plus `shots/header-C-summary-open-940.png` for C expanded.
 
+### Owner pick (2026-08-02): "a but half the size"
+
+Two slimmed rebuilds of A, both keeping its three groups and its order.
+`shoot-slim.mjs` measures the board itself (not the panel caption):
+
+| Board | 940px | 660px |
+|---|---|---|
+| Today (shipped) | 195px | 256px |
+| **A** as first drawn | 270px | 432px |
+| **A1** · A, compressed | 199px | 319px |
+| **A2** · A as stacked bands | **122px** | **182px** |
+
+- **A1** takes the height out of chrome — no board title row, smaller controls,
+  fields flowing inside each group. It doesn't reach half: at 940 each of the
+  three columns is only ~290px, so the fields stack anyway and the saving is
+  the chrome alone (270 → 199, −26%).
+- **A2** moves the group name into a **left gutter**, which is what actually
+  costs A its height — a group no longer pays for a heading row, so each group
+  is one band of controls with its labels inline. 270 → 122 (−55%), and
+  **shorter than the header shipping today** (195). Same three groups, read top
+  to bottom instead of left to right; at 660 a band wraps within itself and the
+  grouping still holds.
+
+**A2 is the one to port.** Shots: `shots/slim-{0-today,A-grouped,A1-compressed,A2-bands}-{940,660}.png`.
+
 ---
 
 ## 2 · The configurator shrinks instead of scrolling sideways
@@ -129,6 +154,7 @@ npm i -D playwright                                   # not a repo dep
 npx vite --port 5199
 node .scratch/075_wedi-header-and-shrink/shoot.mjs before|after
 node .scratch/075_wedi-header-and-shrink/shoot-header.mjs
+node .scratch/075_wedi-header-and-shrink/shoot-slim.mjs      # + prints heights
 ```
 
 `hub.html` mounts the real `AppsWorkspace` with mock commit handlers — no
@@ -136,6 +162,8 @@ credentials, no network, no writes to the live project.
 
 ## Open
 
-- **Which header?** A / B / C / D, or a mix (e.g. B's two-tier layout with D's
-  gutter labels). Nothing is ported into `WediConfigurator.jsx` yet — the
-  candidates live only in the prototype.
+- **A2 confirmed?** Nothing is ported into `WediConfigurator.jsx` yet — every
+  candidate lives only in the prototype. Porting A2 means replacing `.roomform`
+  and the nine `.rf` blocks in `customTab`, and it takes the moss selection
+  treatment with it, which is a change the Kits and Browse tabs' segments
+  should probably follow in the same pass.
