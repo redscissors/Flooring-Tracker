@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ArrowUpRight, Zap, Clock } from "lucide-react";
-import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, shortDate, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
-import { useEscClose } from "./widgets.jsx";
+import { useMemo, useRef, useState } from "react";
+import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check } from "lucide-react";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
+import { useEscClose, DotMenu } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
 // every customer, grouped by salesman, over a bottom panel of the selected
@@ -16,10 +16,15 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const [cols, setCols] = useState(() => normColOrder(initialCols));
   const [dragCol, setDragCol] = useState(null);
   const [overCol, setOverCol] = useState(null); // { key, after } while a drag hovers
-  // The salesperson box (the ERP order screen's Salesperson filter): typed
-  // name narrows to that salesman's customers; "Me" fills the signed-in
-  // profile's name.
-  const [salesQ, setSalesQ] = useState("");
+  // The salesperson box (the ERP order screen's Salesperson filter): opens on
+  // the signed-in salesman's own customers, since that's whose jobs they came
+  // looking for. Typing narrows to any other name; the ▾ picks one off the
+  // roster of everyone the shop's jobs carry; Everyone clears back to the
+  // whole directory.
+  const [salesQ, setSalesQ] = useState(() => defaultSalesFilter(projects, myName));
+  const [salesMenu, setSalesMenu] = useState(false);
+  const salesMenuRef = useRef(null);
+  const roster = useMemo(() => salesRoster(projects), [projects]);
   const [sortKey, setSortKey] = useState("created");
   const [selId, setSelId] = useState(null);
   // The customer-less projects — quick-price drafts and unassigned estimates —
@@ -170,13 +175,24 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
               <input value={salesQ} onChange={(e) => setSalesQ(e.target.value)} placeholder="Salesperson"
                 className="ft-field h-full w-[118px] border-0 pl-6 pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
-            {salesQ ? (
+            {salesQ && (
               <button onClick={() => setSalesQ("")} title="Show every salesperson" className="px-1.5 flex items-center border-l border-slate-200 text-slate-400 hover:text-slate-600"><X size={12} /></button>
-            ) : (
-              <button onClick={() => myName && setSalesQ(myName)} disabled={!myName}
-                title={myName ? `My customers — ${myName}` : "Set your name in Settings → General first"}
-                className="px-2 flex items-center border-l border-slate-200 text-xs font-semibold text-indigo-600 hover:bg-slate-50 disabled:text-slate-300">Me</button>
             )}
+            <button ref={salesMenuRef} onClick={() => setSalesMenu((o) => !o)} title="Pick a salesperson"
+              className="px-1 flex items-center border-l border-slate-200 text-slate-400 hover:text-slate-600"><ChevronDown size={13} /></button>
+            <DotMenu open={salesMenu} onClose={() => setSalesMenu(false)} anchorRef={salesMenuRef} width={180}>
+              <button onClick={() => { setSalesQ(""); setSalesMenu(false); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50">
+                <Check size={13} className={salesQ ? "opacity-0" : "text-indigo-600"} /> Everyone
+              </button>
+              {roster.length > 0 && <div className="my-1 border-t border-slate-100" />}
+              {roster.map((n) => (
+                <button key={n} onClick={() => { setSalesQ(n); setSalesMenu(false); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50">
+                  <Check size={13} className={salesQ === n ? "text-indigo-600" : "opacity-0"} />
+                  <span className="truncate flex-1">{n}</span>
+                  {myName && n.toLowerCase() === myName.trim().toLowerCase() && <span className="text-[10px] text-slate-400 shrink-0">me</span>}
+                </button>
+              ))}
+            </DotMenu>
           </div>
           {unfiledCount > 0 && (
             <button onClick={() => setShowQuick((s) => !s)}

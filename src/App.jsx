@@ -51,6 +51,17 @@ const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 
+// Desktop shell scaling. The edit view is capped at max-w-4xl (896px), so
+// UI_DESIGN_W is the rail plus that cap: the window width at which the layout
+// gets everything it was drawn for. Narrower windows scale the whole shell by
+// width/UI_DESIGN_W — the header band is a row of fixed-width cards, and
+// squeezing instead collapsed the flexible project column to nothing and clipped
+// the cards. UI_ZOOM_FLOOR stops the shrink where the type stops being readable;
+// it lands just about where the mobile shell takes over (768px) anyway.
+const RAIL_W = 205;
+const UI_DESIGN_W = RAIL_W + 896;
+const UI_ZOOM_FLOOR = 0.7;
+
 // ---- Kiln #14a grid input model ----------------------------------------
 // The area editing surface is a spreadsheet grid (same 9 columns as the
 // printed sheet, plus a slim utility column) over the exact same product
@@ -111,7 +122,6 @@ export default function App({ user, onSignOut }) {
   const [promoteId, setPromoteId] = useState(null);
   const [promoteQ, setPromoteQ] = useState("");
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("newest");
   const [showSettings, setShowSettings] = useState(false);
   // Which left-nav section Settings is on — lifted here so the refresh
   // restore (ft-open-layer below) can reopen the workspace on it.
@@ -435,6 +445,22 @@ export default function App({ user, onSignOut }) {
     (el.querySelector("select, input:not([tabindex='-1'])") || el).focus();
   }, [matOpen]);
   useEffect(() => { const mq = window.matchMedia("(min-width: 768px)"); const on = () => setIsWide(mq.matches); on(); mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on); return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); }; }, []);
+
+  // Desktop below its design width SHRINKS rather than squeezes. The header band
+  // is a row of fixed-width cards (~670px of furniture) plus the flexible project
+  // column; in a half-screen window that column collapsed to nothing and the
+  // cards clipped. Scaling the whole desktop shell keeps the layout the team
+  // knows — one bar, same order — just smaller, down to a floor where the type
+  // is still readable. Portals (search panels, popovers) render to document.body
+  // outside the scaled subtree, so their anchoring math stays in viewport pixels.
+  const [uiZoom, setUiZoom] = useState(1);
+  useEffect(() => {
+    const on = () => setUiZoom(Math.min(1, Math.max(UI_ZOOM_FLOOR, window.innerWidth / UI_DESIGN_W)));
+    on();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  const zoomStyle = isWide && uiZoom < 1 ? { zoom: uiZoom } : undefined;
 
   // Server-side search (debounced): ask the backend which customers match and
   // merge any rows the client doesn't hold into the light list. The visible
@@ -1026,10 +1052,10 @@ export default function App({ user, onSignOut }) {
   const q = search.trim().toLowerCase();
   const matchProj = (p) => [p.name, p.address, p.phone, p.email].some((f) => (f || "").toLowerCase().includes(q));
   const matchPerson = (c) => !q || [c.name, c.phone, c.email, c.address, builderNameOf(c.builderId)].some((f) => (f || "").toLowerCase().includes(q)) || projectsOf(c.id).some(matchProj);
-  // "Newest" bubbles a customer up on any activity — their own edit or any of
-  // their projects'. "A–Z" ignores recency.
+  // The rail is recency-ordered: a customer bubbles up on any activity — their
+  // own edit or any of their projects'. (A–Z lives in the customer browser.)
   const personActivity = (c) => Math.max(c.updatedAt || 0, 0, ...projectsOf(c.id).map((p) => p.updatedAt || 0));
-  const sortPeople = (list) => [...list].sort((a, b) => sortBy === "name" ? (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) : personActivity(b) - personActivity(a));
+  const sortPeople = (list) => [...list].sort((a, b) => personActivity(b) - personActivity(a));
   const peopleList = sortPeople(q ? data.people.filter(matchPerson) : data.people);
   const unassignedAll = data.projects.filter((p) => !p.customerId && (!q || matchProj(p)));
   const quickPrices = unassignedAll.filter((p) => p.quick);
@@ -1114,21 +1140,21 @@ export default function App({ user, onSignOut }) {
         {!isWide && sidebarOpen && <div className="fixed inset-0 bg-black/30 z-30" onClick={() => setSidebarOpen(false)} />}
 
         {/* Sidebar */}
-        <aside className={isWide ? "ft-rail border-r border-slate-200 flex flex-col w-64 shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside style={{ width: RAIL_W, ...zoomStyle }}
+          className={isWide ? "ft-rail border-r border-slate-200 flex flex-col shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
             <div className="flex-1 min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
             {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
           </div>
           <div className="p-2.5 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
-            <div className="flex gap-2">
-              <div className="flex items-stretch rounded-md border border-slate-200 overflow-hidden text-xs shrink-0">
-                {[["Newest", "newest"], ["A–Z", "name"]].map(([label, v]) => (
-                  <button key={v} onClick={() => setSortBy(v)} className={`px-2 flex items-center font-medium ${sortBy === v ? "ft-seg-on" : "ft-seg-off"}`}>{label}</button>
-                ))}
-              </div>
-              <button onClick={() => setNewCust("")} className="ft-spark-btn flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} className="-ml-1" /> New Customer</button>
-            </div>
+            <button onClick={() => setNewCust("")} className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} className="-ml-1" /> New Customer</button>
+            {/* The rail's two starting points sit together: a named customer, or
+                a throwaway quick price (ADR 0022). It took the old Newest/A–Z
+                sort's slot — the sidebar is a recents rail, and A–Z lives in the
+                customer browser where the whole list actually is. */}
+            <button onClick={() => { startQuickPrice(); setSidebarOpen(false); }} title="Quick price — an unnamed draft you can file under a customer later"
+              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><Zap size={15} className="text-indigo-500" /> Quick Price</button>
             {/* The Customers button opens the browser overlay — the compact
                 ERP-style directory grid (issue 040). Quick prices AND the
                 unassigned estimates/drafts live behind its Estimates & drafts
@@ -1172,8 +1198,11 @@ export default function App({ user, onSignOut }) {
             <div className="flex mb-2">
               <ThemeSwitch theme={theme} setTheme={setTheme} />
             </div>
-            <div className="flex mb-2">
+            {/* Two rows of two: three labelled buttons plus sign-out no longer
+                fit across the narrowed rail on one line. */}
+            <div className="flex gap-2 mb-2">
               <button onClick={openApps} title="Apps — shop tools" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><LayoutGrid size={15} /> Apps</button>
+              <button onClick={handleSignOut} title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5 text-slate-500"><LogOut size={15} /></button>
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
@@ -1181,13 +1210,12 @@ export default function App({ user, onSignOut }) {
                 <ListTodo size={15} /> Issues
                 {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
               </button>
-              <button onClick={handleSignOut} title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 text-slate-500"><LogOut size={15} /></button>
             </div>
           </div>
         </aside>
 
         {/* Main */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto">
+        <main ref={mainRef} style={zoomStyle} className="flex-1 overflow-y-auto">
           {!sel ? (
             selCust ? (
               <div className="max-w-3xl mx-auto p-3 md:p-5">
@@ -2043,7 +2071,7 @@ export default function App({ user, onSignOut }) {
                             )}
                             {(stripMats.length > 0 || warns.length > 0) && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button data-mats-pill onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Materials — click to edit">
+                              <button data-mats-pill onClick={openMats} className="flex items-center flex-wrap text-left" style={{ width: "100%", padding: "4px 7px", columnGap: 12, rowGap: 3, fontSize: 9.5, color: "var(--ft-muted)", background: rowTint, border: "1px solid var(--ft-border)" }} title="Extras — click to edit">
                                 {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
@@ -2062,8 +2090,12 @@ export default function App({ user, onSignOut }) {
                             )}
                             {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
-                              <button data-mats-pill onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title="Materials — click to choose">
-                                ＋ {addables.join(" · ")}…
+                              {/* One invitation, not a manifest: an empty row's slot
+                                  reads "＋ Extras" whatever is addable there, matching
+                                  the printed estimate's Extras block. The drawer still
+                                  names each one. */}
+                              <button data-mats-pill onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title={`Extras — click to choose (${addables.join(", ")})`}>
+                                ＋ Extras
                               </button>
                               {p.note ? noteInput : null}
                               </div>
@@ -2096,8 +2128,8 @@ export default function App({ user, onSignOut }) {
               {(totalSqft > 0 || hasMat || miscCost > 0 || freightCost > 0) && (
                 <div className="mt-5 bg-white border border-slate-200 rounded-lg overflow-hidden">
                   <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-band)", padding: "10px 16px" }}>
-                    <span className="ft-serif min-w-0 truncate" style={{ fontSize: 20 }}>Materials estimate</span>
-                    {materialsCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(materialsCost)} materials</span>}
+                    <span className="ft-serif min-w-0 truncate" style={{ fontSize: 20 }}>Extras</span>
+                    {materialsCost > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10.5 }}>{money(materialsCost)} extras</span>}
                   </div>
                   <div style={{ padding: 16, display: "grid", gap: isWide ? 24 : 20, gridTemplateColumns: isWide ? "minmax(0,1fr) 15rem" : "1fr" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(165px,1fr))", columnGap: 24, rowGap: 20, alignContent: "start" }}>

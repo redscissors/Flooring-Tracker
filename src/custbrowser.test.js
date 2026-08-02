@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -145,4 +145,27 @@ test("moveCol inserts before a key, null moves to the end, bad moves no-op", () 
 test("shortDate renders M/D/YY and empty for missing", () => {
   assert.equal(shortDate(new Date(2026, 6, 22).getTime()), "7/22/26");
   assert.equal(shortDate(0), "");
+});
+
+test("salesRoster: every salesperson on a job, A–Z, deduped case-insensitively", () => {
+  const roster = salesRoster([
+    ...projects,
+    { id: "p5", sales: "gina boyd" },       // dupe of the full row's "Gina Boyd"
+    { id: "p6", sales: "  " },              // blank never enrolls
+    { id: "p7", salesperson: { name: "Alan Yoder" }, _full: true },
+    { id: "p8" },
+  ]);
+  assert.deepEqual(roster, ["Alan Yoder", "Gina Boyd", "Marcus Mast"]);
+  assert.deepEqual(salesRoster([]), []);
+});
+
+test("defaultSalesFilter: opens on me only when a job actually carries my name", () => {
+  // Exact and partial (profile "Marcus" vs. jobs stamped "Marcus Mast") both count.
+  assert.equal(defaultSalesFilter(projects, "Marcus Mast"), "Marcus Mast");
+  assert.equal(defaultSalesFilter(projects, "marcus"), "marcus");
+  // A name no job carries would open onto an empty grid — show everyone instead.
+  assert.equal(defaultSalesFilter(projects, "M. Mast"), "");
+  assert.equal(defaultSalesFilter(projects, ""), "");
+  assert.equal(defaultSalesFilter(projects, "   "), "");
+  assert.equal(defaultSalesFilter([], "Marcus Mast"), "");
 });

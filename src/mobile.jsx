@@ -481,7 +481,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
       </div>
       {p.type !== "misc" && (
         <>
-          <div className="ft-eyebrow text-[8.5px] mt-4 mb-1">Materials</div>
+          <div className="ft-eyebrow text-[8.5px] mt-4 mb-1">Extras</div>
           <div className="rounded-md border border-slate-200 px-3 divide-y divide-slate-100" style={{ background: "var(--ft-card, #fff)" }}>
             {p.type === "tile" && (
               <div>

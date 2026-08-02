@@ -137,8 +137,8 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
   return (
     <>
       <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-      <div className="rounded-lg border mb-4" onKeyDown={headerTabOut(nameTabRef)} style={{ padding: 10, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 8, alignItems: "stretch" }}>
-        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 150 }}>
+      <div className="rounded-lg border mb-4" onKeyDown={headerTabOut(nameTabRef)} style={{ padding: 10, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 7, alignItems: "stretch" }}>
+        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 138 }}>
           <div style={idbox}>
             <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Customer</div>
             {cust ? (
@@ -188,7 +188,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             but is its own bordered category, not a fourth row hanging off the
             end of it (it answers its own question). The waste/minis column
             stacks the same way. */}
-        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 108 }}>
+        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 120 }}>
           <VertBar header="Estimate shows" className="flex-1" value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
             options={[
               { v: "full", label: "All prices", title: "Print every price and total" },
@@ -199,7 +199,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             onSet={(v) => updateProject(sel.id, { freight: v })} />
         </div>
 
-        <VertBar header="Price level" width={108} value={sel.priceTier || "retail"} inputValue={sel.customPct}
+        <VertBar header="Price level" width={116} value={sel.priceTier || "retail"} inputValue={sel.customPct}
           onChange={(v) => updateProject(sel.id, { priceTier: v })}
           onInput={(v) => updateProject(sel.id, { priceTier: "custom", customPct: v })}
           options={[
