@@ -105,6 +105,27 @@ const VARIANTS = {
 .wedi-pop .pancard .pr{font-size:11.5px;margin-top:0;text-align:right;line-height:1.5}
 .wedi-pop .pancard .dot{top:50%;right:auto;left:-3px;margin-top:-2.5px;width:5px;height:5px}
 `],
+  k7: ["K7 · K6 as a single column", "Every pan in one column, full width of the solver pane. The size group hugs the left with its tag beside it, the price sits hard right — one price column for the whole tab instead of one per column of rows. Always the same shape at every width, but always taller than it needs to be.", SHARED + `
+.wedi-pop .fam{margin-bottom:9px}
+.wedi-pop .fam-h{margin-bottom:2px}
+.wedi-pop .fam-h .t{font-size:10px;letter-spacing:.1em}
+.wedi-pop .fam-h .hint{display:none}
+.wedi-pop .main{padding:10px 12px 14px}
+.wedi-pop .cards{align-content:flex-start}
+.wedi-pop .pancard{display:flex;align-items:center;gap:10px;padding:1px 5px;border-radius:0;border-width:0 0 1px 0;border-color:var(--ft-row-line);background:none}
+.wedi-pop .pancard:hover{background:var(--ft-hover);border-color:var(--ft-row-line)}
+.wedi-pop .pancard.on{outline:none;background:var(--ft-tint);box-shadow:inset 2px 0 0 var(--ft-brand)}
+.wedi-pop .pancard .sz{font-size:10px;font-weight:600;color:var(--ft-faint);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .sz b{font-size:12px;font-weight:800;color:var(--ft-text);margin-right:4px}
+.wedi-pop .pancard .sz .inch{font-weight:600;color:var(--ft-faint)}
+.wedi-pop .pancard .sz small{display:none}
+.wedi-pop .pancard .nm{display:block;margin-top:0;min-height:0;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--w-rust);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .drn{display:none}
+.wedi-pop .pancard .pr{font-size:11.5px;margin-top:0;margin-left:auto;line-height:1.5}
+/* In a flex row the stock dot is just the first item — absolutely positioning
+   it put it outside the row box, where the pane clipped it in half. */
+.wedi-pop .pancard .dot{position:static;flex:none;width:5px;height:5px;margin:0}
+`],
 };
 
 // The family headings the owner wants: the one word that distinguishes them,
@@ -171,7 +192,11 @@ const applyK5 = (opts = {}) => {
     // just needs a height to wrap against.
     const cards2 = fam.querySelector(".cards");
     if (cards2 && rows.length) {
-      const rowH = rows[0].el.getBoundingClientRect().height || 25;
+      // offsetHeight, NOT getBoundingClientRect(): the popup carries a `zoom`
+      // below ~1160px of frame, so the rect is in device pixels while the
+      // height we set here is read in the element's own (zoomed) pixels. Mixing
+      // them set the container short and silently wrapped extra columns.
+      const rowH = rows[0].el.offsetHeight || 25;
       const cols = Math.max(1, Math.min(maxCols, Math.floor(cards2.clientWidth / colMin)));
       cards2.style.display = "flex";
       cards2.style.flexFlow = "column wrap";
@@ -235,7 +260,8 @@ function App() {
     const pass = key === "k4" ? markCommonDrains
       : key === "k5" ? () => applyK5()
         : key === "k6" ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 3, colMin: 235 })
-          : null;
+          : key === "k7" ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 1 })
+            : null;
     if (!pass) return;
     const t = setInterval(() => { try { pass(); } catch (x) { /* mid-render */ } }, 400);
     return () => clearInterval(t);

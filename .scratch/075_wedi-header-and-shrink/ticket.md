@@ -314,15 +314,24 @@ families, and the tab's own padding.
 Measured at three widths, because the tab's content height depends entirely on
 how many columns of rows fit — the same trap the header prototype fell into:
 
-| Solver column | Today | K5 | K6 | K6 vs K5 |
+| Solver column | Today | K5 | K6 | K7 (1 col) |
 |---|---|---|---|---|
-| 752px (1500 viewport) | 1539px | 629px | **352px** | −44% |
-| 452px (1200) | 2605px | 1068px | **814px** | −24% |
-| 408px (1000) | 2261px | 839px | **624px** | −26% |
+| 752px (1500 viewport) | 1540px | 629px | **352px** | 814px |
+| 452px (1200) | 2605px | 1068px | **814px** | 814px |
+| 408px (1000) | 2618px | 1078px | **817px** | 817px |
 
-≈30% on average, which is the ask; against the shipped tab it is −69 to −77%.
-At 752px the whole catalogue — all 30 pans and 5 modules, four families — sits
-in the top 352px with nothing to scroll (`shots/kits-k6-inframe.png`).
+K6 against K5: −44% / −24% / −24%, ≈30% on average, which is the ask; against
+the shipped tab it is −69 to −77%. At 752px the whole catalogue — all 30 pans
+and 5 modules, four families — sits in the top 352px with nothing to scroll
+(`shots/kits-k6-inframe.png`).
+
+**K7 is K6 forced to a single column** (`shots/kits-k7-inframe.png`): one price
+column for the whole tab instead of one per column of rows, and the same shape
+at every width. It is identical to K6 at 452px and below — the solver column is
+too narrow for a second column of rows there anyway — so the entire cost of
+single-column is 462px on a wide monitor, where K6 fits the catalogue on one
+screen and K7 scrolls. Its stock dot became a flex item rather than an absolutely
+positioned one: at `left:-3px` the pane clipped it in half.
 
 Two structural changes were needed to get there, neither of them cosmetic:
 
@@ -339,12 +348,21 @@ The 452px column is the weak point: one column of rows, 814px. That is the same
 shape of problem as the header's 1680 case — the middle widths are where the
 column is narrowest relative to its content.
 
+> A measuring bug worth recording, because it made the first set of sub-1200
+> numbers wrong: the harness sized the column-wrap container from
+> `getBoundingClientRect().height`, which is **device** pixels, while the
+> `height` it then set is read in the element's own pixels. Below ~1160px of
+> frame the popup carries a `zoom`, so the two disagree, the container came out
+> short, and rows silently wrapped into extra columns — reporting 624px where
+> the real figure is 817px. `offsetHeight` is zoom-free and is what the pass
+> uses now.
+
 ### The note box
 
-Removed in every variant, as asked. Its content (what the house kit contains)
-is real information with nowhere else to live — worth deciding whether it
-becomes a "What's in a kit?" disclosure by the family headings, moves into the
-build column where the kit is actually assembled, or simply goes.
+Settled (owner, 2026-08-02): **the content just goes.** No disclosure, no move
+to the build column — deleting the `.kitnote` div and its CSS rule is the whole
+change.
+
 
 ## Open
 
