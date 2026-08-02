@@ -299,6 +299,46 @@ Two rules needed a second pass after the first shot, both visible in
 
 Shots: `shots/kits-k5.png` (the tab), `shots/kits-k5-inframe.png` (in the popup).
 
+### K6 — K5 tightened again (owner ask 2026-08-02)
+
+> "For the main categories, it can just say curbed, curbless, linear, and neo
+> modules… none of them need any small text and their little headers. The offset
+> drain and corner pan can just say offset or corner. and everything can be
+> pulled together even a little bit more. another thirty percent less maybe."
+
+`?k=k6`. Family headings cut to one word with the hint lines dropped, tags cut
+to OFFSET / CORNER, `module` dropped off the module rows (the heading says it),
+and every gap pulled in — row padding, heading spacing, the space between
+families, and the tab's own padding.
+
+Measured at three widths, because the tab's content height depends entirely on
+how many columns of rows fit — the same trap the header prototype fell into:
+
+| Solver column | Today | K5 | K6 | K6 vs K5 |
+|---|---|---|---|---|
+| 752px (1500 viewport) | 1539px | 629px | **352px** | −44% |
+| 452px (1200) | 2605px | 1068px | **814px** | −24% |
+| 408px (1000) | 2261px | 839px | **624px** | −26% |
+
+≈30% on average, which is the ask; against the shipped tab it is −69 to −77%.
+At 752px the whole catalogue — all 30 pans and 5 modules, four families — sits
+in the top 352px with nothing to scroll (`shots/kits-k6-inframe.png`).
+
+Two structural changes were needed to get there, neither of them cosmetic:
+
+- **The tag column had to become `auto`.** A fixed track was empty air on 31 of
+  the 35 rows and was the only reason a third column of rows wouldn't fit. With
+  `1fr auto 60px` the tag costs nothing when absent, and the price stays a fixed
+  track so prices still line up down each column.
+- **Every row has to be exactly one line.** `3′6″ × 3′6″ 42 × 42` wrapped in a
+  126px track, which made those rows double-height — ragged to look at, and it
+  broke the flex column-wrap height calculation, silently holding the tab at two
+  columns. `white-space: nowrap` fixed both at once.
+
+The 452px column is the weak point: one column of rows, 814px. That is the same
+shape of problem as the header's 1680 case — the middle widths are where the
+column is narrowest relative to its content.
+
 ### The note box
 
 Removed in every variant, as asked. Its content (what the house kit contains)

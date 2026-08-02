@@ -15,9 +15,17 @@ for (const k of KEYS) {
   await pg.goto(URL + "?k=" + k, { waitUntil: "load" });
   await pg.waitForTimeout(2400);
   const card = await pg.locator(".pancard").first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
-  const scrollH = await pg.locator(".main").evaluate((el) => el.scrollHeight);
+  // .main is flex-stretched, so its scrollHeight bottoms out at the container
+  // height once the content fits — measure the content itself.
+  const scrollH = await pg.locator(".main").evaluate((el) => {
+    const f = [...el.querySelectorAll(".fam")];
+    if (!f.length) return el.scrollHeight;
+    const top = f[0].getBoundingClientRect().top;
+    const bot = f[f.length - 1].getBoundingClientRect().bottom;
+    return Math.round(bot - top);
+  });
   const firstFam = await pg.locator(".fam").first().evaluate((el) => Math.round(el.getBoundingClientRect().height));
-  rows.push({ variant: k, cardH: card, firstFamilyH: firstFam, wholeTabScrollH: scrollH });
+  rows.push({ variant: k, cardH: card, firstFamilyH: firstFam, contentH: scrollH });
   await pg.locator(".main").screenshot({ path: `${OUT}/kits-${k}.png` });
   await pg.close();
 }

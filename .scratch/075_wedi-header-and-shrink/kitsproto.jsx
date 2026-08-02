@@ -85,7 +85,31 @@ const VARIANTS = {
 .wedi-pop .pancard .pr{font-size:12.5px;margin-top:0;text-align:right}
 .wedi-pop .pancard .dot{top:50%;right:auto;left:-3px;margin-top:-3px}
 `],
+
+  k6: ["K6 · K5 tightened", "K5 with the family headings cut to one word and their hint lines dropped, the tags cut to OFFSET / CORNER, and every gap in the tab pulled in — rows, heading spacing, and the space between families. The shorter tag also lets a third column of rows fit.", SHARED + `
+.wedi-pop .fam{margin-bottom:9px}
+.wedi-pop .fam-h{margin-bottom:2px}
+.wedi-pop .fam-h .t{font-size:10px;letter-spacing:.1em}
+.wedi-pop .fam-h .hint{display:none}
+.wedi-pop .main{padding:10px 12px 14px}
+.wedi-pop .cards{gap:0 20px;align-content:flex-start}
+.wedi-pop .pancard{display:grid;grid-template-columns:1fr auto 60px;align-items:center;gap:6px;padding:1px 5px;border-radius:0;border-width:0 0 1px 0;border-color:var(--ft-row-line);background:none}
+.wedi-pop .pancard:hover{background:var(--ft-hover);border-color:var(--ft-row-line)}
+.wedi-pop .pancard.on{outline:none;background:var(--ft-tint);box-shadow:inset 2px 0 0 var(--ft-brand)}
+.wedi-pop .pancard .sz{font-size:10px;font-weight:600;color:var(--ft-faint);line-height:1.5;white-space:nowrap}
+.wedi-pop .pancard .sz b{font-size:12px;font-weight:800;color:var(--ft-text);margin-right:4px}
+.wedi-pop .pancard .sz .inch{font-weight:600;color:var(--ft-faint)}
+.wedi-pop .pancard .sz small{display:none}
+.wedi-pop .pancard .nm{display:block;margin-top:0;min-height:0;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--w-rust);line-height:1.5;white-space:nowrap;overflow:hidden}
+.wedi-pop .pancard .drn{display:none}
+.wedi-pop .pancard .pr{font-size:11.5px;margin-top:0;text-align:right;line-height:1.5}
+.wedi-pop .pancard .dot{top:50%;right:auto;left:-3px;margin-top:-2.5px;width:5px;height:5px}
+`],
 };
+
+// The family headings the owner wants: the one word that distinguishes them,
+// with the descriptive hint dropped.
+const FAM_SHORT = [[/curbless|ligno/i, "Curbless"], [/module|riolito/i, "Neo modules"], [/linear/i, "Linear"], [/fundo|curbed/i, "Curbed"]];
 
 // ── K5's three content rules ─────────────────────────────────────────────
 // All three live in kitsTab for real; here they run as a post-paint pass so
@@ -107,8 +131,16 @@ const ft = (n) => {
 // isn't the family's usual one, or a name that isn't the family's usual name
 // (which is what singles out the Primo corner pan). Everything else is blank —
 // "CENTER DRAIN" on 16 of 18 cards taught nobody anything.
-const applyK5 = () => {
+const applyK5 = (opts = {}) => {
+  const { shortTags = false, shortHeads = false, maxCols = 2, colMin = 330 } = opts;
   document.querySelectorAll(".wedi-pop .fam").forEach((fam) => {
+    if (shortHeads) {
+      const t = fam.querySelector(".fam-h .t");
+      if (t) {
+        const hit = FAM_SHORT.find(([re]) => re.test(t.getAttribute("data-full") || t.textContent));
+        if (hit) { t.setAttribute("data-full", t.getAttribute("data-full") || t.textContent); t.textContent = hit[1]; }
+      }
+    }
     const cards = [...fam.querySelectorAll(".pancard")];
     const rows = cards.map((el) => ({ el, p: PAN_BY_KEY[el.getAttribute("data-wedi-pan")] })).filter((r) => r.p);
     // A "usual" needs at least two pans agreeing — otherwise every module,
@@ -140,7 +172,7 @@ const applyK5 = () => {
     const cards2 = fam.querySelector(".cards");
     if (cards2 && rows.length) {
       const rowH = rows[0].el.getBoundingClientRect().height || 25;
-      const cols = Math.max(1, Math.min(2, Math.floor(cards2.clientWidth / 330)));
+      const cols = Math.max(1, Math.min(maxCols, Math.floor(cards2.clientWidth / colMin)));
       cards2.style.display = "flex";
       cards2.style.flexFlow = "column wrap";
       cards2.style.height = Math.ceil(rows.length / cols) * rowH + "px";
@@ -151,7 +183,7 @@ const applyK5 = () => {
       const sz = el.querySelector(".sz");
       if (sz) {
         sz.innerHTML = p.group === "module"
-          ? `<b>${ft(p.len)}</b> <span class="inch">${p.len}″ module</span>`
+          ? `<b>${ft(p.len)}</b> <span class="inch">${p.len}″${shortHeads ? "" : " module"}</span>`
           : `<b>${ft(p.w)} × ${ft(p.d)}</b> <span class="inch">${p.w} × ${p.d}</span>`;
       }
       const nm = el.querySelector(".nm");
@@ -161,9 +193,11 @@ const applyK5 = () => {
       // The corner pan's own name already carries "Corner/Offset Drain", so it
       // never needs the drain appended — and the tag has to stay short enough
       // to read without an ellipsis.
-      if (/corner/i.test(p.name)) tag = "Corner pan";
-      else if (usualDrain && drain && drain !== usualDrain) tag = drain[0].toUpperCase() + drain.slice(1) + " drain";
-      else if (usualName && p.name !== usualName) tag = unwediName(p.name);
+      if (/corner/i.test(p.name)) tag = shortTags ? "Corner" : "Corner pan";
+      else if (usualDrain && drain && drain !== usualDrain) {
+        const d = drain[0].toUpperCase() + drain.slice(1);
+        tag = shortTags ? d : d + " drain";
+      } else if (usualName && p.name !== usualName) tag = unwediName(p.name);
       nm.textContent = tag;
     });
   });
@@ -198,7 +232,10 @@ function App() {
   // Re-applied on a timer: picking a pan re-renders the cards and React writes
   // the original text back.
   useEffect(() => {
-    const pass = key === "k4" ? markCommonDrains : key === "k5" ? applyK5 : null;
+    const pass = key === "k4" ? markCommonDrains
+      : key === "k5" ? () => applyK5()
+        : key === "k6" ? () => applyK5({ shortTags: true, shortHeads: true, maxCols: 3, colMin: 235 })
+          : null;
     if (!pass) return;
     const t = setInterval(() => { try { pass(); } catch (x) { /* mid-render */ } }, 400);
     return () => clearInterval(t);
