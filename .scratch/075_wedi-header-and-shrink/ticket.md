@@ -484,9 +484,28 @@ rows became ragged and tall while the name shrank to `Subli…`. Fixed:
   both of its lines now ellipsize and a third of the popup is not enough width
   to guarantee either fits.
 
-Names still truncate at that width — that is the accepted price of the equal
-columns — but the rows are uniform and the full text is one hover away.
-`shots/seg-browse-{1680,1280}.png`, `shots/seg-buildcol.png`.
+That helped but did not fix it: the name still only got what the fixed tracks
+left over, ~170px, so nearly every row still read `Subli…`.
+
+**So the row became two lines** (owner: "can we make the SKU and the star and the
+add become an extra line… so the description can flow across the entire width").
+Line one is the stock dot and the description, across the whole column; line two
+is the group · stock, the SKU, the star, the price and the stepper. Measured over
+the first 20 rows:
+
+| Column | Row height | Names clipped |
+|---|---|---|
+| 477px (1680) | 54px | **2 / 20** |
+| 391px (1280) | 48px | **4 / 20** |
+
+Against effectively 20/20 clipped on one line. The rows are ~14px taller, which
+is the trade — and the `title` stays for the two that still run long.
+`shots/brow2-{1680,1280}.png`, `shots/seg-buildcol.png`.
+
+Two JSX traps hit on the way, both worth remembering: a `{/* … */}` comment
+cannot sit between `return (` and the element it precedes — it parses as a
+second expression — and once vite has served a parse error it keeps the overlay
+up until the dev server is restarted, which reads as "the click did nothing".
 
 ### C1 on all three tabs (owner, 2026-08-02)
 

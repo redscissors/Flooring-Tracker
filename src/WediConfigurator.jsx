@@ -202,15 +202,19 @@ const CSS = `
 .wedi-pop .figcard .fr b{color:var(--ft-text)}
 .wedi-pop .figcard .inp{width:80px;padding:5px 8px;font-size:12.5px}
 .wedi-pop .figfoot{font-size:10px;color:var(--ft-faint);font-weight:600;margin-top:5px}
-.wedi-pop .brow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid var(--ft-row-line)}
+/* Two stacked lines: the description owns the full column width, the SKU,
+   price and quantity sit under it. On one line the name got whatever the fixed
+   tracks left over — about 170px once the columns went equal. */
+.wedi-pop .brow{display:flex;flex-direction:column;gap:1px;padding:5px 8px 6px;border-top:1px solid var(--ft-row-line)}
 .wedi-pop .brow:last-child{border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .brow.stk,.wedi-pop .srow.stk{background:var(--w-stock)}
 .wedi-pop .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
 .wedi-pop .sdot.so{background:transparent;border:1.4px solid var(--ft-faint)}
-.wedi-pop .brow .bn{flex:1;min-width:0}
+.wedi-pop .brow .bn{display:flex;align-items:center;gap:8px;min-width:0}
 .wedi-pop .brow .bn .n{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wedi-pop .brow .bn .s{font-size:10.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;width:72px;text-align:right}
+.wedi-pop .brow .bmeta{display:flex;align-items:center;gap:8px;padding-left:15px}
+.wedi-pop .brow .bmeta .s{flex:1;min-width:0;font-size:10.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .wedi-pop .brow .pr{flex:none;width:74px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
 .wedi-pop .brow .pr small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .stepper{flex:none;display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:6px;overflow:hidden}
@@ -2450,29 +2454,30 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           // Type · COLOR (color a shade bolder) — the vendor name drops to
           // the small line (owner ask 2026-07-30).
           const cf = (e.group === "cover" || e.group === "coverFrame") && finName(e);
+          // Two lines, not one (owner 2026-08-02): the description owns the full
+          // column width and the SKU / price / quantity sit under it. Sharing one
+          // line with them left ~170px for a name once the columns went equal,
+          // which truncated nearly everything to "Subli…".
           return (
             <div className={"brow" + (e.stock ? " stk" : "")} key={e.key}>
-              <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
-              {/* Both lines ellipsize, and the column is a third of the popup
-                  now, so the full text has to be reachable somewhere. */}
               <div className="bn" title={[unwedi(e.name), e.sizeText, e.stock ? e.erp : e.us].filter(Boolean).join(" · ")}>
-                {cf ? (<>
-                  <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
-                  <div className="s">{unwedi(e.name)} · {e.stock ? "stock" : "special order"}</div>
-                </>) : (<>
-                  <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>
-                  <div className="s">{browseSub(e)}</div>
-                </>)}
+                <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
+                {cf
+                  ? <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
+                  : <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
               </div>
-              <div className="sku">{e.stock ? e.erp : e.us}</div>
-              <button className={"starb" + (starred.has(e.key) ? " on" : "")}
-                title={starred.has(e.key) ? "unpin from Starred" : "pin to Starred"}
-                onClick={() => toggleStar(e.key)}>{starred.has(e.key) ? "★" : "☆"}</button>
-              <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}<small>{tierId !== "retail" ? "retail " + fm(e.retail) : " "}</small></div>
-              <div className="stepper">
-                <button onClick={() => step(e.key, -1)}>−</button>
-                <span className={"q" + (n ? "" : " zero")}>{n}</span>
-                <button onClick={() => step(e.key, 1)}>+</button>
+              <div className="bmeta">
+                <div className="s">{cf ? unwedi(e.name) + (e.stock ? " · stock" : " · special order") : browseSub(e)}</div>
+                <div className="sku">{e.stock ? e.erp : e.us}</div>
+                <button className={"starb" + (starred.has(e.key) ? " on" : "")}
+                  title={starred.has(e.key) ? "unpin from Starred" : "pin to Starred"}
+                  onClick={() => toggleStar(e.key)}>{starred.has(e.key) ? "★" : "☆"}</button>
+                <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}<small>{tierId !== "retail" ? "retail " + fm(e.retail) : " "}</small></div>
+                <div className="stepper">
+                  <button onClick={() => step(e.key, -1)}>−</button>
+                  <span className={"q" + (n ? "" : " zero")}>{n}</span>
+                  <button onClick={() => step(e.key, 1)}>+</button>
+                </div>
               </div>
             </div>
           );
