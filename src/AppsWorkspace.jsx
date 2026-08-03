@@ -477,6 +477,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 embedded
                 wediBuilderPct={wedi.builderPct}
                 areaName={wedi.currentName || "a new quick price"}
+                projectName={wedi.currentName || ""}
                 onAdd={(lines) => requestCommit(wedi, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
