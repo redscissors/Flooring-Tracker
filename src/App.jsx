@@ -2417,6 +2417,7 @@ export default function App({ user, onSignOut }) {
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
             onTierChange={(patch) => updateProject(sel.id, patch)}
             areaName={sel.categories.find((x) => x.id === wediPop.aid)?.name || "this area"}
+            projectName={sel.name || ""}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setWediPop(null)} />

@@ -11,6 +11,7 @@ createRoot(document.getElementById("preview")).render(
     seed={null}
     wediBuilderPct={18}
     areaName="Master bath"
+    projectName="Harper — 214 Ridgeway"
     onAdd={(rows) => console.log("onAdd", rows)}
     onClose={() => console.log("onClose")}
     onConfigChange={() => {}}

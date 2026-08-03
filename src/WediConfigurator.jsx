@@ -349,9 +349,9 @@ const PRINT_CSS = `
   body > *:not(.wedi-printsheet){display:none !important}
   .wedi-printsheet{display:block;color:#111;background:#fff;font-family:var(--ft-ui)}
   .wedi-printsheet .ps-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}
-  .wedi-printsheet .ps-head .sub{font-size:13px;color:#111;font-weight:800}
+  .wedi-printsheet .ps-head .t{font-size:20px;font-weight:800}
+  .wedi-printsheet .ps-head .sub{font-size:12px;color:#333;font-weight:700}
   .wedi-printsheet .ps-head .dt{margin-left:auto;font-size:11px;color:#555}
-  .wedi-printsheet .ps-room{font-size:13px;font-weight:700;margin-bottom:12px}
   .wedi-printsheet .ps-diags{display:flex;gap:18px;align-items:flex-start;margin-bottom:6px}
   .wedi-printsheet .ps-diags .d{flex:1}
   .wedi-printsheet .ps-diags svg{width:100%;height:auto;border:1px solid #ddd;border-radius:6px;background:#fff}
@@ -1471,7 +1471,7 @@ function seedState(seed) {
   return s;
 }
 
-export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, onAdd, onClose, areaName, onConfigChange, embedded = false }) {
+export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, onAdd, onClose, areaName, projectName, onConfigChange, embedded = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -3063,12 +3063,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     <div className="wedi-printsheet">
       <style>{PRINT_CSS}</style>
       <div className="ps-head">
-        <div className="sub">{areaName || ""}</div>
+        <div className="t">wedi Shower Layout</div>
+        {projectName ? <div className="sub">{projectName}</div> : null}
         <div className="dt">{new Date().toLocaleDateString()}</div>
-      </div>
-      <div className="ps-room">
-        {diag.title || (option ? option.title : "")} — room {inch(diag.room.w)}″ × {inch(diag.room.d)}″
-        {build.pan && build.pan.drain ? " · " + build.pan.drain.type + " drain" : ""} · walls at {inch(wallH)}″
       </div>
       <div className="ps-diags">
         <div className="d">
