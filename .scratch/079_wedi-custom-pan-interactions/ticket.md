@@ -264,3 +264,40 @@ line, riding a run that now carries on beneath it" — and the little step is th
 rule drawn honestly. If a 2″ build-up should instead STOP at the curb's inner
 face, the oversail and the step both go, and the entry curb runs past the bench
 end to end. Owner's call.
+
+## Follow-up 5 (2026-08-03, owner) — the step onto the curb
+
+> the black lines are my drawing to help show you the correct look
+> …
+> The problem is the curb runs the whole way but the bench pixcels dont properly
+> fit around the curb
+> …
+> well it should sit on top of it. but needs to step up onto it. It is not
+> showing it right
+
+First correction: the heavy black line in the photo was the owner's PEN, not a
+rendering artefact. The isometric stroke-clip (8d08ff7) was shipped on that
+misread — it stands as a small improvement, but it was not the fix asked for.
+
+Second: a detour where the bench was made to BUTT the curb was written and then
+reverted unpushed — the owner's rule stands, the bench sits ON the curb and
+steps up onto it.
+
+**The isometric's step measures exact.** Bench end face, 60 × 36 alcove with an
+AT curb (CW 4½", CBH 5⅛"), projected SVG units read off the DOM:
+
+| point | drawn | expected |
+|---|---|---|
+| step corner `M(x1, yStep, zOut)` | `111.97, 228.55` | `111.96, 228.55` |
+| curb top-inner edge at x=0 | `90.22, 216` | — |
+| bench front-face base `M(0, y1, zOut)` | `83.23, 220.03` | = curb outer-face top corner |
+
+`yStep = y1 − CW = 35.5` is the curb's inner face `c0`; `zOut = CBH` is its top;
+the riser measures 6.36px = 3.545" = CBH − pan thickness. The step corner lands
+ON the curb's top-inner edge to a hundredth of a unit.
+
+**What was actually missing: the PLAN never showed the step at all.** The bench
+rectangle simply covered the run — no line, no note — so the one element that
+reads straight across the entry died under it. The curb's two edges now carry on
+across the bench in the bench's own colour (its inner face dashed, its outer
+face solid) with the raised stretch marked **STEPS UP**.

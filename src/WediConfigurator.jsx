@@ -1028,6 +1028,23 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     const bw = round2(f.w * sc), bh = round2(f.d * sc + out * sc);
     push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={bw} height={bh}
       fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="2.4" clipPath={clipSelf(boxPts(X(f.x), Y(f.y), bw, bh))} />);
+    // Where the bench crosses the curb it STEPS UP onto it (owner 2026-08-03) —
+    // the isometric shows that as a notch in its underside, and this view had no
+    // sign of it at all: the bench simply covered the run and the one line that
+    // reads straight across the entry died under it. The curb's own edges now
+    // carry on over the bench in its colour, so the raised stretch reads as
+    // raised and the run still reads as one line.
+    const eb = !b.suspended && planBands.find((x) => x.side === "entry");
+    if (eb && f.y + f.d >= rd - 0.5) {
+      const lx = X(f.x), rx = X(f.x + f.w);
+      [eb.c0, eb.c1].forEach((cy2, i) => {
+        if (cy2 <= f.y + 0.01 || cy2 * sc > (f.y + f.d + out) * sc + 0.01) return;
+        push(<line key={`bnc${bi}s${i}`} x1={lx} y1={Y(cy2)} x2={rx} y2={Y(cy2)}
+          stroke={MOSS_DEEP} strokeWidth="1.2" strokeDasharray={i ? undefined : "4 3"} />);
+      });
+      push(<text key={`bnu${bi}`} x={round2((lx + rx) / 2)} y={round2(Y((eb.c0 + eb.c1) / 2) + 2.5)}
+        textAnchor="middle" fontSize="6" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT} letterSpacing=".4">STEPS UP</text>);
+    }
     if (b.build === "framed" && !framedFit) {
       // wall to wall along the PAN — short of the line when the curb is inside it
       const yPan = rd - (o.inset && o.inset.entry > 0 ? o.inset.entry : 0);
