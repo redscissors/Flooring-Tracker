@@ -178,8 +178,11 @@ const CSS = `
      header's own .rseg uses --ft-seg-on-bg, the same moss the rest of the
      app's segmented controls use. (.seg/.inp still dress the Browse tab.)
    · Walls is a MULTI-select. Drawn as a segment, three toggles merged into one
-     unbroken bar when all three were on; as ticked chips it reads as three
-     switches, which is what it is. */
+     unbroken bar when all three were on; as ticked chips it read as three
+     switches, which is what it is. The chips are gone as of 2026-08-03 — the
+     wall editor moved into this group off the build column and each row's name
+     button is that same switch, now with the length, height and sf beside it —
+     but .rchip stays: it is the one dressing in here for a multi-select. */
 .wedi-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:5px;margin-bottom:10px}
 /* Flex, not a grid of equal tracks (2026-08-03): three equal columns left the
    Walls group alone on a second row with a dead cell beside it, and equal
@@ -213,6 +216,17 @@ const CSS = `
 .wedi-pop .rchip .tick{font-size:10px;line-height:1;opacity:.35}
 .wedi-pop .rchip.on .tick{opacity:1}
 .wedi-pop .rfgrp > .rowh{display:flex;align-items:center;gap:8px;margin-bottom:1px}
+/* The wall editor, moved here out of the build column (owner 2026-08-03) —
+   the rows describe the ROOM, so they belong beside the size, the curb and the
+   drain, and the build column is left listing what the room costs. They flow
+   like the option cards do: as many per line as the group is wide enough for,
+   so three walls and a pair of returns read as a block instead of a stack. */
+.wedi-pop .rfgrp .wallrows{display:flex;flex-wrap:wrap;gap:0 14px}
+.wedi-pop .rfgrp .wallrows .wallrow{flex:1 1 190px;min-width:0}
+.wedi-pop .rfgrp .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
+.wedi-pop .rfgrp .wallctl + .rclear{margin-left:8px}
+.wedi-pop .wdefh{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
+.wedi-pop .wtgl:disabled,.wedi-pop .addchip:disabled{opacity:.4;cursor:not-allowed}
 .wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
 .wedi-pop .rclear:hover{background:var(--ft-hover-red);color:var(--w-rust);border-color:#E3B9A8}
 .wedi-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px}
@@ -222,8 +236,13 @@ const CSS = `
 .wedi-pop .seg button + button{border-left:1px solid var(--ft-border)}
 .wedi-pop .seg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
 .wedi-pop .seg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
-.wedi-pop .optrow{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
-.wedi-pop .optcard{flex:0 0 240px;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 12px;cursor:pointer;text-align:left;color:inherit}
+/* The solved option cards. They were a single 240px-per-card row that scrolled
+   SIDEWAYS, so past the second card the rest of the answer was off screen with
+   nothing saying so — on the one tab whose whole job is comparing the options
+   (owner 2026-08-03). They now flow: as many per row as the pane is wide
+   enough for, wrapping down into the pane's own vertical scroll. */
+.wedi-pop .optrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:9px;margin-bottom:14px}
+.wedi-pop .optcard{min-width:0;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 12px;cursor:pointer;text-align:left;color:inherit}
 .wedi-pop .optcard:hover{border-color:var(--ft-brand)}
 .wedi-pop .optcard.on{outline:2px solid var(--ft-brand);outline-offset:-1px;background:var(--ft-tint)}
 .wedi-pop .optcard .bdg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
@@ -803,6 +822,26 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   }, { bl: false, br: false, fl: false, fr: false });
   const sideAt = reach(["left", "right"]);    // where a side wall stands
   const frontAt = reach(["entry"]);           // where a front wall stands
+  const backAt = reach(["back"]);             // where the back wall stands
+  // A curb turns the corner OUTSIDE the room line — it adds (width − the ½"
+  // lap) of floor past the pan — and it butts into the wall at each end of its
+  // run. A band that stopped on the pan line therefore read short by exactly
+  // that overhang, with the curb running past it into open air (owner
+  // 2026-08-03). How far each corner is carried out comes off the curb's own
+  // bands, so a lean curb asks for 1½" where a standard one asks for 4" and an
+  // "overall max" curb — which sits inside the line — asks for nothing.
+  const curbOut = { bl: 0, br: 0, fl: 0, fr: 0 };
+  if (!mini) curbBands(curbs, rw, rd, o.inset, CW).forEach((b) => {
+    const max = b.horiz ? rw : rd;
+    const out = b.side === "back" || b.side === "left" ? -b.c0
+      : b.c1 - (b.side === "entry" ? rd : rw);
+    if (!(out > 0)) return;
+    const k = b.side === "left" ? ["bl", "fl"] : b.side === "right" ? ["br", "fr"]
+      : b.side === "back" ? ["bl", "br"] : ["fl", "fr"];
+    if (b.lo <= 0.5) curbOut[k[0]] = Math.max(curbOut[k[0]], out);
+    if (b.hi >= max - 0.5) curbOut[k[1]] = Math.max(curbOut[k[1]], out);
+  });
+  const outAt = (k) => round2(curbOut[k] * sc);
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -812,14 +851,24 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       if (horiz) {
         // The back run carries through to a side wall; the front run butts one.
         const back = wl.side === "back";
-        const lo = back && r.lo && sideAt.bl ? wallW : 0;
-        const hi = back && r.hi && sideAt.br ? wallW : 0;
+        const k = back ? ["bl", "br"] : ["fl", "fr"];
+        // The back run claims its corners; the front run yields them to the
+        // side wall — but with no side wall standing there, either still has to
+        // meet the curb turning the corner.
+        const ext = (reaches, ki) => (!reaches ? 0
+          : back ? Math.max(sideAt[ki] ? wallW : 0, outAt(ki))
+            : sideAt[ki] ? 0 : outAt(ki));
+        const lo = ext(r.lo, k[0]), hi = ext(r.hi, k[1]);
         push(<rect key={`w${wi}`} {...bandProps(wl)} x={round2(X(r.from) - lo)} y={back ? Y(0) - wallW : Y(rd)} width={round2(r.len * sc + lo + hi)} height={wallW} fill={fill}>{bandTitle}</rect>);
       } else {
         // A side wall carries into the front corner whenever a front wall is
-        // standing there to butt it; with nothing there it stops on the line.
-        const hi = r.hi && frontAt[wl.side === "left" ? "fl" : "fr"] ? wallW : 0;
-        push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(r.from)} width={wallW} height={round2(r.len * sc + hi)} fill={fill}>{bandTitle}</rect>);
+        // standing there to butt it; with nothing there it stops on the line —
+        // or on the curb's outer face where a curb runs into it.
+        const left = wl.side === "left";
+        const kLo = left ? "bl" : "br", kHi = left ? "fl" : "fr";
+        const lo = r.lo && !backAt[kLo] ? outAt(kLo) : 0;
+        const hi = r.hi ? Math.max(frontAt[kHi] ? wallW : 0, outAt(kHi)) : 0;
+        push(<rect key={`w${wi}`} {...bandProps(wl)} x={left ? X(0) - wallW : X(rw)} y={round2(Y(r.from) - lo)} width={wallW} height={round2(r.len * sc + lo + hi)} fill={fill}>{bandTitle}</rect>);
       }
     });
     // Extra wedi faces read as moss edges: the outside face when a wall
@@ -2095,6 +2144,22 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panSwapped]);
 
+  // Adopt the card that matches what is already on screen. Unlike runSolve this
+  // keeps the build standing — it is a RE-FIT, not a fresh start.
+  //
+  // A kit loaded off the Kits tab has a pan but no picked card, and that used to
+  // mean the re-fits below did nothing you could see: "Max — curb inside" moved
+  // the numbers and left the drawing alone until you picked a card or retyped
+  // the room (owner 2026-08-03). The pan is the answer either way, so the click
+  // adopts the card carrying it and the drawing moves on the click. An empty
+  // solve only clears a card that was already picked — a kit is left standing.
+  const refit = (res) => {
+    const same = (panKey && res.find((x) => x.pan.key === panKey)) || res[0] || null;
+    if (!same && !option) return;
+    setOption(same);
+    setPanKey(same ? same.pan.key : null);
+  };
+
   // With "overall max" on, the walls, the curb pick and the tile thickness
   // shape the pan space — re-fit the option cards when they change, without
   // wiping the build.
@@ -2108,11 +2173,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!maxIn) return;
     const res = solveRoom(inp, true);
     setResults(res);
-    if (option) {
-      const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
-      setOption(same);
-      setPanKey(same ? same.pan.key : null);
-    }
+    refit(res);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insetSig]);
 
@@ -2128,10 +2189,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     insetSeen.current = insetSigOf(nextMax);
     const res = solveRoom(inp, nextMax);
     setResults(res);
-    if (!option) return;
-    const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
-    setOption(same);
-    setPanKey(same ? same.pan.key : null);
+    refit(res);
   };
 
   // --- the drawings ---------------------------------------------------------
@@ -2394,6 +2452,75 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     </>
   );
 
+  // --- the wall editor ------------------------------------------------------
+  // It used to live in the build column's Walls group, beside the panel LINES
+  // (owner 2026-08-03: "this should be in the wall section of the custom shower
+  // tab and not in the build column"). The rows are the ROOM, not the bill —
+  // they belong with the size, the curb and the drain in the Custom shower
+  // form, and the build column is left listing what the room costs. The tab's
+  // own "Which get wedi" chips are gone with the move: each row's name button
+  // is the same on/off switch, with the length, the height and the sf beside it.
+  const wallEditor = (() => {
+    const cornerOn = CORNER_LBL.filter((c) => corners[c[0]]);
+    const openList = CORNER_LBL.filter((c) => cornerOpenMap && cornerOpenMap[c[0]]);
+    const allCut = openList.length > 0 && openList.every((c) => corners[c[0]]);
+    return (
+      <>
+        <div className="wallrows">
+          {walls.map((w) => (
+            <div className="wallrow" key={w.id}>
+              <button className={"wname" + (w.on ? " on" : "")} onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>{w.label}</button>
+              <NumIn className="win" value={w.len} placeholder={String(autoNow[w.id] || "")} disabled={!w.on} title="length, in"
+                onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
+              <span>×</span>
+              <NumIn className="win" value={w.h} placeholder={String(wallH)} disabled={!w.on} title="height, in — 40 for a half wall"
+                onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
+              <span className="wu">{w.on
+                ? sfOfWall(+w.len || autoNow[w.id] || 0, +w.h || +wallH || 96, w.faces || "in") + " sf"
+                  + (w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : "")
+                : "off"}</span>
+            </div>
+          ))}
+          {extraWalls.map((w) => (
+            <div className="wallrow" key={w.id}>
+              <button className="wname on" title={"which end it returns from — click to move it (" + endLabel(w) + "). The × on the right removes it"}
+                onClick={() => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, at: (x.at === "hi" ? "lo" : "hi") } : x)))}>
+                {EDGE_LBL[w.edge] || "Wall"} <small>{endLabel(w)}</small></button>
+              <NumIn className="win" value={w.len} title="length, in"
+                onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
+              <span>×</span>
+              <NumIn className="win" value={w.h} placeholder={String(wallH)} title="height, in"
+                onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
+              <span className="wu">{sfOfWall(+w.len || 0, +w.h || +wallH || 96, w.faces || "in")} sf
+                {w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : ""} ·{" "}
+                <b className="xdel" onClick={() => setExtraWalls((xs) => xs.filter((x) => x.id !== w.id))}>×</b></span>
+            </div>
+          ))}
+        </div>
+        <div className="addchips" style={{ paddingTop: 5 }}>
+          <button className={"addchip" + (placing ? " on" : "")} disabled={!pan} onClick={() => {
+            const next = !placing;
+            setPlacing(next);
+            if (next) say("Click an edge on the drawing to add a wall — an open corner toggles a corner cut");
+          }}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
+          <button className={"addchip" + (allCut ? " on" : "")} disabled={!openList.length}
+            title="cut the pan at every corner not boxed in by walls — straight to a nearby wall end, 45° otherwise; single corners click on the drawing"
+            onClick={() => setCorners((o) => {
+              const n = { ...o };
+              openList.forEach((c) => { n[c[0]] = !allCut; });
+              return n;
+            })}>✂ {allCut ? "Uncut corners" : "Cut open corners"}</button>
+          {cornerOn.length > 0 && (
+            <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>corner cuts: {cornerOn.map((c) => c[1]).join(", ")}</span>
+          )}
+          <span className="wdefh">Default height
+            <NumIn className="win" value={wallH} title="the height every wall starts at, in" onCommit={(v) => setWallH(+v || 96)} />in
+          </span>
+        </div>
+      </>
+    );
+  })();
+
   const customTab = (() => {
     const sel = option && results.includes(option) ? option : null;
     const tileEats = maxIn && inp.curb !== "curbless";
@@ -2474,25 +2601,22 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             </div>
             <div className="rfgrp span">
               <div className="h rowh">Walls
+                <span className="wallctl">
+                  <button className="wtgl" disabled={!pan}
+                    title={option ? "rotate the room — width ↔ depth, drain position follows, re-solves" : "swap which side is the back (long ↔ short)"}
+                    onClick={() => {
+                      if (option) {
+                        const next = { ...inp, w: +inp.d || 0, d: +inp.w || 0, drainX: inp.drainY, drainY: inp.drainX };
+                        setInp(next);
+                        runSolve(next);
+                      } else { retuneWalls(); setWallFlip((v) => !v); }
+                    }}>⇄</button>
+                </span>
                 <button className="rclear" data-wedi-clear
                   title="wipe the build — walls, cuts, parts — and reset this form"
                   onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
               </div>
-              <div className="rfflow">
-                <div className="rf"><label>Which get wedi</label>
-                  <div className="rchips">
-                    {walls.map((w) => (
-                      <button key={w.id} className={"rchip" + (w.on ? " on" : "")}
-                        onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>
-                        <span className="tick">{w.on ? "✓" : "○"}</span>{w.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="rf"><label>Height</label>
-                  <div className="dims"><NumIn className="rinp" value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
-                </div>
-              </div>
+              {wallEditor}
             </div>
           </div>
         </div>
@@ -2718,8 +2842,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
       </>
     );
-    const auto = autoWallLens(pan, option ? option.room : null);
-    const cornerOn = CORNER_LBL.filter((c) => corners[c[0]]);
     return (
       <>
         <div className="bc-scroll">
@@ -2731,22 +2853,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           {BUCKETS.map((bk) => {
             const lines = build.lines.filter((l) => l.group === bk[0]);
             const isAddon = bk[0] === "addon";
-            if (!lines.length && !isAddon && bk[0] !== "walls") return null;
-            if (!lines.length && bk[0] === "walls" && !pan) return null;
+            if (!lines.length && !isAddon) return null;
             return (
               <div className="bgroup" key={bk[0]}>
                 <div className="bg-h">{bk[1]}
-                  {bk[0] === "walls" && pan && (
+                  {bk[0] === "walls" && (
                     <span className="wallctl">
-                      <button className="wtgl"
-                        title={option ? "rotate the room — width ↔ depth, drain position follows, re-solves" : "swap which side is the back (long ↔ short)"}
-                        onClick={() => {
-                          if (option) {
-                            const next = { ...inp, w: +inp.d || 0, d: +inp.w || 0, drainX: inp.drainY, drainY: inp.drainX };
-                            setInp(next);
-                            runSolve(next);
-                          } else { retuneWalls(); setWallFlip((v) => !v); }
-                        }}>⇄</button>
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
                         <button className={!panelFit ? "on" : ""} title="one sheet size, by area" onClick={() => setPanelFit(false)}>One size</button>
@@ -2754,60 +2866,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     </span>
                   )}
                 </div>
-                {bk[0] === "walls" && pan && (<>
-                  {walls.map((w) => (
-                    <div className="wallrow" key={w.id}>
-                      <button className={"wname" + (w.on ? " on" : "")} onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>{w.label}</button>
-                      <NumIn className="win" value={w.len} placeholder={String(auto[w.id] || "")} disabled={!w.on} title="length, in"
-                        onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
-                      <span>×</span>
-                      <NumIn className="win" value={w.h} placeholder={String(wallH)} disabled={!w.on} title="height, in — 40 for a half wall"
-                        onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
-                      <span className="wu">{w.on
-                        ? sfOfWall(+w.len || auto[w.id] || 0, +w.h || +wallH || 96, w.faces || "in") + " sf"
-                          + (w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : "")
-                        : "off"}</span>
-                    </div>
-                  ))}
-                  {extraWalls.map((w) => (
-                    <div className="wallrow" key={w.id}>
-                      <button className="wname on" title={"which end it returns from — click to move it (" + endLabel(w) + "). The × on the right removes it"}
-                        onClick={() => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, at: (x.at === "hi" ? "lo" : "hi") } : x)))}>
-                        {EDGE_LBL[w.edge] || "Wall"} <small>{endLabel(w)}</small></button>
-                      <NumIn className="win" value={w.len} title="length, in"
-                        onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
-                      <span>×</span>
-                      <NumIn className="win" value={w.h} placeholder={String(wallH)} title="height, in"
-                        onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
-                      <span className="wu">{sfOfWall(+w.len || 0, +w.h || +wallH || 96, w.faces || "in")} sf
-                        {w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : ""} ·{" "}
-                        <b className="xdel" onClick={() => setExtraWalls((xs) => xs.filter((x) => x.id !== w.id))}>×</b></span>
-                    </div>
-                  ))}
-                  <div className="addchips" style={{ paddingTop: 5 }}>
-                    <button className={"addchip" + (placing ? " on" : "")} onClick={() => {
-                      const next = !placing;
-                      setPlacing(next);
-                      if (next) say("Click an edge on the drawing to add a wall — an open corner toggles a corner cut");
-                    }}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
-                    {(() => {
-                      const openList = CORNER_LBL.filter((c) => cornerOpenMap && cornerOpenMap[c[0]]);
-                      const allCut = openList.length > 0 && openList.every((c) => corners[c[0]]);
-                      return (
-                        <button className={"addchip" + (allCut ? " on" : "")} disabled={!openList.length}
-                          title="cut the pan at every corner not boxed in by walls — straight to a nearby wall end, 45° otherwise; single corners click on the drawing"
-                          onClick={() => setCorners((o) => {
-                            const n = { ...o };
-                            openList.forEach((c) => { n[c[0]] = !allCut; });
-                            return n;
-                          })}>✂ {allCut ? "Uncut corners" : "Cut open corners"}</button>
-                      );
-                    })()}
-                    {cornerOn.length > 0 && (
-                      <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>corner cuts: {cornerOn.map((c) => c[1]).join(", ")}</span>
-                    )}
-                  </div>
-                </>)}
                 {lines.map((l) => {
                   const e = l.item;
                   const price = tierOf(e);
