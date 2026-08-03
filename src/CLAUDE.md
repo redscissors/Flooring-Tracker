@@ -335,9 +335,12 @@ src/
                     # the rail scrolls as before. The column width never moves.
                     # The rail draws a to-scale top-down (4"-thick wall
                     # bands that only reach into a corner some perpendicular
-                    # wall actually fills — back/entry runs carry through, side
-                    # walls butt into their faces, the isometric's own rule
-                    # (owner 2026-08-03) — panel-seam ticks, square drains,
+                    # wall actually fills, exactly one slab claiming each corner
+                    # square: at the BACK the back wall runs through and the side
+                    # walls butt it; at the FRONT it inverts — the side wall
+                    # carries all the way forward and the front wall butts
+                    # against it, the continuous member on a real frame (owner
+                    # 2026-08-03) — panel-seam ticks, square drains,
                     # dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan,
                     # pan hips aimed at the UNCUT pan's corners and clipped to

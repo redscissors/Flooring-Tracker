@@ -204,6 +204,36 @@ seam tick and exposed-end marker by the run's start.
 `shoot-halfwall.mjs` → `std3`, `halfwall-right`, `halfwall-left`,
 `halfwall-both` (rail, plan and iso each).
 
+## 7 — The side wall owns the front corner, not the front wall
+
+Owner, follow-up: *"The side wall should come all the way to the front and the
+left/front wall should butt against it. Opposite of what it is doing."*
+
+§5 gave both drawings one corner rule — back and entry runs carry through, side
+walls butt — taken from what the isometric already did. That is right at the
+BACK and backwards at the FRONT. On a real frame the side wall is the
+continuous member: it runs from the back wall to the front of the shower, and
+the little front return butts into its face.
+
+So the rule now inverts by end. Exactly one slab still claims each corner
+square, and only where something is actually standing in it:
+
+| corner | carries through | butts |
+|---|---|---|
+| back-left / back-right | the **back** wall | the side walls |
+| front-left / front-right | the **side** wall | the front wall |
+
+A side wall reaches into its front corner only when a front wall is standing
+there to meet it; with nothing there it still stops on the entry line, as §5
+made it. The front wall never reaches into a corner at all now, so it can no
+longer paint over the side wall it returns from — and the side wall's end face
+draws in the isometric instead of being swallowed by the ghosted front wall,
+which is the band the owner inked in.
+
+Unchanged where no front wall exists: `std3-plan.png` re-shot byte-identical.
+`std3-iso.png` moves only in that the side walls no longer overhang the entry
+line by 4″ — the isometric catching up with the plan.
+
 ## Proof
 
 `node .scratch/078_wedi-tile-thickness-fit/shoot.mjs before|after` and
@@ -228,7 +258,4 @@ field, curbBands, railSplit, slopeMarks, CSS), `src/wedi.test.js` (+1 test,
 
 ## Still open
 
-The owner also asked that "the side wall should look like the one i modified in
-the attached photo" — a marked-up isometric with the left wall's end face inked
-in solid black. Not acted on: several readings fit the mark and it is a purely
-cosmetic change to every drawing. Question back to them.
+Nothing.

@@ -785,18 +785,24 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     const from = wl.at === "hi" ? round2(max - len) : 0;
     return { max, len, from, lo: from <= 0.5, hi: from + len >= max - 0.5 };
   };
-  // Which ring corners a SIDE wall reaches — what a back/entry run may carry
-  // through into. A side wall anchored at the back fills a back corner; one
-  // anchored at the entry fills an entry corner; a full-depth wall fills both.
-  const meets = (dw || []).reduce((m, x) => {
-    if (x.side !== "left" && x.side !== "right") return m;
+  // Corner ownership. At the BACK the back wall runs through and the side walls
+  // butt into it. At the FRONT it is the other way round (owner 2026-08-03):
+  // the SIDE wall carries all the way to the front and the front wall butts
+  // against it — that is how the walls actually get framed, the side wall being
+  // the continuous one. Either way exactly one slab claims each corner square,
+  // and only where something is actually standing in it.
+  const reach = (want) => (dw || []).reduce((m, x) => {
+    if (!want.includes(x.side)) return m;
     const r = runOf(x);
     if (!(r.len > 0.5)) return m;
-    const k = x.side === "left" ? ["bl", "fl"] : ["br", "fr"];
+    const k = x.side === "left" ? ["bl", "fl"] : x.side === "right" ? ["br", "fr"]
+      : x.side === "back" ? ["bl", "br"] : ["fl", "fr"];
     if (r.lo) m[k[0]] = true;
     if (r.hi) m[k[1]] = true;
     return m;
   }, { bl: false, br: false, fl: false, fr: false });
+  const sideAt = reach(["left", "right"]);    // where a side wall stands
+  const frontAt = reach(["entry"]);           // where a front wall stands
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -804,11 +810,17 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       if (!(r.len > 0)) return;
       const fill = wl.extra ? MOSS : MUTED;
       if (horiz) {
+        // The back run carries through to a side wall; the front run butts one.
         const back = wl.side === "back";
-        const lo = r.lo && meets[back ? "bl" : "fl"] ? wallW : 0;
-        const hi = r.hi && meets[back ? "br" : "fr"] ? wallW : 0;
+        const lo = back && r.lo && sideAt.bl ? wallW : 0;
+        const hi = back && r.hi && sideAt.br ? wallW : 0;
         push(<rect key={`w${wi}`} {...bandProps(wl)} x={round2(X(r.from) - lo)} y={back ? Y(0) - wallW : Y(rd)} width={round2(r.len * sc + lo + hi)} height={wallW} fill={fill}>{bandTitle}</rect>);
-      } else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(r.from)} width={wallW} height={round2(r.len * sc)} fill={fill}>{bandTitle}</rect>);
+      } else {
+        // A side wall carries into the front corner whenever a front wall is
+        // standing there to butt it; with nothing there it stops on the line.
+        const hi = r.hi && frontAt[wl.side === "left" ? "fl" : "fr"] ? wallW : 0;
+        push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(r.from)} width={wallW} height={round2(r.len * sc + hi)} fill={fill}>{bandTitle}</rect>);
+      }
     });
     // Extra wedi faces read as moss edges: the outside face when a wall
     // panels both sides, the end of the run when its exposed end is covered.
@@ -859,7 +871,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       });
     });
   } else {
-    const lo = on.left ? wallW : 0, hi = on.right ? wallW : 0;
+    const lo = on.left ? wallW : 0, hi = on.right ? wallW : 0;   // back carries through
     if (on.back) push(<rect key="wb" x={round2(X(0) - lo)} y={Y(0) - wallW} width={round2(rw * sc + lo + hi)} height={wallW} fill={MUTED} />);
     if (on.left) push(<rect key="wl" x={X(0) - wallW} y={Y(0)} width={wallW} height={round2(rd * sc)} fill={MUTED} />);
     if (on.right) push(<rect key="wr" x={X(rw)} y={Y(0)} width={wallW} height={round2(rd * sc)} fill={MUTED} />);
@@ -1174,34 +1186,40 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     const from = wl.at === "hi" ? round2(max - span) : 0;
     return { max, span, from, to: round2(from + span), lo: from <= 0.5, hi: from + span >= max - 0.5 };
   };
-  // Each ring corner cube belongs to exactly ONE slab: the back/entry walls run
-  // through their corners and the side walls butt into their faces. Two slabs
-  // claiming the same cube is what crossed the strokes at the apex. A run only
-  // claims a corner it actually reaches, so a half wall on one end leaves the
-  // other end's cube to whatever stands there.
-  const owns = dw.reduce((m, x) => {
-    if (x.side !== "back" && x.side !== "entry") return m;
+  // Each ring corner cube belongs to exactly ONE slab. At the BACK that is the
+  // back wall, with the side walls butting into it. At the FRONT it is the
+  // SIDE wall — it carries all the way forward and the front wall butts
+  // against it (owner 2026-08-03; the side wall is the continuous one on a
+  // real frame). Two slabs claiming the same cube is what crossed the strokes
+  // at the apex, and a run only claims a corner it actually reaches.
+  const reach = (want) => dw.reduce((m, x) => {
+    if (!want.includes(x.side)) return m;
     const r = runOf(x);
     if (!(r.span > 0.5)) return m;
-    const k = x.side === "back" ? ["bl", "br"] : ["fl", "fr"];
+    const k = x.side === "left" ? ["bl", "fl"] : x.side === "right" ? ["br", "fr"]
+      : x.side === "back" ? ["bl", "br"] : ["fl", "fr"];
     if (r.lo) m[k[0]] = true;
     if (r.hi) m[k[1]] = true;
     return m;
   }, { bl: false, br: false, fl: false, fr: false });
+  const backAt = reach(["back"]), sideAt = reach(["left", "right"]), frontAt = reach(["entry"]);
   const geomOf = (wl) => {
     const r = runOf(wl);
     const span = r.span;
     if (!(span > 0)) return null;
     const zh = Math.min(wl.h, 96);
-    if (wl.side === "back") return { span, zh, x0: r.from - (r.lo ? T : 0), x1: r.to + (r.hi ? T : 0), y0: -T, y1: 0 };
-    if (wl.side === "entry") return { span, zh, x0: r.from - (r.lo ? T : 0), x1: r.to + (r.hi ? T : 0), y0: rd, y1: rd + T };
+    if (wl.side === "back") {
+      return { span, zh, y0: -T, y1: 0,
+        x0: r.from - (r.lo && sideAt.bl ? T : 0), x1: r.to + (r.hi && sideAt.br ? T : 0) };
+    }
+    // The front wall butts the side walls, so it never reaches into a corner.
+    if (wl.side === "entry") return { span, zh, x0: r.from, x1: r.to, y0: rd, y1: rd + T };
     const left = wl.side === "left";
-    const butt = r.hi && (left ? owns.fl : owns.fr);
     return {
-      span, zh, butt,
+      span, zh, butt: false,
       x0: left ? -T : rw, x1: left ? 0 : rw + T,
-      y0: r.from - (r.lo && !(left ? owns.bl : owns.br) ? T : 0),
-      y1: r.to + (r.hi && !butt ? T : 0),
+      y0: r.from - (r.lo && !(left ? backAt.bl : backAt.br) ? T : 0),
+      y1: r.to + (r.hi && frontAt[left ? "fl" : "fr"] ? T : 0),
     };
   };
   // The face this camera reads as "the wall": the inner plane on the solid
