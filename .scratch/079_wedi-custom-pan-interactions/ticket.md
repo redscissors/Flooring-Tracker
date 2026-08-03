@@ -238,3 +238,29 @@ toggle (2" and framed alike, with its build lines); a picked option card
 survives it and comes back unchanged on the way out; max applies to the pan and
 the drain (60 × 34½ cut, drain 17¼") every time. If something else is reverting,
 cases 6 and 7 on the drawings page are the bench in both modes to point at.
+
+## Follow-up 4 (2026-08-03, owner) — the isometric's curb + 2″ bench
+
+> The curb and bench for 2" built bench still is off. see first picture compared
+> to second photo
+
+The zoom was of the ISOMETRIC's front-left corner, which had never had the
+stroke treatment — it was left alone twice on the reasoning that its wall slabs
+are stroked too, so nothing read one-sided. That was wrong where the bench rides
+onto the curb: two solids meeting there each overhung the other by half a
+stroke, and the shared edge came out as one heavy doubled black line.
+
+`clipPoly` now draws every curb face and every bench face clipped to itself.
+In a 3-D view that only trims the SILHOUETTE — two faces of the same solid still
+contribute half a stroke each along the fold they share, so interior edges keep
+their weight while an outline stops bleeding onto its neighbour. Widths went
+.7 → 1 and .8 → 1.2 so the folds read as they did.
+
+**Still open, and NOT changed — it reverses a recorded rule.** The 2″ build-up
+bench oversails the curb by `CADD` and its underside steps up onto the curb's
+top (`zOut = CBH`, `yStep = y1 − CW`), drawing a small riser at the front. That
+is issue 069's rule — "a bench reaching the entry runs on out over the curb
+line, riding a run that now carries on beneath it" — and the little step is that
+rule drawn honestly. If a 2″ build-up should instead STOP at the curb's inner
+face, the oversail and the step both go, and the entry curb runs past the bench
+end to end. Owner's call.

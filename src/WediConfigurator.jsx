@@ -1259,6 +1259,20 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const str = (arr) => arr.map((p) => p[0] + "," + p[1]).join(" ");
   const els = [];
   const wallLine = "rgba(28,26,23,.45)", seamCol = "rgba(28,26,23,.5)";
+  // The plan's stroke rule, brought over here (owner 2026-08-03, pointing at
+  // this view): a centred stroke paints half its width outside its face, so
+  // where the bench rides onto the curb their silhouettes each overhung the
+  // other and the shared edge read as one heavy doubled line. Clipping a face
+  // to itself only trims the SILHOUETTE — two faces of the same solid still
+  // contribute half each along the edge they share, so an interior fold keeps
+  // its weight while the outline stops bleeding onto its neighbour.
+  const uid = useId().replace(/:/g, "");
+  let clipN = 0;
+  const clipPoly = (key, pts, props) => {
+    const id = `${uid}cl${clipN++}`;
+    els.push(<clipPath key={`${id}c`} id={id}><polygon points={pts} /></clipPath>);
+    els.push(<polygon key={key} points={pts} {...props} clipPath={`url(#${id})`} />);
+  };
 
   els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
 
@@ -1465,14 +1479,17 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const curbEls = (b) => {
     const { horiz, c0, c1, hi, mHi, ci } = b;
     const [z0, z1] = b.eC1;
+    const face = { fill: "#D8D0BC", stroke: INK, strokeWidth: 1 };
+    const side = { fill: "#CFC7B2", stroke: INK, strokeWidth: 1 };
     if (horiz) {
-      if (!mHi) els.push(<polygon key={`cbe${ci}`} points={str([M(hi, c0, CBH), M(hi, c1, CBH), M(hi, c1, 0), M(hi, c0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-      els.push(<polygon key={`cbs${ci}`} points={str([M(z0, c1, CBH), M(z1, c1, CBH), M(z1, c1, 0), M(z0, c1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+      if (!mHi) clipPoly(`cbe${ci}`, str([M(hi, c0, CBH), M(hi, c1, CBH), M(hi, c1, 0), M(hi, c0, 0)]), face);
+      clipPoly(`cbs${ci}`, str([M(z0, c1, CBH), M(z1, c1, CBH), M(z1, c1, 0), M(z0, c1, 0)]), side);
     } else {
-      els.push(<polygon key={`cbe${ci}`} points={str([M(c1, z0, CBH), M(c1, z1, CBH), M(c1, z1, 0), M(c1, z0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-      if (!mHi) els.push(<polygon key={`cbs${ci}`} points={str([M(c0, hi, CBH), M(c1, hi, CBH), M(c1, hi, 0), M(c0, hi, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+      clipPoly(`cbe${ci}`, str([M(c1, z0, CBH), M(c1, z1, CBH), M(c1, z1, 0), M(c1, z0, 0)]), face);
+      if (!mHi) clipPoly(`cbs${ci}`, str([M(c0, hi, CBH), M(c1, hi, CBH), M(c1, hi, 0), M(c0, hi, 0)]), side);
     }
-    els.push(<polygon key={`cbt${ci}`} points={str(bandPoly(b).map((p) => M(p[0], p[1], CBH)))} fill="#E4DDCB" stroke={INK} strokeWidth=".8" strokeLinejoin="round" />);
+    clipPoly(`cbt${ci}`, str(bandPoly(b).map((p) => M(p[0], p[1], CBH))),
+      { fill: "#E4DDCB", stroke: INK, strokeWidth: 1.2, strokeLinejoin: "round" });
   };
   const behind = (cs) => cs.side === "back" || cs.side === "left";
   bands.forEach((b) => { if (behind(b)) curbEls(b); });
@@ -1549,7 +1566,8 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // triangular prisms.
   const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
   const benchQuad = (a, b2, z0, z1, fill, key) =>
-    els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
+    clipPoly(key, str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)]),
+      { fill, stroke: MOSS_DEEP, strokeWidth: 1 });
   // A wall bench reaching the entry meets the curb whichever side of the room
   // line the curb sits on: in the usual ring it oversails CADD past the line;
   // in "overall max" the curb is inside the line, so the bench stops AT the
@@ -1578,7 +1596,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
         .filter((s) => (s[0][0] + s[1][0]) / 2 - cen[0] + (s[0][1] + s[1][1]) / 2 - cen[1] > 0.01);
       faces.sort((p, q) => (p[0][0] + p[0][1] + p[1][0] + p[1][1]) - (q[0][0] + q[0][1] + q[1][0] + q[1][1]))
         .forEach((s, si) => benchQuad(s[0], s[1], z0, zh, s[2], `bn${bi}s${si}`));
-      els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+      clipPoly(`bn${bi}t`, str(tri.map((p) => M(p[0], p[1], zh))), { fill: BTOP, stroke: MOSS_DEEP, strokeWidth: 1.2 });
       return;
     }
     const out = benchOut(b, f);
@@ -1593,12 +1611,11 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     // bench's outer plane; a framed bench instead drops at the PAN's edge
     // (flush with its face in the ring, the inset pan edge in max).
     const yStep = round2(y1 - CW + (b.build === "framed" ? CURB_LAP : 0));
-    els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
-      points={str(step
-        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yStep, zOut), M(x1, yStep, z0), M(x1, y0, z0)]
-        : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
+    clipPoly(`bn${bi}e`, str(step
+      ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yStep, zOut), M(x1, yStep, z0), M(x1, y0, z0)]
+      : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)]), { fill: BSIDE, stroke: MOSS_DEEP, strokeWidth: 1 });
     benchQuad([x0, y1], [x1, y1], step ? zOut : z0, zh, BSIDE2, `bn${bi}f`);
-    els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+    clipPoly(`bn${bi}t`, str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)]), { fill: BTOP, stroke: MOSS_DEEP, strokeWidth: 1.2 });
     // The pan is cut wall to wall along the bench's face, but only the stretch
     // the box doesn't stand in front of reads from this camera — a right-hand
     // bench hides its own cut, so the mark starts where the seat ends.
