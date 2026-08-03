@@ -554,10 +554,36 @@ function slopeMarks(o) {
     // A square-drain pan folds on hips that run pan corner → COVER corner —
     // the 4×4 grate has four corners of its own, and drawing to the drain's
     // centre point put a kink where the real fold line lands.
+    //
+    // The corners are the UNCUT pan's (owner 2026-08-03). The fold lines are
+    // moulded at the factory and a site cut does not re-aim them: cut a base
+    // down and the hips still run toward where its corners were, leaving the
+    // cut edge at an angle. Drawing them to the CUT corners re-pitched the
+    // planes, which is the one thing cutting a pan cannot do. The line is then
+    // clipped back to the material that's actually there — it points off the
+    // cut edge, it doesn't hang past it.
     const dq = 2;
-    [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].forEach((c) => {
+    const cutW = (pan.cut && pan.cut.w) || pan.w, cutD = (pan.cut && pan.cut.d) || pan.d;
+    const ux0 = o.mirrored ? round2(x1 - cutW) : x0, ux1 = round2(ux0 + cutW);
+    const uy0 = y0, uy1 = round2(uy0 + cutD);
+    // Walk `a` along a→b until it lands inside the pan. `b` sits at the drain,
+    // always inside, so the largest violated-axis step puts `a` on the edge.
+    const onPan = (a, b2) => {
+      const dx = b2[0] - a[0], dy = b2[1] - a[1];
+      let t = 0;
+      const lim = (v, d, lo, hi) => {
+        if (Math.abs(d) < 1e-9) return;
+        if (v < lo) t = Math.max(t, (lo - v) / d);
+        if (v > hi) t = Math.max(t, (hi - v) / d);
+      };
+      lim(a[0], dx, x0, x1);
+      lim(a[1], dy, y0, y1);
+      return t > 0 ? [round2(a[0] + dx * t), round2(a[1] + dy * t)] : a;
+    };
+    [[ux0, uy0], [ux1, uy0], [ux1, uy1], [ux0, uy1]].forEach((c) => {
       const e = [dr.x + (c[0] >= dr.x ? dq : -dq), dr.y + (c[1] >= dr.y ? dq : -dq)];
-      if (Math.hypot(c[0] - e[0], c[1] - e[1]) > 3) hips.push([c, e]);
+      const s0 = onPan(c, e);
+      if (Math.hypot(s0[0] - e[0], s0[1] - e[1]) > 3) hips.push([s0, e]);
     });
     // Two arrows per plane, square to its own edge (that IS the steepest
     // descent) and spaced a third in from each end, so they sit in the wide

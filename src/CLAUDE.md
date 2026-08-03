@@ -335,7 +335,10 @@ src/
                     # the rail scrolls as before. The column width never moves.
                     # The rail draws a to-scale top-down (4"-thick wall
                     # bands, panel-seam ticks, square drains, dashed cut edges,
-                    # drain callouts, corner cuts ghosting the full-size pan —
+                    # drain callouts, corner cuts ghosting the full-size pan,
+                    # pan hips aimed at the UNCUT pan's corners and clipped to
+                    # the material — the folds are moulded, a site cut doesn't
+                    # re-pitch them (owner 2026-08-03) —
                     # click an edge to add a wall, a corner to toggle a cut, and
                     # hover the pan along a wall or into a corner for a BENCH
                     # zone — click/right-click opens the bench menu (issue 069):

@@ -115,6 +115,31 @@ the gutter can't appear and disappear as the fit flips.
 | 1680 × 980 | 943px in an 842px column — **scrolls** | 843 / 842 — fits |
 | 1440 × 900 | fits | fits |
 
+## 4 — Hips aim at the UNCUT pan's corners
+
+Owner, follow-up: *"the pan lines should not always go to the corners. If a pan
+is cut down the lines should point to where the corners would be if the pan was
+not cut. The pan planes do not change."*
+
+`slopeMarks` drew the four hips from the pieces' CURRENT corners to the drain
+cover. On a cut-down base that re-pitches the planes, which is the one thing
+cutting a pan cannot do — the folds are moulded at the factory and a site cut
+just removes material from under them.
+
+The hips now start at the **uncut** rectangle's corners (`pan.cut` gives the
+full size; a cut comes off the +y edge and the +x edge, or −x when the layout is
+mirrored) and are clipped back to the material that is actually there, so a line
+points off the cut edge instead of hanging past it. Repro: 24 × 33 with the drain
+pinned at 6″ × 16″ → a 36 × 36 base deep-cut on both axes
+(`shoot-hips.mjs`, `hips-before|after-*`). The two hips that used to converge on
+the fabricated cut corner now leave through the cut edges at the moulded angle.
+
+A pan that isn't cut has `cut === null`, so the uncut rectangle IS the piece and
+nothing moves — the three `after-*-3-rail.png` shots re-shot byte-identical.
+
+Fall arrows are untouched (their length and spacing were set by owner asks in
+071/075); this is the fold lines only.
+
 ## Proof
 
 `node .scratch/078_wedi-tile-thickness-fit/shoot.mjs before|after` and
@@ -127,9 +152,15 @@ prints the numbers in the tables above. Shots in `shots/`:
 - `tile-1…4` — 60 × 36 max, no tile vs ⅜" tile, full + rail
 - `tile-5-form-live.png` — the field live (max mode, un-dimmed)
 - `gate-1…4` — the field through all four gate states
+- `hips-before|after-{1-rail,2-plan,3-iso}` — the 24 × 33 deep-cut repro
 
 ## Files
 
 `src/wedi.js` (curbInsets + cfg), `src/WediConfigurator.jsx` (parseIn, the
-field, curbBands, railSplit, CSS), `src/wedi.test.js` (+1 test, 890 pass),
-`src/CLAUDE.md`.
+field, curbBands, railSplit, slopeMarks, CSS), `src/wedi.test.js` (+1 test,
+890 pass), `src/CLAUDE.md`.
+
+## Still open
+
+The owner also reported that an added wall *"sometimes goes all the way to the
+end vs just against the side wall"* — not diagnosed yet, question back to them.
