@@ -10,7 +10,7 @@
 // "Add to product lines" hands lineItems() payloads back to the caller; the
 // anchor row keeps the raw configuration (product.wedi) so Reconfigure reopens
 // here pre-filled.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
@@ -775,6 +775,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   // each walled side and a box at each corner. Hover previews the footprint,
   // click or right-click opens the bench menu for that spot.
   const [benchZone, setBenchZone] = useState(null);
+  // The rail and the print sheet both mount a plan at once, so the clip ids
+  // have to be per-instance. useId's colons are legal in an id but not in every
+  // url() parser, so they come out.
+  const uid = useId().replace(/:/g, "");
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
   // Walls draw at their true 4" framing depth (owner sketch 2026-07-30);
   // the thumbnails keep a hairline band.
@@ -850,7 +854,8 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   // A band that stopped on the pan line read short by the curb's own overhang,
   // with the curb running past it into open air. Every wall now finishes flush
   // with the curb it meets (curbCornerOut).
-  const curbOut = mini ? null : curbCornerOut(curbBands(curbs, rw, rd, o.inset, CW), rw, rd);
+  const planBands = mini ? [] : curbBands(curbs, rw, rd, o.inset, CW);
+  const curbOut = mini ? null : curbCornerOut(planBands, rw, rd);
   const outAt = (k) => (curbOut ? round2(curbOut[k] * sc) : 0);
   if (dw) {
     dw.forEach((wl, wi) => {
@@ -1050,9 +1055,20 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     // engine's ext0/ext1 fill the open ring corners, drawn as a MITER so two
     // runs meeting there share one 45° line, and a cut corner's curb takes the
     // one straight line across.
-    curbBands(curbs, rw, rd, o.inset, CW).forEach((b) => {
+    // An SVG stroke sits CENTRED on its path, so half of the curb's 1-unit
+    // outline painted OUTSIDE the curb — past the wall it butts into and past
+    // its own outer face — which is what read as the curb sticking past the
+    // walls (owner 2026-08-03) even with the geometry flush. Clipping each band
+    // to itself keeps every drop of paint inside the part: the band now ends
+    // exactly where the curb does, and the line lands lighter into the bargain,
+    // which was the other half of the same complaint.
+    push(<defs key="cbdefs">{planBands.map((b) => (
+      <clipPath key={b.ci} id={`${uid}cb${b.ci}`}>
+        <polygon points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")} />
+      </clipPath>))}</defs>);
+    planBands.forEach((b) => {
       push(<polygon key={`cb${b.ci}`} points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
-        fill="#E9E3D3" stroke={MUTED} strokeWidth="1" strokeLinejoin="round" />);
+        fill="#E9E3D3" stroke={MUTED} strokeWidth="1.6" strokeLinejoin="round" clipPath={`url(#${uid}cb${b.ci})`} />);
       if (!(b.len * sc > 34)) return;
       const mid = (b.lo + b.hi) / 2, cross = (b.c0 + b.c1) / 2;
       if (b.horiz) {

@@ -71,6 +71,12 @@ ${cases.map((c) => `<div class="case">
   <div class="d"><div class="dl">${c.n}a · plan (top down)</div>${c.svg[0]}</div>
   <div class="d"><div class="dl">${c.n}b · isometric</div>${c.svg[1] || ""}</div>
  </div></div>`).join("\n")}
+<div class="ui"><div class="ch"><span class="num">D</span><span class="ct">The curb's outline, at 8× — before and after</span>
+ <span class="cn">the front-left corner: the stroke used to paint half its width outside the curb, past the wall it butts</span></div>
+ <div class="pair" style="margin-top:6px">
+  <div class="d"><div class="dl">before · stroke centred on the edge</div><img src="${b64(OUT + "/shots/stroke-before.png")}" alt="before"></div>
+  <div class="d"><div class="dl">after · clipped to the band</div><img src="${b64(OUT + "/shots/stroke-after.png")}" alt="after"></div>
+ </div></div>
 <div class="ui"><div class="ch"><span class="num">A</span><span class="ct">The toggle moves the drawing</span>
  <span class="cn">a kit, straight to Custom shower, one click on "Max — curb inside" — no card picked, no size retyped</span></div>
  <img src="${b64(OUT + "/shots/2-max-curb-inside.png")}" alt="Custom shower tab with Max — curb inside on"></div>

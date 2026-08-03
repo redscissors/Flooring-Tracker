@@ -176,3 +176,27 @@ land outside the stated numbers, so the field is disabled there). The flush rule
 follows the curb's *drawn* face, so in pan-size mode the wall lands on the bare
 curb. If the tile should thicken the curb in pan-size mode too, that reverses
 078 and wants its own decision.
+
+## Follow-up 2 (2026-08-03, owner) — the curb's outline
+
+> if you look, the curb lines are really thick so it looks like it sticks past
+> the walls. Do the walls need to be a bit longer or the curb lines thinner?
+
+**Neither** — the geometry was already flush (`check-flush.mjs` proves it). What
+stuck out was the STROKE. SVG centres a stroke on its path, so half of the
+curb's 1-unit outline painted *outside* the curb: past the wall it butts into,
+past its own outer face, and (with `strokeLinejoin: round`) bulging at the
+corner. Lengthening the wall would have made the drawing lie by half a stroke to
+hide a paint artefact.
+
+Each band is now **clipped to itself**, so no paint lands outside the part: the
+band ends exactly where the curb does, and the visible line halves — the other
+half of the same complaint. Width went 1 → 1.6 so the surviving inner half reads
+0.8 where the old line read 1.0: no overhang, slightly lighter.
+
+The clip ids are per-instance (`useId`, colons stripped — legal in an id but not
+in every `url()` parser) because the rail and the print sheet mount a plan at
+the same time; a shot asserts two clipPaths with two distinct ids.
+
+The isometric was left alone: its wall slabs are stroked too, so its curb reads
+consistently against them rather than one-sided the way the plan's did.
