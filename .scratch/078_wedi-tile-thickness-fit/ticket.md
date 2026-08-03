@@ -140,6 +140,35 @@ nothing moves — the three `after-*-3-rail.png` shots re-shot byte-identical.
 Fall arrows are untouched (their length and spacing were set by owner asks in
 071/075); this is the fold lines only.
 
+## 5 — Wall ends: only reach into a corner a wall actually fills
+
+Owner, follow-up: *"sometimes it changed the added wall go all the way to the
+end vs just against the side wall."*
+
+The plan drew every band 4″ past its corner unconditionally — always at the
+left/back end, and at the far end too once the run reached full length — with no
+check for whether a perpendicular wall was there. Two symptoms, one cause:
+
+- with side walls on, an added (MOSS) wall's end ran through the grey side wall
+  to its outside face instead of butting it;
+- with side walls off, that same end — and both ends of the back wall — hung 4″
+  out over open air.
+
+The **isometric** already gets this right (`owns`/`butt` in `geomOf`), so the
+plan now draws to the same rule: the back and entry runs carry THROUGH their
+corners, the side walls butt into their faces, and a run only reaches into a
+corner some perpendicular wall actually fills. A side wall starts at the back,
+so it fills a back corner as soon as it exists; it only reaches an entry corner
+by running the full depth. The thumbnail path (`on.back/left/right`, all
+full-length) takes the same rule.
+
+Visible knock-on in the standard 3-wall drawing: the two 4″ side-wall stubs
+that used to poke out below the curb are gone — walls stop at the entry line
+and the curb runs the opening. Nothing else moved; the isometric is untouched.
+
+`shoot-wall.mjs` → `walls-before-*` vs `wall-*` (the same added entry wall, with
+and without the side walls it returns from).
+
 ## Proof
 
 `node .scratch/078_wedi-tile-thickness-fit/shoot.mjs before|after` and
@@ -153,6 +182,7 @@ prints the numbers in the tables above. Shots in `shots/`:
 - `tile-5-form-live.png` — the field live (max mode, un-dimmed)
 - `gate-1…4` — the field through all four gate states
 - `hips-before|after-{1-rail,2-plan,3-iso}` — the 24 × 33 deep-cut repro
+- `walls-before-*` vs `wall-*` — an added entry wall, side walls on and off
 
 ## Files
 
@@ -162,5 +192,4 @@ field, curbBands, railSplit, slopeMarks, CSS), `src/wedi.test.js` (+1 test,
 
 ## Still open
 
-The owner also reported that an added wall *"sometimes goes all the way to the
-end vs just against the side wall"* — not diagnosed yet, question back to them.
+Nothing.

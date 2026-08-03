@@ -768,6 +768,21 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     onContextMenu: (ev) => { ev.preventDefault(); ev.stopPropagation(); onWallMenu({ wid: wl.wid, extra: !!wl.extra }, ev.clientX, ev.clientY); },
   } : {});
   const bandTitle = onWallMenu ? <title>right-click — wall size &amp; wedi faces</title> : null;
+  // Corner ownership — the rule the ISOMETRIC already draws to, brought over to
+  // the plan (owner 2026-08-03, "the added wall goes all the way to the end vs
+  // just against the side wall"). The back and entry runs carry THROUGH their
+  // corners and the side walls butt into their faces; a run only reaches into a
+  // corner some perpendicular wall actually fills. Every band used to overhang
+  // its origin corner by the wall thickness unconditionally, and the far one
+  // too once it reached full length — so a run hung 4" out over open air where
+  // no wall met it, and an added wall (drawn MOSS) painted over the grey side
+  // wall it returns from.
+  const wallSpanOf = (side) => (dw || []).reduce((m, x) => (x.side === side
+    ? Math.max(m, Math.min(x.len, side === "left" || side === "right" ? rd : rw)) : m), 0);
+  // A side wall starts at the back, so it fills a BACK corner as soon as it
+  // exists at all; it only reaches an ENTRY corner by running the full depth.
+  const sideL = wallSpanOf("left"), sideR = wallSpanOf("right");
+  const meets = { bl: sideL > 0.5, br: sideR > 0.5, fl: sideL >= rd - 0.5, fr: sideR >= rd - 0.5 };
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -775,9 +790,12 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       if (!(len > 0)) return;
       const full = len >= (horiz ? rw : rd) - 0.5;
       const fill = wl.extra ? MOSS : MUTED;
-      if (wl.side === "back") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0) - wallW} y={Y(0) - wallW} width={round2(len * sc + wallW + (full ? wallW : 0))} height={wallW} fill={fill}>{bandTitle}</rect>);
-      else if (wl.side === "entry") push(<rect key={`w${wi}`} {...bandProps(wl)} x={X(0) - wallW} y={Y(rd)} width={round2(len * sc + wallW + (full ? wallW : 0))} height={wallW} fill={fill}>{bandTitle}</rect>);
-      else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(0) - wallW} width={wallW} height={round2(len * sc + wallW + (full ? wallW : 0))} fill={fill}>{bandTitle}</rect>);
+      if (horiz) {
+        const back = wl.side === "back";
+        const lo = meets[back ? "bl" : "fl"] ? wallW : 0;
+        const hi = full && meets[back ? "br" : "fr"] ? wallW : 0;
+        push(<rect key={`w${wi}`} {...bandProps(wl)} x={round2(X(0) - lo)} y={back ? Y(0) - wallW : Y(rd)} width={round2(len * sc + lo + hi)} height={wallW} fill={fill}>{bandTitle}</rect>);
+      } else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(0)} width={wallW} height={round2(len * sc)} fill={fill}>{bandTitle}</rect>);
     });
     // Extra wedi faces read as moss edges: the outside face when a wall
     // panels both sides, the end of the run when its exposed end is covered.
@@ -824,9 +842,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       });
     });
   } else {
-    if (on.back) push(<rect key="wb" x={X(0) - wallW} y={Y(0) - wallW} width={round2(rw * sc + wallW * 2)} height={wallW} fill={MUTED} />);
-    if (on.left) push(<rect key="wl" x={X(0) - wallW} y={Y(0) - wallW} width={wallW} height={round2(rd * sc + wallW * 2)} fill={MUTED} />);
-    if (on.right) push(<rect key="wr" x={X(rw)} y={Y(0) - wallW} width={wallW} height={round2(rd * sc + wallW * 2)} fill={MUTED} />);
+    const lo = on.left ? wallW : 0, hi = on.right ? wallW : 0;
+    if (on.back) push(<rect key="wb" x={round2(X(0) - lo)} y={Y(0) - wallW} width={round2(rw * sc + lo + hi)} height={wallW} fill={MUTED} />);
+    if (on.left) push(<rect key="wl" x={X(0) - wallW} y={Y(0)} width={wallW} height={round2(rd * sc)} fill={MUTED} />);
+    if (on.right) push(<rect key="wr" x={X(rw)} y={Y(0)} width={wallW} height={round2(rd * sc)} fill={MUTED} />);
   }
 
   o.pieces.forEach((p, i) => {
