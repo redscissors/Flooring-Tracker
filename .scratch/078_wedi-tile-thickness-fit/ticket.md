@@ -37,8 +37,20 @@ width **plus** tile:
 **Where it applies.** Only edges that actually carry a curb pay for it — a
 fully walled edge insets nothing, as before, and a curbless build insets
 nothing at all. And only in max mode: with the numbers read as the pan, the
-curb and its tile land *outside* them, so nothing is being held back. In both
-of those cases the field renders dimmed with a tooltip saying why.
+curb and its tile land *outside* them, so nothing is being held back.
+
+Owner confirmed that rule, so the field is **disabled** wherever it can't bite,
+not merely dimmed — a box that takes a number and does nothing with it is worse
+than no box. Its tooltip names the switch that turns it on. A thickness already
+typed is kept, greyed, and applies again the moment Max + Curbed comes back
+(`shoot-gate.mjs`):
+
+| state | field |
+|---|---|
+| Pan size + Curbed | disabled, placeholder `—` |
+| Max + Curbed | live, placeholder `0 or 3/8` |
+| Max + Curbless | disabled, value kept |
+| back to Pan size | disabled, value kept |
 
 **Input.** Tile arrives off a tape measure, so `parseIn` reads `3/8`, `1/4`,
 `1 1/16` and `0.375` alike; the box shows the decimal it read back, so a
@@ -114,6 +126,7 @@ prints the numbers in the tables above. Shots in `shots/`:
 - `before|after-<viewport>-3-rail.png` — the drawings rail
 - `tile-1…4` — 60 × 36 max, no tile vs ⅜" tile, full + rail
 - `tile-5-form-live.png` — the field live (max mode, un-dimmed)
+- `gate-1…4` — the field through all four gate states
 
 ## Files
 

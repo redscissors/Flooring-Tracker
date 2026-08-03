@@ -199,6 +199,7 @@ const CSS = `
 .wedi-pop .rf .dims span{font-size:12px;color:var(--ft-faint);font-weight:700}
 .wedi-pop .rinp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:12.5px;font-weight:700;padding:3px 5px;width:46px}
 .wedi-pop .rinp.tin{width:62px}
+.wedi-pop .rinp:disabled{cursor:not-allowed}
 .wedi-pop .rinp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
 .wedi-pop .rseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .wedi-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:3px 8px;cursor:pointer;white-space:nowrap}
@@ -2315,14 +2316,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     ))}
                   </div>
                 </div>
+                {/* Disabled, not just dimmed, wherever it can't bite (owner
+                    2026-08-03): a box that takes a number and does nothing with
+                    it is worse than no box. Its own tooltip says which switch
+                    turns it on. */}
                 <div className={"rf" + (tileEats ? "" : " dim")} title={tileEats
                   ? "what the finished tile adds on the curb's outer face — the curb steps that much further inside the stated line so the tiled face lands on it"
                   : inp.curb === "curbless"
                     ? "a curbless shower has no curb face to tile — nothing to hold back"
-                    : 'only bites on "Max — curb inside": with the numbers read as the pan, the curb and its tile land outside them'}>
+                    : 'only matters on "Max — curb inside": with the numbers read as the pan, the curb and its tile land outside them anyway'}>
                   <label>Tile thickness</label>
                   <div className="dims">
-                    <NumIn className="rinp tin" placeholder="0 or 3/8" value={tileT}
+                    <NumIn className="rinp tin" disabled={!tileEats} placeholder={tileEats ? "0 or 3/8" : "—"} value={tileT}
                       onCommit={(v) => { const n = parseIn(v); setTileT(n ? String(n) : ""); }} />
                     <span>in</span>
                   </div>
