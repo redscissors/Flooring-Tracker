@@ -234,6 +234,7 @@ const CSS = `
 .wedi-pop .diagcol .dc-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);margin:4px 0}
 .wedi-pop .diagcol .dc-h:first-child{margin-top:0}
 .wedi-pop .diagcol svg{display:block;width:100%;height:auto;background:var(--w-paper);border:1px solid var(--ft-border);border-radius:8px}
+.wedi-pop .diagcol svg + svg{margin-top:10px}
 .wedi-pop .diagcol .dc-empty{font-size:11.5px;color:var(--ft-faint);line-height:1.6;padding:18px 4px}
 .wedi-pop .diagcol .dc-hint{background:var(--w-hint-bg);border:1px solid var(--w-hint-line);border-radius:6px;color:var(--w-hint-ink);font-size:10.5px;font-weight:700;padding:6px 9px;margin-bottom:6px}
 .wedi-pop .xdel{cursor:pointer;color:var(--w-rust);font-weight:800;padding:0 2px}
@@ -348,13 +349,11 @@ const PRINT_CSS = `
   body > *:not(.wedi-printsheet){display:none !important}
   .wedi-printsheet{display:block;color:#111;background:#fff;font-family:var(--ft-ui)}
   .wedi-printsheet .ps-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}
-  .wedi-printsheet .ps-head .t{font-size:20px;font-weight:800}
-  .wedi-printsheet .ps-head .sub{font-size:11px;color:#555;font-weight:600}
+  .wedi-printsheet .ps-head .sub{font-size:13px;color:#111;font-weight:800}
   .wedi-printsheet .ps-head .dt{margin-left:auto;font-size:11px;color:#555}
   .wedi-printsheet .ps-room{font-size:13px;font-weight:700;margin-bottom:12px}
   .wedi-printsheet .ps-diags{display:flex;gap:18px;align-items:flex-start;margin-bottom:6px}
   .wedi-printsheet .ps-diags .d{flex:1}
-  .wedi-printsheet .ps-diags .dh{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:4px}
   .wedi-printsheet .ps-diags svg{width:100%;height:auto;border:1px solid #ddd;border-radius:6px;background:#fff}
   .wedi-printsheet .ps-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:#555;margin:14px 0 4px}
   .wedi-printsheet .ps-warn{font-size:11px;color:#333;padding:2px 0}
@@ -363,7 +362,6 @@ const PRINT_CSS = `
   .wedi-printsheet .ps-table td{border-bottom:1px solid #ddd;padding:4px 6px;vertical-align:top}
   .wedi-printsheet .ps-table .num{text-align:right;font-variant-numeric:tabular-nums}
   .wedi-printsheet .ps-tot{display:flex;justify-content:flex-end;gap:26px;font-size:12px;font-weight:800;margin-top:8px}
-  .wedi-printsheet .ps-note{font-size:9.5px;color:#777;margin-top:14px;line-height:1.5}
 }
 `;
 
@@ -2587,7 +2585,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     <button className={"addchip" + (placing ? " on" : "")} onClick={() => {
                       const next = !placing;
                       setPlacing(next);
-                      if (next) say("Click an edge on the top-down drawing to add a wall — an open corner toggles a corner cut");
+                      if (next) say("Click an edge on the drawing to add a wall — an open corner toggles a corner cut");
                     }}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
                     {(() => {
                       const openList = CORNER_LBL.filter((c) => cornerOpenMap && cornerOpenMap[c[0]]);
@@ -2711,9 +2709,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     <div className="diagcol">
       {!diag ? (<>
         <div className="dc-h">The shower</div>
-        <div className="dc-empty">Pick a pan or solve a custom shower — the top-down layout and isometric view draw here for whatever is selected.</div>
+        <div className="dc-empty">Pick a pan or solve a custom shower — the drawings render here for whatever is selected.</div>
       </>) : (<>
-        <div className="dc-h">Top-down layout</div>
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
         <TopDown o={drawDiag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
@@ -2735,7 +2732,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             setPlacing(false);
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
-        <div className="dc-h" style={{ marginTop: 12 }}>Isometric</div>
         <Iso o={drawDiag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
           cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w}
@@ -3067,8 +3063,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     <div className="wedi-printsheet">
       <style>{PRINT_CSS}</style>
       <div className="ps-head">
-        <div className="t">wedi shower layout</div>
-        <div className="sub">{areaName ? areaName + " — " : ""}FloorTrack</div>
+        <div className="sub">{areaName || ""}</div>
         <div className="dt">{new Date().toLocaleDateString()}</div>
       </div>
       <div className="ps-room">
@@ -3076,10 +3071,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         {build.pan && build.pan.drain ? " · " + build.pan.drain.type + " drain" : ""} · walls at {inch(wallH)}″
       </div>
       <div className="ps-diags">
-        <div className="d"><div className="dh">Top-down layout</div>
+        <div className="d">
           <TopDown o={drawDiag} w={460} h={360} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
             framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} /></div>
-        <div className="d"><div className="dh">Isometric</div>
+        <div className="d">
           <Iso o={drawDiag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
             framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w} /></div>
       </div>
@@ -3115,10 +3110,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </tbody>
       </table>
       <div className="ps-tot"><span>{build.lines.length} lines</span><span>{tierId} total {fm(totals.sell)}</span></div>
-      <div className="ps-note">
-        Set every joint in wedi Joint Sealant. Fasteners every 12″ on wall framing, 6″ on ceilings.
-        Pre-sloped extensions: trim the thick edge — the slope lands on the pan. Prices are the Jan 1 2026 book.
-      </div>
     </div>, document.body);
 
   const TAB_DEFS = [
