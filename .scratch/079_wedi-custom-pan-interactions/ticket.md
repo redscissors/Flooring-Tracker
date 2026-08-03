@@ -200,3 +200,41 @@ the same time; a shot asserts two clipPaths with two distinct ids.
 
 The isometric was left alone: its wall slabs are stroked too, so its curb reads
 consistently against them rather than one-sided the way the plan's did.
+
+## Follow-up 3 (2026-08-03, owner) — the bench
+
+> The bench sticks out past as well and when the max curb inside is selected it
+> seems to revert
+
+Same defect as the curb, one part later: the bench rect and the corner triangle
+carried a 1.2 stroke, centred, so 0.6 of it painted outside the bench — past the
+curb it rides out to and past the wall beside it. With the curb's outline
+clipped the previous round and the bench's not, the bench was left as the only
+thing overhanging, which is what "reverts" looks like at a corner where all
+three parts land on the same line.
+
+`clipSelf(points)` is now the shared helper — the curb bands and both bench
+shapes go through it. Clipping halves what a stroke shows, so each user sets its
+width back to the weight it should read at: the **curb** 1 → 1.6 (0.8 showing, a
+shade lighter than before, which the owner asked for), the **bench** 1.2 → 2.4
+(1.2 showing, unchanged). The bench needs every bit of that: `#DCE0C8` against
+the pan's `#DCE5CD` is two points of difference, so the outline is the only
+thing that says *bench*, and clipping it thinner made it vanish into the pan.
+
+**Measured, in both size modes** (SVG units, 60 × 36 alcove, lean curb, a 2"
+bench on the left wall):
+
+| | pan | bench | wall | curb |
+|---|---|---|---|---|
+| Pan size | 171.6 | **177.5** | **177.5** | **177.5** |
+| Max — curb inside | 165.7 | **171.6** | **171.6** | **171.6** |
+
+Bench, wall and curb all finish on the same line in both — the bench's oversail
+(`CADD` in the ring, nothing in max, where the curb is already inside the line)
+already put it there; only the paint was over.
+
+**Ruled out as the "revert"**, each re-run after the fix: the bench survives the
+toggle (2" and framed alike, with its build lines); a picked option card
+survives it and comes back unchanged on the way out; max applies to the pan and
+the drain (60 × 34½ cut, drain 17¼") every time. If something else is reverting,
+cases 6 and 7 on the drawings page are the bench in both modes to point at.

@@ -780,6 +780,23 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   // url() parser, so they come out.
   const uid = useId().replace(/:/g, "");
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
+  // An SVG stroke sits CENTRED on its path, so half of it paints OUTSIDE the
+  // shape. On a part that is drawn butting another — the curb against the wall
+  // it meets, a bench against the curb it rides out to — that half-stroke is
+  // what reads as the part sticking past its neighbour, even with the geometry
+  // dead flush (owner 2026-08-03). Clipping a shape to itself keeps every drop
+  // of paint inside the part. Clipping halves what a stroke shows, so each user
+  // sets its own width back: the curb goes 1 → 1.6 (0.8 showing, a shade
+  // lighter than it was — the owner called it thick), the bench 1.2 → 2.4 (1.2
+  // showing, unchanged). The bench needs every bit of it: its fill is two
+  // points off the pan's, so the outline is the only thing that says bench.
+  let clipN = 0;
+  const clipSelf = (pts) => {
+    const id = `${uid}cl${clipN++}`;
+    push(<clipPath key={id} id={id}><polygon points={pts} /></clipPath>);
+    return `url(#${id})`;
+  };
+  const boxPts = (x, y, w2, h2) => `${x},${y} ${x + w2},${y} ${x + w2},${y + h2} ${x},${y + h2}`;
   // Walls draw at their true 4" framing depth (owner sketch 2026-07-30);
   // the thumbnails keep a hairline band.
   const wallW = mini ? 2.5 : round2(4 * sc);
@@ -1000,15 +1017,17 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     const f = benchFootprint(b, o.room);
     if (f.kind === "corner") {
       const pts = BENCH_CORNER_TRI[f.corner](f.a);
-      push(<polygon key={`bn${bi}`} points={pts.map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
-        fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
+      const s = pts.map((p) => X(p[0]) + "," + Y(p[1])).join(" ");
+      push(<polygon key={`bn${bi}`} points={s}
+        fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="2.4" clipPath={clipSelf(s)} />);
       const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3;
       push(<text key={`bnt${bi}`} x={X(cx)} y={Y(cy) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT}>{inch(f.a) + '"'}</text>);
       return;
     }
     const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CADD : 0;
-    push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
-      fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
+    const bw = round2(f.w * sc), bh = round2(f.d * sc + out * sc);
+    push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={bw} height={bh}
+      fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="2.4" clipPath={clipSelf(boxPts(X(f.x), Y(f.y), bw, bh))} />);
     if (b.build === "framed" && !framedFit) {
       // wall to wall along the PAN — short of the line when the curb is inside it
       const yPan = rd - (o.inset && o.inset.entry > 0 ? o.inset.entry : 0);
@@ -1055,20 +1074,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     // engine's ext0/ext1 fill the open ring corners, drawn as a MITER so two
     // runs meeting there share one 45° line, and a cut corner's curb takes the
     // one straight line across.
-    // An SVG stroke sits CENTRED on its path, so half of the curb's 1-unit
-    // outline painted OUTSIDE the curb — past the wall it butts into and past
-    // its own outer face — which is what read as the curb sticking past the
-    // walls (owner 2026-08-03) even with the geometry flush. Clipping each band
-    // to itself keeps every drop of paint inside the part: the band now ends
-    // exactly where the curb does, and the line lands lighter into the bargain,
-    // which was the other half of the same complaint.
-    push(<defs key="cbdefs">{planBands.map((b) => (
-      <clipPath key={b.ci} id={`${uid}cb${b.ci}`}>
-        <polygon points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")} />
-      </clipPath>))}</defs>);
     planBands.forEach((b) => {
-      push(<polygon key={`cb${b.ci}`} points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
-        fill="#E9E3D3" stroke={MUTED} strokeWidth="1.6" strokeLinejoin="round" clipPath={`url(#${uid}cb${b.ci})`} />);
+      const pts = bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ");
+      push(<polygon key={`cb${b.ci}`} points={pts}
+        fill="#E9E3D3" stroke={MUTED} strokeWidth="1.6" strokeLinejoin="round" clipPath={clipSelf(pts)} />);
       if (!(b.len * sc > 34)) return;
       const mid = (b.lo + b.hi) / 2, cross = (b.c0 + b.c1) / 2;
       if (b.horiz) {

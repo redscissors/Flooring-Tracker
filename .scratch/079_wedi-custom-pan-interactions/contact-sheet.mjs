@@ -41,6 +41,32 @@ await pg.locator(".wallrow .wname", { hasText: "Right" }).click();
 await pg.waitForTimeout(900);
 await take(5, "Curbed · right wall OFF", "the curb turns the corner and runs the right edge as well");
 
+// a bench, in both size modes — it rides out to the curb's face like a wall does
+await pg.locator(".wallrow .wname", { hasText: "Right" }).click();
+await pg.waitForTimeout(700);
+const at = (fx, fy) => pg.evaluate(([px, py]) => {
+  const s = document.querySelector(".diagcol svg");
+  const p = [...s.querySelectorAll("rect")].find((e) => e.getAttribute("fill") === "#DCE5CD");
+  const r = s.getBoundingClientRect(), k = r.width / s.viewBox.baseVal.width;
+  return [r.left + (+p.getAttribute("x") + +p.getAttribute("width") * px) * k,
+    r.top + (+p.getAttribute("y") + +p.getAttribute("height") * py) * k];
+}, [fx, fy]);
+const [bx, by] = await at(0.10, 0.45);
+await pg.mouse.move(bx, by);
+await pg.waitForTimeout(300);
+await pg.mouse.click(bx, by);
+await pg.waitForTimeout(600);
+await pg.locator(".wedi-benchmenu .bm-opt").first().click();
+await pg.waitForTimeout(900);
+await pg.mouse.move(4, 4);            // off the drawing, or the hover preview tints it
+await pg.waitForTimeout(400);
+await take(6, "Curbed · 2″ bench on the left wall", "the bench runs out over the curb to its outer face, like the walls");
+await pg.locator(".rseg button", { hasText: "Max — curb inside" }).click();
+await pg.waitForTimeout(1100);
+await pg.mouse.move(4, 4);
+await pg.waitForTimeout(300);
+await take(7, "Same bench · Max — curb inside", "pan cut to 34½\", and bench + curb + walls all finish on the stated line");
+
 await pg.close();
 await b.close();
 
