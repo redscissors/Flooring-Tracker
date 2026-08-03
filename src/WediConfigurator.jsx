@@ -44,6 +44,43 @@ const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? M
 const WEDI_DESIGN_W = 1420;
 const WEDI_ZOOM_FLOOR = 0.66;
 
+// The drawings rail. The two SVGs were fixed at 328 × 268 and 328 × 306 and
+// rendered width:100%, so on a wide monitor they grew taller than the column
+// and the isometric fell off the bottom — a scroll to see the drawing you just
+// changed. They now fit the rail's measured box: their natural proportions
+// while both fit, then the height split 268:306 down to the floors, below
+// which the rail scrolls as it always did. RAIL_PAD_* mirror .diagcol's
+// padding; RAIL_HINT_H is the add-a-wall chip that pushes them down.
+const RAIL_DESIGN_W = 328, RAIL_PLAN_H = 268, RAIL_ISO_H = 306;
+const RAIL_PAD_X = 24, RAIL_PAD_Y = 24, RAIL_GAP = 10, RAIL_HINT_H = 34;
+const RAIL_MIN_W = 240, RAIL_MIN_PLAN = 210, RAIL_MIN_ISO = 240;
+// Only the HEIGHT gives, and it gives in the drawing's own units, not pixels:
+// the 328-wide viewBox still stretches to the column, so a callout set at 8.5
+// units reads exactly as large as it did before. Handing over measured pixels
+// instead would have pinned the type at 8.5px and shrunk every label on the
+// widest monitors — the drawings would fit and stop being readable.
+function railSplit(box, hinted) {
+  const k = box.w / RAIL_DESIGN_W;
+  let plan = RAIL_PLAN_H, iso = RAIL_ISO_H;
+  const room = (box.h - RAIL_GAP - (hinted ? RAIL_HINT_H : 0)) / k;
+  if (box.h > 0 && plan + iso > room) {
+    const share = Math.max(room, RAIL_MIN_PLAN + RAIL_MIN_ISO);
+    plan = Math.max(RAIL_MIN_PLAN, Math.round(share * RAIL_PLAN_H / (RAIL_PLAN_H + RAIL_ISO_H)));
+    iso = Math.max(RAIL_MIN_ISO, Math.round(share - plan));
+  }
+  return { w: RAIL_DESIGN_W, plan, iso };
+}
+
+// Tile thickness comes off a tape measure, not a calculator, so "3/8", "1/4"
+// and "1 1/16" parse alongside 0.375 — and the box shows what it read back, so
+// a mistyped fraction is visible before it moves the curb.
+const parseIn = (v) => {
+  const s = String(v == null ? "" : v).trim().replace(/["\u2033]/g, "");
+  const m = /^(?:(\d+)\s+)?(\d+)\s*\/\s*(\d+)$/.exec(s);
+  const n = m ? (+m[1] || 0) + (+m[3] ? +m[2] / +m[3] : 0) : +s;
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : 0;
+};
+
 // Kits list (issue 075). Sizes lead in FEET because that is how a shower gets
 // asked for; the inches follow for the tape measure.
 const ftIn = (n) => {
@@ -143,29 +180,38 @@ const CSS = `
    · Walls is a MULTI-select. Drawn as a segment, three toggles merged into one
      unbroken bar when all three were on; as ticked chips it reads as three
      switches, which is what it is. */
-.wedi-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:8px;margin-bottom:14px}
-.wedi-pop .rfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:6px}
-.wedi-pop .rfgrp{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:8px;padding:5px 8px 7px}
-.wedi-pop .rfgrp > .h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ft-brand-deep);margin-bottom:4px}
-.wedi-pop .rfflow{display:flex;flex-wrap:wrap;gap:7px 10px}
-.wedi-pop .rf{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.wedi-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:5px;margin-bottom:10px}
+/* Flex, not a grid of equal tracks (2026-08-03): three equal columns left the
+   Walls group alone on a second row with a dead cell beside it, and equal
+   tracks starved Size & curb — the one group with four fields — into stacking
+   them while Drain sat half empty. Walls now spans the row it starts, and the
+   two field groups split what's left in proportion to what they hold. */
+.wedi-pop .rfgrid{display:flex;flex-wrap:wrap;gap:5px}
+.wedi-pop .rfgrp{flex:1 1 232px;min-width:0;background:var(--ft-card);border:1px solid var(--ft-border);border-radius:8px;padding:4px 7px 5px}
+.wedi-pop .rfgrp.wide{flex-grow:1.35}
+.wedi-pop .rfgrp.span{flex-basis:100%}
+.wedi-pop .rfgrp > .h{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--ft-brand-deep);margin-bottom:3px}
+.wedi-pop .rfflow{display:flex;flex-wrap:wrap;gap:5px 9px}
+.wedi-pop .rf{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.wedi-pop .rf.dim{opacity:.45}
 .wedi-pop .rf label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
-.wedi-pop .rf .dims{display:flex;align-items:center;gap:6px}
+.wedi-pop .rf .dims{display:flex;align-items:center;gap:5px}
 .wedi-pop .rf .dims span{font-size:12px;color:var(--ft-faint);font-weight:700}
-.wedi-pop .rinp{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);color:var(--ft-text);font-size:12.5px;font-weight:700;padding:4px 6px;width:48px}
+.wedi-pop .rinp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:12.5px;font-weight:700;padding:3px 5px;width:46px}
+.wedi-pop .rinp.tin{width:62px}
 .wedi-pop .rinp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
-.wedi-pop .rseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:var(--ft-card)}
-.wedi-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:4px 10px;cursor:pointer;white-space:nowrap}
+.wedi-pop .rseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
+.wedi-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:3px 8px;cursor:pointer;white-space:nowrap}
 .wedi-pop .rseg button + button{border-left:1px solid var(--ft-border)}
 .wedi-pop .rseg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
 .wedi-pop .rseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
-.wedi-pop .rchips{display:flex;flex-wrap:wrap;gap:5px}
-.wedi-pop .rchip{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:4px 6px;cursor:pointer;display:flex;align-items:center;gap:3px}
+.wedi-pop .rchips{display:flex;flex-wrap:wrap;gap:4px}
+.wedi-pop .rchip{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:3px 6px;cursor:pointer;display:flex;align-items:center;gap:3px}
 .wedi-pop .rchip:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
 .wedi-pop .rchip.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;border-color:var(--ft-brand);box-shadow:inset 0 0 0 .5px var(--ft-brand)}
 .wedi-pop .rchip .tick{font-size:10px;line-height:1;opacity:.35}
 .wedi-pop .rchip.on .tick{opacity:1}
-.wedi-pop .rfgrp > .rowh{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.wedi-pop .rfgrp > .rowh{display:flex;align-items:center;gap:8px;margin-bottom:1px}
 .wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
 .wedi-pop .rclear:hover{background:var(--ft-hover-red);color:var(--w-rust);border-color:#E3B9A8}
 .wedi-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px}
@@ -230,7 +276,7 @@ const CSS = `
 .wedi-pop .stepper .q.zero{color:var(--ft-faint);font-weight:600}
 .wedi-pop .more{font-size:11px;color:var(--ft-faint);padding:8px 4px}
 
-.wedi-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;padding:10px 12px 14px;order:3}
+.wedi-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;scrollbar-gutter:stable;padding:10px 12px 14px;order:3}
 .wedi-pop .diagcol .dc-h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);margin:4px 0}
 .wedi-pop .diagcol .dc-h:first-child{margin-top:0}
 .wedi-pop .diagcol svg{display:block;width:100%;height:auto;background:var(--w-paper);border:1px solid var(--ft-border);border-radius:8px}
@@ -604,11 +650,13 @@ function curbBands(curbs, rw, rd, inset, cw) {
     const len = Math.min(cs.len, (horiz ? rw : rd) - cs.from);
     if (!(len > 0)) return;
     // "overall max": the curb sits inside the stated line — the pan gave up
-    // exactly `add`, so the band runs from the line in — and no corner miters.
+    // `add` plus the tile thickness, so the band starts that tile off the line
+    // (the finished face lands ON it) — and no corner miters.
     const inEdge = !!(inset && inset[cs.side] > 0);
+    const tin = inEdge ? (inset.tile || 0) : 0;
     const c0 = horiz
-      ? (cs.side === "back" ? (inEdge ? 0 : -add) : rd - (inEdge ? cw : CURB_LAP))
-      : (cs.side === "left" ? (inEdge ? 0 : -add) : rw - (inEdge ? cw : CURB_LAP));
+      ? (cs.side === "back" ? (inEdge ? tin : -add) : rd - (inEdge ? cw + tin : CURB_LAP))
+      : (cs.side === "left" ? (inEdge ? tin : -add) : rw - (inEdge ? cw + tin : CURB_LAP));
     const lo = cs.from, hi = cs.from + len;
     let mLo, mHi;
     if (horiz) { mLo = !inEdge && cs.ext0 > 0; mHi = !inEdge && cs.ext1 > 0; }
@@ -943,7 +991,7 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<line key="dd" x1={dx} y1={Y(0)} x2={dx} y2={Y(rd)} stroke={FAINT} strokeWidth="1" />);
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
-    push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? CADD : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
+    push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? o.inset.entry : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
   }
 
   // Bench zones. The tight 10" corner radius keeps the corner-CUT toggle;
@@ -1433,12 +1481,13 @@ function seedState(seed) {
   const s = {
     tab: "kits", inp: { ...DEF_INP }, q: "", panKey: null, opts: { ...DEF_OPTS },
     addons: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
-    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false,
+    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false, tileT: "",
   };
   if (!seed) return s;
   const cfg = seed.cfg;
   if (cfg && cfg.panKey) {
     s.maxIn = !!cfg.maxIn;
+    s.tileT = +cfg.tileT > 0 ? String(+cfg.tileT) : "";
     s.tab = seed.mode === "custom" ? "custom" : seed.mode === "browse" ? "browse" : "kits";
     s.panKey = cfg.panKey;
     s.opts = {
@@ -1490,6 +1539,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // footprint — every fully open edge pulls its curb inside the line and
   // the pan space gives up (curb width − the ½" pan lap).
   const [maxIn, setMaxIn] = useState(!!s0.maxIn);
+  // What the finished tile adds on the curb's outer face. Only "overall max"
+  // has a line the shower may not cross, so it is only there that the tile
+  // costs pan space — in "pan size" mode it lands outside the stated numbers.
+  const [tileT, setTileT] = useState(s0.tileT);
+  const tileIn = parseIn(tileT);
   const [walls, setWalls] = useState(s0.walls);
   const [extraWalls, setExtraWalls] = useState(s0.extraWalls);
   const wallSeq = useRef(s0.wallSeq);
@@ -1526,6 +1580,30 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return () => ro.disconnect();
   }, [embedded]);
   const uiZoom = fit.zoom;
+
+  // The drawings rail sizes its two SVGs to the column instead of running off
+  // the bottom of it (owner ask 2026-08-03). Both drawings already lay
+  // themselves out inside whatever box they're handed, so the rail measures
+  // itself and railSplit turns that into the height each one gets. Below the
+  // floors it goes back to scrolling — a laptop viewport shouldn't shrink a
+  // shower to a postage stamp to avoid a scrollbar. The column width never
+  // changes: the three columns keep their equal share whatever the drawings do.
+  const railRef = useRef(null);
+  const [railBox, setRailBox] = useState({ w: RAIL_DESIGN_W, h: 0 });
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const on = () => {
+      const w = Math.max(RAIL_MIN_W, Math.floor(el.clientWidth - RAIL_PAD_X));
+      const h = Math.max(0, Math.floor(el.clientHeight - RAIL_PAD_Y));
+      setRailBox((p) => (p.w === w && p.h === h ? p : { w, h }));
+    };
+    on();
+    const ro = new ResizeObserver(on);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const railFit = useMemo(() => railSplit(railBox, placing), [railBox, placing]);
 
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");      // "", "starred", or a BROWSE_SECTIONS key
@@ -1712,7 +1790,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
         addons: addons.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
-        mode: option ? "custom" : "kit", maxIn: maxIn,
+        mode: option ? "custom" : "kit", maxIn: maxIn, tileT: tileIn,
       });
       if (!b) return null;
       let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
@@ -1744,7 +1822,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       return { pan: null, lines, panelSf: 0, factory: null, hints, mode: "browse", cfg: {}, soNet };
     }
     return null;
-  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn]);
+  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn]);
 
   // The live { mode, cfg } upward, in seed shape, so App's ft-open-layer
   // restore reopens mid-configuration rather than on the original seed.
@@ -1817,6 +1895,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     else {
       setInp({ ...DEF_INP });
       setMaxIn(false);
+      setTileT("");
       setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51 }));
     }
   };
@@ -1834,7 +1913,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!maxOn || i.curb === "curbless" || opts.curbKey === null) return null;
     const wl = walls.filter((x) => x.on).map((x) => ({ side: x.id, len: +x.len || (x.id === "back" ? +i.w || 0 : +i.d || 0) }));
     extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0 }));
-    return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60);
+    return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60, tileIn);
   };
   const solveRoom = (i, maxOn) => {
     const ins = insetFor(i, maxOn);
@@ -1912,10 +1991,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panSwapped]);
 
-  // With "overall max" on, the walls and the curb pick shape the pan space —
-  // re-fit the option cards when they change, without wiping the build.
+  // With "overall max" on, the walls, the curb pick and the tile thickness
+  // shape the pan space — re-fit the option cards when they change, without
+  // wiping the build.
   const insetSigOf = (maxOn) => (maxOn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge),
-    opts.curbKey === undefined ? "" : opts.curbKey]) : "");
+    opts.curbKey === undefined ? "" : opts.curbKey, tileIn]) : "");
   const insetSig = insetSigOf(maxIn);
   const insetSeen = useRef(insetSig);
   useEffect(() => {
@@ -2212,11 +2292,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
 
   const customTab = (() => {
     const sel = option && results.includes(option) ? option : null;
+    const tileEats = maxIn && inp.curb !== "curbless";
     return (
       <>
         <div className="roomform">
           <div className="rfgrid">
-            <div className="rfgrp">
+            <div className="rfgrp wide">
               <div className="h">Size &amp; curb</div>
               <div className="rfflow">
                 <div className="rf"><label>Shower size</label>
@@ -2232,6 +2313,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     {["curbed", "curbless"].map((v) => (
                       <button key={v} className={inp.curb === v ? "on" : ""} onClick={() => setInput({ curb: v })}>{v[0].toUpperCase() + v.slice(1)}</button>
                     ))}
+                  </div>
+                </div>
+                <div className={"rf" + (tileEats ? "" : " dim")} title={tileEats
+                  ? "what the finished tile adds on the curb's outer face — the curb steps that much further inside the stated line so the tiled face lands on it"
+                  : inp.curb === "curbless"
+                    ? "a curbless shower has no curb face to tile — nothing to hold back"
+                    : 'only bites on "Max — curb inside": with the numbers read as the pan, the curb and its tile land outside them'}>
+                  <label>Tile thickness</label>
+                  <div className="dims">
+                    <NumIn className="rinp tin" placeholder="0 or 3/8" value={tileT}
+                      onCommit={(v) => { const n = parseIn(v); setTileT(n ? String(n) : ""); }} />
+                    <span>in</span>
                   </div>
                 </div>
                 <div className="rf"><label>Sizes are</label>
@@ -2271,7 +2364,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 </div>
               </div>
             </div>
-            <div className="rfgrp">
+            <div className="rfgrp span">
               <div className="h rowh">Walls
                 <button className="rclear" data-wedi-clear
                   title="wipe the build — walls, cuts, parts — and reset this form"
@@ -2706,13 +2799,13 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   })();
 
   const diagRail = (
-    <div className="diagcol">
+    <div className="diagcol" ref={railRef}>
       {!diag ? (<>
         <div className="dc-h">The shower</div>
         <div className="dc-empty">Pick a pan or solve a custom shower — the drawings render here for whatever is selected.</div>
       </>) : (<>
         {placing && <div className="dc-hint">Click an edge to add a wall — an open corner toggles a corner cut</div>}
-        <TopDown o={drawDiag} w={328} h={268} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
+        <TopDown o={drawDiag} w={railFit.w} h={railFit.plan} wallOn={wallOnMap} dWalls={dWalls} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
           cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} placing={placing}
           onBenchMenu={(z, x, y) => setBenchMenu({ ...z, x, y })}
@@ -2732,7 +2825,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             setPlacing(false);
             say("Wall added on the " + edge + " side — set its length and height in the Walls group");
           }} />
-        <Iso o={drawDiag} w={328} h={306} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
+        <Iso o={drawDiag} w={railFit.w} h={railFit.iso} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
           cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />

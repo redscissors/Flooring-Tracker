@@ -4415,12 +4415,22 @@ export function curbWidth(key) {
 // Per-edge inset when the stated dims are the overall footprint. Only an
 // edge with NO wall at all pulls its curb in (a partially walled edge keeps
 // the curb in the ring — v1); curbless builds inset nothing.
-export function curbInsets(dims, walls, curbKey) {
+//
+// `tile` is the finish thickness that lands on the curb's outer face (owner,
+// 2026-08-03). The stated footprint is what the shower may not exceed, so the
+// tile has to come out of it too: the curb steps that much further inside the
+// line and the pan gives it up along with the curb's own width. It rides on
+// the returned object so the drawings can hold the curb off the line by the
+// same amount.
+export function curbInsets(dims, walls, curbKey, tile) {
   if (!curbKey) return null;
   const cov = openEdges(dims, walls).cov;
-  const ins = round2(curbWidth(curbKey) - CURB_LAP);
+  const t = Math.max(0, +tile || 0);
+  // 1/1000", not round2: tile arrives in odd eighths (⅜ = .375) and rounding
+  // those to the hundredth is a rounding no tape measure asked for.
+  const ins = Math.round((curbWidth(curbKey) - CURB_LAP + t) * 1000) / 1000;
   const at = (side) => (cov[side] < 0.5 ? ins : 0);
-  const o = { back: at("back"), left: at("left"), right: at("right"), entry: at("entry"), cw: curbWidth(curbKey) };
+  const o = { back: at("back"), left: at("left"), right: at("right"), entry: at("entry"), cw: curbWidth(curbKey), tile: t };
   return o.back || o.left || o.right || o.entry ? o : null;
 }
 
@@ -5054,7 +5064,7 @@ export function kitFor(panKey, opts) {
     benches: benches.map((b) => ({ ...b })),
     corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
-    maxIn: !!opts.maxIn,
+    maxIn: !!opts.maxIn, tileT: Math.max(0, +opts.tileT || 0),
     tier: opts.tier || "retail",
   };
 

@@ -327,6 +327,12 @@ src/
                     # EVERY tab and nothing moves when you switch surfaces; the
                     # build column's own content still floors it near 567px once
                     # a kit is loaded, which is the one place the split shifts.
+                    # The rail sizes both drawings to its own measured box
+                    # (railSplit) so they fit the column without scrolling on a
+                    # big monitor: the 328-wide viewBox still stretches to the
+                    # full width — type keeps its apparent size — and only the
+                    # HEIGHT gives, split 268:306 down to a floor below which
+                    # the rail scrolls as before. The column width never moves.
                     # The rail draws a to-scale top-down (4"-thick wall
                     # bands, panel-seam ticks, square drains, dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan —
@@ -352,7 +358,14 @@ src/
                     # to the stock kit. The custom form's "Sizes are — Pan size |
                     # Max — curb inside" toggle re-fits like the wall/curb changes
                     # do — re-solve, re-pick the equivalent option, benches and
-                    # add-ons left standing — it never wipes the build. Opened from a row's
+                    # add-ons left standing — it never wipes the build. Beside
+                    # it sits "Tile thickness" (owner 2026-08-03): the finish
+                    # that lands on the curb's OUTER face, which the stated
+                    # footprint has to cover too, so `curbInsets` steps the curb
+                    # that much further inside the line and the pan gives up
+                    # curb width + tile. It only bites in max mode on a curbed
+                    # shower — elsewhere the curb and its tile land outside the
+                    # numbers — and reads fractions ("3/8") as well as decimals. Opened from a row's
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines.

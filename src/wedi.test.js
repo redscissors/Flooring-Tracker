@@ -978,7 +978,7 @@ test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fi
   assert.equal(curbWidth(SKU.curbLean60), 2, 'a lean curb is 2" across the top');
   assert.equal(curbWidth("US3000039"), 4.5, 'a full-foam curb is 4½" across');
   const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60);
-  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 1.5, cw: 2 },
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 1.5, cw: 2, tile: 0 },
     "three walls: the entry gives up curb width minus the ½\" pan lap — the lean adds 1½\"");
   assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60), null,
     "fully walled: nothing to inset");
@@ -998,6 +998,34 @@ test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fi
   const plain = kitFor("US9100004", { walls: threeWallsB });
   assert.equal(k.panelSf, plain.panelSf,
     "wall wedi figures to the stated line (the curb's front face) — never extra for the curb");
+});
+
+test("wedi 'overall max': tile thickness holds the curb off the stated line", () => {
+  // Owner ask 2026-08-03: the stated footprint is what the shower may not
+  // exceed, so the tile that finishes the curb's outer face has to come out
+  // of it too — the curb steps in by its own width plus the tile, and the pan
+  // gives up both. A 36"-deep max shower with the lean curb and ⅜" tile runs
+  // a 34⅛" pan, not 34½".
+  const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60, 0.375);
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 1.875, cw: 2, tile: 0.375 },
+    "entry gives up the curb (1½\") plus the tile (⅜\")");
+  const sub = solve({ w: 60, d: 34.125, curb: "curbed", drain: "center", tolerance: 0.51 });
+  assert.ok(sub.length, "the reduced 60×34.125 room still solves");
+  const o = applyCurbInset(sub[0], ins, roomB);
+  assert.deepEqual(o.room, { w: 60, d: 36 }, "the option still reads the full stated footprint");
+  assert.ok(o.pieces.every((p) => p.y + p.d <= 34.13), "every piece stops short of the tiled curb");
+  assert.equal(o.inset.tile, 0.375, "the tile rides along so the drawings hold the curb off the line");
+  // Only the edges that actually carry a curb pay for it.
+  assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60, 0.5), null,
+    "fully walled: no curb face to tile, nothing to inset");
+  // A standard 4½" curb adds 4" of its own before the tile.
+  assert.equal(curbInsets(roomB, threeWallsB, "US3000039", 0.5).entry, 4.5,
+    "full-foam curb: 4\" of curb + ½\" of tile");
+  assert.equal(curbInsets(roomB, threeWallsB, SKU.curbLean60, -3).entry, 1.5,
+    "a negative thickness is ignored, never a curb pushed back out over the line");
+  const k = kitFor("US9100004", { option: o, walls: threeWallsB, maxIn: true, tileT: 0.375 });
+  assert.equal(k.cfg.tileT, 0.375, "cfg carries the thickness for Reconfigure");
+  assert.equal(kitFor("US9100004", { walls: threeWallsB }).cfg.tileT, 0, "…and defaults to none");
 });
 
 test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {
