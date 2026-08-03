@@ -353,13 +353,21 @@ src/
                     # walls butt it; at the FRONT it inverts — the side wall
                     # carries all the way forward and the front wall butts
                     # against it, the continuous member on a real frame (owner
-                    # 2026-08-03) — and a band carries out to the CURB's outer
-                    # face wherever a curb run turns that corner, since the curb
-                    # butts into the wall and stopping on the pan line left the
-                    # wall reading short (owner 2026-08-03); the reach is read off
-                    # the curb's own bands, so a lean curb asks 1½" where a
-                    # standard one asks 4" and an "overall max" curb — inside the
-                    # line — asks nothing — panel-seam ticks, square drains,
+                    # 2026-08-03) — and a run carries out to the CURB's finished
+                    # face wherever a curb turns that corner, because the curb
+                    # butts into the wall: "the walls should always be flush with
+                    # the curb / curb and tile thickness" (owner 2026-08-03).
+                    # `curbCornerOut` is the ONE place that reach is figured and
+                    # BOTH drawings read it, so they cannot drift apart again; it
+                    # comes off the curb's own bands, so a lean curb asks 1½"
+                    # where a standard one asks 4", and an "overall max" curb asks
+                    # NOTHING — there the curb and the tile on its face sit inside
+                    # the stated line the wall already stands on, which is what
+                    # makes the wall flush with the TILED face. A run takes the
+                    # longer of the wall reach and the curb reach, so a corner
+                    # with both still draws one slab; with neither it stops on the
+                    # line (which retired the isometric's own 4" overhang into an
+                    # empty corner) — panel-seam ticks, square drains,
                     # dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan,
                     # pan hips aimed at the UNCUT pan's corners and clipped to

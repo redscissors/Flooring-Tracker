@@ -723,6 +723,30 @@ function curbBands(curbs, rw, rd, inset, cw) {
   });
   return out;
 }
+// How far a curb run reaches PAST the room line at each corner, taken off the
+// bands that actually draw. A curb butts into the wall at each end of its run,
+// so this is equally how far that wall has to carry to finish FLUSH with it
+// (owner 2026-08-03) — both drawings run off this one number, which is why they
+// can't drift apart again.
+//
+// It is the curb's own drawn face, finish and all: in the ring, its width less
+// the ½" it laps onto the pan; in "overall max", NOTHING — there the curb and
+// the tile on its outer face sit inside the stated line, which is the line the
+// wall already stands on, so they are flush without moving.
+function curbCornerOut(bands, rw, rd) {
+  const out = { bl: 0, br: 0, fl: 0, fr: 0 };
+  (bands || []).forEach((b) => {
+    const max = b.horiz ? rw : rd;
+    const past = b.side === "back" || b.side === "left" ? -b.c0
+      : b.c1 - (b.side === "entry" ? rd : rw);
+    if (!(past > 0)) return;
+    const k = b.side === "left" ? ["bl", "fl"] : b.side === "right" ? ["br", "fr"]
+      : b.side === "back" ? ["bl", "br"] : ["fl", "fr"];
+    if (b.lo <= 0.5) out[k[0]] = Math.max(out[k[0]], past);
+    if (b.hi >= max - 0.5) out[k[1]] = Math.max(out[k[1]], past);
+  });
+  return out;
+}
 // The band's plan outline: a rectangle, or a trapezoid where a corner miters.
 function bandPoly(b) {
   const [a0, a1] = b.eC0, [z0, z1] = b.eC1;
@@ -823,25 +847,11 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   const sideAt = reach(["left", "right"]);    // where a side wall stands
   const frontAt = reach(["entry"]);           // where a front wall stands
   const backAt = reach(["back"]);             // where the back wall stands
-  // A curb turns the corner OUTSIDE the room line — it adds (width − the ½"
-  // lap) of floor past the pan — and it butts into the wall at each end of its
-  // run. A band that stopped on the pan line therefore read short by exactly
-  // that overhang, with the curb running past it into open air (owner
-  // 2026-08-03). How far each corner is carried out comes off the curb's own
-  // bands, so a lean curb asks for 1½" where a standard one asks for 4" and an
-  // "overall max" curb — which sits inside the line — asks for nothing.
-  const curbOut = { bl: 0, br: 0, fl: 0, fr: 0 };
-  if (!mini) curbBands(curbs, rw, rd, o.inset, CW).forEach((b) => {
-    const max = b.horiz ? rw : rd;
-    const out = b.side === "back" || b.side === "left" ? -b.c0
-      : b.c1 - (b.side === "entry" ? rd : rw);
-    if (!(out > 0)) return;
-    const k = b.side === "left" ? ["bl", "fl"] : b.side === "right" ? ["br", "fr"]
-      : b.side === "back" ? ["bl", "br"] : ["fl", "fr"];
-    if (b.lo <= 0.5) curbOut[k[0]] = Math.max(curbOut[k[0]], out);
-    if (b.hi >= max - 0.5) curbOut[k[1]] = Math.max(curbOut[k[1]], out);
-  });
-  const outAt = (k) => round2(curbOut[k] * sc);
+  // A band that stopped on the pan line read short by the curb's own overhang,
+  // with the curb running past it into open air. Every wall now finishes flush
+  // with the curb it meets (curbCornerOut).
+  const curbOut = mini ? null : curbCornerOut(curbBands(curbs, rw, rd, o.inset, CW), rw, rd);
+  const outAt = (k) => (curbOut ? round2(curbOut[k] * sc) : 0);
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -1227,6 +1237,14 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
 
   els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
 
+  // The curb geometry is figured before the walls, not after: a wall runs out
+  // flush with the curb it meets, so the slabs need the bands to know where
+  // they end. Pan and curb still DRAW at their real heights further down.
+  const CBH = curbH || CURB_H_LEAN, CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
+  const insI = o.inset || null;
+  const bands = curbBands(curbs, rw, rd, insI, CW);
+  const curbOut = curbCornerOut(bands, rw, rd);
+
   // Where a wall's run sits on its edge. `at: "hi"` anchors it at the far end —
   // a half wall returning from the right side wall instead of the left.
   const runOf = (wl) => {
@@ -1252,23 +1270,35 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     return m;
   }, { bl: false, br: false, fl: false, fr: false });
   const backAt = reach(["back"]), sideAt = reach(["left", "right"]), frontAt = reach(["entry"]);
+  // A run reaches into a corner square where a perpendicular WALL fills it, and
+  // out to the curb's finished face where a curb runs into it instead — the
+  // longer of the two, so a wall meeting both still draws one slab (owner
+  // 2026-08-03, "the walls should always be flush with the curb"). With neither
+  // there it stops on the line rather than hanging over open air — the rule the
+  // plan already draws to, which this view had never picked up.
   const geomOf = (wl) => {
     const r = runOf(wl);
     const span = r.span;
     if (!(span > 0)) return null;
     const zh = Math.min(wl.h, 96);
+    const ext = (reaches, owns, k) => (!reaches ? 0 : Math.max(owns ? T : 0, curbOut[k]));
     if (wl.side === "back") {
       return { span, zh, y0: -T, y1: 0,
-        x0: r.from - (r.lo && sideAt.bl ? T : 0), x1: r.to + (r.hi && sideAt.br ? T : 0) };
+        x0: r.from - ext(r.lo, sideAt.bl, "bl"), x1: r.to + ext(r.hi, sideAt.br, "br") };
     }
-    // The front wall butts the side walls, so it never reaches into a corner.
-    if (wl.side === "entry") return { span, zh, x0: r.from, x1: r.to, y0: rd, y1: rd + T };
+    // The front wall butts the side walls, so it never reaches into a corner —
+    // but with no side wall standing there it still meets the curb.
+    if (wl.side === "entry") {
+      return { span, zh, y0: rd, y1: rd + T,
+        x0: r.from - ext(r.lo && !sideAt.fl, false, "fl"), x1: r.to + ext(r.hi && !sideAt.fr, false, "fr") };
+    }
     const left = wl.side === "left";
+    const kLo = left ? "bl" : "br", kHi = left ? "fl" : "fr";
     return {
       span, zh, butt: false,
       x0: left ? -T : rw, x1: left ? 0 : rw + T,
-      y0: r.from - (r.lo && !(left ? backAt.bl : backAt.br) ? T : 0),
-      y1: r.to + (r.hi && frontAt[left ? "fl" : "fr"] ? T : 0),
+      y0: r.from - ext(r.lo && !backAt[kLo], false, kLo),
+      y1: r.to + ext(r.hi, frontAt[kHi], kHi),
     };
   };
   // The face this camera reads as "the wall": the inner plane on the solid
@@ -1402,14 +1432,11 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // sections — the engine's ext0/ext1 fill the open ring corners so runs meet
   // square. The camera looks down (1,1,1): a back/left run is BEHIND the pan
   // and has to be painted before it, or its body floats over the pan surface.
-  const CBH = curbH || CURB_H_LEAN, CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
-  const insI = o.inset || null;
   // This camera only ever sees a band's +x face, its +y face and its top. On a
   // horizontal run that makes the +x face the run's END; on a vertical run it
   // is the long face and the +y face is the end. A mitered end has no square
   // face to draw — the neighbouring run's own faces close the corner — and the
   // long face stops at the joint, so nothing buried inside the miter is drawn.
-  const bands = curbBands(curbs, rw, rd, insI, CW);
   const curbEls = (b) => {
     const { horiz, c0, c1, hi, mHi, ci } = b;
     const [z0, z1] = b.eC1;

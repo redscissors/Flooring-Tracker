@@ -141,14 +141,38 @@ curbless · 3 back wall off · 4 max-curb-inside · 5 right wall off.
 `shoot-drawings.mjs` writes the same five as `shots/D-*.png`, whole and
 corner-cropped.
 
-**Standing suspicion, unconfirmed.** The isometric never got the corner
-treatment the plan did:
+**Confirmed by the owner:**
 
-- it does not carry a wall slab out to the curb's outer face, so after change 4
-  the two views disagree at the same corner — the plan's band reaches the curb,
-  the iso's slab still stops on the pan line;
-- it keeps a rule the plan dropped: a side wall extends `WALL_THICK` back over
-  open air when no back wall is there to meet it (`Iso` geomOf, `!backAt.bl`),
-  where the plan only reaches into a corner something actually fills (case 3b).
+> The walls should always be flush with the curb/ curb and tile thickness. The
+> drawings should reflect this
 
-Neither is touched yet — waiting on the owner to say which corner they mean.
+The suspicion was right — the **isometric** never got the corner treatment the
+plan did. `curbCornerOut(bands, rw, rd)` is now the one place the rule lives and
+BOTH views read it, so they cannot drift apart again. It returns how far the
+curb stands past the room line at each corner, taken off the bands that actually
+draw:
+
+| | the curb's drawn face | the wall |
+|---|---|---|
+| ring, lean curb | 1½" past the pan line | out 1½", flush |
+| ring, standard curb | 4" past | out 4", flush |
+| overall max | ON the stated line | AT the stated line, flush |
+| overall max + ⅜" tile | ⅜" inside the line, tile to the line | at the line — flush with the **finished** face |
+
+A run still reaches into a corner square where a perpendicular WALL fills it;
+the extension is now the **longer of that and the curb's reach**, so a wall
+meeting both still draws one slab. With neither there it stops on the line —
+which also drops the isometric's old overhang (`!backAt.bl` → `WALL_THICK` of
+slab hanging over open air where no back wall stood), bringing it onto the rule
+the plan already used.
+
+`check-flush.mjs` asserts it numerically across six configurations rather than by
+eye — every wall that a curb runs into reaches that curb's face, and the one
+surplus it reports is exactly the ⅜" tile.
+
+**Left alone, and worth a decision:** the tile thickness only applies in
+"overall max" (issue 078's owner rule — in pan-size mode the curb and its tile
+land outside the stated numbers, so the field is disabled there). The flush rule
+follows the curb's *drawn* face, so in pan-size mode the wall lands on the bare
+curb. If the tile should thicken the curb in pan-size mode too, that reverses
+078 and wants its own decision.
