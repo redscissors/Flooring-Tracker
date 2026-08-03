@@ -124,3 +124,31 @@ and drawing-click flows. Shots in `shots/`:
 
 891 unit tests pass. No engine (`wedi.js`) change — all four are
 `WediConfigurator.jsx`.
+
+## Follow-up (2026-08-03, owner)
+
+> There are still some drawings that need cleaned up, let me know if you need me
+> to explain the photos. also show how changes look
+
+Three ~16px crops — too small to identify the drawing, the corner or the fault,
+so the owner was asked to point rather than guessed at.
+
+`contact-sheet.mjs` builds `drawings.html` (regenerate it, it is not committed —
+1.2MB of embedded PNG): every wall/curb setup the rail draws, numbered **N**a =
+plan, **N**b = isometric, with the SVG lifted live out of the page so it stays
+sharp at any zoom, and the three UI changes underneath. 1 curbed alcove · 2
+curbless · 3 back wall off · 4 max-curb-inside · 5 right wall off.
+`shoot-drawings.mjs` writes the same five as `shots/D-*.png`, whole and
+corner-cropped.
+
+**Standing suspicion, unconfirmed.** The isometric never got the corner
+treatment the plan did:
+
+- it does not carry a wall slab out to the curb's outer face, so after change 4
+  the two views disagree at the same corner — the plan's band reaches the curb,
+  the iso's slab still stops on the pan line;
+- it keeps a rule the plan dropped: a side wall extends `WALL_THICK` back over
+  open air when no back wall is there to meet it (`Iso` geomOf, `!backAt.bl`),
+  where the plan only reaches into a corner something actually fills (case 3b).
+
+Neither is touched yet — waiting on the owner to say which corner they mean.
