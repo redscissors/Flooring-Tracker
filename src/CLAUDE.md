@@ -327,10 +327,32 @@ src/
                     # EVERY tab and nothing moves when you switch surfaces; the
                     # build column's own content still floors it near 567px once
                     # a kit is loaded, which is the one place the split shifts.
+                    # The rail sizes both drawings to its own measured box
+                    # (railSplit) so they fit the column without scrolling on a
+                    # big monitor: the 328-wide viewBox still stretches to the
+                    # full width — type keeps its apparent size — and only the
+                    # HEIGHT gives, split 268:306 down to a floor below which
+                    # the rail scrolls as before. The column width never moves.
                     # The rail draws a to-scale top-down (4"-thick wall
-                    # bands, panel-seam ticks, square drains, dashed cut edges,
-                    # drain callouts, corner cuts ghosting the full-size pan —
-                    # click an edge to add a wall, a corner to toggle a cut, and
+                    # bands that only reach into a corner some perpendicular
+                    # wall actually fills, exactly one slab claiming each corner
+                    # square: at the BACK the back wall runs through and the side
+                    # walls butt it; at the FRONT it inverts — the side wall
+                    # carries all the way forward and the front wall butts
+                    # against it, the continuous member on a real frame (owner
+                    # 2026-08-03) — panel-seam ticks, square drains,
+                    # dashed cut edges,
+                    # drain callouts, corner cuts ghosting the full-size pan,
+                    # pan hips aimed at the UNCUT pan's corners and clipped to
+                    # the material — the folds are moulded, a site cut doesn't
+                    # re-pitch them (owner 2026-08-03) —
+                    # click an edge to add a wall — which HALF of the edge you
+                    # click picks the END it returns from, since a wall is a RUN
+                    # with an end (`at: "lo"|"hi"`, wedi.js wallSpans) and not
+                    # just a length: a front half wall can come off either side
+                    # wall, and "both sides" is simply one at each end with the
+                    # walk-in left between them (owner 2026-08-03) — a corner to
+                    # toggle a cut, and
                     # hover the pan along a wall or into a corner for a BENCH
                     # zone — click/right-click opens the bench menu (issue 069):
                     # premades, 2" build-up, or framed with the pan cut/swapped,
@@ -352,7 +374,14 @@ src/
                     # to the stock kit. The custom form's "Sizes are — Pan size |
                     # Max — curb inside" toggle re-fits like the wall/curb changes
                     # do — re-solve, re-pick the equivalent option, benches and
-                    # add-ons left standing — it never wipes the build. Opened from a row's
+                    # add-ons left standing — it never wipes the build. Beside
+                    # it sits "Tile thickness" (owner 2026-08-03): the finish
+                    # that lands on the curb's OUTER face, which the stated
+                    # footprint has to cover too, so `curbInsets` steps the curb
+                    # that much further inside the line and the pan gives up
+                    # curb width + tile. It only bites in max mode on a curbed
+                    # shower — elsewhere the curb and its tile land outside the
+                    # numbers — and reads fractions ("3/8") as well as decimals. Opened from a row's
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines.

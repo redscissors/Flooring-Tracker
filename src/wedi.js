@@ -4371,19 +4371,60 @@ export function expandWallFaces(walls) {
 // left/right at the back end), so each edge's covered run starts there and
 // the open run is whatever remains toward the far corner. Curbs sit on these
 // runs, and a 45° corner cut only makes sense where they meet.
+// WHERE each wall sits along its edge, as merged covered intervals. A run is
+// anchored at the LOW end of its side by default — x = 0 on the back and entry,
+// y = 0 (the back) on a side wall — which is what every wall was before
+// 2026-08-03; `at: "hi"` puts it at the other end, so a half wall can return
+// from the right side wall instead of the left (owner ask). Two returns with a
+// walk-in gap between them are simply two walls, one at each end.
+const EDGE_MAX = (side, rw, rd) => (side === "left" || side === "right" ? rd : rw);
+function mergeSpans(list) {
+  const out = [];
+  list.slice().sort((a, b) => a[0] - b[0]).forEach((v) => {
+    const last = out[out.length - 1];
+    if (last && v[0] <= last[1] + 0.01) last[1] = Math.max(last[1], v[1]);
+    else out.push([v[0], v[1]]);
+  });
+  return out;
+}
+// The open complement of a side's covered intervals. Slivers under ½" are not
+// runs — the same tolerance the rest of the ring math uses.
+function gapSpans(spans, max) {
+  const out = [];
+  let u = 0;
+  spans.forEach((sp) => { if (sp[0] - u > 0.5) out.push([round2(u), round2(sp[0])]); u = Math.max(u, sp[1]); });
+  if (max - u > 0.5) out.push([round2(u), round2(max)]);
+  return out;
+}
+export function wallSpans(dims, walls) {
+  const rw = +dims.w || 0, rd = +dims.d || 0;
+  const out = { back: [], left: [], right: [], entry: [] };
+  (walls || []).forEach((w) => {
+    const max = EDGE_MAX(w.side, rw, rd);
+    if (!out[w.side] || !(max > 0)) return;
+    const len = Math.min(+w.len || 0, max);
+    if (!(len > 0.01)) return;
+    const from = w.at === "hi" ? round2(max - len) : 0;
+    out[w.side].push([from, round2(from + len)]);
+  });
+  Object.keys(out).forEach((k) => { out[k] = mergeSpans(out[k]); });
+  return out;
+}
+// Does a side carry wall right AT one of its ends? The corner tests used to
+// read this off `cov` alone, which only worked while every wall started at 0.
+export const spanAtLo = (spans) => !!(spans[0] && spans[0][0] <= 0.5);
+export const spanAtHi = (spans, max) => !!(spans.length && spans[spans.length - 1][1] >= max - 0.5);
+
 export function openEdges(dims, walls) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
+  const spans = wallSpans(dims, walls);
   const cov = { back: 0, left: 0, right: 0, entry: 0 };
-  (walls || []).forEach((w) => {
-    if (cov[w.side] == null) return;
-    cov[w.side] = Math.max(cov[w.side], +w.len || 0);
-  });
+  Object.keys(cov).forEach((k) => { cov[k] = round2(spans[k].reduce((t, sp) => t + (sp[1] - sp[0]), 0)); });
   const edges = [];
   [["back", rw], ["left", rd], ["right", rd], ["entry", rw]].forEach((e) => {
-    const c = Math.min(cov[e[0]], e[1]);
-    if (e[1] - c > 0.5) edges.push({ side: e[0], from: round2(c), len: round2(e[1] - c) });
+    gapSpans(spans[e[0]], e[1]).forEach((g) => edges.push({ side: e[0], from: g[0], len: round2(g[1] - g[0]) }));
   });
-  return { edges: edges, openLen: round2(edges.reduce((s, e) => s + e.len, 0)), cov: cov };
+  return { edges: edges, openLen: round2(edges.reduce((s, e) => s + e.len, 0)), cov: cov, spans: spans };
 }
 
 // Where the curb actually runs (owner sketches 2026-07-30): the open edge
@@ -4415,12 +4456,22 @@ export function curbWidth(key) {
 // Per-edge inset when the stated dims are the overall footprint. Only an
 // edge with NO wall at all pulls its curb in (a partially walled edge keeps
 // the curb in the ring — v1); curbless builds inset nothing.
-export function curbInsets(dims, walls, curbKey) {
+//
+// `tile` is the finish thickness that lands on the curb's outer face (owner,
+// 2026-08-03). The stated footprint is what the shower may not exceed, so the
+// tile has to come out of it too: the curb steps that much further inside the
+// line and the pan gives it up along with the curb's own width. It rides on
+// the returned object so the drawings can hold the curb off the line by the
+// same amount.
+export function curbInsets(dims, walls, curbKey, tile) {
   if (!curbKey) return null;
   const cov = openEdges(dims, walls).cov;
-  const ins = round2(curbWidth(curbKey) - CURB_LAP);
+  const t = Math.max(0, +tile || 0);
+  // 1/1000", not round2: tile arrives in odd eighths (⅜ = .375) and rounding
+  // those to the hundredth is a rounding no tape measure asked for.
+  const ins = Math.round((curbWidth(curbKey) - CURB_LAP + t) * 1000) / 1000;
   const at = (side) => (cov[side] < 0.5 ? ins : 0);
-  const o = { back: at("back"), left: at("left"), right: at("right"), entry: at("entry"), cw: curbWidth(curbKey) };
+  const o = { back: at("back"), left: at("left"), right: at("right"), entry: at("entry"), cw: curbWidth(curbKey), tile: t };
   return o.back || o.left || o.right || o.entry ? o : null;
 }
 
@@ -4447,17 +4498,24 @@ export function curbRuns(dims, walls, corners, benches) {
   // Does a perpendicular wall band occupy the ring corner? Vertical bands
   // reach the back corners whenever the wall exists at all, the entry
   // corners only when the wall runs the full depth.
+  const sp = open.spans;
   const wallFills = (corner) =>
-    corner === "bl" ? cov.left > 0.5 : corner === "br" ? cov.right > 0.5
-      : corner === "fl" ? cov.left >= rd - 0.5 : cov.right >= rd - 0.5;
+    corner === "bl" ? spanAtLo(sp.left) : corner === "br" ? spanAtLo(sp.right)
+      : corner === "fl" ? spanAtHi(sp.left, rd) : spanAtHi(sp.right, rd);
   // Per adjacent edge of each corner (h = along the back/entry edge, v =
   // along the left/right edge): the open run touching the corner (0 = walled
   // to it) and how much wall the edge carries.
+  const openAt = (side, end) => {
+    const max = side === "left" || side === "right" ? rd : rw;
+    const runs = open.edges.filter((e) => e.side === side);
+    const hit = end === "lo" ? runs.find((r) => r.from <= 0.5) : runs.find((r) => r.from + r.len >= max - 0.5);
+    return hit ? hit.len : 0;
+  };
   const touch = {
-    bl: { h: cov.back > 0.5 ? 0 : rw, v: cov.left > 0.5 ? 0 : rd, ch: cov.back, cv: cov.left },
-    br: { h: Math.max(0, rw - Math.min(cov.back, rw)), v: cov.right > 0.5 ? 0 : rd, ch: cov.back, cv: cov.right },
-    fl: { h: cov.entry > 0.5 ? 0 : rw, v: Math.max(0, rd - Math.min(cov.left, rd)), ch: cov.entry, cv: cov.left },
-    fr: { h: Math.max(0, rw - Math.min(cov.entry, rw)), v: Math.max(0, rd - Math.min(cov.right, rd)), ch: cov.entry, cv: cov.right },
+    bl: { h: openAt("back", "lo"), v: openAt("left", "lo"), ch: cov.back, cv: cov.left },
+    br: { h: openAt("back", "hi"), v: openAt("right", "lo"), ch: cov.back, cv: cov.right },
+    fl: { h: openAt("entry", "lo"), v: openAt("left", "hi"), ch: cov.entry, cv: cov.left },
+    fr: { h: openAt("entry", "hi"), v: openAt("right", "hi"), ch: cov.entry, cv: cov.right },
   };
   const leg = (run, covered, max) => Math.min(max, run > 0.5 && covered > 0.5 ? run : CORNER_CUT);
   // A diagonal's ends are squared to the edges (owner sketch 2026-07-30), so
@@ -4481,8 +4539,9 @@ export function curbRuns(dims, walls, corners, benches) {
     const horiz = e.side === "back" || e.side === "entry";
     const ends = ENDS[e.side];
     const legAt = (k) => (horiz ? diagOf[k].h : diagOf[k].v);
+    const eMax = horiz ? rw : rd;
     if (cut[ends[0]] && from <= 0.5) { const t = Math.min(legAt(ends[0]), len); from += t; len -= t; }
-    if (cut[ends[1]]) len -= Math.min(legAt(ends[1]), len);
+    if (cut[ends[1]] && from + len >= eMax - 0.5) len -= Math.min(legAt(ends[1]), len);
     if (len > 0.5) {
       // A horizontal run reaching an open ring corner extends CURB_W into it
       // (owner sketch): the curb butts the perpendicular run/wall square with
@@ -4522,14 +4581,13 @@ export function curbRuns(dims, walls, corners, benches) {
 // cut — the walls are standing on it. bl/br sit on the back, fl/fr on the entry.
 export function openCorners(dims, walls) {
   const rw = +dims.w || 0, rd = +dims.d || 0;
-  const cov = openEdges(dims, walls).cov;
-  const near = (c) => c > 0.5;
-  const far = (c, len) => c >= len - 0.5;
+  const sp = openEdges(dims, walls).spans;
+  const lo = spanAtLo, hi = spanAtHi;
   return {
-    bl: !(near(cov.back) && near(cov.left)),
-    br: !(far(cov.back, rw) && near(cov.right)),
-    fl: !(near(cov.entry) && far(cov.left, rd)),
-    fr: !(far(cov.entry, rw) && far(cov.right, rd)),
+    bl: !(lo(sp.back) && lo(sp.left)),
+    br: !(hi(sp.back, rw) && lo(sp.right)),
+    fl: !(lo(sp.entry) && hi(sp.left, rd)),
+    fr: !(hi(sp.entry, rw) && hi(sp.right, rd)),
   };
 }
 
@@ -5042,6 +5100,7 @@ export function kitFor(panKey, opts) {
   const cfgWalls = walls.map((w) => {
     const o = { len: w.len, h: w.h, side: w.side };
     if (w.extra) o.extra = true;
+    if (w.at === "hi") o.at = "hi";
     if (w.faces && w.faces !== "in") o.faces = w.faces;
     return o;
   });
@@ -5054,7 +5113,7 @@ export function kitFor(panKey, opts) {
     benches: benches.map((b) => ({ ...b })),
     corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
-    maxIn: !!opts.maxIn,
+    maxIn: !!opts.maxIn, tileT: Math.max(0, +opts.tileT || 0),
     tier: opts.tier || "retail",
   };
 

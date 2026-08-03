@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  openEdges, openCorners, curbRuns, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
+  openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
@@ -968,6 +968,48 @@ test("wedi benches: a framed bench's framing shadow leaves the wall figure", () 
   assert.equal(site.panelSf, plain.panelSf, "site-built: wall fully paneled behind the bench");
 });
 
+test("wedi half walls: an added run can return from either end, or both", () => {
+  // Owner ask 2026-08-03. A wall is no longer just a LENGTH on an edge — it is
+  // a run with an end, so a 24" half wall can return from the right side wall
+  // instead of the left, and "both sides" is simply one of each with the
+  // walk-in left between them.
+  const dims = { w: 60, d: 36 };
+  const three = [{ len: 60, h: 96, side: "back" }, { len: 36, h: 96, side: "left" }, { len: 36, h: 96, side: "right" }];
+  const loWall = { len: 24, h: 96, side: "entry", extra: true };
+  const hiWall = { len: 24, h: 96, side: "entry", extra: true, at: "hi" };
+
+  assert.deepEqual(wallSpans(dims, [loWall]).entry, [[0, 24]], "default: anchored at the left");
+  assert.deepEqual(wallSpans(dims, [hiWall]).entry, [[36, 60]], '"hi" anchors it at the right');
+
+  // The open run moves with it — the curb runs whatever is left, on the side
+  // the wall isn't.
+  assert.deepEqual(openEdges(dims, three.concat([loWall])).edges, [{ side: "entry", from: 24, len: 36 }],
+    "left-hand half wall → the entry opens on the right");
+  assert.deepEqual(openEdges(dims, three.concat([hiWall])).edges, [{ side: "entry", from: 0, len: 36 }],
+    "right-hand half wall → the entry opens on the left");
+  // Both ends: one walk-in gap in the middle, and the curb is that gap only.
+  const both = openEdges(dims, three.concat([loWall, hiWall]));
+  assert.deepEqual(both.edges, [{ side: "entry", from: 24, len: 12 }], "both ends leave a 12\" walk-in");
+  assert.equal(both.cov.entry, 48, "48\" of the entry carries wall");
+  const runs = curbRuns(dims, three.concat([loWall, hiWall]), []);
+  assert.equal(runs.segs.length, 1, "one curb run — the walk-in");
+  assert.equal(runs.segs[0].len, 12, "…12\" of it");
+  assert.equal(runs.segs[0].ext0, 0, "neither end reaches a ring corner, so no corner extension");
+  assert.equal(runs.segs[0].ext1, 0);
+
+  // Which entry corner a half wall closes follows the end it sits on.
+  assert.equal(openCorners(dims, three.concat([loWall])).fl, false, "left half wall closes the front-LEFT corner");
+  assert.equal(openCorners(dims, three.concat([loWall])).fr, true, "…and leaves the right one cuttable");
+  assert.equal(openCorners(dims, three.concat([hiWall])).fr, false, "right half wall closes the front-RIGHT corner");
+  assert.equal(openCorners(dims, three.concat([hiWall])).fl, true, "…and leaves the left one cuttable");
+
+  // Round-trip: the end rides the cfg like every other wall attribute.
+  const k = kitFor("US9100004", { walls: three.concat([hiWall]) });
+  assert.equal(k.cfg.walls.find((w) => w.side === "entry").at, "hi", "cfg carries the end for Reconfigure");
+  assert.equal(kitFor("US9100004", { walls: three.concat([loWall]) }).cfg.walls.find((w) => w.side === "entry").at,
+    undefined, "…and stays absent on the default end");
+});
+
 // --- curb inside the stated dims ("overall max", owner ask 2026-07-30) -------
 
 test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fits", () => {
@@ -978,7 +1020,7 @@ test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fi
   assert.equal(curbWidth(SKU.curbLean60), 2, 'a lean curb is 2" across the top');
   assert.equal(curbWidth("US3000039"), 4.5, 'a full-foam curb is 4½" across');
   const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60);
-  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 1.5, cw: 2 },
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 1.5, cw: 2, tile: 0 },
     "three walls: the entry gives up curb width minus the ½\" pan lap — the lean adds 1½\"");
   assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60), null,
     "fully walled: nothing to inset");
@@ -998,6 +1040,34 @@ test("wedi 'overall max': open-edge curbs pull inside the line and the pan re-fi
   const plain = kitFor("US9100004", { walls: threeWallsB });
   assert.equal(k.panelSf, plain.panelSf,
     "wall wedi figures to the stated line (the curb's front face) — never extra for the curb");
+});
+
+test("wedi 'overall max': tile thickness holds the curb off the stated line", () => {
+  // Owner ask 2026-08-03: the stated footprint is what the shower may not
+  // exceed, so the tile that finishes the curb's outer face has to come out
+  // of it too — the curb steps in by its own width plus the tile, and the pan
+  // gives up both. A 36"-deep max shower with the lean curb and ⅜" tile runs
+  // a 34⅛" pan, not 34½".
+  const ins = curbInsets(roomB, threeWallsB, SKU.curbLean60, 0.375);
+  assert.deepEqual(ins, { back: 0, left: 0, right: 0, entry: 1.875, cw: 2, tile: 0.375 },
+    "entry gives up the curb (1½\") plus the tile (⅜\")");
+  const sub = solve({ w: 60, d: 34.125, curb: "curbed", drain: "center", tolerance: 0.51 });
+  assert.ok(sub.length, "the reduced 60×34.125 room still solves");
+  const o = applyCurbInset(sub[0], ins, roomB);
+  assert.deepEqual(o.room, { w: 60, d: 36 }, "the option still reads the full stated footprint");
+  assert.ok(o.pieces.every((p) => p.y + p.d <= 34.13), "every piece stops short of the tiled curb");
+  assert.equal(o.inset.tile, 0.375, "the tile rides along so the drawings hold the curb off the line");
+  // Only the edges that actually carry a curb pay for it.
+  assert.equal(curbInsets(roomB, threeWallsB.concat([{ len: 60, h: 96, side: "entry" }]), SKU.curbLean60, 0.5), null,
+    "fully walled: no curb face to tile, nothing to inset");
+  // A standard 4½" curb adds 4" of its own before the tile.
+  assert.equal(curbInsets(roomB, threeWallsB, "US3000039", 0.5).entry, 4.5,
+    "full-foam curb: 4\" of curb + ½\" of tile");
+  assert.equal(curbInsets(roomB, threeWallsB, SKU.curbLean60, -3).entry, 1.5,
+    "a negative thickness is ignored, never a curb pushed back out over the line");
+  const k = kitFor("US9100004", { option: o, walls: threeWallsB, maxIn: true, tileT: 0.375 });
+  assert.equal(k.cfg.tileT, 0.375, "cfg carries the thickness for Reconfigure");
+  assert.equal(kitFor("US9100004", { walls: threeWallsB }).cfg.tileT, 0, "…and defaults to none");
 });
 
 test("wedi benches: framed 'smaller' re-solves the clear space with the drain centered", () => {
