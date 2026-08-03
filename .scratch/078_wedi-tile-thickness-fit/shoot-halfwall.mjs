@@ -1,6 +1,6 @@
-// The two drawings the owner asked to see after the wall-corner change:
-// the standard three-wall shower, then the same with a small half wall added
-// on the front (entry).
+// The front half wall through its four states (owner ask 2026-08-03): none,
+// returning from the left, from the right, and one on each end with the
+// walk-in between them.
 //   node .scratch/078_wedi-tile-thickness-fit/shoot-halfwall.mjs
 import { chromium } from "playwright";
 
@@ -24,21 +24,33 @@ const shot = async (tag) => {
   await pg.locator(".diagcol").screenshot({ path: `${OUT}/${tag}-rail.png` });
   await pg.locator(".diagcol svg").first().screenshot({ path: `${OUT}/${tag}-plan.png` });
   await pg.locator(".diagcol svg").nth(1).screenshot({ path: `${OUT}/${tag}-iso.png` });
-  const rows = (await pg.locator(".buildcol").innerText()).split("\n");
-  console.log(tag, "walls:", rows.filter((l) => /^(Back|Left|Right|Entry)$/.test(l.trim())).join(" "));
+  const rows = (await pg.locator(".buildcol").innerText()).split("\n").map((l) => l.trim());
+  console.log(tag.padEnd(16), "walls:", rows.filter((l) => /^(Back|Left|Right|Front|Entry)( |$)/.test(l)).join(" | "));
 };
 
-// A — the standard three-wall shower: back, left, right.
+// A — the standard three walls.
 await shot("std3");
 
-// B — the same plus a small half wall on the front. "+ Add wall" then a click
-// on the plan's entry edge; it lands at the 24" default.
-await pg.locator("button", { hasText: "Add wall" }).first().click();
-await pg.waitForTimeout(500);
-const box = await pg.locator(".diagcol svg").first().boundingBox();
-await pg.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.80);
-await pg.waitForTimeout(1200);
-await shot("halfwall");
+// Click the FAR half of the entry edge → a wall returning from the right.
+const addAt = async (frac) => {
+  await pg.locator("button", { hasText: "Add wall" }).first().click();
+  await pg.waitForTimeout(400);
+  const box = await pg.locator(".diagcol svg").first().boundingBox();
+  await pg.mouse.click(box.x + box.width * frac, box.y + box.height * 0.80);
+  await pg.waitForTimeout(1200);
+};
+
+await addAt(0.72);
+await shot("halfwall-right");
+
+// Flip it to the left end from the build column's wall row.
+await pg.locator(".wallrow .wname", { hasText: /Front|Entry/ }).first().click();
+await pg.waitForTimeout(1100);
+await shot("halfwall-left");
+
+// And a second one on the other end — both sides, walk-in in the middle.
+await addAt(0.72);
+await shot("halfwall-both");
 
 await pg.close();
 await b.close();

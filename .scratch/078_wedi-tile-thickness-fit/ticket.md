@@ -169,6 +169,41 @@ and the curb runs the opening. Nothing else moved; the isometric is untouched.
 `shoot-wall.mjs` → `walls-before-*` vs `wall-*` (the same added entry wall, with
 and without the side walls it returns from).
 
+## 6 — A half wall on either end, or both
+
+Owner, follow-up: *"The half wall should be able to go on either side and also
+have the option for a wall on both sides."*
+
+A wall was only ever a LENGTH on an edge — the engine assumed every run started
+at that edge's low end (x = 0 on the back/entry, the back on a side wall), so an
+added front wall could only return from the left. A wall is now a **run with an
+end**: `at: "lo" | "hi"`.
+
+- `wallSpans(dims, walls)` (new, exported) turns the wall list into merged
+  covered intervals per side. `openEdges` returns those `spans` alongside the
+  `cov` totals it always did, and its `edges` are now the open complement — so a
+  side can carry several open runs, which is exactly what two returns leave.
+- `curbRuns`/`openCorners` ask *which end* rather than *how much*: `spanAtLo`/
+  `spanAtHi` replace the `cov > 0.5` / `cov >= max − 0.5` tests, the corner-cut
+  legs read the open run touching each corner, and a far-end corner cut only
+  applies to the run that actually reaches it.
+- **Both sides is just two walls**, one at each end — no new mode. They can carry
+  different lengths, heights and wedi faces, and the walk-in is whatever is left
+  between them. 60 × 36 with a 24″ return on each end leaves one 12″ curb run.
+
+Every wall anchored "lo" spans `[0, len]` exactly as before, so this is a pure
+generalization — the 890 existing tests pass untouched, and `cfg.walls[].at` is
+only written when it is `"hi"`.
+
+UI: which HALF of the edge you click picks the end, so a right-hand return is
+one click. The wall's row in the build column names its end (`Front right`) and
+clicking the name flips it; its right-click menu has an **End** toggle plus a
+**Both ends** button that adds the mirror. Drawings offset every band, slab,
+seam tick and exposed-end marker by the run's start.
+
+`shoot-halfwall.mjs` → `std3`, `halfwall-right`, `halfwall-left`,
+`halfwall-both` (rail, plan and iso each).
+
 ## Proof
 
 `node .scratch/078_wedi-tile-thickness-fit/shoot.mjs before|after` and
@@ -183,6 +218,7 @@ prints the numbers in the tables above. Shots in `shots/`:
 - `gate-1…4` — the field through all four gate states
 - `hips-before|after-{1-rail,2-plan,3-iso}` — the 24 × 33 deep-cut repro
 - `walls-before-*` vs `wall-*` — an added entry wall, side walls on and off
+- `std3-*`, `halfwall-{right,left,both}-*` — the front half wall on each end
 
 ## Files
 
@@ -192,4 +228,7 @@ field, curbBands, railSplit, slopeMarks, CSS), `src/wedi.test.js` (+1 test,
 
 ## Still open
 
-Nothing.
+The owner also asked that "the side wall should look like the one i modified in
+the attached photo" — a marked-up isometric with the left wall's end face inked
+in solid black. Not acted on: several readings fit the mark and it is a purely
+cosmetic change to every drawing. Question back to them.

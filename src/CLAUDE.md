@@ -343,7 +343,13 @@ src/
                     # pan hips aimed at the UNCUT pan's corners and clipped to
                     # the material — the folds are moulded, a site cut doesn't
                     # re-pitch them (owner 2026-08-03) —
-                    # click an edge to add a wall, a corner to toggle a cut, and
+                    # click an edge to add a wall — which HALF of the edge you
+                    # click picks the END it returns from, since a wall is a RUN
+                    # with an end (`at: "lo"|"hi"`, wedi.js wallSpans) and not
+                    # just a length: a front half wall can come off either side
+                    # wall, and "both sides" is simply one at each end with the
+                    # walk-in left between them (owner 2026-08-03) — a corner to
+                    # toggle a cut, and
                     # hover the pan along a wall or into a corner for a BENCH
                     # zone — click/right-click opens the bench menu (issue 069):
                     # premades, 2" build-up, or framed with the pan cut/swapped,

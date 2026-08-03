@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
-  openEdges, openCorners, curbRuns, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
+  openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
@@ -966,6 +966,48 @@ test("wedi benches: a framed bench's framing shadow leaves the wall figure", () 
   const site = kitFor("US9100004", { walls: threeWallsB, benches: [{ kind: "wall", side: "left" }] });
   assert.ok(near(plain.panelSf - framed.panelSf, 4.5), "framed: 36×18 shadow leaves the wall sf");
   assert.equal(site.panelSf, plain.panelSf, "site-built: wall fully paneled behind the bench");
+});
+
+test("wedi half walls: an added run can return from either end, or both", () => {
+  // Owner ask 2026-08-03. A wall is no longer just a LENGTH on an edge — it is
+  // a run with an end, so a 24" half wall can return from the right side wall
+  // instead of the left, and "both sides" is simply one of each with the
+  // walk-in left between them.
+  const dims = { w: 60, d: 36 };
+  const three = [{ len: 60, h: 96, side: "back" }, { len: 36, h: 96, side: "left" }, { len: 36, h: 96, side: "right" }];
+  const loWall = { len: 24, h: 96, side: "entry", extra: true };
+  const hiWall = { len: 24, h: 96, side: "entry", extra: true, at: "hi" };
+
+  assert.deepEqual(wallSpans(dims, [loWall]).entry, [[0, 24]], "default: anchored at the left");
+  assert.deepEqual(wallSpans(dims, [hiWall]).entry, [[36, 60]], '"hi" anchors it at the right');
+
+  // The open run moves with it — the curb runs whatever is left, on the side
+  // the wall isn't.
+  assert.deepEqual(openEdges(dims, three.concat([loWall])).edges, [{ side: "entry", from: 24, len: 36 }],
+    "left-hand half wall → the entry opens on the right");
+  assert.deepEqual(openEdges(dims, three.concat([hiWall])).edges, [{ side: "entry", from: 0, len: 36 }],
+    "right-hand half wall → the entry opens on the left");
+  // Both ends: one walk-in gap in the middle, and the curb is that gap only.
+  const both = openEdges(dims, three.concat([loWall, hiWall]));
+  assert.deepEqual(both.edges, [{ side: "entry", from: 24, len: 12 }], "both ends leave a 12\" walk-in");
+  assert.equal(both.cov.entry, 48, "48\" of the entry carries wall");
+  const runs = curbRuns(dims, three.concat([loWall, hiWall]), []);
+  assert.equal(runs.segs.length, 1, "one curb run — the walk-in");
+  assert.equal(runs.segs[0].len, 12, "…12\" of it");
+  assert.equal(runs.segs[0].ext0, 0, "neither end reaches a ring corner, so no corner extension");
+  assert.equal(runs.segs[0].ext1, 0);
+
+  // Which entry corner a half wall closes follows the end it sits on.
+  assert.equal(openCorners(dims, three.concat([loWall])).fl, false, "left half wall closes the front-LEFT corner");
+  assert.equal(openCorners(dims, three.concat([loWall])).fr, true, "…and leaves the right one cuttable");
+  assert.equal(openCorners(dims, three.concat([hiWall])).fr, false, "right half wall closes the front-RIGHT corner");
+  assert.equal(openCorners(dims, three.concat([hiWall])).fl, true, "…and leaves the left one cuttable");
+
+  // Round-trip: the end rides the cfg like every other wall attribute.
+  const k = kitFor("US9100004", { walls: three.concat([hiWall]) });
+  assert.equal(k.cfg.walls.find((w) => w.side === "entry").at, "hi", "cfg carries the end for Reconfigure");
+  assert.equal(kitFor("US9100004", { walls: three.concat([loWall]) }).cfg.walls.find((w) => w.side === "entry").at,
+    undefined, "…and stays absent on the default end");
 });
 
 // --- curb inside the stated dims ("overall max", owner ask 2026-07-30) -------

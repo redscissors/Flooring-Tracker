@@ -777,25 +777,38 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   // too once it reached full length — so a run hung 4" out over open air where
   // no wall met it, and an added wall (drawn MOSS) painted over the grey side
   // wall it returns from.
-  const wallSpanOf = (side) => (dw || []).reduce((m, x) => (x.side === side
-    ? Math.max(m, Math.min(x.len, side === "left" || side === "right" ? rd : rw)) : m), 0);
-  // A side wall starts at the back, so it fills a BACK corner as soon as it
-  // exists at all; it only reaches an ENTRY corner by running the full depth.
-  const sideL = wallSpanOf("left"), sideR = wallSpanOf("right");
-  const meets = { bl: sideL > 0.5, br: sideR > 0.5, fl: sideL >= rd - 0.5, fr: sideR >= rd - 0.5 };
+  // A wall's run along its own edge. `at: "hi"` anchors it at the far end — the
+  // half wall returning from the RIGHT side wall rather than the left.
+  const runOf = (wl) => {
+    const max = wl.side === "left" || wl.side === "right" ? rd : rw;
+    const len = Math.min(wl.len, max);
+    const from = wl.at === "hi" ? round2(max - len) : 0;
+    return { max, len, from, lo: from <= 0.5, hi: from + len >= max - 0.5 };
+  };
+  // Which ring corners a SIDE wall reaches — what a back/entry run may carry
+  // through into. A side wall anchored at the back fills a back corner; one
+  // anchored at the entry fills an entry corner; a full-depth wall fills both.
+  const meets = (dw || []).reduce((m, x) => {
+    if (x.side !== "left" && x.side !== "right") return m;
+    const r = runOf(x);
+    if (!(r.len > 0.5)) return m;
+    const k = x.side === "left" ? ["bl", "fl"] : ["br", "fr"];
+    if (r.lo) m[k[0]] = true;
+    if (r.hi) m[k[1]] = true;
+    return m;
+  }, { bl: false, br: false, fl: false, fr: false });
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
-      const len = Math.min(wl.len, horiz ? rw : rd);
-      if (!(len > 0)) return;
-      const full = len >= (horiz ? rw : rd) - 0.5;
+      const r = runOf(wl);
+      if (!(r.len > 0)) return;
       const fill = wl.extra ? MOSS : MUTED;
       if (horiz) {
         const back = wl.side === "back";
-        const lo = meets[back ? "bl" : "fl"] ? wallW : 0;
-        const hi = full && meets[back ? "br" : "fr"] ? wallW : 0;
-        push(<rect key={`w${wi}`} {...bandProps(wl)} x={round2(X(0) - lo)} y={back ? Y(0) - wallW : Y(rd)} width={round2(len * sc + lo + hi)} height={wallW} fill={fill}>{bandTitle}</rect>);
-      } else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(0)} width={wallW} height={round2(len * sc)} fill={fill}>{bandTitle}</rect>);
+        const lo = r.lo && meets[back ? "bl" : "fl"] ? wallW : 0;
+        const hi = r.hi && meets[back ? "br" : "fr"] ? wallW : 0;
+        push(<rect key={`w${wi}`} {...bandProps(wl)} x={round2(X(r.from) - lo)} y={back ? Y(0) - wallW : Y(rd)} width={round2(r.len * sc + lo + hi)} height={wallW} fill={fill}>{bandTitle}</rect>);
+      } else push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(r.from)} width={wallW} height={round2(r.len * sc)} fill={fill}>{bandTitle}</rect>);
     });
     // Extra wedi faces read as moss edges: the outside face when a wall
     // panels both sides, the end of the run when its exposed end is covered.
@@ -803,32 +816,36 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       const f = wl.faces || "in";
       if (f === "in") return;
       const horiz = wl.side === "back" || wl.side === "entry";
-      const len = Math.min(wl.len, horiz ? rw : rd);
-      if (!(len > 0)) return;
+      const r = runOf(wl);
+      if (!(r.len > 0)) return;
+      // The exposed END is whichever end of the run is NOT against a corner.
+      const end = r.from + r.len, endU = wl.at === "hi" ? r.from : end;
       if (f === "both") {
-        if (wl.side === "back") push(<line key={`fo${wi}`} x1={X(0)} y1={Y(0) - wallW} x2={X(len)} y2={Y(0) - wallW} stroke={MOSS} strokeWidth="2.4" />);
-        else if (wl.side === "entry") push(<line key={`fo${wi}`} x1={X(0)} y1={Y(rd) + wallW} x2={X(len)} y2={Y(rd) + wallW} stroke={MOSS} strokeWidth="2.4" />);
+        if (wl.side === "back") push(<line key={`fo${wi}`} x1={X(r.from)} y1={Y(0) - wallW} x2={X(end)} y2={Y(0) - wallW} stroke={MOSS} strokeWidth="2.4" />);
+        else if (wl.side === "entry") push(<line key={`fo${wi}`} x1={X(r.from)} y1={Y(rd) + wallW} x2={X(end)} y2={Y(rd) + wallW} stroke={MOSS} strokeWidth="2.4" />);
         else {
           const fx = wl.side === "left" ? X(0) - wallW : X(rw) + wallW;
-          push(<line key={`fo${wi}`} x1={fx} y1={Y(0)} x2={fx} y2={Y(len)} stroke={MOSS} strokeWidth="2.4" />);
+          push(<line key={`fo${wi}`} x1={fx} y1={Y(r.from)} x2={fx} y2={Y(end)} stroke={MOSS} strokeWidth="2.4" />);
         }
       } else if (f === "in-end") {
         if (horiz) {
           const ey = wl.side === "back" ? Y(0) - wallW : Y(rd);
-          push(<line key={`fe${wi}`} x1={X(len)} y1={ey} x2={X(len)} y2={ey + wallW} stroke={MOSS} strokeWidth="2.4" />);
+          push(<line key={`fe${wi}`} x1={X(endU)} y1={ey} x2={X(endU)} y2={ey + wallW} stroke={MOSS} strokeWidth="2.4" />);
         } else {
           const ex = wl.side === "left" ? X(0) - wallW : X(rw);
-          push(<line key={`fe${wi}`} x1={ex} y1={Y(len)} x2={ex + wallW} y2={Y(len)} stroke={MOSS} strokeWidth="2.4" />);
+          push(<line key={`fe${wi}`} x1={ex} y1={Y(endU)} x2={ex + wallW} y2={Y(endU)} stroke={MOSS} strokeWidth="2.4" />);
         }
       }
     });
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
-      const span = Math.min(wl.len, horiz ? rw : rd);
+      const r = runOf(wl);
       const joints = {};
+      // Courses are measured from the wall's OWN start, which is `r.from` once
+      // the run can be anchored at the far end.
       (wl.courses || []).forEach((c) => {
         let u = 0;
-        c.lens.slice(0, -1).forEach((len) => { u = round2(u + len); if (u < span - 0.5) joints[u] = 1; });
+        c.lens.slice(0, -1).forEach((len) => { u = round2(u + len); if (u < r.len - 0.5) joints[round2(r.from + u)] = 1; });
       });
       Object.keys(joints).forEach((uk) => {
         const u = +uk;
@@ -1089,7 +1106,11 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     if (placing) {
       const dists = [["back", Math.abs(y)], ["entry", Math.abs(y - rd)], ["left", Math.abs(x)], ["right", Math.abs(x - rw)]];
       dists.sort((a, b) => a[1] - b[1]);
-      onEdge?.(dists[0][0], { rw, rd });
+      // Which HALF of the edge you clicked picks the end the wall returns from,
+      // so a right-hand half wall is one click, not a click and a toggle.
+      const side = dists[0][0];
+      const horiz = side === "back" || side === "entry";
+      onEdge?.(side, { rw, rd, at: (horiz ? x > rw / 2 : y > rd / 2) ? "hi" : "lo" });
       return;
     }
     const z = zoneAt(x, y);
@@ -1145,31 +1166,42 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
 
   els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
 
-  const spanOf = (side) => dw.reduce((m, x) => (x.side === side
-    ? Math.max(m, Math.min(x.len, side === "left" || side === "right" ? rd : rw)) : m), 0);
+  // Where a wall's run sits on its edge. `at: "hi"` anchors it at the far end —
+  // a half wall returning from the right side wall instead of the left.
+  const runOf = (wl) => {
+    const max = wl.side === "left" || wl.side === "right" ? rd : rw;
+    const span = Math.min(wl.len, max);
+    const from = wl.at === "hi" ? round2(max - span) : 0;
+    return { max, span, from, to: round2(from + span), lo: from <= 0.5, hi: from + span >= max - 0.5 };
+  };
   // Each ring corner cube belongs to exactly ONE slab: the back/entry walls run
   // through their corners and the side walls butt into their faces. Two slabs
-  // claiming the same cube is what crossed the strokes at the apex.
-  const backSpan = spanOf("back"), entrySpan = spanOf("entry");
-  const owns = {
-    bl: backSpan > 0.5, br: backSpan >= rw - 0.5,
-    fl: entrySpan > 0.5, fr: entrySpan >= rw - 0.5,
-  };
+  // claiming the same cube is what crossed the strokes at the apex. A run only
+  // claims a corner it actually reaches, so a half wall on one end leaves the
+  // other end's cube to whatever stands there.
+  const owns = dw.reduce((m, x) => {
+    if (x.side !== "back" && x.side !== "entry") return m;
+    const r = runOf(x);
+    if (!(r.span > 0.5)) return m;
+    const k = x.side === "back" ? ["bl", "br"] : ["fl", "fr"];
+    if (r.lo) m[k[0]] = true;
+    if (r.hi) m[k[1]] = true;
+    return m;
+  }, { bl: false, br: false, fl: false, fr: false });
   const geomOf = (wl) => {
-    const vert = wl.side === "left" || wl.side === "right";
-    const span = Math.min(wl.len, vert ? rd : rw);
+    const r = runOf(wl);
+    const span = r.span;
     if (!(span > 0)) return null;
     const zh = Math.min(wl.h, 96);
-    const full = span >= (vert ? rd : rw) - 0.5;
-    if (wl.side === "back") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: -T, y1: 0 };
-    if (wl.side === "entry") return { span, zh, x0: -T, x1: span + (full ? T : 0), y0: rd, y1: rd + T };
+    if (wl.side === "back") return { span, zh, x0: r.from - (r.lo ? T : 0), x1: r.to + (r.hi ? T : 0), y0: -T, y1: 0 };
+    if (wl.side === "entry") return { span, zh, x0: r.from - (r.lo ? T : 0), x1: r.to + (r.hi ? T : 0), y0: rd, y1: rd + T };
     const left = wl.side === "left";
-    const butt = full && (left ? owns.fl : owns.fr);
+    const butt = r.hi && (left ? owns.fl : owns.fr);
     return {
       span, zh, butt,
       x0: left ? -T : rw, x1: left ? 0 : rw + T,
-      y0: (left ? owns.bl : owns.br) ? 0 : -T,
-      y1: span + (full && !butt ? T : 0),
+      y0: r.from - (r.lo && !(left ? owns.bl : owns.br) ? T : 0),
+      y1: r.to + (r.hi && !butt ? T : 0),
     };
   };
   // The face this camera reads as "the wall": the inner plane on the solid
@@ -1550,7 +1582,7 @@ function seedState(seed) {
     (cfg.walls || []).forEach((w) => {
       const base = s.walls.find((x) => x.id === w.side);
       if (base && !w.extra && !rows.includes(base)) { base.on = true; base.len = String(w.len); base.h = String(w.h); base.faces = w.faces || "in"; rows.push(base); }
-      else s.extraWalls.push({ id: ++s.wallSeq, edge: w.side || "entry", len: String(w.len), h: String(w.h), faces: w.faces || "in" });
+      else s.extraWalls.push({ id: ++s.wallSeq, edge: w.side || "entry", len: String(w.len), h: String(w.h), faces: w.faces || "in", at: w.at === "hi" ? "hi" : "lo" });
     });
     s.walls.forEach((w) => { if (!rows.includes(w)) w.on = false; });
     (cfg.corners || []).forEach((k) => { if (s.corners[k] != null) s.corners[k] = true; });
@@ -1765,6 +1797,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (wallFlip && pan && pan.group !== "module") { const t = hi; hi = lo; lo = t; }
     return { back: hi, left: lo, right: lo };
   };
+  // Which end of its edge an added wall returns from. Named for the edge it
+  // sits on, not the axis: a front wall reads Left/Right, a side wall Back/Entry.
+  const endLabel = (w) => ((w.edge === "back" || w.edge === "entry")
+    ? (w.at === "hi" ? "right" : "left") : (w.at === "hi" ? "entry" : "back"));
+
   const wallsArr = (pan, room) => {
     const auto = autoWallLens(pan, room);
     const out = [];
@@ -1776,7 +1813,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     });
     extraWalls.forEach((w) => {
       const len = +w.len || 0, h = +w.h || +wallH || 96;
-      if (len > 0 && h > 0) out.push({ len, h, side: w.edge, extra: true, faces: w.faces || "in", wid: w.id });
+      // `at` is which END of the edge the run is anchored to. A base wall is
+      // always "lo"; an added half wall can return from either side, and both
+      // sides at once is simply two of them (owner ask 2026-08-03).
+      if (len > 0 && h > 0) out.push({ len, h, side: w.edge, extra: true, at: w.at === "hi" ? "hi" : "lo", faces: w.faces || "in", wid: w.id });
     });
     return out;
   };
@@ -1958,7 +1998,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const insetFor = (i, maxOn) => {
     if (!maxOn || i.curb === "curbless" || opts.curbKey === null) return null;
     const wl = walls.filter((x) => x.on).map((x) => ({ side: x.id, len: +x.len || (x.id === "back" ? +i.w || 0 : +i.d || 0) }));
-    extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0 }));
+    extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0, at: x.at === "hi" ? "hi" : "lo" }));
     return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60, tileIn);
   };
   const solveRoom = (i, maxOn) => {
@@ -2040,7 +2080,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // With "overall max" on, the walls, the curb pick and the tile thickness
   // shape the pan space — re-fit the option cards when they change, without
   // wiping the build.
-  const insetSigOf = (maxOn) => (maxOn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge),
+  const insetSigOf = (maxOn) => (maxOn ? JSON.stringify([walls.map((w) => w.on), extraWalls.map((x) => x.edge + ":" + (x.at || "lo") + ":" + x.len),
     opts.curbKey === undefined ? "" : opts.curbKey, tileIn]) : "");
   const insetSig = insetSigOf(maxIn);
   const insetSeen = useRef(insetSig);
@@ -2143,7 +2183,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // detail[i] still belongs to buildWalls[i].
     const det = panelFit ? panelPlan(expandWallFaces(buildWalls)).detail : null;
     return buildWalls.map((w, i) => ({
-      side: w.side, len: w.len, h: w.h, extra: !!w.extra,
+      side: w.side, len: w.len, h: w.h, extra: !!w.extra, at: w.at === "hi" ? "hi" : "lo",
       faces: w.faces || "in", wid: w.wid, courses: det ? det[i].courses : [],
     }));
   }, [panKey, buildWalls, panelFit]);
@@ -2713,7 +2753,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                   ))}
                   {extraWalls.map((w) => (
                     <div className="wallrow" key={w.id}>
-                      <button className="wname on" title="remove this wall" onClick={() => setExtraWalls((xs) => xs.filter((x) => x.id !== w.id))}>{EDGE_LBL[w.edge] || "Wall"}</button>
+                      <button className="wname on" title={"which end it returns from — click to move it (" + endLabel(w) + "). The × on the right removes it"}
+                        onClick={() => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, at: (x.at === "hi" ? "lo" : "hi") } : x)))}>
+                        {EDGE_LBL[w.edge] || "Wall"} <small>{endLabel(w)}</small></button>
                       <NumIn className="win" value={w.len} title="length, in"
                         onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
                       <span>×</span>
@@ -2867,13 +2909,16 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           }}
           onEdge={(edge, geo) => {
             wallSeq.current += 1;
+            const at = geo.at === "hi" ? "hi" : "lo";
             setExtraWalls((xs) => [...xs, {
-              id: wallSeq.current, edge,
+              id: wallSeq.current, edge, at,
               len: String(round2(edge === "entry" ? Math.min(24, geo.rw) : edge === "back" ? geo.rw : geo.rd)),
               h: "", faces: "in",
             }]);
             setPlacing(false);
-            say("Wall added on the " + edge + " side — set its length and height in the Walls group");
+            say("Wall added on the " + edge + " side, returning from the "
+              + ((edge === "back" || edge === "entry") ? (at === "hi" ? "right" : "left") : (at === "hi" ? "entry" : "back"))
+              + " — set its length and height in the Walls group, or right-click it for both ends");
           }} />
         <Iso o={drawDiag} w={railFit.w} h={railFit.iso} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
           framedFit={!!(build && build.panPlan)}
@@ -2968,6 +3013,32 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <NumIn className="win" value={row.h} placeholder={String(wallH)} title="height, in" onCommit={(v) => upd({ h: v })} />
           <span>in</span>
         </div>
+        {wallMenu.extra && (() => {
+          const horiz = row.edge === "back" || row.edge === "entry";
+          const at = row.at === "hi" ? "hi" : "lo";
+          const twin = extraWalls.some((x) => x.edge === row.edge && x.id !== row.id && (x.at === "hi" ? "hi" : "lo") !== at);
+          return (
+            <div className="wm-row">
+              <label>End</label>
+              <span className="pfseg">
+                <button className={at === "lo" ? "on" : ""} title={horiz ? "return from the left side wall" : "run from the back wall"}
+                  onClick={() => upd({ at: "lo" })}>{horiz ? "Left" : "Back"}</button>
+                <button className={at === "hi" ? "on" : ""} title={horiz ? "return from the right side wall" : "run from the entry"}
+                  onClick={() => upd({ at: "hi" })}>{horiz ? "Right" : "Entry"}</button>
+              </span>
+              <button className="wm-act" disabled={twin} title={twin
+                ? "there is already a wall on the other end of this edge"
+                : "add the matching wall on the other end — two returns with the walk-in between them"}
+                onClick={() => {
+                  wallSeq.current += 1;
+                  const mirror = { ...row, id: wallSeq.current, at: at === "hi" ? "lo" : "hi" };
+                  setExtraWalls((xs) => [...xs, mirror]);
+                  setWallMenu(null);
+                  say("Matching wall added on the other end — the walk-in is what is left between them");
+                }}>Both ends</button>
+            </div>
+          );
+        })()}
         <div className="wm-row">
           <label>wedi</label>
           <span className="pfseg">
