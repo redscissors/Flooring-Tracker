@@ -3,6 +3,9 @@ dist
 dist-ssr
 *.local
 *.zip
+# generated review pages under .scratch (issue 079's drawings.html is 1.2MB of
+# embedded PNG); the script beside each one rebuilds it
+.scratch/**/drawings.html
 .env
 .env.local
 .DS_Store
