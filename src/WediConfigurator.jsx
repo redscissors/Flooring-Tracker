@@ -235,7 +235,6 @@ const CSS = `
 .wedi-pop .diagcol .dc-h:first-child{margin-top:0}
 .wedi-pop .diagcol svg{display:block;width:100%;height:auto;background:var(--w-paper);border:1px solid var(--ft-border);border-radius:8px}
 .wedi-pop .diagcol .dc-empty{font-size:11.5px;color:var(--ft-faint);line-height:1.6;padding:18px 4px}
-.wedi-pop .diagcol .dc-legend{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.5;margin-top:8px}
 .wedi-pop .diagcol .dc-hint{background:var(--w-hint-bg);border:1px solid var(--w-hint-line);border-radius:6px;color:var(--w-hint-ink);font-size:10.5px;font-weight:700;padding:6px 9px;margin-bottom:6px}
 .wedi-pop .xdel{cursor:pointer;color:var(--w-rust);font-weight:800;padding:0 2px}
 .wedi-pop svg .wband{cursor:context-menu}
@@ -767,8 +766,26 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     if (!mini && p.d * sc >= 26 && p.w * sc >= 46) {
       const cx = X(p.x + p.w / 2), cy = Y(p.y + p.d / 2);
       const lbl = p.kind === "pan" || p.kind === "module" ? (p.item.erp || p.item.us) : p.item.us || p.item.erp;
-      push(<text key={`l${i}`} x={cx} y={cy - 20} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MOSS_DEEP} fontFamily={FONT}>{lbl}</text>);
-      push(<text key={`s${i}`} x={cx} y={cy - 9} textAnchor="middle" fontSize="8.5" fill={MUTED} fontFamily={FONT}>{inch(p.w) + "×" + inch(p.d) + (p.cut ? " cut" : "")}</text>);
+      const sz = inch(p.w) + "×" + inch(p.d) + (p.cut ? " cut" : "");
+      // The drain paints after the pieces, so wherever it lands under a piece's
+      // label it buries it — which a centre drain always does. Slide the pair to
+      // whichever side of the drain and its callout has room for it; leave it
+      // centred when the two don't actually collide.
+      const drn = o.drain;
+      let base = cy - 9;
+      if (drn && drn.x >= p.x - 0.01 && drn.x <= p.x + p.w + 0.01 && drn.y >= p.y - 0.01 && drn.y <= p.y + p.d + 0.01) {
+        const lin = drn.type === "linear" && drn.len, ds = Math.max(10, 4 * sc);
+        const halfW = lin ? (drn.axis === "w" ? drn.len / 2 : 1.4) * sc : ds / 2;
+        const halfH = lin ? (drn.axis === "w" ? 1.4 : drn.len / 2) * sc : ds / 2;
+        const top = Y(drn.y) - halfH, bot = Y(drn.y) + (lin ? halfH + 14 : 21);
+        const textHalf = Math.max(lbl.length * 2.8, sz.length * 2.5) + 3;
+        if (Math.abs(X(drn.x) - cx) < halfW + textHalf && base + 3 > top && base - 19 < bot) {
+          if (top - 25 >= Y(p.y)) base = top - 6;
+          else if (bot + 26 <= Y(p.y + p.d)) base = bot + 23;
+        }
+      }
+      push(<text key={`l${i}`} x={cx} y={round2(base - 11)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MOSS_DEEP} fontFamily={FONT}>{lbl}</text>);
+      push(<text key={`s${i}`} x={cx} y={round2(base)} textAnchor="middle" fontSize="8.5" fill={MUTED} fontFamily={FONT}>{sz}</text>);
     }
   });
   if (!mini && o.pieces.length > 1) {
@@ -929,11 +946,6 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     push(<text key="ddt" x={dx - 4} y={Y(rd / 2)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MUTED} fontFamily={FONT}
       transform={`rotate(-90 ${dx - 4} ${Y(rd / 2)})`}>{inch(rd) + '"'}</text>);
     push(<text key="ent" x={X(rw / 2)} y={Y(rd - (o.inset && o.inset.entry > 0 ? CADD : 0)) - 6} textAnchor="middle" fontSize="8.5" fill={FAINT} fontFamily={FONT}>↓ entry</text>);
-    const notes = [];
-    if (slope) notes.push((o.pieces.length > 1 ? "pan & extensions fall" : "pan falls") + ' ¼"/ft to drain');
-    if (dr && dr.type === "linear" && dr.len) notes.push('2" waste at the channel centre');
-    if (curbs && curbs.length) notes.push('curb laps ½" over pan');
-    if (notes.length) push(<text key="note" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>{notes.join(" · ")}</text>);
   }
 
   // Bench zones. The tight 10" corner radius keeps the corner-CUT toggle;
@@ -1030,7 +1042,11 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   pts.forEach((p) => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
   const pad = 14;
   const sc = Math.min((w - pad * 2) / (maxX - minX), (h - pad * 2) / (maxY - minY));
-  const M = (x, y, z) => { const p = P(x, y, z); return [round2(pad + (p[0] - minX) * sc), round2(pad + (p[1] - minY) * sc)]; };
+  // The projected diamond is far narrower than it is tall, so the axis that
+  // didn't set the scale has real slack — split it instead of leaving it all on
+  // one side, which parked the shower against the left edge.
+  const offX = (w - (maxX - minX) * sc) / 2, offY = (h - (maxY - minY) * sc) / 2;
+  const M = (x, y, z) => { const p = P(x, y, z); return [round2(offX + (p[0] - minX) * sc), round2(offY + (p[1] - minY) * sc)]; };
   const str = (arr) => arr.map((p) => p[0] + "," + p[1]).join(" ");
   const els = [];
   const wallLine = "rgba(28,26,23,.45)", seamCol = "rgba(28,26,23,.5)";
@@ -1388,17 +1404,6 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // Front walls close last — only their dashed outline and joint dots, over the
   // shower they stand in front of; the tint went down before the pan.
   clearW.forEach((p) => wallEls(p[0], p[1], "line"));
-  if (dw.length) {
-    els.push(<text key="hl" x="6" y="13" fontSize="9" fontWeight="700" fill={MUTED} fontFamily={FONT}>
-      {'walls 4" thick, to ' + inch(hmax) + '" · green hatch = wedi' + (panelFit ? " · joints dotted" : "")}</text>);
-  }
-  // The assembly note sits bottom-left: the isometric's diamond always leaves
-  // that corner empty, and the top line is already at the wall apex.
-  const sub = [curbs && curbs.length
-    ? 'curb ' + inch(CBH) + '" · pan ' + inch(t) + '" · ½" lap'
-    : 'pan ' + inch(t) + '"'];
-  if (slope) sub.push('fall ¼"/ft to drain');
-  els.push(<text key="hl2" x="6" y={h - 5} fontSize="9" fontWeight="700" fill={FAINT} fontFamily={FONT}>{sub.join(" · ")}</text>);
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
       <defs>
@@ -2735,18 +2740,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           framedFit={!!(build && build.panPlan)}
           cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })} />
-        <div className="dc-legend">
-          walls 4″ thick — right-click one in either view for size, wedi faces (moss edge = extra face), or to
-          turn it into a curb · front walls draw clear in the isometric · seams dashed moss · cuts dashed rust —
-          a cut corner keeps the full pan; beyond the curb the off-cut is hidden (ghosted when curbless) · curb on the open edges,
-          butted square to the walls and figured at its longest point ·{" "}
-          {panelFit ? "panel joints dotted on the walls" : "One-size panel mode — joints not drawn"}
-          {" "}· an open corner clicks to toggle a pan cut — straight to a nearby wall end
-          {" "}· hover the pan along a wall or into a corner and click for a <b>bench</b> — premade, 2″ build-up,
-          or installer-framed, drawn in both views with the curb butting its face
-          {" "}· in the isometric, <b>wedi-covered</b> faces read pan-green with a fine hatch — bare framing
-          (behind a framed bench) stays dark, and the wall figure drops that shadow too
-        </div>
       </>)}
     </div>
   );
