@@ -31,6 +31,12 @@ legend paragraph **below** them, and the isometric sitting off-centre.
    against the left edge). `offX`/`offY` now split the slack on whichever axis
    didn't set the scale.
 
+5. **Pan label vs the drain box** (owner follow-up) — the piece's part number and
+   size sat at the piece centre, and the drain paints *after* the pieces, so a
+   centre drain buried the size line. The pair now slides to whichever side of
+   the drain (and its callout) has room, and stays put when the two don't
+   actually collide.
+
 Measurements, dimension strings, drain callouts, `CURB`, `↓ entry` and the bench
 labels all stay — those are figures, not prose.
 
@@ -44,11 +50,16 @@ line; the fall arrows are still drawn on the top-down.
 node_modules/.bin/vite --port 5199 --strictPort
 node .scratch/076_wedi-iso-cleanup/shoot.mjs        before|after
 node .scratch/076_wedi-iso-cleanup/shoot-bottom.mjs before|after
+node .scratch/076_wedi-iso-cleanup/shoot-drains.mjs after
 ```
 
 | Shot | What it proves |
 |---|---|
-| `*-2-rail.png` | Both drawings clean; the isometric centred in its box. |
+| `*-2-rail.png` | Both drawings clean; the isometric centred in its box; the pan's size line clear of the drain. |
 | `*-3-rail-custom.png` | Same with the drain pins drawn — the rust dimension lines stayed. |
 | `*-5-rail-bottom.png` | The legend paragraph and the isometric's top/bottom notes are gone; the whole rail now ends with the drawing. |
 | `*-4-print.png` | The print sheet's two drawings, notes section and materials table intact. |
+| `after-6-drain-center.png` | 6′×6′ centre drain — the label lifts just clear of the box. |
+| `after-6-drain-offset.png` | Offset drain well off the label — it stays centred, no needless lift. |
+| `after-6-drain-linear.png` | Channel near the pan's top edge — no room above, so the pair drops below the channel callout. |
+| `after-6-drain-module.png` | Neo module — the label already cleared the channel and doesn't move. |

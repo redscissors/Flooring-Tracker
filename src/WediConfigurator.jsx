@@ -766,8 +766,26 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     if (!mini && p.d * sc >= 26 && p.w * sc >= 46) {
       const cx = X(p.x + p.w / 2), cy = Y(p.y + p.d / 2);
       const lbl = p.kind === "pan" || p.kind === "module" ? (p.item.erp || p.item.us) : p.item.us || p.item.erp;
-      push(<text key={`l${i}`} x={cx} y={cy - 20} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MOSS_DEEP} fontFamily={FONT}>{lbl}</text>);
-      push(<text key={`s${i}`} x={cx} y={cy - 9} textAnchor="middle" fontSize="8.5" fill={MUTED} fontFamily={FONT}>{inch(p.w) + "×" + inch(p.d) + (p.cut ? " cut" : "")}</text>);
+      const sz = inch(p.w) + "×" + inch(p.d) + (p.cut ? " cut" : "");
+      // The drain paints after the pieces, so wherever it lands under a piece's
+      // label it buries it — which a centre drain always does. Slide the pair to
+      // whichever side of the drain and its callout has room for it; leave it
+      // centred when the two don't actually collide.
+      const drn = o.drain;
+      let base = cy - 9;
+      if (drn && drn.x >= p.x - 0.01 && drn.x <= p.x + p.w + 0.01 && drn.y >= p.y - 0.01 && drn.y <= p.y + p.d + 0.01) {
+        const lin = drn.type === "linear" && drn.len, ds = Math.max(10, 4 * sc);
+        const halfW = lin ? (drn.axis === "w" ? drn.len / 2 : 1.4) * sc : ds / 2;
+        const halfH = lin ? (drn.axis === "w" ? 1.4 : drn.len / 2) * sc : ds / 2;
+        const top = Y(drn.y) - halfH, bot = Y(drn.y) + (lin ? halfH + 14 : 21);
+        const textHalf = Math.max(lbl.length * 2.8, sz.length * 2.5) + 3;
+        if (Math.abs(X(drn.x) - cx) < halfW + textHalf && base + 3 > top && base - 19 < bot) {
+          if (top - 25 >= Y(p.y)) base = top - 6;
+          else if (bot + 26 <= Y(p.y + p.d)) base = bot + 23;
+        }
+      }
+      push(<text key={`l${i}`} x={cx} y={round2(base - 11)} textAnchor="middle" fontSize="9.5" fontWeight="700" fill={MOSS_DEEP} fontFamily={FONT}>{lbl}</text>);
+      push(<text key={`s${i}`} x={cx} y={round2(base)} textAnchor="middle" fontSize="8.5" fill={MUTED} fontFamily={FONT}>{sz}</text>);
     }
   });
   if (!mini && o.pieces.length > 1) {
