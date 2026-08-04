@@ -127,6 +127,8 @@ const CSS = `
 .wedi-pop .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
 .wedi-pop .name small{font-weight:600;color:var(--ft-muted);font-size:12px;margin-left:6px}
 .wedi-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
+.wedi-pop .pop-head .rclear{margin-left:auto;font-size:11px;padding:5px 10px}
+.wedi-pop .pop-head .rclear + .tierbar{margin-left:0}
 .wedi-pop .tierbar{margin-left:auto;display:flex;align-items:stretch;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .wedi-pop .tierbar button{border:none;background:none;color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer;line-height:1.1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .wedi-pop .tierbar button:not(.on):hover{background:var(--ft-hover)}
@@ -224,7 +226,6 @@ const CSS = `
 .wedi-pop .rfgrp .wallrows{display:flex;flex-wrap:wrap;gap:0 14px}
 .wedi-pop .rfgrp .wallrows .wallrow{flex:1 1 190px;min-width:0}
 .wedi-pop .rfgrp .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
-.wedi-pop .rfgrp .wallctl + .rclear{margin-left:8px}
 .wedi-pop .wdefh{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
 .wedi-pop .wtgl:disabled,.wedi-pop .addchip:disabled{opacity:.4;cursor:not-allowed}
 .wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
@@ -2751,9 +2752,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                       } else { retuneWalls(); setWallFlip((v) => !v); }
                     }}>⇄</button>
                 </span>
-                <button className="rclear" data-wedi-clear
-                  title="wipe the build — walls, cuts, parts — and reset this form"
-                  onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
               </div>
               {wallEditor}
             </div>
@@ -3565,6 +3563,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="eyebrow">Vendor configurator</div>
             <div className="name">wedi shower systems <small>sell = book retail · cost = distributor net</small></div>
           </div>
+          <button className="rclear" data-wedi-clear
+            title="wipe the build — walls, cuts, parts — and reset the custom shower form"
+            onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
           {tierBar}
           {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
         </div>

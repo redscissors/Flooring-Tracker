@@ -419,6 +419,11 @@ src/
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines.
+                    # "Clear design" sits in the popup head immediately LEFT of
+                    # that tier bar (owner 2026-08-04): it wipes the whole build,
+                    # not just the walls, so it reads as a header action on every
+                    # tab rather than a control of the Custom shower's Walls
+                    # group, where it used to hide.
                     # Also an Apps-hub tab beside Sheoga (embedded, still its
                     # own lazy chunk): the tier bar falls back to a local
                     # retail-seeded preview and Add raises the hub's shared
