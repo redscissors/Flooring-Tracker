@@ -733,6 +733,24 @@ function curbBands(curbs, rw, rd, inset, cw) {
 // the ½" it laps onto the pan; in "overall max", NOTHING — there the curb and
 // the tile on its outer face sit inside the stated line, which is the line the
 // wall already stands on, so they are flush without moving.
+// A framed bench takes the curb's place along its own footprint — benchEdgeSpans
+// subtracts it from the runs — and it carries out to the SAME outer face the
+// curb would have. So a wall meeting a framed bench has to finish flush with it
+// exactly as it does with a curb. Without these stand-ins the run simply is not
+// there at that corner, `curbCornerOut` finds nothing to reach for, and the wall
+// reads short by the overhang against its untouched opposite (owner 2026-08-04).
+function framedStandIns(benches, room, curbs, inset, CW) {
+  const rd = +room.d || 0;
+  if (!curbs || !curbs.length || (inset && inset.entry > 0)) return [];
+  const add = round2(CW - CURB_LAP), out = [];
+  (benches || []).forEach((b) => {
+    if (b.build !== "framed" || b.suspended) return;
+    const f = benchFootprint(b, room);
+    if (f.kind !== "rect" || f.y + f.d < rd - 0.5) return;
+    out.push({ side: "entry", horiz: true, c0: rd - CURB_LAP, c1: rd + add, lo: f.x, hi: f.x + f.w });
+  });
+  return out;
+}
 function curbCornerOut(bands, rw, rd) {
   const out = { bl: 0, br: 0, fl: 0, fr: 0 };
   (bands || []).forEach((b) => {
@@ -872,7 +890,8 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   // with the curb running past it into open air. Every wall now finishes flush
   // with the curb it meets (curbCornerOut).
   const planBands = mini ? [] : curbBands(curbs, rw, rd, o.inset, CW);
-  const curbOut = mini ? null : curbCornerOut(planBands, rw, rd);
+  const curbOut = mini ? null
+    : curbCornerOut(planBands.concat(framedStandIns(benches, o.room, curbs, o.inset, CW)), rw, rd);
   const outAt = (k) => (curbOut ? round2(curbOut[k] * sc) : 0);
   if (dw) {
     dw.forEach((wl, wi) => {
@@ -1297,7 +1316,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const CBH = curbH || CURB_H_LEAN, CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
   const insI = o.inset || null;
   const bands = curbBands(curbs, rw, rd, insI, CW);
-  const curbOut = curbCornerOut(bands, rw, rd);
+  const curbOut = curbCornerOut(bands.concat(framedStandIns(benches, o.room, curbs, insI, CW)), rw, rd);
 
   // Where a wall's run sits on its edge. `at: "hi"` anchors it at the far end —
   // a half wall returning from the right side wall instead of the left.
@@ -1652,9 +1671,24 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // finished shower rides over a curb that runs on beneath it, so that one
   // draws after its run — on either side of the line (inset curbs too).
   const onCurb = (b) => b.build !== "framed" && meetsEntry(b, benchFootprint(b, o.room));
-  (benches || []).forEach((b, bi) => { if (!onCurb(b)) benchDraw(b, bi); });
+  // A framed bench displaced the curb, so the run butts its face — but WHICH of
+  // the two is in front depends on the side it stands on, and the rule only ever
+  // had the far case. On the LEFT the run carries on at greater x, so it is
+  // nearer and covers the bench (owner markup 2026-07-31). On the RIGHT — the
+  // near wall — the bench is the greater x, so the bench is nearer and the run's
+  // squared END face belongs behind it. It was painting over it: at the AT curb
+  // that end face at (46, 38, 3) and the bench's front at (48, 40, 5) land on
+  // the same screen point, depth 87 against 93 (owner 2026-08-04).
+  const nearFramed = (b) => {
+    if (b.build !== "framed" || b.suspended) return false;
+    const f = benchFootprint(b, o.room);
+    if (f.kind === "corner") return f.corner === "fr" || f.corner === "br";
+    return f.x + f.w >= rw - 0.5;
+  };
+  const late = (b) => onCurb(b) || nearFramed(b);
+  (benches || []).forEach((b, bi) => { if (!late(b)) benchDraw(b, bi); });
   bands.forEach((b) => { if (!behind(b)) curbEls(b); });
-  (benches || []).forEach((b, bi) => { if (onCurb(b)) benchDraw(b, bi); });
+  (benches || []).forEach((b, bi) => { if (late(b)) benchDraw(b, bi); });
   // The bench rides the curb, so it paints after its run — but the run does not
   // STOP at the bench. The stretch carrying on past the bench's end stands
   // NEARER this camera than that end does (depth is x+y+z, and it is further

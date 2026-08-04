@@ -326,3 +326,49 @@ benches. Only its TOP is redrawn: that is the face doing the covering, and
 repainting the outer face below it would lay a false seam down it at the trim —
 the bench never touched that face. Behind the bench the curb is genuinely
 buried, which is what the first pass already drew.
+
+## Follow-up 6 (2026-08-04, owner) — two framed-bench faults
+
+> Yes that is fixed, There is still some other issues
+>
+> When a framed bench is selected the wall seems to shorten when it should stay
+> the same. See how it is shorter then the other side
+>
+> Also when a framed bench is selected on the close side. The curb wins and
+> shows when the bench should
+
+### 1 — the wall reads short beside a framed bench
+
+`curbCornerOut` reaches a wall out to the curb it meets. A framed bench TAKES
+the curb's place along its footprint (`benchEdgeSpans` subtracts it from the
+runs), so at that corner there is no run left to reach for — `b.lo <= 0.5` never
+matches, the corner stays 0, and the wall stops on the room line while its
+untouched opposite carries out by the overhang. Exactly the asymmetry in the
+owner's plan crop.
+
+`framedStandIns` builds a pseudo-band per framed bench that reaches the entry —
+same `c0`/`c1` the curb would have had, `lo`/`hi` the bench's own span — and both
+views concat it before calling `curbCornerOut`. The bench oversails by `CADD`
+already (`benchOut` does not exclude framed), so the wall lands on the bench's
+real face, not an assumed one. Drawing is untouched: the stand-ins exist only
+for the corner math.
+
+### 2 — the run's end face painted over the near bench
+
+The 2026-07-31 rule — "a framed bench displaced the curb, so its run butts the
+bench face and stands in front of it" — only ever covered the FAR case. Which of
+the two is in front depends on the side:
+
+| framed bench on | the run it butts | nearer (depth `x+y+z`) |
+|---|---|---|
+| left wall | carries on at greater `x` | the RUN — covers the bench ✓ as drawn |
+| right wall (near) | ends at smaller `x` | the BENCH — was being painted over ✗ |
+
+At the AT curb the run's squared end face at `(46, 38, 3)` and the bench's front
+at `(48, 40, 5)` land on the same screen point, depth 87 against 93. `nearFramed`
+now sends a right-wall (or `fr`/`br` corner) framed bench into the late pass with
+the curb-riding benches, so it paints after the runs.
+
+Reproduced and verified by `probe-framed.mjs` → `shots/framed-{left,right}-{plan,iso}.png`.
+891 unit tests pass; check-flush.mjs clean; the curb/bench step from follow-up 5
+re-shot unchanged.
