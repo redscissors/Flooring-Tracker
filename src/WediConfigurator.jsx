@@ -10,7 +10,7 @@
 // "Add to product lines" hands lineItems() payloads back to the caller; the
 // anchor row keeps the raw configuration (product.wedi) so Reconfigure reopens
 // here pre-filled.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
@@ -178,8 +178,11 @@ const CSS = `
      header's own .rseg uses --ft-seg-on-bg, the same moss the rest of the
      app's segmented controls use. (.seg/.inp still dress the Browse tab.)
    · Walls is a MULTI-select. Drawn as a segment, three toggles merged into one
-     unbroken bar when all three were on; as ticked chips it reads as three
-     switches, which is what it is. */
+     unbroken bar when all three were on; as ticked chips it read as three
+     switches, which is what it is. The chips are gone as of 2026-08-03 — the
+     wall editor moved into this group off the build column and each row's name
+     button is that same switch, now with the length, height and sf beside it —
+     but .rchip stays: it is the one dressing in here for a multi-select. */
 .wedi-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:5px;margin-bottom:10px}
 /* Flex, not a grid of equal tracks (2026-08-03): three equal columns left the
    Walls group alone on a second row with a dead cell beside it, and equal
@@ -213,6 +216,17 @@ const CSS = `
 .wedi-pop .rchip .tick{font-size:10px;line-height:1;opacity:.35}
 .wedi-pop .rchip.on .tick{opacity:1}
 .wedi-pop .rfgrp > .rowh{display:flex;align-items:center;gap:8px;margin-bottom:1px}
+/* The wall editor, moved here out of the build column (owner 2026-08-03) —
+   the rows describe the ROOM, so they belong beside the size, the curb and the
+   drain, and the build column is left listing what the room costs. They flow
+   like the option cards do: as many per line as the group is wide enough for,
+   so three walls and a pair of returns read as a block instead of a stack. */
+.wedi-pop .rfgrp .wallrows{display:flex;flex-wrap:wrap;gap:0 14px}
+.wedi-pop .rfgrp .wallrows .wallrow{flex:1 1 190px;min-width:0}
+.wedi-pop .rfgrp .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
+.wedi-pop .rfgrp .wallctl + .rclear{margin-left:8px}
+.wedi-pop .wdefh{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
+.wedi-pop .wtgl:disabled,.wedi-pop .addchip:disabled{opacity:.4;cursor:not-allowed}
 .wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
 .wedi-pop .rclear:hover{background:var(--ft-hover-red);color:var(--w-rust);border-color:#E3B9A8}
 .wedi-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px}
@@ -222,8 +236,13 @@ const CSS = `
 .wedi-pop .seg button + button{border-left:1px solid var(--ft-border)}
 .wedi-pop .seg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
 .wedi-pop .seg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
-.wedi-pop .optrow{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
-.wedi-pop .optcard{flex:0 0 240px;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 12px;cursor:pointer;text-align:left;color:inherit}
+/* The solved option cards. They were a single 240px-per-card row that scrolled
+   SIDEWAYS, so past the second card the rest of the answer was off screen with
+   nothing saying so — on the one tab whose whole job is comparing the options
+   (owner 2026-08-03). They now flow: as many per row as the pane is wide
+   enough for, wrapping down into the pane's own vertical scroll. */
+.wedi-pop .optrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:9px;margin-bottom:14px}
+.wedi-pop .optcard{min-width:0;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 12px;cursor:pointer;text-align:left;color:inherit}
 .wedi-pop .optcard:hover{border-color:var(--ft-brand)}
 .wedi-pop .optcard.on{outline:2px solid var(--ft-brand);outline-offset:-1px;background:var(--ft-tint)}
 .wedi-pop .optcard .bdg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
@@ -704,6 +723,48 @@ function curbBands(curbs, rw, rd, inset, cw) {
   });
   return out;
 }
+// How far a curb run reaches PAST the room line at each corner, taken off the
+// bands that actually draw. A curb butts into the wall at each end of its run,
+// so this is equally how far that wall has to carry to finish FLUSH with it
+// (owner 2026-08-03) — both drawings run off this one number, which is why they
+// can't drift apart again.
+//
+// It is the curb's own drawn face, finish and all: in the ring, its width less
+// the ½" it laps onto the pan; in "overall max", NOTHING — there the curb and
+// the tile on its outer face sit inside the stated line, which is the line the
+// wall already stands on, so they are flush without moving.
+// A framed bench takes the curb's place along its own footprint — benchEdgeSpans
+// subtracts it from the runs — and it carries out to the SAME outer face the
+// curb would have. So a wall meeting a framed bench has to finish flush with it
+// exactly as it does with a curb. Without these stand-ins the run simply is not
+// there at that corner, `curbCornerOut` finds nothing to reach for, and the wall
+// reads short by the overhang against its untouched opposite (owner 2026-08-04).
+function framedStandIns(benches, room, curbs, inset, CW) {
+  const rd = +room.d || 0;
+  if (!curbs || !curbs.length || (inset && inset.entry > 0)) return [];
+  const add = round2(CW - CURB_LAP), out = [];
+  (benches || []).forEach((b) => {
+    if (b.build !== "framed" || b.suspended) return;
+    const f = benchFootprint(b, room);
+    if (f.kind !== "rect" || f.y + f.d < rd - 0.5) return;
+    out.push({ side: "entry", horiz: true, c0: rd - CURB_LAP, c1: rd + add, lo: f.x, hi: f.x + f.w });
+  });
+  return out;
+}
+function curbCornerOut(bands, rw, rd) {
+  const out = { bl: 0, br: 0, fl: 0, fr: 0 };
+  (bands || []).forEach((b) => {
+    const max = b.horiz ? rw : rd;
+    const past = b.side === "back" || b.side === "left" ? -b.c0
+      : b.c1 - (b.side === "entry" ? rd : rw);
+    if (!(past > 0)) return;
+    const k = b.side === "left" ? ["bl", "fl"] : b.side === "right" ? ["br", "fr"]
+      : b.side === "back" ? ["bl", "br"] : ["fl", "fr"];
+    if (b.lo <= 0.5) out[k[0]] = Math.max(out[k[0]], past);
+    if (b.hi >= max - 0.5) out[k[1]] = Math.max(out[k[1]], past);
+  });
+  return out;
+}
 // The band's plan outline: a rectangle, or a trapezoid where a corner miters.
 function bandPoly(b) {
   const [a0, a1] = b.eC0, [z0, z1] = b.eC1;
@@ -732,7 +793,28 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   // each walled side and a box at each corner. Hover previews the footprint,
   // click or right-click opens the bench menu for that spot.
   const [benchZone, setBenchZone] = useState(null);
+  // The rail and the print sheet both mount a plan at once, so the clip ids
+  // have to be per-instance. useId's colons are legal in an id but not in every
+  // url() parser, so they come out.
+  const uid = useId().replace(/:/g, "");
   const X = (x) => round2(ox + x * sc), Y = (y) => round2(oy + y * sc);
+  // An SVG stroke sits CENTRED on its path, so half of it paints OUTSIDE the
+  // shape. On a part that is drawn butting another — the curb against the wall
+  // it meets, a bench against the curb it rides out to — that half-stroke is
+  // what reads as the part sticking past its neighbour, even with the geometry
+  // dead flush (owner 2026-08-03). Clipping a shape to itself keeps every drop
+  // of paint inside the part. Clipping halves what a stroke shows, so each user
+  // sets its own width back: the curb goes 1 → 1.6 (0.8 showing, a shade
+  // lighter than it was — the owner called it thick), the bench 1.2 → 2.4 (1.2
+  // showing, unchanged). The bench needs every bit of it: its fill is two
+  // points off the pan's, so the outline is the only thing that says bench.
+  let clipN = 0;
+  const clipSelf = (pts) => {
+    const id = `${uid}cl${clipN++}`;
+    push(<clipPath key={id} id={id}><polygon points={pts} /></clipPath>);
+    return `url(#${id})`;
+  };
+  const boxPts = (x, y, w2, h2) => `${x},${y} ${x + w2},${y} ${x + w2},${y + h2} ${x},${y + h2}`;
   // Walls draw at their true 4" framing depth (owner sketch 2026-07-30);
   // the thumbnails keep a hairline band.
   const wallW = mini ? 2.5 : round2(4 * sc);
@@ -803,6 +885,14 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
   }, { bl: false, br: false, fl: false, fr: false });
   const sideAt = reach(["left", "right"]);    // where a side wall stands
   const frontAt = reach(["entry"]);           // where a front wall stands
+  const backAt = reach(["back"]);             // where the back wall stands
+  // A band that stopped on the pan line read short by the curb's own overhang,
+  // with the curb running past it into open air. Every wall now finishes flush
+  // with the curb it meets (curbCornerOut).
+  const planBands = mini ? [] : curbBands(curbs, rw, rd, o.inset, CW);
+  const curbOut = mini ? null
+    : curbCornerOut(planBands.concat(framedStandIns(benches, o.room, curbs, o.inset, CW)), rw, rd);
+  const outAt = (k) => (curbOut ? round2(curbOut[k] * sc) : 0);
   if (dw) {
     dw.forEach((wl, wi) => {
       const horiz = wl.side === "back" || wl.side === "entry";
@@ -812,14 +902,24 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
       if (horiz) {
         // The back run carries through to a side wall; the front run butts one.
         const back = wl.side === "back";
-        const lo = back && r.lo && sideAt.bl ? wallW : 0;
-        const hi = back && r.hi && sideAt.br ? wallW : 0;
+        const k = back ? ["bl", "br"] : ["fl", "fr"];
+        // The back run claims its corners; the front run yields them to the
+        // side wall — but with no side wall standing there, either still has to
+        // meet the curb turning the corner.
+        const ext = (reaches, ki) => (!reaches ? 0
+          : back ? Math.max(sideAt[ki] ? wallW : 0, outAt(ki))
+            : sideAt[ki] ? 0 : outAt(ki));
+        const lo = ext(r.lo, k[0]), hi = ext(r.hi, k[1]);
         push(<rect key={`w${wi}`} {...bandProps(wl)} x={round2(X(r.from) - lo)} y={back ? Y(0) - wallW : Y(rd)} width={round2(r.len * sc + lo + hi)} height={wallW} fill={fill}>{bandTitle}</rect>);
       } else {
         // A side wall carries into the front corner whenever a front wall is
-        // standing there to butt it; with nothing there it stops on the line.
-        const hi = r.hi && frontAt[wl.side === "left" ? "fl" : "fr"] ? wallW : 0;
-        push(<rect key={`w${wi}`} {...bandProps(wl)} x={wl.side === "left" ? X(0) - wallW : X(rw)} y={Y(r.from)} width={wallW} height={round2(r.len * sc + hi)} fill={fill}>{bandTitle}</rect>);
+        // standing there to butt it; with nothing there it stops on the line —
+        // or on the curb's outer face where a curb runs into it.
+        const left = wl.side === "left";
+        const kLo = left ? "bl" : "br", kHi = left ? "fl" : "fr";
+        const lo = r.lo && !backAt[kLo] ? outAt(kLo) : 0;
+        const hi = r.hi ? Math.max(frontAt[kHi] ? wallW : 0, outAt(kHi)) : 0;
+        push(<rect key={`w${wi}`} {...bandProps(wl)} x={left ? X(0) - wallW : X(rw)} y={round2(Y(r.from) - lo)} width={wallW} height={round2(r.len * sc + lo + hi)} fill={fill}>{bandTitle}</rect>);
       }
     });
     // Extra wedi faces read as moss edges: the outside face when a wall
@@ -936,15 +1036,32 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     const f = benchFootprint(b, o.room);
     if (f.kind === "corner") {
       const pts = BENCH_CORNER_TRI[f.corner](f.a);
-      push(<polygon key={`bn${bi}`} points={pts.map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
-        fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
+      const s = pts.map((p) => X(p[0]) + "," + Y(p[1])).join(" ");
+      push(<polygon key={`bn${bi}`} points={s}
+        fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="2.4" clipPath={clipSelf(s)} />);
       const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3;
       push(<text key={`bnt${bi}`} x={X(cx)} y={Y(cy) + 3} textAnchor="middle" fontSize="7.5" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT}>{inch(f.a) + '"'}</text>);
       return;
     }
     const out = !b.suspended && curbs && curbs.length && !(o.inset && o.inset.entry > 0) && f.y + f.d >= rd - 0.5 ? CADD : 0;
-    push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={round2(f.w * sc)} height={round2(f.d * sc + out * sc)}
-      fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="1.2" />);
+    const bw = round2(f.w * sc), bh = round2(f.d * sc + out * sc);
+    push(<rect key={`bn${bi}`} x={X(f.x)} y={Y(f.y)} width={bw} height={bh}
+      fill="#DCE0C8" stroke={MOSS_DEEP} strokeWidth="2.4" clipPath={clipSelf(boxPts(X(f.x), Y(f.y), bw, bh))} />);
+    // Where the bench crosses the curb it STEPS UP onto it (owner 2026-08-03) —
+    // the isometric shows that as a notch in its underside, and this view had no
+    // sign of it at all: the bench simply covered the run and the one line that
+    // reads straight across the entry died under it. The curb's own edges now
+    // carry on over the bench in its colour, so the raised stretch reads as
+    // raised and the run still reads as one line.
+    const eb = !b.suspended && planBands.find((x) => x.side === "entry");
+    if (eb && f.y + f.d >= rd - 0.5) {
+      const lx = X(f.x), rx = X(f.x + f.w);
+      [eb.c0, eb.c1].forEach((cy2, i) => {
+        if (cy2 <= f.y + 0.01 || cy2 * sc > (f.y + f.d + out) * sc + 0.01) return;
+        push(<line key={`bnc${bi}s${i}`} x1={lx} y1={Y(cy2)} x2={rx} y2={Y(cy2)}
+          stroke={MOSS_DEEP} strokeWidth="1.2" strokeDasharray={i ? undefined : "4 3"} />);
+      });
+    }
     if (b.build === "framed" && !framedFit) {
       // wall to wall along the PAN — short of the line when the curb is inside it
       const yPan = rd - (o.inset && o.inset.entry > 0 ? o.inset.entry : 0);
@@ -991,9 +1108,10 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
     // engine's ext0/ext1 fill the open ring corners, drawn as a MITER so two
     // runs meeting there share one 45° line, and a cut corner's curb takes the
     // one straight line across.
-    curbBands(curbs, rw, rd, o.inset, CW).forEach((b) => {
-      push(<polygon key={`cb${b.ci}`} points={bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ")}
-        fill="#E9E3D3" stroke={MUTED} strokeWidth="1" strokeLinejoin="round" />);
+    planBands.forEach((b) => {
+      const pts = bandPoly(b).map((p) => X(p[0]) + "," + Y(p[1])).join(" ");
+      push(<polygon key={`cb${b.ci}`} points={pts}
+        fill="#E9E3D3" stroke={MUTED} strokeWidth="1.6" strokeLinejoin="round" clipPath={clipSelf(pts)} />);
       if (!(b.len * sc > 34)) return;
       const mid = (b.lo + b.hi) / 2, cross = (b.c0 + b.c1) / 2;
       if (b.horiz) {
@@ -1175,8 +1293,30 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   const str = (arr) => arr.map((p) => p[0] + "," + p[1]).join(" ");
   const els = [];
   const wallLine = "rgba(28,26,23,.45)", seamCol = "rgba(28,26,23,.5)";
+  // The plan's stroke rule, brought over here (owner 2026-08-03, pointing at
+  // this view): a centred stroke paints half its width outside its face, so
+  // where the bench rides onto the curb their silhouettes each overhung the
+  // other and the shared edge read as one heavy doubled line. Clipping a face
+  // to itself only trims the SILHOUETTE — two faces of the same solid still
+  // contribute half each along the edge they share, so an interior fold keeps
+  // its weight while the outline stops bleeding onto its neighbour.
+  const uid = useId().replace(/:/g, "");
+  let clipN = 0;
+  const clipPoly = (key, pts, props) => {
+    const id = `${uid}cl${clipN++}`;
+    els.push(<clipPath key={`${id}c`} id={id}><polygon points={pts} /></clipPath>);
+    els.push(<polygon key={key} points={pts} {...props} clipPath={`url(#${id})`} />);
+  };
 
   els.push(<polygon key="ground" points={str([M(-T - 3, -T - 3, 0), M(rw + T + 3, -T - 3, 0), M(rw + T + 3, rd + T + 3, 0), M(-T - 3, rd + T + 3, 0)])} fill="rgba(28,26,23,.06)" />);
+
+  // The curb geometry is figured before the walls, not after: a wall runs out
+  // flush with the curb it meets, so the slabs need the bands to know where
+  // they end. Pan and curb still DRAW at their real heights further down.
+  const CBH = curbH || CURB_H_LEAN, CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
+  const insI = o.inset || null;
+  const bands = curbBands(curbs, rw, rd, insI, CW);
+  const curbOut = curbCornerOut(bands.concat(framedStandIns(benches, o.room, curbs, insI, CW)), rw, rd);
 
   // Where a wall's run sits on its edge. `at: "hi"` anchors it at the far end —
   // a half wall returning from the right side wall instead of the left.
@@ -1203,23 +1343,35 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     return m;
   }, { bl: false, br: false, fl: false, fr: false });
   const backAt = reach(["back"]), sideAt = reach(["left", "right"]), frontAt = reach(["entry"]);
+  // A run reaches into a corner square where a perpendicular WALL fills it, and
+  // out to the curb's finished face where a curb runs into it instead — the
+  // longer of the two, so a wall meeting both still draws one slab (owner
+  // 2026-08-03, "the walls should always be flush with the curb"). With neither
+  // there it stops on the line rather than hanging over open air — the rule the
+  // plan already draws to, which this view had never picked up.
   const geomOf = (wl) => {
     const r = runOf(wl);
     const span = r.span;
     if (!(span > 0)) return null;
     const zh = Math.min(wl.h, 96);
+    const ext = (reaches, owns, k) => (!reaches ? 0 : Math.max(owns ? T : 0, curbOut[k]));
     if (wl.side === "back") {
       return { span, zh, y0: -T, y1: 0,
-        x0: r.from - (r.lo && sideAt.bl ? T : 0), x1: r.to + (r.hi && sideAt.br ? T : 0) };
+        x0: r.from - ext(r.lo, sideAt.bl, "bl"), x1: r.to + ext(r.hi, sideAt.br, "br") };
     }
-    // The front wall butts the side walls, so it never reaches into a corner.
-    if (wl.side === "entry") return { span, zh, x0: r.from, x1: r.to, y0: rd, y1: rd + T };
+    // The front wall butts the side walls, so it never reaches into a corner —
+    // but with no side wall standing there it still meets the curb.
+    if (wl.side === "entry") {
+      return { span, zh, y0: rd, y1: rd + T,
+        x0: r.from - ext(r.lo && !sideAt.fl, false, "fl"), x1: r.to + ext(r.hi && !sideAt.fr, false, "fr") };
+    }
     const left = wl.side === "left";
+    const kLo = left ? "bl" : "br", kHi = left ? "fl" : "fr";
     return {
       span, zh, butt: false,
       x0: left ? -T : rw, x1: left ? 0 : rw + T,
-      y0: r.from - (r.lo && !(left ? backAt.bl : backAt.br) ? T : 0),
-      y1: r.to + (r.hi && frontAt[left ? "fl" : "fr"] ? T : 0),
+      y0: r.from - ext(r.lo && !backAt[kLo], false, kLo),
+      y1: r.to + ext(r.hi, frontAt[kHi], kHi),
     };
   };
   // The face this camera reads as "the wall": the inner plane on the solid
@@ -1353,25 +1505,25 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // sections — the engine's ext0/ext1 fill the open ring corners so runs meet
   // square. The camera looks down (1,1,1): a back/left run is BEHIND the pan
   // and has to be painted before it, or its body floats over the pan surface.
-  const CBH = curbH || CURB_H_LEAN, CW = curbW || CURB_W_LEAN, CADD = round2(CW - CURB_LAP);
-  const insI = o.inset || null;
   // This camera only ever sees a band's +x face, its +y face and its top. On a
   // horizontal run that makes the +x face the run's END; on a vertical run it
   // is the long face and the +y face is the end. A mitered end has no square
   // face to draw — the neighbouring run's own faces close the corner — and the
   // long face stops at the joint, so nothing buried inside the miter is drawn.
-  const bands = curbBands(curbs, rw, rd, insI, CW);
   const curbEls = (b) => {
     const { horiz, c0, c1, hi, mHi, ci } = b;
     const [z0, z1] = b.eC1;
+    const face = { fill: "#D8D0BC", stroke: INK, strokeWidth: 1 };
+    const side = { fill: "#CFC7B2", stroke: INK, strokeWidth: 1 };
     if (horiz) {
-      if (!mHi) els.push(<polygon key={`cbe${ci}`} points={str([M(hi, c0, CBH), M(hi, c1, CBH), M(hi, c1, 0), M(hi, c0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-      els.push(<polygon key={`cbs${ci}`} points={str([M(z0, c1, CBH), M(z1, c1, CBH), M(z1, c1, 0), M(z0, c1, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+      if (!mHi) clipPoly(`cbe${ci}`, str([M(hi, c0, CBH), M(hi, c1, CBH), M(hi, c1, 0), M(hi, c0, 0)]), face);
+      clipPoly(`cbs${ci}`, str([M(z0, c1, CBH), M(z1, c1, CBH), M(z1, c1, 0), M(z0, c1, 0)]), side);
     } else {
-      els.push(<polygon key={`cbe${ci}`} points={str([M(c1, z0, CBH), M(c1, z1, CBH), M(c1, z1, 0), M(c1, z0, 0)])} fill="#D8D0BC" stroke={INK} strokeWidth=".7" />);
-      if (!mHi) els.push(<polygon key={`cbs${ci}`} points={str([M(c0, hi, CBH), M(c1, hi, CBH), M(c1, hi, 0), M(c0, hi, 0)])} fill="#CFC7B2" stroke={INK} strokeWidth=".7" />);
+      clipPoly(`cbe${ci}`, str([M(c1, z0, CBH), M(c1, z1, CBH), M(c1, z1, 0), M(c1, z0, 0)]), face);
+      if (!mHi) clipPoly(`cbs${ci}`, str([M(c0, hi, CBH), M(c1, hi, CBH), M(c1, hi, 0), M(c0, hi, 0)]), side);
     }
-    els.push(<polygon key={`cbt${ci}`} points={str(bandPoly(b).map((p) => M(p[0], p[1], CBH)))} fill="#E4DDCB" stroke={INK} strokeWidth=".8" strokeLinejoin="round" />);
+    clipPoly(`cbt${ci}`, str(bandPoly(b).map((p) => M(p[0], p[1], CBH))),
+      { fill: "#E4DDCB", stroke: INK, strokeWidth: 1.2, strokeLinejoin: "round" });
   };
   const behind = (cs) => cs.side === "back" || cs.side === "left";
   bands.forEach((b) => { if (behind(b)) curbEls(b); });
@@ -1448,7 +1600,8 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // triangular prisms.
   const BTOP = "#DCE0C8", BSIDE = "#C2CBA4", BSIDE2 = "#B6BF96";
   const benchQuad = (a, b2, z0, z1, fill, key) =>
-    els.push(<polygon key={key} points={str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)])} fill={fill} stroke={MOSS_DEEP} strokeWidth=".7" />);
+    clipPoly(key, str([M(a[0], a[1], z1), M(b2[0], b2[1], z1), M(b2[0], b2[1], z0), M(a[0], a[1], z0)]),
+      { fill, stroke: MOSS_DEEP, strokeWidth: 1 });
   // A wall bench reaching the entry meets the curb whichever side of the room
   // line the curb sits on: in the usual ring it oversails CADD past the line;
   // in "overall max" the curb is inside the line, so the bench stops AT the
@@ -1477,7 +1630,7 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
         .filter((s) => (s[0][0] + s[1][0]) / 2 - cen[0] + (s[0][1] + s[1][1]) / 2 - cen[1] > 0.01);
       faces.sort((p, q) => (p[0][0] + p[0][1] + p[1][0] + p[1][1]) - (q[0][0] + q[0][1] + q[1][0] + q[1][1]))
         .forEach((s, si) => benchQuad(s[0], s[1], z0, zh, s[2], `bn${bi}s${si}`));
-      els.push(<polygon key={`bn${bi}t`} points={str(tri.map((p) => M(p[0], p[1], zh)))} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+      clipPoly(`bn${bi}t`, str(tri.map((p) => M(p[0], p[1], zh))), { fill: BTOP, stroke: MOSS_DEEP, strokeWidth: 1.2 });
       return;
     }
     const out = benchOut(b, f);
@@ -1492,12 +1645,11 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
     // bench's outer plane; a framed bench instead drops at the PAN's edge
     // (flush with its face in the ring, the inset pan edge in max).
     const yStep = round2(y1 - CW + (b.build === "framed" ? CURB_LAP : 0));
-    els.push(<polygon key={`bn${bi}e`} fill={BSIDE} stroke={MOSS_DEEP} strokeWidth=".7"
-      points={str(step
-        ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yStep, zOut), M(x1, yStep, z0), M(x1, y0, z0)]
-        : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)])} />);
+    clipPoly(`bn${bi}e`, str(step
+      ? [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, zOut), M(x1, yStep, zOut), M(x1, yStep, z0), M(x1, y0, z0)]
+      : [M(x1, y0, zh), M(x1, y1, zh), M(x1, y1, z0), M(x1, y0, z0)]), { fill: BSIDE, stroke: MOSS_DEEP, strokeWidth: 1 });
     benchQuad([x0, y1], [x1, y1], step ? zOut : z0, zh, BSIDE2, `bn${bi}f`);
-    els.push(<polygon key={`bn${bi}t`} points={str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)])} fill={BTOP} stroke={MOSS_DEEP} strokeWidth=".8" />);
+    clipPoly(`bn${bi}t`, str([M(x0, y0, zh), M(x1, y0, zh), M(x1, y1, zh), M(x0, y1, zh)]), { fill: BTOP, stroke: MOSS_DEEP, strokeWidth: 1.2 });
     // The pan is cut wall to wall along the bench's face, but only the stretch
     // the box doesn't stand in front of reads from this camera — a right-hand
     // bench hides its own cut, so the mark starts where the seat ends.
@@ -1519,9 +1671,45 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   // finished shower rides over a curb that runs on beneath it, so that one
   // draws after its run — on either side of the line (inset curbs too).
   const onCurb = (b) => b.build !== "framed" && meetsEntry(b, benchFootprint(b, o.room));
-  (benches || []).forEach((b, bi) => { if (!onCurb(b)) benchDraw(b, bi); });
+  // A framed bench displaced the curb, so the run butts its face — but WHICH of
+  // the two is in front depends on the side it stands on, and the rule only ever
+  // had the far case. On the LEFT the run carries on at greater x, so it is
+  // nearer and covers the bench (owner markup 2026-07-31). On the RIGHT — the
+  // near wall — the bench is the greater x, so the bench is nearer and the run's
+  // squared END face belongs behind it. It was painting over it: at the AT curb
+  // that end face at (46, 38, 3) and the bench's front at (48, 40, 5) land on
+  // the same screen point, depth 87 against 93 (owner 2026-08-04).
+  const nearFramed = (b) => {
+    if (b.build !== "framed" || b.suspended) return false;
+    const f = benchFootprint(b, o.room);
+    if (f.kind === "corner") return f.corner === "fr" || f.corner === "br";
+    return f.x + f.w >= rw - 0.5;
+  };
+  const late = (b) => onCurb(b) || nearFramed(b);
+  (benches || []).forEach((b, bi) => { if (!late(b)) benchDraw(b, bi); });
   bands.forEach((b) => { if (!behind(b)) curbEls(b); });
-  (benches || []).forEach((b, bi) => { if (onCurb(b)) benchDraw(b, bi); });
+  (benches || []).forEach((b, bi) => { if (late(b)) benchDraw(b, bi); });
+  // The bench rides the curb, so it paints after its run — but the run does not
+  // STOP at the bench. The stretch carrying on past the bench's end stands
+  // NEARER this camera than that end does (depth is x+y+z, and it is further
+  // along x), so it covers the bench's corner and the notch its underside cuts
+  // round the curb: curb forward, bench behind (owner markup 2026-08-03). Same
+  // run, redrawn from the bench's end out, on top. Only the near half is
+  // trimmed — behind the bench the curb is genuinely buried, which is what the
+  // first pass already drew.
+  const riders = (benches || []).filter(onCurb).map((b) => benchFootprint(b, o.room))
+    .filter((f) => f && f.kind === "rect").map((f) => round2(f.x + f.w));
+  if (riders.length) {
+    const s = Math.max(...riders);
+    // Its TOP is the face that does the covering, and it is the only one
+    // redrawn: the outer face below it never met the bench, so repainting that
+    // would only lay a seam down it where the trim starts.
+    bands.filter((b) => b.side === "entry" && b.horiz && b.eC1[1] > s + 0.01).forEach((b) => {
+      const trim = { ...b, eC0: [Math.max(b.eC0[0], s), b.eC0[1]], eC1: [Math.max(b.eC1[0], s), b.eC1[1]] };
+      clipPoly(`cbt${b.ci}f`, str(bandPoly(trim).map((p) => M(p[0], p[1], CBH))),
+        { fill: "#E4DDCB", stroke: INK, strokeWidth: 1.2, strokeLinejoin: "round" });
+    });
+  }
   // A cut corner's curb takes the one straight line across.
   (curbDiags || []).forEach((d, i) => {
     const g2 = CGEOM[d.corner];
@@ -2095,6 +2283,22 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panSwapped]);
 
+  // Adopt the card that matches what is already on screen. Unlike runSolve this
+  // keeps the build standing — it is a RE-FIT, not a fresh start.
+  //
+  // A kit loaded off the Kits tab has a pan but no picked card, and that used to
+  // mean the re-fits below did nothing you could see: "Max — curb inside" moved
+  // the numbers and left the drawing alone until you picked a card or retyped
+  // the room (owner 2026-08-03). The pan is the answer either way, so the click
+  // adopts the card carrying it and the drawing moves on the click. An empty
+  // solve only clears a card that was already picked — a kit is left standing.
+  const refit = (res) => {
+    const same = (panKey && res.find((x) => x.pan.key === panKey)) || res[0] || null;
+    if (!same && !option) return;
+    setOption(same);
+    setPanKey(same ? same.pan.key : null);
+  };
+
   // With "overall max" on, the walls, the curb pick and the tile thickness
   // shape the pan space — re-fit the option cards when they change, without
   // wiping the build.
@@ -2108,11 +2312,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!maxIn) return;
     const res = solveRoom(inp, true);
     setResults(res);
-    if (option) {
-      const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
-      setOption(same);
-      setPanKey(same ? same.pan.key : null);
-    }
+    refit(res);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insetSig]);
 
@@ -2128,10 +2328,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     insetSeen.current = insetSigOf(nextMax);
     const res = solveRoom(inp, nextMax);
     setResults(res);
-    if (!option) return;
-    const same = res.find((x) => x.pan.key === option.pan.key) || res[0] || null;
-    setOption(same);
-    setPanKey(same ? same.pan.key : null);
+    refit(res);
   };
 
   // --- the drawings ---------------------------------------------------------
@@ -2394,6 +2591,75 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     </>
   );
 
+  // --- the wall editor ------------------------------------------------------
+  // It used to live in the build column's Walls group, beside the panel LINES
+  // (owner 2026-08-03: "this should be in the wall section of the custom shower
+  // tab and not in the build column"). The rows are the ROOM, not the bill —
+  // they belong with the size, the curb and the drain in the Custom shower
+  // form, and the build column is left listing what the room costs. The tab's
+  // own "Which get wedi" chips are gone with the move: each row's name button
+  // is the same on/off switch, with the length, the height and the sf beside it.
+  const wallEditor = (() => {
+    const cornerOn = CORNER_LBL.filter((c) => corners[c[0]]);
+    const openList = CORNER_LBL.filter((c) => cornerOpenMap && cornerOpenMap[c[0]]);
+    const allCut = openList.length > 0 && openList.every((c) => corners[c[0]]);
+    return (
+      <>
+        <div className="wallrows">
+          {walls.map((w) => (
+            <div className="wallrow" key={w.id}>
+              <button className={"wname" + (w.on ? " on" : "")} onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>{w.label}</button>
+              <NumIn className="win" value={w.len} placeholder={String(autoNow[w.id] || "")} disabled={!w.on} title="length, in"
+                onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
+              <span>×</span>
+              <NumIn className="win" value={w.h} placeholder={String(wallH)} disabled={!w.on} title="height, in — 40 for a half wall"
+                onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
+              <span className="wu">{w.on
+                ? sfOfWall(+w.len || autoNow[w.id] || 0, +w.h || +wallH || 96, w.faces || "in") + " sf"
+                  + (w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : "")
+                : "off"}</span>
+            </div>
+          ))}
+          {extraWalls.map((w) => (
+            <div className="wallrow" key={w.id}>
+              <button className="wname on" title={"which end it returns from — click to move it (" + endLabel(w) + "). The × on the right removes it"}
+                onClick={() => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, at: (x.at === "hi" ? "lo" : "hi") } : x)))}>
+                {EDGE_LBL[w.edge] || "Wall"} <small>{endLabel(w)}</small></button>
+              <NumIn className="win" value={w.len} title="length, in"
+                onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
+              <span>×</span>
+              <NumIn className="win" value={w.h} placeholder={String(wallH)} title="height, in"
+                onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
+              <span className="wu">{sfOfWall(+w.len || 0, +w.h || +wallH || 96, w.faces || "in")} sf
+                {w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : ""} ·{" "}
+                <b className="xdel" onClick={() => setExtraWalls((xs) => xs.filter((x) => x.id !== w.id))}>×</b></span>
+            </div>
+          ))}
+        </div>
+        <div className="addchips" style={{ paddingTop: 5 }}>
+          <button className={"addchip" + (placing ? " on" : "")} disabled={!pan} onClick={() => {
+            const next = !placing;
+            setPlacing(next);
+            if (next) say("Click an edge on the drawing to add a wall — an open corner toggles a corner cut");
+          }}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
+          <button className={"addchip" + (allCut ? " on" : "")} disabled={!openList.length}
+            title="cut the pan at every corner not boxed in by walls — straight to a nearby wall end, 45° otherwise; single corners click on the drawing"
+            onClick={() => setCorners((o) => {
+              const n = { ...o };
+              openList.forEach((c) => { n[c[0]] = !allCut; });
+              return n;
+            })}>✂ {allCut ? "Uncut corners" : "Cut open corners"}</button>
+          {cornerOn.length > 0 && (
+            <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>corner cuts: {cornerOn.map((c) => c[1]).join(", ")}</span>
+          )}
+          <span className="wdefh">Default height
+            <NumIn className="win" value={wallH} title="the height every wall starts at, in" onCommit={(v) => setWallH(+v || 96)} />in
+          </span>
+        </div>
+      </>
+    );
+  })();
+
   const customTab = (() => {
     const sel = option && results.includes(option) ? option : null;
     const tileEats = maxIn && inp.curb !== "curbless";
@@ -2474,25 +2740,22 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             </div>
             <div className="rfgrp span">
               <div className="h rowh">Walls
+                <span className="wallctl">
+                  <button className="wtgl" disabled={!pan}
+                    title={option ? "rotate the room — width ↔ depth, drain position follows, re-solves" : "swap which side is the back (long ↔ short)"}
+                    onClick={() => {
+                      if (option) {
+                        const next = { ...inp, w: +inp.d || 0, d: +inp.w || 0, drainX: inp.drainY, drainY: inp.drainX };
+                        setInp(next);
+                        runSolve(next);
+                      } else { retuneWalls(); setWallFlip((v) => !v); }
+                    }}>⇄</button>
+                </span>
                 <button className="rclear" data-wedi-clear
                   title="wipe the build — walls, cuts, parts — and reset this form"
                   onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
               </div>
-              <div className="rfflow">
-                <div className="rf"><label>Which get wedi</label>
-                  <div className="rchips">
-                    {walls.map((w) => (
-                      <button key={w.id} className={"rchip" + (w.on ? " on" : "")}
-                        onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>
-                        <span className="tick">{w.on ? "✓" : "○"}</span>{w.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="rf"><label>Height</label>
-                  <div className="dims"><NumIn className="rinp" value={wallH} onCommit={(v) => setWallH(+v || 96)} /><span>in</span></div>
-                </div>
-              </div>
+              {wallEditor}
             </div>
           </div>
         </div>
@@ -2718,8 +2981,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
       </>
     );
-    const auto = autoWallLens(pan, option ? option.room : null);
-    const cornerOn = CORNER_LBL.filter((c) => corners[c[0]]);
     return (
       <>
         <div className="bc-scroll">
@@ -2731,22 +2992,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           {BUCKETS.map((bk) => {
             const lines = build.lines.filter((l) => l.group === bk[0]);
             const isAddon = bk[0] === "addon";
-            if (!lines.length && !isAddon && bk[0] !== "walls") return null;
-            if (!lines.length && bk[0] === "walls" && !pan) return null;
+            if (!lines.length && !isAddon) return null;
             return (
               <div className="bgroup" key={bk[0]}>
                 <div className="bg-h">{bk[1]}
-                  {bk[0] === "walls" && pan && (
+                  {bk[0] === "walls" && (
                     <span className="wallctl">
-                      <button className="wtgl"
-                        title={option ? "rotate the room — width ↔ depth, drain position follows, re-solves" : "swap which side is the back (long ↔ short)"}
-                        onClick={() => {
-                          if (option) {
-                            const next = { ...inp, w: +inp.d || 0, d: +inp.w || 0, drainX: inp.drainY, drainY: inp.drainX };
-                            setInp(next);
-                            runSolve(next);
-                          } else { retuneWalls(); setWallFlip((v) => !v); }
-                        }}>⇄</button>
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
                         <button className={!panelFit ? "on" : ""} title="one sheet size, by area" onClick={() => setPanelFit(false)}>One size</button>
@@ -2754,60 +3005,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                     </span>
                   )}
                 </div>
-                {bk[0] === "walls" && pan && (<>
-                  {walls.map((w) => (
-                    <div className="wallrow" key={w.id}>
-                      <button className={"wname" + (w.on ? " on" : "")} onClick={() => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, on: !x.on } : x)))}>{w.label}</button>
-                      <NumIn className="win" value={w.len} placeholder={String(auto[w.id] || "")} disabled={!w.on} title="length, in"
-                        onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
-                      <span>×</span>
-                      <NumIn className="win" value={w.h} placeholder={String(wallH)} disabled={!w.on} title="height, in — 40 for a half wall"
-                        onCommit={(v) => setWalls((ws) => ws.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
-                      <span className="wu">{w.on
-                        ? sfOfWall(+w.len || auto[w.id] || 0, +w.h || +wallH || 96, w.faces || "in") + " sf"
-                          + (w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : "")
-                        : "off"}</span>
-                    </div>
-                  ))}
-                  {extraWalls.map((w) => (
-                    <div className="wallrow" key={w.id}>
-                      <button className="wname on" title={"which end it returns from — click to move it (" + endLabel(w) + "). The × on the right removes it"}
-                        onClick={() => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, at: (x.at === "hi" ? "lo" : "hi") } : x)))}>
-                        {EDGE_LBL[w.edge] || "Wall"} <small>{endLabel(w)}</small></button>
-                      <NumIn className="win" value={w.len} title="length, in"
-                        onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, len: v } : x)))} />
-                      <span>×</span>
-                      <NumIn className="win" value={w.h} placeholder={String(wallH)} title="height, in"
-                        onCommit={(v) => setExtraWalls((xs) => xs.map((x) => (x.id === w.id ? { ...x, h: v } : x)))} />
-                      <span className="wu">{sfOfWall(+w.len || 0, +w.h || +wallH || 96, w.faces || "in")} sf
-                        {w.faces === "both" ? " · 2-side" : w.faces === "in-end" ? " · +end" : ""} ·{" "}
-                        <b className="xdel" onClick={() => setExtraWalls((xs) => xs.filter((x) => x.id !== w.id))}>×</b></span>
-                    </div>
-                  ))}
-                  <div className="addchips" style={{ paddingTop: 5 }}>
-                    <button className={"addchip" + (placing ? " on" : "")} onClick={() => {
-                      const next = !placing;
-                      setPlacing(next);
-                      if (next) say("Click an edge on the drawing to add a wall — an open corner toggles a corner cut");
-                    }}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
-                    {(() => {
-                      const openList = CORNER_LBL.filter((c) => cornerOpenMap && cornerOpenMap[c[0]]);
-                      const allCut = openList.length > 0 && openList.every((c) => corners[c[0]]);
-                      return (
-                        <button className={"addchip" + (allCut ? " on" : "")} disabled={!openList.length}
-                          title="cut the pan at every corner not boxed in by walls — straight to a nearby wall end, 45° otherwise; single corners click on the drawing"
-                          onClick={() => setCorners((o) => {
-                            const n = { ...o };
-                            openList.forEach((c) => { n[c[0]] = !allCut; });
-                            return n;
-                          })}>✂ {allCut ? "Uncut corners" : "Cut open corners"}</button>
-                      );
-                    })()}
-                    {cornerOn.length > 0 && (
-                      <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>corner cuts: {cornerOn.map((c) => c[1]).join(", ")}</span>
-                    )}
-                  </div>
-                </>)}
                 {lines.map((l) => {
                   const e = l.item;
                   const price = tierOf(e);

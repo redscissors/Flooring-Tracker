@@ -311,11 +311,24 @@ src/
                     # name, the "full kit" caption, the per-card drain chip and
                     # the explanatory note box are all gone: they repeated on
                     # every card and buried the two pans that differ),
-                    # Custom shower (the solver's ranked option cards + cut
+                    # Custom shower (the room form — size, curb, tile thickness,
+                    # drain, and the WALL EDITOR, which moved here off the build
+                    # column 2026-08-03: the rows are the room, not the bill, so
+                    # per-wall on/off + length × height + sf, the added-wall rows,
+                    # ⇄ flip, "+ Add wall" and "✂ Cut open corners" sit with the
+                    # size and the drain, flowing as many rows per line as the
+                    # group is wide for; the group's old "which get wedi" chips
+                    # went with the move — each row's name button is that switch.
+                    # Fit | One size stayed in the build column: it picks a sheet
+                    # PLAN, so it belongs in the header of the lines it changes —
+                    # then the solver's ranked option cards, which FLOW into an
+                    # auto-fill grid and scroll DOWN rather than sideways
+                    # (2026-08-03: past card two the answer used to be off screen
+                    # with nothing saying so), + cut
                     # list) and Browse (the whole catalog, stock tinted green and
                     # ranked first, + the sealant/fastener figurer) — over one
                     # shared build column (grouped lines, swap popovers, steppers,
-                    # the wall editor, add-on chips — a chip with several possible
+                    # add-on chips — a chip with several possible
                     # parts opens a picker instead of auto-adding, and curbless
                     # builds get a Recess chip since the bracket kit/ramp is a
                     # pick, never part of the house kit (owner asks 2026-07-30),
@@ -340,7 +353,21 @@ src/
                     # walls butt it; at the FRONT it inverts — the side wall
                     # carries all the way forward and the front wall butts
                     # against it, the continuous member on a real frame (owner
-                    # 2026-08-03) — panel-seam ticks, square drains,
+                    # 2026-08-03) — and a run carries out to the CURB's finished
+                    # face wherever a curb turns that corner, because the curb
+                    # butts into the wall: "the walls should always be flush with
+                    # the curb / curb and tile thickness" (owner 2026-08-03).
+                    # `curbCornerOut` is the ONE place that reach is figured and
+                    # BOTH drawings read it, so they cannot drift apart again; it
+                    # comes off the curb's own bands, so a lean curb asks 1½"
+                    # where a standard one asks 4", and an "overall max" curb asks
+                    # NOTHING — there the curb and the tile on its face sit inside
+                    # the stated line the wall already stands on, which is what
+                    # makes the wall flush with the TILED face. A run takes the
+                    # longer of the wall reach and the curb reach, so a corner
+                    # with both still draws one slab; with neither it stops on the
+                    # line (which retired the isometric's own 4" overhang into an
+                    # empty corner) — panel-seam ticks, square drains,
                     # dashed cut edges,
                     # drain callouts, corner cuts ghosting the full-size pan,
                     # pan hips aimed at the UNCUT pan's corners and clipped to
@@ -374,7 +401,14 @@ src/
                     # to the stock kit. The custom form's "Sizes are — Pan size |
                     # Max — curb inside" toggle re-fits like the wall/curb changes
                     # do — re-solve, re-pick the equivalent option, benches and
-                    # add-ons left standing — it never wipes the build. Beside
+                    # add-ons left standing — it never wipes the build. All three
+                    # re-fits run through one `refit(results)`, which adopts the
+                    # card carrying the pan already on screen whether or not a
+                    # card was picked: a kit off the Kits tab has a pan and NO
+                    # card, and every re-fit used to be a no-op there, so the
+                    # toggle moved the numbers and left the drawing frozen until
+                    # you clicked a card or retyped the room (owner 2026-08-03).
+                    # Beside
                     # it sits "Tile thickness" (owner 2026-08-03): the finish
                     # that lands on the curb's OUTER face, which the stated
                     # footprint has to cover too, so `curbInsets` steps the curb
