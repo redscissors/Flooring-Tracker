@@ -257,6 +257,8 @@ their weight while an outline stops bleeding onto its neighbour. Widths went
 .7 → 1 and .8 → 1.2 so the folds read as they did.
 
 **Still open, and NOT changed — it reverses a recorded rule.** The 2″ build-up
+**RESOLVED in follow-up 5** — the rule stands; the fault was draw order.
+The 2″ build-up
 bench oversails the curb by `CADD` and its underside steps up onto the curb's
 top (`zOut = CBH`, `yStep = y1 − CW`), drawing a small riser at the front. That
 is issue 069's rule — "a bench reaching the entry runs on out over the curb
@@ -297,7 +299,30 @@ the riser measures 6.36px = 3.545" = CBH − pan thickness. The step corner land
 ON the curb's top-inner edge to a hundredth of a unit.
 
 **What was actually missing: the PLAN never showed the step at all.** The bench
-rectangle simply covered the run — no line, no note — so the one element that
-reads straight across the entry died under it. The curb's two edges now carry on
+rectangle simply covered the run — no line — so the one element that reads
+straight across the entry died under it. The curb's two edges now carry on
 across the bench in the bench's own colour (its inner face dashed, its outer
-face solid) with the raised stretch marked **STEPS UP**.
+face solid). It carried a **STEPS UP** caption for one commit; the owner asked
+for it off, so the lines say it alone.
+
+### The actual fault — draw order, not geometry
+
+> I drew on you picture with orange to help show where the curb should be
+> forward and the bench behind. It is a tricky thing
+
+The orange X sat on the little face inside the step notch. The geometry was
+right and the ORDER was wrong: the bench rides the curb so it paints after the
+run, but the run does not stop at the bench. The stretch carrying on past the
+bench's end stands NEARER this camera than that end does — depth is `x+y+z` and
+it is further along `x` — so it should cover the bench's corner and the notch
+its underside cuts round the profile. Instead the bench painted last and won.
+
+Worked at the AT curb: the notch face at `(14, 37, 3)` and the curb's top at
+`(16.1, 39.1, 5.125)` project to the same screen point, depth 54 against 60.3 —
+the curb is in front by six inches of depth and was being painted under.
+
+The fix is the same run redrawn from the bench's end out, on top, after the
+benches. Only its TOP is redrawn: that is the face doing the covering, and
+repainting the outer face below it would lay a false seam down it at the trim —
+the bench never touched that face. Behind the bench the curb is genuinely
+buried, which is what the first pass already drew.

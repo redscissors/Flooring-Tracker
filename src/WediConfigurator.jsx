@@ -1042,8 +1042,6 @@ function TopDown({ o, w, h, mini, wallOn, dWalls, benches, framedFit, cuts, curb
         push(<line key={`bnc${bi}s${i}`} x1={lx} y1={Y(cy2)} x2={rx} y2={Y(cy2)}
           stroke={MOSS_DEEP} strokeWidth="1.2" strokeDasharray={i ? undefined : "4 3"} />);
       });
-      push(<text key={`bnu${bi}`} x={round2((lx + rx) / 2)} y={round2(Y((eb.c0 + eb.c1) / 2) + 2.5)}
-        textAnchor="middle" fontSize="6" fontWeight="800" fill={MOSS_DEEP} fontFamily={FONT} letterSpacing=".4">STEPS UP</text>);
     }
     if (b.build === "framed" && !framedFit) {
       // wall to wall along the PAN — short of the line when the curb is inside it
@@ -1657,6 +1655,27 @@ function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs, curbD
   (benches || []).forEach((b, bi) => { if (!onCurb(b)) benchDraw(b, bi); });
   bands.forEach((b) => { if (!behind(b)) curbEls(b); });
   (benches || []).forEach((b, bi) => { if (onCurb(b)) benchDraw(b, bi); });
+  // The bench rides the curb, so it paints after its run — but the run does not
+  // STOP at the bench. The stretch carrying on past the bench's end stands
+  // NEARER this camera than that end does (depth is x+y+z, and it is further
+  // along x), so it covers the bench's corner and the notch its underside cuts
+  // round the curb: curb forward, bench behind (owner markup 2026-08-03). Same
+  // run, redrawn from the bench's end out, on top. Only the near half is
+  // trimmed — behind the bench the curb is genuinely buried, which is what the
+  // first pass already drew.
+  const riders = (benches || []).filter(onCurb).map((b) => benchFootprint(b, o.room))
+    .filter((f) => f && f.kind === "rect").map((f) => round2(f.x + f.w));
+  if (riders.length) {
+    const s = Math.max(...riders);
+    // Its TOP is the face that does the covering, and it is the only one
+    // redrawn: the outer face below it never met the bench, so repainting that
+    // would only lay a seam down it where the trim starts.
+    bands.filter((b) => b.side === "entry" && b.horiz && b.eC1[1] > s + 0.01).forEach((b) => {
+      const trim = { ...b, eC0: [Math.max(b.eC0[0], s), b.eC0[1]], eC1: [Math.max(b.eC1[0], s), b.eC1[1]] };
+      clipPoly(`cbt${b.ci}f`, str(bandPoly(trim).map((p) => M(p[0], p[1], CBH))),
+        { fill: "#E4DDCB", stroke: INK, strokeWidth: 1.2, strokeLinejoin: "round" });
+    });
+  }
   // A cut corner's curb takes the one straight line across.
   (curbDiags || []).forEach((d, i) => {
     const g2 = CGEOM[d.corner];
