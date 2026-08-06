@@ -44,6 +44,18 @@ Because the rename lives on the catalog entry, a drain change (re-solve) or
 any swap re-emits the curb line with the same name — nothing shows the old
 string anywhere.
 
+## Round 2 (same day)
+
+- Curbs: the second line is just the SKU — `sizeText` blanked, the length
+  already leads the name.
+- Building panels read by the foot — `4'x5'x1/2" Building Panel` — derived
+  from the parsed dims in `makeEntry` (an off-foot side stays inches:
+  `32"x4'…`; Vapor 85 keeps its line name; the US4000 panel kits are
+  untouched). The SKU and the inch dimensions stay on the second line in the
+  build column and both popovers. Because both treatments live in the
+  display layer (SKU-keyed map / dims-derived), a pricelist re-transcription
+  keeps them with no extra work.
+
 ## Proof
 
 `shoot.mjs` → `shots/` (real configurator over the dev server):
