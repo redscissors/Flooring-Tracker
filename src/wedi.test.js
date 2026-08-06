@@ -183,6 +183,19 @@ test("wedi curbs: plain profile names, full foam → lean → AT order (owner 20
   assert.deepEqual(curbs().map((c) => c.us),
     ["US3000039", "US3000041", "US3000038", "US3000040", "US3000048", "US3000049", "US3000008", "US3000010"],
     "swap order: full foam 60/96, lean 60/96, full AT, lean AT, caps");
+  assert.ok(group("curb").every((c) => c.sizeText === ""),
+    "a curb's second line is just the SKU — the length lives in the name");
+});
+
+test("wedi panels: by-the-foot names, SKU + inches stay on the second line (owner 2026-08-06)", () => {
+  assert.equal(item("US8000014").name, "4'x5'x1/2\" Building Panel");
+  assert.equal(item("US8000017").name, "3'x5'x1/2\" Building Panel");
+  assert.equal(item("US8000015").name, "4'x8'x1/2\" Building Panel");
+  assert.equal(item("US8000006").name, "2'x4'x1/8\" Building Panel");
+  assert.equal(item("US8000032").name, "32\"x4'x1/2\" Building Panel", "an off-foot side stays in inches");
+  assert.equal(item("US8000026").name, "4'x8'x1/2\" Vapor 85 Building Panel");
+  assert.equal(item("US8000014").sizeText, '48" x 60" x 1/2"', "the inches ride the size line");
+  assert.equal(item("US4000001").name, "wedi® Tub & Shower Wall Kit", "panel kits keep their own names");
 });
 
 // --- tiers --------------------------------------------------------------------

@@ -4215,11 +4215,21 @@ function makeEntry(stockRow, soRow) {
     e.len = all[0] || null;
     e.w = all[1] != null ? all[1] : null;   // profile height
     e.d = all[2] != null ? all[2] : null;   // profile width
-    e.sizeText = e.len ? String(e.len) + '" curb' : "";
+    // The length lives in the display name, so the size line stays empty and
+    // a curb's second line reads as just the SKU (owner ask 2026-08-06).
+    e.sizeText = "";
     if (CURB_NAMES[e.us]) e.name = CURB_NAMES[e.us];
   } else if (e.group === "panel") {
     if (e.w && e.d) e.sf = round2(e.w * e.d / 144);
     e.sizeText = sizeTextOf(e.w, e.d, e.t);
+    // Panels read by the foot — 4'x5'x1/2" Building Panel — with the SKU and
+    // the inches on the second line (owner ask 2026-08-06). Derived from the
+    // parsed dims, so a pricelist re-transcription keeps the treatment.
+    if (e.sub !== "kit" && e.w && e.d && e.t) {
+      const ft = (n) => (n % 12 === 0 ? n / 12 + "'" : inch(n) + '"');
+      e.name = ft(Math.min(e.w, e.d)) + "x" + ft(Math.max(e.w, e.d)) + "x" + inch(e.t) + '" '
+        + (e.sub === "vapor" ? "Vapor 85 Building Panel" : "Building Panel");
+    }
   } else if (e.group === "cover" || e.group === "coverFrame") {
     const f = finishOf(name, e.desc);
     e.finish = f.finish;
