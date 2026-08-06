@@ -287,7 +287,18 @@ src/
                     # non-dimensional item keeps its pricelist CONTENTS as its
                     # sizeText ("100 ct 1 5/8\" Screws…", "20 oz foil sausage",
                     # "2 per bag" — contentOf), so a Fastener Kit row says what
-                    # one EA holds everywhere a size shows. A pricelist
+                    # one EA holds everywhere a size shows. Display names are a
+                    # LAYER over the transcribed tables (issue 080, owner asks
+                    # 2026-08-06): curbs read <len>\" <profile> Curb (CURB_NAMES,
+                    # SKU-keyed; sizeText blank — second line is the SKU alone;
+                    # curbs() orders full foam → lean → AT → caps), panels by
+                    # the foot (4'x5'x1/2\" Building Panel), bases size-first
+                    # (36\"x60\" Shower Base, offset drains named), covers with
+                    # finish WORDS for the codes (FIN_SHORT; full finish stays
+                    # the second line), niches by their EXTERIOR with "interior
+                    # 12\" x 8\"" as sizeText (vendor-name parse, 4\" flange
+                    # fallback) — all derived in makeEntry, so a pricelist
+                    # re-transcription keeps every treatment. A pricelist
                     # update is a re-transcription of this one file (wedi.test.js)
   wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
                     # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`

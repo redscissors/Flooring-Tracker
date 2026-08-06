@@ -16,7 +16,7 @@ import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, CURB_LAP, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
@@ -103,11 +103,12 @@ const majority = (list, get) => {
 };
 // A row earns a tag only where it breaks its family's pattern. "CENTER DRAIN"
 // on 16 of 18 cards taught nobody anything and hid the two that were offset.
-const panTag = (p, usualDrain, usualName) => {
-  if (/corner/i.test(p.name)) return "Corner";           // its name already says Corner/Offset Drain
+// (The old name-mismatch tag went with the size-led catalog names — every
+// pan's name now differs by size alone, which is what the card already says.)
+const panTag = (p, usualDrain) => {
+  if (/corner/i.test(p.name)) return "Corner";           // its name already says Corner
   const drain = p.group === "module" ? "module" : p.drain?.type || "";
   if (usualDrain && drain && drain !== usualDrain) return drain[0].toUpperCase() + drain.slice(1);
-  if (usualName && p.name !== usualName) return unwedi(p.name);
   return "";
 };
 
@@ -442,18 +443,24 @@ const FIN_SWATCH = {
   CHA: "#DCC49B", WHT: "#F4F2EC",
 };
 const isCover = (e) => !!e && (e.group === "cover" || e.group === "coverFrame");
-const finName = (e) => (isCover(e) && e.finish ? FINISHES[e.finish] || e.finish : "");
+// A cover's NAME carries its size and finish word (owner 2026-08-06), so the
+// meta lines add only the SKU — finName feeds them for cover FRAMES alone,
+// whose vendor names still read by code.
+const finName = (e) => (!!e && e.group === "coverFrame" && e.finish ? FINISHES[e.finish] || e.finish : "");
 function FinDot({ e }) {
   if (!isCover(e) || !e.finish) return null;
   const c = FIN_SWATCH[e.finish];
-  return <span className="fsw" title={finName(e)}
+  return <span className="fsw" title={FINISHES[e.finish] || e.finish}
     style={{ background: c || "repeating-linear-gradient(45deg,#FFF 0 2px,#CBC4B0 2px 4px)" }} />;
 }
 
 // Display-only (owner ask 2026-07-30): the popup drops the "wedi" branding
 // from names — everything in here is wedi — and Browse rows lead with the
 // size, stripping it out of names that embed it (either dimension order).
-// Payloads and the order-entry copy keep the vendor's full wording.
+// A size-led catalog name (curbs, panels, bases, niches — owner 2026-08-06)
+// already IS the lead, so those rows show the name and the fuller size text
+// moves to the sub line. Payloads and the order-entry copy keep the vendor's
+// full wording.
 const unwedi = (s) => (s || "").replace(/\bwedi\b\s*®?\s*/gi, "")
   .replace(/\s{2,}/g, " ").replace(/^[\s—–-]+/, "").trim();
 const sizePat = (sz) => sz.trim().split("").map((c) =>
@@ -470,7 +477,8 @@ const stripSize = (name, sz) => {
 };
 const browseName = (e) => unwedi(stripSize(e.name, e.sizeText))
   .replace(/\s{2,}/g, " ").replace(/[\s—–-]+$/, "").trim() || unwedi(e.name);
-const browseSub = (e) => [finName(e), GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
+const sizeLed = (e) => /^\d/.test(e.name);
+const browseSub = (e) => [finName(e), sizeLed(e) ? e.sizeText : "", GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
   .filter(Boolean).join(" · ");
 
 const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["bench", "Bench"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
@@ -2347,7 +2355,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         pieces: pieces,
         drain: p.drain ? { ...p.drain } : null,
         room: { w: p.len, d: round2(MODULE_DEPTH + (ext ? MODEXT_DEPTH : 0)) },
-        warnings: [], title: p.name + " " + p.sizeText,
+        warnings: [], title: p.name,
       };
     }
     // Orient the pan the way the walls read: the BACK wall is the long side (or
@@ -2366,7 +2374,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     }
     return {
       pieces: [{ kind: "pan", item: p, x: 0, y: 0, w: bw, d: bd, cut: null }],
-      drain, room: { w: bw, d: bd }, warnings: [], title: p.name + " " + p.sizeText,
+      drain, room: { w: bw, d: bd }, warnings: [], title: p.name,
     };
   }, [panKey, option, wallFlip]);
 
@@ -2447,7 +2455,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         set: (k) => setOpts((o) => ({ ...o, coverFrame: k ? item(k).finish : undefined })),
       };
     }
-    if (g === "curb") return { title: "Curb", list: group("curb"), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
+    if (g === "curb") return { title: "Curb", list: curbs(), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
     if (g === "sealant" && line.item.sub === "joint") {
       return { title: "Joint sealant form", list: [item(SKU.sealantTube), item(SKU.sealantSausage)], set: (k) => setOpts((o) => ({ ...o, sealantForm: k === SKU.sealantSausage ? "sausage" : "tube" })) };
     }
@@ -2564,13 +2572,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         const list = fd[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: fd[0] });
         if (!list.length) return null;
         const usualDrain = majority(list, (p) => (p.group === "module" ? "module" : p.drain?.type || ""));
-        const usualName = majority(list, (p) => p.name);
         return (
           <div className="fam" key={fd[0]}>
             <div className="fam-h"><div className="t">{fd[1]}</div></div>
             <div className="cards">
               {[...list].sort(panOrder).map((p) => {
-                const tag = panTag(p, usualDrain, usualName);
+                const tag = panTag(p, usualDrain);
                 return (
                   <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}
                     title={unwedi(p.name) + (p.group === "module" ? ` · ${inch(p.channel)}″ channel` : ` · ${p.drain.type} drain`)}>
@@ -2922,10 +2929,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
         {list.slice(0, MAX).map((e) => {
           const n = qtyIn(e.key);
-          // Drain covers & frames lead with what the buyer picks by — Size ·
-          // Type · COLOR (color a shade bolder) — the vendor name drops to
-          // the small line (owner ask 2026-07-30).
-          const cf = (e.group === "cover" || e.group === "coverFrame") && finName(e);
+          // Cover FRAMES lead with what the buyer picks by — Size · Type ·
+          // COLOR (color a shade bolder) — the vendor name drops to the small
+          // line (owner ask 2026-07-30). Covers themselves say all three in
+          // their catalog name now (owner 2026-08-06), so they read generic.
+          const cf = e.group === "coverFrame" && finName(e);
           // Two lines, not one (owner 2026-08-02): the description owns the full
           // column width and the SKU / price / quantity sit under it. Sharing one
           // line with them left ~170px for a name once the columns went equal,
@@ -2936,7 +2944,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
                 {cf
                   ? <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
-                  : <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
+                  : <div className="n"><FinDot e={e} />{sizeLed(e) ? unwedi(e.name) : [e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
               </div>
               <div className="bmeta">
                 <div className="s">{cf ? unwedi(e.name) + (e.stock ? " · stock" : " · special order") : browseSub(e)}</div>
@@ -2984,7 +2992,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">The build</div>
-            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name) + " " + pan.sizeText) : "manual — from Browse"}</div>
+            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name)) : "manual — from Browse"}</div>
           </div>
 
           {BUCKETS.map((bk) => {

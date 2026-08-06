@@ -3814,6 +3814,14 @@ export const FINISHES = {
   CSL: "Chrome, polished slotted", SSP: "Stainless, perforated", MBP: "Matte black, perforated",
   BP: "Brass, perforated", CP: "Chrome, perforated",
 };
+// The finish word a cover's NAME carries (owner ask 2026-08-06); the fuller
+// FINISHES text stays on the second line.
+const FIN_SHORT = {
+  SS: "Stainless", T14: 'Tileable ¼"', T38: 'Tileable ⅜"', T: "Tileable",
+  C: "Chrome", B: "Brass", G: "Gold", ORB: "Oil-Rubbed Bronze", MB: "Matte Black",
+  CHA: "Champagne", WHT: "White", CSL: "Chrome Slotted", SSP: "Stainless Perforated",
+  MBP: "Matte Black Perforated", BP: "Brass Perforated", CP: "Chrome Perforated",
+};
 
 export const GROUP_LABEL = {
   pan: "Pans", module: "Linear modules", modExt: "Module extensions",
@@ -3948,6 +3956,14 @@ function sizeTextOf(w, d, t) {
   return inch(w) + '" x ' + inch(d) + '"' + (t != null ? " x " + inch(t) + '"' : "");
 }
 
+// 36 → 3', 38 → 3'2" — how the trade says a base size (owner 2026-08-06),
+// matching the Kits tab's foot-led cards (issue 075).
+function ftLbl(n) {
+  if (!(n >= 12)) return inch(n) + '"';
+  const f = Math.floor(n / 12), r = round2(n - f * 12);
+  return f + "'" + (r ? inch(r) + '"' : "");
+}
+
 function cleanDesc(desc, us) {
   let s = String(desc || "");
   if (us) s = s.split(us).join(" ");
@@ -3998,6 +4014,15 @@ const BENCHES = SET(["US3000000", "US3000042", "US3000043", "US3000044", "US3000
 const CURBS = {
   US3000039: "full", US3000041: "full", US3000038: "lean", US3000040: "lean",
   US3000008: "cap", US3000010: "cap", US3000048: "at", US3000049: "at",
+};
+// The pricelist's curb names ("wedi Fundo® Shower Curb Lean AT 60"") read as
+// one confusing string at the desk (owner ask 2026-08-06) — every curb shows
+// as <length>" <profile> Curb instead, everywhere a name renders.
+const CURB_NAMES = {
+  US3000039: '60" Full Foam Curb', US3000041: '96" Full Foam Curb',
+  US3000038: '60" Lean Curb', US3000040: '96" Lean Curb',
+  US3000048: '60" Full Foam AT Curb', US3000049: '60" Lean AT Curb',
+  US3000008: '60" Curb Cap', US3000010: '96" Curb Cap',
 };
 const EXT_SUBS = {
   "073783528": ["extension", "fundo"], US3000036: ["extension", "fundo"],
@@ -4180,6 +4205,17 @@ function makeEntry(stockRow, soRow) {
     }
     e.drain = drainOf(e, text);
     e.sizeText = sizeTextOf(e.w, e.d, e.t);
+    // Bases read size-first BY THE FOOT, inches on the second line (owner
+    // asks 2026-08-06); an offset drain is named because two same-size bases
+    // can differ only there. Derived, so a pricelist re-transcription keeps
+    // the treatment.
+    if (e.w && e.d) {
+      const fam = e.sub === "curbless" ? "Curbless Shower Base"
+        : e.sub === "linear" ? "Linear Shower Base"
+          : e.sub === "sdry" ? "S-Dry Shower Base" : "Shower Base";
+      e.name = ftLbl(e.w) + "x" + ftLbl(e.d) + " " + fam
+        + (e.drain && e.drain.type === "offset" ? " — Offset Drain" : "");
+    }
   } else if (e.group === "module") {
     e.len = Math.max(e.w || 0, e.d || 0) || null;
     if (e.sub !== "discreto") { e.w = e.len; e.d = MODULE_DEPTH; e.channel = MODULE_CHANNEL[e.len] || null; }
@@ -4206,15 +4242,50 @@ function makeEntry(stockRow, soRow) {
     e.len = all[0] || null;
     e.w = all[1] != null ? all[1] : null;   // profile height
     e.d = all[2] != null ? all[2] : null;   // profile width
-    e.sizeText = e.len ? String(e.len) + '" curb' : "";
+    // The length lives in the display name, so the size line stays empty and
+    // a curb's second line reads as just the SKU (owner ask 2026-08-06).
+    e.sizeText = "";
+    if (CURB_NAMES[e.us]) e.name = CURB_NAMES[e.us];
   } else if (e.group === "panel") {
     if (e.w && e.d) e.sf = round2(e.w * e.d / 144);
     e.sizeText = sizeTextOf(e.w, e.d, e.t);
+    // Panels read by the foot — 4'x5'x1/2" Building Panel — with the SKU and
+    // the inches on the second line (owner ask 2026-08-06). Derived from the
+    // parsed dims, so a pricelist re-transcription keeps the treatment.
+    if (e.sub !== "kit" && e.w && e.d && e.t) {
+      const ft = (n) => (n % 12 === 0 ? n / 12 + "'" : inch(n) + '"');
+      e.name = ft(Math.min(e.w, e.d)) + "x" + ft(Math.max(e.w, e.d)) + "x" + inch(e.t) + '" '
+        + (e.sub === "vapor" ? "Vapor 85 Building Panel" : "Building Panel");
+    }
   } else if (e.group === "cover" || e.group === "coverFrame") {
     const f = finishOf(name, e.desc);
     e.finish = f.finish;
     if (e.sub === "linear") { e.len = f.len; e.channel = f.len; }
     e.sizeText = e.sub === "linear" ? (e.len ? e.len + '" channel' : "") : '4" x 4"';
+    // Covers drop the vendor's finish CODES (SS/MB/T38) for words (owner ask
+    // 2026-08-06). Size and finish both live in the name, so the size line
+    // stays empty and a cover's second line is just the SKU — the fuller
+    // finish text survives as the swatch dot's tooltip.
+    if (e.group === "cover" && e.finish) {
+      e.name = (e.sub === "linear" ? (e.len ? e.len + '" ' : "") + "Linear Drain Cover" : '4"x4" Drain Cover')
+        + " — " + (FIN_SHORT[e.finish] || FINISHES[e.finish] || e.finish);
+      e.sizeText = "";
+    }
+  } else if (e.group === "niche") {
+    // The pricelist names a niche by its INTERIOR and sizes it by the
+    // EXTERIOR with nothing saying which is which. The exterior leads the
+    // name — it's the wall opening — and the interior is spelled out on the
+    // second line (owner ask 2026-08-06). Interior parses off the vendor
+    // name, falling back to the 4" flange rule the whole line follows.
+    if (e.w && e.d) {
+      const im = String(name).match(/(\d+)\s*"\s*x\s*(\d+)\s*"/);
+      const iw = im ? +im[1] : e.w - 4, id = im ? +im[2] : e.d - 4;
+      e.name = inch(e.w) + '"x' + inch(e.d) + '" '
+        + (/cathedral|"CAT/i.test(name + " " + e.desc) ? "Cathedral Shower Niche" : "Shower Niche");
+      e.sizeText = iw > 0 && id > 0 ? "interior " + inch(iw) + '" x ' + inch(id) + '"' : "";
+    } else {
+      e.sizeText = contentOf(e.size) || contentOf(e.details);
+    }
   } else if (e.group === "kit") {
     e.sizeText = sizeTextOf(e.w, e.d, null);
     e.drain = { type: /offset/i.test(text) ? "offset" : /linear|module/i.test(text) ? "linear" : "center" };
@@ -4284,6 +4355,15 @@ export function pans(opts) {
   });
   const order = { fundo: 0, curbless: 1, linear: 2, sdry: 3 };
   return list.sort((a, b) => (order[a.sub] - order[b.sub]) || (a.w * a.d - b.w * b.d) || (a.w - b.w));
+}
+
+// The curb list in profile order (owner ask 2026-08-06): full foam, then
+// lean, then AT (full AT before lean AT), caps last; 60" before 96".
+const CURB_ORDER = { full: 0, lean: 1, at: 2, cap: 3 };
+export function curbs() {
+  return group("curb").slice().sort((a, b) => (CURB_ORDER[a.sub] - CURB_ORDER[b.sub])
+    || ((/lean/i.test(a.name) ? 1 : 0) - (/lean/i.test(b.name) ? 1 : 0))
+    || ((a.len || 0) - (b.len || 0)));
 }
 
 // ============================================================================
@@ -4976,19 +5056,19 @@ export function kitFor(panKey, opts) {
     const cutTxt = pp.cut ? ", cut to " + inch(pp.w) + "×" + inch(pp.d) + '"' : "";
     panPlan.option.floorLines.forEach((fl, i) => {
       push(lines, fl.item, fl.qty, "floor", i === 0
-        ? (fl.item.sizeText || "") + " — beside the framed bench" + cutTxt
+        ? "beside the framed bench" + cutTxt
           + ", drain centered in the " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear space'
         : "", true);
     });
   } else {
-    let floorNote = pan.sizeText;
+    let floorNote = "";
     if (framedIn) {
       const sw = benches.some((b) => b.build === "framed" && b.panFit === "smaller")
         ? smallerPanFor(pan, panRoom.w, panRoom.d) : null;
       if (sw) {
         floorPan = sw;
-        floorNote = sw.sizeText + " — sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
-      } else floorNote = pan.sizeText + " — cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
+        floorNote = "sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
+      } else floorNote = "cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
     }
     push(lines, floorPan, 1, "floor", floorNote, true);
     if (option) {
@@ -5053,7 +5133,7 @@ export function kitFor(panKey, opts) {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, opts.coverFinish || "SS");
   } else cover = item(SKU.coverSS);
-  push(lines, cover, 1, "drain", cover && cover.finish ? FINISHES[cover.finish] || "" : "", true);
+  push(lines, cover, 1, "drain", "", true);
   const frame = opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
   if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
@@ -5260,7 +5340,7 @@ function exactOption(input, list) {
   const pieces = [{ kind: "pan", item: best.pan, x: 0, y: 0, w: best.o.w, d: best.o.d, cut: null }];
   const lines = aggregate(pieces);
   return {
-    id: "exact", kind: "exact", title: best.pan.name + " " + best.pan.sizeText,
+    id: "exact", kind: "exact", title: best.pan.name,
     badges: ["Perfect fit — no cutting"], pieces: pieces,
     drain: mapDrain(best.pan, best.o.rot, 0, 0), warnings: [],
     floorLines: lines, floorPrice: priceOf(lines), input: input,
@@ -5563,7 +5643,7 @@ function linearOption(input) {
   const pieces = [{ kind: "pan", item: base.pan, x: 0, y: 0, w: base.o.w, d: base.o.d, cut: null }];
   const lines = aggregate(pieces);
   return {
-    id: "linear", kind: "linear", title: base.pan.name + " " + base.pan.sizeText,
+    id: "linear", kind: "linear", title: base.pan.name,
     badges: ["Drain at wall", "Perfect fit — no cutting"], pieces: pieces,
     drain: mapDrain(base.pan, base.o.rot, 0, 0), warnings: [],
     floorLines: lines, floorPrice: priceOf(lines), input: input,

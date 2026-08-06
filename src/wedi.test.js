@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
@@ -170,6 +170,66 @@ test("wedi groups: panels, extensions, curbs, modules, covers and the legacy key
     const s = group("sdry");
     return s.length >= 25 && s.every((e) => /^US\d\d76/.test(e.us)) && item("US9176001").group === "pan";
   })(), "S-DRY line is its own group (US9176 bases stay pans)");
+});
+
+test("wedi curbs: plain profile names, full foam → lean → AT order (owner 2026-08-06)", () => {
+  assert.equal(item("47730").name, '60" Full Foam Curb', "SKU 47730 reads by length + profile, no Fundo Shower");
+  assert.equal(item("US3000041").name, '96" Full Foam Curb');
+  assert.equal(item("US3000038").name, '60" Lean Curb');
+  assert.equal(item("US3000040").name, '96" Lean Curb');
+  assert.equal(item("US3000048").name, '60" Full Foam AT Curb');
+  assert.equal(item("US3000049").name, '60" Lean AT Curb');
+  assert.ok(group("curb").every((c) => !/fundo|shower/i.test(c.name)), "no curb says Fundo Shower");
+  assert.deepEqual(curbs().map((c) => c.us),
+    ["US3000039", "US3000041", "US3000038", "US3000040", "US3000048", "US3000049", "US3000008", "US3000010"],
+    "swap order: full foam 60/96, lean 60/96, full AT, lean AT, caps");
+  assert.ok(group("curb").every((c) => c.sizeText === ""),
+    "a curb's second line is just the SKU — the length lives in the name");
+});
+
+test("wedi panels: by-the-foot names, SKU + inches stay on the second line (owner 2026-08-06)", () => {
+  assert.equal(item("US8000014").name, "4'x5'x1/2\" Building Panel");
+  assert.equal(item("US8000017").name, "3'x5'x1/2\" Building Panel");
+  assert.equal(item("US8000015").name, "4'x8'x1/2\" Building Panel");
+  assert.equal(item("US8000006").name, "2'x4'x1/8\" Building Panel");
+  assert.equal(item("US8000032").name, "32\"x4'x1/2\" Building Panel", "an off-foot side stays in inches");
+  assert.equal(item("US8000026").name, "4'x8'x1/2\" Vapor 85 Building Panel");
+  assert.equal(item("US8000014").sizeText, '48" x 60" x 1/2"', "the inches ride the size line");
+  assert.equal(item("US4000001").name, "wedi® Tub & Shower Wall Kit", "panel kits keep their own names");
+});
+
+test("wedi bases: by-the-foot names, inches on the second line, offset drains named (owner 2026-08-06)", () => {
+  assert.equal(item("US9100004").name, "3'x5' Shower Base");
+  assert.equal(item("US9100005").name, "3'x6' Shower Base — Offset Drain");
+  assert.equal(item("1504159").name, "3'6\"x3'6\" Shower Base", "an off-foot side reads feet-and-inches");
+  assert.equal(item("US9200005").name, "5'x5' Curbless Shower Base");
+  assert.equal(item("US9200007").name, "3'x5' Curbless Shower Base — Offset Drain");
+  assert.equal(item("US9310001").name, "3'x5' Linear Shower Base");
+  assert.equal(item("1518075").name, "3'2\"x5'4\" S-Dry Shower Base");
+  assert.equal(item("US9100004").sizeText, '36" x 60" x 1 37/64"', "the full inches (with thickness) stay on the size line");
+  assert.ok(group("pan").every((p) => !/fundo/i.test(p.name)), "no base says Fundo");
+});
+
+test("wedi covers: finish words replace the codes, second line is the SKU alone (owner 2026-08-06)", () => {
+  assert.equal(item("1504181").name, '4"x4" Drain Cover — Stainless');
+  assert.equal(item("28774").name, '4"x4" Drain Cover — Matte Black');
+  assert.equal(item("28796").name, '4"x4" Drain Cover — Tileable ⅜"');
+  assert.equal(item("47814").name, '43" Linear Drain Cover — Stainless');
+  assert.equal(item("1504184").name, '27" Linear Drain Cover — Matte Black');
+  assert.ok(group("cover").every((c) => !c.finish || c.sizeText === ""),
+    "size and finish live in the name — a cover's second line is just the SKU");
+  assert.ok(group("cover").every((c) => !/fundo/i.test(c.name)), "no cover says Fundo");
+});
+
+test("wedi niches: exterior leads, interior on the second line (owner 2026-08-06)", () => {
+  assert.equal(item("29356").name, '16"x12" Shower Niche');
+  assert.equal(item("29356").sizeText, 'interior 12" x 8"');
+  assert.equal(item("47732").name, '16"x22" Shower Niche');
+  assert.equal(item("47732").sizeText, 'interior 12" x 18"');
+  assert.equal(item("29970").name, '16"x30" Cathedral Shower Niche');
+  assert.equal(item("29970").sizeText, 'interior 12" x 26"');
+  assert.equal(item("29380").name, '16"x8" Shower Niche', "the ERP-only niche reads by its exterior too");
+  assert.equal(item("29380").sizeText, 'interior 12" x 4"', "interior falls back to the 4\" flange rule");
 });
 
 // --- tiers --------------------------------------------------------------------
