@@ -56,6 +56,30 @@ string anywhere.
   display layer (SKU-keyed map / dims-derived), a pricelist re-transcription
   keeps them with no extra work.
 
+## Round 3 (same day) — bases, drain covers, niches
+
+- **Bases** read size-first: `36"x60" Shower Base` (family word keeps
+  Curbless / Linear / S-Dry), `— Offset Drain` named on the name since two
+  same-size bases can differ only there. Second line: SKU + full inches with
+  thickness. The Kits tab's name-mismatch tag retired (names now differ by
+  size alone — the drain tag stays); the option-card titles and build-column
+  header stopped appending the size a name now carries; the kit's pan line
+  note no longer repeats the size.
+- **Drain covers** drop the vendor finish codes: `4"x4" Drain Cover —
+  Stainless`, `43" Linear Drain Cover — Matte Black` (`FIN_SHORT`); the full
+  finish description ("Stainless, brushed natural") stays on the second line
+  and the kit line's duplicated finish note is gone. Cover FRAMES untouched.
+- **Niches** lead with the EXTERIOR — the wall opening — and spell the
+  interior out beneath: `16"x12" Shower Niche` / `interior 12" x 8"` · SKU.
+  Interior parses off the vendor name, falling back to the 4" flange rule
+  (every wedi niche is interior + 4"); the ERP-only 16"x8" and the
+  `12"x26"CAT` (Cathedral) rows normalize with the rest.
+- Browse rows with size-led names show the name alone (the old size · name
+  lead would have doubled it) and move the fuller size text to the sub line.
+
+All derived in `makeEntry` — a pricelist re-transcription keeps everything.
+`shoot2.mjs` / `shoot3-browse.mjs` → shots 4–9.
+
 ## Proof
 
 `shoot.mjs` → `shots/` (real configurator over the dev server):

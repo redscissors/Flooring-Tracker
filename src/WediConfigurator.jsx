@@ -103,11 +103,12 @@ const majority = (list, get) => {
 };
 // A row earns a tag only where it breaks its family's pattern. "CENTER DRAIN"
 // on 16 of 18 cards taught nobody anything and hid the two that were offset.
-const panTag = (p, usualDrain, usualName) => {
-  if (/corner/i.test(p.name)) return "Corner";           // its name already says Corner/Offset Drain
+// (The old name-mismatch tag went with the size-led catalog names — every
+// pan's name now differs by size alone, which is what the card already says.)
+const panTag = (p, usualDrain) => {
+  if (/corner/i.test(p.name)) return "Corner";           // its name already says Corner
   const drain = p.group === "module" ? "module" : p.drain?.type || "";
   if (usualDrain && drain && drain !== usualDrain) return drain[0].toUpperCase() + drain.slice(1);
-  if (usualName && p.name !== usualName) return unwedi(p.name);
   return "";
 };
 
@@ -453,7 +454,10 @@ function FinDot({ e }) {
 // Display-only (owner ask 2026-07-30): the popup drops the "wedi" branding
 // from names — everything in here is wedi — and Browse rows lead with the
 // size, stripping it out of names that embed it (either dimension order).
-// Payloads and the order-entry copy keep the vendor's full wording.
+// A size-led catalog name (curbs, panels, bases, niches — owner 2026-08-06)
+// already IS the lead, so those rows show the name and the fuller size text
+// moves to the sub line. Payloads and the order-entry copy keep the vendor's
+// full wording.
 const unwedi = (s) => (s || "").replace(/\bwedi\b\s*®?\s*/gi, "")
   .replace(/\s{2,}/g, " ").replace(/^[\s—–-]+/, "").trim();
 const sizePat = (sz) => sz.trim().split("").map((c) =>
@@ -470,7 +474,8 @@ const stripSize = (name, sz) => {
 };
 const browseName = (e) => unwedi(stripSize(e.name, e.sizeText))
   .replace(/\s{2,}/g, " ").replace(/[\s—–-]+$/, "").trim() || unwedi(e.name);
-const browseSub = (e) => [finName(e), GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
+const sizeLed = (e) => /^\d/.test(e.name);
+const browseSub = (e) => [finName(e), sizeLed(e) ? e.sizeText : "", GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
   .filter(Boolean).join(" · ");
 
 const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["bench", "Bench"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
@@ -2347,7 +2352,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         pieces: pieces,
         drain: p.drain ? { ...p.drain } : null,
         room: { w: p.len, d: round2(MODULE_DEPTH + (ext ? MODEXT_DEPTH : 0)) },
-        warnings: [], title: p.name + " " + p.sizeText,
+        warnings: [], title: p.name,
       };
     }
     // Orient the pan the way the walls read: the BACK wall is the long side (or
@@ -2366,7 +2371,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     }
     return {
       pieces: [{ kind: "pan", item: p, x: 0, y: 0, w: bw, d: bd, cut: null }],
-      drain, room: { w: bw, d: bd }, warnings: [], title: p.name + " " + p.sizeText,
+      drain, room: { w: bw, d: bd }, warnings: [], title: p.name,
     };
   }, [panKey, option, wallFlip]);
 
@@ -2564,13 +2569,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         const list = fd[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: fd[0] });
         if (!list.length) return null;
         const usualDrain = majority(list, (p) => (p.group === "module" ? "module" : p.drain?.type || ""));
-        const usualName = majority(list, (p) => p.name);
         return (
           <div className="fam" key={fd[0]}>
             <div className="fam-h"><div className="t">{fd[1]}</div></div>
             <div className="cards">
               {[...list].sort(panOrder).map((p) => {
-                const tag = panTag(p, usualDrain, usualName);
+                const tag = panTag(p, usualDrain);
                 return (
                   <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}
                     title={unwedi(p.name) + (p.group === "module" ? ` · ${inch(p.channel)}″ channel` : ` · ${p.drain.type} drain`)}>
@@ -2936,7 +2940,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
                 <span className={"sdot" + (e.stock ? "" : " so")} title={e.stock ? "stocked" : "special order"} />
                 {cf
                   ? <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
-                  : <div className="n"><FinDot e={e} />{[e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
+                  : <div className="n"><FinDot e={e} />{sizeLed(e) ? unwedi(e.name) : [e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
               </div>
               <div className="bmeta">
                 <div className="s">{cf ? unwedi(e.name) + (e.stock ? " · stock" : " · special order") : browseSub(e)}</div>
@@ -2984,7 +2988,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">The build</div>
-            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name) + " " + pan.sizeText) : "manual — from Browse"}</div>
+            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name)) : "manual — from Browse"}</div>
           </div>
 
           {BUCKETS.map((bk) => {

@@ -3814,6 +3814,14 @@ export const FINISHES = {
   CSL: "Chrome, polished slotted", SSP: "Stainless, perforated", MBP: "Matte black, perforated",
   BP: "Brass, perforated", CP: "Chrome, perforated",
 };
+// The finish word a cover's NAME carries (owner ask 2026-08-06); the fuller
+// FINISHES text stays on the second line.
+const FIN_SHORT = {
+  SS: "Stainless", T14: 'Tileable ¼"', T38: 'Tileable ⅜"', T: "Tileable",
+  C: "Chrome", B: "Brass", G: "Gold", ORB: "Oil-Rubbed Bronze", MB: "Matte Black",
+  CHA: "Champagne", WHT: "White", CSL: "Chrome Slotted", SSP: "Stainless Perforated",
+  MBP: "Matte Black Perforated", BP: "Brass Perforated", CP: "Chrome Perforated",
+};
 
 export const GROUP_LABEL = {
   pan: "Pans", module: "Linear modules", modExt: "Module extensions",
@@ -4189,6 +4197,16 @@ function makeEntry(stockRow, soRow) {
     }
     e.drain = drainOf(e, text);
     e.sizeText = sizeTextOf(e.w, e.d, e.t);
+    // Bases read size-first like the panels and curbs (owner ask 2026-08-06);
+    // an offset drain is named because two same-size bases can differ only
+    // there. Derived, so a pricelist re-transcription keeps the treatment.
+    if (e.w && e.d) {
+      const fam = e.sub === "curbless" ? "Curbless Shower Base"
+        : e.sub === "linear" ? "Linear Shower Base"
+          : e.sub === "sdry" ? "S-Dry Shower Base" : "Shower Base";
+      e.name = inch(e.w) + '"x' + inch(e.d) + '" ' + fam
+        + (e.drain && e.drain.type === "offset" ? " — Offset Drain" : "");
+    }
   } else if (e.group === "module") {
     e.len = Math.max(e.w || 0, e.d || 0) || null;
     if (e.sub !== "discreto") { e.w = e.len; e.d = MODULE_DEPTH; e.channel = MODULE_CHANNEL[e.len] || null; }
@@ -4235,6 +4253,27 @@ function makeEntry(stockRow, soRow) {
     e.finish = f.finish;
     if (e.sub === "linear") { e.len = f.len; e.channel = f.len; }
     e.sizeText = e.sub === "linear" ? (e.len ? e.len + '" channel' : "") : '4" x 4"';
+    // Covers drop the vendor's finish CODES (SS/MB/T38) for words (owner ask
+    // 2026-08-06); the full finish description stays on the second line.
+    if (e.group === "cover" && e.finish) {
+      e.name = (e.sub === "linear" ? (e.len ? e.len + '" ' : "") + "Linear Drain Cover" : '4"x4" Drain Cover')
+        + " — " + (FIN_SHORT[e.finish] || FINISHES[e.finish] || e.finish);
+    }
+  } else if (e.group === "niche") {
+    // The pricelist names a niche by its INTERIOR and sizes it by the
+    // EXTERIOR with nothing saying which is which. The exterior leads the
+    // name — it's the wall opening — and the interior is spelled out on the
+    // second line (owner ask 2026-08-06). Interior parses off the vendor
+    // name, falling back to the 4" flange rule the whole line follows.
+    if (e.w && e.d) {
+      const im = String(name).match(/(\d+)\s*"\s*x\s*(\d+)\s*"/);
+      const iw = im ? +im[1] : e.w - 4, id = im ? +im[2] : e.d - 4;
+      e.name = inch(e.w) + '"x' + inch(e.d) + '" '
+        + (/cathedral|"CAT/i.test(name + " " + e.desc) ? "Cathedral Shower Niche" : "Shower Niche");
+      e.sizeText = iw > 0 && id > 0 ? "interior " + inch(iw) + '" x ' + inch(id) + '"' : "";
+    } else {
+      e.sizeText = contentOf(e.size) || contentOf(e.details);
+    }
   } else if (e.group === "kit") {
     e.sizeText = sizeTextOf(e.w, e.d, null);
     e.drain = { type: /offset/i.test(text) ? "offset" : /linear|module/i.test(text) ? "linear" : "center" };
@@ -5005,19 +5044,19 @@ export function kitFor(panKey, opts) {
     const cutTxt = pp.cut ? ", cut to " + inch(pp.w) + "×" + inch(pp.d) + '"' : "";
     panPlan.option.floorLines.forEach((fl, i) => {
       push(lines, fl.item, fl.qty, "floor", i === 0
-        ? (fl.item.sizeText || "") + " — beside the framed bench" + cutTxt
+        ? "beside the framed bench" + cutTxt
           + ", drain centered in the " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear space'
         : "", true);
     });
   } else {
-    let floorNote = pan.sizeText;
+    let floorNote = "";
     if (framedIn) {
       const sw = benches.some((b) => b.build === "framed" && b.panFit === "smaller")
         ? smallerPanFor(pan, panRoom.w, panRoom.d) : null;
       if (sw) {
         floorPan = sw;
-        floorNote = sw.sizeText + " — sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
-      } else floorNote = pan.sizeText + " — cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
+        floorNote = "sized beside the framed bench (" + inch(panRoom.w) + "×" + inch(panRoom.d) + '" clear)';
+      } else floorNote = "cut to " + inch(panRoom.w) + "×" + inch(panRoom.d) + '" against the framed bench';
     }
     push(lines, floorPan, 1, "floor", floorNote, true);
     if (option) {
@@ -5082,7 +5121,7 @@ export function kitFor(panKey, opts) {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, opts.coverFinish || "SS");
   } else cover = item(SKU.coverSS);
-  push(lines, cover, 1, "drain", cover && cover.finish ? FINISHES[cover.finish] || "" : "", true);
+  push(lines, cover, 1, "drain", "", true);
   const frame = opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
   if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
@@ -5289,7 +5328,7 @@ function exactOption(input, list) {
   const pieces = [{ kind: "pan", item: best.pan, x: 0, y: 0, w: best.o.w, d: best.o.d, cut: null }];
   const lines = aggregate(pieces);
   return {
-    id: "exact", kind: "exact", title: best.pan.name + " " + best.pan.sizeText,
+    id: "exact", kind: "exact", title: best.pan.name,
     badges: ["Perfect fit — no cutting"], pieces: pieces,
     drain: mapDrain(best.pan, best.o.rot, 0, 0), warnings: [],
     floorLines: lines, floorPrice: priceOf(lines), input: input,
@@ -5592,7 +5631,7 @@ function linearOption(input) {
   const pieces = [{ kind: "pan", item: base.pan, x: 0, y: 0, w: base.o.w, d: base.o.d, cut: null }];
   const lines = aggregate(pieces);
   return {
-    id: "linear", kind: "linear", title: base.pan.name + " " + base.pan.sizeText,
+    id: "linear", kind: "linear", title: base.pan.name,
     badges: ["Drain at wall", "Perfect fit — no cutting"], pieces: pieces,
     drain: mapDrain(base.pan, base.o.rot, 0, 0), warnings: [],
     floorLines: lines, floorPrice: priceOf(lines), input: input,

@@ -198,6 +198,37 @@ test("wedi panels: by-the-foot names, SKU + inches stay on the second line (owne
   assert.equal(item("US4000001").name, "wedi® Tub & Shower Wall Kit", "panel kits keep their own names");
 });
 
+test("wedi bases: size-led names, offset drains named (owner 2026-08-06)", () => {
+  assert.equal(item("US9100004").name, '36"x60" Shower Base');
+  assert.equal(item("US9100005").name, '36"x72" Shower Base — Offset Drain');
+  assert.equal(item("US9200005").name, '60"x60" Curbless Shower Base');
+  assert.equal(item("US9200007").name, '36"x60" Curbless Shower Base — Offset Drain');
+  assert.equal(item("US9310001").name, '36"x60" Linear Shower Base');
+  assert.equal(item("US9176001").name.indexOf("S-Dry Shower Base") > 0, true, "S-Dry bases follow: " + item("US9176001").name);
+  assert.equal(item("US9100004").sizeText, '36" x 60" x 1 37/64"', "the full inches (with thickness) stay on the size line");
+  assert.ok(group("pan").every((p) => !/fundo/i.test(p.name)), "no base says Fundo");
+});
+
+test("wedi covers: finish words replace the codes (owner 2026-08-06)", () => {
+  assert.equal(item("1504181").name, '4"x4" Drain Cover — Stainless');
+  assert.equal(item("28774").name, '4"x4" Drain Cover — Matte Black');
+  assert.equal(item("28796").name, '4"x4" Drain Cover — Tileable ⅜"');
+  assert.equal(item("47814").name, '43" Linear Drain Cover — Stainless');
+  assert.equal(item("1504184").name, '27" Linear Drain Cover — Matte Black');
+  assert.ok(group("cover").every((c) => !/fundo/i.test(c.name)), "no cover says Fundo");
+});
+
+test("wedi niches: exterior leads, interior on the second line (owner 2026-08-06)", () => {
+  assert.equal(item("29356").name, '16"x12" Shower Niche');
+  assert.equal(item("29356").sizeText, 'interior 12" x 8"');
+  assert.equal(item("47732").name, '16"x22" Shower Niche');
+  assert.equal(item("47732").sizeText, 'interior 12" x 18"');
+  assert.equal(item("29970").name, '16"x30" Cathedral Shower Niche');
+  assert.equal(item("29970").sizeText, 'interior 12" x 26"');
+  assert.equal(item("29380").name, '16"x8" Shower Niche', "the ERP-only niche reads by its exterior too");
+  assert.equal(item("29380").sizeText, 'interior 12" x 4"', "interior falls back to the 4\" flange rule");
+});
+
 // --- tiers --------------------------------------------------------------------
 
 test("wedi tiers: Builder is retail × 0.82, not the flat 8% off", () => {
