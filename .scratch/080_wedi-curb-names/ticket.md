@@ -80,6 +80,18 @@ string anywhere.
 All derived in `makeEntry` — a pricelist re-transcription keeps everything.
 `shoot2.mjs` / `shoot3-browse.mjs` → shots 4–9.
 
+## Round 4 (same day) — tighter still
+
+- **Bases by the foot**: `3'x5' Shower Base` (`ftLbl` — an off-foot side
+  reads feet-and-inches, `3'6"x3'6"`), inches with thickness stay the second
+  line. Follows the Kits tab's foot-led cards (issue 075) and the panels.
+- **Covers: SKU-only second line.** Size and finish both live in the name,
+  so `sizeText` blanked and `finName` narrowed to cover FRAMES — a cover's
+  second line is just the SKU everywhere; the full finish text ("Stainless,
+  brushed natural") survives as the swatch dot's tooltip. Browse's
+  Size · Type · COLOR special lead now covers frames alone; covers read
+  through the generic size-led path.
+
 ## Proof
 
 `shoot.mjs` → `shots/` (real configurator over the dev server):

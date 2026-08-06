@@ -443,11 +443,14 @@ const FIN_SWATCH = {
   CHA: "#DCC49B", WHT: "#F4F2EC",
 };
 const isCover = (e) => !!e && (e.group === "cover" || e.group === "coverFrame");
-const finName = (e) => (isCover(e) && e.finish ? FINISHES[e.finish] || e.finish : "");
+// A cover's NAME carries its size and finish word (owner 2026-08-06), so the
+// meta lines add only the SKU — finName feeds them for cover FRAMES alone,
+// whose vendor names still read by code.
+const finName = (e) => (!!e && e.group === "coverFrame" && e.finish ? FINISHES[e.finish] || e.finish : "");
 function FinDot({ e }) {
   if (!isCover(e) || !e.finish) return null;
   const c = FIN_SWATCH[e.finish];
-  return <span className="fsw" title={finName(e)}
+  return <span className="fsw" title={FINISHES[e.finish] || e.finish}
     style={{ background: c || "repeating-linear-gradient(45deg,#FFF 0 2px,#CBC4B0 2px 4px)" }} />;
 }
 
@@ -2926,10 +2929,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
         {list.slice(0, MAX).map((e) => {
           const n = qtyIn(e.key);
-          // Drain covers & frames lead with what the buyer picks by — Size ·
-          // Type · COLOR (color a shade bolder) — the vendor name drops to
-          // the small line (owner ask 2026-07-30).
-          const cf = (e.group === "cover" || e.group === "coverFrame") && finName(e);
+          // Cover FRAMES lead with what the buyer picks by — Size · Type ·
+          // COLOR (color a shade bolder) — the vendor name drops to the small
+          // line (owner ask 2026-07-30). Covers themselves say all three in
+          // their catalog name now (owner 2026-08-06), so they read generic.
+          const cf = e.group === "coverFrame" && finName(e);
           // Two lines, not one (owner 2026-08-02): the description owns the full
           // column width and the SKU / price / quantity sit under it. Sharing one
           // line with them left ~170px for a name once the columns went equal,

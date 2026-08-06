@@ -198,23 +198,26 @@ test("wedi panels: by-the-foot names, SKU + inches stay on the second line (owne
   assert.equal(item("US4000001").name, "wedi® Tub & Shower Wall Kit", "panel kits keep their own names");
 });
 
-test("wedi bases: size-led names, offset drains named (owner 2026-08-06)", () => {
-  assert.equal(item("US9100004").name, '36"x60" Shower Base');
-  assert.equal(item("US9100005").name, '36"x72" Shower Base — Offset Drain');
-  assert.equal(item("US9200005").name, '60"x60" Curbless Shower Base');
-  assert.equal(item("US9200007").name, '36"x60" Curbless Shower Base — Offset Drain');
-  assert.equal(item("US9310001").name, '36"x60" Linear Shower Base');
-  assert.equal(item("US9176001").name.indexOf("S-Dry Shower Base") > 0, true, "S-Dry bases follow: " + item("US9176001").name);
+test("wedi bases: by-the-foot names, inches on the second line, offset drains named (owner 2026-08-06)", () => {
+  assert.equal(item("US9100004").name, "3'x5' Shower Base");
+  assert.equal(item("US9100005").name, "3'x6' Shower Base — Offset Drain");
+  assert.equal(item("1504159").name, "3'6\"x3'6\" Shower Base", "an off-foot side reads feet-and-inches");
+  assert.equal(item("US9200005").name, "5'x5' Curbless Shower Base");
+  assert.equal(item("US9200007").name, "3'x5' Curbless Shower Base — Offset Drain");
+  assert.equal(item("US9310001").name, "3'x5' Linear Shower Base");
+  assert.equal(item("1518075").name, "3'2\"x5'4\" S-Dry Shower Base");
   assert.equal(item("US9100004").sizeText, '36" x 60" x 1 37/64"', "the full inches (with thickness) stay on the size line");
   assert.ok(group("pan").every((p) => !/fundo/i.test(p.name)), "no base says Fundo");
 });
 
-test("wedi covers: finish words replace the codes (owner 2026-08-06)", () => {
+test("wedi covers: finish words replace the codes, second line is the SKU alone (owner 2026-08-06)", () => {
   assert.equal(item("1504181").name, '4"x4" Drain Cover — Stainless');
   assert.equal(item("28774").name, '4"x4" Drain Cover — Matte Black');
   assert.equal(item("28796").name, '4"x4" Drain Cover — Tileable ⅜"');
   assert.equal(item("47814").name, '43" Linear Drain Cover — Stainless');
   assert.equal(item("1504184").name, '27" Linear Drain Cover — Matte Black');
+  assert.ok(group("cover").every((c) => !c.finish || c.sizeText === ""),
+    "size and finish live in the name — a cover's second line is just the SKU");
   assert.ok(group("cover").every((c) => !/fundo/i.test(c.name)), "no cover says Fundo");
 });
 

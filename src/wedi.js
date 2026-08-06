@@ -3956,6 +3956,14 @@ function sizeTextOf(w, d, t) {
   return inch(w) + '" x ' + inch(d) + '"' + (t != null ? " x " + inch(t) + '"' : "");
 }
 
+// 36 → 3', 38 → 3'2" — how the trade says a base size (owner 2026-08-06),
+// matching the Kits tab's foot-led cards (issue 075).
+function ftLbl(n) {
+  if (!(n >= 12)) return inch(n) + '"';
+  const f = Math.floor(n / 12), r = round2(n - f * 12);
+  return f + "'" + (r ? inch(r) + '"' : "");
+}
+
 function cleanDesc(desc, us) {
   let s = String(desc || "");
   if (us) s = s.split(us).join(" ");
@@ -4197,14 +4205,15 @@ function makeEntry(stockRow, soRow) {
     }
     e.drain = drainOf(e, text);
     e.sizeText = sizeTextOf(e.w, e.d, e.t);
-    // Bases read size-first like the panels and curbs (owner ask 2026-08-06);
-    // an offset drain is named because two same-size bases can differ only
-    // there. Derived, so a pricelist re-transcription keeps the treatment.
+    // Bases read size-first BY THE FOOT, inches on the second line (owner
+    // asks 2026-08-06); an offset drain is named because two same-size bases
+    // can differ only there. Derived, so a pricelist re-transcription keeps
+    // the treatment.
     if (e.w && e.d) {
       const fam = e.sub === "curbless" ? "Curbless Shower Base"
         : e.sub === "linear" ? "Linear Shower Base"
           : e.sub === "sdry" ? "S-Dry Shower Base" : "Shower Base";
-      e.name = inch(e.w) + '"x' + inch(e.d) + '" ' + fam
+      e.name = ftLbl(e.w) + "x" + ftLbl(e.d) + " " + fam
         + (e.drain && e.drain.type === "offset" ? " — Offset Drain" : "");
     }
   } else if (e.group === "module") {
@@ -4254,10 +4263,13 @@ function makeEntry(stockRow, soRow) {
     if (e.sub === "linear") { e.len = f.len; e.channel = f.len; }
     e.sizeText = e.sub === "linear" ? (e.len ? e.len + '" channel' : "") : '4" x 4"';
     // Covers drop the vendor's finish CODES (SS/MB/T38) for words (owner ask
-    // 2026-08-06); the full finish description stays on the second line.
+    // 2026-08-06). Size and finish both live in the name, so the size line
+    // stays empty and a cover's second line is just the SKU — the fuller
+    // finish text survives as the swatch dot's tooltip.
     if (e.group === "cover" && e.finish) {
       e.name = (e.sub === "linear" ? (e.len ? e.len + '" ' : "") + "Linear Drain Cover" : '4"x4" Drain Cover')
         + " — " + (FIN_SHORT[e.finish] || FINISHES[e.finish] || e.finish);
+      e.sizeText = "";
     }
   } else if (e.group === "niche") {
     // The pricelist names a niche by its INTERIOR and sizes it by the
