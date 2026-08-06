@@ -3999,6 +3999,15 @@ const CURBS = {
   US3000039: "full", US3000041: "full", US3000038: "lean", US3000040: "lean",
   US3000008: "cap", US3000010: "cap", US3000048: "at", US3000049: "at",
 };
+// The pricelist's curb names ("wedi Fundo® Shower Curb Lean AT 60"") read as
+// one confusing string at the desk (owner ask 2026-08-06) — every curb shows
+// as <length>" <profile> Curb instead, everywhere a name renders.
+const CURB_NAMES = {
+  US3000039: '60" Full Foam Curb', US3000041: '96" Full Foam Curb',
+  US3000038: '60" Lean Curb', US3000040: '96" Lean Curb',
+  US3000048: '60" Full Foam AT Curb', US3000049: '60" Lean AT Curb',
+  US3000008: '60" Curb Cap', US3000010: '96" Curb Cap',
+};
 const EXT_SUBS = {
   "073783528": ["extension", "fundo"], US3000036: ["extension", "fundo"],
   US3000035: ["extension", "curbless"], US3000053: ["cornerExt", "fundo"],
@@ -4207,6 +4216,7 @@ function makeEntry(stockRow, soRow) {
     e.w = all[1] != null ? all[1] : null;   // profile height
     e.d = all[2] != null ? all[2] : null;   // profile width
     e.sizeText = e.len ? String(e.len) + '" curb' : "";
+    if (CURB_NAMES[e.us]) e.name = CURB_NAMES[e.us];
   } else if (e.group === "panel") {
     if (e.w && e.d) e.sf = round2(e.w * e.d / 144);
     e.sizeText = sizeTextOf(e.w, e.d, e.t);
@@ -4284,6 +4294,15 @@ export function pans(opts) {
   });
   const order = { fundo: 0, curbless: 1, linear: 2, sdry: 3 };
   return list.sort((a, b) => (order[a.sub] - order[b.sub]) || (a.w * a.d - b.w * b.d) || (a.w - b.w));
+}
+
+// The curb list in profile order (owner ask 2026-08-06): full foam, then
+// lean, then AT (full AT before lean AT), caps last; 60" before 96".
+const CURB_ORDER = { full: 0, lean: 1, at: 2, cap: 3 };
+export function curbs() {
+  return group("curb").slice().sort((a, b) => (CURB_ORDER[a.sub] - CURB_ORDER[b.sub])
+    || ((/lean/i.test(a.name) ? 1 : 0) - (/lean/i.test(b.name) ? 1 : 0))
+    || ((a.len || 0) - (b.len || 0)));
 }
 
 // ============================================================================

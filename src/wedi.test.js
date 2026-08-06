@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
@@ -170,6 +170,19 @@ test("wedi groups: panels, extensions, curbs, modules, covers and the legacy key
     const s = group("sdry");
     return s.length >= 25 && s.every((e) => /^US\d\d76/.test(e.us)) && item("US9176001").group === "pan";
   })(), "S-DRY line is its own group (US9176 bases stay pans)");
+});
+
+test("wedi curbs: plain profile names, full foam → lean → AT order (owner 2026-08-06)", () => {
+  assert.equal(item("47730").name, '60" Full Foam Curb', "SKU 47730 reads by length + profile, no Fundo Shower");
+  assert.equal(item("US3000041").name, '96" Full Foam Curb');
+  assert.equal(item("US3000038").name, '60" Lean Curb');
+  assert.equal(item("US3000040").name, '96" Lean Curb');
+  assert.equal(item("US3000048").name, '60" Full Foam AT Curb');
+  assert.equal(item("US3000049").name, '60" Lean AT Curb');
+  assert.ok(group("curb").every((c) => !/fundo|shower/i.test(c.name)), "no curb says Fundo Shower");
+  assert.deepEqual(curbs().map((c) => c.us),
+    ["US3000039", "US3000041", "US3000038", "US3000040", "US3000048", "US3000049", "US3000008", "US3000010"],
+    "swap order: full foam 60/96, lean 60/96, full AT, lean AT, caps");
 });
 
 // --- tiers --------------------------------------------------------------------

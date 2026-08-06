@@ -16,7 +16,7 @@ import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  catalog, item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, CURB_LAP, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
@@ -2447,7 +2447,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         set: (k) => setOpts((o) => ({ ...o, coverFrame: k ? item(k).finish : undefined })),
       };
     }
-    if (g === "curb") return { title: "Curb", list: group("curb"), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
+    if (g === "curb") return { title: "Curb", list: curbs(), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
     if (g === "sealant" && line.item.sub === "joint") {
       return { title: "Joint sealant form", list: [item(SKU.sealantTube), item(SKU.sealantSausage)], set: (k) => setOpts((o) => ({ ...o, sealantForm: k === SKU.sealantSausage ? "sausage" : "tube" })) };
     }
