@@ -1,98 +1,99 @@
-# Quote options — design draft
+# Quote options — design draft (round 2)
 
-**Status: DRAFT — awaiting owner review.** Prototypes: `2026-08-06-quote-options-prototypes.html`
-(same folder — open in a browser; also published as a Claude artifact). Nothing here is
-implemented; this records the recommended design and the open questions from the
-2026-08-06 exploration ("multiple quote options" session).
+**Status: DRAFT — round 2, awaiting owner review of the extras treatment.**
+Prototypes: `2026-08-06-quote-options-prototypes.html` (same folder — open in a
+browser; also published as a Claude artifact). Nothing here is implemented.
 
 ## The problem
 
-A customer comparing two or three products for the same room has no home in the app:
-the job sheet reads as one order with one total, so today the salesman builds parallel
-projects or versions and does the comparison arithmetic by hand. Area notes (the small
-input on the area band) have meanwhile earned their retirement.
+A customer comparing two or three products — or the *same* product under two
+installs (standard vs heated floor, different underlayments) — has no home in the
+app: the job sheet reads as one order with one total. Area notes have meanwhile
+earned their retirement.
 
-## Recommended design
+## Decided (owner, 2026-08-06)
 
-### Model: shared base + options
+- **Model: shared base + options.** `Area.option` — `""` (default, shared: part of
+  the job in every option) or an option slot. A project with no tagged areas is
+  exactly today's app. An option's total is a **whole-job number**: shared areas +
+  that option's areas, with materials and vendor freight consolidated per that
+  combination — never job-wide across alternates.
+- **Option identity & colors.** Fixed slots A/B/C with per-slot colors (proposed:
+  A slate-blue `#3E5F8A`, B umber `#9A5B33`, C plum `#6E4E7E` — distinct from moss
+  and the tier colors, quiet on paper) and optional custom names stored on the
+  project; unnamed options print "Option A/B/C".
+- **Order entry & order sheet.** When options exist, both open with a picker:
+  Option A / B / C (each = shared + that option, with line counts and totals) or
+  Everything. The choice scopes special-order lines, stock SKUs, consolidated
+  material quantities, and vendor freight (charged per book over the chosen
+  scope's rows only). No options → no picker.
+- **Print direction: compact comparison** — one sheet, shared job printed as
+  today, options as color-banded groups, comparison block replacing the single
+  total, signature line gains "option chosen: A · B · C".
+- **Area notes: removed, data too.** The input and both print lines go, and
+  `normA` **drops** the `note` field — old notes disappear from a job the next
+  time it's saved. No farewell UI. Product-row notes and project notes untouched.
 
-- `Area` gains one field: `option` — `""` (default, **shared**: the area is part of the
-  job in every option) or an option id.
-- A project with no tagged areas is exactly today's app — the "hidden Option 1" is the
-  absence of tags, not a stored record.
-- An **option's total is a whole-job number**: shared areas + that option's areas, with
-  setting materials (grout/mortar/underlayment/add-ons), base units, and vendor freight
-  consolidated per that combination — never job-wide, which would double-count
-  alternates.
-- Option identity: fixed slots A/B/C (color per slot) with an optional custom name
-  stored on the project (e.g. `optionNames`). Names print; unnamed options print
-  "Option A/B/C".
-- Rejected alternative — "every area picks an option": simpler to state, but an
-  option's subtotal is then only its own areas (one bathroom), not a signable number,
-  and shared rooms would need re-adding by hand. Also rejected — whole-job copies per
-  option: duplicates every shared area and every edit.
+## Round 2: where each option's extras live
 
-### Compare flow
+The round-1 rolled-up line ("+ setting materials $56.85") is **retired** — it hid
+exactly what matters when options differ by grout/underlayment/install.
 
-Right-click the area band (or click the option chip — phones have no right-click, and
-the chip makes the feature discoverable) →
-- **This area is in**: Shared / Option A / B / C / New option…
-- **Duplicate into another option…** — copies the area with all rows, tags the copy,
-  tags the original if it was shared. This is the two-click "compare this room under
-  another product" move.
-- **Rename this option…**
+### Print — the option as a bundle (E1)
 
-### Project screen
+Each option band is a self-contained mini-estimate:
 
-- Option-tagged area cards wear the option color as their border plus an option chip on
-  the band (where the area-note input used to sit). Shared areas look exactly as today.
-- When options exist, the header's single grand total becomes one chip per option, each
-  showing the whole-job number.
-- Proposed option colors (new, quiet, paper-friendly, distinct from moss and from the
-  tier colors): A slate-blue `#3E5F8A`, B umber `#9A5B33`, C plum `#6E4E7E`.
+1. The option's area(s) and product lines, as the cards layout prints them today.
+2. **"Materials for this option"** — an itemized block, one line per material with
+   quantity, unit price, and line total, **consolidated across all of that
+   option's areas** (same aggregation the job-wide block does today, scoped to
+   shared∪option minus what shared alone consumes — i.e. the option's own
+   incremental materials). Tinted with the option's soft color.
+3. A band footer: `flooring $X + materials $Y` → **Option N $Z · whole job $W**.
 
-### Printed estimate
+Shared areas' extras keep printing in the job-wide "Setting materials & sundries —
+shared areas" block, which closes with a **Shared job subtotal**. Sheet order:
+shared areas → shared extras block → option bands → comparison block. An option
+with no materials skips the block.
 
-Treatment **A — compact comparison** (recommended default): shared areas print as
-today; compared areas print inside color-banded option groups, each closing with its
-own subtotal *and* the whole-job number; each option's own setting materials fold into
-its band as one line (they cannot join the job-wide extras block without
-double-counting); the single "Estimated total" becomes a three-up comparison block; the
-signature line gains "option chosen: A · B · C".
+Considered and passed over: **E2 — priced lines under each product** (indented
+material lines directly beneath each product row). Tighter for one-product
+options, but multi-area options either repeat shared materials under every row or
+split them arbitrarily — consolidation lost.
 
-Treatment **C — one full sheet per option** (cheap to build: the existing sheet run
-once per option scope) could ship behind a print-time toggle. Treatment **B — matrix**
-(compared area as a one-column-per-option table) only suits single-area single-product
-options; parked unless A proves too busy.
+### Screen — job summary groups
 
-### Order entry & order sheet
+The totals card grows sections when options exist: **Shared areas** first
+(flooring + materials + subtotal), then one group per option — flooring lines,
+expandable itemized materials (the same lines the print shows), and the whole-job
+number in that option's color. Area cards keep the round-1 treatment: colored
+outline + option chip on the band; right-click or chip-tap opens the
+switch / duplicate-into / rename menu.
 
-When the job has options, "Copy for order entry" and the printed order sheet open with
-a picker first: Option A / B / C (each = shared + that option, with line counts and
-totals) or Everything. The choice scopes all downstream lists — special-order lines,
-stock SKUs, consolidated material quantities, and vendor freight (charged per book over
-the chosen scope's rows only). No options → no picker, exactly today's behavior.
+### Printing one option by itself
 
-### Area notes removal
+A segmented control on the **Preview tab toolbar** — `Compare all · A · B · C` —
+rendered only when the job has options; default always "Compare all". Picking an
+option re-renders the preview as a normal single-total estimate scoped to
+shared + that option (no bands, no comparison block; "Option B — Marble hex"
+noted under the project name) and printing prints what's shown. Also reachable
+from an area's right-click menu ("Print this option…"). This replaces the earlier
+"one sheet per option" 3-page treatment.
 
-The area-note input leaves the area band and the note line leaves both print layouts.
-The `note` field **stays in the stored shape and `normA`** so old jobs and version
-snapshots keep parsing; it just no longer renders or accepts edits. Product-row notes
-and project notes are untouched.
+## Compatibility
 
-### Compatibility
+- `normA`: gains `option: a.option || ""`, drops `note`. Old records normalize to
+  shared.
+- Version snapshots are `Area[]` — option tags ride along; option names live on
+  the project and survive restores.
+- No SQL migration: everything lives in the customers row's `data` jsonb.
 
-- `normA` gains `option: a.option || ""` — old records normalize to shared.
-- Version snapshots are `Area[]`, so option tags ride snapshots for free. Option
-  *names* live on the project and survive version restores (names aren't priced data).
-- No SQL migration: everything lives inside the customers row's `data` jsonb.
+## Open questions (round 2)
 
-## Open questions (owner to confirm)
-
-1. Model: shared base + options — right? (Everything below assumes yes.)
-2. Option colors leaving the moss palette (like tier colors already do) — OK as shown?
-3. Menu on right-click *and* the band chip — agreed?
-4. Print: treatment A default, C behind a toggle — agreed? Is B wanted at all?
-5. Optional option names — agreed?
-6. Old saved area notes: keep data, hide UI — or surface a one-time chip so nothing
-   silently disappears?
+1. E1 bundles confirmed over E2 lines?
+2. Job summary per-option groups — right shape for the screen?
+3. Preview-toolbar switch + right-click "Print this option…" — non-invasive
+   enough for single-option printing?
+4. Compact sheet flow — shared areas → shared extras → options → comparison — 
+   confirmed? (Alternative: extras dead last, as today, which would sandwich the
+   options.)
