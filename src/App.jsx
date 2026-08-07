@@ -1178,12 +1178,16 @@ export default function App({ user, onSignOut }) {
                 unassigned estimates/drafts live behind its Estimates & drafts
                 toggle, so this is the everyday door to all of them. */}
             <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
-              className="w-full flex items-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 px-2.5 text-slate-600">
-              <Folder size={15} className="text-indigo-500 shrink-0" />
-              <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1 text-left">Customers</span>
-              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{data.people.length}</span>
-              <ChevronRight size={13} className="text-slate-300 shrink-0" />
+              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600">
+              <Folder size={15} className="text-indigo-500" /> Customers
+              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
             </button>
+            {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
+                one press from the customer column. */}
+            <div className="flex gap-2">
+              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><ShowerHead size={15} /> wedi</button>
+              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><TreePine size={15} /> Sheoga</button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
@@ -1215,12 +1219,6 @@ export default function App({ user, onSignOut }) {
           <div className="p-2.5 border-t border-slate-100">
             <div className="flex mb-2">
               <ThemeSwitch theme={theme} setTheme={setTheme} />
-            </div>
-            {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
-                one press from the customer column. */}
-            <div className="flex gap-2 mb-2">
-              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><ShowerHead size={15} /> wedi</button>
-              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><TreePine size={15} /> Sheoga</button>
             </div>
             {/* Two rows of two: three labelled buttons plus sign-out no longer
                 fit across the narrowed rail on one line. */}

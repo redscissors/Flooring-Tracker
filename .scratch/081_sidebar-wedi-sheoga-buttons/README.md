@@ -8,12 +8,16 @@ buttons in the apps area as well."
 
 ## What changed
 
-- **Sidebar** (`App.jsx`): a new row in the rail's footer, directly below the
-  customer list — **wedi | Sheoga** side by side, above the Apps row. Each
-  opens the Apps hub straight onto its configurator via `openAppsTo(k)`
-  (sets `appsStart`, then the existing `openApps`, so labels still load and
-  the mobile drawer still closes). The plain Apps button routes through
-  `openAppsTo(null)` so it keeps landing on the default app.
+- **Sidebar** (`App.jsx`): a new row directly under the Customers button —
+  **wedi | Sheoga** side by side. Each opens the Apps hub straight onto its
+  configurator via `openAppsTo(k)` (sets `appsStart`, then the existing
+  `openApps`, so labels still load and the mobile drawer still closes). The
+  plain Apps button routes through `openAppsTo(null)` so it keeps landing on
+  the default app. (Follow-up 2026-08-07: the row started in the rail's
+  footer; the owner asked for it under the Customers button instead.)
+- **Customers button** (`App.jsx`): restyled to match Quick Price above it —
+  centered icon + label, font-semibold, same border/padding; keeps its count
+  pill, drops the left-aligned layout and trailing chevron.
 - **Apps hub** (`AppsWorkspace.jsx`): new optional `initialApp` prop seeds the
   `app` state (validated against `APP_NAME`, falls back to "labels"). The
   hub's own rail entries are untouched — wedi and Sheoga stay listed there.
