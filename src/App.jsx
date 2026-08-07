@@ -2523,8 +2523,7 @@ export default function App({ user, onSignOut }) {
           job has options — a job without any skips straight to "all" in
           askOrderScope, so nothing here changes its behavior. */}
       {scopeAsk && sel && (
-        <Modal onClose={() => setScopeAsk(null)}>
-          <div className="text-[15px] font-bold">{scopeAsk.for === "sheet" ? "Order sheet" : "Copy for order entry"}</div>
+        <Modal title={scopeAsk.for === "sheet" ? "Order sheet" : "Copy for order entry"} onClose={() => setScopeAsk(null)}>
           <div className="text-[12.5px] text-slate-500 mb-3">This job has options — which one is being ordered?</div>
           {[...optsUsed.map((s) => ({ scope: s, label: optionShort(sel, s), sub: "shared areas + " + optionTitle(sel, s), dot: OPTION_COLOR[s].main, total: wholeJob(s) })), { scope: "all", label: "Everything", sub: "all areas, all options — ordering more than one", dot: null, total: null }].map((o) => (
             <button key={o.scope} className="w-full flex items-center gap-2.5 rounded-lg border border-slate-200 hover:border-slate-400 px-3 py-2.5 mb-2 text-left"
