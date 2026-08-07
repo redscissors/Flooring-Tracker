@@ -167,6 +167,10 @@ export const parseTileSize = (size) => {
   // pencil/edge widths that way, and the digit-first pattern used to read ".43"
   // as "43". The leading-decimal alt is second so a match starting at the dot
   // claims the whole ".43" instead of stopping at the "43".
+  // A foot-marked dimension ("3'3\"x98'" Kerdi roll, "3'x167'" underlayment) is
+  // roll/linear goods, never a tile L×W — without this the inner 3"x98 read as
+  // a 98-inch tile and grout/mortar math ran on a membrane.
+  if (/\d\s*'/.test(str(size))) return null;
   const m = str(size).match(/(\d+(?:\.\d+)?|\.\d+)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?|\.\d+)/i);
   return m ? [m[1], m[2]] : null;
 };

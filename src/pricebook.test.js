@@ -505,6 +505,8 @@ test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled fro
   assert.deepEqual(max.vendorSkus, ["MPB823"]);
   assert.deepEqual(items.find((i) => i.sku === "1518213").vendorSkus, ["TMG820"]);
   assert.deepEqual(items.find((i) => i.sku === "13192").vendorSkus, ["389118", "449406"]);
+  // The underlayment's 3'x167' roll keeps its foot marks — not a 3x167-inch tile.
+  assert.equal(items.find((i) => i.sku === "07879").size, "3'x167'");
 });
 
 // The Unit of Stock column names the sell basis: a carton/bundle-sold row with
@@ -581,6 +583,8 @@ test("floorTypeFromDescription: word ladder, then the size decides", () => {
   assert.equal(floorTypeFromDescription("Brandless Plank Line", "7x60"), "vinyl");         // plank-long L×W
   assert.equal(floorTypeFromDescription("Mann Riverwalk Dew - RVWK07DEW1", '6.5"'), "hardwood"); // bare width = wood
   assert.equal(floorTypeFromDescription("Mystery Product", ""), null);
+  // A foot-marked size is roll goods, never a bare plank width.
+  assert.equal(floorTypeFromDescription("Aquabar B Underlayment", "3'x167'"), null);
   // A hexagon chip leads with its bare width — the shape word outranks the
   // bare-width-means-wood fallback (sheet-sold OHIVA mosaics, SKU 1501219 kin).
   assert.equal(floorTypeFromDescription("Anatolia Soho Hexagon - 4501-0467-0 Ret Blk M", '2"'), "tile");
@@ -622,6 +626,7 @@ test("a roll-sold floor types and carries its coverage; a roll of membrane does 
   assert.equal(vinyl.type, "vinyl");
   assert.equal(vinyl.sfPerUnit, 240);
   assert.equal(vinyl.unit, "RL");
+  assert.equal(vinyl.size, "12'");               // a feet lead keeps its foot mark
 
   // A membrane has real coverage and is still no floor — the existing guard,
   // unchanged by RL joining the coverage-bundling units.
@@ -630,6 +635,44 @@ test("a roll-sold floor types and carries its coverage; a roll of membrane does 
   // No coverage in the description at all: a plain roll accessory.
   assert.equal(by("23015").type, null);
   assert.equal(by("23015").unit, "RL");
+  assert.equal(by("23015").size, "5\"x33'");     // inches × feet, kept whole as text
+});
+
+// --- feet-marked roll dimensions (issue bucket, 2026-08-07) --------------------
+// The ERP writes Schluter roll widths in feet-and-inches — "3'3\"x98' Kerdi
+// Membrane", sometimes dotted ("3'.3\"" = 3 ft 3 in, not three tenths). The
+// inch-minded regexes used to read the leading 3' as a 3" width (leadWidthSize)
+// or pull 3"x98 out of the middle (SIZE_RE), leaving a 3-inch membrane with the
+// rest of the size still in its name. A foot mark on either side now lands the
+// whole spelling in the size field as free text — parseTileSize refuses it, so
+// no grout/mortar math ever runs on a roll.
+
+const KERDI_WORKBOOK = [sheet("Vendor SKU Analysis", [
+  ["Product Code", "Full Description", "Base Price (Cost)", "Retail Price", "Unit of Stock", "Supplier Prod Code", "Mfg Product Code"],
+  ["1509781", "3'3\"x98' Kerdi Membrane 323sf/rl - KERDI200", 352.07, 528.1, "RL", "KERDI200", "KERDI200"],
+  ["1509785", "3'.3\"x16'5\" Kerdi Membrane 54sf/rl - KERDI200/5M", 71.29, 106.94, "RL", "KERDI200/5M", "KERDI200/5M"],
+  ["23031", "3'3\"x2'7\" Schluter Ditra Heat 8.4sf/sh - Membrane Sheet", 14.32, 21.49, "SH", "SLRDH5MA", "SLRDH5MA"],
+])];
+
+test("feet-and-inches roll dimensions land whole in the size field, off the name", () => {
+  const m = detectVendorSkuAnalysis(KERDI_WORKBOOK);
+  const { items, warnings } = parseMapped(KERDI_WORKBOOK[0].rows, m);
+  const by = (sku) => items.find((i) => i.sku === sku);
+
+  const roll = by("1509781");
+  assert.equal(roll.size, "3'3\"x98'");
+  assert.equal(roll.description, "Kerdi Membrane - KERDI200");
+  assert.equal(roll.sfPerUnit, 323);
+  assert.equal(roll.type, null);                 // a membrane is no floor
+  // The dotted ERP spelling is the same 3-foot-3 width.
+  assert.equal(by("1509785").size, "3'3\"x16'5\"");
+  // Ditra Heat sheet: 3'3" × 2'7" IS 8.4 sf — the coverage was never wrong.
+  const ditra = by("23031");
+  assert.equal(ditra.size, "3'3\"x2'7\"");
+  assert.equal(ditra.description, "Schluter Ditra Heat - Membrane Sheet");
+  assert.equal(ditra.sfPerUnit, 8.4);
+  // Clean names — the mis-split size advisory stays quiet.
+  assert.ok(!warnings.some((w) => /still showing a size/.test(w)), warnings.join(" | "));
 });
 
 // The Schluter rolls found this: the coverage suffix list knew /ct and /sh but

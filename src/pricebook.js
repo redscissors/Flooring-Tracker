@@ -117,6 +117,21 @@ const dimVal = (s) => {
   return m ? parseFloat(m[1]) + (m[2] ? +m[2] / +m[3] : 0) : NaN;
 };
 const SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?`, "i");
+// A dimension in FEET — how the sheets spell roll goods and sheet vinyl
+// ("3'x167'", "5\" x 33'", "12' Prestige Sheet Vinyl") and how the ERP writes
+// a feet-and-inches width, inches after the foot mark, sometimes with a dot
+// between them ("3'3\"x98'", "3'.3\"x16'5\"" — 3 ft 3 in, not three tenths).
+// The inch-minded regexes must never see these: LEAD_WIDTH_RE once read the 3'
+// of a 3'3"-wide Kerdi roll as a 3" width and left ".3\"x98'" in the name, and
+// SIZE_RE read 3"x98 out of the middle (issue bucket, 2026-08-07). An L×W with
+// a foot mark on either side is roll/linear goods: the whole spelling lands in
+// the size field as text — parseTileSize refuses it, so no L×W cell and no
+// grout/mortar math ever comes of it.
+const FT_DIM = `\\d+'(?:\\s*\\.?\\s*(?:${DIM})\\s*")?`;
+const ROLL_SIZE_RE = new RegExp(`(${FT_DIM})\\s*[x×]\\s*(${FT_DIM}|(?:${DIM})\\s*"?)|((?:${DIM})\\s*"?)\\s*[x×]\\s*(${FT_DIM})`, "i");
+// One roll-size side, normalized for display: spaces out, the ERP's dotted
+// feet-inches spelling read as feet-inches ("3'.3\"" → "3'3\"").
+const rollSide = (t) => str(t).replace(/\s+/g, "").replace("'.", "'");
 // A genuine single-dimension shape size ('2" Hex') has no L×W cell — matched
 // only when SIZE_RE did not, so the vendor spelling lands in the size string
 // (the tile row shows it and derives a square L×W for grout/mortar) instead of
@@ -162,6 +177,9 @@ const PENNY_DIM_INCH_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})`, "i");
 // THICK_FRAC_RE from reading the 1/4" of a leading 2-1/4" width as a
 // thickness, which left "2-" litter in the name.
 const LEAD_WIDTH_RE = new RegExp(`^\\s*(${DIM})\\s*["'](?!\\s*[x×])\\s*`);
+// The feet twin of LEAD_WIDTH_RE ("12' Prestige Sheet Vinyl") — tried first so
+// a foot-marked lead keeps its foot mark instead of reading as an inch width.
+const LEAD_FT_RE = new RegExp(`^\\s*(${FT_DIM})(?!\\s*[x×])\\s*`);
 
 // SHOUTING vendor text → Title Case; already-cased text is left alone (so an
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
@@ -200,7 +218,13 @@ export function splitSizeFromDescription(desc, opts) {
   // Thickness first, so "10MM" can't be mistaken for part of a size.
   const mm = s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
-  if (PENNY_RE.test(s)) {
+  const roll = s.match(ROLL_SIZE_RE);
+  if (roll) {
+    // A foot mark on either side makes the L×W a roll/sheet-goods size — kept
+    // whole as the vendor spells it, stripped from the name like SIZE_RE does.
+    size = `${rollSide(roll[1] || roll[3])}x${rollSide(roll[2] || roll[4])}`;
+    s = s.replace(new RegExp(ROLL_SIZE_RE.source, "gi"), " ");
+  } else if (PENNY_RE.test(s)) {
     // Penny handled on its own so "penny round" is one shape, not a "Round" size.
     let dim = "";
     const before = s.match(PENNY_DIM_BEFORE_RE);
@@ -209,6 +233,10 @@ export function splitSizeFromDescription(desc, opts) {
     if (dim) size = `${dim}" Penny`;          // chip size → grout computes from it
     else if (!sheetSize) sheetSize = "Penny";  // no printed chip size → a "Penny sheet"
     s = s.replace(PENNY_STRIP_RE, " ");
+  } else if (opts?.leadWidth && LEAD_FT_RE.test(s)) {
+    const lead = s.match(LEAD_FT_RE);
+    size = rollSide(lead[1]);
+    s = s.slice(lead[0].length);
   } else if (opts?.leadWidth && LEAD_WIDTH_RE.test(s)) {
     const lead = s.match(LEAD_WIDTH_RE);
     size = `${lead[1]}"`;
@@ -367,7 +395,8 @@ export function floorTypeFromDescription(text, size) {
   if (TYPE_WOOD_RE.test(t)) return "hardwood";
   const lw = str(size).match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
   if (lw) return Math.max(+lw[1], +lw[2]) >= 36 ? "vinyl" : "tile";
-  return str(size) ? "hardwood" : null;
+  // A foot-marked size ("3'x167'" roll goods) is never a bare plank width.
+  return str(size) && !/'/.test(str(size)) ? "hardwood" : null;
 }
 
 function mappedItem(mapping, raw, sku, sem) {

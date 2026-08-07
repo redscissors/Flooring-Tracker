@@ -49,6 +49,14 @@ test("bookRowPreview: an unparsed tile size falls through as free text", () => {
   assert.equal(pv.size, "Random Deco");
 });
 
+test("bookRowPreview: a feet-sized membrane roll stays a count line, size as text", () => {
+  const pv = bookRowPreview(oi({ sku: "1509781", size: "3'3\"x98'", cost: 352.07, price: 528.1, unit: "RL" }), null);
+  assert.equal(pv.type, "misc");
+  assert.equal(pv.size, "3'3\"x98'");
+  assert.equal(pv.sizeParsed, false);
+  assert.equal(pv.per, "rl");
+});
+
 test("bookRowPreview: a count line lands per piece with the vendor's sell unit", () => {
   const pv = bookRowPreview(oi({ sku: "R1", size: "", cost: 56.13, unit: "RL" }), { default: 50 });
   assert.equal(pv.type, "misc");
