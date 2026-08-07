@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { rowAdvisories } from "./orderbook.js";
 import assert from "node:assert/strict";
 import { parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectVendorSkuAnalysis, floorTypeFromDescription } from "./pricebook.js";
 
@@ -421,6 +422,94 @@ test("detectVtcEft: the mapping parses all rows incl. digit-free item codes", ()
   assert.equal(carrara.type, "tile");
   assert.equal(items.find((i) => i.sku === "ANASLAB4848").freightFlag, true);
   assert.equal(items.find((i) => i.sku === "WOWALPLRNDEDGE").discontinued, true);
+});
+
+// The Schluter EFT (SLR_EFT_25_10_01): the same VTC template, but the brand
+// line above the header reads "Schluter Systems" — membranes, profiles and
+// setting materials, no flooring at all. Real rows, real SKUs. Coverage rides
+// the description ("= 134.5 SF"), sizes come in every spelling Schluter owns:
+// spaced feet-inches, quote-less feet-inches, FT/IN words, trailing stick
+// lengths, three-dim boards, packaging counts.
+const SLR_WORKBOOK = [
+  { name: "MFG Data", rows: [
+    ["Account Name: KEIM LUMBER"], ["p VIRGINIATILE"],
+    [null, "Schluter Systems"], [],
+    ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "VTC Description", "Product Line Name", "VTC ESTIMATED LEAD TIME", "CONSUMER LEVEL PRICE (Dealer to Consumer)", "DEALER PRICE (VTC to Dealer)", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", "Additional Comments"],
+    ["", "SLR", "DIT", "30M", "SLRDITRA30M", "DITRA UNCOUPLING/WATERPROOF 3 FT 3 IN X 98 FT 5 IN=323 SF", "DITRA", "IMPORT", 1.17, 1.17, "SF", "RL", "N/A", "N/A", ""],
+    ["", "SLR", "DH5", "12M", "SLRDH512M", "DITRA-HEAT MEMBRANE ROLL 3' 3\" X 41' 1\" = 134.5 SF", "DITRA HEAT", "READY SHIP", 1.74, 1.74, "SF", "RL", "N/A", "N/A", ""],
+    ["", "SLR", "DHPS", "512M", "SLRDHPS512M", "DITRA-HEAT-PS ROLL 3'3 X 41'1 ", "DITRA HEAT", "READY SHIP", 2.18, 2.18, "SF", "RL", "N/A", "N/A", ""],
+    ["", "SLR", "DHDPS", "810M", "SLRDHDPS810M", "DITRA-HEAT-DUO-PS ROLL 3'3\" X 33'", "DITRA HEAT", "READY SHIP", 3.12, 3.12, "SF", "RL", "N/A", "N/A", ""],
+    ["", "SLR", "DH5", "MA", "SLRDH5MA", "DITRA-HEAT MEMBRANE SHEET 3' 2\" X 2' 7\" = 8.4 S.F.", "DITRA HEAT", "READY SHIP", 15.22, 15.22, "SH", "SH", "N/A", "N/A", ""],
+    ["", "SLR", "DHEHK", "12011", "SLRDHEHK12011", "DITRA-HEAT CABLE 120V 10 SF", "DITRA HEAT", "READY SHIP", 133.61, 133.61, "EA", "EA", "N/A", "N/A", ""],
+    ["", "SLR", "ASTF", "2240300", "SLRASTF2240300", "DILEX-STF STRUCTURAL MVMT JNT 22/40 10'", "DILEX", "IMPORT", 327.25, 327.25, "EA", "EA", "N/A", "N/A", ""],
+    ["", "SLR", "BWA8", "0SP", "SLRBWA80SP", "DILEX-BWA 3/8 MVMT JNT 5/16 SAND PEBBLE.", "DILEX", "IMPORT", 13.77, 13.77, "PC", "PC", "N/A", "N/A", ""],
+    ["", "SLR", "BTZ", "RG75100", "SLRBTZRG75100", "BEKOTEC-THERM-RH HEATING CLAMPS (100/BOX)", "BEKOTEC", "IMPORT", 42.97, 42.97, "CT", "CT", "N/A", "N/A", ""],
+    ["", "SLR", "BRS", "808KF", "SLRBRS808KF", "BEKOTEC-BRS/KF ADHSTRIP 82FTX3-1/8INX5/16IN", "BEKOTEC", "IMPORT", 100.89, 100.89, "RL", "RL", "N/A", "N/A", ""],
+    ["", "SLR", "EN23", "F10", "SLREN23F10", "BEKOTECF SCREED PANEL 471/4IN X 35-7/16IN (10/BOX)", "BEKOTEC", "IMPORT", 222.62, 222.62, "CT", "CT", 10, "N/A", ""],
+    ["", "SLR", "KB15", "12203050", "SLRKB1512203050", "KERDIBOARD, PANEL 5/8IN X 48IN X 120IN", "KERDI BOARD", "IMPORT", 111.65, 111.65, "SH", "PA", "N/A", "N/A", "*PALLETS/SLR REP MUST APPROVE"],
+  ] },
+];
+
+test("Schluter EFT: the brand line switches off the tile default and reads coverage from the text", () => {
+  const m = detectVtcEft(SLR_WORKBOOK);
+  assert.ok(m, "signature recognized");
+  assert.equal(m.title, "Schluter Systems");
+  assert.equal(m.defaultType, null);
+  assert.ok(m.sfFromDescription);
+  const { items, warnings } = parseMapped(SLR_WORKBOOK[0].rows, m);
+  assert.equal(items.length, 12);
+  assert.ok(items.every((i) => i.type == null), "nothing types as flooring — Schluter sells none");
+
+  const by = (sku) => items.find((i) => i.sku === sku);
+  // FT/IN words: the words become marks, coverage comes out of the "=323 SF".
+  const ditra = by("SLRDITRA30M");
+  assert.equal(ditra.size, `3'3"x98'5"`);
+  assert.equal(ditra.sfPerUnit, 323);
+  assert.equal(ditra.description, "Ditra Uncoupling/Waterproof");
+  // Spaced feet-inches with the coverage after "=".
+  const heat = by("SLRDH512M");
+  assert.equal(heat.size, `3'3"x41'1"`);
+  assert.equal(heat.sfPerUnit, 134.5);
+  assert.match(heat.description, /^Ditra Heat/);
+  // Quote-less feet-inches ("3'3 X 41'1") — the inches close on their marks.
+  assert.equal(by("SLRDHPS512M").size, `3'3"x41'1"`);
+  // No stated coverage at all: the feet L×W IS the roll's area (SF-priced,
+  // roll-sold — the row can't price without it).
+  assert.equal(by("SLRDHDPS810M").sfPerUnit, 107.25);
+  // The membrane SHEET: geometry-confirmed 8.4 sf, so no sf/sh? advisory, and
+  // the vendor's trailing period is gone.
+  const sheet = by("SLRDH5MA");
+  assert.equal(sheet.size, `3'2"x2'7"`);
+  assert.equal(sheet.sfPerUnit, 8.4);
+  assert.deepEqual(rowAdvisories(sheet), []);
+  // An EA-sold cable's "10 SF" is its kit size, not coverage — stays put.
+  const cable = by("SLRDHEHK12011");
+  assert.equal(cable.sfPerUnit, null);
+  assert.match(cable.description, /10 SF/i);
+  // A trailing stick length is the size; the 22/40 profile spec stays a name.
+  const stf = by("SLRASTF2240300");
+  assert.equal(stf.size, "10'");
+  assert.match(stf.description, /22\/40/);
+  // Vendor punctuation: the trailing period drops, so no name-litter flag.
+  assert.deepEqual(rowAdvisories(by("SLRBWA80SP")), []);
+  // "(100/BOX)" with an empty PC/CT column: the count comes from the text.
+  const clamps = by("SLRBTZRG75100");
+  assert.equal(clamps.pcPerUnit, 100);
+  assert.ok(!/100\/BOX/i.test(clamps.description));
+  // Feet roll with a third ×-dimension: the tail is the thickness.
+  const strip = by("SLRBRS808KF");
+  assert.equal(strip.size, `82'x3-1/8"`);
+  assert.equal(strip.thickness, `5/16"`);
+  // "471/4IN" is 47-1/4 printed tight, never 471/4.
+  assert.equal(by("SLREN23F10").size, "47.25x35.4375");
+  // Three inch dims: the sub-inch one is the thickness, the panel is the size.
+  const board = by("SLRKB1512203050");
+  assert.equal(board.size, "48x120");
+  assert.equal(board.thickness, `5/8"`);
+  // Every warning line on this fixture is an honest hazard, not a mis-parse:
+  // the pallet-sold board is the one unfamiliar unit.
+  assert.equal(warnings.length, 1, warnings.join(" | "));
+  assert.match(warnings[0], /PA/);
 });
 
 test("detectVtcEft: returns null when the signature is absent", () => {

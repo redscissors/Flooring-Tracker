@@ -20,6 +20,7 @@ const UNITS = {
   bd: { code: "BD", one: "bundle", many: "bundles" },
   sh: { code: "SH", one: "sheet", many: "sheets" },
   rl: { code: "RL", one: "roll", many: "rolls" },
+  pk: { code: "PK", one: "pack", many: "packs" },
   bg: { code: "BG", one: "bag", many: "bags" },
   gl: { code: "GL", one: "gallon", many: "gallons" },
 };
@@ -32,6 +33,7 @@ const ALIAS = {
   bl: "bd", bdl: "bd", bundle: "bd", bundles: "bd",
   sht: "sh", sheet: "sh", sheets: "sh",
   rls: "rl", roll: "rl", rolls: "rl",
+  pkg: "pk", pack: "pk", packs: "pk",
   bag: "bg", bags: "bg", gal: "gl", gallon: "gl", gallons: "gl",
 };
 

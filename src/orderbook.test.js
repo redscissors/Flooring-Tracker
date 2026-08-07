@@ -789,7 +789,12 @@ test("itemProblems flags the pricing/unit hazards, and nothing else", () => {
   assert.equal(itemProblems(oi({ cost: 0 }))[0].code, "zero-price");
   assert.equal(itemProblems(normOrderItem({ sku: "B", priceUnit: "PC", orderUnit: "CT", cost: 27.99 }))[0].code, "no-pc-carton");
   assert.equal(itemProblems(normOrderItem({ sku: "C", priceUnit: "PC", orderUnit: "SF", cost: 4, sfPerUnit: 16 }))[0].code, "pc-sf-mismatch");
-  assert.equal(itemProblems(normOrderItem({ sku: "D", priceUnit: "SF", orderUnit: "ROLL", cost: 5 }))[0].code, "unfamiliar-unit");
+  // SF-priced, roll-sold, no coverage: the roll price can't be built — the
+  // specific hazard, not a generic "unfamiliar unit" (a roll is a known unit).
+  assert.equal(itemProblems(normOrderItem({ sku: "D", priceUnit: "SF", orderUnit: "ROLL", cost: 5 }))[0].code, "roll-no-coverage");
+  // With coverage the pick lands the whole-roll price — no hazard at all.
+  assert.deepEqual(itemProblems(normOrderItem({ sku: "D2", priceUnit: "SF", orderUnit: "RL", cost: 1.74, sfPerUnit: 134.5 })), []);
+  assert.equal(itemProblems(normOrderItem({ sku: "D3", priceUnit: "SF", orderUnit: "PA", cost: 5 }))[0].code, "unfamiliar-unit");
 });
 
 test("an untyped misc line with a clean price is NOT a problem", () => {

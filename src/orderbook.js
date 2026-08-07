@@ -13,7 +13,7 @@
 // tierPrices (book-defined contractor pricing). Picking one produces the same
 // patch stockPatch builds, then adds bookId/cost/markupPct and the flags.
 
-import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize, hitRank } from "./stock.js";
+import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize, hitRank, unitPrice, unitCost, feetArea } from "./stock.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => {
@@ -241,10 +241,11 @@ export const sellPrice = (cost, pct) => (cost == null ? null : round2(cost * (1 
 export const rowCostSqft = (item) => {
   if (!item || item.cost == null) return null;
   const csf = item.type ? costSqft(item) : null;
-  // Count lines cost per PIECE, matching the per-piece sell the patch
+  // Count lines cost per SELL UNIT, matching the per-piece sell the patch
   // snapshots (ADR 0013 amendment) — carton rounding lives on the row's
-  // cartonPc, never in the price.
-  return csf != null ? csf : item.cost;
+  // cartonPc, never in the price. unitCost converts an SF-priced roll's cost
+  // to the whole-roll figure, mirroring the sell side.
+  return csf != null ? csf : unitCost(item);
 };
 
 // A stock-shaped item with price/priceSqft filled from cost × markup, so
@@ -338,9 +339,10 @@ export function orderDrift(item, book, product) {
   // the item now quotes per piece — same frame test, price basis moved.
   if (!itemArea && !str(product.cartonPc) && isCartonUnit(orderUnitOf(priced)) && priced.pcPerUnit > 0) return { frame: "piece" };
   // Mirror the pick: flooring lines drift on $/sqft, count lines on the
-  // per-piece price.
+  // per-sell-unit price (unitPrice — an SF-priced roll drifts on the whole
+  // roll's figure, same as the pick lands).
   const now = itemArea ? stockPriceSqft(priced)
-    : priced.price != null ? round2(priced.price) : null;
+    : priced.price != null ? round2(unitPrice(priced)) : null;
   const cur = parseFloat(product.priceSqft);
   if (now == null || !Number.isFinite(cur)) return null;
   const to = round2(now);
@@ -565,6 +567,14 @@ export function itemProblems(item) {
     if (isCartonUnit(ou)) return [{ code: "no-pc-carton", msg: `priced per ${pu.toUpperCase()} but sold by the ${ou.toUpperCase()} with no PC/CT column mapped — the carton price can't be built (may land unpriced or underpriced)` }];
     if (it.sfPerUnit > 0 && ou && ou.toUpperCase() !== pu.toUpperCase()) return [{ code: "pc-sf-mismatch", msg: `priced per ${pu.toUpperCase()} with SF/CT coverage but no PC/CT column mapped — the derived $/sqft may be off by the carton's piece count` }];
   }
+  // A roll is a known sell unit (units.js): SF-priced with coverage the pick
+  // lands the whole-roll price (unitPrice). SF-priced WITHOUT coverage nothing
+  // can build the roll price from — that's the hazard, not the unit.
+  if (/^(rl|roll)s?$/i.test(ou)) {
+    return /^(sf|sft|sqft)$/i.test(pu) && !(it.sfPerUnit > 0)
+      ? [{ code: "roll-no-coverage", msg: "priced per SF but sold by the roll with no coverage found — the roll price can't be built (lands at the bare per-sqft figure)" }]
+      : [];
+  }
   if (pu && ou && ou.toUpperCase() !== pu.toUpperCase() && !isCartonUnit(ou) && !isPieceUnit(ou) && !/^(sf|sft|sqft)$/i.test(ou)) {
     return [{ code: "unfamiliar-unit", msg: `sold by an unfamiliar unit "${ou}" — check how these rows land before trusting their price` }];
   }
@@ -645,8 +655,11 @@ export function rowAdvisories(item) {
   // No mosaic backing sheet covers over ~3 sqft (team rule, 2026-07-23) — a
   // bigger claim is a mis-parsed coverage riding the description (the 22974
   // lesson: ".969sf/sh" once read as 969 sf/sheet). A genuine oversized sheet
-  // good (Ditra Heat membrane, 8.4 sf) trips it once and gets review-muted.
-  if (sheetUnit && it.sfPerUnit > SHEET_SF_MAX) out.push({ code: "sheet-coverage", msg: `claiming ${it.sfPerUnit} sf per SHEET — over ${SHEET_SF_MAX} sf isn't a real mosaic sheet, so the coverage likely mis-parsed from the description` });
+  // good whose FEET-marked size agrees with the claim (a Ditra-Heat membrane
+  // sheet: 3'2"×2'7" ≈ 8.4 sf) is geometry-confirmed and doesn't trip.
+  const fa = feetArea(it.size);
+  const feetConfirmed = fa != null && it.sfPerUnit > 0 && it.sfPerUnit / fa >= 0.85 && it.sfPerUnit / fa <= 1.15;
+  if (sheetUnit && it.sfPerUnit > SHEET_SF_MAX && !feetConfirmed) out.push({ code: "sheet-coverage", msg: `claiming ${it.sfPerUnit} sf per SHEET — over ${SHEET_SF_MAX} sf isn't a real mosaic sheet, so the coverage likely mis-parsed from the description` });
   const psf = it.type ? costSqft(it) : null;
   // Cost-inversion: a piece-priced row being sold by the square foot whose
   // derived $/sqft cost sits BELOW its own per-piece cost — i.e. the piece
@@ -698,7 +711,7 @@ export function importSanityWarnings(items, review) {
 // chip's tooltip.
 const FLAG_LABELS = {
   "no-price": "no price", "zero-price": "$0", "no-pc-carton": "no PC/CT",
-  "pc-sf-mismatch": "unit mix", "unfamiliar-unit": "odd unit",
+  "pc-sf-mismatch": "unit mix", "unfamiliar-unit": "odd unit", "roll-no-coverage": "roll $?",
   "name-litter": "name?", "name-size": "name?", "name-empty": "name?",
   "trim-as-area": "trim as sqft", "area-below-piece-cost": "under water", "psf-outlier": "$/sqft?",
   "sheet-coverage": "sf/sh?",

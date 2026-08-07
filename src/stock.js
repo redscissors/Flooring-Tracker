@@ -161,6 +161,34 @@ export function relaxSearchWords(items, query, minHits = 1) {
 // carries a trailing word ('4" x 4" Nominal', '8"x9" Hex') so those fill the
 // tile size cells instead of being shoved into the color name; anything with no
 // L×W ('6"', "Esagonia", "2\" Hex") → null.
+// One side of a feet-marked roll size ("3'3\"", "33'", "5\"") in feet; null
+// when it isn't one. A bare number next to a feet side reads as feet too — the
+// vendor dropped the unit, not switched it ("DITRA-PS ROLL 3'3\" X 34").
+const feetVal = (side) => {
+  const t = str(side);
+  const ft = t.match(/^(\d+(?:\.\d+)?)'(?:(\d+(?:\.\d+)?|\d+\/\d+|\d+-\d+\/\d+)")?$/);
+  if (ft) return +ft[1] + (ft[2] ? fracVal(ft[2]) / 12 : 0);
+  const inch = t.match(/^(\d+(?:\.\d+)?|\.\d+|\d+\/\d+|\d+-\d+\/\d+)(")?$/);
+  return inch ? fracVal(inch[1]) / (inch[2] ? 12 : 1) : null;
+};
+const fracVal = (s) => {
+  const f = str(s).match(/^(\d+)\/(\d+)$/);
+  if (f) return +f[1] / +f[2];
+  const m = str(s).match(/^(\d+(?:\.\d+)?|\.\d+)(?:-(\d+)\/(\d+))?$/);
+  return m ? parseFloat(m[1]) + (m[2] ? +m[2] / +m[3] : 0) : NaN;
+};
+// The area in sqft of a feet-marked L×W size string ("3'3\"x41'1\"" → 133.52),
+// or null. Only a size carrying a foot mark qualifies — an inch L×W is a tile,
+// never a roll's coverage.
+export function feetArea(size) {
+  const v = str(size);
+  if (!/'/.test(v)) return null;
+  const sides = v.split(/[x×]/);
+  if (sides.length !== 2) return null;
+  const a = feetVal(sides[0]), b = feetVal(sides[1]);
+  return a > 0 && b > 0 ? round4(a * b) : null;
+}
+
 export const parseTileSize = (size) => {
   // Each dim also accepts a leading-decimal with no leading zero (".43x12") —
   // vendors that map their own size column (Mannington/Glazzio PDF) can print
@@ -203,7 +231,7 @@ export const orderUnitOf = (item) => str(item?.orderUnit) || str(item?.unit);
 // Unit classes for the split: piece-ish units are quoted per single
 // piece/sheet/each/stick; carton-ish units bundle pcPerUnit of them.
 const PIECE_UNIT_RE = /^(pc|pcs|piece|ea|each|sh|sht|sheet|st|stick)s?$/i;
-const CARTON_UNIT_RE = /^(ct|ctn|carton|bx|box)s?$/i;
+const CARTON_UNIT_RE = /^(ct|ctn|carton|bx|box|pk|pkg|pack)s?$/i;
 export const isPieceUnit = (u) => PIECE_UNIT_RE.test(str(u));
 export const isCartonUnit = (u) => CARTON_UNIT_RE.test(str(u));
 
@@ -214,6 +242,20 @@ export const isCartonUnit = (u) => CARTON_UNIT_RE.test(str(u));
 // pcPerUnit (the stock workbook) quote sfPerUnit per the priced unit itself,
 // so they keep factor 1.
 export const perCartonFactor = (item) => (isPieceUnit(priceUnitOf(item)) && item.pcPerUnit > 0 ? item.pcPerUnit : 1);
+
+// A count line quotes per SELL unit, but a book can price the row per SQFT —
+// the Schluter EFT prices its membranes $1.74/sf and sells them by the
+// 134.5-sf roll. The per-unit money is price × coverage; without this the
+// whole roll quoted $1.74. Rows priced per their own sell unit pass through.
+const SQFT_UNIT_RE = /^(sf|sft|sqft)$/i;
+export const unitPrice = (item) =>
+  item?.price == null ? null
+    : SQFT_UNIT_RE.test(priceUnitOf(item)) && item.sfPerUnit > 0 ? round2(item.price * item.sfPerUnit)
+      : item.price;
+export const unitCost = (item) =>
+  item?.cost == null ? null
+    : SQFT_UNIT_RE.test(priceUnitOf(item)) && item.sfPerUnit > 0 ? round4(item.cost * item.sfPerUnit)
+      : item.cost;
 
 
 // The per-sq-ft price a stock item carries: the book's SF price when present,
@@ -328,7 +370,7 @@ export function stockPatch(item, product) {
     // twin of cartonSf.
     patch.brandColor = label(item);
     if (item.size) patch.sizeText = str(item.size); // its own Size field, not glued to the name
-    if (item.price != null) patch.priceSqft = String(item.price);
+    if (item.price != null) patch.priceSqft = String(unitPrice(item));
     // What one counted unit IS. A count line was always assumed to be "each",
     // which reads wrong the moment the vendor sells the thing by the roll or
     // the gallon — a Schluter RL line quoted "$84.20/ea". Snapshotted like
