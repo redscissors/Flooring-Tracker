@@ -148,7 +148,7 @@ export default function App({ user, onSignOut }) {
     books, hydrateBooks, orderItems, setOrderItems,
     loadBookItems, addBook, updateBook, delBook, applyBookImport,
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
-    updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
+    updateBookItem, reviewBookItemFlags, setBookItemsDisabled, setBookItemIssue,
   } = useBooks({ user, profile, ping, flashSaved });
   const { bookStock, bookStockReady, loadAllBookStock, refreshBookStock } = useBookStock({ books, loadBookItems });
   const { trimsFor, ensureTrims, clearTrims } = useTrims({ books });
@@ -2412,7 +2412,7 @@ export default function App({ user, onSignOut }) {
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
           bookStock={bookStock} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} />
         </Suspense>
         </LazyBoundary>
       )}

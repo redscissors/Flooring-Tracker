@@ -13,7 +13,7 @@ import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, diffBookItems, forceDiff, markupGroups, pricedItem, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, markupGroups, pricedItem, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
@@ -46,6 +46,22 @@ const bookFieldOptions = [
 // A routing choice, not a book id: resolved into a real (freshly created) book
 // when the user commits to reviewing, so canceling the route step makes nothing.
 const NEW_BOOK = "__new__";
+
+// Claude's starburst mark, drawn inline (lucide has no Claude icon) — the book
+// table's issue-bucket button. Inherits currentColor like its lucide neighbours.
+const CLAUDE_RAYS = Array.from({ length: 12 }, (_, i) => {
+  const a = (i * Math.PI) / 6;
+  const r = i % 2 ? 8.2 : 10.6;
+  const c = Math.cos(a), s = Math.sin(a);
+  return [12 + 4.4 * c, 12 + 4.4 * s, 12 + r * c, 12 + r * s].map((n) => Math.round(n * 10) / 10);
+});
+function ClaudeMark({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
+      {CLAUDE_RAYS.map(([x1, y1, x2, y2], i) => <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+    </svg>
+  );
+}
 
 // The multi-file drop router (ADR 0009 PR C). Reads each dropped file once,
 // routes it to a book, lets the user fix unmatched files, then steps through
@@ -347,7 +363,7 @@ function QuickMarkupsCard({ value, onChange }) {
   );
 }
 
-export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -562,7 +578,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : selBook ? (
-        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
@@ -770,11 +786,39 @@ function SourceSheetStrip({ sources, pendingSources, stale: st, lastImportAt, pe
   );
 }
 
-function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
+// Every stored field that doesn't own a table column, as label·value pairs for
+// the row's muted detail line — the "nothing hidden" half of the table
+// contract. Blank fields stay out, so a sparse book renders one clean line.
+function itemDetailBits(it) {
+  const bits = [];
+  const add = (label, v) => { if (v != null && v !== "") bits.push([label, String(v)]); };
+  add("product", it.product);
+  add("color", it.color);
+  add("style", it.style);
+  add("subtype", it.subtype);
+  add("brand", it.brand);
+  add("mfg", it.mfg);
+  add("line", it.productLine);
+  add("section", it.section);
+  add("sheet", it.sheet);
+  add("sheet size", it.sheetSize);
+  add("thickness", it.thickness);
+  add("coverage", it.coverage);
+  if (it.msrp != null) add("msrp", money(it.msrp));
+  for (const [tier, v] of Object.entries(it.tierPrices || {})) if (v != null) add(tier, money(v));
+  add("fits", (it.fits || []).join(" "));
+  add("note", it.note);
+  return bits;
+}
+
+// Exported for the preview harness (like FreightCard).
+export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
   const [flaggedOnly, setFlaggedOnly] = useState(false); // composes with `show`
+  const [claudeOnly, setClaudeOnly] = useState(false); // the Claude issue bucket, composes like flaggedOnly
+  const [copiedIssues, setCopiedIssues] = useState(false);
   const [selected, setSelected] = useState(() => new Set()); // SKUs ticked for bulk enable/disable
   const [confirmBulk, setConfirmBulk] = useState(null); // null | { disabled: boolean }
   const [confirmReset, setConfirmReset] = useState(false); // re-enable EVERY disabled item
@@ -819,7 +863,9 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
   const filtered = (items || [])
     .filter((it) => (show === "disabled" ? it.disabled : show === "enabled" ? !it.disabled : true))
     .filter((it) => !flaggedOnly || flagsBySku.has(it.sku))
-    .filter((it) => !query || `${it.sku} ${it.description} ${it.mfg} ${it.color}`.toLowerCase().includes(query));
+    .filter((it) => !claudeOnly || it.claudeIssue)
+    .filter((it) => !query || `${it.sku} ${it.description} ${it.product} ${it.mfg} ${it.brand} ${it.productLine} ${it.color} ${it.style} ${it.section} ${(it.vendorSkus || []).join(" ")}`.toLowerCase().includes(query));
+  const bucketCount = (items || []).filter((it) => it.claudeIssue).length;
   const shown = filtered.slice(0, 300);
   const disabledCount = (items || []).filter((it) => it.disabled).length;
   // Bulk enable/disable acts on the SELECTED rows still in the current filter.
@@ -884,6 +930,40 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
     .filter((it) => it.flagReview && Object.values(it.flagReview).some((e) => e.state === "confirmed"))
     .map((it) => ({ item: it, codes: Object.keys(it.flagReview).filter((c) => it.flagReview[c].state === "confirmed"), state: null })));
 
+  // Park/unpark a SKU in the Claude issue bucket. The write returns the stamped
+  // mark, merged back so the button and the bucket count restyle immediately.
+  const toggleIssue = async (it) => {
+    try {
+      const claudeIssue = await setBookItemIssue(book.id, it, !it.claudeIssue);
+      setItems((its) => (its || []).map((x) => (x.sku === it.sku ? { ...x, claudeIssue } : x)));
+    } catch (x) { /* surfaced by setBookItemIssue */ }
+  };
+
+  // The bucket as a paste-ready markdown report — book context, each SKU's live
+  // flags, and its full stored data — so "dig into these" is one paste into a
+  // Claude session.
+  const copyIssueReport = async () => {
+    const bucket = (items || []).filter((it) => it.claudeIssue);
+    const text = [
+      `# Claude issue bucket — ${book.name || "Untitled"} (${isOrder ? "special order" : "stock"} book)`,
+      `${bucket.length} SKU${bucket.length === 1 ? "" : "s"} parked for review${markups ? ` · markups ${JSON.stringify(markups)}` : ""}`,
+      "",
+      ...bucket.map((it) => {
+        const fl = itemFlags(it, skuSet).map((f) => `${f.label} — ${f.msg}${f.resolved ? ` (${f.resolved})` : ""}`);
+        return [
+          `## ${it.sku} — ${it.description || "(no description)"}`,
+          `Parked${it.claudeIssue.by ? ` by ${it.claudeIssue.by}` : ""}${it.claudeIssue.at ? ` on ${new Date(it.claudeIssue.at).toLocaleDateString()}` : ""}${it.disabled ? " · disabled" : ""}${it.active ? "" : " · retired"}`,
+          fl.length ? `Flags: ${fl.join(" | ")}` : "",
+          "```json",
+          JSON.stringify(bookItemData(it), null, 1),
+          "```",
+          "",
+        ].filter(Boolean).join("\n");
+      }),
+    ].join("\n");
+    try { await navigator.clipboard.writeText(text); setCopiedIssues(true); setTimeout(() => setCopiedIssues(false), 1800); } catch (x) { /* clipboard denied — nothing to roll back */ }
+  };
+
   return (
     <div className="mt-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -946,6 +1026,14 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                 <Flag size={12} /> Flagged{openFlagged ? ` (${openFlagged})` : ""}
               </button>
             )}
+            {(bucketCount > 0 || claudeOnly) && (
+              <button onClick={() => setClaudeOnly((v) => !v)} title="Only rows parked in the Claude issue bucket — SKUs someone wants a Claude session to dig into. Combines with All / Enabled / Disabled." className={`flex items-center gap-1 text-xs rounded-md border px-2.5 py-1.5 ${claudeOnly ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                <ClaudeMark size={12} /> Claude{bucketCount ? ` (${bucketCount})` : ""}
+              </button>
+            )}
+            {claudeOnly && bucketCount > 0 && (
+              <button onClick={copyIssueReport} title="Copy the bucketed SKUs — their stored data and live flags — as a report to paste into a Claude session" className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">{copiedIssues ? "Copied ✓" : "Copy report for Claude"}</button>
+            )}
             {selectedIn.length > 0 && (
               <>
                 <button onClick={() => setConfirmBulk({ disabled: true })} className="text-xs rounded-md border border-slate-200 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">Disable selected ({selectedIn.length})</button>
@@ -986,33 +1074,56 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
               <button onClick={() => setConfirmResetReview(false)} className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 shrink-0">Cancel</button>
             </div>
           )}
+          {/* The item table reads in the PROJECT LINE's column order (Size/Type ·
+              Product/Color · SKU · Cov. · Price — the desktop grid's header), and
+              the Size / Cov. / Price cells show what a pick LANDS (bookRowPreview
+              → the real stockPatch path), so a bad import is visible as exactly
+              the blank or amber cell the estimate would get. The muted second
+              line under Product carries every other stored field — nothing the
+              row stores is hidden. */}
           <div className="mt-2 overflow-x-auto border border-slate-100 rounded-lg">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-400">
+            <table className="w-full text-[11px] leading-snug">
+              <thead className="bg-slate-50 text-[9px] uppercase tracking-wide text-slate-400">
                 <tr>
-                  <th className="px-2 py-1.5 w-8"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select / deselect all filtered rows" /></th>
-                  <th className="text-left px-2 py-1.5">SKU</th>
-                  <th className="text-left px-2 py-1.5">Description</th>
-                  {isOrder && <th className="text-left px-2 py-1.5">Mfg</th>}
-                  <th className="text-left px-2 py-1.5">U/M</th>
-                  <th className="text-left px-2 py-1.5">Lead</th>
-                  {isOrder && <th className="text-right px-2 py-1.5">Cost</th>}
-                  <th className="text-right px-2 py-1.5">{isOrder ? "Sell" : "Price"}</th>
-                  <th className="px-2 py-1.5"></th>
+                  <th className="px-2 py-1 w-8"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select / deselect all filtered rows" /></th>
+                  <th className="text-left px-2 py-1">Size / Type</th>
+                  <th className="text-left px-2 py-1">Product / Color</th>
+                  <th className="text-left px-2 py-1">SKU</th>
+                  <th className="text-right px-2 py-1">Cov.</th>
+                  <th className="text-left px-2 py-1">U/M</th>
+                  <th className="text-left px-2 py-1">Lead</th>
+                  {isOrder && <th className="text-right px-2 py-1">Cost</th>}
+                  <th className="text-right px-2 py-1">Price</th>
+                  <th className="px-2 py-1"></th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map((it) => {
-                  const priced = isOrder ? pricedItem(it, markups) : it;
-                  const sell = priced.priceSqft != null ? priced.priceSqft : priced.price;
+                  const pv = bookRowPreview(it, markups);
                   const openCodes = (flagsBySku.get(it.sku) || []).filter((f) => !f.resolved).map((f) => f.code);
                   const reviewedCodes = Object.keys(it.flagReview || {});
+                  const detail = itemDetailBits(it);
+                  const pu = priceUnitOf(it).toUpperCase(), ou = orderUnitOf(it).toUpperCase();
+                  // Stored coverage that is NOT what lands (a sheet's per-carton
+                  // SF divided down, or a per-piece trim whose SF/CT is ignored)
+                  // still shows, muted — hidden coverage is how bad imports hid.
+                  const rawCov = [
+                    it.sfPerUnit != null && !(pv.coverage?.kind === "sf" && pv.coverage.n === it.sfPerUnit) ? `SF/CT ${it.sfPerUnit}` : "",
+                    it.pcPerUnit != null && !(pv.coverage?.kind === "pc" && pv.coverage.n === it.pcPerUnit) ? `PC/CT ${it.pcPerUnit}` : "",
+                  ].filter(Boolean).join(" · ");
+                  const sizeTrouble = it.type === "tile" && !it.sheetSize && !pv.sizeParsed && !!pv.size;
                   return (
-                    <tr key={it.sku} className={`border-t border-slate-100 ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
-                      <td className="px-2 py-1.5"><input type="checkbox" checked={selected.has(it.sku)} onChange={() => toggleSelect(it.sku)} title="Select for bulk enable / disable" /></td>
-                      <td className="px-2 py-1.5 font-mono text-xs">{it.sku}</td>
-                      <td className="px-2 py-1.5">
-                        {it.description || "—"}
+                    <tr key={it.sku} className={`border-t border-slate-100 align-top ${!it.active || it.discontinued || it.disabled ? "text-slate-300" : ""}`}>
+                      <td className="px-2 py-1"><input type="checkbox" checked={selected.has(it.sku)} onChange={() => toggleSelect(it.sku)} title="Select for bulk enable / disable" /></td>
+                      <td className="px-2 py-1 whitespace-nowrap">
+                        <span className="block text-[8.5px] uppercase tracking-wide text-slate-400">{it.trim ? "trim" : pv.type === "misc" ? "count" : typeLabels?.[pv.type] || pv.type}</span>
+                        {pv.size ? (
+                          <span title={pv.sizeParsed ? `Lands in L×W — grout/mortar math runs (sheet says "${it.size}")` : sizeTrouble ? `Didn't parse to L×W — lands as free text, no grout/mortar math (sheet says "${it.size}")` : `Lands as size text (sheet says "${it.size}")`} className={`tabular-nums ${sizeTrouble ? "text-amber-600" : ""}`}>{pv.size}</span>
+                        ) : <span className="text-slate-300">—</span>}
+                        {pv.thickness && <span className="text-[9px] text-slate-400"> · {pv.thickness}"</span>}
+                      </td>
+                      <td className="px-2 py-1">
+                        {pv.name || it.description || "—"}
                         {it.freightFlag && <span className="ml-1.5 text-[9px] uppercase rounded bg-amber-100 text-amber-700 px-1 py-0.5">freight</span>}
                         {it.discontinued && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">disc</span>}
                         {it.disabled && <span className="ml-1.5 text-[9px] uppercase rounded bg-slate-100 text-slate-500 px-1 py-0.5">off</span>}
@@ -1029,13 +1140,32 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                           const tone = f.resolved === "confirmed" ? "bg-emerald-50 text-emerald-600" : f.resolved === "ignored" ? "bg-slate-100 text-slate-400" : f.tone === "hazard" ? "bg-amber-100 text-amber-700" : f.tone === "advisory" ? "bg-amber-50 text-amber-600" : f.tone === "info" ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-500";
                           return <span key={f.code} title={title} className={`ml-1.5 text-[9px] uppercase rounded px-1 py-0.5 cursor-help ${tone}`}>{f.label}{f.resolved === "confirmed" ? " ✓" : ""}</span>;
                         })}
+                        {detail.length > 0 && (
+                          <span className="block text-[9px] leading-tight text-slate-400">
+                            {detail.map(([l, v], i) => (
+                              <span key={l + i}>{i > 0 && " · "}<span className="uppercase tracking-wide text-slate-300">{l}</span> {v}</span>
+                            ))}
+                          </span>
+                        )}
                       </td>
-                      {isOrder && <td className="px-2 py-1.5 text-xs">{it.mfg || "—"}</td>}
-                      <td className="px-2 py-1.5 text-xs">{it.unit || "—"}</td>
-                      <td className="px-2 py-1.5 text-xs">{it.leadTime || "—"}</td>
-                      {isOrder && <td className="px-2 py-1.5 text-right text-xs tabular-nums">{cost(it.cost)}</td>}
-                      <td className="px-2 py-1.5 text-right tabular-nums">{sell != null ? money(sell) : "—"}</td>
-                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <td className="px-2 py-1 font-mono text-[10px]">
+                        {it.sku}
+                        {it.vendorSkus.length > 0 && <span className="block text-[9px] text-slate-400" title="Manufacturer's own code(s) from the sheet">{it.vendorSkus.join(" ")}</span>}
+                      </td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap tabular-nums">
+                        {pv.coverage ? <>{pv.coverage.n}<span className="text-[8px] text-slate-400"> {pv.coverage.kind.toUpperCase()}/{pv.coverage.unit.toUpperCase()}</span></> : <span className="text-slate-300">—</span>}
+                        {rawCov && <span className="block text-[9px] text-slate-400" title="On the sheet but not what a pick lands (per-piece rows ignore coverage; sheets divide the carton's SF down)">{rawCov}</span>}
+                      </td>
+                      <td className="px-2 py-1 text-[10px] whitespace-nowrap" title={`Unit "${it.unit || "—"}" · price unit "${it.priceUnit || "—"}" · order unit "${it.orderUnit || "—"}"`}>
+                        {pu || ou ? (pu === ou ? pu : `${pu}→${ou}`) : "—"}
+                      </td>
+                      <td className="px-2 py-1 text-[10px]">{it.leadTime || "—"}</td>
+                      {isOrder && <td className="px-2 py-1 text-right text-[10px] tabular-nums">{cost(it.cost)}</td>}
+                      <td className="px-2 py-1 text-right whitespace-nowrap tabular-nums">
+                        {pv.price != null ? <>{money(pv.price)}<span className="text-[8px] text-slate-400">/{pv.per}</span></> : <span className="text-amber-600" title="No selling price lands from this row — it would pick unpriced">—</span>}
+                        {isOrder && it.cost != null && it.price == null && pv.markupPct != null && <span className="block text-[9px] text-slate-400">+{pv.markupPct}%</span>}
+                      </td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap">
                         {flaggedOnly && (openCodes.length ? (
                           <>
                             <button onClick={() => applyReview([{ item: it, codes: openCodes, state: "confirmed" }])} title="Confirmed fixed — this problem stops flagging and won't re-warn on re-imports" className="text-[11px] rounded border border-emerald-300 text-emerald-700 px-1.5 py-0.5 mr-1 hover:bg-emerald-50">Confirm fixed</button>
@@ -1045,6 +1175,7 @@ function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, apply
                           <button onClick={() => applyReview([{ item: it, codes: reviewedCodes, state: null }])} title="Undo — flag this row again" className="text-[11px] rounded border border-slate-200 text-slate-500 px-1.5 py-0.5 mr-1 hover:bg-slate-50">Undo</button>
                         ))}
                         <button onClick={() => setDisabled([it.sku], !it.disabled)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} className="text-slate-300 hover:text-slate-600 mr-2 align-middle">{it.disabled ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                        <button onClick={() => toggleIssue(it)} title={it.claudeIssue ? `In the Claude issue bucket${it.claudeIssue.by ? ` — parked by ${it.claudeIssue.by}` : ""}${it.claudeIssue.at ? ` ${new Date(it.claudeIssue.at).toLocaleDateString()}` : ""}. Click to remove.` : "Park this SKU in the Claude issue bucket — collect problem rows here, then use the bucket's Copy report to dig into them with Claude"} className={`mr-2 align-middle ${it.claudeIssue ? "text-[#D97757] hover:text-[#b85c3f]" : "text-slate-300 hover:text-slate-600"}`}><ClaudeMark size={13} /></button>
                         <button onClick={() => setEditItem(it)} title="Edit this item" className="text-slate-300 hover:text-slate-600 align-middle"><Pencil size={13} /></button>
                       </td>
                     </tr>

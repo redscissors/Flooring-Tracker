@@ -82,14 +82,17 @@ export function useBooks({ user, profile, ping, flashSaved }) {
   // for PostgREST: added take the ignore value; changed/missing preserve their
   // prior disabled unless newly ignored. Ignored SKUs in no bucket (unchanged
   // rows) are disabled through the PR A path. A changed row also keeps the
-  // previous item's flagReview — a confirmed/ignored flag survives the
-  // re-import just like the disabled column, so it never re-nags.
+  // previous item's flagReview and claudeIssue — a confirmed/ignored flag and a
+  // Claude-bucket mark survive the re-import just like the disabled column.
+  const carryMarks = (item, prev) => (prev?.flagReview || prev?.claudeIssue)
+    ? { ...item, ...(prev.flagReview ? { flagReview: prev.flagReview } : {}), ...(prev.claudeIssue ? { claudeIssue: prev.claudeIssue } : {}) }
+    : item;
   const applyBookImport = async (bookId, diff, opts = {}) => {
     const disable = new Set(opts.disableSkus || []);
     const off = (sku, prevDisabled) => (disable.has(sku) ? true : !!prevDisabled);
     const upserts = [
       ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, disabled: disable.has(it.sku), data: bookItemData(it) })),
-      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(prev?.flagReview ? { ...item, flagReview: prev.flagReview } : item) })),
+      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(carryMarks(item, prev)) })),
       ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, disabled: off(it.sku, it.disabled), data: bookItemData(it) })),
     ];
     for (let i = 0; i < upserts.length; i += 200) {
@@ -191,6 +194,19 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     return out;
   };
 
+  // Claude issue bucket: park/unpark a SKU for a later Claude session to dig
+  // into (the book table's Claude button). Same contract as reviewBookItemFlags
+  // — rewrites the row's data jsonb WITHOUT the editedBy/editedAt stamp, since
+  // bucketing is bookkeeping, not a hand-edit. Returns the written mark so the
+  // caller can merge it into its open list.
+  const setBookItemIssue = async (bookId, item, on) => {
+    const claudeIssue = on ? { by: profile.name || user.email || "", at: Date.now() } : null;
+    const { error } = await supabase.from("price_book_items").update({ data: { ...bookItemData(item), claudeIssue } }).eq("book_id", bookId).eq("sku", item.sku);
+    if (error) { ping("Save failed"); throw error; }
+    flashSaved();
+    return claudeIssue;
+  };
+
   // Enable/disable book items (importer-upgrades spec, PR A): flips ONLY the
   // disabled column, keyed (book_id, sku). Import upserts never mention the
   // column, so the team's choice survives every reimport. Chunked like the
@@ -208,6 +224,6 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     orderItems, setOrderItems,
     loadBookItems, addBook, updateBook, delBook, applyBookImport,
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
-    updateBookItem, reviewBookItemFlags, setBookItemsDisabled,
+    updateBookItem, reviewBookItemFlags, setBookItemsDisabled, setBookItemIssue,
   };
 }

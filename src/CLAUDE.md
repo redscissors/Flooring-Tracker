@@ -96,7 +96,9 @@ src/
                     # and their write paths (`updateProject`/`addProject`/`setSettings`/`saveProfile`…);
                     # `migrateLegacyCustomers` (ADR 0004)
   usebooks.js       # `useBooks` — price book registry state + write paths (ADR 0009): addBook/
-                    # updateBook/delBook/applyBookImport/reviewBookItemFlags/setBookItemsDisabled
+                    # updateBook/delBook/applyBookImport/reviewBookItemFlags/setBookItemsDisabled/
+                    # setBookItemIssue (the Claude issue bucket — flagReview's contract:
+                    # data jsonb, no edited stamp, carried across re-imports)
   usebookstock.js   # `useBookStock` — stock-kind registry books' items, a bounded cache
                     # background-loaded after the books metadata (ADR 0026); feeds the row
                     # search's instant stock tier, the grout family projection, the Settings
@@ -136,7 +138,14 @@ src/
   vendorpanel.jsx   # the vendor-sheet board: `useVendorFetch`, `VendorFetchPage`,
                     # sign-in group cards, `StaleChip`/`FLAG_SEMANTICS`
   pricebooklib.jsx  # the price-book library (`PriceBookLibrary` + book detail,
-                    # import wizard, stock items panel, markup editor — internal)
+                    # import wizard, stock items panel, markup editor — internal).
+                    # The book detail's item table reads in the PROJECT LINE's
+                    # column order (Size/Type · Product/Color · SKU · Cov. ·
+                    # Price), its Size/Cov./Price cells showing what a pick LANDS
+                    # (bookRowPreview) with parse failures amber and every other
+                    # stored field on a muted detail line; the ✳ button beside
+                    # Edit parks a SKU in the Claude issue bucket (filter chip +
+                    # paste-ready copy report for a Claude session)
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here
   catalog.js        # settings normalization + material math + shared catalog
@@ -169,7 +178,12 @@ src/
                     # (N-suffix old→new), surfaced in the wizard's review step.
                     # An item's `flagReview` ({code: confirmed/ignored verdict},
                     # ADR 0017) mutes that code's chip + import warnings and is
-                    # carried across re-imports like the disabled column
+                    # carried across re-imports like the disabled column; its
+                    # `claudeIssue` ({by, at}) parks the SKU in the Claude issue
+                    # bucket, same carry. `bookRowPreview` derives the book
+                    # table's project-line cells through the REAL pick path
+                    # (pricedItem → stockPatch) so the table can't drift from
+                    # what a pick lands
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
                     # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
