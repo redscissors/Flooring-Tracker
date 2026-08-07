@@ -20,6 +20,7 @@ import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, T
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, optionTitle, optionShort, duplicateInto } from "./options.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
@@ -270,6 +271,11 @@ export default function App({ user, onSignOut }) {
   const [matOpen, setMatOpen] = useState({});
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
+  const [areaMenu, setAreaMenu] = useState(null); // { aid, x, y } — the area band's option menu
+  const [renamingOpt, setRenamingOpt] = useState(null); // option slot ("A"/"B"/"C") whose rename modal is open
+  // Preview tab scope; read starting Task 7 — the menu's "Print this option…" already writes it.
+  // eslint-disable-next-line no-unused-vars
+  const [previewScope, setPreviewScope] = useState("all");
   const mainRef = useRef(null);
   const fileRef = useRef(null);
   const attRef = useRef(null);
@@ -891,6 +897,7 @@ export default function App({ user, onSignOut }) {
     if (selCustId) goHome();
   });
   useEscClose(!!custChip, () => setCustChip(null));
+  useEscClose(!!areaMenu, () => setAreaMenu(null));
   useEscClose(viewTab === "preview", () => setViewTab("edit"));
   useEscClose(!!confirmArea, () => setConfirmArea(null));
   useEscClose(!!confirmProd, () => setConfirmProd(null));
@@ -991,6 +998,19 @@ export default function App({ user, onSignOut }) {
   const quickMarkups = normPricing(settings.pricing).quickMarkups;
   const T = useMemo(() => (sel && sel._full ? jobTotals(tv.proj, sel, tSet, wSet, settings, books) : jobTotals({ categories: [] }, { categories: [] }, tSet, wSet, settings, books)), [sel, tv.proj, tSet, wSet, settings, books]);
   const { totalSqft, orderedSqft, flooringPrice, miscCost, groutCost, caulkCost, mortarCost, underlayCost, baseCost, materialsCost, freightCost, grandTotal, gList, mList, uList, cList, bList, fList, aByCat, matAll, matLines, hasMat, margin, pMats } = T;
+  const optsUsed = useMemo(() => (sel && sel._full ? optionsUsed(sel.categories) : []), [sel]);
+  // Per-bucket money (ADR 0031): shared + each option's own areas. Additive on
+  // paper — wholeJob(slot) = shared + slot — while order entry re-runs the union.
+  const buckets = useMemo(() => {
+    if (!sel || !sel._full || optsUsed.length === 0) return null;
+    const run = (scope) => jobTotals({ ...tv.proj, categories: bucketCats(tv.proj.categories, scope) }, { ...sel, categories: bucketCats(sel.categories, scope) }, tSet, wSet, settings, books);
+    const out = { shared: run("shared") };
+    optsUsed.forEach((s) => { out[s] = run(s); });
+    return out;
+  }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
+  // Consumed by the header option chips (Task 5); unused until then.
+  // eslint-disable-next-line no-unused-vars
+  const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -1379,16 +1399,23 @@ export default function App({ user, onSignOut }) {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
                   const areaMatOpen = a.products.some((pp) => matOpen[pp.id]);
+                  const oc = a.option ? OPTION_COLOR[a.option] : null;
                   return (
                   // overflow-hidden lifts while a card is dragged (so the floating
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-area-head)", padding: "8px 14px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                    <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: "8px 14px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
-                        <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
+                        {(a.option || optsUsed.length > 0) && (
+                          <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4 }); }}
+                            className="ft-noprint rounded-md px-2 py-0.5 text-[10.5px] font-bold shrink-0"
+                            style={oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }}>
+                            {a.option ? optionShort(sel, a.option).toUpperCase() : "SHARED"}
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="ft-mono" style={{ fontSize: 10.5 }}>{(isWide ? [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""] : [areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
@@ -2545,6 +2572,49 @@ export default function App({ user, onSignOut }) {
         );
       })()}
 
+      {areaMenu && sel && (() => {
+        const a = sel.categories.find((x) => x.id === areaMenu.aid);
+        if (!a) return null;
+        const setOpt = (slot) => { updArea(a.id, { option: slot }); setAreaMenu(null); };
+        const dupInto = (slot) => {
+          const copy = duplicateInto(a, slot);
+          const cats = [...sel.categories];
+          cats.splice(cats.indexOf(a) + 1, 0, copy);
+          updateProject(sel.id, { categories: cats });
+          if (!a.option) updArea(a.id, { option: optionsUsed(cats).find((s) => s !== slot) || "A" });
+          setAreaMenu(null);
+        };
+        const free = OPTION_SLOTS.filter((s) => !optsUsed.includes(s));
+        const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
+        return (
+          <div className="ft-noprint fixed inset-0 z-50" onClick={() => setAreaMenu(null)} onContextMenu={(e) => { e.preventDefault(); setAreaMenu(null); }}>
+            <div className="absolute bg-white rounded-lg border border-slate-200 shadow-xl p-1" style={{ left: Math.min(areaMenu.x, window.innerWidth - 250), top: Math.min(areaMenu.y, window.innerHeight - 300), width: 236 }} onClick={(e) => e.stopPropagation()}>
+              <div className="uppercase text-[9px] font-bold tracking-widest text-slate-400 px-2.5 pt-1.5 pb-0.5">This area is in</div>
+              <button className={item} onClick={() => setOpt("")}><span className="w-2 h-2 rounded-sm" style={{ background: "var(--ft-faint)" }} />Shared — every option{!a.option && <Check size={12} className="ml-auto" />}</button>
+              {OPTION_SLOTS.map((s) => (optsUsed.includes(s) || free[0] === s) && (
+                <button key={s} className={item} onClick={() => setOpt(s)}>
+                  <span className="w-2 h-2 rounded-sm" style={{ background: OPTION_COLOR[s].main }} />
+                  {optsUsed.includes(s) ? optionShort(sel, s) : "New option…"}
+                  {a.option === s && <Check size={12} className="ml-auto" />}
+                </button>
+              ))}
+              <div className="border-t border-slate-100 my-1" />
+              {optsUsed.concat(free.slice(0, 1)).map((s) => (
+                <button key={"d" + s} className={item} onClick={() => dupInto(s)}>Duplicate into {optsUsed.includes(s) ? optionShort(sel, s) : "new option"}…</button>
+              ))}
+              {a.option && <button className={item} onClick={() => { setRenamingOpt(a.option); setAreaMenu(null); }}>Rename {optionTitle(sel, a.option)}…</button>}
+              {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); setViewTab("preview"); setAreaMenu(null); }}>Print this option…</button>}
+            </div>
+          </div>
+        );
+      })()}
+      {renamingOpt && sel && (
+        <Modal onClose={() => setRenamingOpt(null)} title={`Rename ${optionTitle(sel, renamingOpt)}`}>
+          <input autoFocus defaultValue={sel.optionNames?.[renamingOpt] || ""} placeholder={`Option ${renamingOpt}`}
+            onKeyDown={(e) => { if (e.key === "Enter") { updateProject(sel.id, { optionNames: { ...sel.optionNames, [renamingOpt]: e.target.value.trim() } }); setRenamingOpt(null); } }}
+            className="ft-field w-full h-[36px] text-sm rounded-md border border-slate-200 px-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </Modal>
+      )}
       {toast && <div className="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg z-50">{toast}</div>}
     </div>
   );
