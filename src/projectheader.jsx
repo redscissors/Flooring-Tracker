@@ -128,7 +128,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   );
 }
 
-export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
@@ -168,7 +168,17 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
               {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px font-semibold normal-case tracking-normal" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
               {saveOk && <span className="font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 10 }}>Saved ✓</span>}
             </div>
-            <div className="ft-mono font-bold" style={{ fontSize: 18, lineHeight: 1.15, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+            {optionBadges ? (
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                {optionBadges.map((b) => (
+                  <span key={b.slot} className="ft-mono rounded-md px-2 py-0.5 text-[11px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                    {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="ft-mono font-bold" style={{ fontSize: 18, lineHeight: 1.15, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+            )}
           </div>
         </div>
 
@@ -240,7 +250,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 // Moved whole from App.jsx (print-sheet style: customer | project | salesperson
 // up top, then pricing + notes | actions, then the Add-area row).
 
-export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
   const sp = sel.salesperson || profile;
   const cols = { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 };
   const midPad = { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" };
@@ -266,7 +276,17 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
         </div>
         <div className="min-w-0 relative" style={midPad}>
           <div className="absolute top-0 flex flex-col items-end" style={{ right: 16 }}>
-            <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+            {optionBadges ? (
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                {optionBadges.map((b) => (
+                  <span key={b.slot} className="ft-mono rounded-md px-2 py-0.5 text-[12px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                    {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="ft-mono text-[12px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+            )}
             {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
           </div>
           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: 16, color: "var(--ft-brand)" }}>Saved ✓</span>}

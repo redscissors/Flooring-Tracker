@@ -3,13 +3,13 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
-import { num, ceilQty, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, groutBaseList, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, attachedList, qtyDrift } from "./catalog.js";
+import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
-import { pricedItem, orderPatch, orderDrift, specialOrderMargin, rowCostSqft } from "./orderbook.js";
+import { pricedItem, orderPatch, orderDrift, rowCostSqft } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
-import { freightList, freightTotal, freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
+import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
 import { matchName } from "./names.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
@@ -18,7 +18,9 @@ import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 import { seedFromQuery as wediSeed } from "./wediquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
-import { lineTotal, printProduct, orderLineCost, printAreaFloor, KSHORT, u1, printMatList, orderEntryRow } from "./print.js";
+import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
+import { jobTotals } from "./jobtotals.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto } from "./options.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
@@ -194,7 +196,7 @@ export default function App({ user, onSignOut }) {
   };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
-  useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); }, [printMode]);
+  useEffect(() => { if (!printMode) return; window.print(); const wasOrder = printMode === "order"; setPrintMode(null); if (wasOrder) setOrderScope(null); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
   // Keyboard-flow focus targets (product id): after Add product, land on the
   // new row's type; after a SKU pick, land on the Sq Ft box (so the footage
@@ -254,7 +256,7 @@ export default function App({ user, onSignOut }) {
   // Copy-for-order-entry panel (special-order + stock, formatted for pasting
   // into the vendor order program). Ephemeral, read-only, never printed.
   const [showOrderCopy, setShowOrderCopy] = useState(false);
-  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); }, [selId]);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -269,6 +271,15 @@ export default function App({ user, onSignOut }) {
   const [matOpen, setMatOpen] = useState({});
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
+  const [areaMenu, setAreaMenu] = useState(null); // { aid, x, y } — the area band's option menu
+  const [renamingOpt, setRenamingOpt] = useState(null); // option slot ("A"/"B"/"C") whose rename modal is open
+  // Preview tab scope: "all" (compare/banded) or a slot letter (that option's
+  // single-total sheet). The area menu's "Print this option…" writes it too.
+  const [previewScope, setPreviewScope] = useState("all");
+  // Order entry / order sheet scope: which option is being ordered. Set by the
+  // scope picker below; a job without options never sets it to anything but "all".
+  const [orderScope, setOrderScope] = useState(null);
+  const [scopeAsk, setScopeAsk] = useState(null); // { for: "entry" | "sheet" } | null
   const mainRef = useRef(null);
   const fileRef = useRef(null);
   const attRef = useRef(null);
@@ -890,6 +901,7 @@ export default function App({ user, onSignOut }) {
     if (selCustId) goHome();
   });
   useEscClose(!!custChip, () => setCustChip(null));
+  useEscClose(!!areaMenu, () => setAreaMenu(null));
   useEscClose(viewTab === "preview", () => setViewTab("edit"));
   useEscClose(!!confirmArea, () => setConfirmArea(null));
   useEscClose(!!confirmProd, () => setConfirmProd(null));
@@ -988,63 +1000,55 @@ export default function App({ user, onSignOut }) {
   const searchStrictness = normPricing(settings.pricing).searchStrictness;
   const searchFallback = normPricing(settings.pricing).searchFallback;
   const quickMarkups = normPricing(settings.pricing).quickMarkups;
-  let totalSqft = 0, orderedSqft = 0, flooringPrice = 0, groutCost = 0, caulkCost = 0, mortarCost = 0, underlayCost = 0, miscCost = 0; const gAgg = {}, mAgg = {}, uAgg = {}, cAgg = {};
-  (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => { if (p.type === "misc") { const PC = getPieceCarton(p); miscCost += num(p.priceSqft) * (PC ? PC.pieces : miscQty(p)); } else if (p.qtyType === "sqft") { const sf = num(p.qty); totalSqft += sf; const C = getCarton(p, tSet); orderedSqft += C ? C.order * C.sf : sf; flooringPrice += (C ? C.order * C.sf : sf) * num(p.priceSqft); } else { flooringPrice += num(p.qty) * num(p.priceSqft); } const G = getGrout(p, tSet); if (G) { groutCost += G.order * G.price; const k = G.product + "||" + (G.color || "—"); if (!gAgg[k]) gAgg[k] = { product: G.product, color: G.color || "—", exact: 0 }; Object.assign(gAgg[k], { unit: G.unit, price: G.price, pending: false, colorSku: gAgg[k].colorSku || p.grout.sku || "" }); gAgg[k].exact += G.exact; } else if (p.type === "tile" && p.grout?.checked) { const k = p.grout.product + "||" + (p.grout.color || "—"); if (!gAgg[k]) gAgg[k] = { product: p.grout.product, color: p.grout.color || "—", colorSku: p.grout.sku || "", unit: tSet.grouts[p.grout.product]?.unit || "units", price: num(tSet.grouts[p.grout.product]?.price), exact: 0, pending: true }; } if (p.type === "tile" && p.grout?.checked) { const ck = num(p.grout.caulk); if (ck > 0) { caulkCost += ck * num(p.grout.caulkPrice); const k = p.grout.product + "||" + (p.grout.color || "—"); if (!cAgg[k]) cAgg[k] = { product: p.grout.product, color: p.grout.color || "—", sku: "", unit: "tubes", price: 0, exact: 0 }; cAgg[k].sku = cAgg[k].sku || p.grout.caulkSku || ""; if (num(p.grout.caulkPrice) > 0) cAgg[k].price = num(p.grout.caulkPrice); cAgg[k].exact += ck; } } const M = getMortar(p, tSet); if (M) { mortarCost += M.order * M.price; const k = M.product; if (!mAgg[k]) mAgg[k] = { product: M.product, exact: 0 }; Object.assign(mAgg[k], { unit: M.unit, price: M.price, pending: false }); mAgg[k].exact += M.exact; } else if (p.type === "tile" && p.mortar?.checked) { const k = p.mortar.product; if (!mAgg[k]) mAgg[k] = { product: p.mortar.product, unit: tSet.mortars[p.mortar.product]?.unit || "units", price: num(tSet.mortars[p.mortar.product]?.price), exact: 0, pending: true }; } const U = getUnderlay(p, tSet); if (U && U.product) { underlayCost += U.order * U.price; const k = U.product; if (!uAgg[k]) uAgg[k] = { product: U.product, exact: 0 }; Object.assign(uAgg[k], { unit: U.unit, price: U.price, pending: false }); uAgg[k].exact += U.exact; } else if (p.type !== "misc" && p.underlay?.checked && p.underlay.product) { const k = p.underlay.product; if (!uAgg[k]) uAgg[k] = { product: p.underlay.product, unit: tSet.underlayments?.[p.underlay.product]?.unit || "units", price: num(tSet.underlayments?.[p.underlay.product]?.price), exact: 0, pending: true }; } const IN = getUnderlayInstall(p, tSet); if (IN) IN.forEach((m) => { if (m.kind === "mortar") { mortarCost += m.order * m.price; const k = m.name; if (!mAgg[k]) mAgg[k] = { product: m.name, unit: m.unit, price: m.price, exact: 0 }; mAgg[k].exact += m.exact; } else { underlayCost += m.order * m.price; const k = "install||" + m.name; if (!uAgg[k]) uAgg[k] = { product: m.name, itemSku: m.sku || "", unit: m.unit, price: m.price, exact: 0 }; uAgg[k].exact += m.exact; } }); }));
-  // The color's own snapshotted SKU (ADR 0007) outranks the catalog product SKU.
-  const gList = Object.values(gAgg).map((g) => { const order = ceilQty(g.exact); return { ...g, sku: g.colorSku || settings.grouts[g.product]?.sku || "", order, cost: order * num(g.price) }; });
-  const mList = Object.values(mAgg).map((m) => { const order = ceilQty(m.exact); return { ...m, sku: settings.mortars[m.product]?.sku || "", order, cost: order * num(m.price) }; });
-  const uList = Object.values(uAgg).map((u) => { const order = ceilQty(u.exact); return { ...u, sku: u.itemSku || settings.underlayments?.[u.product]?.sku || "", order, cost: order * num(u.price) }; });
-  const cList = Object.values(cAgg).map((c) => { const order = ceilQty(c.exact); return { ...c, order, cost: order * num(c.price) }; });
-  // Base units ride the CONSOLIDATED kit counts (ADR 0006), so they're derived
-  // from gList — not per line — and their cost joins the grout family's.
-  const bList = groutBaseList(gList, tSet);
-  const baseCost = bList.reduce((t, b) => t + b.cost, 0);
-  // Add-on categories (ADR 0016), aggregated once and shared by the order
-  // summary, order sheet, and grand total. Grouped by category for the summary.
-  const aList = sel?._full ? attachedList(tv.proj, tSet) : [];
-  const addonCost = aList.reduce((t, r) => t + r.cost, 0);
-  // Vendor freight (ADR 0030), one line per special-order book whose program is
-  // configured. Computed off the RAW project, not the tier view: freight is what
-  // the vendor bills to ship, so a builder discount doesn't move it. It rides
-  // beside materialsCost rather than inside it — the estimate names it
-  // separately, and "materials" is the shop's own sundries.
-  const fList = sel?._full ? freightList(sel, wSet, books) : [];
-  const freightCost = freightTotal(fList);
-  const aByCat = (settings.catalog.categories || []).map((cat) => ({ cat, rows: aList.filter((r) => r.categoryId === cat.id) })).filter((g) => g.rows.length > 0);
-  // Every estimated material line, flattened and labeled. A line lands here
-  // even at order 0 — a checked chip whose quantity can't be computed yet
-  // (no footage, no tile thickness) still names a real material the desk has to
-  // key, so the order-entry panel keys it as one (orderQty) rather than hiding
-  // it. The printed order sheet keeps the quantified lines only: it's the sheet
-  // the warehouse pulls from, where a "1" nobody measured is a wrong pull.
-  const matAll = [
-    ...mList.map((m) => ({ ...m, kind: "Mortar" })),
-    ...gList.map((g) => ({ ...g, product: `${g.product}${g.color !== "—" ? ` — ${g.color}` : ""}`, kind: "Grout" })),
-    ...bList.map((b) => ({ ...b, product: b.name, kind: "Grout base" })),
-    ...cList.map((c) => ({ ...c, product: `${c.product}${c.color !== "—" ? ` — ${c.color}` : ""} matching caulk`, kind: "Caulk" })),
-    ...uList.map((u) => ({ ...u, kind: "Underlayment" })),
-    ...aList.map((r) => ({ ...r, kind: r.category })),
-  ];
-  const matLines = matAll.filter((m) => m.order > 0);
-  const hasMat = gList.length > 0 || bList.length > 0 || mList.length > 0 || uList.length > 0 || cList.length > 0 || aList.length > 0; const materialsCost = groutCost + baseCost + caulkCost + mortarCost + underlayCost + addonCost; const grandTotal = flooringPrice + materialsCost + miscCost + freightCost;
-  // Internal materials margin over the rows that carry a cost (ADR 0011 / 0009
-  // §8.1): a price-book pick snapshots one, and the price cell's popup takes a
-  // hand-typed one on a manual line. Each row's sell mirrors its flooring/misc
-  // line total, so this margin is a subset of grandTotal. On screen only —
-  // never printed.
-  const soLines = [];
-  (tv.proj?.categories || []).forEach((a) => a.products.forEach((p) => {
-    if (!(num(p.cost) > 0) && !(num(p.costSqft) > 0)) return;
-    const C = getCarton(p, tSet);
-    const PC = getPieceCarton(p);
-    const sell = lineTotal(p, C, PC, num(p.priceSqft));
-    if (sell > 0) soLines.push({ sell, cost: orderLineCost(p, tSet, sell), markupPct: num(p.markupPct) });
-  }));
-  const margin = specialOrderMargin(soLines);
-  // Freight prints in the same breakdown band as the materials, as its own
-  // trailing group (printMatList sorts known kinds first, and the band groups by
-  // adjacency), so the sheet names the charge instead of burying it in a total.
-  const pMats = sel && sel._full ? [...printMatList(tv.proj, tSet), ...freightPrintRows(fList)] : [];
+  const T = useMemo(() => (sel && sel._full ? jobTotals(tv.proj, sel, tSet, wSet, settings, books) : jobTotals({ categories: [] }, { categories: [] }, tSet, wSet, settings, books)), [sel, tv.proj, tSet, wSet, settings, books]);
+  const { totalSqft, orderedSqft, flooringPrice, miscCost, groutCost, caulkCost, mortarCost, underlayCost, baseCost, materialsCost, freightCost, grandTotal, gList, mList, uList, cList, bList, fList, aByCat, hasMat, margin, pMats } = T;
+  const optsUsed = useMemo(() => (sel && sel._full ? optionsUsed(sel.categories) : []), [sel]);
+  // Per-bucket money (ADR 0031): shared + each option's own areas. Additive on
+  // paper — wholeJob(slot) = shared + slot — while order entry re-runs the union.
+  const buckets = useMemo(() => {
+    if (!sel || !sel._full || optsUsed.length === 0) return null;
+    const run = (scope) => jobTotals({ ...tv.proj, categories: bucketCats(tv.proj.categories, scope) }, { ...sel, categories: bucketCats(sel.categories, scope) }, tSet, wSet, settings, books);
+    const out = { shared: run("shared") };
+    optsUsed.forEach((s) => {
+      const b = run(s);
+      // Freight is order-scoped (one minimum per vendor per ORDER, ADR 0030), so an
+      // option's share is the union's charge beyond what the shared bucket already
+      // carries — never its own standalone run, which re-bills a vendor both
+      // buckets touch (ADR 0031).
+      const u = jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, s) }, { ...sel, categories: scopedCats(sel.categories, s) }, tSet, wSet, settings, books);
+      const freightCost = Math.max(0, u.freightCost - out.shared.freightCost);
+      out[s] = { ...b, freightCost, grandTotal: b.grandTotal - b.freightCost + freightCost };
+    });
+    return out;
+  }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
+  const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
+  const optionBadges = optsUsed.length ? optsUsed.map((s) => ({ slot: s, label: optionShort(sel, s), color: OPTION_COLOR[s], total: wholeJob(s) })) : null;
+  // Order entry + order sheet ask which option is being ordered when the job
+  // has any (Task 8); a job with no options skips straight to "all" — byte-
+  // identical to the pre-options flow.
+  const askOrderScope = (kind) => { if (optsUsed.length) setScopeAsk({ for: kind }); else { setOrderScope("all"); (kind === "entry" ? setShowOrderCopy : () => setPrintMode("order"))(true); } };
+  // The estimate "paper" prints shared areas + one band per option when a job
+  // has options — the SAME shared props at both call sites (preview + print)
+  // so they can never drift (ADR-adjacent to 0031: options tag areas, not the
+  // whole job).
+  const optionPrint = buckets ? {
+    sharedT: buckets.shared,
+    sections: optsUsed.map((s) => ({ slot: s, title: optionTitle(sel, s), color: OPTION_COLOR[s], cats: bucketCats(tv.proj.categories, s), t: buckets[s], whole: wholeJob(s) })),
+  } : null;
+  // A stale slot (e.g. its last area untagged while the preview sat on it)
+  // reads as "all" rather than blowing up scopedT/the seg control.
+  const previewScopeLive = optsUsed.includes(previewScope) ? previewScope : "all";
+  // Picking a single option's scope prints a flat single-total sheet of
+  // shared + that slot's areas — a normal sheet, not a banded compare (Task 7).
+  const scopedT = useMemo(() => {
+    if (!sel || !sel._full || previewScopeLive === "all" || !optsUsed.length) return null;
+    return jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, previewScopeLive) }, { ...sel, categories: scopedCats(sel.categories, previewScopeLive) }, tSet, wSet, settings, books);
+  }, [sel, tv.proj, previewScopeLive, optsUsed, tSet, wSet, settings, books]);
+  const paperProps = scopedT
+    ? { sel, people: data.people, profile, tv: { ...tv, proj: { ...tv.proj, categories: scopedCats(tv.proj.categories, previewScopeLive) } }, jobWaste, tSet, optionPrint: null, scopeNote: optionShort(sel, previewScopeLive), pMats: scopedT.pMats, materialsCost: scopedT.materialsCost, freightCost: scopedT.freightCost, flooringPrice: scopedT.flooringPrice, miscCost: scopedT.miscCost, totalSqft: scopedT.totalSqft, orderedSqft: scopedT.orderedSqft, grandTotal: scopedT.grandTotal }
+    : optionPrint
+    ? { sel, people: data.people, profile, tv, jobWaste, pMats: buckets.shared.pMats, tSet, materialsCost: buckets.shared.materialsCost, freightCost: buckets.shared.freightCost, flooringPrice: buckets.shared.flooringPrice, miscCost: buckets.shared.miscCost, totalSqft: buckets.shared.totalSqft, orderedSqft: buckets.shared.orderedSqft, grandTotal: buckets.shared.grandTotal, optionPrint }
+    : { sel, people: data.people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint: null };
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -1129,7 +1133,17 @@ export default function App({ user, onSignOut }) {
             <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : ""}</span>
             {sel && sel._full && (<>
               <button onClick={() => setProjSheet(true)} className="shrink-0 text-right" style={{ lineHeight: 1.15 }}>
-                <span className="ft-mono block text-[13px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</span>
+                {optionBadges ? (
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {optionBadges.map((b) => (
+                      <span key={b.slot} className="ft-mono rounded-md px-1.5 py-0.5 text-[12px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                        {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="ft-mono block text-[13px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</span>
+                )}
                 {tierBadgeText(tv.tier, tv.pct) && <span className="block text-[8.5px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
               </button>
               <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1.5 text-slate-500"><MoreHorizontal size={15} /></button>
@@ -1300,12 +1314,17 @@ export default function App({ user, onSignOut }) {
                 // areas yet it falls back to the header's Add-area button.
                 const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
                 const hp = {
-                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, freightCost, saveOk, settings, jobWasteUI, updateProject,
+                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, optionBadges, freightCost, saveOk, settings, jobWasteUI, updateProject,
                   onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
                   nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
-                  setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea,
+                  setShowVersions, setConfirm, addArea,
+                  // Both header layouts call these with (true) / ("order") respectively —
+                  // wrapped here so projectheader.jsx needs no changes to route through
+                  // the option scope picker (Task 8). "estimate" passes straight through.
+                  setShowOrderCopy: () => askOrderScope("entry"),
+                  setPrintMode: (m) => (m === "order" ? askOrderScope("sheet") : setPrintMode(m)),
                 };
                 return headerLayout === "classic" ? <ProjectHeaderClassic {...hp} /> : <ProjectHeaderBar {...hp} />;
               })()}
@@ -1342,7 +1361,17 @@ export default function App({ user, onSignOut }) {
                       footer={<>
                         <div className="flex-1 min-w-0" style={{ lineHeight: 1.15 }}>
                           <div className="ft-eyebrow text-[8.5px]">Total</div>
-                          <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                          {optionBadges ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {optionBadges.map((b) => (
+                                <span key={b.slot} className="ft-mono rounded-md px-2 py-0.5 text-[12px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                                  {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                          )}
                         </div>
                         <button onClick={() => { setProjSheet(false); setPrintMode("estimate"); }} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 text-[13px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-7"><Printer size={15} /> Print</button>
                       </>}>
@@ -1413,7 +1442,7 @@ export default function App({ user, onSignOut }) {
                           <div className="grid grid-cols-2 gap-1.5 pt-1">
                             <button onClick={startVersionName} className={act}><Save size={14} /> Save version</button>
                             <button onClick={() => { setProjSheet(false); setShowVersions(true); }} className={act}><History size={14} /> History ({sel.versions?.length || 0})</button>
-                            <button onClick={() => { setProjSheet(false); setPrintMode("order"); }} className={act}><ClipboardList size={14} /> Order sheet</button>
+                            <button onClick={() => { setProjSheet(false); askOrderScope("sheet"); }} className={act}><ClipboardList size={14} /> Order sheet</button>
                             <button onClick={() => { setProjSheet(false); setConfirm({ id: sel.id }); }} className={act + " hover:bg-red-50"} style={{ color: "#b91c1c", borderColor: "#fecaca" }}><Trash2 size={14} /> Delete</button>
                           </div>
                         )}
@@ -1433,16 +1462,23 @@ export default function App({ user, onSignOut }) {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
                   const areaMatOpen = a.products.some((pp) => matOpen[pp.id]);
+                  const oc = a.option ? OPTION_COLOR[a.option] : null;
                   return (
                   // overflow-hidden lifts while a card is dragged (so the floating
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}>
-                    <div className="flex justify-between items-center gap-3" style={{ background: "var(--ft-area-head)", padding: "8px 14px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                    <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: "8px 14px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
-                        <input tabIndex={-1} value={a.note} onChange={(e) => updArea(a.id, { note: e.target.value })} placeholder="area note…" className="text-xs bg-transparent focus:outline-none placeholder:text-current flex-1 min-w-0" style={{ color: "color-mix(in oklab, var(--ft-text) 80%, transparent)" }} />
+                        {(a.option || optsUsed.length > 0) && (
+                          <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4 }); }}
+                            className="ft-noprint rounded-md px-2 py-0.5 text-[10.5px] font-bold shrink-0"
+                            style={oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }}>
+                            {a.option ? optionShort(sel, a.option).toUpperCase() : "SHARED"}
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="ft-mono" style={{ fontSize: 10.5 }}>{(isWide ? [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""] : [areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
@@ -2185,17 +2221,41 @@ export default function App({ user, onSignOut }) {
                     </div>
                     <div style={{ background: "var(--ft-tint)", border: "1px solid var(--ft-border)", borderRadius: 8, padding: "12px 14px", alignSelf: "start" }}>
                       <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 8 }}>Order summary</div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
-                        {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
-                        {aByCat.map(({ cat, rows }) => { const c = rows.reduce((t, r) => t + r.cost, 0); return c > 0 ? <div key={cat.id} className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>{cat.name}</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(c)}</span></div> : null; })}
-                        {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
-                        {freightCost > 0 && <div className="flex items-center justify-between" title="Vendor freight on this job's special orders — charged at cost, and not discounted by the price level"><span className="text-slate-500" style={{ fontSize: 12 }}>Freight</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(freightCost)}</span></div>}
-                        <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
-                        <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
-                      </div>
+                      {buckets ? (
+                        <div className="space-y-3">
+                          {["shared", ...optsUsed].map((scope) => {
+                            const t = buckets[scope];
+                            const b = scope !== "shared" ? optionBadges.find((x) => x.slot === scope) : null;
+                            return (
+                              <div key={scope} className="rounded-md" style={b ? { background: b.color.soft, margin: "0 -6px", padding: "8px 6px" } : undefined}>
+                                <div className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700 }}>
+                                  <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: b ? b.color.main : "var(--ft-faint)" }} />
+                                  {b ? b.label : "Shared areas"}
+                                  <span className="ft-mono ml-auto">{money(t.grandTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 11.5 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 11.5 }}>{money(t.flooringPrice + t.miscCost)}</span></div>
+                                {t.materialsCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 11.5 }}>Materials</span><span className="ft-mono" style={{ fontSize: 11.5 }}>{money(t.materialsCost)}</span></div>}
+                                {t.freightCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 11.5 }}>Freight</span><span className="ft-mono" style={{ fontSize: 11.5 }}>{money(t.freightCost)}</span></div>}
+                                {t.matLines.map((m, i) => <div key={i} className="flex items-center justify-between" style={{ paddingLeft: 14 }}><span className="text-slate-400" style={{ fontSize: 10.5 }}>{m.kind} · {m.product} — {m.order}</span><span className="ft-mono text-slate-400" style={{ fontSize: 10.5 }}>{money(m.cost)}</span></div>)}
+                                {b && <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 5, borderTop: "1px solid var(--ft-border)", fontSize: 12, fontWeight: 700 }}><span>With shared areas</span><span className="ft-mono" style={{ color: b.color.deep }}>{money(wholeJob(scope))}</span></div>}
+                              </div>
+                            );
+                          })}
+                          <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
+                          {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
+                          {aByCat.map(({ cat, rows }) => { const c = rows.reduce((t, r) => t + r.cost, 0); return c > 0 ? <div key={cat.id} className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>{cat.name}</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(c)}</span></div> : null; })}
+                          {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
+                          {freightCost > 0 && <div className="flex items-center justify-between" title="Vendor freight on this job's special orders — charged at cost, and not discounted by the price level"><span className="text-slate-500" style={{ fontSize: 12 }}>Freight</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(freightCost)}</span></div>}
+                          <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                          <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
+                        </div>
+                      )}
                       <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>{wasteNote(jobWaste) ? `Figures include ${wasteNote(jobWaste)}. ` : ""}Verify before ordering.</div>
                     </div>
                   </div>
@@ -2204,8 +2264,19 @@ export default function App({ user, onSignOut }) {
               </div>
               {viewTab === "preview" && (
                 <div className="rounded-lg py-6 px-3 md:px-6" style={{ background: "color-mix(in oklab, var(--ft-text) 6%, var(--ft-cream))" }}>
+                  {optsUsed.length > 0 && (
+                    <div className="ft-noprint flex justify-center mb-4">
+                      <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden">
+                        {["all", ...optsUsed].map((s) => (
+                          <button key={s} onClick={() => setPreviewScope(s)} className={`px-3.5 py-1.5 text-[12.5px] font-bold border-r border-slate-200 last:border-r-0 ${previewScopeLive === s ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
+                            {s === "all" ? "Compare all" : <><span className="inline-block w-2 h-2 rounded-sm mr-1.5" style={{ background: OPTION_COLOR[s].main }} />{optionShort(sel, s)}</>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="ft-light bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
-                    <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />
+                    <EstimatePaper {...paperProps} />
                   </div>
                   <div className="text-center mt-4">
                     <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
@@ -2240,11 +2311,17 @@ export default function App({ user, onSignOut }) {
 
       {/* PRINT VIEW — the print buttons pick the layout: estimate (default, also Ctrl+P) or order sheet */}
       <div className="ft-light hidden print:block text-black p-2">
-        {sel && sel._full && (printMode === "order" ? (
+        {sel && sel._full && (printMode === "order" ? (() => {
+          // Scoped to the option chosen in the picker (Task 8), same union-scoped
+          // totals run as the order-entry panel so freight/consolidation match.
+          const scope = orderScope || "all";
+          const osCats = scopedCats(sel.categories, scope);
+          const osT = scope === "all" ? T : jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, scope) }, { ...sel, categories: scopedCats(sel.categories, scope) }, tSet, wSet, settings, books);
+          return (
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-3">
               <div className="font-bold text-xl">Order sheet</div>
-              <div className="text-sm">{sel.name} · {new Date().toLocaleDateString()}</div>
+              <div className="text-sm">{sel.name}{optsUsed.length && scope !== "all" ? ` — ${optionShort(sel, scope)}` : ""} · {new Date().toLocaleDateString()}</div>
             </div>
             <table className="w-full border-collapse text-[12px]">
               <thead>
@@ -2257,7 +2334,7 @@ export default function App({ user, onSignOut }) {
                 </tr>
               </thead>
               <tbody>
-                {sel.categories.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, wSet); return (
+                {osCats.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, wSet); return (
                   <tr key={p.id} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
@@ -2266,7 +2343,7 @@ export default function App({ user, onSignOut }) {
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
                   </tr>
                 ); }))}
-                {matLines.map((m, i) => (
+                {osT.matLines.map((m, i) => (
                   <tr key={"mat" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2">{m.product} <span className="text-slate-400 text-[10.5px]">{m.kind}</span></td>
@@ -2278,7 +2355,7 @@ export default function App({ user, onSignOut }) {
                 {/* Freight isn't pulled off a shelf, but it IS part of the order
                     this sheet places — the line tells whoever keys it what the
                     vendor will add. */}
-                {freightPrintRows(fList).map((f, i) => (
+                {freightPrintRows(osT.fList).map((f, i) => (
                   <tr key={"frt" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2">{f.name} <span className="text-slate-400 text-[10.5px]">{[f.kind, f.spec].filter(Boolean).join(" · ")}</span></td>
@@ -2291,7 +2368,8 @@ export default function App({ user, onSignOut }) {
             </table>
             <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
-        ) : <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />)}
+          );
+        })() : <EstimatePaper {...paperProps} />)}
       </div>
 
       {/* Customer browser (issue 040) — the ERP-style directory grid over the
@@ -2450,22 +2528,47 @@ export default function App({ user, onSignOut }) {
           }} />;
       })()}
 
+      {/* Order entry / order sheet scope picker (Task 8): asked only when the
+          job has options — a job without any skips straight to "all" in
+          askOrderScope, so nothing here changes its behavior. */}
+      {scopeAsk && sel && (
+        <Modal title={scopeAsk.for === "sheet" ? "Order sheet" : "Copy for order entry"} onClose={() => setScopeAsk(null)}>
+          <div className="text-[12.5px] text-slate-500 mb-3">This job has options — which one is being ordered?</div>
+          {[...optsUsed.map((s) => ({ scope: s, label: optionShort(sel, s), sub: "shared areas + " + optionTitle(sel, s), dot: OPTION_COLOR[s].main, total: wholeJob(s) })), { scope: "all", label: "Everything", sub: "all areas, all options — ordering more than one", dot: null, total: null }].map((o) => (
+            <button key={o.scope} className="w-full flex items-center gap-2.5 rounded-lg border border-slate-200 hover:border-slate-400 px-3 py-2.5 mb-2 text-left"
+              onClick={() => { setOrderScope(o.scope); setScopeAsk(null); (scopeAsk.for === "entry" ? setShowOrderCopy(true) : setPrintMode("order")); }}>
+              {o.dot && <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: o.dot }} />}
+              <span className="min-w-0"><span className="block text-[13.5px] font-bold">{o.label}</span><span className="block text-[11px] text-slate-500">{o.sub}</span></span>
+              {o.total != null && <span className="ft-mono ml-auto text-[12px] font-bold whitespace-nowrap">{money(o.total)}</span>}
+            </button>
+          ))}
+        </Modal>
+      )}
+
       {showOrderCopy && sel && sel._full && (() => {
         // Order entry reads RETAIL on every tier except Employee, which carries
         // through (spec 2026-07-16) — the salesperson keys builder/sale discounts
         // into the vendor order by hand.
         const oeProj = tv.tier === "employee" ? tv.proj : sel;
         const descLimit = normPricing(settings.pricing).descLimit;
+        // Scoped to the option chosen in the picker (Task 8); "all" (no options,
+        // or "Everything") is exactly today's unscoped lists. The materials/
+        // freight run is the UNION of shared + the option, not the additive
+        // per-bucket split, so consolidation and freight minimums stay exact.
+        const scope = orderScope || "all";
+        const oeCats = scopedCats(oeProj.categories, scope);
+        const oeT = scope === "all" ? T : jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, scope) }, { ...sel, categories: scopedCats(sel.categories, scope) }, tSet, wSet, settings, books);
         const rows = [];
-        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds)); }));
-        const mats = matAll.map((m, i) => {
+        (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds)); }));
+        const mats = oeT.matAll.map((m, i) => {
           const { qty, qtyAssumed } = orderQty(m.order);
           return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
         });
         // Freight files with the special orders: it's billed by the same vendor
         // on the same order, and like a Sheoga line it has no SKU to key.
-        const freightRows = fList.map((l) => freightOrderRow(l, descLimit));
-        return <OrderEntryPanel name={sel.name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
+        const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
+        const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
+        return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
       })()}
 
       {custModal && (() => {
@@ -2599,6 +2702,52 @@ export default function App({ user, onSignOut }) {
         );
       })()}
 
+      {areaMenu && sel && (() => {
+        const a = sel.categories.find((x) => x.id === areaMenu.aid);
+        if (!a) return null;
+        const setOpt = (slot) => { updArea(a.id, { option: slot }); setAreaMenu(null); };
+        const dupInto = (slot) => {
+          const copy = duplicateInto(a, slot);
+          // Fold the source's retag into the same categories write as the
+          // duplicate insert — updateProject's setter is non-functional (built
+          // from the stale `sel` closure, App.jsx:~713), so a second updArea
+          // call here would overwrite this one and drop the copy.
+          const retag = a.option ? null : (optionsUsed([...sel.categories, copy]).find((s) => s !== slot) || OPTION_SLOTS.find((s) => s !== slot));
+          const cats = sel.categories.flatMap((x) => (x.id === a.id ? [retag ? { ...x, option: retag } : x, copy] : [x]));
+          updateProject(sel.id, { categories: cats });
+          setAreaMenu(null);
+        };
+        const free = OPTION_SLOTS.filter((s) => !optsUsed.includes(s));
+        const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
+        return (
+          <div className="ft-noprint fixed inset-0 z-50" onClick={() => setAreaMenu(null)} onContextMenu={(e) => { e.preventDefault(); setAreaMenu(null); }}>
+            <div className="absolute bg-white rounded-lg border border-slate-200 shadow-xl p-1" style={{ left: Math.min(areaMenu.x, window.innerWidth - 250), top: Math.min(areaMenu.y, window.innerHeight - 300), width: 236 }} onClick={(e) => e.stopPropagation()}>
+              <div className="uppercase text-[9px] font-bold tracking-widest text-slate-400 px-2.5 pt-1.5 pb-0.5">This area is in</div>
+              <button className={item} onClick={() => setOpt("")}><span className="w-2 h-2 rounded-sm" style={{ background: "var(--ft-faint)" }} />Shared — every option{!a.option && <Check size={12} className="ml-auto" />}</button>
+              {OPTION_SLOTS.map((s) => (optsUsed.includes(s) || free[0] === s) && (
+                <button key={s} className={item} onClick={() => setOpt(s)}>
+                  <span className="w-2 h-2 rounded-sm" style={{ background: OPTION_COLOR[s].main }} />
+                  {optsUsed.includes(s) ? optionShort(sel, s) : "New option…"}
+                  {a.option === s && <Check size={12} className="ml-auto" />}
+                </button>
+              ))}
+              <div className="border-t border-slate-100 my-1" />
+              {optsUsed.concat(free.slice(0, 1)).map((s) => (
+                <button key={"d" + s} className={item} onClick={() => dupInto(s)}>Duplicate into {optsUsed.includes(s) ? optionShort(sel, s) : "new option"}…</button>
+              ))}
+              {a.option && <button className={item} onClick={() => { setRenamingOpt(a.option); setAreaMenu(null); }}>Rename {optionTitle(sel, a.option)}…</button>}
+              {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); setViewTab("preview"); setAreaMenu(null); }}>Print this option…</button>}
+            </div>
+          </div>
+        );
+      })()}
+      {renamingOpt && sel && (
+        <Modal onClose={() => setRenamingOpt(null)} title={`Rename ${optionTitle(sel, renamingOpt)}`}>
+          <input autoFocus defaultValue={sel.optionNames?.[renamingOpt] || ""} placeholder={`Option ${renamingOpt}`}
+            onKeyDown={(e) => { if (e.key === "Enter") { updateProject(sel.id, { optionNames: { ...sel.optionNames, [renamingOpt]: e.target.value.trim() } }); setRenamingOpt(null); } }}
+            className="ft-field w-full h-[36px] text-sm rounded-md border border-slate-200 px-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </Modal>
+      )}
       {toast && <div className="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg z-50">{toast}</div>}
     </div>
   );

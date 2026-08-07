@@ -31,7 +31,7 @@ export const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new
 export const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
 export const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonPc: "", cartonUnit: "CT", sellUnit: "", cartonManual: "", note: "", freight: "", grout: { checked: false, product: "", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "" }, mortar: { checked: false, product: "", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} }, attached: {} });
-export const newArea = () => ({ id: uid(), name: "", note: "", products: [newProduct()] });
+export const newArea = () => ({ id: uid(), name: "", option: "", products: [newProduct()] });
 export const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
 // A row with no identity yet — the empty state renders as a price-book search
 // instead of the full grid (pick a match to fill it, or a type/double-click to
@@ -81,7 +81,7 @@ export const quickPrintName = (proj) => {
 // opts.waste seeds the job's waste rates from the shop default (Settings →
 // General). Both families start UNPRESSED: a new quote reads raw measured
 // footage until someone presses the waste they want ordered.
-export const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, freight: true, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [] });
+export const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, freight: true, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [], optionNames: {} });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 export const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
@@ -97,7 +97,8 @@ export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ?
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.
 export const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
-export const normA = (a) => ({ id: a.id || uid(), name: a.name || "", note: a.note || "", products: (a.products || [{}]).map(normP) });
+const OPT_RE = /^[ABC]$/;
+export const normA = (a) => ({ id: a.id || uid(), name: a.name || "", option: OPT_RE.test(a.option) ? a.option : "", products: (a.products || [{}]).map(normP) });
 // Projects written before waste moved off Settings have no `waste` — keep it
 // null rather than filling a default, so `projWaste` can tell "quoted under
 // the old global rate" from "quoted with both toggles deliberately off".
@@ -105,7 +106,7 @@ export const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, flo
 // The job's freight master switch (ADR 0030) defaults ON — an absent field is a
 // project quoted before the switch existed, and vendor freight was always owed
 // on those orders too.
-export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean) });
+export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of ["A", "B", "C"]) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })() });
 
 // personData is what gets written back to a person's data jsonb; the person/
 // builder row mappers and selects live in bootload.js.
