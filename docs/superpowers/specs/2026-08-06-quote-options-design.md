@@ -1,8 +1,9 @@
-# Quote options — design draft (round 2)
+# Quote options — design
 
-**Status: DRAFT — round 2, awaiting owner review of the extras treatment.**
+**Status: APPROVED (owner, 2026-08-06)** — E1 extras bundles, job-summary option
+groups, preview-toolbar print switch, and the sheet flow all confirmed.
 Prototypes: `2026-08-06-quote-options-prototypes.html` (same folder — open in a
-browser; also published as a Claude artifact). Nothing here is implemented.
+browser; also published as a Claude artifact).
 
 ## The problem
 
@@ -88,12 +89,10 @@ from an area's right-click menu ("Print this option…"). This replaces the earl
   the project and survive restores.
 - No SQL migration: everything lives in the customers row's `data` jsonb.
 
-## Open questions (round 2)
+## Round-2 confirmations (owner, 2026-08-06)
 
-1. E1 bundles confirmed over E2 lines?
-2. Job summary per-option groups — right shape for the screen?
-3. Preview-toolbar switch + right-click "Print this option…" — non-invasive
-   enough for single-option printing?
-4. Compact sheet flow — shared areas → shared extras → options → comparison — 
-   confirmed? (Alternative: extras dead last, as today, which would sandwich the
-   options.)
+1. E1 bundles over E2 lines — confirmed.
+2. Job summary per-option groups as mocked — confirmed.
+3. Preview-toolbar switch + right-click "Print this option…" — confirmed.
+4. Compact sheet flow: shared areas → shared extras → options → comparison —
+   confirmed.
