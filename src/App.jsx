@@ -1127,7 +1127,7 @@ export default function App({ user, onSignOut }) {
                 {optionBadges ? (
                   <div className="flex items-center gap-1 flex-wrap justify-end">
                     {optionBadges.map((b) => (
-                      <span key={b.slot} className="ft-mono rounded-md px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                      <span key={b.slot} className="ft-mono rounded-md px-1.5 py-0.5 text-[12px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
                         {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
                       </span>
                     ))}
