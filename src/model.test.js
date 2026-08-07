@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normC, rowBlank, newProduct, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -91,4 +91,19 @@ test("areaLabel falls back to a 1-based index", () => {
 test("money formats to two decimals", () => {
   assert.equal(money(1234.5), "$1,234.50");
   assert.equal(money(), "$0.00");
+});
+
+test("normA: option keeps valid slots, drops junk, defaults shared; note is gone", () => {
+  assert.equal(normA({ option: "B" }).option, "B");
+  assert.equal(normA({ option: "Z" }).option, "");
+  assert.equal(normA({}).option, "");
+  const a = normA({ note: "old note", name: "Bath" });
+  assert.equal("note" in a, false);
+  assert.equal("note" in newArea(), false);
+});
+
+test("normC: optionNames normalize to trimmed strings on valid slots", () => {
+  const c = normC({ id: "c1", categories: [], optionNames: { A: " Porcelain ", B: "", X: "no" } });
+  assert.deepEqual(c.optionNames, { A: "Porcelain" });
+  assert.deepEqual(normC({ id: "c2", categories: [] }).optionNames, {});
 });
