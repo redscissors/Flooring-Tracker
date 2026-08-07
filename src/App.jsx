@@ -2581,7 +2581,7 @@ export default function App({ user, onSignOut }) {
           const cats = [...sel.categories];
           cats.splice(cats.indexOf(a) + 1, 0, copy);
           updateProject(sel.id, { categories: cats });
-          if (!a.option) updArea(a.id, { option: optionsUsed(cats).find((s) => s !== slot) || "A" });
+          if (!a.option) updArea(a.id, { option: optionsUsed(cats).find((s) => s !== slot) || OPTION_SLOTS.find((s) => s !== slot) });
           setAreaMenu(null);
         };
         const free = OPTION_SLOTS.filter((s) => !optsUsed.includes(s));
