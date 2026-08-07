@@ -1008,9 +1008,8 @@ export default function App({ user, onSignOut }) {
     optsUsed.forEach((s) => { out[s] = run(s); });
     return out;
   }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
-  // Consumed by the header option chips (Task 5); unused until then.
-  // eslint-disable-next-line no-unused-vars
   const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
+  const optionBadges = optsUsed.length ? optsUsed.map((s) => ({ slot: s, label: optionShort(sel, s), color: OPTION_COLOR[s], total: wholeJob(s) })) : null;
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -1095,7 +1094,17 @@ export default function App({ user, onSignOut }) {
             <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : ""}</span>
             {sel && sel._full && (<>
               <button onClick={() => setProjSheet(true)} className="shrink-0 text-right" style={{ lineHeight: 1.15 }}>
-                <span className="ft-mono block text-[13px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</span>
+                {optionBadges ? (
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {optionBadges.map((b) => (
+                      <span key={b.slot} className="ft-mono rounded-md px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                        {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="ft-mono block text-[13px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</span>
+                )}
                 {tierBadgeText(tv.tier, tv.pct) && <span className="block text-[8.5px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
               </button>
               <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1.5 text-slate-500"><MoreHorizontal size={15} /></button>
@@ -1266,7 +1275,7 @@ export default function App({ user, onSignOut }) {
                 // areas yet it falls back to the header's Add-area button.
                 const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
                 const hp = {
-                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, freightCost, saveOk, settings, jobWasteUI, updateProject,
+                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, optionBadges, freightCost, saveOk, settings, jobWasteUI, updateProject,
                   onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
                   nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
@@ -1308,7 +1317,17 @@ export default function App({ user, onSignOut }) {
                       footer={<>
                         <div className="flex-1 min-w-0" style={{ lineHeight: 1.15 }}>
                           <div className="ft-eyebrow text-[8.5px]">Total</div>
-                          <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                          {optionBadges ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {optionBadges.map((b) => (
+                                <span key={b.slot} className="ft-mono rounded-md px-2 py-0.5 text-[12px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                                  {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+                          )}
                         </div>
                         <button onClick={() => { setProjSheet(false); setPrintMode("estimate"); }} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 text-[13px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-7"><Printer size={15} /> Print</button>
                       </>}>
@@ -2158,17 +2177,41 @@ export default function App({ user, onSignOut }) {
                     </div>
                     <div style={{ background: "var(--ft-tint)", border: "1px solid var(--ft-border)", borderRadius: 8, padding: "12px 14px", alignSelf: "start" }}>
                       <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 8 }}>Order summary</div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
-                        <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
-                        {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
-                        {aByCat.map(({ cat, rows }) => { const c = rows.reduce((t, r) => t + r.cost, 0); return c > 0 ? <div key={cat.id} className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>{cat.name}</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(c)}</span></div> : null; })}
-                        {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
-                        {freightCost > 0 && <div className="flex items-center justify-between" title="Vendor freight on this job's special orders — charged at cost, and not discounted by the price level"><span className="text-slate-500" style={{ fontSize: 12 }}>Freight</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(freightCost)}</span></div>}
-                        <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
-                        <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
-                      </div>
+                      {buckets ? (
+                        <div className="space-y-3">
+                          {["shared", ...optsUsed].map((scope) => {
+                            const t = buckets[scope];
+                            const b = scope !== "shared" ? optionBadges.find((x) => x.slot === scope) : null;
+                            return (
+                              <div key={scope} className="rounded-md" style={b ? { background: b.color.soft, margin: "0 -6px", padding: "8px 6px" } : undefined}>
+                                <div className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700 }}>
+                                  <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: b ? b.color.main : "var(--ft-faint)" }} />
+                                  {b ? b.label : "Shared areas"}
+                                  <span className="ft-mono ml-auto">{money(t.grandTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 11.5 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 11.5 }}>{money(t.flooringPrice + t.miscCost)}</span></div>
+                                {t.materialsCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 11.5 }}>Materials</span><span className="ft-mono" style={{ fontSize: 11.5 }}>{money(t.materialsCost)}</span></div>}
+                                {t.freightCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 11.5 }}>Freight</span><span className="ft-mono" style={{ fontSize: 11.5 }}>{money(t.freightCost)}</span></div>}
+                                {t.matLines.map((m, i) => <div key={i} className="flex items-center justify-between" style={{ paddingLeft: 14 }}><span className="text-slate-400" style={{ fontSize: 10.5 }}>{m.kind} · {m.product} — {m.order}</span><span className="ft-mono text-slate-400" style={{ fontSize: 10.5 }}>{money(m.cost)}</span></div>)}
+                                {b && <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 5, borderTop: "1px solid var(--ft-border)", fontSize: 12, fontWeight: 700 }}><span>With shared areas</span><span className="ft-mono" style={{ color: b.color.deep }}>{money(wholeJob(scope))}</span></div>}
+                              </div>
+                            );
+                          })}
+                          <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Flooring</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(flooringPrice)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Grout &amp; caulk</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(groutCost + baseCost + caulkCost)}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Mortar</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(mortarCost)}</span></div>
+                          {underlayCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Underlayment</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(underlayCost)}</span></div>}
+                          {aByCat.map(({ cat, rows }) => { const c = rows.reduce((t, r) => t + r.cost, 0); return c > 0 ? <div key={cat.id} className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>{cat.name}</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(c)}</span></div> : null; })}
+                          {miscCost > 0 && <div className="flex items-center justify-between"><span className="text-slate-500" style={{ fontSize: 12 }}>Miscellaneous</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(miscCost)}</span></div>}
+                          {freightCost > 0 && <div className="flex items-center justify-between" title="Vendor freight on this job's special orders — charged at cost, and not discounted by the price level"><span className="text-slate-500" style={{ fontSize: 12 }}>Freight</span><span className="ft-mono" style={{ fontSize: 12 }}>{money(freightCost)}</span></div>}
+                          <div className="flex justify-between items-baseline" style={{ marginTop: 4, paddingTop: 10, borderTop: "2px solid var(--ft-text)" }}><span style={{ fontSize: 13, fontWeight: 700 }}>Total</span><span className="ft-serif" style={{ fontSize: 26, lineHeight: 1 }}>{money(grandTotal)}</span></div>
+                          <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
+                        </div>
+                      )}
                       <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>{wasteNote(jobWaste) ? `Figures include ${wasteNote(jobWaste)}. ` : ""}Verify before ordering.</div>
                     </div>
                   </div>
