@@ -1010,6 +1010,17 @@ export default function App({ user, onSignOut }) {
   }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
   const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
   const optionBadges = optsUsed.length ? optsUsed.map((s) => ({ slot: s, label: optionShort(sel, s), color: OPTION_COLOR[s], total: wholeJob(s) })) : null;
+  // The estimate "paper" prints shared areas + one band per option when a job
+  // has options — the SAME shared props at both call sites (preview + print)
+  // so they can never drift (ADR-adjacent to 0031: options tag areas, not the
+  // whole job).
+  const optionPrint = buckets ? {
+    sharedT: buckets.shared,
+    sections: optsUsed.map((s) => ({ slot: s, title: optionTitle(sel, s), color: OPTION_COLOR[s], cats: bucketCats(tv.proj.categories, s), t: buckets[s], whole: wholeJob(s) })),
+  } : null;
+  const paperProps = optionPrint
+    ? { sel, people: data.people, profile, tv, jobWaste, pMats: buckets.shared.pMats, tSet, materialsCost: buckets.shared.materialsCost, freightCost: buckets.shared.freightCost, flooringPrice: buckets.shared.flooringPrice, miscCost: buckets.shared.miscCost, totalSqft: buckets.shared.totalSqft, orderedSqft: buckets.shared.orderedSqft, grandTotal: buckets.shared.grandTotal, optionPrint }
+    : { sel, people: data.people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint: null };
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -2221,7 +2232,7 @@ export default function App({ user, onSignOut }) {
               {viewTab === "preview" && (
                 <div className="rounded-lg py-6 px-3 md:px-6" style={{ background: "color-mix(in oklab, var(--ft-text) 6%, var(--ft-cream))" }}>
                   <div className="ft-light bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
-                    <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />
+                    <EstimatePaper {...paperProps} />
                   </div>
                   <div className="text-center mt-4">
                     <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="inline-flex items-center gap-1.5 text-sm rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 font-semibold"><Printer size={15} /> Print</button>
@@ -2307,7 +2318,7 @@ export default function App({ user, onSignOut }) {
             </table>
             <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
-        ) : <EstimatePaper sel={sel} people={data.people} profile={profile} tv={tv} jobWaste={jobWaste} pMats={pMats} tSet={tSet} materialsCost={materialsCost} freightCost={freightCost} flooringPrice={flooringPrice} miscCost={miscCost} totalSqft={totalSqft} orderedSqft={orderedSqft} grandTotal={grandTotal} />)}
+        ) : <EstimatePaper {...paperProps} />)}
       </div>
 
       {/* Customer browser (issue 040) — the ERP-style directory grid over the

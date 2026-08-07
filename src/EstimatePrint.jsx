@@ -11,7 +11,7 @@ import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal }) {
+export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null }) {
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -72,7 +72,6 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                   <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", showTotals && printAreaFloor(a, tSet) > 0 ? money(printAreaFloor(a, tSet)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
-                {a.note && <div className="text-xs italic text-slate-500 mt-1.5" style={{ padding: "0 12px" }}>{a.note}</div>}
                 <div style={{ display: "grid", gridTemplateColumns: pCols, gap: 7, padding: "8px 12px 6px", borderBottom: "1px solid var(--ft-text)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
                   <div>Size</div><div>Product / Color</div><div>SKU</div><div>Cov.</div>
                   <div className="text-right">SF</div>{showUnit && <div className="text-right">Price</div>}<div className="text-right">Order</div>{showTotals && <div className="text-right">Total</div>}
@@ -195,6 +194,51 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     const unitLong = (unit, n) => unitNoun(n, unit);
     const groups = [];
     pMats.forEach((m) => { const g = groups[groups.length - 1]; if (g && g.kind === m.kind) g.items.push(m); else groups.push({ kind: m.kind, items: [m] }); });
+    // Extracted so the shared-areas map and the option bands render an
+    // identical product card — one implementation, no drift.
+    const renderProduct = (p, pi) => {
+      const c = printProduct(p, tSet);
+      const inline = c.mats.filter((m) => m.inline);
+      const isEach = p.type === "misc" || p.qtyType === "count";
+      const typeLbl = TLBL[p.type] || "";
+      const specParts = [c.size, c.C ? `${sf1(c.C.sf)} SF/${c.C.unit}` : "", p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ");
+      const cartonPrice = c.C ? c.C.sf * num(p.priceSqft) : 0;
+      const qtyLine = c.C ? `${sf1(c.orderedSf)} SF ordered · ${c.C.order} ${unitLong(c.C.unit, c.C.order)}` : (num(p.qty) > 0 ? `${sf1(num(p.qty))} SF` : "");
+      const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.pieces} pcs` : `${miscQty(p)} ${unitNoun(miscQty(p), c.countUnit)}`) : (num(p.qty) > 0 ? `${p.qty} ${unitNoun(num(p.qty), c.countUnit)}` : "");
+      return (
+        <div key={p.id} className="flex justify-between" style={{ gap: 22, padding: "8px 12px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10.5, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
+            {specParts && <div style={{ fontSize: 10.5, color: "var(--ft-muted)", marginTop: 2 }}>{specParts}</div>}
+            {inline.length > 0 && (
+              <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
+                {inline.map((m, i) => (
+                  <span key={i} style={{ fontSize: 10, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "2px 10px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
+                  </span>
+                ))}
+              </div>
+            )}
+            {p.note && <div style={{ fontSize: 10.5, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 6 }}>{p.note}</div>}
+          </div>
+          <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {isEach ? (
+              <>
+                {showUnit && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
+              </>
+            ) : (
+              <>
+                {showTotals && qtyLine && <div style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
+                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+    const areas = optionPrint ? tv.proj.categories.filter((a) => !a.option) : tv.proj.categories;
     return (
       <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
         <div className="flex justify-between items-center" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 12, marginBottom: 14 }}>
@@ -225,7 +269,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         </div>
         {sel.notes && <div style={{ fontSize: 12, fontStyle: "italic", color: "var(--ft-muted)", margin: "-2px 0 12px" }}>{sel.notes}</div>}
 
-        {tv.proj.categories.map((a, ai) => {
+        {areas.map((a, ai) => {
           const areaHasExtras = a.products.some((p) => printProduct(p, tSet).mats.length > 0);
           return (
             <div key={a.id} className="break-inside-avoid" style={{ marginBottom: 12 }}>
@@ -233,56 +277,14 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                 {showUnit && areaHasExtras && <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
               </div>
-              {a.note && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ft-muted)", padding: "6px 12px 0" }}>{a.note}</div>}
-              {a.products.filter((p) => !rowBlank(p)).map((p, pi) => {
-                const c = printProduct(p, tSet);
-                const inline = c.mats.filter((m) => m.inline);
-                const isEach = p.type === "misc" || p.qtyType === "count";
-                const typeLbl = TLBL[p.type] || "";
-                const specParts = [c.size, c.C ? `${sf1(c.C.sf)} SF/${c.C.unit}` : "", p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ");
-                const cartonPrice = c.C ? c.C.sf * num(p.priceSqft) : 0;
-                const qtyLine = c.C ? `${sf1(c.orderedSf)} SF ordered · ${c.C.order} ${unitLong(c.C.unit, c.C.order)}` : (num(p.qty) > 0 ? `${sf1(num(p.qty))} SF` : "");
-                const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.pieces} pcs` : `${miscQty(p)} ${unitNoun(miscQty(p), c.countUnit)}`) : (num(p.qty) > 0 ? `${p.qty} ${unitNoun(num(p.qty), c.countUnit)}` : "");
-                return (
-                  <div key={p.id} className="flex justify-between" style={{ gap: 22, padding: "8px 12px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10.5, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
-                      {specParts && <div style={{ fontSize: 10.5, color: "var(--ft-muted)", marginTop: 2 }}>{specParts}</div>}
-                      {inline.length > 0 && (
-                        <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
-                          {inline.map((m, i) => (
-                            <span key={i} style={{ fontSize: 10, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "2px 10px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                              <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {p.note && <div style={{ fontSize: 10.5, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 6 }}>{p.note}</div>}
-                    </div>
-                    <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
-                      {isEach ? (
-                        <>
-                          {showUnit && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
-                          {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
-                        </>
-                      ) : (
-                        <>
-                          {showTotals && qtyLine && <div style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
-                          {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
-                          {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {a.products.filter((p) => !rowBlank(p)).map((p, pi) => renderProduct(p, pi))}
             </div>
           );
         })}
 
         {pMats.length > 0 && (
           <div className="break-inside-avoid" style={{ margin: "15px 0 6px" }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 6 }}>Extras</div>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 6 }}>{optionPrint ? "Setting materials & sundries — shared areas" : "Extras"}</div>
             <div style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "11px 15px" }}>
               <div style={{ columns: 2, columnGap: 28 }}>
                 {groups.map((g, gi) => (
@@ -312,15 +314,64 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               </div>
               {showTotals && (
                 <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-paper-rule)", marginTop: 4, paddingTop: 7 }}>
-                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Extras subtotal</div>
-                  <div className="ft-mono" style={{ fontSize: 12, fontWeight: 800 }}>{money(extrasCost)}</div>
+                  <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>{optionPrint ? "Shared job subtotal" : "Extras subtotal"}</div>
+                  <div className="ft-mono" style={{ fontSize: 12, fontWeight: 800 }}>{money(optionPrint ? optionPrint.sharedT.grandTotal : extrasCost)}</div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {showTotals && grandTotal > 0 && (
+        {optionPrint && (
+          <>
+            <div className="flex justify-between items-baseline" style={{ padding: "2px 0 6px" }}>
+              <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".26em", color: "var(--ft-brand-deep)" }}>The options</div>
+              <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-faint)" }}>choose one option below</div>
+            </div>
+            {optionPrint.sections.map((S) => (
+              <div key={S.slot} className="break-inside-avoid" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 9, overflow: "hidden" }}>
+                <div className="flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", padding: "5px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em" }}>
+                  Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}
+                  <span style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0, fontSize: 9, fontWeight: 700 }}>{S.cats.map((a, i) => areaPrintLabel(a, i)).join(" · ")}</span>
+                </div>
+                {S.cats.map((a) => a.products.filter((p) => !rowBlank(p)).map((p, pi) => renderProduct(p, pi)))}
+                {showTotals && S.t.matLines.length > 0 && (
+                  <div style={{ margin: "2px 8px 8px", borderRadius: 4, padding: "7px 10px 8px", background: `color-mix(in srgb, ${S.color.main} 7%, #fff)` }}>
+                    <div className="uppercase" style={{ fontSize: 7, fontWeight: 800, letterSpacing: ".2em", color: S.color.main, marginBottom: 4 }}>Materials for this option</div>
+                    {S.t.matLines.map((m, i) => (
+                      <div key={i} className="flex justify-between" style={{ gap: 12, fontSize: 8.8, padding: "1.5px 0" }}>
+                        <span><b style={{ fontWeight: 800 }}>{m.kind}</b> · {m.product} — {m.order} {u1(m.order, m.unit)}{m.sku ? <span style={{ color: "var(--ft-muted)", fontSize: 8 }}> · SKU {m.sku}</span> : null}</span>
+                        <span style={{ whiteSpace: "nowrap" }}>{m.order > 1 ? `${m.order} × ${money(m.price)} · ` : ""}{money(m.cost)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between" style={{ borderTop: "1px solid var(--ft-paper-rule)", marginTop: 4, paddingTop: 3, fontSize: 8.5, fontWeight: 800 }}><span>Materials — Option {S.slot}</span><span>{money(S.t.materialsCost + S.t.freightCost)}</span></div>
+                  </div>
+                )}
+                {showTotals && (
+                  <div className="flex justify-between items-baseline" style={{ padding: "6px 10px", borderTop: "1px solid var(--ft-paper-rule)", fontSize: 9, background: "color-mix(in srgb, var(--ft-paper-band) 55%, #fff)" }}>
+                    <span style={{ color: "var(--ft-paper-muted)" }}>{S.t.matLines.length ? `flooring ${money(S.t.flooringPrice + S.t.miscCost)} + materials ${money(S.t.materialsCost + S.t.freightCost)}` : "no setting materials"}</span>
+                    <span style={{ fontWeight: 800, fontSize: 10.5 }}>Option {S.slot} {money(S.t.grandTotal)} &nbsp;·&nbsp; <span style={{ color: "var(--ft-brand-deep)" }}>whole job {money(S.whole)}</span></span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+
+        {showTotals && optionPrint && (
+          <div className="break-inside-avoid" style={{ borderTop: "2px solid var(--ft-text)", marginTop: 12, paddingTop: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${optionPrint.sections.length}, 1fr)`, gap: 8 }}>
+              {optionPrint.sections.map((S) => (
+                <div key={S.slot} style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, padding: "7px 10px 8px" }}>
+                  <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".14em", color: S.color.main }}>Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{money(S.whole)}</div>
+                  <div style={{ fontSize: 7.5, color: "var(--ft-paper-muted)" }}>incl. shared areas {money(optionPrint.sharedT.grandTotal)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {showTotals && !optionPrint && grandTotal > 0 && (
           <div className="break-inside-avoid flex justify-end items-baseline" style={{ borderTop: "2px solid var(--ft-text)", paddingTop: 10, marginTop: 10 }}>
             <div className="flex items-baseline" style={{ gap: 10 }}>
               <span className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span>
