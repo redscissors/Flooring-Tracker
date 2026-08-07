@@ -28,15 +28,17 @@ const vinyl = (over) => ({
 
 const area = (name, option, products) => ({ ...newArea(), name, option, products });
 
+// Case 1: unnamed option areas, no shared bucket. Case 2: named areas
+// ("Kitchen"/"Mudroom") plus a shared Hallway.
 const makeJob = (withShared) => ({
   ...newProject(null, "Miller — main floor"), _full: true,
   waste: { tile: 10, floor: 5, tileOn: true, floorOn: true },
   categories: [
     ...(withShared ? [area("Hallway", "", [vinyl({ qty: "240" })])] : []),
-    area("Area 01", "A", [tile()]),
-    area("Area 02", "A", [vinyl()]),
-    area("Area 01", "B", [tile({ brandColor: "Daltile Keystones - Uptown Taupe", sku: "1498221", priceSqft: "8.64" })]),
-    area("Area 02", "B", [vinyl({ brandColor: "Mannington AduraMax MPB801 Sundance Gunstock", sku: "1508833", priceSqft: "5.15" })]),
+    area(withShared ? "Kitchen" : "", "A", [tile()]),
+    area(withShared ? "Mudroom" : "", "A", [vinyl()]),
+    area(withShared ? "Kitchen" : "", "B", [tile({ brandColor: "Daltile Keystones - Uptown Taupe", sku: "1498221", priceSqft: "8.64" })]),
+    area(withShared ? "Mudroom" : "", "B", [vinyl({ brandColor: "Mannington AduraMax MPB801 Sundance Gunstock", sku: "1508833", priceSqft: "5.15" })]),
   ],
 });
 
@@ -68,11 +70,11 @@ function Paper({ withShared }) {
 createRoot(document.getElementById("preview")).render(
   <div className="min-h-screen bg-slate-100" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
     <div data-shot="no-shared">
-      <p className="ft-eyebrow text-[10px] mb-1">options only, NO shared areas — no header row, no area list, no flooring subtotal, no "whole job"</p>
+      <p className="ft-eyebrow text-[10px] mb-1">options only, unnamed areas, NO shared — no header row, no area list, no footer breakdown, no "whole job"</p>
       <Paper withShared={false} />
     </div>
     <div data-shot="with-shared">
-      <p className="ft-eyebrow text-[10px] mb-1">options + a shared area — "whole job" and "incl. shared areas" return</p>
+      <p className="ft-eyebrow text-[10px] mb-1">named areas + a shared area — the names print in the band header; "whole job" and "incl. shared areas" return</p>
       <Paper withShared={true} />
     </div>
   </div>

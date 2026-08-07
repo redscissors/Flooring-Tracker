@@ -331,6 +331,9 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               <div key={S.slot} className="break-inside-avoid" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 9, overflow: "hidden" }}>
                 <div className="flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", padding: "5px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em" }}>
                   Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}
+                  {/* Only areas someone actually named earn the header — a list of
+                      "Area 01 · Area 02" placeholders says nothing. */}
+                  {S.cats.some((a) => (a.name || "").trim()) && <span style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0, fontSize: 9, fontWeight: 700 }}>{S.cats.filter((a) => (a.name || "").trim()).map((a) => a.name.trim()).join(" · ")}</span>}
                 </div>
                 {S.cats.flatMap((a) => a.products.filter((p) => !rowBlank(p))).map((p, pi) => renderProduct(p, pi))}
                 {showTotals && S.t.matLines.length > 0 && (
@@ -346,8 +349,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                   </div>
                 )}
                 {showTotals && (
-                  <div className="flex justify-between items-baseline" style={{ padding: "6px 10px", borderTop: "1px solid var(--ft-paper-rule)", fontSize: 9, background: "color-mix(in srgb, var(--ft-paper-band) 55%, #fff)" }}>
-                    <span style={{ color: "var(--ft-paper-muted)" }}>{S.t.matLines.length ? `materials ${money(S.t.materialsCost + S.t.freightCost)}` : "no setting materials"}</span>
+                  <div className="flex justify-end items-baseline" style={{ padding: "6px 10px", borderTop: "1px solid var(--ft-paper-rule)", fontSize: 9, background: "color-mix(in srgb, var(--ft-paper-band) 55%, #fff)" }}>
                     <span style={{ fontWeight: 800, fontSize: 10.5 }}>Option {S.slot} {money(S.t.grandTotal)}{hasShared && <> &nbsp;·&nbsp; <span style={{ color: "var(--ft-brand-deep)" }}>whole job {money(S.whole)}</span></>}</span>
                   </div>
                 )}
