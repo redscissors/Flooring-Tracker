@@ -196,7 +196,7 @@ export default function App({ user, onSignOut }) {
   };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
-  useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); }, [printMode]);
+  useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); setOrderScope(null); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
   // Keyboard-flow focus targets (product id): after Add product, land on the
   // new row's type; after a SKU pick, land on the Sq Ft box (so the footage
@@ -256,7 +256,7 @@ export default function App({ user, onSignOut }) {
   // Copy-for-order-entry panel (special-order + stock, formatted for pasting
   // into the vendor order program). Ephemeral, read-only, never printed.
   const [showOrderCopy, setShowOrderCopy] = useState(false);
-  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setPreviewScope("all"); }, [selId]);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -276,6 +276,10 @@ export default function App({ user, onSignOut }) {
   // Preview tab scope: "all" (compare/banded) or a slot letter (that option's
   // single-total sheet). The area menu's "Print this option…" writes it too.
   const [previewScope, setPreviewScope] = useState("all");
+  // Order entry / order sheet scope: which option is being ordered. Set by the
+  // scope picker below; a job without options never sets it to anything but "all".
+  const [orderScope, setOrderScope] = useState(null);
+  const [scopeAsk, setScopeAsk] = useState(null); // { for: "entry" | "sheet" } | null
   const mainRef = useRef(null);
   const fileRef = useRef(null);
   const attRef = useRef(null);
@@ -997,7 +1001,7 @@ export default function App({ user, onSignOut }) {
   const searchFallback = normPricing(settings.pricing).searchFallback;
   const quickMarkups = normPricing(settings.pricing).quickMarkups;
   const T = useMemo(() => (sel && sel._full ? jobTotals(tv.proj, sel, tSet, wSet, settings, books) : jobTotals({ categories: [] }, { categories: [] }, tSet, wSet, settings, books)), [sel, tv.proj, tSet, wSet, settings, books]);
-  const { totalSqft, orderedSqft, flooringPrice, miscCost, groutCost, caulkCost, mortarCost, underlayCost, baseCost, materialsCost, freightCost, grandTotal, gList, mList, uList, cList, bList, fList, aByCat, matAll, matLines, hasMat, margin, pMats } = T;
+  const { totalSqft, orderedSqft, flooringPrice, miscCost, groutCost, caulkCost, mortarCost, underlayCost, baseCost, materialsCost, freightCost, grandTotal, gList, mList, uList, cList, bList, fList, aByCat, hasMat, margin, pMats } = T;
   const optsUsed = useMemo(() => (sel && sel._full ? optionsUsed(sel.categories) : []), [sel]);
   // Per-bucket money (ADR 0031): shared + each option's own areas. Additive on
   // paper — wholeJob(slot) = shared + slot — while order entry re-runs the union.
@@ -1010,6 +1014,10 @@ export default function App({ user, onSignOut }) {
   }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
   const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
   const optionBadges = optsUsed.length ? optsUsed.map((s) => ({ slot: s, label: optionShort(sel, s), color: OPTION_COLOR[s], total: wholeJob(s) })) : null;
+  // Order entry + order sheet ask which option is being ordered when the job
+  // has any (Task 8); a job with no options skips straight to "all" — byte-
+  // identical to the pre-options flow.
+  const askOrderScope = (kind) => { if (optsUsed.length) setScopeAsk({ for: kind }); else { setOrderScope("all"); (kind === "entry" ? setShowOrderCopy : () => setPrintMode("order"))(true); } };
   // The estimate "paper" prints shared areas + one band per option when a job
   // has options — the SAME shared props at both call sites (preview + print)
   // so they can never drift (ADR-adjacent to 0031: options tag areas, not the
@@ -1302,7 +1310,12 @@ export default function App({ user, onSignOut }) {
                   nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
-                  setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea,
+                  setShowVersions, setConfirm, addArea,
+                  // Both header layouts call these with (true) / ("order") respectively —
+                  // wrapped here so projectheader.jsx needs no changes to route through
+                  // the option scope picker (Task 8). "estimate" passes straight through.
+                  setShowOrderCopy: () => askOrderScope("entry"),
+                  setPrintMode: (m) => (m === "order" ? askOrderScope("sheet") : setPrintMode(m)),
                 };
                 return headerLayout === "classic" ? <ProjectHeaderClassic {...hp} /> : <ProjectHeaderBar {...hp} />;
               })()}
@@ -1420,7 +1433,7 @@ export default function App({ user, onSignOut }) {
                           <div className="grid grid-cols-2 gap-1.5 pt-1">
                             <button onClick={startVersionName} className={act}><Save size={14} /> Save version</button>
                             <button onClick={() => { setProjSheet(false); setShowVersions(true); }} className={act}><History size={14} /> History ({sel.versions?.length || 0})</button>
-                            <button onClick={() => { setProjSheet(false); setPrintMode("order"); }} className={act}><ClipboardList size={14} /> Order sheet</button>
+                            <button onClick={() => { setProjSheet(false); askOrderScope("sheet"); }} className={act}><ClipboardList size={14} /> Order sheet</button>
                             <button onClick={() => { setProjSheet(false); setConfirm({ id: sel.id }); }} className={act + " hover:bg-red-50"} style={{ color: "#b91c1c", borderColor: "#fecaca" }}><Trash2 size={14} /> Delete</button>
                           </div>
                         )}
@@ -2289,11 +2302,17 @@ export default function App({ user, onSignOut }) {
 
       {/* PRINT VIEW — the print buttons pick the layout: estimate (default, also Ctrl+P) or order sheet */}
       <div className="ft-light hidden print:block text-black p-2">
-        {sel && sel._full && (printMode === "order" ? (
+        {sel && sel._full && (printMode === "order" ? (() => {
+          // Scoped to the option chosen in the picker (Task 8), same union-scoped
+          // totals run as the order-entry panel so freight/consolidation match.
+          const scope = orderScope || "all";
+          const osCats = scopedCats(sel.categories, scope);
+          const osT = scope === "all" ? T : jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, scope) }, { ...sel, categories: scopedCats(sel.categories, scope) }, tSet, wSet, settings, books);
+          return (
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-3">
               <div className="font-bold text-xl">Order sheet</div>
-              <div className="text-sm">{sel.name} · {new Date().toLocaleDateString()}</div>
+              <div className="text-sm">{sel.name}{optsUsed.length && scope !== "all" ? ` — ${optionShort(sel, scope)}` : ""} · {new Date().toLocaleDateString()}</div>
             </div>
             <table className="w-full border-collapse text-[12px]">
               <thead>
@@ -2306,7 +2325,7 @@ export default function App({ user, onSignOut }) {
                 </tr>
               </thead>
               <tbody>
-                {sel.categories.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, wSet); return (
+                {osCats.flatMap((a, ai) => a.products.filter((p) => !rowBlank(p)).map((p) => { const c = printProduct(p, wSet); return (
                   <tr key={p.id} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2"><b>{p.brandColor || TLBL[p.type]}</b> <span className="text-slate-500">{[p.brandColor ? TLBL[p.type] : "", c.size].filter(Boolean).join(", ")}</span></td>
@@ -2315,7 +2334,7 @@ export default function App({ user, onSignOut }) {
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{c.qtyText}{c.C && c.C.order > 0 && <> = {sf1(c.orderedSf)} sf<span className="text-slate-400 font-normal text-[10.5px]"> ({c.C.exact.toFixed(2)})</span></>}</td>
                   </tr>
                 ); }))}
-                {matLines.map((m, i) => (
+                {osT.matLines.map((m, i) => (
                   <tr key={"mat" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2">{m.product} <span className="text-slate-400 text-[10.5px]">{m.kind}</span></td>
@@ -2327,7 +2346,7 @@ export default function App({ user, onSignOut }) {
                 {/* Freight isn't pulled off a shelf, but it IS part of the order
                     this sheet places — the line tells whoever keys it what the
                     vendor will add. */}
-                {freightPrintRows(fList).map((f, i) => (
+                {freightPrintRows(osT.fList).map((f, i) => (
                   <tr key={"frt" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
                     <td className="py-1.5 pr-2">{f.name} <span className="text-slate-400 text-[10.5px]">{[f.kind, f.spec].filter(Boolean).join(" · ")}</span></td>
@@ -2340,7 +2359,8 @@ export default function App({ user, onSignOut }) {
             </table>
             <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
-        ) : <EstimatePaper {...paperProps} />)}
+          );
+        })() : <EstimatePaper {...paperProps} />)}
       </div>
 
       {/* Customer browser (issue 040) — the ERP-style directory grid over the
@@ -2499,22 +2519,48 @@ export default function App({ user, onSignOut }) {
           }} />;
       })()}
 
+      {/* Order entry / order sheet scope picker (Task 8): asked only when the
+          job has options — a job without any skips straight to "all" in
+          askOrderScope, so nothing here changes its behavior. */}
+      {scopeAsk && sel && (
+        <Modal onClose={() => setScopeAsk(null)}>
+          <div className="text-[15px] font-bold">{scopeAsk.for === "sheet" ? "Order sheet" : "Copy for order entry"}</div>
+          <div className="text-[12.5px] text-slate-500 mb-3">This job has options — which one is being ordered?</div>
+          {[...optsUsed.map((s) => ({ scope: s, label: optionShort(sel, s), sub: "shared areas + " + optionTitle(sel, s), dot: OPTION_COLOR[s].main, total: wholeJob(s) })), { scope: "all", label: "Everything", sub: "all areas, all options — ordering more than one", dot: null, total: null }].map((o) => (
+            <button key={o.scope} className="w-full flex items-center gap-2.5 rounded-lg border border-slate-200 hover:border-slate-400 px-3 py-2.5 mb-2 text-left"
+              onClick={() => { setOrderScope(o.scope); setScopeAsk(null); (scopeAsk.for === "entry" ? setShowOrderCopy(true) : setPrintMode("order")); }}>
+              {o.dot && <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: o.dot }} />}
+              <span className="min-w-0"><span className="block text-[13.5px] font-bold">{o.label}</span><span className="block text-[11px] text-slate-500">{o.sub}</span></span>
+              {o.total != null && <span className="ft-mono ml-auto text-[12px] font-bold whitespace-nowrap">{money(o.total)}</span>}
+            </button>
+          ))}
+        </Modal>
+      )}
+
       {showOrderCopy && sel && sel._full && (() => {
         // Order entry reads RETAIL on every tier except Employee, which carries
         // through (spec 2026-07-16) — the salesperson keys builder/sale discounts
         // into the vendor order by hand.
         const oeProj = tv.tier === "employee" ? tv.proj : sel;
         const descLimit = normPricing(settings.pricing).descLimit;
+        // Scoped to the option chosen in the picker (Task 8); "all" (no options,
+        // or "Everything") is exactly today's unscoped lists. The materials/
+        // freight run is the UNION of shared + the option, not the additive
+        // per-bucket split, so consolidation and freight minimums stay exact.
+        const scope = orderScope || "all";
+        const oeCats = scopedCats(oeProj.categories, scope);
+        const oeT = scope === "all" ? T : jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, scope) }, { ...sel, categories: scopedCats(sel.categories, scope) }, tSet, wSet, settings, books);
         const rows = [];
-        (oeProj.categories || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds)); }));
-        const mats = matAll.map((m, i) => {
+        (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds)); }));
+        const mats = oeT.matAll.map((m, i) => {
           const { qty, qtyAssumed } = orderQty(m.order);
           return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
         });
         // Freight files with the special orders: it's billed by the same vendor
         // on the same order, and like a Sheoga line it has no SKU to key.
-        const freightRows = fList.map((l) => freightOrderRow(l, descLimit));
-        return <OrderEntryPanel name={sel.name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => setShowOrderCopy(false)} />;
+        const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
+        const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
+        return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
       })()}
 
       {custModal && (() => {
