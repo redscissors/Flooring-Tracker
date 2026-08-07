@@ -100,8 +100,8 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
   );
 }
 
-export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi }) {
-  const [app, setApp] = useState("labels");
+export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, initialApp }) {
+  const [app, setApp] = useState(() => (initialApp && APP_NAME[initialApp] ? initialApp : "labels"));
   // Below the breakpoint the 224px rail is width the open app needs more than
   // the nav does — the configurators are three columns wide and pay for it in
   // shrink. So the rail folds away into a "‹ Apps" button and comes back as an
