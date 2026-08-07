@@ -239,6 +239,9 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       );
     };
     const areas = optionPrint ? tv.proj.categories.filter((a) => !a.option) : tv.proj.categories;
+    // "Whole job" beside an option total only earns its ink when shared areas
+    // actually add cost — otherwise it repeats the option total verbatim.
+    const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
     return (
       <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
         <div className="flex justify-between items-center" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 12, marginBottom: 14 }}>
@@ -324,15 +327,10 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
 
         {optionPrint && (
           <>
-            <div className="flex justify-between items-baseline" style={{ padding: "2px 0 6px" }}>
-              <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".26em", color: "var(--ft-brand-deep)" }}>The options</div>
-              <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-faint)" }}>choose one option below</div>
-            </div>
             {optionPrint.sections.map((S) => (
               <div key={S.slot} className="break-inside-avoid" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 9, overflow: "hidden" }}>
                 <div className="flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", padding: "5px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em" }}>
                   Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}
-                  <span style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0, fontSize: 9, fontWeight: 700 }}>{S.cats.map((a, i) => areaPrintLabel(a, i)).join(" · ")}</span>
                 </div>
                 {S.cats.flatMap((a) => a.products.filter((p) => !rowBlank(p))).map((p, pi) => renderProduct(p, pi))}
                 {showTotals && S.t.matLines.length > 0 && (
@@ -349,8 +347,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 )}
                 {showTotals && (
                   <div className="flex justify-between items-baseline" style={{ padding: "6px 10px", borderTop: "1px solid var(--ft-paper-rule)", fontSize: 9, background: "color-mix(in srgb, var(--ft-paper-band) 55%, #fff)" }}>
-                    <span style={{ color: "var(--ft-paper-muted)" }}>{S.t.matLines.length ? `flooring ${money(S.t.flooringPrice + S.t.miscCost)} + materials ${money(S.t.materialsCost + S.t.freightCost)}` : "no setting materials"}</span>
-                    <span style={{ fontWeight: 800, fontSize: 10.5 }}>Option {S.slot} {money(S.t.grandTotal)} &nbsp;·&nbsp; <span style={{ color: "var(--ft-brand-deep)" }}>whole job {money(S.whole)}</span></span>
+                    <span style={{ color: "var(--ft-paper-muted)" }}>{S.t.matLines.length ? `materials ${money(S.t.materialsCost + S.t.freightCost)}` : "no setting materials"}</span>
+                    <span style={{ fontWeight: 800, fontSize: 10.5 }}>Option {S.slot} {money(S.t.grandTotal)}{hasShared && <> &nbsp;·&nbsp; <span style={{ color: "var(--ft-brand-deep)" }}>whole job {money(S.whole)}</span></>}</span>
                   </div>
                 )}
               </div>
@@ -365,7 +363,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 <div key={S.slot} style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, padding: "7px 10px 8px" }}>
                   <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".14em", color: S.color.main }}>Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}</div>
                   <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{money(S.whole)}</div>
-                  <div style={{ fontSize: 7.5, color: "var(--ft-paper-muted)" }}>incl. shared areas {money(optionPrint.sharedT.grandTotal)}</div>
+                  {hasShared && <div style={{ fontSize: 7.5, color: "var(--ft-paper-muted)" }}>incl. shared areas {money(optionPrint.sharedT.grandTotal)}</div>}
                 </div>
               ))}
             </div>
