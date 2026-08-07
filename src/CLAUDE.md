@@ -55,6 +55,16 @@ src/
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
+  options.js        # quote options (ADR 0031): fixed slots A/B/C + colors, shared/
+                    # option scoping (bucketCats/scopedCats), titles, duplicateInto —
+                    # an option is a TAG on an area, never a copy of the job
+                    # (options.test.js)
+  jobtotals.js      # the job's money math, extracted from App.jsx so it runs per
+                    # option scope: one filtered project in, every aggregate out
+                    # (totals, gList/mList/…, matAll, pMats, freight, margin).
+                    # Whole-job = shared bucket + option bucket (additive on paper);
+                    # order entry re-runs the UNION so freight minimums stay exact
+                    # (jobtotals.test.js)
   fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
                     # `import("pdfjs-dist")` preserved
   widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
