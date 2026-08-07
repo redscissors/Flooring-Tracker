@@ -34,6 +34,16 @@ const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?";
 const DESC_NOISE_RE = new RegExp(`\\(\\s*(?:${DESC_NOISE})\\s*\\)|\\b(?:${DESC_NOISE})\\b`, "gi");
 const cleanDescription = (v) => str(v).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim();
 
+// The Claude issue-bucket mark ({ by, at, note? }) — a SKU parked for a later
+// Claude session to dig into. Presence is the whole state; junk shapes drop.
+const normClaudeIssue = (v) => {
+  if (!v || typeof v !== "object") return null;
+  const out = { by: str(v.by), at: v.at ?? null };
+  const note = str(v.note);
+  if (note) out.note = note;
+  return out;
+};
+
 // Per-flag-code review verdicts ({ [code]: { state, by, at } }) — only the two
 // known states survive normalization, so junk in the jsonb can't invent one.
 const normFlagReview = (v) => {
@@ -145,6 +155,10 @@ export function normOrderItem(f = {}) {
     // flags. Carried across re-imports by applyBookImport (like the disabled
     // column), so a reviewed row never re-nags for the same problem.
     flagReview: normFlagReview(f.flagReview),
+    // The Claude issue bucket: this SKU is parked for a Claude session to dig
+    // into (the book table's Claude button). Bookkeeping like flagReview — no
+    // edited stamp, no diff churn, carried across re-imports by applyBookImport.
+    claudeIssue: normClaudeIssue(f.claudeIssue),
   };
 }
 
@@ -272,6 +286,34 @@ export function orderPatch(item, book, product) {
   const tier = item.tierPrices?.contractor;
   patch.tierPrice = tier != null ? String(tier) : "";
   return patch;
+}
+
+// --- project-line preview (book table) ---------------------------------------
+
+// What picking this item lands on a product row, shaped for the book table's
+// project-line columns. Derived through the REAL pick path (pricedItem →
+// stockPatch), never re-implemented, so the table can't drift from an actual
+// pick — a blank cell here IS a blank cell on the estimate, which is the whole
+// troubleshooting value. `sizeParsed` distinguishes a tile size that landed in
+// L×W (grout/mortar compute) from one that fell through as free text.
+export function bookRowPreview(item, markups) {
+  const priced = pricedItem(item, markups);
+  const patch = stockPatch(priced, {});
+  const flooring = patch.type !== "misc";
+  const sizeParsed = flooring && patch.L != null && patch.W != null;
+  return {
+    type: patch.type,
+    size: sizeParsed ? `${patch.L}×${patch.W}` : str(patch.sizeText),
+    sizeParsed,
+    thickness: str(patch.thickness),
+    name: str(patch.brandColor),
+    coverage: patch.cartonSf != null ? { n: numOr(patch.cartonSf), unit: str(patch.cartonUnit) || "CT", kind: "sf" }
+      : patch.cartonPc != null ? { n: numOr(patch.cartonPc), unit: str(patch.cartonUnit) || "CT", kind: "pc" }
+        : null,
+    price: numOr(patch.priceSqft),
+    per: flooring ? "sf" : str(patch.sellUnit).toLowerCase() || "ea",
+    markupPct: priced.markupPct ?? null,
+  };
 }
 
 // --- drift -------------------------------------------------------------------

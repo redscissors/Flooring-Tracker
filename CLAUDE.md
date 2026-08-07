@@ -123,9 +123,11 @@ they agree or the auto quantity isn't computable.
   deletes). Registry-item enable/disable flips only
   the `disabled` column via `setBookItemsDisabled` — never through the import
   upserts. Flag-review verdicts (ADR 0017) write only through
-  `reviewBookItemFlags` (data jsonb, no edited stamp); `applyBookImport`
-  carries the previous row's `flagReview` onto changed upserts so verdicts
-  survive re-import. Keep these write paths; don't write ad hoc.
+  `reviewBookItemFlags` (data jsonb, no edited stamp); the Claude issue-bucket
+  mark writes only through `setBookItemIssue` (same contract); `applyBookImport`
+  carries the previous row's `flagReview` and `claudeIssue` onto changed upserts
+  so verdicts and bucket marks survive re-import. Keep these write paths; don't
+  write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.
 - Boot follows ADR 0026's two-stage policy: stage 1 is one parallel round trip

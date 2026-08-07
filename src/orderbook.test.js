@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
-  pricedItem, orderPatch, orderDrift, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
+  pricedItem, orderPatch, orderDrift, bookRowPreview, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
   bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
   flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged,
@@ -12,6 +12,61 @@ const DAY = 86400000;
 
 // A normalized order item, overridable per field.
 const oi = (over = {}) => normOrderItem({ sku: "ABC12345", cost: 10, unit: "SF", ...over });
+
+// --- Claude issue bucket -------------------------------------------------------
+
+test("claudeIssue normalizes the mark and drops junk shapes", () => {
+  assert.equal(oi({}).claudeIssue, null);
+  assert.equal(oi({ claudeIssue: "yes" }).claudeIssue, null);
+  assert.deepEqual(oi({ claudeIssue: { by: " Sam ", at: 123, note: "" } }).claudeIssue, { by: "Sam", at: 123 });
+  assert.equal(oi({ claudeIssue: { note: "check the unit" } }).claudeIssue.note, "check the unit");
+});
+
+test("a claudeIssue mark alone never churns the import diff, and survives bookItemData", () => {
+  const prev = oi({ sku: "A1", claudeIssue: { by: "Sam", at: 1 } });
+  const same = oi({ sku: "A1" });
+  assert.equal(diffBookItems([prev], [same]).changed.length, 0);
+  // The mark lives in the data jsonb (not a column), so a write must keep it.
+  assert.deepEqual(bookItemData(prev).claudeIssue, { by: "Sam", at: 1 });
+});
+
+// --- bookRowPreview (the book table's project-line columns) -------------------
+
+test("bookRowPreview: a parsed tile lands L×W, carton coverage, derived $/sf", () => {
+  const pv = bookRowPreview(oi({ sku: "T1", type: "tile", size: "12X24", cost: 31, sfPerUnit: 15.5, unit: "CT" }), { default: 50 });
+  assert.equal(pv.type, "tile");
+  assert.equal(pv.size, "12×24");
+  assert.ok(pv.sizeParsed);
+  assert.deepEqual(pv.coverage, { n: 15.5, unit: "CT", kind: "sf" });
+  assert.equal(pv.per, "sf");
+  assert.equal(pv.price, 3); // $31/CT ÷ 15.5 sf/CT × 1.5
+  assert.equal(pv.markupPct, 50);
+});
+
+test("bookRowPreview: an unparsed tile size falls through as free text", () => {
+  const pv = bookRowPreview(oi({ sku: "T2", type: "tile", size: "Random Deco", cost: 5, sfPerUnit: 10, unit: "CT" }), null);
+  assert.equal(pv.sizeParsed, false);
+  assert.equal(pv.size, "Random Deco");
+});
+
+test("bookRowPreview: a count line lands per piece with the vendor's sell unit", () => {
+  const pv = bookRowPreview(oi({ sku: "R1", size: "", cost: 56.13, unit: "RL" }), { default: 50 });
+  assert.equal(pv.type, "misc");
+  assert.equal(pv.per, "rl");
+  assert.equal(pv.price, 84.2);
+  assert.equal(pv.coverage, null);
+});
+
+test("bookRowPreview: a carton-only count line carries PC/CT for the order rounding", () => {
+  const pv = bookRowPreview(oi({ sku: "B1", cost: 27.99, unit: "", priceUnit: "PC", orderUnit: "CT", pcPerUnit: 8 }), { default: 45 });
+  assert.equal(pv.type, "misc");
+  assert.deepEqual(pv.coverage, { n: 8, unit: "CT", kind: "pc" });
+});
+
+test("bookRowPreview: an unpriced row previews with no price — the amber cell", () => {
+  const pv = bookRowPreview(oi({ sku: "N1", type: "tile", size: "24X48", cost: null, sfPerUnit: 15.5, unit: "CT" }), { default: 45 });
+  assert.equal(pv.price, null);
+});
 
 // --- floor ↔ trim link (ADR 0012 amendment) ----------------------------------
 
