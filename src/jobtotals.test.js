@@ -47,3 +47,33 @@ test("empty scope returns zeros, not NaN", () => {
   assert.equal(t.grandTotal, 0);
   assert.deepEqual(t.matLines, []);
 });
+
+// A minimal freight program (see freight.js normFreight / freight.test.js's
+// GLAZZIO fixture): a shared area and an option-A area both carry rows from
+// the same freight-program book. Freight is order-scoped (one minimum per
+// vendor per ORDER, ADR 0030) — the union run must charge that vendor once,
+// not once per bucket (Fix 2, ADR 0031).
+const FREIGHT_BOOK = { id: "fv1", name: "Freighted Vendor", kind: "order", data: { freight: {
+  mode: "program", destination: "OH", palletSf: 500, perSqft: 1, minCharge: 50,
+  palletAt: 0, palletRate: 0, largeRate: 0, largeAtSqin: 200, largeSeries: "",
+  smallSeries: "", perPiece: 0, pieceMin: 0, effective: "2026",
+} } };
+const fproj = normC({ id: "j2", name: "J2", waste: { tile: 10, floor: 5, tileOn: false, floorOn: false }, categories: [
+  { name: "Shared", option: "", products: [tile(10, { bookId: "fv1" })] },
+  { name: "Bath A", option: "A", products: [tile(10, { bookId: "fv1" })] },
+] });
+const fwSet = withProjWaste(settings, fproj);
+const ftotals = (cats) => jobTotals({ ...fproj, categories: cats }, { ...fproj, categories: cats }, fwSet, fwSet, settings, [FREIGHT_BOOK]);
+
+test("freight consolidates over the union: one line per book, no double-minimum", () => {
+  const shared = ftotals(bucketCats(fproj.categories, "shared"));
+  const bucketA = ftotals(bucketCats(fproj.categories, "A"));
+  const union = ftotals(scopedCats(fproj.categories, "A"));
+  // Each bucket independently trips the vendor's $50 minimum (10 sf × $1 < $50).
+  assert.equal(shared.freightCost, 50);
+  assert.equal(bucketA.freightCost, 50);
+  assert.equal(union.fList.length, 1);
+  assert.ok(union.freightCost <= shared.freightCost + bucketA.freightCost);
+  // Strictly less: the union's 20 sf still only trips the minimum once.
+  assert.ok(union.freightCost < shared.freightCost + bucketA.freightCost);
+});

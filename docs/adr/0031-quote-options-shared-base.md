@@ -32,3 +32,9 @@ covers.
   the project and survives restores. No SQL migration.
 - Area notes (`Area.note`) were removed in the same change — normA drops the
   field, so old notes disappear on a job's next save (owner call, 2026-08-06).
+- The single-option scoped sheet (order entry, the scoped preview/print)
+  consolidates over the union, so it can read lower than the compare sheet's
+  additive whole-job figure by material rounding units only — freight is
+  union-exact on BOTH sheets, since the whole-job's option bucket carries the
+  union's increment over the shared bucket rather than a standalone per-bucket
+  charge (Fix 2, final-review round).

@@ -334,7 +334,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                   Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}
                   <span style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0, fontSize: 9, fontWeight: 700 }}>{S.cats.map((a, i) => areaPrintLabel(a, i)).join(" · ")}</span>
                 </div>
-                {S.cats.map((a) => a.products.filter((p) => !rowBlank(p)).map((p, pi) => renderProduct(p, pi)))}
+                {S.cats.flatMap((a) => a.products.filter((p) => !rowBlank(p))).map((p, pi) => renderProduct(p, pi))}
                 {showTotals && S.t.matLines.length > 0 && (
                   <div style={{ margin: "2px 8px 8px", borderRadius: 4, padding: "7px 10px 8px", background: `color-mix(in srgb, ${S.color.main} 7%, #fff)` }}>
                     <div className="uppercase" style={{ fontSize: 7, fontWeight: 800, letterSpacing: ".2em", color: S.color.main, marginBottom: 4 }}>Materials for this option</div>

@@ -88,6 +88,9 @@ export const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mo
 // Estimate print layout. "cards" is the 2026-07 receipt-card redesign; flip to
 // "classic" to restore the prior 8-column table sheet (kept intact in
 // renderEstimatePaperClassic) if the new one ever needs to be pulled.
+// "classic" predates quote options (ADR 0031) and knows nothing about them: it
+// prints an options job flat — every area, no option bands, no per-option
+// totals. Only flip back for an option-free job.
 export const ESTIMATE_PRINT_LAYOUT = "cards";
 export const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU

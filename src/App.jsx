@@ -196,7 +196,7 @@ export default function App({ user, onSignOut }) {
   };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
-  useEffect(() => { if (!printMode) return; window.print(); setPrintMode(null); setOrderScope(null); }, [printMode]);
+  useEffect(() => { if (!printMode) return; window.print(); const wasOrder = printMode === "order"; setPrintMode(null); if (wasOrder) setOrderScope(null); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
   // Keyboard-flow focus targets (product id): after Add product, land on the
   // new row's type; after a SKU pick, land on the Sq Ft box (so the footage
@@ -1009,7 +1009,16 @@ export default function App({ user, onSignOut }) {
     if (!sel || !sel._full || optsUsed.length === 0) return null;
     const run = (scope) => jobTotals({ ...tv.proj, categories: bucketCats(tv.proj.categories, scope) }, { ...sel, categories: bucketCats(sel.categories, scope) }, tSet, wSet, settings, books);
     const out = { shared: run("shared") };
-    optsUsed.forEach((s) => { out[s] = run(s); });
+    optsUsed.forEach((s) => {
+      const b = run(s);
+      // Freight is order-scoped (one minimum per vendor per ORDER, ADR 0030), so an
+      // option's share is the union's charge beyond what the shared bucket already
+      // carries — never its own standalone run, which re-bills a vendor both
+      // buckets touch (ADR 0031).
+      const u = jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, s) }, { ...sel, categories: scopedCats(sel.categories, s) }, tSet, wSet, settings, books);
+      const freightCost = Math.max(0, u.freightCost - out.shared.freightCost);
+      out[s] = { ...b, freightCost, grandTotal: b.grandTotal - b.freightCost + freightCost };
+    });
     return out;
   }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
   const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
@@ -2699,10 +2708,13 @@ export default function App({ user, onSignOut }) {
         const setOpt = (slot) => { updArea(a.id, { option: slot }); setAreaMenu(null); };
         const dupInto = (slot) => {
           const copy = duplicateInto(a, slot);
-          const cats = [...sel.categories];
-          cats.splice(cats.indexOf(a) + 1, 0, copy);
+          // Fold the source's retag into the same categories write as the
+          // duplicate insert — updateProject's setter is non-functional (built
+          // from the stale `sel` closure, App.jsx:~713), so a second updArea
+          // call here would overwrite this one and drop the copy.
+          const retag = a.option ? null : (optionsUsed([...sel.categories, copy]).find((s) => s !== slot) || OPTION_SLOTS.find((s) => s !== slot));
+          const cats = sel.categories.flatMap((x) => (x.id === a.id ? [retag ? { ...x, option: retag } : x, copy] : [x]));
           updateProject(sel.id, { categories: cats });
-          if (!a.option) updArea(a.id, { option: optionsUsed(cats).find((s) => s !== slot) || OPTION_SLOTS.find((s) => s !== slot) });
           setAreaMenu(null);
         };
         const free = OPTION_SLOTS.filter((s) => !optsUsed.includes(s));
