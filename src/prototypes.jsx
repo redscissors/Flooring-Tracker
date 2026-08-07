@@ -186,6 +186,70 @@ function VariantC() {
   );
 }
 
+// --- Variant D: tab drawer (the owner's sketch, 2026-08-07) -------------------
+// A file-folder tab strip under the title — Source · Markup · Freight — each
+// tab carrying its live summary. Clicking a tab drops a full-width drawer with
+// that section's editor (the sketch's dotted region); clicking it again folds
+// it. The active tab merges into the drawer like a notebook tab.
+function DTab({ label, summary, warn, active, onClick }) {
+  return (
+    <button onClick={onClick}
+      className="rounded-t-md px-3 py-1 text-left"
+      style={{
+        border: "1px solid var(--ft-border)",
+        borderBottom: active ? "1px solid var(--ft-card)" : "1px solid var(--ft-border)",
+        marginBottom: -1,
+        background: active ? "var(--ft-card)" : "var(--ft-area-head)",
+        position: "relative",
+        zIndex: active ? 2 : 1,
+      }}>
+      <span className={`block text-[11.5px] font-medium ${active ? "text-slate-700" : "text-slate-500"}`}>{label}</span>
+      <span className={`block text-[9px] leading-tight ${warn ? "text-amber-600" : "text-slate-400"}`}>{summary}</span>
+    </button>
+  );
+}
+function VariantD() {
+  const h = typeof location !== "undefined" ? location.hash : "";
+  const [open, setOpen] = useState(h === "#d-source" ? "source" : h === "#d-markup" ? "markup" : h === "#d-freight" ? "freight" : null);
+  const tab = (id) => ({ active: open === id, onClick: () => setOpen(open === id ? null : id) });
+  return (
+    <div className="rounded-lg p-3" style={{ background: "var(--ft-card)", border: "1px solid var(--ft-border)" }}>
+      <TitleRow />
+      <div className="mt-2">
+        <div className="flex items-end gap-1" style={{ borderBottom: "1px solid var(--ft-border)" }}>
+          <DTab label="Source" summary={`connect24 · ${B.imported}`} {...tab("source")} />
+          <DTab label="Markup" summary="50% · by Manufacturer" {...tab("markup")} />
+          <DTab label="Freight" summary="none" warn {...tab("freight")} />
+        </div>
+        {open && (
+          <div className="rounded-b-md px-4 py-3" style={{ border: "1px solid var(--ft-border)", borderTop: "none", background: "var(--ft-card)" }}>
+            {open === "source" && (
+              <div className="flex items-center gap-3 flex-wrap text-[11.5px] text-slate-500">
+                <FileText size={13} className="text-slate-400" />
+                <span><span className="text-slate-700 font-medium">{B.sheet}</span><br /><span className="text-[10.5px] text-slate-400">from {B.portal} · imported {B.imported} by {B.by}</span></span>
+                <button className={btn}><RotateCcw size={11} /> Refresh</button>
+                <span className="text-slate-300">|</span>
+                <span className="text-[10.5px]">Added by hand: nothing declared</span>
+                <button className="text-[10.5px] text-slate-400 hover:text-slate-600">+ Needs another file</button>
+              </div>
+            )}
+            {open === "markup" && <MarkupBody />}
+            {open === "freight" && (
+              <div className="flex items-center gap-3 text-[11.5px] text-slate-500">
+                <Truck size={13} className="text-slate-400" />
+                <span>This book adds no freight. Jobs that pick from it show no freight chip and no freight line.</span>
+                <button className={btn}>Off</button>
+                <span className="text-[10.5px] text-slate-400">— switching On reveals the full rate program editor here</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <FakeTable />
+    </div>
+  );
+}
+
 function Board() {
   return (
     <div className="min-h-screen p-8" style={{ background: "var(--ft-cream)", color: "var(--ft-text)" }}>
@@ -196,6 +260,10 @@ function Board() {
             Today the name / source / markup / freight stack spends ~650px before the first item row. All three fold the page
             chrome (stale threshold, hide costs, delete) into ⋯ and put Import beside the title.
           </p>
+        </div>
+        <div data-shot="d">
+          <p className="ft-eyebrow text-[10px] mb-1">D — tab drawer (the sketch): Source · Markup · Freight tabs open a full-width drawer; the table sits right below</p>
+          <VariantD />
         </div>
         <div data-shot="a">
           <p className="ft-eyebrow text-[10px] mb-1">A — fold rows: markup &amp; freight collapse to one-line summaries (click to expand)</p>
