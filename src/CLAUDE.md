@@ -139,6 +139,12 @@ src/
                     # sign-in group cards, `StaleChip`/`FLAG_SEMANTICS`
   pricebooklib.jsx  # the price-book library (`PriceBookLibrary` + book detail,
                     # import wizard, stock items panel, markup editor — internal).
+                    # The book page's config — source sheets + hand-added files,
+                    # markup, freight — folds behind FOLDER TABS under a one-line
+                    # title row (owner sketch 2026-08-07): each tab carries its
+                    # live summary, one drawer opens at a time, and a book that
+                    # needs attention starts open on the right tab (pending sheet
+                    # review → Source, selling at cost → Markup).
                     # The book detail's item table reads in the PROJECT LINE's
                     # column order (Size/Type · Product/Color · SKU · Cov. ·
                     # Price), its Size/Cov./Price cells showing what a pick LANDS

@@ -19,7 +19,7 @@ import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
 import { Modal } from "./widgets.jsx";
-import { InHouseColumn, PasteSignInPopover, StaleChip, NoMarkupChip, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
+import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 
 // --- Price book library (ADR 0009, Phase 1) ---------------------------------
 //
@@ -60,6 +60,26 @@ function ClaudeMark({ size = 13 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
       {CLAUDE_RAYS.map(([x1, y1, x2, y2], i) => <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />)}
     </svg>
+  );
+}
+
+// A folder tab on the book page (owner sketch 2026-08-07): label over a live
+// summary line. The active tab merges into the drawer below it — its bottom
+// border painted the drawer's background over the strip's hairline.
+function BookTab({ label, summary, tone, active, onClick }) {
+  return (
+    <button onClick={onClick} className="rounded-t-md px-3 py-1 text-left"
+      style={{
+        border: "1px solid var(--ft-border)",
+        borderBottom: `1px solid ${active ? "var(--ft-card)" : "var(--ft-border)"}`,
+        marginBottom: -1,
+        background: active ? "var(--ft-card)" : "var(--ft-area-head)",
+        position: "relative",
+        zIndex: active ? 2 : 1,
+      }}>
+      <span className={`block text-[11.5px] font-medium ${active ? "text-slate-700" : "text-slate-500"}`}>{label}</span>
+      <span className={`block text-[9px] leading-tight ${tone === "bad" ? "text-red-600" : tone === "warn" ? "text-amber-600" : tone === "attn" ? "text-indigo-600" : "text-slate-400"}`}>{summary}</span>
+    </button>
   );
 }
 
@@ -828,6 +848,12 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
   const [editItem, setEditItem] = useState(null); // the item being hand-edited
   const [vSeq, setVSeq] = useState(0); // bump to refresh the import-history list
   const [confirmDel, setConfirmDel] = useState(false);
+  // Which config drawer is open under the folder tabs (owner sketch
+  // 2026-08-07). Folded by default; a book that needs attention opens on it —
+  // a fetched sheet awaiting review opens Source, a book selling at cost opens
+  // Markup. Initial only, so a fetch landing mid-visit never fights a fold.
+  const [tab, setTab] = useState(() => (source || []).some(({ sheet }) => sourcePendingOf(sheet)) ? "source"
+    : bookNoMarkup(book) ? "markup" : null);
 
   const reload = () => { setItems(null); loadBookItems(book.id).then(setItems).catch(() => setItems([])); };
   useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); return () => { ok = false; }; }, [book.id]);
@@ -964,15 +990,35 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
     try { await navigator.clipboard.writeText(text); setCopiedIssues(true); setTimeout(() => setCopiedIssues(false), 1800); } catch (x) { /* clipboard denied — nothing to roll back */ }
   };
 
+  // The folder tabs' live summaries — each tab says its state without opening.
+  const srcSummary = pendingSources.length ? `${pendingSources.length} to review`
+    : st.stale ? `stale — ${st.days} days`
+      : li ? `imported ${new Date(li.at).toLocaleDateString()}` : "never imported";
+  const srcTone = pendingSources.length ? "attn" : st.stale ? "warn" : "";
+  const axisLabel = (f) => (GROUP_AXES.find(([k]) => k === f) || [])[1] || f;
+  const overrides = Object.keys(markups?.byGroup || {}).length;
+  const mkSummary = noMarkup ? "none — sells at cost"
+    : `${num(markups?.default) || 0}%${markups?.groupBy ? ` · by ${axisLabel(markups.groupBy)}` : ""}${overrides ? ` · ${overrides} override${overrides === 1 ? "" : "s"}` : ""}`;
+  const fr = normFreight(book.data?.freight);
+  const frSummary = fr.mode === "program" ? `on${fr.destination ? ` — ${fr.destination}` : ""}` : "none";
+
   return (
     <div className="mt-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <input className="ft-field rounded-md border border-slate-200 px-2 py-1 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() !== book.name && updateBook(book.id, { name: name.trim() })} />
+        <input className="ft-field rounded-md border border-slate-200 px-2 py-1 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() !== book.name && updateBook(book.id, { name: name.trim() })} />
         <span className="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 bg-slate-100 text-slate-500">{isOrder ? "Special order" : "Stock"}</span>
-        <label className="flex items-center gap-1 text-xs text-slate-500 ml-auto">
-          <input type="checkbox" checked={book.active} onChange={(e) => updateBook(book.id, { active: e.target.checked })} /> Active
-        </label>
-        <button onClick={() => setConfirmDel(true)} title="Delete this book" className="text-slate-400 hover:text-red-500"><Trash2 size={15} /></button>
+        <span className="text-xs text-slate-400">
+          {items == null ? "Loading items…" : `${activeItems.length} active item${activeItems.length === 1 ? "" : "s"}`}
+          {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
+        </span>
+        <span className="ml-auto flex items-center gap-2">
+          <label className="flex items-center gap-1 text-xs text-slate-500">
+            <input type="checkbox" checked={book.active} onChange={(e) => updateBook(book.id, { active: e.target.checked })} /> Active
+          </label>
+          <button onClick={() => setWizard("replace")} title="Import a file as this book's full contents — anything missing from it retires" className="flex items-center gap-1.5 text-xs rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1 text-slate-600"><Upload size={13} /> Import…</button>
+          <button onClick={() => setWizard("add")} title="Add another file to this book — its rows join, nothing retires" className="flex items-center gap-1.5 text-xs rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1 text-slate-600"><Plus size={13} /> Add a file…</button>
+          <button onClick={() => setConfirmDel(true)} title="Delete this book" className="text-slate-400 hover:text-red-500"><Trash2 size={15} /></button>
+        </span>
       </div>
 
       {confirmDel && (
@@ -985,32 +1031,38 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
         </div>
       )}
 
-      <SourceSheetStrip sources={sources} pendingSources={pendingSources} stale={st} lastImportAt={li?.at} pendingOf={sourcePendingOf} liveOf={sourceLiveOf} onRefresh={onRefreshSheet} onReview={onReviewSheet} />
-      <ManualSourcesCard
-        sources={book.data?.sources}
-        inp={inp}
-        onDeclare={(label) => updateBook(book.id, { dataPatch: { sources: declareManualSource(book.data?.sources, label) } })}
-        onUndeclare={(id) => updateBook(book.id, { dataPatch: { sources: undeclareManualSource(book.data?.sources, id) } })}
-      />
-
-      <div className="flex items-center gap-2 mt-3">
-        <button onClick={() => setWizard("replace")} title="Import a file as this book's full contents — anything missing from it retires" className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Upload size={14} /> Import…</button>
-        <button onClick={() => setWizard("add")} title="Add another file to this book — its rows join, nothing retires" className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Plus size={14} /> Add a file…</button>
-        <span className="text-xs text-slate-400">
-          {items == null ? "Loading items…" : `${activeItems.length} active item${activeItems.length === 1 ? "" : "s"}`}
-          {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
-        </span>
-        {st.stale && <StaleChip days={st.days} />}
-        {noMarkup && <NoMarkupChip />}
+      {/* The folder tabs + drawer (owner sketch 2026-08-07): everything that
+          used to stack above the table — source sheets, hand-added files,
+          markup, freight — folds behind a tab strip. One drawer open at a
+          time; clicking the open tab folds it. */}
+      <div className="mt-2">
+        <div className="flex items-end gap-1" style={{ borderBottom: "1px solid var(--ft-border)" }}>
+          <BookTab label="Source" summary={srcSummary} tone={srcTone} active={tab === "source"} onClick={() => setTab(tab === "source" ? null : "source")} />
+          {isOrder && <BookTab label="Markup" summary={mkSummary} tone={noMarkup ? "bad" : ""} active={tab === "markup"} onClick={() => setTab(tab === "markup" ? null : "markup")} />}
+          {isOrder && <BookTab label="Freight" summary={frSummary} active={tab === "freight"} onClick={() => setTab(tab === "freight" ? null : "freight")} />}
+        </div>
+        {tab && (
+          <div className="rounded-b-md px-4 pb-3" style={{ border: "1px solid var(--ft-border)", borderTop: "none", background: "var(--ft-card)" }}>
+            {tab === "source" && (
+              <div className="flex flex-wrap gap-x-6 items-start">
+                <SourceSheetStrip sources={sources} pendingSources={pendingSources} stale={st} lastImportAt={li?.at} pendingOf={sourcePendingOf} liveOf={sourceLiveOf} onRefresh={onRefreshSheet} onReview={onReviewSheet} />
+                <ManualSourcesCard
+                  sources={book.data?.sources}
+                  inp={inp}
+                  onDeclare={(label) => updateBook(book.id, { dataPatch: { sources: declareManualSource(book.data?.sources, label) } })}
+                  onUndeclare={(id) => updateBook(book.id, { dataPatch: { sources: undeclareManualSource(book.data?.sources, id) } })}
+                />
+              </div>
+            )}
+            {tab === "markup" && (
+              <MarkupEditor embedded book={book} items={items || []} onSave={(m) => updateBook(book.id, { dataPatch: { markups: m } })} inp={inp} lbl={lbl} />
+            )}
+            {tab === "freight" && (
+              <FreightCard embedded book={book} onSave={(f) => updateBook(book.id, { dataPatch: { freight: f } })} inp={inp} lbl={lbl} />
+            )}
+          </div>
+        )}
       </div>
-
-      {isOrder && items && items.length > 0 && (
-        <MarkupEditor book={book} items={items} onSave={(m) => updateBook(book.id, { dataPatch: { markups: m } })} inp={inp} lbl={lbl} />
-      )}
-
-      {isOrder && (
-        <FreightCard book={book} onSave={(f) => updateBook(book.id, { dataPatch: { freight: f } })} inp={inp} lbl={lbl} />
-      )}
 
       {items && items.length > 0 && (
         <>
@@ -1261,7 +1313,7 @@ function BookItemEditModal({ item, isOrder, onClose, onSave, inp, lbl }) {
 // priceable (markupGroups), so there's no free-form matcher to get wrong.
 const GROUP_LABEL = { mfg: "manufacturer", productLine: "product line", section: "section", brand: "brand" };
 const GROUP_AXES = [["mfg", "Manufacturer"], ["productLine", "Product line"], ["section", "Section"], ["brand", "Brand"]];
-export function MarkupEditor({ book, items, onSave, inp, lbl }) {   // exported for the preview harness
+export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   // exported for the preview harness; embedded = inside the book page's tab drawer, no card chrome
   const markups = book.data?.markups || {};
   const [groupBy, setGroupBy] = useState(markups.groupBy || book.data?.mapping?.groupBy || "");
   const [def, setDef] = useState(markups.default != null ? String(markups.default) : "");
@@ -1297,10 +1349,10 @@ export function MarkupEditor({ book, items, onSave, inp, lbl }) {   // exported 
   // slate-inked, and the dark theme leaves a red-50 surface light while
   // remapping those inks to near-white.
   return (
-    <div className={"mt-4 border rounded-lg p-3 " + (noMarkup ? "border-red-300" : "border-slate-100")}>
+    <div className={embedded ? "pt-3" : "mt-4 border rounded-lg p-3 " + (noMarkup ? "border-red-300" : "border-slate-100")}>
       <div className="flex items-center gap-2 flex-wrap">
-        <Percent size={14} className={noMarkup ? "text-red-500" : "text-slate-400"} />
-        <span className={"text-sm font-medium " + (noMarkup ? "text-red-600" : "")}>Markup</span>
+        {!embedded && <Percent size={14} className={noMarkup ? "text-red-500" : "text-slate-400"} />}
+        {!embedded && <span className={"text-sm font-medium " + (noMarkup ? "text-red-600" : "")}>Markup</span>}
         <span className={"text-[11px] " + (noMarkup ? "text-red-600" : "text-slate-400")}>selling price = cost × (1 + markup)</span>
       </div>
       {noMarkup && (
@@ -1373,7 +1425,7 @@ const FREIGHT_FIELDS = [
   { k: "perPiece", label: "Per piece", pre: "$", step: "0.01", hint: "trims, borders and mouldings ship by the piece" },
   { k: "pieceMin", label: "Piece min", pre: "$", step: "0.01", hint: "the least this vendor bills for a piece order" },
 ];
-export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the preview harness
+export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exported for the preview harness; embedded = inside the book page's tab drawer, no card chrome
   const saved = normFreight(book.data?.freight);
   const [f, setF] = useState(saved);
   const on = f.mode === "program";
@@ -1388,10 +1440,10 @@ export function FreightCard({ book, onSave, inp, lbl }) {   // exported for the 
     return parts.length ? `${freightSummary({ parts })} · ${money(parts.reduce((n2, x) => n2 + x.cost, 0))}` : "no charge";
   };
   return (
-    <div className="mt-4 border rounded-lg p-3 border-slate-100">
+    <div className={embedded ? "pt-3" : "mt-4 border rounded-lg p-3 border-slate-100"}>
       <div className="flex items-center gap-2 flex-wrap">
-        <Truck size={14} className="text-slate-400" />
-        <span className="text-sm font-medium">Freight</span>
+        {!embedded && <Truck size={14} className="text-slate-400" />}
+        {!embedded && <span className="text-sm font-medium">Freight</span>}
         <span className="text-[11px] text-slate-400">charged once per order, on top of the item cost</span>
         {/* Switching a blank program on prefills it — but only on the book the
             transcribed sheet belongs to (freightSeedFor). Any other vendor opens

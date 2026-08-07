@@ -35,20 +35,21 @@ const ITEMS = [
   it({ sku: "ANACAM12", type: "tile", description: "Camden White 12X24 Matte", mfg: "ANATOLIA", size: "12X24", cost: 2.44, sfPerUnit: 15.5, priceUnit: "SF", orderUnit: "CT", editedBy: "Sam", editedAt: Date.now() - 3 * DAY, claudeIssue: { by: "Sam", at: Date.now() - 2 * DAY } }),
 ];
 
-function Harness() {
-  // Local "DB": the harness answers the write paths so the buttons really work.
+// A remembered portal sheet feeding the book (shapes vendorfetch expects).
+const SHEET = {
+  group: { name: "Virginia Tile connect24" },
+  sheet: { vendor: "vt", host: "connect24.virginiatile.com", uid: "C28895MM", user: "marcus", filename: "Home Collection EFT 26 02 19.xls", lastFetched: Date.now() - 12 * DAY },
+};
+
+// One BookDetail over the local mock "DB", with the write paths answered so
+// the buttons really work. `pending` fakes a fetched sheet awaiting review.
+function Case({ label, book, source, pending }) {
   const [rows, setRows] = useState(ITEMS);
   return (
-    <div className="min-h-screen p-8" style={{ background: "var(--ft-cream)", color: "var(--ft-text)" }}>
-      <div className="max-w-6xl">
-        <h1 className="ft-serif" style={{ fontSize: 24 }}>Price book — items in project-line order + Claude issue bucket</h1>
-        <p className="text-[12.5px] text-slate-500 mt-1 max-w-3xl">
-          Columns read like the estimate grid (Size/Type · Product/Color · SKU · Cov. · Price) and the Size, Cov. and Price
-          cells show what a pick <em>lands</em> — an unparsed size or a missing price reads amber, exactly the hole the job
-          would get. The muted line under each product carries every other stored field. The <span style={{ color: "#D97757" }}>✳</span> button
-          parks a SKU in the Claude issue bucket; the Claude filter shows the bucket and copies a paste-ready report.
-        </p>
-        <BookDetail key="vtc" book={BOOK}
+    <div>
+      <p className="ft-eyebrow text-[10px] mt-6 mb-1">{label}</p>
+      <div className="rounded-lg px-4 pb-4 pt-1" style={{ background: "var(--ft-card)", border: "1px solid var(--ft-border)" }}>
+        <BookDetail key={book.id} book={book}
           updateBook={() => {}} delBook={() => {}} onDeleted={() => {}}
           loadBookItems={async () => rows}
           applyBookImport={async () => {}}
@@ -60,9 +61,27 @@ function Harness() {
           reviewBookItemFlags={async (id, ops) => ops.map(({ item }) => ({ sku: item.sku, flagReview: item.flagReview }))}
           setBookItemIssue={async (id, item, on) => (on ? { by: "Sam", at: Date.now() } : null)}
           hideCosts={false} staleDays={120}
-          source={[]} sourcePendingOf={() => null} sourceLiveOf={() => null}
+          source={source || []} sourcePendingOf={() => (pending ? {} : null)} sourceLiveOf={() => true}
           onRefreshSheet={() => {}} onReviewSheet={() => {}}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} />
+      </div>
+    </div>
+  );
+}
+
+function Harness() {
+  return (
+    <div className="min-h-screen p-8" style={{ background: "var(--ft-cream)", color: "var(--ft-text)" }}>
+      <div className="max-w-6xl">
+        <h1 className="ft-serif" style={{ fontSize: 24 }}>Price book page — folder tabs + project-line table + Claude bucket</h1>
+        <p className="text-[12.5px] text-slate-500 mt-1 max-w-3xl">
+          The real BookDetail over mocked items. Source / Markup / Freight fold behind tabs carrying their live summaries
+          (the owner's sketch); a book that needs attention opens on the right tab. The table's Size / Cov. / Price cells show
+          what a pick <em>lands</em>, and the <span style={{ color: "#D97757" }}>✳</span> button parks a SKU in the Claude issue bucket.
+        </p>
+        <Case label="tabs folded — a healthy book (the default)" book={BOOK} source={[SHEET]} />
+        <Case label="a fetched sheet awaiting review — opens on Source" book={{ ...BOOK, id: "vtc2" }} source={[SHEET]} pending />
+        <Case label="no markup set — opens on Markup, selling at cost" book={{ ...BOOK, id: "vtc3", name: "Virginia Tile — Anatolia (new)", data: { lastImport: BOOK.data.lastImport } }} />
       </div>
     </div>
   );
