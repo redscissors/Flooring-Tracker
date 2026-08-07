@@ -20,7 +20,7 @@ import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, T
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
-import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, optionTitle, optionShort, duplicateInto } from "./options.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto } from "./options.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
@@ -256,7 +256,7 @@ export default function App({ user, onSignOut }) {
   // Copy-for-order-entry panel (special-order + stock, formatted for pasting
   // into the vendor order program). Ephemeral, read-only, never printed.
   const [showOrderCopy, setShowOrderCopy] = useState(false);
-  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); }, [selId]);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setPreviewScope("all"); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -273,8 +273,8 @@ export default function App({ user, onSignOut }) {
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const [areaMenu, setAreaMenu] = useState(null); // { aid, x, y } — the area band's option menu
   const [renamingOpt, setRenamingOpt] = useState(null); // option slot ("A"/"B"/"C") whose rename modal is open
-  // Preview tab scope; read starting Task 7 — the menu's "Print this option…" already writes it.
-  // eslint-disable-next-line no-unused-vars
+  // Preview tab scope: "all" (compare/banded) or a slot letter (that option's
+  // single-total sheet). The area menu's "Print this option…" writes it too.
   const [previewScope, setPreviewScope] = useState("all");
   const mainRef = useRef(null);
   const fileRef = useRef(null);
@@ -1018,7 +1018,18 @@ export default function App({ user, onSignOut }) {
     sharedT: buckets.shared,
     sections: optsUsed.map((s) => ({ slot: s, title: optionTitle(sel, s), color: OPTION_COLOR[s], cats: bucketCats(tv.proj.categories, s), t: buckets[s], whole: wholeJob(s) })),
   } : null;
-  const paperProps = optionPrint
+  // A stale slot (e.g. its last area untagged while the preview sat on it)
+  // reads as "all" rather than blowing up scopedT/the seg control.
+  const previewScopeLive = optsUsed.includes(previewScope) ? previewScope : "all";
+  // Picking a single option's scope prints a flat single-total sheet of
+  // shared + that slot's areas — a normal sheet, not a banded compare (Task 7).
+  const scopedT = useMemo(() => {
+    if (!sel || !sel._full || previewScopeLive === "all" || !optsUsed.length) return null;
+    return jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, previewScopeLive) }, { ...sel, categories: scopedCats(sel.categories, previewScopeLive) }, tSet, wSet, settings, books);
+  }, [sel, tv.proj, previewScopeLive, optsUsed, tSet, wSet, settings, books]);
+  const paperProps = scopedT
+    ? { sel, people: data.people, profile, tv: { ...tv, proj: { ...tv.proj, categories: scopedCats(tv.proj.categories, previewScopeLive) } }, jobWaste, tSet, optionPrint: null, scopeNote: optionShort(sel, previewScopeLive), pMats: scopedT.pMats, materialsCost: scopedT.materialsCost, freightCost: scopedT.freightCost, flooringPrice: scopedT.flooringPrice, miscCost: scopedT.miscCost, totalSqft: scopedT.totalSqft, orderedSqft: scopedT.orderedSqft, grandTotal: scopedT.grandTotal }
+    : optionPrint
     ? { sel, people: data.people, profile, tv, jobWaste, pMats: buckets.shared.pMats, tSet, materialsCost: buckets.shared.materialsCost, freightCost: buckets.shared.freightCost, flooringPrice: buckets.shared.flooringPrice, miscCost: buckets.shared.miscCost, totalSqft: buckets.shared.totalSqft, orderedSqft: buckets.shared.orderedSqft, grandTotal: buckets.shared.grandTotal, optionPrint }
     : { sel, people: data.people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint: null };
 
@@ -2231,6 +2242,17 @@ export default function App({ user, onSignOut }) {
               </div>
               {viewTab === "preview" && (
                 <div className="rounded-lg py-6 px-3 md:px-6" style={{ background: "color-mix(in oklab, var(--ft-text) 6%, var(--ft-cream))" }}>
+                  {optsUsed.length > 0 && (
+                    <div className="ft-noprint flex justify-center mb-4">
+                      <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden">
+                        {["all", ...optsUsed].map((s) => (
+                          <button key={s} onClick={() => setPreviewScope(s)} className={`px-3.5 py-1.5 text-[12.5px] font-bold border-r border-slate-200 last:border-r-0 ${previewScopeLive === s ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
+                            {s === "all" ? "Compare all" : <><span className="inline-block w-2 h-2 rounded-sm mr-1.5" style={{ background: OPTION_COLOR[s].main }} />{optionShort(sel, s)}</>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="ft-light bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
                     <EstimatePaper {...paperProps} />
                   </div>

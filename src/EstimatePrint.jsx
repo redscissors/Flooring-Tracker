@@ -11,7 +11,7 @@ import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null }) {
+export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -258,7 +258,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           {[
             ["Customer", cust?.name || printName, cust?.address || sel.address],
             ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  ")],
-            ["Project", printName, wMeta],
+            ["Project", printName, [scopeNote, wMeta].filter(Boolean).join(" · ")],
           ].map(([label, name, detail], i) => (
             <div key={i} className="flex flex-col" style={{ gap: 2 }}>
               <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
