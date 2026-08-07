@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -510,6 +510,10 @@ export default function App({ user, onSignOut }) {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
   } = useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings });
+  // Which app the hub opens on: the sidebar's wedi/Sheoga shortcuts jump
+  // straight to their configurator; the plain Apps button keeps the default.
+  const [appsStart, setAppsStart] = useState(null);
+  const openAppsTo = (k) => { setAppsStart(k); openApps(); };
 
   // Which overlay was on screen, per device ("ft-open-layer", beside
   // ft-last-open): a refresh reopens the popup/workspace it interrupted —
@@ -1174,12 +1178,16 @@ export default function App({ user, onSignOut }) {
                 unassigned estimates/drafts live behind its Estimates & drafts
                 toggle, so this is the everyday door to all of them. */}
             <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
-              className="w-full flex items-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 px-2.5 text-slate-600">
-              <Folder size={15} className="text-indigo-500 shrink-0" />
-              <span className="ft-item-name text-[12.5px] font-semibold truncate flex-1 text-left">Customers</span>
-              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5 shrink-0">{data.people.length}</span>
-              <ChevronRight size={13} className="text-slate-300 shrink-0" />
+              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600">
+              <Folder size={15} className="text-indigo-500" /> Customers
+              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
             </button>
+            {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
+                one press from the customer column. */}
+            <div className="flex gap-2">
+              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><ShowerHead size={15} /> wedi</button>
+              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><TreePine size={15} /> Sheoga</button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
@@ -1215,7 +1223,7 @@ export default function App({ user, onSignOut }) {
             {/* Two rows of two: three labelled buttons plus sign-out no longer
                 fit across the narrowed rail on one line. */}
             <div className="flex gap-2 mb-2">
-              <button onClick={openApps} title="Apps — shop tools" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><LayoutGrid size={15} /> Apps</button>
+              <button onClick={() => openAppsTo(null)} title="Apps — shop tools" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><LayoutGrid size={15} /> Apps</button>
               <button onClick={handleSignOut} title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5 text-slate-500"><LogOut size={15} /></button>
             </div>
             <div className="flex gap-2">
@@ -2414,6 +2422,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <AppsWorkspace
           onClose={() => setShowApps(false)}
+          initialApp={appsStart}
           stock={stockItems}
           labels={labels}
           presets={settings.apps?.labels?.presets || []}
