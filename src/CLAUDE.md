@@ -158,7 +158,15 @@ src/
   pricebook.js      # generic mapped import for registry books (ADR 0009) +
                     # vendor template recognizers (VTC EFT, ERP Vendor SKU
                     # Analysis); the retired shop workbook's hand-built
-                    # parsers (ADR 0003) lived here until 2026-07-22
+                    # parsers (ADR 0003) lived here until 2026-07-22.
+                    # The EFT recognizer is BRAND-aware (2026-08-07): the
+                    # title line above the header decides what the rows ARE —
+                    # a Schluter book gets no tile default (it sells no
+                    # flooring) and reads coverage ("= 323 SF") and
+                    # feet-and-inches roll/board sizes out of the description
+                    # in every spelling Schluter prints (3'3"x98'5",
+                    # "3 FT 3 X 98 FT 5", 82FTX3-1/8INX5/16IN, trailing 10'
+                    # stick lengths, 5/8IN X 48IN X 120IN boards)
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
                     # header-driven per page, feeds the mapped import (ADR 0010)
   manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,

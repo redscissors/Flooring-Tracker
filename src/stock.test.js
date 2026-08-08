@@ -27,6 +27,11 @@ test("parseTileSize handles the price book's size spellings", () => {
   assert.deepEqual(parseTileSize('4" x 4" Nominal'), ["4", "4"]);
   assert.deepEqual(parseTileSize('8"x9" Hex'), ["8", "9"]);
   assert.equal(parseTileSize("Esagonia"), null);
+  // A foot-marked dimension is roll/linear goods, never a tile L×W — the inner
+  // 3"x98 once parsed out of a 3'3"-wide Kerdi roll and grout math ran on it.
+  assert.equal(parseTileSize("3'3\"x98'"), null);
+  assert.equal(parseTileSize("3'x167'"), null);
+  assert.equal(parseTileSize("5\"x33'"), null);
   assert.equal(parseTileSize('6"'), null);
   assert.equal(parseTileSize('2" Hex'), null); // single dimension, no L×W
   // A leading-decimal width with no leading zero (VTC/Mannington pencil trim)

@@ -18,6 +18,7 @@
 // document (ADR 0027) and its parsers went with it.
 
 import { normOrderItem, unitComboWarnings, importSanityWarnings, classifyTrim } from "./orderbook.js";
+import { feetArea } from "./stock.js";
 
 const str = (c) => (c == null ? "" : String(c).trim());
 const numOrNull = (c) => {
@@ -112,18 +113,77 @@ export function mmToFraction(mm) {
 const DIM = "\\d+/\\d+|\\.\\d+|\\d+(?:\\.\\d+)?(?:-\\d+/\\d+)?";
 const dimVal = (s) => {
   const f = str(s).match(/^(\d+)\/(\d+)$/);
-  if (f) return +f[1] / +f[2];
+  if (f) {
+    const n = +f[1], d = +f[2];
+    // "471/4" (Schluter: "471/4IN X 35-7/16IN") is 47-1/4 printed tight — a
+    // real size numerator is proper, so peel whole-number digits off the front
+    // until the fraction is.
+    if (n >= d) {
+      for (let k = 1; k < f[1].length; k++) {
+        const num = +f[1].slice(k);
+        if (num > 0 && num < d) return +f[1].slice(0, k) + num / d;
+      }
+    }
+    return n / d;
+  }
   const m = str(s).match(/^(\d+(?:\.\d+)?|\.\d+)(?:-(\d+)\/(\d+))?$/);
   return m ? parseFloat(m[1]) + (m[2] ? +m[2] / +m[3] : 0) : NaN;
 };
-const SIZE_RE = new RegExp(`(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?`, "i");
+const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
+const INCH_MARK = `["']|in(?:ch(?:es)?)?\\b`;
+// The word-mark subset that can sit INSIDE an L×W without ambiguity — the
+// Schluter EFT prints "471/4IN X 35-7/16IN" and "12 IN X 12 IN". A bare foot
+// mark stays out of this position (that's ROLL_SIZE_RE's job). The word can't
+// end on \b: Schluter also prints dims TIGHT ("82FTX3-1/8INX5/16IN"), where
+// IN/FT butt against the × of the next dimension with no boundary between two
+// word characters — so the end test is "nothing letter-like follows, or an ×
+// leading straight into the next number".
+const WORD_END = `(?=$|[^a-z]|[x×]\\s*\\d)`;
+const IN_WORD = `"|in(?:ch(?:es)?)?${WORD_END}`;
+const SIZE_RE = new RegExp(`(${DIM})\\s*(?:${IN_WORD}|')?\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD}|')?`, "i");
+// A dimension in FEET — how the sheets spell roll goods and sheet vinyl
+// ("3'x167'", "5\" x 33'", "12' Prestige Sheet Vinyl") and how the ERP and the
+// Schluter EFT write a feet-and-inches width: inches after the foot mark,
+// sometimes with a dot between them ("3'3\"x98'", "3'.3\"x16'5\"" — 3 ft 3 in,
+// not three tenths), sometimes with no inch mark at all ("3'3 X 41'1"),
+// sometimes as words ("3 FT 3 IN X 98 FT 5 IN", "82FTX3-1/8IN"). The
+// inch-minded regexes must never see these: LEAD_WIDTH_RE once read the 3' of
+// a 3'3"-wide Kerdi roll as a 3" width and left ".3\"x98'" in the name, and
+// SIZE_RE read 3"x98 out of the middle (issue bucket, 2026-08-07). An L×W with
+// a foot mark on either side is roll/linear goods: the whole spelling lands in
+// the size field as text — parseTileSize refuses it, so no L×W cell and no
+// grout/mortar math ever comes of it.
+const FT_MARK = `'|\\s*f(?:oo|ee)?t\\.?${WORD_END}`;
+// The inches tail after the foot mark comes three ways: marked ("3' 3\"",
+// "3 FT 3 IN"), tight against the mark with no inch mark of its own ("3'3",
+// "16 FT5"), or spaced AND bare ("KERDI 3 FT 3 X 98 FT 5 = 323 SF") — that
+// last one only counts when the next thing is the ×, the =, or the end, so a
+// trailing count ("10 FT 2 PACK") can't read as inches.
+const FT_DIM = `\\d+(?:\\.\\d+)?\\s*(?:${FT_MARK})(?:\\s*\\.?\\s*(?:${DIM})\\s*(?:${IN_WORD})|\\d+(?:-\\d+/\\d+)?|\\s+\\d+(?:-\\d+/\\d+)?(?=\\s*(?:[x×=]|$)))?`;
+const ROLL_SIZE_RE = new RegExp(`(${FT_DIM})\\s*[x×]\\s*(${FT_DIM}|(?:${DIM})\\s*(?:${IN_WORD})?)|((?:${DIM})\\s*(?:${IN_WORD})?)\\s*[x×]\\s*(${FT_DIM})`, "i");
+// A third ×-dimension right behind a roll size is the goods' thickness —
+// BEKOTEC edge strips print "82FTX3-1/8INX5/16IN". Inch mark required, so a
+// trailing code can't read as one.
+const ROLL_THICK_RE = new RegExp(`^\\s*[x×]\\s*(\\d+/\\d+|\\d+(?:-\\d+/\\d+)?(?:\\.\\d+)?)\\s*(?:${IN_WORD})`, "i");
+// Three inch-marked dimensions are a board: T×W×L or L×W×T by vendor whim
+// (KERDI-BOARD "5/8IN X 48IN X 120IN", a trowel's "3/16\" x 1/4\" x 3/8\"
+// notch). The sub-inch odd one out is the thickness; the remaining two are
+// the panel. Every dim must carry its mark — three bare numbers are a code.
+const THREE_IN_RE = new RegExp(`(${DIM})\\s*(?:${IN_WORD})\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD})\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD})`, "i");
+// One roll-size side, normalized for display: word marks to symbols, spaces
+// out, the dotted feet-inches spelling read as feet-inches ("3'.3\"" → "3'3\"",
+// "3 FT 3 IN" → "3'3\""), a quote-less inches tail closed ("41'1" → "41'1\"").
+const rollSide = (t) => str(t)
+  .replace(/\s*f(?:oo|ee)?t\.?(?=$|[^a-z])/gi, "'")
+  .replace(/\s*in(?:ch(?:es)?)?\.?(?=$|[^a-z])/gi, '"')
+  .replace(/\s+/g, "")
+  .replace("'.", "'")
+  .replace(/'(\d+(?:\.\d+)?(?:-\d+\/\d+)?)$/, `'$1"`);
 // A genuine single-dimension shape size ('2" Hex') has no L×W cell — matched
 // only when SIZE_RE did not, so the vendor spelling lands in the size string
 // (the tile row shows it and derives a square L×W for grout/mortar) instead of
 // being shoved into the color name. A bare '6"' with no shape word is left in
 // the name on purpose — no shape word, no coverage.
-const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
-const INCH_MARK = `["']|in(?:ch(?:es)?)?\\b`;
 const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})?\\s*(${SHAPE_WORDS})\\b`, "i");
 // The MLS/ANA EFT sheets write the shape FIRST — 'HEXAGON 2 INCH', 'HEX 3 IN',
 // 'HEXAGON MOSAIC 2" MATTE'. Matched only when the number carries an inch mark,
@@ -132,8 +192,10 @@ const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})?\\s*(${SHAPE_WORD
 const SIZE_SHAPE_RE = new RegExp(`\\b(${SHAPE_WORDS})\\b\\s+((?:mos(?:aics?)?\\s+)?)(${DIM})\\s*(?:${INCH_MARK})`, "i");
 // "(12X10/SH)"-style packaging tokens (sheet dims + a per-unit) are never the
 // item's size — dropped before matching so the chip size wins and the name
-// keeps no "( /Sh)" litter.
-const PACKAGING_RE = /\(\s*[^)]*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs)\s*\)/gi;
+// keeps no "( /Sh)" litter. A bare count before the slash ("(10/BOX)",
+// Schluter's BEKOTEC panels) is the pieces-per-carton — returned as pcHint for
+// books whose PC/CT column is empty.
+const PACKAGING_RE = /\(\s*([^)]*?)\s*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs|bx|box|pk|pkg|bag|rl|roll|st|set|pr|kit)s?\s*\)/gi;
 // A mosaic's SHEET dimension — "(9X11 SHEET)", "13X13 SHT" — is the size of the
 // backing sheet, NOT the chip. It gives the sheet's area (so coverage can be
 // derived when the book leaves SF/CT blank) but must never stand in as the tile
@@ -162,6 +224,9 @@ const PENNY_DIM_INCH_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})`, "i");
 // THICK_FRAC_RE from reading the 1/4" of a leading 2-1/4" width as a
 // thickness, which left "2-" litter in the name.
 const LEAD_WIDTH_RE = new RegExp(`^\\s*(${DIM})\\s*["'](?!\\s*[x×])\\s*`);
+// The feet twin of LEAD_WIDTH_RE ("12' Prestige Sheet Vinyl") — tried first so
+// a foot-marked lead keeps its foot mark instead of reading as an inch width.
+const LEAD_FT_RE = new RegExp(`^\\s*(${FT_DIM})(?!\\s*[x×])\\s*`, "i");
 
 // SHOUTING vendor text → Title Case; already-cased text is left alone (so an
 // intentional acronym like "MSI Stone" survives, while "EARTH ASH GRAY" reads).
@@ -187,8 +252,11 @@ const seriesLeadWords = (label, pl) => {
 export function splitSizeFromDescription(desc, opts) {
   let s = str(desc);
   if (!s) return { size: "", thickness: "", name: "", sheetSize: "" };
-  let size = "", thickness = "", sheetSize = "";
-  s = s.replace(PACKAGING_RE, " ");
+  let size = "", thickness = "", sheetSize = "", pcHint = null;
+  s = s.replace(PACKAGING_RE, (m, inner) => {
+    if (pcHint == null && /^\d+$/.test(str(inner))) pcHint = +inner;
+    return " ";
+  });
   // A SHEET dimension is pulled out before the size regexes so its L×W can't be
   // read as the chip size — it is the mosaic's backing sheet, not the tile.
   const sheetTok = s.match(SHEET_TOKEN_RE);
@@ -200,7 +268,31 @@ export function splitSizeFromDescription(desc, opts) {
   // Thickness first, so "10MM" can't be mistaken for part of a size.
   const mm = s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
-  if (PENNY_RE.test(s)) {
+  const roll = s.match(ROLL_SIZE_RE);
+  if (roll) {
+    // A foot mark on either side makes the L×W a roll/sheet-goods size — kept
+    // whole as the vendor spells it, stripped from the name like SIZE_RE does.
+    size = `${rollSide(roll[1] || roll[3])}x${rollSide(roll[2] || roll[4])}`;
+    let cut = roll[0].length;
+    const third = s.slice(roll.index + cut).match(ROLL_THICK_RE);
+    if (third) {
+      if (!thickness) thickness = /^\d+\/\d+$/.test(third[1]) ? `${reduceFrac(...third[1].split("/").map(Number))}"` : `${third[1]}"`;
+      cut += third[0].length;
+    }
+    s = `${s.slice(0, roll.index)} ${s.slice(roll.index + cut)}`;
+  }
+  const t3 = !size ? s.match(THREE_IN_RE) : null;
+  const t3vals = t3 ? [t3[1], t3[2], t3[3]].map(dimVal) : null;
+  if (t3 && Math.min(...t3vals) < 1.5) {
+    const ti = t3vals.indexOf(Math.min(...t3vals));
+    const spelled = [t3[1], t3[2], t3[3]][ti];
+    if (!thickness) thickness = /^\d+\/\d+$/.test(spelled) ? `${reduceFrac(...spelled.split("/").map(Number))}"` : `${spelled}"`;
+    const [a, b] = t3vals.filter((_, i) => i !== ti);
+    size = `${a}x${b}`;
+    s = s.replace(t3[0], " ");
+  } else if (size) {
+    // roll branch above already landed the size
+  } else if (PENNY_RE.test(s)) {
     // Penny handled on its own so "penny round" is one shape, not a "Round" size.
     let dim = "";
     const before = s.match(PENNY_DIM_BEFORE_RE);
@@ -209,6 +301,10 @@ export function splitSizeFromDescription(desc, opts) {
     if (dim) size = `${dim}" Penny`;          // chip size → grout computes from it
     else if (!sheetSize) sheetSize = "Penny";  // no printed chip size → a "Penny sheet"
     s = s.replace(PENNY_STRIP_RE, " ");
+  } else if (opts?.leadWidth && LEAD_FT_RE.test(s)) {
+    const lead = s.match(LEAD_FT_RE);
+    size = rollSide(lead[1]);
+    s = s.slice(lead[0].length);
   } else if (opts?.leadWidth && LEAD_WIDTH_RE.test(s)) {
     const lead = s.match(LEAD_WIDTH_RE);
     size = `${lead[1]}"`;
@@ -243,17 +339,28 @@ export function splitSizeFromDescription(desc, opts) {
       }
     }
   }
+  if (!size) {
+    // A description ENDING on a lone feet dimension is a stick/coil length —
+    // Schluter profiles ("JOLLY EDGE TRIM 3/8 ALUM SATIN 10'", "DILEX-FIS
+    // INLAY GREY 100'"). Trailing only: a feet token mid-name is identity
+    // ("10 M ROLL" never has the mark), and it needs the mark to count.
+    const tail = s.match(new RegExp(`(?:^|\\s)(${FT_DIM})\\s*$`, "i"));
+    if (tail) { size = rollSide(tail[1]); s = s.slice(0, s.length - tail[0].length); }
+  }
   if (!thickness) {
     const fr = s.match(THICK_FRAC_RE);
     if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }
   }
   // A stripped size can hollow out a parenthesized token — "(9X11 SHEET)" →
-  // "( SHEET)" — so drop parens left holding nothing but a packaging word.
-  s = s.replace(/\(\s*(?:sheets?|shts?|sh|pcs?|nominal|nom)?\s*\)/gi, " ");
-  // Drop only leftover standalone "x" tokens (from a stripped size), never an
-  // "x" inside a word like "Max".
-  const name = smartCase(s.split(/\s+/).filter((w) => w && !/^[x×]$/i.test(w)).join(" "));
-  return { size, thickness, name, sheetSize };
+  // "( SHEET)" — so drop parens left holding nothing but a packaging word, or
+  // nothing but the "=" a stripped "(size = coverage)" pair leaves behind.
+  s = s.replace(/\(\s*(?:sheets?|shts?|sh|pcs?|nominal|nom|=)?\s*\)/gi, " ");
+  // Drop leftover standalone "x" and "=" tokens (from a stripped size or a
+  // stripped "size = coverage" pair), never an "x" inside a word like "Max";
+  // then a bare trailing period ("…SAND PEBBLE.") so vendor punctuation
+  // doesn't read as a mis-split.
+  const name = smartCase(s.split(/\s+/).filter((w) => w && !/^[x×=]$/i.test(w)).join(" ")).replace(/(\S)\.$/, "$1");
+  return { size, thickness, name, sheetSize, ...(pcHint != null ? { pcHint } : {}) };
 }
 
 // `review` (sku → flagReview, from the book's existing items) mutes the
@@ -367,7 +474,8 @@ export function floorTypeFromDescription(text, size) {
   if (TYPE_WOOD_RE.test(t)) return "hardwood";
   const lw = str(size).match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
   if (lw) return Math.max(+lw[1], +lw[2]) >= 36 ? "vinyl" : "tile";
-  return str(size) ? "hardwood" : null;
+  // A foot-marked size ("3'x167'" roll goods) is never a bare plank width.
+  return str(size) && !/'/.test(str(size)) ? "hardwood" : null;
 }
 
 function mappedItem(mapping, raw, sku, sem) {
@@ -387,13 +495,20 @@ function mappedItem(mapping, raw, sku, sem) {
   // amendment) is the backing sheet, never the chip — carried as sheetSize, with
   // the tile L×W left to the chip size below.
   let sheetSize = str(raw.sheetSize) || "", sfPerUnit = numOrNull(raw.sfPerUnit);
+  let pcHint = null;
   const coverage = numOrNull(raw.coverage);
+  // Does any of the row's units bundle coverage (carton/bundle/sheet/roll)?
+  const bundledUnit = [raw.unit, raw.orderUnit, raw.priceUnit].some((u) => COVERAGE_SOLD_RE.test(str(u)));
   if (mapping.sfFromDescription && sfPerUnit == null && descText) {
     const sf = descText.match(SF_DESC_RE);
+    // A suffixed coverage ("10.64sf/c", "134.5sf/roll") is per-unit wherever it
+    // appears; a BARE "N SF" is only coverage when the sell basis bundles it —
+    // on an EA row it is the product's own spec (a DITRA-HEAT cable's kit
+    // size, "CABLE 120V 101.9 SF") and stays in the name.
     // A coverage sitting at the very end after a separator ("… Membrane -
-    // 134.5sf/roll") leaves the separator dangling once it's pulled; interior
-    // ones are the vendor's own punctuation and stay.
-    if (sf) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")).replace(/\s*[-–—·,]\s*$/, ""); }
+    // 134.5sf/roll", "… Roll = 108 SF") leaves the separator dangling once
+    // it's pulled; interior ones are the vendor's own punctuation and stay.
+    if (sf && (/\//.test(sf[0]) || bundledUnit)) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")).replace(/(?:\s*[-–—·,=.])+\s*$/, ""); }
   }
   if (!size && descText) {
     const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize });
@@ -402,7 +517,20 @@ function mappedItem(mapping, raw, sku, sem) {
     // A sheet dimension only stands in when the description gave no chip size —
     // a real chip size (e.g. "2\" Hexagon") always wins for the tile L×W.
     if (split.sheetSize && !size && !sheetSize) sheetSize = split.sheetSize;
-    if (split.size || split.thickness || split.sheetSize) descText = split.name;
+    if (split.pcHint != null) pcHint = split.pcHint;
+    if (split.size || split.thickness || split.sheetSize || split.pcHint != null) descText = split.name;
+  }
+  // A bare trailing period is vendor punctuation, not information ("…SAND
+  // PEBBLE.") — dropped here as well as in the split, so rows where nothing
+  // extracts don't keep it and read as a mis-split (NAME_LITTER_RE).
+  descText = str(descText).replace(/\s*\.$/, "");
+  // An SF-priced roll/sheet with no stated coverage can still price: its
+  // feet-marked L×W IS the area one sell unit covers (DITRA-HEAT-DUO-PS
+  // "3'3\" X 33'" ≈ 107 sf/roll). Gated on the row NEEDING coverage to price —
+  // an RL-priced strip's dims stay dims.
+  if (sfPerUnit == null && coverage == null && /^(sf|sft|sqft)$/i.test(str(raw.priceUnit)) && bundledUnit) {
+    const a = feetArea(size);
+    if (a != null) sfPerUnit = a;
   }
   if (!type && mapping.typeFromDescription && sfPerUnit > 0 && COVERAGE_SOLD_RE.test(str(raw.unit))) {
     type = floorTypeFromDescription(descText, size);
@@ -471,7 +599,7 @@ function mappedItem(mapping, raw, sku, sem) {
     price,
     priceSqft: price != null && sfPerUnit > 0 ? round4(price / sfPerUnit) : null,
     sfPerUnit,
-    pcPerUnit: numOrNull(raw.pcPerUnit),
+    pcPerUnit: numOrNull(raw.pcPerUnit) ?? pcHint,
     coverage: numOrNull(raw.coverage),
     leadTime: str(raw.leadTime),
     msrp: numOrNull(raw.msrp),
@@ -619,16 +747,30 @@ export function detectVtcEft(sheets) {
         const flagCol = Number(mfgCol) - 1; // headerless status flag, left of MFG
         if (flagCol >= 0 && columns[flagCol] == null && !String(header[flagCol] ?? "").trim()) columns[flagCol] = "flag";
       }
+      // The brand-title line above the header (the same cell computeFingerprint
+      // reads): Virginia Tile reuses one template for every brand it
+      // distributes, and the brand decides what the rows ARE. A tile brand's
+      // untyped row is tile; Schluter's line is membranes, profiles and setting
+      // materials — no flooring at all, so nothing defaults to tile, and its
+      // coverage rides the description ("= 134.5 SF") instead of SF/CT.
+      let title = "";
+      for (let t = r - 1; t >= 0; t--) {
+        const text = (rows[t] || []).map((c) => str(c)).filter(Boolean).join(" ").trim();
+        if (text) { title = text; break; }
+      }
+      const schluter = /schluter/i.test(title);
       return {
         sheet: s.name,
         headerRow: r,
+        title,
         columns,
         // VTC item codes are 6-20 chars and often carry no digit
         // (WOWALPLRNDEDGE) — the digit-requiring default would drop them.
         skuPattern: "^[A-Z0-9]{6,20}$",
         flags: { xx: "discontinued", "*": "freight", "†": "freight", "•": "madeToOrder", "◪": "transitioning" },
         groupBy: "mfg",
-        defaultType: "tile",
+        defaultType: schluter ? null : "tile",
+        ...(schluter ? { sfFromDescription: true } : {}),
       };
     }
   }
