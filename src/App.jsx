@@ -64,6 +64,22 @@ const RAIL_W = 205;
 const UI_DESIGN_W = RAIL_W + 896;
 const UI_ZOOM_FLOOR = 0.7;
 
+// The last-open restore only honors a FRESH spot (owner ask 2026-08-09):
+// "ft-last-seen" is stamped every minute while the app is on screen and again
+// when the tab hides or unloads, and a boot more than RESTORE_MAX_AGE_MS after
+// the last stamp skips the ft-last-open/ft-open-layer restore — a mid-work
+// refresh keeps its place, opening the app an hour or more later starts at the
+// landing page. Nothing is lost either way (every edit already saved); this is
+// purely "a new sitting starts fresh". A missing stamp (first boot after this
+// shipped, or cleared storage) reads as fresh so the restore behaves as before.
+const RESTORE_MAX_AGE_MS = 60 * 60 * 1000;
+const restoreIsFresh = () => {
+  try {
+    const seen = Number(localStorage.getItem("ft-last-seen") || 0);
+    return !seen || Date.now() - seen <= RESTORE_MAX_AGE_MS;
+  } catch { return true; }
+};
+
 // ---- Kiln #14a grid input model ----------------------------------------
 // The area editing surface is a spreadsheet grid (same 9 columns as the
 // printed sheet, plus a slim utility column) over the exact same product
@@ -412,8 +428,9 @@ export default function App({ user, onSignOut }) {
   // reopens the project or customer that was on screen instead of dropping to
   // the landing page. Restored once after boot — through pickProject, so the
   // full record loads exactly as if it had been clicked — then the key just
-  // tracks the selection; a spot that no longer exists falls back to home.
-  const [restoreSpot, setRestoreSpot] = useState(() => { try { return JSON.parse(localStorage.getItem("ft-last-open") || "null"); } catch { return null; } });
+  // tracks the selection; a spot that no longer exists falls back to home, and
+  // a stale one (restoreIsFresh above) is skipped entirely.
+  const [restoreSpot, setRestoreSpot] = useState(() => { try { return restoreIsFresh() ? JSON.parse(localStorage.getItem("ft-last-open") || "null") : null; } catch { return null; } });
   useEffect(() => {
     if (loading || !restoreSpot) return;
     setRestoreSpot(null);
@@ -426,6 +443,20 @@ export default function App({ user, onSignOut }) {
     if (loading || restoreSpot) return;
     try { localStorage.setItem("ft-last-open", JSON.stringify({ projectId: selId, customerId: selCustId })); } catch (x) { }
   }, [selId, selCustId, loading, restoreSpot]);
+
+  // The freshness heartbeat behind restoreIsFresh: a minute interval while the
+  // tab is up, plus hide/pagehide so the last stamp lands as the user leaves.
+  // Initializers read the PREVIOUS session's stamp before this effect first
+  // writes (state init runs during render, effects after commit).
+  useEffect(() => {
+    const stamp = () => { try { localStorage.setItem("ft-last-seen", String(Date.now())); } catch (x) { } };
+    stamp();
+    const t = setInterval(stamp, 60_000);
+    const onHide = () => { if (document.visibilityState === "hidden") stamp(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", stamp);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onHide); window.removeEventListener("pagehide", stamp); };
+  }, []);
 
   useEffect(() => { if (focusArea && areaRefs.current[focusArea]) { const el = areaRefs.current[focusArea]; el.focus(); el.select?.(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusArea(null); } }, [focusArea, data]);
   useEffect(() => { if (focusProd && typeRefs.current[focusProd]) { const el = typeRefs.current[focusProd]; el.focus(); el.scrollIntoView?.({ behavior: "smooth", block: "center" }); setFocusProd(null); } }, [focusProd, data]);
@@ -524,7 +555,7 @@ export default function App({ user, onSignOut }) {
   // configurator layer additionally waits for the restored project's full
   // record so the row it was opened from exists again. A layer that can't be
   // re-created (its project/row is gone) is simply dropped.
-  const [restoreLayer, setRestoreLayer] = useState(() => { try { return JSON.parse(localStorage.getItem("ft-open-layer") || "null"); } catch { return null; } });
+  const [restoreLayer, setRestoreLayer] = useState(() => { try { return restoreIsFresh() ? JSON.parse(localStorage.getItem("ft-open-layer") || "null") : null; } catch { return null; } });
   useEffect(() => {
     if (loading || restoreSpot || !restoreLayer) return;
     const L = restoreLayer;
