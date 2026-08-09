@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion } from "./stock.js";
@@ -25,6 +25,20 @@ const MATERIAL_CATEGORIES = [
   { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side" },
   { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
 ];
+
+// Shrink-to-fit (the wedi popup's rig; issue 074's shrink-don't-squeeze
+// doctrine, which scaled the desktop shell but deliberately left modals
+// unscaled — so this workspace kept squashing on small screens). The workspace
+// is DRAWN at one width — sidebar + the materials section's two list columns +
+// a detail pane wide enough for its max-w-xl content — and zoomed to the frame
+// it's given, so a phone gets the whole layout smaller instead of the fixed
+// columns eating the detail pane. `zoom` (not transform) because it is a real
+// layout scale: percent sizes still fill the frame, and the DotMenu/popover
+// portals to document.body keep anchoring in viewport pixels, unscaled.
+// The floor is a backstop for sub-phone windows (owner 2026-08-09: scale
+// first, revert if the type gets too small) — below it the overlay scrolls.
+const SETTINGS_DESIGN_W = 1240;
+const SETTINGS_ZOOM_FLOOR = 0.24;
 
 // Escapes regex metacharacters out of a book-row word before it's used to
 // build a live RegExp — rule.prefix is user-editable text (e.g. "(RTU)",
@@ -177,6 +191,27 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   const [confirmDelCat, setConfirmDelCat] = useState(false);
   const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick, query? } | { bookId, description, rule?, name?, forDraft|forProduct }
   const [showLinkMigration, setShowLinkMigration] = useState(false); // LinkMigration opener
+
+  // Shrink-to-fit: measure the overlay's usable width (its padding steps
+  // 8→20px at md) and zoom the card to it. Floored, not rounded — w/zoom must
+  // stay ≥ the design width or the card's minWidth adds a 1px scrollbar.
+  const shellRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const on = () => {
+      const cs = getComputedStyle(el);
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      if (w <= 0) return;
+      const z = Math.min(1, Math.max(SETTINGS_ZOOM_FLOOR, Math.floor((w / SETTINGS_DESIGN_W) * 1000) / 1000));
+      setZoom((p) => (p === z ? p : z));
+    };
+    on();
+    const ro = new ResizeObserver(on);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Spread the whole catalog, not just companies, so sibling fields
   // (defaults, removedSeeds) survive a company/product edit.
@@ -721,8 +756,8 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   );
 
   return (
-    <div className="print:hidden fixed inset-0 z-50 p-2 md:p-5" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div ref={shellRef} className="print:hidden fixed inset-0 z-50 p-2 md:p-5 overflow-auto" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden" style={{ zoom, minWidth: zoom <= SETTINGS_ZOOM_FLOOR ? SETTINGS_DESIGN_W : 0 }} onClick={(e) => e.stopPropagation()}>
         <aside className="w-56 shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col">
           <div className="px-4 pt-4 pb-3 flex items-center justify-between">
             <h3 className="ft-serif text-2xl">Settings</h3>

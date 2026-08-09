@@ -153,7 +153,13 @@ src/
                     # Edit parks a SKU in the Claude issue bucket (filter chip +
                     # paste-ready copy report for a Claude session)
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
-                    # `MATERIAL_CATEGORIES` lives here
+                    # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
+                    # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
+                    # and zoomed to the overlay's measured width, so a phone
+                    # gets the whole layout smaller instead of the fixed
+                    # columns eating the detail pane; the low ZOOM_FLOOR is a
+                    # sub-phone backstop (owner: scale first, revert if the
+                    # type gets too small), below which the overlay scrolls
   catalog.js        # settings normalization + material math + shared catalog
   pricebook.js      # generic mapped import for registry books (ADR 0009) +
                     # vendor template recognizers (VTC EFT, ERP Vendor SKU
