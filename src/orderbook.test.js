@@ -166,6 +166,29 @@ test("normOrderItem drops ERP noise words from the description", () => {
   assert.equal(normOrderItem({ sku: "X4", description: "New Packaging Mosaic Sheet" }).description, "Mosaic Sheet");
   // never inside a word
   assert.equal(normOrderItem({ sku: "X5", description: "Phenominally Blue" }).description, "Phenominally Blue");
+  // The VTC EFT spellings: "*NEW PKG" abbreviated, starred, even glued to the
+  // finish word — the asterisks go with it (VTCCHWH1224N / VTCCHWHMOS22 report).
+  assert.equal(normOrderItem({ sku: "X6", description: "Chevron White Rect *New Pkg" }).description, "Chevron White Rect");
+  assert.equal(normOrderItem({ sku: "X7", description: "Mayfair Allure Ivory Pol*New Pkg*" }).description, "Mayfair Allure Ivory Pol");
+  assert.equal(normOrderItem({ sku: "X8", description: "Soho Canvas White Glossy *NEW PKG*" }).description, "Soho Canvas White Glossy");
+  // "++" markers and "*2022 PROD" production-run stamps are the same class.
+  assert.equal(normOrderItem({ sku: "X9", description: "Chevron White Mosaic 2x2 ++" }).description, "Chevron White Mosaic 2x2");
+  assert.equal(normOrderItem({ sku: "XA", description: "La Marca Calacatta Pol *2022 Prod" }).description, "La Marca Calacatta Pol");
+  assert.equal(normOrderItem({ sku: "XB", description: "Oddball Grey Hexagon 2022 Production" }).description, "Oddball Grey Hexagon");
+  // A bare year or "Prod" without the year is identity, not a run stamp.
+  assert.equal(normOrderItem({ sku: "XC", description: "Heritage 2022 Collection" }).description, "Heritage 2022 Collection");
+  assert.equal(normOrderItem({ sku: "XD", description: "Pro Duty Membrane" }).description, "Pro Duty Membrane");
+});
+
+test("normOrderItem title-cases an ALL-CAPS description, leaves cased text alone", () => {
+  // Accessory rows with no size to extract skipped the split's smartCase and
+  // imported SHOUTING (LATDSGRACS10OZ / SLRJ100TSSG report); the load path
+  // recases them so existing rows read right without a re-import.
+  assert.equal(normOrderItem({ sku: "LATDSGRACS10OZ", description: "GROUT ADMIX ACRYLIC 10 OZ" }).description, "Grout Admix Acrylic 10 Oz");
+  // Any lowercase letter marks the text as already cased — left untouched, so
+  // an intentional acronym survives.
+  assert.equal(normOrderItem({ sku: "X1", description: "MSI Stone Sealer" }).description, "MSI Stone Sealer");
+  assert.equal(normOrderItem({ sku: "X2", description: "Silverado Sanded Grout 25LB" }).description, "Silverado Sanded Grout 25LB");
 });
 
 test("normBookItem reads the book_id/active/updated_at columns and the data blob", () => {

@@ -128,7 +128,8 @@ test("parseMapped: a description leading with the ABBREVIATED product line isn't
     columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 5: "description", 6: "productLine", 9: "cost", 10: "priceUnit", 11: "orderUnit", 12: "pcPerUnit", 13: "sfPerUnit" },
   };
   const { items } = parseMapped(rows, mapping);
-  assert.equal(bySku(items, "MRZMC571224RN").description, "Moroccan Concrete Charcoal Rect *New Pkg");
+  // "*NEW PKG" is ERP repack noise — normOrderItem's cleanDescription drops it.
+  assert.equal(bySku(items, "MRZMC571224RN").description, "Moroccan Concrete Charcoal Rect");
   assert.equal(bySku(items, "MRZMC571224RN").size, "12x24");
   // A 2-letter abbreviation counts once the lead word has anchored the match.
   assert.equal(bySku(items, "MRZMS01WL").description, "Middleton Square Wall Latte Gloss");
@@ -148,6 +149,23 @@ test("parseMapped: with no description column, color + style are the fallback na
   };
   const t = bySku(parseMapped(rows, mapping).items, "CER0000009");
   assert.equal(t.description, "Presley Bianco Carrara");
+});
+
+test("parseMapped: an accessory description with nothing to extract still Title-Cases", () => {
+  // The LATDSGRACS10OZ report: no size/thickness/sheet in the text meant the
+  // split's smartCase never ran and the row imported SHOUTING — worse when a
+  // Title-Cased product line joined on and the mixed result dodged the
+  // no-lowercase test downstream.
+  const rows = [
+    ["", "VTC MFG", "Color", "Pattern", "VTC Item Code", "", "Product Line", "", "", "Dealer", "U/M", "", "", "", ""],
+    ["", "LAT", "", "", "LATDSGRACS10OZ", "GROUT ADMIX ACRYLIC 10 OZ", "PERMACOLOR", "", "", 8.5, "EA", "", "", "", ""],
+  ];
+  const mapping = {
+    headerRow: 0, skuPattern: "^[A-Z0-9]{9,16}$",
+    columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 5: "description", 6: "productLine", 9: "cost", 10: "unit" },
+  };
+  const t = bySku(parseMapped(rows, mapping).items, "LATDSGRACS10OZ");
+  assert.equal(t.description, "Permacolor Grout Admix Acrylic 10 Oz");
 });
 
 test("parseMapped: only SKU-pattern rows are consumed (the honesty guarantee)", () => {
