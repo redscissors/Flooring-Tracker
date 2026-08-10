@@ -557,6 +557,9 @@ const VSA_WORKBOOK = [sheet("Vendor SKU Analysis", [
   // A real OHIVA mosaic sold by the SHEET, coverage printed with no leading
   // zero (".969sf/sh") — the "969" must not read as the coverage.
   ["22974", "2x2 Atlas Concorde Mosaic - 600110000217 Rid Bg .969sf/sh", 12.15, 18.22, "SH", "AUSRIBEMOS22", "600110000217", "C29AOAL", 2, 2],
+  // The MANMI adhesive from the Claude issue bucket (1518014): a gallon-sold
+  // accessory whose text carries a SPREAD RATE, not a sell-basis coverage.
+  ["1518014", "1Gal Mannington M Grip Adhesive - 250 sf", 48, 72, "GL", "588683", "588683", "", 4, 4],
 ])];
 
 test("detectVendorSkuAnalysis: recognizes the export, maps the known columns", () => {
@@ -592,7 +595,7 @@ test("detectVendorSkuAnalysis: null without the signature", () => {
 test("Vendor SKU Analysis mapping: retail + cost both land; SF/carton pulled from the description", () => {
   const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
   const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
-  assert.equal(items.length, 11);
+  assert.equal(items.length, 12);
   const spline = items.find((i) => i.sku === "05153"); // leading zero survives
   assert.equal(spline.price, 0.48);
   assert.equal(spline.cost, 0.3);
@@ -640,6 +643,25 @@ test("Vendor SKU Analysis: carton-sold rows with coverage become typed flooring"
   assert.equal(items.find((i) => i.sku === "07879").type, null);   // EA underlayment, 500sf/roll
   // A carton-sold row with no sf in its text can't do sqft math — named, not silent.
   assert.ok(warnings.some((w) => /carton-sold/.test(w) && /94593/.test(w)), warnings.join(" | "));
+});
+
+// Issue bucket 8/10 — MANMI 1518014, 1Gal M Grip Adhesive: a pre-gate import
+// stored it as vinyl covering 250 sf, so it priced $0.192/sqft (the psf-outlier
+// flag Marcus parked) instead of $48 → $72 the gallon. The U/M gate keeps a
+// GL row an untyped count line — its "250 sf" is a spread rate, never a sell
+// basis — and since type/sfPerUnit are diffed fields (BOOK_FIELDS), a re-import
+// of the current export rewrites the stale row.
+test("Vendor SKU Analysis: a gallon-sold adhesive stays an untyped count line (MANMI 1518014)", () => {
+  const m = detectVendorSkuAnalysis(VSA_WORKBOOK);
+  const { items } = parseMapped(VSA_WORKBOOK[0].rows, m);
+  const glue = items.find((i) => i.sku === "1518014");
+  assert.equal(glue.type, null);
+  assert.equal(glue.sfPerUnit, null);
+  assert.equal(glue.priceSqft, null);
+  assert.equal(glue.unit, "GL");
+  assert.equal(glue.cost, 48);
+  assert.equal(glue.price, 72);
+  assert.deepEqual(glue.vendorSkus, ["588683"]);
 });
 
 // SKU 22974: a sheet-sold mosaic whose coverage prints with no leading zero
