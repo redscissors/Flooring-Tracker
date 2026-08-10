@@ -555,7 +555,11 @@ function mappedItem(mapping, raw, sku, sem) {
   // so VTC's "EARTH" line doesn't read "Earth Earth Ash Gray" and Marazzi's
   // "MOROCCAN CONC …" doesn't read "Moroccan Concrete Moroccan Conc …".
   const pl = smartCase(str(raw.productLine));
-  const label = descText || [smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean).join(" ");
+  // smartCase here as well as in the split: a row where nothing extracted (an
+  // accessory with no size in its text) still carries the vendor's raw CAPS,
+  // and joining a Title-Cased product line onto it would produce mixed case
+  // that normOrderItem's own smartCase then rightly leaves alone.
+  const label = smartCase(descText) || [smartCase(str(raw.color)), smartCase(str(raw.style))].filter(Boolean).join(" ");
   const lead = seriesLeadWords(label, pl);
   const name = lead
     ? [pl, smartCase(label.split(/\s+/).slice(lead).join(" "))].filter(Boolean).join(" ")

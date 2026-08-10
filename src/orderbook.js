@@ -35,7 +35,13 @@ const round4 = (n) => (n == null ? null : Math.round(n * 10000) / 10000);
 // "POL*NEW PKG*"), same reasoning — a stray "*" would read as litter.
 const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?|new\\s+pkgs?|(?:19|20)\\d{2}\\s+prod(?:uction)?";
 const DESC_NOISE_RE = new RegExp(`\\(\\s*(?:${DESC_NOISE})\\s*\\)|\\*+\\s*(?:${DESC_NOISE})\\s*\\**|\\b(?:${DESC_NOISE})\\b\\s*\\**|\\+{2,}`, "gi");
-const cleanDescription = (v) => str(v).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim();
+// SHOUTING vendor text → Title Case, already-cased text left alone (pricebook's
+// smartCase, applied here too because the import only cases descriptions the
+// size-split touched — accessory rows with nothing to extract kept the vendor's
+// ALL CAPS, the LATDSGRACS10OZ / SLRJ100TSSG report).
+const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+const smartCase = (s) => (s && !/[a-z]/.test(s) ? titleCase(s) : s);
+const cleanDescription = (v) => smartCase(str(v).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim());
 
 // The Claude issue-bucket mark ({ by, at, note? }) — a SKU parked for a later
 // Claude session to dig into. Presence is the whole state; junk shapes drop.

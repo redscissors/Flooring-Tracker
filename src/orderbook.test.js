@@ -180,6 +180,17 @@ test("normOrderItem drops ERP noise words from the description", () => {
   assert.equal(normOrderItem({ sku: "XD", description: "Pro Duty Membrane" }).description, "Pro Duty Membrane");
 });
 
+test("normOrderItem title-cases an ALL-CAPS description, leaves cased text alone", () => {
+  // Accessory rows with no size to extract skipped the split's smartCase and
+  // imported SHOUTING (LATDSGRACS10OZ / SLRJ100TSSG report); the load path
+  // recases them so existing rows read right without a re-import.
+  assert.equal(normOrderItem({ sku: "LATDSGRACS10OZ", description: "GROUT ADMIX ACRYLIC 10 OZ" }).description, "Grout Admix Acrylic 10 Oz");
+  // Any lowercase letter marks the text as already cased — left untouched, so
+  // an intentional acronym survives.
+  assert.equal(normOrderItem({ sku: "X1", description: "MSI Stone Sealer" }).description, "MSI Stone Sealer");
+  assert.equal(normOrderItem({ sku: "X2", description: "Silverado Sanded Grout 25LB" }).description, "Silverado Sanded Grout 25LB");
+});
+
 test("normBookItem reads the book_id/active/updated_at columns and the data blob", () => {
   const it = normBookItem({ sku: "V9", active: false, updated_at: "2026-07-12T00:00:00Z", data: { cost: 4.5, mfg: "CER", freightFlag: true } }, "book_1");
   assert.equal(it.bookId, "book_1");
