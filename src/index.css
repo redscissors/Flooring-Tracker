@@ -429,7 +429,33 @@ input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfie
 .ft-sheet{animation:ft-sheet-up .26s cubic-bezier(.32,.72,.29,1);}
 .ft-sheet-scrim{animation:ft-scrim-in .2s ease;}
 
-@media print{ @page{ margin:1.4cm } body{ -webkit-print-color-adjust:exact; print-color-adjust:exact } .bg-slate-50{background-color:#fff;} }
+/* Print is ink-only (issue 085). Most estimates land on grayscale lasers,
+   which halftone every mid-tone: the moss labels, tinted bands, alpha
+   hairlines and colored option bands dithered out light and speckled. On
+   paper the palette collapses to solid black — text and rules print 100% K,
+   tinted fills become white boxes with a rule (.ft-pbox/.ft-pchip), and the
+   band headers invert to paper-on-ink (.ft-pband). The on-screen Print
+   preview keeps the color; these rules bite only in print media, and a
+   color printer gets the same crisp black sheet. */
+@media print{
+  @page{ margin:1.4cm }
+  body{ -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  .bg-slate-50{background-color:#fff;}
+  .ft-light{
+    --ft-paper-ink:#000; --ft-paper-muted:#000; --ft-paper-faint:#000;
+    --ft-paper-rule:#000; --ft-paper-band:#fff; --ft-paper-footer:#000;
+    --ft-brand:#000; --ft-brand-deep:#000; --ft-brand-soft:transparent;
+    --ft-border:#000; --ft-border-strong:#000; --ft-logo:#000;
+  }
+  .ft-light .ft-pband{background:#000 !important;}
+  .ft-light .ft-pband, .ft-light .ft-pband *{color:#fff !important;}
+  .ft-light .ft-pbox{background:#fff !important;border:1px solid #000;}
+  .ft-light .ft-pchip{border:1px solid #000;}
+  .ft-light .ft-pbadge{background:#fff !important;border-color:#000 !important;}
+  .ft-light .ft-pbadge *{color:#000 !important;}
+  .ft-light .ft-popt{border-color:#000 !important;}
+  .ft-light .ft-pink{color:#000 !important;}
+}
 
 /* Area cards take the grid line as their resting outline (a touch darker than
    the default hairline) so the card border reads as one continuous line with

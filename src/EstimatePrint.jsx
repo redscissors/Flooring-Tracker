@@ -68,7 +68,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             {sel.notes && <div className="text-sm mb-4 italic text-slate-600">{sel.notes}</div>}
             {tv.proj.categories.map((a, ai) => { const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0); return (
               <div key={a.id} className="mb-5 break-inside-avoid">
-                <div className="flex justify-between items-center" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
+                <div className="ft-pband flex justify-between items-center" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
                   <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                   <div className="ft-mono" style={{ fontSize: 10 }}>{[areaSf > 0 ? `${sf1(areaSf)} SF` : "", showTotals && printAreaFloor(a, tSet) > 0 ? money(printAreaFloor(a, tSet)) : ""].filter(Boolean).join(" · ")}</div>
                 </div>
@@ -105,7 +105,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
                 <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
-                <div style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "14px 16px" }}>
+                <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "14px 16px" }}>
                   <div style={{ columns: 2, columnGap: 28 }}>
                     {(() => {
                       // pMats is pre-sorted by PRINT_KINDS, so same-kind items are
@@ -213,7 +213,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             {inline.length > 0 && (
               <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
                 {inline.map((m, i) => (
-                  <span key={i} style={{ fontSize: 10, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "2px 10px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <span key={i} className="ft-pchip" style={{ fontSize: 10, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "2px 10px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
                   </span>
                 ))}
@@ -246,7 +246,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
         <div className="flex justify-between items-center" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 12, marginBottom: 14 }}>
           <img src={keimLogo} alt="Keim" style={{ height: 40, width: "auto", display: "block", flexShrink: 0 }} />
-          <div style={{ flex: "0 1 auto", maxWidth: 320, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 6, padding: "5px 14px", lineHeight: 1.28 }}>
+          <div className="ft-pbadge" style={{ flex: "0 1 auto", maxWidth: 320, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 6, padding: "5px 14px", lineHeight: 1.28 }}>
             <div className="uppercase" style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
             <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 2 }}>For planning purposes only · pricing subject to change on final order</div>
           </div>
@@ -276,7 +276,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           const areaHasExtras = a.products.some((p) => printProduct(p, tSet).mats.length > 0);
           return (
             <div key={a.id} className="break-inside-avoid" style={{ marginBottom: 12 }}>
-              <div className="flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "6px 12px", minHeight: 28 }}>
+              <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "6px 12px", minHeight: 28 }}>
                 <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                 {showUnit && areaHasExtras && <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
               </div>
@@ -288,7 +288,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         {pMats.length > 0 && (
           <div className="break-inside-avoid" style={{ margin: "15px 0 6px" }}>
             <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 6 }}>{optionPrint ? "Setting materials & sundries — shared areas" : "Extras"}</div>
-            <div style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "11px 15px" }}>
+            <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "11px 15px" }}>
               <div style={{ columns: 2, columnGap: 28 }}>
                 {groups.map((g, gi) => (
                   <div key={gi} className="break-inside-avoid" style={{ marginBottom: 9 }}>
@@ -328,8 +328,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         {optionPrint && (
           <>
             {optionPrint.sections.map((S) => (
-              <div key={S.slot} className="break-inside-avoid" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 9, overflow: "hidden" }}>
-                <div className="flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", padding: "5px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em" }}>
+              <div key={S.slot} className="ft-popt break-inside-avoid" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 9, overflow: "hidden" }}>
+                <div className="ft-pband flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", padding: "5px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em" }}>
                   Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}
                   {/* Only areas someone actually named earn the header — a list of
                       "Area 01 · Area 02" placeholders says nothing. */}
@@ -337,8 +337,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 </div>
                 {S.cats.flatMap((a) => a.products.filter((p) => !rowBlank(p))).map((p, pi) => renderProduct(p, pi))}
                 {showTotals && S.t.matLines.length > 0 && (
-                  <div style={{ margin: "2px 8px 8px", borderRadius: 4, padding: "7px 10px 8px", background: `color-mix(in srgb, ${S.color.main} 7%, #fff)` }}>
-                    <div className="uppercase" style={{ fontSize: 7, fontWeight: 800, letterSpacing: ".2em", color: S.color.main, marginBottom: 4 }}>Materials for this option</div>
+                  <div className="ft-pbox" style={{ margin: "2px 8px 8px", borderRadius: 4, padding: "7px 10px 8px", background: `color-mix(in srgb, ${S.color.main} 7%, #fff)` }}>
+                    <div className="ft-pink uppercase" style={{ fontSize: 7, fontWeight: 800, letterSpacing: ".2em", color: S.color.main, marginBottom: 4 }}>Materials for this option</div>
                     {S.t.matLines.map((m, i) => (
                       <div key={i} className="flex justify-between" style={{ gap: 12, fontSize: 8.8, padding: "1.5px 0" }}>
                         <span><b style={{ fontWeight: 800 }}>{m.kind}</b> · {m.product} — {m.order} {u1(m.order, m.unit)}{m.sku ? <span style={{ color: "var(--ft-muted)", fontSize: 8 }}> · SKU {m.sku}</span> : null}</span>
@@ -362,8 +362,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           <div className="break-inside-avoid" style={{ borderTop: "2px solid var(--ft-text)", marginTop: 12, paddingTop: 10 }}>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${optionPrint.sections.length}, 1fr)`, gap: 8 }}>
               {optionPrint.sections.map((S) => (
-                <div key={S.slot} style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, padding: "7px 10px 8px" }}>
-                  <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".14em", color: S.color.main }}>Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}</div>
+                <div key={S.slot} className="ft-popt" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, padding: "7px 10px 8px" }}>
+                  <div className="ft-pink uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".14em", color: S.color.main }}>Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}</div>
                   <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{money(S.whole)}</div>
                   {hasShared && <div style={{ fontSize: 7.5, color: "var(--ft-paper-muted)" }}>incl. shared areas {money(optionPrint.sharedT.grandTotal)}</div>}
                 </div>
