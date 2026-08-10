@@ -128,8 +128,9 @@ test("parseMapped: a description leading with the ABBREVIATED product line isn't
     columns: { 1: "mfg", 2: "color", 3: "style", 4: "sku", 5: "description", 6: "productLine", 9: "cost", 10: "priceUnit", 11: "orderUnit", 12: "pcPerUnit", 13: "sfPerUnit" },
   };
   const { items } = parseMapped(rows, mapping);
-  // "*NEW PKG" is ERP repack noise — normOrderItem's cleanDescription drops it.
-  assert.equal(bySku(items, "MRZMC571224RN").description, "Moroccan Concrete Charcoal Rect");
+  // "*NEW PKG" is ERP repack noise and "RECT" an edge stamp — normOrderItem's
+  // cleanDescription drops both.
+  assert.equal(bySku(items, "MRZMC571224RN").description, "Moroccan Concrete Charcoal");
   assert.equal(bySku(items, "MRZMC571224RN").size, "12x24");
   // A 2-letter abbreviation counts once the lead word has anchored the match.
   assert.equal(bySku(items, "MRZMS01WL").description, "Middleton Square Wall Latte Gloss");

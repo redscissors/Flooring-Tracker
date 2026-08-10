@@ -26,22 +26,33 @@ const round4 = (n) => (n == null ? null : Math.round(n * 10000) / 10000);
 
 // ERP stock-keeping words that mean nothing on a selection ("NOMINAL" size
 // qualifiers, "NEW PACKAGE"/"*NEW PKG*" repack notes, "*2022 PROD" run stamps,
-// "++" markers) — dropped from the description here, the one point both the
+// "++" markers, "RECT"/"RECTIFIED" edge stamps — owner ask 2026-08-10, the
+// COEREBE1836R report: the selection names the product, not the edge
+// treatment) — dropped from the description here, the one point both the
 // import parse and the DB-row load pass through, so already-imported items
 // clean up on load without a re-import.
 // Parenthesized form first, so "(Nominal)" goes whole — a generic empty-paren
 // sweep would also hide the residue the name-litter advisory exists to flag.
 // The starred forms take their asterisks with them (VTC glues them on:
 // "POL*NEW PKG*"), same reasoning — a stray "*" would read as litter.
-const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?|new\\s+pkgs?|(?:19|20)\\d{2}\\s+prod(?:uction)?";
+const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?|new\\s+pkgs?|(?:19|20)\\d{2}\\s+prod(?:uction)?|rect(?:ified)?";
 const DESC_NOISE_RE = new RegExp(`\\(\\s*(?:${DESC_NOISE})\\s*\\)|\\*+\\s*(?:${DESC_NOISE})\\s*\\**|\\b(?:${DESC_NOISE})\\b\\s*\\**|\\+{2,}`, "gi");
+// A parenthesized letters-and-digits token is the manufacturer's own color/run
+// code riding a VTC description ("REVERSO BEIGE MATTE 18X36 RECT (RV492R)",
+// same report) — internal bookkeeping, never part of the name. Only a mixed
+// token goes: a size-shaped "(12X24)" is the split's to claim, a word
+// "(Interior)" is identity, and a bare number stays because an old ERP row's
+// trailing code is the trims fallback key (trims.js vendorCodeCandidates).
+const PAREN_CODE_RE = /\(\s*([A-Za-z0-9][A-Za-z0-9./-]{1,15})\s*\)/g;
+const dropParenCodes = (s) => s.replace(PAREN_CODE_RE, (m, tok) =>
+  (/\d/.test(tok) && /[a-z]/i.test(tok) && !/^\d+(?:\.\d+)?[x×]\d+(?:\.\d+)?$/i.test(tok) ? " " : m));
 // SHOUTING vendor text → Title Case, already-cased text left alone (pricebook's
 // smartCase, applied here too because the import only cases descriptions the
 // size-split touched — accessory rows with nothing to extract kept the vendor's
 // ALL CAPS, the LATDSGRACS10OZ / SLRJ100TSSG report).
 const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 const smartCase = (s) => (s && !/[a-z]/.test(s) ? titleCase(s) : s);
-const cleanDescription = (v) => smartCase(str(v).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim());
+const cleanDescription = (v) => smartCase(dropParenCodes(str(v)).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim());
 
 // The Claude issue-bucket mark ({ by, at, note? }) — a SKU parked for a later
 // Claude session to dig into. Presence is the whole state; junk shapes drop.

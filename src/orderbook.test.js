@@ -168,7 +168,7 @@ test("normOrderItem drops ERP noise words from the description", () => {
   assert.equal(normOrderItem({ sku: "X5", description: "Phenominally Blue" }).description, "Phenominally Blue");
   // The VTC EFT spellings: "*NEW PKG" abbreviated, starred, even glued to the
   // finish word — the asterisks go with it (VTCCHWH1224N / VTCCHWHMOS22 report).
-  assert.equal(normOrderItem({ sku: "X6", description: "Chevron White Rect *New Pkg" }).description, "Chevron White Rect");
+  assert.equal(normOrderItem({ sku: "X6", description: "Chevron White Rect *New Pkg" }).description, "Chevron White");
   assert.equal(normOrderItem({ sku: "X7", description: "Mayfair Allure Ivory Pol*New Pkg*" }).description, "Mayfair Allure Ivory Pol");
   assert.equal(normOrderItem({ sku: "X8", description: "Soho Canvas White Glossy *NEW PKG*" }).description, "Soho Canvas White Glossy");
   // "++" markers and "*2022 PROD" production-run stamps are the same class.
@@ -178,6 +178,23 @@ test("normOrderItem drops ERP noise words from the description", () => {
   // A bare year or "Prod" without the year is identity, not a run stamp.
   assert.equal(normOrderItem({ sku: "XC", description: "Heritage 2022 Collection" }).description, "Heritage 2022 Collection");
   assert.equal(normOrderItem({ sku: "XD", description: "Pro Duty Membrane" }).description, "Pro Duty Membrane");
+});
+
+test("normOrderItem drops RECT edge stamps and parenthesized vendor codes", () => {
+  // The COEREBE1836R report (owner ask 2026-08-10): "Reverso Beige Matte Rect
+  // (Rv492r)" should read "Reverso Beige Matte" — the edge treatment and the
+  // manufacturer's own color code are bookkeeping, not the product's name.
+  assert.equal(normOrderItem({ sku: "C1", description: "Reverso Beige Matte Rect (Rv492r)" }).description, "Reverso Beige Matte");
+  assert.equal(normOrderItem({ sku: "C2", description: "MOROCCAN CONC CHARCOAL RECTIFIED" }).description, "Moroccan Conc Charcoal");
+  // never inside a word — a rectangle stays a rectangle, Directoire a name
+  assert.equal(normOrderItem({ sku: "C3", description: "Rectangle Mosaic Bianco" }).description, "Rectangle Mosaic Bianco");
+  assert.equal(normOrderItem({ sku: "C4", description: "Directoire Blue Gloss" }).description, "Directoire Blue Gloss");
+  // Only a mixed letters-and-digits paren token is a code: a size-shaped
+  // "(12X24)" and a plain word stay, and a bare number stays because it can be
+  // an old ERP row's trims-fallback key.
+  assert.equal(normOrderItem({ sku: "C5", description: "Uncut Sheet (12X24)" }).description, "Uncut Sheet (12X24)");
+  assert.equal(normOrderItem({ sku: "C6", description: "Ridge Panel (Interior)" }).description, "Ridge Panel (Interior)");
+  assert.equal(normOrderItem({ sku: "C7", description: "Noble Oak Reducer (384421)" }).description, "Noble Oak Reducer (384421)");
 });
 
 test("normOrderItem title-cases an ALL-CAPS description, leaves cased text alone", () => {
