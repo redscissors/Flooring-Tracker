@@ -28,14 +28,15 @@ const round4 = (n) => (n == null ? null : Math.round(n * 10000) / 10000);
 // qualifiers, "NEW PACKAGE"/"*NEW PKG*" repack notes, "*2022 PROD" run stamps,
 // "++" markers, "RECT"/"RECTIFIED" edge stamps — owner ask 2026-08-10, the
 // COEREBE1836R report: the selection names the product, not the edge
-// treatment) — dropped from the description here, the one point both the
-// import parse and the DB-row load pass through, so already-imported items
-// clean up on load without a re-import.
+// treatment; "(NEW COLOR)" line-introduction stamps — owner ask 2026-08-11,
+// the CTIDEFD312 report) — dropped from the description here, the one point
+// both the import parse and the DB-row load pass through, so already-imported
+// items clean up on load without a re-import.
 // Parenthesized form first, so "(Nominal)" goes whole — a generic empty-paren
 // sweep would also hide the residue the name-litter advisory exists to flag.
 // The starred forms take their asterisks with them (VTC glues them on:
 // "POL*NEW PKG*"), same reasoning — a stray "*" would read as litter.
-const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?|new\\s+pkgs?|(?:19|20)\\d{2}\\s+prod(?:uction)?|rect(?:ified)?";
+const DESC_NOISE = "nominal|new\\s+packag(?:e|ing)s?|new\\s+pkgs?|new\\s+colors?|(?:19|20)\\d{2}\\s+prod(?:uction)?|rect(?:ified)?";
 const DESC_NOISE_RE = new RegExp(`\\(\\s*(?:${DESC_NOISE})\\s*\\)|\\*+\\s*(?:${DESC_NOISE})\\s*\\**|\\b(?:${DESC_NOISE})\\b\\s*\\**|\\+{2,}`, "gi");
 // A parenthesized letters-and-digits token is the manufacturer's own color/run
 // code riding a VTC description ("REVERSO BEIGE MATTE 18X36 RECT (RV492R)",

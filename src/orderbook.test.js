@@ -178,6 +178,14 @@ test("normOrderItem drops ERP noise words from the description", () => {
   // A bare year or "Prod" without the year is identity, not a run stamp.
   assert.equal(normOrderItem({ sku: "XC", description: "Heritage 2022 Collection" }).description, "Heritage 2022 Collection");
   assert.equal(normOrderItem({ sku: "XD", description: "Pro Duty Membrane" }).description, "Pro Duty Membrane");
+  // "(NEW COLOR)" line-introduction stamps are the same class (the CTIDEFD312
+  // report, owner ask 2026-08-11) — parenthesized, starred, or bare.
+  assert.equal(normOrderItem({ sku: "XE", description: "Fondovalle Delta Fondo 12x24 (New Color)" }).description, "Fondovalle Delta Fondo 12x24");
+  assert.equal(normOrderItem({ sku: "XF", description: "Silverado Power Grout *NEW COLOR*" }).description, "Silverado Power Grout");
+  assert.equal(normOrderItem({ sku: "XG", description: "Delta Ash Matte New Colors" }).description, "Delta Ash Matte");
+  // never inside a word, and "Color" alone is identity
+  assert.equal(normOrderItem({ sku: "XH", description: "Renew Colorbody Porcelain" }).description, "Renew Colorbody Porcelain");
+  assert.equal(normOrderItem({ sku: "XI", description: "New Colorado Slate" }).description, "New Colorado Slate");
 });
 
 test("normOrderItem drops RECT edge stamps and parenthesized vendor codes", () => {
