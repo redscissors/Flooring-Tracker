@@ -18,6 +18,8 @@ import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
+import { ClaudeMark, FlagForClaude } from "./claudeflag.jsx";
+import { bookSource } from "./claudeissues.js";
 import { Modal } from "./widgets.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 
@@ -49,19 +51,6 @@ const NEW_BOOK = "__new__";
 
 // Claude's starburst mark, drawn inline (lucide has no Claude icon) — the book
 // table's issue-bucket button. Inherits currentColor like its lucide neighbours.
-const CLAUDE_RAYS = Array.from({ length: 12 }, (_, i) => {
-  const a = (i * Math.PI) / 6;
-  const r = i % 2 ? 8.2 : 10.6;
-  const c = Math.cos(a), s = Math.sin(a);
-  return [12 + 4.4 * c, 12 + 4.4 * s, 12 + r * c, 12 + r * s].map((n) => Math.round(n * 10) / 10);
-});
-function ClaudeMark({ size = 13 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
-      {CLAUDE_RAYS.map(([x1, y1, x2, y2], i) => <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />)}
-    </svg>
-  );
-}
 
 // A folder tab on the book page (owner sketch 2026-08-07): label over a live
 // summary line. The active tab merges into the drawer below it — its bottom
@@ -383,7 +372,7 @@ function QuickMarkupsCard({ value, onChange }) {
   );
 }
 
-export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -598,7 +587,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : selBook ? (
-        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
@@ -832,7 +821,7 @@ function itemDetailBits(it) {
 }
 
 // Exported for the preview harness (like FreightCard).
-export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
+export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
@@ -956,12 +945,28 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
     .filter((it) => it.flagReview && Object.values(it.flagReview).some((e) => e.state === "confirmed"))
     .map((it) => ({ item: it, codes: Object.keys(it.flagReview).filter((c) => it.flagReview[c].state === "confirmed"), state: null })));
 
-  // Park/unpark a SKU in the Claude issue bucket. The write returns the stamped
-  // mark, merged back so the button and the bucket count restyle immediately.
+  // Park/unpark a SKU in the Claude issue bucket. Parking goes through the
+  // shared Flag-for-Claude popover (issue 087): the item mark still writes —
+  // it powers this book's filter chip — AND a central issue lands, so the
+  // bucket is one list wherever the flag was born. Unparking clears only the
+  // mark; the central issue is worked from Issues & To-Do. Without the
+  // addClaudeIssue prop (preview harness) the button keeps the old plain
+  // toggle. The write returns the stamped mark, merged back so the button and
+  // the bucket count restyle immediately.
+  const [flagIt, setFlagIt] = useState(null);
   const toggleIssue = async (it) => {
+    if (!it.claudeIssue && addClaudeIssue) return setFlagIt(it);
     try {
       const claudeIssue = await setBookItemIssue(book.id, it, !it.claudeIssue);
       setItems((its) => (its || []).map((x) => (x.sku === it.sku ? { ...x, claudeIssue } : x)));
+    } catch (x) { /* surfaced by setBookItemIssue */ }
+  };
+  const flagAdd = async (text, source) => {
+    const it = flagIt;
+    try {
+      const claudeIssue = await setBookItemIssue(book.id, it, true);
+      setItems((its) => (its || []).map((x) => (x.sku === it.sku ? { ...x, claudeIssue } : x)));
+      addClaudeIssue(text, source);
     } catch (x) { /* surfaced by setBookItemIssue */ }
   };
 
@@ -1227,7 +1232,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
                           <button onClick={() => applyReview([{ item: it, codes: reviewedCodes, state: null }])} title="Undo — flag this row again" className="text-[11px] rounded border border-slate-200 text-slate-500 px-1.5 py-0.5 mr-1 hover:bg-slate-50">Undo</button>
                         ))}
                         <button onClick={() => setDisabled([it.sku], !it.disabled)} title={it.disabled ? "Enable — offer this SKU in search again" : "Disable — hide this SKU from search (estimates that already picked it keep their prices)"} className="text-slate-300 hover:text-slate-600 mr-2 align-middle">{it.disabled ? <Eye size={13} /> : <EyeOff size={13} />}</button>
-                        <button onClick={() => toggleIssue(it)} title={it.claudeIssue ? `In the Claude issue bucket${it.claudeIssue.by ? ` — parked by ${it.claudeIssue.by}` : ""}${it.claudeIssue.at ? ` ${new Date(it.claudeIssue.at).toLocaleDateString()}` : ""}. Click to remove.` : "Park this SKU in the Claude issue bucket — collect problem rows here, then use the bucket's Copy report to dig into them with Claude"} className={`mr-2 align-middle ${it.claudeIssue ? "text-[#D97757] hover:text-[#b85c3f]" : "text-slate-300 hover:text-slate-600"}`}><ClaudeMark size={13} /></button>
+                        <button onClick={() => toggleIssue(it)} title={it.claudeIssue ? `In the Claude issue bucket${it.claudeIssue.by ? ` — parked by ${it.claudeIssue.by}` : ""}${it.claudeIssue.at ? ` ${new Date(it.claudeIssue.at).toLocaleDateString()}` : ""}. Click to remove this book's mark.` : "Flag this SKU for Claude — a note is optional; it lands on the central Claude issues list (Issues & To-Do) and in this book's filter chip"} className={`mr-2 align-middle ${it.claudeIssue ? "text-[#D97757] hover:text-[#b85c3f]" : "text-slate-300 hover:text-slate-600"}`}><ClaudeMark size={13} /></button>
                         <button onClick={() => setEditItem(it)} title="Edit this item" className="text-slate-300 hover:text-slate-600 align-middle"><Pencil size={13} /></button>
                       </td>
                     </tr>
@@ -1237,6 +1242,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
             </table>
           </div>
           {(filtered.length > shown.length) && <p className="text-[11px] text-slate-400 mt-1">Showing {shown.length} of {filtered.length}.</p>}
+          <FlagForClaude ctx={flagIt ? { source: bookSource(book, flagIt) } : null} onAdd={flagAdd} onClose={() => setFlagIt(null)} />
         </>
       )}
 

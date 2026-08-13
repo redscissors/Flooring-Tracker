@@ -52,6 +52,8 @@ supabase/
                     # workbook (ADR 0027 amendment 2026-07-22); the table and its
                     # data are kept but no code reads or writes it
   todos.sql         # run once: todos table + RLS (team issue / to-do list)
+  claude-issues.sql # run once: claude_issues table + RLS (the central Claude
+                    # issue bucket — "Flag for Claude" from anywhere, issue 087)
   labels.sql        # run once: labels table + RLS (Apps hub label set)
   pricebooks.sql    # run once: price book registry + items + versions tables
                     # + RLS (ADR 0009; docs/pricebook/design.md)
@@ -126,7 +128,11 @@ they agree or the auto quantity isn't computable.
   `reviewBookItemFlags` (data jsonb, no edited stamp); the Claude issue-bucket
   mark writes only through `setBookItemIssue` (same contract); `applyBookImport`
   carries the previous row's `flagReview` and `claudeIssue` onto changed upserts
-  so verdicts and bucket marks survive re-import. Keep these write paths; don't
+  so verdicts and bucket marks survive re-import. Central Claude issues (issue
+  087, their own `claude_issues` table) write only through `addClaudeIssue`/
+  `updateClaudeIssue`/`delClaudeIssue`/`clearDoneClaudeIssues`
+  (useclaudeissues.js); a price-book flag writes BOTH — the item mark (the
+  book's filter chip) and the central row. Keep these write paths; don't
   write ad hoc.
 - `normC/normA/normP` and `mergeSettings` normalize loaded/imported data — extend
   these when adding fields so old records stay valid.

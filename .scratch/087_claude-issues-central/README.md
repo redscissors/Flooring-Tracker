@@ -1,6 +1,39 @@
 # Central Claude issues + right-click "Flag for Claude" on product lines (2026-08-13)
 
-Status: proposal — UI prototype for review
+Status: done — built 2026-08-13 after prototype approval ("Go ahead and build")
+
+## What shipped (see the R*.png screenshots — the real components)
+
+- `supabase/claude-issues.sql` — the `claude_issues` table (todos-shaped, RLS).
+  **Run once by hand in the dashboard before merging** — until then flags show
+  "Save failed — run supabase/claude-issues.sql?" and nothing persists.
+- `src/claudeissues.js` (+ tests) — issue shape, source builders (snapshot at
+  flag time + live ids), the cross-source copy report.
+- `src/useclaudeissues.js` — write paths, shaped like useTodos.
+- `src/claudeflag.jsx` — shared ClaudeMark + the one FlagForClaude popover.
+- `src/linemenu.jsx` + App wiring — the ⋯ replaces the row's hand + trash
+  (option A: click = menu, hold-and-pull = the existing startDrag; right-click
+  on the row too, suppressed inside fields). Duplicate / Move to area /
+  Flag for Claude / Delete (existing inline confirm). Flagged rows wear a
+  small clay ✳ beside the dots. The empty search-row adder keeps its old
+  hand + trash.
+- `src/TeamTodos.jsx` — tab strip: Team list (unchanged) | Claude bucket
+  (source chips, copy report, general add, done section). Sidebar badge
+  splits ink (team) / clay (Claude).
+- Price book ✳ now opens the same popover and writes BOTH the item mark
+  (book filter chip) and a central issue; unpark clears only the mark.
+- Mobile row sheet gets a "Flag for Claude" button over the same popover.
+
+### Decided during build
+
+- **No migration of existing `claudeIssue` marks** — that would be an agent
+  writing live data (non-negotiable #1). Old parked SKUs keep working from
+  the book page; re-flag them to bring them into the central list, or the
+  owner can ask for a one-shot migration SQL later.
+- "Copy for order entry" stayed OUT of the line menu — it needs the order
+  panel's computed row context; the panel already has per-line copy.
+
+## Original request
 
 Request:
 

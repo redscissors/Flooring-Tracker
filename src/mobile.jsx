@@ -14,6 +14,7 @@ import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { unitCode } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { FitSelect, useEscClose } from "./widgets.jsx";
+import { ClaudeMark } from "./claudeflag.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { GridSizeInput } from "./grid.jsx";
 
@@ -243,7 +244,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, onClose, qtyRef, notify, strictness, fallback }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -619,6 +620,11 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
         <label className={fl}>Note</label>
         <input value={p.note} onChange={(e) => onPatch({ note: e.target.value })} placeholder="note…" className={fi + " italic font-normal"} />
       </div>
+      {onFlag && (
+        <button onClick={onFlag} className="mt-3 w-full h-[38px] rounded-md border text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: "#B85C3F", borderColor: "color-mix(in oklab, #D97757 45%, transparent)", background: "var(--ft-card, #fff)" }}>
+          <ClaudeMark size={13} /> Flag for Claude
+        </button>
+      )}
       {canDelete && (confirmDel ? (
         <div className="flex items-center gap-2 mt-3">
           <span className="text-xs text-red-600 flex-1">Delete this selection{p.brandColor ? ` — "${p.brandColor}"` : ""}? Its materials come off the estimate too.</span>

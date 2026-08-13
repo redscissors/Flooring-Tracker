@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
@@ -39,6 +39,10 @@ import { seedTrimPlan, applyTrimPlan, existingTrimRows, mergeTrimOptions, vendor
 import TrimsPopup from "./TrimsPopup.jsx";
 import { unitCode, unitNoun } from "./units.js";
 import { useTodos } from "./usetodos.js";
+import { useClaudeIssues } from "./useclaudeissues.js";
+import { jobSource } from "./claudeissues.js";
+import { FlagForClaude, ClaudeMark, CLAUDE_CLAY } from "./claudeflag.jsx";
+import { LineMenu } from "./linemenu.jsx";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
@@ -411,6 +415,7 @@ export default function App({ user, onSignOut }) {
       // the Apps hub opens, not here.
       await Promise.allSettled([
         trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
+        trace.span("claude", () => loadClaudeIssues(supabase)).then(hydrateClaudeIssues, () => { }),
         trace.span("books", () => loadBooks(supabase))
           .then((rows) => hydrateBooks(rows), () => { })
           .finally(() => setBooksHydrated(true)),
@@ -537,6 +542,18 @@ export default function App({ user, onSignOut }) {
     showTodos, setShowTodos,
     openTodos, addTodo, toggleTodo, delTodo, clearDoneTodos, reorderTodos,
   } = useTodos({ user, profile, ping, flashSaved, setSidebarOpen });
+  const {
+    claudeIssues, hydrateClaudeIssues, refreshClaudeIssues,
+    addClaudeIssue, toggleClaudeIssue, delClaudeIssue, clearDoneClaudeIssues,
+  } = useClaudeIssues({ user, profile, ping, flashSaved });
+  // Which Issues & To-Do tab is up; the sidebar button refreshes both lists.
+  const [issuesTab, setIssuesTab] = useState("team");
+  const openIssues = (tab) => { if (tab) setIssuesTab(tab); openTodos(); refreshClaudeIssues(); };
+  // The line menu (issue 087): { x, y, aid, pid, pi } — opened by a click on a
+  // row's ⋯ or a right-click on the row. flagCtx feeds the shared popover.
+  const [lineMenu, setLineMenu] = useState(null);
+  const [flagCtx, setFlagCtx] = useState(null);
+  const flaggedRows = useMemo(() => new Set(claudeIssues.filter((i) => !i.done && i.source.productId).map((i) => i.source.productId)), [claudeIssues]);
   const {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
@@ -812,6 +829,37 @@ export default function App({ user, onSignOut }) {
       if (a.id === toAid) { products = [...products]; products.splice(toIndex, 0, p); }
       return { ...a, products };
     }) });
+  };
+
+  const duplicateProduct = (aid, pid) => {
+    const a = sel.categories.find((x) => x.id === aid);
+    const i = a ? a.products.findIndex((x) => x.id === pid) : -1;
+    if (i < 0) return;
+    const copy = { ...structuredClone(a.products[i]), id: uid() };
+    updateProject(sel.id, { categories: sel.categories.map((c) => c.id !== aid ? c : { ...c, products: [...c.products.slice(0, i + 1), copy, ...c.products.slice(i + 1)] }) });
+  };
+
+  // The row-end ⋯ is the line's one grip (issue 087, owner "option A"): a hold
+  // arms startDrag exactly like the old hand icon; a release before the hold
+  // arms — and without slipping — is a plain click and opens the line menu.
+  const dotsPointer = (e, aid, p, pi) => {
+    if (e.button != null && e.button !== 0) return;
+    const node = e.currentTarget.closest("[data-prod-card]");
+    const at = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    const onMove = (ev) => { if (Math.hypot(ev.clientX - at.x, ev.clientY - at.y) > 6) moved = true; };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      // Registered before startDrag's own pointerup, so an armed drag still
+      // carries data-dragging here — that release is a drop, not a click.
+      if (!moved && !node?.dataset.dragging) setLineMenu({ x: at.x, y: at.y, aid, pid: p.id, pi });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    startDrag(e, aid, p, pi);
   };
 
   // Pointer-driven drag of a product card (mouse + touch via pointer events).
@@ -1259,9 +1307,10 @@ export default function App({ user, onSignOut }) {
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
-              <button onClick={openTodos} title="Team issues & to-do list" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
+              <button onClick={() => openIssues()} title="Team issues & to-do list — the clay count is the Claude issue bucket" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
                 <ListTodo size={15} /> Issues
                 {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
+                {claudeIssues.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{claudeIssues.filter((t) => !t.done).length}</span>}
               </button>
             </div>
           </div>
@@ -1767,6 +1816,7 @@ export default function App({ user, onSignOut }) {
                               else setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) });
                             }}
                             onDelete={() => delProduct(a.id, p.id)}
+                            onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
                             onClose={() => setRowSheet(null)}
                             qtyRef={(el) => { if (el) qtyRefs.current[p.id] = el; }} />
                         ) : null;
@@ -1821,7 +1871,13 @@ export default function App({ user, onSignOut }) {
                             ) : (<>
                             {/* main product row: the 9-column grid (desktop only — the
                                 phone renders MobileProductRow above instead) */}
-                            <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
+                            <div onContextMenu={(e) => {
+                              // Right-click opens the line menu (issue 087) — except inside a
+                              // field, where the native menu (paste!) must keep working.
+                              if (e.target.closest("input,textarea,select,[contenteditable]")) return;
+                              e.preventDefault();
+                              setLineMenu({ x: e.clientX, y: e.clientY, aid: a.id, pid: p.id, pi });
+                            }} style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                                 {/* no expand carrot — the materials pill opens the drawer,
@@ -1901,8 +1957,8 @@ export default function App({ user, onSignOut }) {
                                 <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
                               )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
-                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
-                                {a.products.length > 1 && <button tabIndex={-1} onClick={() => setConfirmProd({ aid: a.id, pid: p.id })} title="Delete this selection" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
+                                {flaggedRows.has(p.id) && <span title="Flagged for Claude — see Issues & To-Do" style={{ color: CLAUDE_CLAY }}><ClaudeMark size={11} /></span>}
+                                <button tabIndex={-1} onPointerDown={(e) => dotsPointer(e, a.id, p, pi)} title="Line menu — hold and pull to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-600"><MoreHorizontal size={13} /></button>
                               </div>
                             </div>
                             {confirmProd?.aid === a.id && confirmProd?.pid === p.id && (
@@ -2443,7 +2499,7 @@ export default function App({ user, onSignOut }) {
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
           bookStock={bookStock} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} />
+          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} />
         </Suspense>
         </LazyBoundary>
       )}
@@ -2484,9 +2540,30 @@ export default function App({ user, onSignOut }) {
 
       {showTodos && (
         <Modal onClose={() => setShowTodos(false)} title="Issues & To-Do">
-          <TeamTodos todos={todos} onAdd={addTodo} onToggle={toggleTodo} onDelete={delTodo} onReorder={reorderTodos} onClearDone={clearDoneTodos} inp={inp} />
+          <TeamTodos todos={todos} onAdd={addTodo} onToggle={toggleTodo} onDelete={delTodo} onReorder={reorderTodos} onClearDone={clearDoneTodos} inp={inp}
+            tab={issuesTab} onTab={setIssuesTab}
+            claude={{ issues: claudeIssues, onAdd: (text) => addClaudeIssue(text, { kind: "general" }), onToggle: toggleClaudeIssue, onDelete: delClaudeIssue, onClearDone: clearDoneClaudeIssues }} />
         </Modal>
       )}
+
+      {/* The line menu + shared Flag-for-Claude popover (issue 087). */}
+      {lineMenu && sel && (() => {
+        const ai = sel.categories.findIndex((x) => x.id === lineMenu.aid);
+        const a = sel.categories[ai];
+        const p = a?.products.find((x) => x.id === lineMenu.pid);
+        if (!p) return null;
+        const title = [p.sizeText || (p.L && p.W ? `${p.L}×${p.W}` : ""), p.brandColor].filter(Boolean).join(" ") || "This line";
+        return <LineMenu menu={lineMenu} title={title} subtitle={areaLabel(a, ai)}
+          areas={sel.categories.filter((c) => c.id !== a.id).map((c) => ({ id: c.id, name: areaLabel(c, sel.categories.indexOf(c)) }))}
+          canDelete={a.products.length > 1}
+          onClose={() => setLineMenu(null)}
+          onDuplicate={() => duplicateProduct(a.id, p.id)}
+          onMoveTo={(toAid) => moveProduct(a.id, p.id, toAid, sel.categories.find((c) => c.id === toAid)?.products.length ?? 0)}
+          onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
+          onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
+      })()}
+      <FlagForClaude ctx={flagCtx} onClose={() => setFlagCtx(null)}
+        onAdd={(text, source) => { addClaudeIssue(text, source); ping("Added to Claude issues"); }} />
 
       {/* Sheoga vendor configurator (issue 023) — opened from a row's search
           ("she" pins the vendor row) or its "Sheoga — reconfigure" chip. Job

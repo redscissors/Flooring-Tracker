@@ -5,6 +5,7 @@
 // node --test, besides dragging the client SDK into a dependency-free suite.
 import { fetchAllRows } from "./fetchall.js";
 import { normLabel } from "./labels.js";
+import { normClaudeIssue } from "./claudeissues.js";
 import { normalizeSettings, serializeSettings, catalogHasSeedUnderlayments } from "./catalog.js";
 
 export const SHARED_SETTINGS_ID = "singleton";
@@ -97,6 +98,14 @@ export const loadTodos = async (db) => {
   const { data: rows, error } = await db.from("todos").select("id, position, data").order("position");
   if (error) throw error;
   return (rows || []).map(todoFromRow);
+};
+
+// Central Claude issue list (issue 087) — newest first; the list is bounded
+// (flags get worked and cleared), so no fetchAllRows.
+export const loadClaudeIssues = async (db) => {
+  const { data: rows, error } = await db.from("claude_issues").select("id, data").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (rows || []).map((r) => normClaudeIssue({ id: r.id, ...(r.data || {}) }));
 };
 
 // Labels page with fetchAllRows since the shared set can exceed the 1000-row cap.
