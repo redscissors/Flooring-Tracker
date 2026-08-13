@@ -8,7 +8,9 @@
 // category:
 //
 //   full   the written-out description fits as-is
-//   short  every category still present, each abbreviated ("White Oak" → "WO")
+//   short  every category still present, abbreviated ("White Oak" → "WO") —
+//          but only as far as the field requires: leftover room is spent
+//          writing words back out, most important first (see promote)
 //   split  even abbreviated it overruns, so the field takes the identity
 //          categories with a trailing "+" and the FULL text goes to the ERP's
 //          extended-text field as a second copy
@@ -27,6 +29,24 @@ const MARK = "+";
 const rankOf = (p) => p.rank || 0;
 const text = (p, key) => String((key === "short" ? p.short || p.full : p.full) || "").trim();
 const join = (parts, key) => parts.map((p) => text(p, key)).filter(Boolean).join(" ");
+
+// With every part abbreviated the field often has room to spare, and an
+// all-short line wastes it ("WO Char Sol" in a 30-char field). Spend the
+// headroom writing words back out, most important first — lowest rank, print
+// order within a rank — keeping each promotion only if the line still fits.
+// Greedy on purpose: deterministic, and the identity words get the room before
+// the cosmetic ones do.
+const promote = (parts, budget) => {
+  const pick = parts.map((p) => text(p, "short"));
+  const width = () => pick.filter(Boolean).join(" ").length;
+  const order = parts.map((p, i) => ({ p, i })).sort((a, b) => rankOf(a.p) - rankOf(b.p) || a.i - b.i);
+  for (const { p, i } of order) {
+    const was = pick[i];
+    pick[i] = text(p, "full");
+    if (width() > budget) pick[i] = was;
+  }
+  return pick.filter(Boolean).join(" ");
+};
 
 // Last resort on the split rung: cut at a word boundary so a half-word never
 // reads as an abbreviation we meant. When there is no boundary — one word longer
@@ -52,7 +72,7 @@ export function fitDescription(parts, limit) {
   if (!(lim > 0) || full.length <= lim) return { tier: "full", main: full, ext: null, full, over: 0 };
 
   const short = join(clean, "short");
-  if (short && short.length <= lim) return { tier: "short", main: short, ext: null, full, over: 0 };
+  if (short && short.length <= lim) return { tier: "short", main: promote(clean, lim), ext: null, full, over: 0 };
 
   // Split rung. Reserve room for " +" so the marker never pushes it back over.
   const budget = lim - MARK.length - 1;
@@ -71,7 +91,9 @@ export function fitDescription(parts, limit) {
   }
   // A cut that lands after a separator leaves "Small-order fee — +", which reads
   // as a typo rather than a continuation.
-  const body = clip(join(kept, "short"), budget).replace(/[\s–—·,;:-]+$/, "");
+  // When the drop loop stopped at the identity floor the all-short join still
+  // overruns — promote finds nothing to accept and clip does the work as before.
+  const body = clip(promote(kept, budget), budget).replace(/[\s–—·,;:-]+$/, "");
   const main = `${body} ${MARK}`.trim();
   return { tier: "split", main, ext: full, full, over: Math.max(0, main.length - lim) };
 }

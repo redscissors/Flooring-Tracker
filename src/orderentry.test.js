@@ -99,7 +99,8 @@ test("orderDescription: the copy button carries the description field, nothing e
 test("orderDescription: a Sheoga row abbreviates from its configuration, dropping the vendor prefix", () => {
   const d = orderDescription(sheogaRow(floorCfg), 30);
   assert.equal(d.tier, "short");
-  assert.equal(d.main, 'CT 5¼" WO Char Sol T-1 30sh');
+  // 3 spare chars after abbreviating: species and grade overrun, Solid fits.
+  assert.equal(d.main, 'CT 5¼" WO Char Solid T-1 30sh');
   assert.ok(!d.main.includes("Sheoga"), "the PO already names the vendor");
   assert.ok(!d.main.includes("ignored"), "structured parts beat the row's name text");
   assert.equal(d.ext, null);

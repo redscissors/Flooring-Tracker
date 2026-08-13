@@ -487,9 +487,12 @@ src/
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
                     # down a ladder: `full` (fits as written) -> `short` (every
-                    # category kept, each abbreviated) -> `split` (identity in the
-                    # field with a trailing "+", the complete text going to the
-                    # ERP's extended-text field as a second copy). Parts are
+                    # category kept, abbreviated only as far as the field
+                    # requires — `promote` spends the leftover room writing
+                    # words back out, most important first) -> `split` (identity
+                    # in the field with a trailing "+", the complete text going
+                    # to the ERP's extended-text field as a second copy; kept
+                    # categories fill back out the same way). Parts are
                     # { full, short, rank }; rank is DROP priority, not print
                     # order, and rank 0 is identity and never dropped
   orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` (a row

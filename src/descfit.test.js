@@ -22,12 +22,24 @@ test("no limit means no fitting", () => {
   for (const lim of [0, null, undefined, ""]) assert.equal(fitDescription(P, lim).tier, "full");
 });
 
-test("short rung: every category survives, abbreviated", () => {
+test("short rung: every category survives, abbreviated only as far as needed", () => {
   const r = fitDescription(P, 30);
   assert.equal(r.tier, "short");
-  assert.equal(r.main, "WO Char Sol SawCut 30sh");
+  // All-short is 23 chars — the 7 spare go to the species, the most important
+  // word that fits written out; nothing later fits full.
+  assert.equal(r.main, "White Oak Char Sol SawCut 30sh");
   assert.equal(r.ext, null, "nothing spilled, so no extended text");
   assert.ok(r.main.length <= 30);
+});
+
+test("headroom goes to the most important words first, in print order", () => {
+  const parts = [
+    { full: "Character", short: "Char", rank: 0 },
+    { full: "30 sheen", short: "30sh", rank: 1 },
+  ];
+  // Either could fit written out alone; rank 0 claims the room.
+  const r = fitDescription(parts, 14);
+  assert.equal(r.main, "Character 30sh");
 });
 
 test("split rung: drops by rank, marks the overflow, and spills the full text", () => {
@@ -62,7 +74,8 @@ test("within a rank the later-printed category drops first", () => {
     { full: "2'–8' lengths", short: "2-8'", rank: 2 },
   ];
   const r = fitDescription(parts, 12);
-  assert.equal(r.main, "WO SawCut +");
+  // Lengths dropped; the texture then gets the leftover room written back out.
+  assert.equal(r.main, "WO Saw Cut +");
 });
 
 test("identity is never dropped — an impossible limit clips to whole words", () => {
@@ -158,7 +171,8 @@ test("an ordinary configuration fits 30 characters without splitting", () => {
   const built = calcConfig({ mode: "floor", cfg }, 400);
   const r = fitDescription(descParts({ mode: "floor", cfg }), DEFAULT_DESC_LIMIT);
   assert.equal(r.tier, "short");
-  assert.equal(r.main, '5¼" WO Char Sol T-1 30sh');
+  // The species (+7) overruns, so the grade takes the room instead.
+  assert.equal(r.main, '5¼" WO Character Sol T-1 30sh');
   assert.equal(r.full, built.desc);
   assert.equal(r.ext, null);
 });

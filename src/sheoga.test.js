@@ -176,7 +176,7 @@ test("calcFloor: custom color always charges the $750 sample; established stain 
 test("calcFloor: Live Sawn 9¼–11¼ carry no carton figure", () => {
   const c = calcFloor(floor({ sp: LIVE_SAWN_SP, w: 11.25 }), 1000);
   assert.equal(c.cartonSf, null);
-  assert.ok(c.desc.startsWith('11¼" Live Sawn White Oak Live Sawn'));
+  assert.ok(c.desc.startsWith('11¼" Live Sawn White Oak Solid'));
   assert.equal(calcFloor(floor({ sp: LIVE_SAWN_SP, w: 10.25, cons: "eng" }), 1000), null); // solid-only width
 });
 
@@ -608,7 +608,7 @@ test("seedFromQuery snaps an unavailable width to the first offered one", () => 
 test("gradeName / finishName", () => {
   assert.equal(gradeName(floor()), "Character");
   assert.equal(gradeName(floor({ grade: "clear" })), "Clear");
-  assert.equal(gradeName(floor({ sp: LIVE_SAWN_SP })), "Live Sawn");
+  assert.equal(gradeName(floor({ sp: LIVE_SAWN_SP })), "", "one-grade product — the species names the cut");
   assert.equal(finishName(floor()), "Unfinished");
   assert.equal(finishName(floor({ finish: "nat" })), "Prefinished Natural");
   assert.equal(finishName(floor({ finish: "est", stain: "Nutmeg" })), "Prefinished Nutmeg stain");
