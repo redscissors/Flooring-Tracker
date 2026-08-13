@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Claude Issue Bucket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --band:#E7E3D6; --prod:#F1EDE2;
+    --border:rgba(28,26,23,.10); --border-strong:rgba(28,26,23,.25); --row-line:#ECE8DC;
+    --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A;
+    --moss-soft:color-mix(in oklab, #57703A 13%, transparent);
+    --tint:color-mix(in oklab, #57703A 6%, #fff);
+    --hover:color-mix(in oklab, #57703A 7%, transparent);
+    --clay:#D97757; --clay-deep:#B85C3F;
+    --clay-soft:color-mix(in oklab, #D97757 12%, transparent);
+    --red:#B4231F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--cream);color:var(--ink)}
+  body{font-family:Manrope,ui-sans-serif,system-ui,sans-serif;padding:18px 20px 140px;max-width:1060px;margin:0 auto}
+  svg{display:block}
+  button{font-family:inherit;cursor:pointer}
+  .eyebrow{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.16em;color:var(--moss-deep);margin-bottom:6px}
+  h1{font-size:21px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+  .sub{font-size:12.5px;color:var(--muted);margin:6px 0 14px;max-width:72ch;line-height:1.55}
+  .sub b{color:var(--ink)}
+
+  .tabs{position:sticky;top:0;z-index:60;display:flex;gap:6px;padding:8px 0 10px;background:linear-gradient(var(--cream) 85%,transparent);flex-wrap:wrap}
+  .tab{border:1px solid var(--border-strong);background:var(--card);border-radius:999px;padding:6.5px 14px;font-size:12.5px;font-weight:700;color:var(--muted)}
+  .tab:hover{background:var(--hover)}
+  .tab.on{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .scene{display:none}
+  .scene.on{display:block}
+  .hint{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--moss-deep);background:var(--moss-soft);border:1px solid color-mix(in oklab, var(--moss) 30%, transparent);border-radius:8px;padding:5px 10px;margin:10px 0}
+  .paper{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 26px rgba(28,26,23,.07);overflow:hidden}
+  .notes{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .note{flex:1 1 240px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .note h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:5px}
+  .note p{font-size:11.5px;color:var(--muted);line-height:1.55}
+  .note p b{color:var(--ink)}
+
+  /* ---- scene 1: the job sheet slice ---- */
+  .projhead{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .projhead .cust{font-size:15px;font-weight:800}
+  .projhead .meta{font-size:11px;color:var(--faint)}
+  .projhead .tier{margin-left:auto;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--moss-deep);background:var(--moss-soft);border-radius:5px;padding:3px 7px}
+  .areaband{display:flex;align-items:baseline;gap:8px;background:var(--band);padding:6px 14px;font-size:12px;font-weight:800;letter-spacing:.02em}
+  .areaband .sf{font-size:10.5px;font-weight:600;color:var(--muted)}
+  .gridhead,.gridrow{display:grid;grid-template-columns:.85fr 2.75fr 1fr .55fr .55fr .7fr .8fr 40px;align-items:center}
+  .gridhead{background:var(--band);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .gridhead>div{padding:5px 9px;border-right:1px solid var(--row-line)}
+  .gridhead>div:last-child{border-right:none}
+  .gridrow{font-size:11px;font-weight:600;border-bottom:1px solid var(--row-line);background:var(--card)}
+  .gridrow:hover{background:var(--tint)}
+  .gridrow>div{padding:7px 9px;border-right:1px solid var(--row-line);min-width:0}
+  .gridrow>div:last-child{border-right:none}
+  .cell-sub{display:block;font-size:9.5px;font-weight:500;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .typechip{display:inline-block;font-size:8px;font-weight:700;color:#fff;border-radius:4px;padding:1.5px 5px;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .dots{border:none;background:none;color:var(--faint);font-weight:800;font-size:13px;border-radius:6px;padding:2px 6px;margin:0 auto;display:block;cursor:grab;touch-action:none}
+  .dots:hover{background:var(--hover);color:var(--ink)}
+  .dropbar{position:absolute;left:4px;right:4px;height:3px;border-radius:99px;background:var(--moss);z-index:80;pointer-events:none}
+  .rowflag{color:var(--clay);display:inline-flex;vertical-align:-2px;margin-left:5px}
+
+  /* ---- context menu ---- */
+  .menu{position:fixed;z-index:200;min-width:218px;background:var(--card);border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 14px 38px rgba(28,26,23,.22);padding:5px;display:none}
+  .menu.on{display:block}
+  .menu .mhead{font-size:10px;color:var(--faint);padding:5px 9px 6px;border-bottom:1px solid var(--row-line);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mi{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:none;font-size:12px;font-weight:600;color:var(--ink);padding:6.5px 9px;border-radius:7px}
+  .mi:hover{background:var(--hover)}
+  .mi .ic{color:var(--faint);width:14px}
+  .mi .sub2{margin-left:auto;font-size:10px;color:var(--faint)}
+  .mi.claude{color:var(--clay-deep)}
+  .mi.claude .ic{color:var(--clay)}
+  .mi.claude:hover{background:var(--clay-soft)}
+  .mi.danger{color:var(--red)}
+  .mi.danger .ic{color:var(--red)}
+  .mi.danger:hover{background:#FEF2F2}
+  .msep{height:1px;background:var(--row-line);margin:4px 6px}
+
+  /* ---- flag dialog ---- */
+  .overlay{position:fixed;inset:0;z-index:300;background:rgba(28,26,23,.35);display:none;align-items:center;justify-content:center;padding:16px}
+  .overlay.on{display:flex}
+  .dlg{width:390px;max-width:100%;background:var(--card);border-radius:14px;box-shadow:0 24px 60px rgba(28,26,23,.3);overflow:hidden}
+  .dlg .dhead{display:flex;align-items:center;gap:8px;padding:12px 14px 0}
+  .dlg .dhead .mark{color:var(--clay)}
+  .dlg .dhead h2{font-size:14px;font-weight:800}
+  .dlg .dbody{padding:10px 14px 14px}
+  .ctx{background:var(--sand);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:9px}
+  .ctx .clabel{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);margin-bottom:4px}
+  .ctx .cline{font-size:11.5px;font-weight:600;line-height:1.5}
+  .ctx .cline span{color:var(--muted);font-weight:500}
+  .quick{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+  .qc{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--card);border:1px solid var(--border-strong);border-radius:999px;padding:3.5px 9px}
+  .qc:hover{background:var(--hover)}
+  .qc.on{background:var(--clay-soft);border-color:var(--clay);color:var(--clay-deep)}
+  .dlg textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--border-strong);border-radius:9px;background:var(--card);font-family:inherit;font-size:12px;padding:8px 10px;color:var(--ink)}
+  .dlg textarea:focus{outline:2px solid var(--moss);outline-offset:1px}
+  .dfoot{display:flex;justify-content:flex-end;gap:8px;padding:0 14px 14px}
+  .btn{font-size:12px;font-weight:700;border-radius:8px;padding:7px 13px;border:1px solid var(--border-strong);background:var(--card);color:var(--muted)}
+  .btn:hover{background:var(--hover)}
+  .btn.primary{display:inline-flex;align-items:center;gap:7px;background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .btn.primary:hover{background:#3A3630}
+  .btn.primary .mark{color:var(--clay)}
+
+  /* ---- toast ---- */
+  .toast{position:fixed;left:50%;bottom:26px;translate:-50% 0;z-index:400;display:none;align-items:center;gap:10px;background:var(--ink);color:var(--cream);font-size:12.5px;font-weight:600;border-radius:10px;padding:10px 14px;box-shadow:0 14px 36px rgba(28,26,23,.35)}
+  .toast.on{display:flex}
+  .toast .mark{color:var(--clay)}
+  .toast button{border:none;background:none;color:#C9D6B8;font-size:12.5px;font-weight:700;text-decoration:underline;text-underline-offset:2px}
+
+  /* ---- scene 2: the modal ---- */
+  .modal{max-width:660px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 48px rgba(28,26,23,.14);overflow:hidden}
+  .mtop{display:flex;align-items:center;padding:12px 16px 0}
+  .mtop h2{font-size:15px;font-weight:800}
+  .mtop .x{margin-left:auto;border:none;background:none;color:var(--faint);font-size:16px;font-weight:700;border-radius:6px;padding:2px 8px}
+  .mtop .x:hover{background:var(--hover);color:var(--ink)}
+  .mtabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid var(--border)}
+  .mtab{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-bottom:none;background:var(--sand);border-radius:8px 8px 0 0;font-size:12px;font-weight:700;color:var(--muted);padding:6.5px 13px;position:relative;top:1px}
+  .mtab.on{background:var(--card);color:var(--ink);border-color:var(--border-strong);border-bottom:1px solid var(--card)}
+  .mtab .mark{color:var(--clay)}
+  .mtab .count{font-size:10px;font-weight:800;background:var(--clay);color:#fff;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
+  .mtab.teamtab .count{background:var(--ink);color:var(--cream)}
+  .mbody{padding:13px 16px 16px}
+  .mbody .msub{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:10px;max-width:64ch}
+  .bucketbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .bucketbar .spacer{flex:1}
+  .addrow{display:flex;gap:8px;margin-bottom:12px}
+  .addrow input{flex:1;border:1px solid var(--border-strong);border-radius:8px;font-family:inherit;font-size:12px;padding:8px 10px;background:var(--card);color:var(--ink)}
+  .addrow input:focus{outline:2px solid var(--moss);outline-offset:1px}
+  .issues{display:flex;flex-direction:column;gap:6px}
+  .issue{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;background:var(--card);padding:9px 11px}
+  .issue.done{background:var(--cream);border-color:var(--row-line)}
+  .issue.done .itext{text-decoration:line-through;color:var(--faint)}
+  .ck{flex:none;margin-top:1px;width:18px;height:18px;border-radius:999px;border:2px solid var(--border-strong);background:none;color:transparent;display:flex;align-items:center;justify-content:center}
+  .ck:hover{border-color:var(--moss);color:var(--moss)}
+  .issue.done .ck{background:var(--moss);border-color:var(--moss);color:#fff}
+  .imain{flex:1;min-width:0}
+  .srcline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}
+  .src{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;border-radius:5px;padding:2px 6px}
+  .src.job{background:var(--moss-soft);color:var(--moss-deep)}
+  .src.book{background:var(--band);color:var(--muted)}
+  .src.gen{background:var(--clay-soft);color:var(--clay-deep)}
+  .srcref{font-size:10.5px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .itext{font-size:12.5px;line-height:1.45;font-weight:600;overflow-wrap:break-word}
+  .itext.empty{color:var(--faint);font-weight:500;font-style:italic}
+  .imeta{font-size:10px;color:var(--faint);margin-top:2px}
+  .idel{flex:none;border:none;background:none;color:var(--border-strong);border-radius:6px;padding:3px}
+  .idel:hover{color:var(--red);background:#FEF2F2}
+  .donehead{display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px}
+  .donehead .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+  .donehead button{border:none;background:none;font-size:11px;color:var(--faint)}
+  .donehead button:hover{color:var(--red)}
+  .teamitem{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;background:var(--card);padding:9px 11px}
+  .empty-bucket{border:1px dashed var(--border-strong);border-radius:10px;padding:18px;text-align:center;font-size:12px;color:var(--faint)}
+
+  /* ---- scene 3 ---- */
+  .spots{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch}
+  .spot{flex:1 1 300px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .spot h3{font-size:12.5px;font-weight:800;margin-bottom:2px}
+  .spot .cap{font-size:11.5px;color:var(--muted);line-height:1.55;margin-bottom:10px}
+  .spot .cap b{color:var(--ink)}
+  .bookrow{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:9px;background:var(--card);padding:7px 10px;font-size:11px;font-weight:600}
+  .bookrow .bsku{color:var(--muted);font-weight:700;width:84px}
+  .bookrow .bname{flex:1;min-width:0}
+  .bookrow .bname .cell-sub{white-space:normal}
+  .rowbtn{border:none;background:none;color:var(--border-strong);border-radius:6px;padding:3px}
+  .rowbtn:hover{color:var(--muted);background:var(--hover)}
+  .rowbtn.claude{color:var(--clay)}
+  .rowbtn.claude:hover{color:var(--clay-deep);background:var(--clay-soft)}
+  .sidebtn{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);border-radius:9px;background:var(--card);font-size:12.5px;font-weight:700;color:var(--muted);padding:9px 12px;width:100%}
+  .sidebtn:hover{background:var(--hover)}
+  .badge{min-width:18px;height:18px;padding:0 5px;border-radius:999px;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+  .badge.inkb{background:var(--ink);color:var(--cream)}
+  .badge.clayb{background:var(--clay);color:#fff;gap:3px}
+  a{color:var(--moss-deep)}
+  @media (prefers-reduced-motion: no-preference){
+    .menu.on,.dlg{animation:pop .12s ease-out}
+    @keyframes pop{from{opacity:0;scale:.97}to{opacity:1;scale:1}}
+  }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">FloorTrack · UI prototype · 8/13/2026</div>
+<h1>Claude issues — flag it anywhere, work it later, one bucket</h1>
+<p class="sub">Today the ✳ button lives only in a price book and parks SKUs per-book. This prototype moves the bucket to <b>one central list</b> under the Issues &amp; To-Do modal, and adds a <b>right-click menu on any product line</b> so a problem gets flagged where you see it — with an optional note on what's wrong — instead of hunting it down later. Everything below is clickable; nothing is wired to real data.</p>
+
+<div class="tabs">
+  <button class="tab on" data-scene="s1">1 · Flag from a job line</button>
+  <button class="tab" data-scene="s2">2 · The central bucket</button>
+  <button class="tab" data-scene="s3">3 · Every other flag point</button>
+</div>
+
+<!-- ================= scene 1 ================= -->
+<div class="scene on" id="s1">
+  <div class="hint"><span data-mark="12"></span> Right-click any line — or click its ⋯ — for the menu, then "Flag for Claude…". The ⋯ is also the grip: hold it and pull to reorder.</div>
+  <div class="paper">
+    <div class="projhead">
+      <div class="cust">Klein, Whitney</div>
+      <div class="meta">Master Bath Remodel · Marcus · 8/13/2026</div>
+      <div class="tier">Retail</div>
+    </div>
+    <div class="areaband">MASTER BATH <span class="sf">138 sf · floor + walls</span></div>
+    <div class="gridhead">
+      <div>Size / Type ▾</div><div>Product / Color ▾</div><div>SKU</div><div>Cov.</div>
+      <div style="text-align:right">Price</div><div style="text-align:right">Order</div><div style="text-align:right">Total</div><div></div>
+    </div>
+    <div id="jobrows"></div>
+  </div>
+  <div class="notes">
+    <div class="note"><h3>Why a right-click menu</h3><p>The row already carries everything Claude needs — customer, area, product, SKU, the book it came from. Flagging <b>at the row</b> captures all of it automatically; nobody re-types context into a to-do. The menu also gives the row a home for other actions that currently hide in hover icons.</p></div>
+    <div class="note"><h3>One control, two gestures</h3><p>The ⋯ replaces the hand + trash icons and does both jobs: <b>click = menu, hold-and-pull = drag</b> (try it above — the drop bar is live). The app's <code>startDrag</code> already arms on a short hold, so this is the same detection pointed at one button. "Move to area" in the menu covers the long cross-area hauls without dragging. On the iPad the row keeps its long-press drag; the menu items live in the row sheet.</p></div>
+    <div class="note"><h3>The note is optional</h3><p>A flag with no note still lands with full context. The quick-reason chips cover the common cases in one tap; the text box is for anything else.</p></div>
+  </div>
+</div>
+
+<!-- ================= scene 2 ================= -->
+<div class="scene" id="s2">
+  <div class="hint"><span data-mark="12"></span> The existing Issues &amp; To-Do modal grows a second tab. Team list stays exactly as it is; flags from anywhere land on the Claude tab.</div>
+  <div class="modal">
+    <div class="mtop"><h2>Issues &amp; To-Do</h2><button class="x" title="Close">✕</button></div>
+    <div class="mtabs">
+      <button class="mtab teamtab" id="teamTab">Team list <span class="count">2</span></button>
+      <button class="mtab on" id="claudeTab"><span data-mark="11"></span> Claude <span class="count" id="claudeCount">0</span></button>
+    </div>
+    <div class="mbody" id="claudePane">
+      <p class="msub">Anything flagged for Claude — from a job line, a price book, or typed here — collects on this list. When you're ready to work them, <b>Copy report</b> builds one paste-ready markdown report with every open issue's note and captured data.</p>
+      <div class="bucketbar">
+        <button class="btn primary" id="copyReport"><span data-mark="12"></span> <span id="copyLabel">Copy report for Claude</span></button>
+        <div class="spacer"></div>
+        <span style="font-size:11px;color:var(--faint)" id="openCountLabel"></span>
+      </div>
+      <div class="addrow">
+        <input id="genInput" placeholder="Flag something that isn't a row — 'print cuts off the freight line'…" />
+        <button class="btn primary" id="genAdd">+ Add</button>
+      </div>
+      <div class="issues" id="issueList"></div>
+      <div id="doneWrap"></div>
+    </div>
+    <div class="mbody" id="teamPane" style="display:none">
+      <p class="msub">Shared with the whole team — unchanged. Bugs, ideas and shop reminders live here; things meant for a Claude session live on the Claude tab.</p>
+      <div class="issues">
+        <div class="teamitem"><button class="ck" title="Mark done">✓</button><div class="imain"><div class="itext">Order more 1/8" tile spacers for the shop</div><div class="imeta">Dana · 8/12/2026</div></div><button class="idel" title="Delete"><span data-ic="trash"></span></button></div>
+        <div class="teamitem"><button class="ck" title="Mark done">✓</button><div class="imain"><div class="itext">Call Mirage rep about the fall intro colors</div><div class="imeta">Marcus · 8/10/2026</div></div><button class="idel" title="Delete"><span data-ic="trash"></span></button></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div class="note"><h3>Source chip = way back</h3><p>Every issue wears where it came from. Clicking a <b>job line</b> chip would open that customer at that row; a <b>price book</b> chip opens the book filtered to the SKU. The bucket is a launchpad, not a dead end.</p></div>
+    <div class="note"><h3>One report, all sources</h3><p>The per-book "Copy report" already proved the pattern — this is the same report across the whole bucket: each issue's note, its flags, and its full stored row data, grouped by source. One paste starts the Claude session.</p></div>
+    <div class="note"><h3>Done, not deleted</h3><p>Same rhythm as the team list — worked issues strike through and drop below, so "what did Claude fix last week" stays answerable until you clear them.</p></div>
+  </div>
+</div>
+
+<!-- ================= scene 3 ================= -->
+<div class="scene" id="s3">
+  <div class="hint"><span data-mark="12"></span> The same "Flag for Claude" popover is one shared component — every surface just hands it its own context.</div>
+  <div class="spots">
+    <div class="spot">
+      <h3>Price book — the ✳ you already have</h3>
+      <p class="cap">The button stays on every book row, but now it opens the same popover (note optional) and lands in the <b>central bucket</b> instead of a per-book one. The book page keeps its Claude filter chip — it just reads the shared list filtered to this book. Try it:</p>
+      <div class="bookrow">
+        <span class="bsku">HC0838MB</span>
+        <span class="bname">Hex Mosaic Midnight 8×38<span class="cell-sub">Home Collection · 11.9 SF/CT · $6.29/sf</span></span>
+        <button class="rowbtn" title="Disable"><span data-ic="eye"></span></button>
+        <button class="rowbtn claude" id="bookFlag" title="Flag for Claude — note optional, lands in the central bucket"><span data-mark="13"></span></button>
+        <button class="rowbtn" title="Edit"><span data-ic="pencil"></span></button>
+      </div>
+    </div>
+    <div class="spot">
+      <h3>Sidebar — one door in</h3>
+      <p class="cap">The Issues button badge splits: team count in ink, Claude count in clay. Opening it lands on whichever tab has news.</p>
+      <button class="sidebtn"><span data-ic="list"></span> Issues &amp; To-Do <span class="badge inkb">2</span> <span class="badge clayb" id="sideBadge"><span data-mark="9"></span>0</span></button>
+    </div>
+    <div class="spot">
+      <h3>Anywhere else</h3>
+      <p class="cap">The menu item + popover are shared, so any surface can grow a flag point later with one line: <b>right-click a book table row</b>, a search hit that returned the wrong thing, a version row, a vendor sheet. Each hands over its own context; the bucket doesn't care where a flag was born.</p>
+      <p class="cap" style="margin-bottom:0">Data-wise this is its own small table (like <b>todos</b>), one row per flag with a <b>source jsonb</b> — the existing per-book <code>claudeIssue</code> marks migrate in as book-source rows.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ---- shared: context menu ---- -->
+<div class="menu" id="ctxMenu" role="menu">
+  <div class="mhead" id="menuHead"></div>
+  <button class="mi"><span class="ic" data-ic="copy"></span> Duplicate line</button>
+  <button class="mi"><span class="ic" data-ic="folder"></span> Move to area <span class="sub2">▸</span></button>
+  <button class="mi"><span class="ic" data-ic="clip"></span> Copy for order entry</button>
+  <div class="msep"></div>
+  <button class="mi claude" id="miFlag"><span class="ic" data-mark="13"></span> Flag for Claude…</button>
+  <div class="msep"></div>
+  <button class="mi danger"><span class="ic" data-ic="trash"></span> Delete line</button>
+</div>
+
+<!-- ---- shared: flag dialog ---- -->
+<div class="overlay" id="overlay">
+  <div class="dlg" role="dialog" aria-label="Flag for Claude">
+    <div class="dhead"><span class="mark" data-mark="15"></span><h2>Flag for Claude</h2></div>
+    <div class="dbody">
+      <div class="ctx">
+        <div class="clabel">Captured automatically</div>
+        <div class="cline" id="ctxLines"></div>
+      </div>
+      <div class="quick" id="quickChips">
+        <button class="qc">Price looks wrong</button>
+        <button class="qc">Wrong size / coverage</button>
+        <button class="qc">Search can't find it</button>
+        <button class="qc">Something else</button>
+      </div>
+      <textarea id="noteBox" placeholder="What's wrong? Optional — a sentence helps Claude start in the right place."></textarea>
+    </div>
+    <div class="dfoot">
+      <button class="btn" id="dlgCancel">Cancel</button>
+      <button class="btn primary" id="dlgAdd"><span class="mark" data-mark="12"></span> Add to Claude issues</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="mark" data-mark="13"></span><span id="toastText"></span><button id="toastView">View bucket</button></div>
+
+<script>
+// ---------- tiny icon kit ----------
+const claudeSvg = (s) => {
+  let lines = "";
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6, r = i % 2 ? 8.2 : 10.6, c = Math.cos(a), si = Math.sin(a);
+    const f = (n) => Math.round(n * 10) / 10;
+    lines += `<line x1="${f(12+4.4*c)}" y1="${f(12+4.4*si)}" x2="${f(12+r*c)}" y2="${f(12+r*si)}"/>`;
+  }
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">${lines}</svg>`;
+};
+const IC = {
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  clip: '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4a3 3 0 0 1 6 0"/>',
+  trash: '<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m3 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/>',
+  eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/>',
+  pencil: '<path d="M17 3l4 4L8 20l-5 1 1-5z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
+};
+const icSvg = (name, s = 14) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[name]}</svg>`;
+document.querySelectorAll("[data-mark]").forEach((el) => el.innerHTML = claudeSvg(+el.dataset.mark));
+document.querySelectorAll("[data-ic]").forEach((el) => el.innerHTML = icSvg(el.dataset.ic, el.dataset.s || 14));
+
+// ---------- mock data ----------
+const ROWS = [
+  { size: "12×24", type: "TILE", tc: "#2C3A1D", name: "Aniston Silver Polished", sub: "Home Collection · matte", sku: "HC1224AS", cov: "15.5", price: "$4.79/sf", order: "9 CT", total: "$668.24", ctx: { where: "Klein, Whitney · Master Bath", row: "12×24 Aniston Silver Polished — SKU HC1224AS", book: "Home Collection (special order)" } },
+  { size: "3×12", type: "TRIM", tc: "#57703A", name: "Bullnose Silver", sub: "Home Collection", sku: "HCBN312", cov: "—", price: "$6.49/pc", order: "14 PC", total: "$90.86", ctx: { where: "Klein, Whitney · Master Bath", row: "3×12 Bullnose Silver — SKU HCBN312", book: "Home Collection (special order)" } },
+  { size: "2×2", type: "TILE", tc: "#2C3A1D", name: "Mosaic Niche Glacier", sub: "Emser · shower niche", sub2: true, sku: "GL22MSG", cov: "10.2", price: "$11.20/sf", order: "2 CT", total: "$228.48", ctx: { where: "Klein, Whitney · Master Bath", row: "2×2 Mosaic Niche Glacier — SKU GL22MSG", book: "Emser stock book" } },
+];
+let issues = [
+  { id: 1, src: "book", ref: "Home Collection · HC0838MB", text: "Shows $0.00/sf at the Employee tier — markup group missing?", by: "Marcus", at: "8/11/2026", done: false },
+  { id: 2, src: "job", ref: "Ramirez, Elena · Kitchen · MPB770VN1", text: "Coverage says 15.5 SF/CT but the carton label at the shop says 17.6.", by: "Dana", at: "8/10/2026", done: false },
+  { id: 3, src: "gen", ref: "Print", text: "Print preview cuts off the freight line on 2-page estimates.", by: "Dana", at: "8/9/2026", done: false },
+  { id: 4, src: "book", ref: "Mirage · MI-RH0455", text: "Duplicate of the VN-suffix SKU — search shows both.", by: "Marcus", at: "8/4/2026", done: true },
+];
+let nextId = 5;
+const SRC_LABEL = { job: "Job line", book: "Price book", gen: "General" };
+
+// ---------- scenes ----------
+const tabs = document.querySelectorAll(".tab");
+const showScene = (id) => {
+  tabs.forEach((t) => t.classList.toggle("on", t.dataset.scene === id));
+  document.querySelectorAll(".scene").forEach((s) => s.classList.toggle("on", s.id === id));
+};
+tabs.forEach((t) => t.addEventListener("click", () => showScene(t.dataset.scene)));
+
+// ---------- scene 1: job rows ----------
+const jobrows = document.getElementById("jobrows");
+jobrows.style.position = "relative";
+function renderRows() {
+  jobrows.innerHTML = ROWS.map((r, i) => `
+    <div class="gridrow" data-row="${i}">
+      <div><span class="num" style="text-align:left">${r.size}</span><span class="typechip" style="background:${r.tc}">${r.type}</span></div>
+      <div><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${r.name}${r.flagged ? `<span class="rowflag" title="Flagged for Claude">${claudeSvg(11)}</span>` : ""}</span><span class="cell-sub">${r.sub}</span></div>
+      <div style="color:var(--muted)">${r.sku}</div>
+      <div class="num">${r.cov}</div>
+      <div class="num">${r.price}</div>
+      <div class="num">${r.order}</div>
+      <div class="num">${r.total}</div>
+      <div><button class="dots" data-dots="${i}" title="Line menu">⋯</button></div>
+    </div>`).join("");
+}
+renderRows();
+
+// ---------- context menu ----------
+const menu = document.getElementById("ctxMenu");
+const menuHead = document.getElementById("menuHead");
+let menuRow = null;
+function openMenu(x, y, rowIdx) {
+  menuRow = ROWS[rowIdx];
+  menuHead.textContent = `${menuRow.size} ${menuRow.name} — Master Bath`;
+  menu.classList.add("on");
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.min(x, innerWidth - mw - 8) + "px";
+  menu.style.top = Math.min(y, innerHeight - mh - 8) + "px";
+}
+const closeMenu = () => menu.classList.remove("on");
+jobrows.addEventListener("contextmenu", (e) => {
+  const row = e.target.closest("[data-row]");
+  if (!row) return;
+  e.preventDefault();
+  openMenu(e.clientX, e.clientY, +row.dataset.row);
+});
+// Option A: the ⋯ is the row's one grip — a plain click opens the menu, a
+// hold-and-pull drags the row (same hold-to-arm idea as the app's startDrag).
+jobrows.addEventListener("pointerdown", (e) => {
+  const d = e.target.closest("[data-dots]");
+  if (!d || (e.button != null && e.button !== 0)) return;
+  e.preventDefault();
+  const idx = +d.dataset.dots;
+  const rowEl = d.closest("[data-row]");
+  const startY = e.clientY, startX = e.clientX;
+  let dragging = false, target = idx, bar = null;
+  try { d.setPointerCapture(e.pointerId); } catch (x) { }
+  const others = () => [...jobrows.querySelectorAll("[data-row]")].filter((r) => r !== rowEl);
+  const onMove = (ev) => {
+    if (!dragging) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+      dragging = true;
+      closeMenu();
+      Object.assign(rowEl.style, { position: "relative", zIndex: "40", scale: "1.01", boxShadow: "0 10px 26px rgba(28,26,23,.18)", cursor: "grabbing" });
+      document.body.style.userSelect = "none";
+      bar = document.createElement("div");
+      bar.className = "dropbar";
+      jobrows.appendChild(bar);
+    }
+    rowEl.style.translate = `0 ${ev.clientY - startY}px`;
+    let t = 0;
+    for (const r of others()) { const rc = r.getBoundingClientRect(); if (ev.clientY > rc.top + rc.height / 2) t++; }
+    target = t;
+    const jr = jobrows.getBoundingClientRect(), rest = others();
+    const y = t < rest.length ? rest[t].getBoundingClientRect().top - jr.top - 2 : rest[rest.length - 1].getBoundingClientRect().bottom - jr.top - 1;
+    bar.style.top = y + "px";
+    bar.style.display = t === idx ? "none" : "";
+  };
+  const finish = (commit) => {
+    d.removeEventListener("pointermove", onMove);
+    d.removeEventListener("pointerup", onUp);
+    d.removeEventListener("pointercancel", onCancel);
+    document.body.style.userSelect = "";
+    Object.assign(rowEl.style, { position: "", zIndex: "", scale: "", boxShadow: "", cursor: "", translate: "" });
+    if (bar) bar.remove();
+    if (!dragging) {
+      if (commit) { const rc = d.getBoundingClientRect(); openMenu(rc.left - 200, rc.bottom + 4, idx); }
+      return;
+    }
+    if (commit && target !== idx) {
+      const [m] = ROWS.splice(idx, 1);
+      ROWS.splice(target, 0, m);
+      renderRows();
+    }
+  };
+  const onUp = () => finish(true);
+  const onCancel = () => finish(false);
+  d.addEventListener("pointermove", onMove);
+  d.addEventListener("pointerup", onUp);
+  d.addEventListener("pointercancel", onCancel);
+});
+addEventListener("pointerdown", (e) => { if (!menu.contains(e.target)) closeMenu(); });
+addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMenu(); closeDlg(); } });
+menu.querySelectorAll(".mi:not(#miFlag)").forEach((mi) => mi.addEventListener("click", closeMenu));
+
+// ---------- flag dialog ----------
+const overlay = document.getElementById("overlay");
+const ctxLines = document.getElementById("ctxLines");
+const noteBox = document.getElementById("noteBox");
+const quickChips = document.querySelectorAll("#quickChips .qc");
+let dlgCtx = null; // { src, ref, lines: [], row? }
+function openDlg(ctx) {
+  dlgCtx = ctx;
+  ctxLines.innerHTML = ctx.lines.map((l) => `<div>${l}</div>`).join("");
+  noteBox.value = "";
+  quickChips.forEach((c) => c.classList.remove("on"));
+  overlay.classList.add("on");
+  noteBox.focus();
+}
+const closeDlg = () => overlay.classList.remove("on");
+document.getElementById("miFlag").addEventListener("click", () => {
+  closeMenu();
+  const c = menuRow.ctx;
+  openDlg({ src: "job", ref: `${c.where.split(" · ")[0]} · Master Bath · ${menuRow.sku}`, row: menuRow,
+    lines: [c.where, `${c.row} <span>· ${c.book}</span>`] });
+});
+document.getElementById("bookFlag").addEventListener("click", () => {
+  openDlg({ src: "book", ref: "Home Collection · HC0838MB",
+    lines: ["Home Collection <span>(special order book)</span>", "HC0838MB — Hex Mosaic Midnight 8×38"] });
+});
+quickChips.forEach((c) => c.addEventListener("click", () => {
+  c.classList.toggle("on");
+  const on = [...quickChips].filter((x) => x.classList.contains("on")).map((x) => x.textContent);
+  const typed = noteBox.value.replace(/^(Price looks wrong|Wrong size \/ coverage|Search can't find it|Something else)(; (Price looks wrong|Wrong size \/ coverage|Search can't find it|Something else))*\.?\s*/, "");
+  noteBox.value = on.length ? on.join("; ") + (typed ? ". " + typed : ".") : typed;
+}));
+document.getElementById("dlgCancel").addEventListener("click", closeDlg);
+overlay.addEventListener("pointerdown", (e) => { if (e.target === overlay) closeDlg(); });
+document.getElementById("dlgAdd").addEventListener("click", () => {
+  issues.unshift({ id: nextId++, src: dlgCtx.src, ref: dlgCtx.ref, text: noteBox.value.trim(), by: "You", at: "8/13/2026", done: false });
+  if (dlgCtx.row) { dlgCtx.row.flagged = true; renderRows(); }
+  closeDlg();
+  renderBucket();
+  showToast("Added to Claude issues");
+});
+
+// ---------- toast ----------
+const toast = document.getElementById("toast");
+let toastTimer = null;
+function showToast(msg) {
+  document.getElementById("toastText").textContent = msg;
+  toast.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("on"), 4200);
+}
+document.getElementById("toastView").addEventListener("click", () => { toast.classList.remove("on"); showScene("s2"); });
+
+// ---------- scene 2: bucket ----------
+const issueList = document.getElementById("issueList");
+const doneWrap = document.getElementById("doneWrap");
+function issueCard(i) {
+  return `<div class="issue ${i.done ? "done" : ""}">
+    <button class="ck" data-ck="${i.id}" title="${i.done ? "Reopen" : "Mark done"}">✓</button>
+    <div class="imain">
+      <div class="srcline"><span class="src ${i.src}">${SRC_LABEL[i.src]}</span><span class="srcref" title="Open where it came from">${i.ref}</span></div>
+      <div class="itext ${i.text ? "" : "empty"}">${i.text || "(no note — context only)"}</div>
+      <div class="imeta">${i.by} · ${i.at}</div>
+    </div>
+    <button class="idel" data-del="${i.id}" title="Delete">${icSvg("trash", 14)}</button>
+  </div>`;
+}
+function renderBucket() {
+  const open = issues.filter((i) => !i.done), done = issues.filter((i) => i.done);
+  document.getElementById("claudeCount").textContent = open.length;
+  document.getElementById("sideBadge").innerHTML = claudeSvg(9) + open.length;
+  document.getElementById("openCountLabel").textContent = `${open.length} open · ${done.length} done`;
+  issueList.innerHTML = open.length ? open.map(issueCard).join("") : `<div class="empty-bucket">Nothing in the bucket. Right-click a line anywhere in the app and pick "Flag for Claude…".</div>`;
+  doneWrap.innerHTML = done.length ? `<div class="donehead"><span class="lbl">Done (${done.length})</span><button id="clearDone">Clear done</button></div><div class="issues">${done.map(issueCard).join("")}</div>` : "";
+  const byId = (id) => issues.find((i) => i.id === +id);
+  document.querySelectorAll("[data-ck]").forEach((b) => b.addEventListener("click", () => { const i = byId(b.dataset.ck); i.done = !i.done; renderBucket(); }));
+  document.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => { issues = issues.filter((i) => i.id !== +b.dataset.del); renderBucket(); }));
+  const cd = document.getElementById("clearDone");
+  if (cd) cd.addEventListener("click", () => { issues = issues.filter((i) => !i.done); renderBucket(); });
+}
+renderBucket();
+
+document.getElementById("genAdd").addEventListener("click", () => {
+  const v = document.getElementById("genInput").value.trim();
+  if (!v) return;
+  issues.unshift({ id: nextId++, src: "gen", ref: "Typed here", text: v, by: "You", at: "8/13/2026", done: false });
+  document.getElementById("genInput").value = "";
+  renderBucket();
+});
+document.getElementById("genInput").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("genAdd").click(); });
+
+const teamTab = document.getElementById("teamTab"), claudeTab = document.getElementById("claudeTab");
+const setModalTab = (claude) => {
+  claudeTab.classList.toggle("on", claude); teamTab.classList.toggle("on", !claude);
+  document.getElementById("claudePane").style.display = claude ? "" : "none";
+  document.getElementById("teamPane").style.display = claude ? "none" : "";
+};
+teamTab.addEventListener("click", () => setModalTab(false));
+claudeTab.addEventListener("click", () => setModalTab(true));
+
+// ---------- copy report ----------
+document.getElementById("copyReport").addEventListener("click", async () => {
+  const open = issues.filter((i) => !i.done);
+  const text = [
+    `# Claude issues — FloorTrack`, `${open.length} open issue${open.length === 1 ? "" : "s"}`, "",
+    ...open.map((i) => [`## ${SRC_LABEL[i.src]} — ${i.ref}`, i.text || "(no note)", `Flagged by ${i.by} on ${i.at}`, "", "```json", JSON.stringify({ source: i.src, ref: i.ref }, null, 1), "```", ""].join("\n")),
+  ].join("\n");
+  try { await navigator.clipboard.writeText(text); } catch (x) { }
+  const lbl = document.getElementById("copyLabel");
+  lbl.textContent = "Copied ✓";
+  setTimeout(() => lbl.textContent = "Copy report for Claude", 1800);
+});
+</script>
+</body>
+</html>

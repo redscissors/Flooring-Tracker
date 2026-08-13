@@ -24,6 +24,20 @@ todo row      : { id (text pk), position (float — open-item order, smaller = h
                   data: { text, done, doneAt, createdBy, createdAt } }
                   // team issue / to-do list (issue 006), shared like customers
 
+claude_issue row : { id (text pk), data: { text, done, doneAt, createdBy, createdAt,
+                  source: { kind: "job"|"book"|"general", custId, custName,
+                            areaName, productId, bookId, bookName, sku,
+                            snapshot } } }
+                  // central Claude issue bucket (issue 087), shared like todos;
+                  // reads newest-first (created_at), no manual ordering.
+                  // `source.snapshot` freezes the flagged row/item AT FLAG TIME
+                  // alongside the live ids, so the copy report survives later
+                  // edits and deletes; shape in src/claudeissues.js
+                  // (normClaudeIssue / jobSource / bookSource). A price-book
+                  // flag ALSO writes the item's `claudeIssue` mark (ADR 0009
+                  // contract) so the book page's filter chip stays cheap —
+                  // unparking the mark does not touch the central row.
+
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[],
            salesperson: { name, phone, email } | null,

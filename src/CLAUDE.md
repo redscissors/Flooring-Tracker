@@ -80,7 +80,40 @@ src/
                     # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
                     # `ProjectHeaderClassic` (the print-sheet original, kept
                     # whole so the team can flip back without a revert)
-  TeamTodos.jsx     # the team issue/to-do modal (issue 006)
+  TeamTodos.jsx     # the Issues & To-Do modal: the team list (issue 006,
+                    # unchanged) behind a tab strip beside the central Claude
+                    # issue bucket (issue 087) — every "Flag for Claude" from
+                    # anywhere lands on the Claude tab, each card wearing its
+                    # source (job line / price book / general), with one
+                    # Copy-report action (claudeissues.js issueReport)
+  claudeissues.js   # central Claude issues pure logic (issue 087): the stored
+                    # issue shape (normClaudeIssue), the source builders every
+                    # flag point uses (jobSource/bookSource — snapshot at flag
+                    # time + live ids, so the report survives edits/deletes),
+                    # sourceLines for the popover's captured-context box, and
+                    # issueReport — the per-book copy report generalized across
+                    # the whole bucket (claudeissues.test.js)
+  useclaudeissues.js  # `useClaudeIssues` — central Claude issue write paths
+                    # (issue 087): add/update/toggle/del/clearDone, shaped like
+                    # useTodos (shared rows, optimistic, claude-issues.sql)
+  claudeflag.jsx    # `ClaudeMark` (the rays, moved out of pricebooklib) +
+                    # `FlagForClaude` — the ONE flag popover every surface
+                    # opens with a prebuilt source: captured-context box,
+                    # quick-reason chips, optional note; CLAUDE_CLAY (#D97757)
+                    # is the one non-theme color, marking everything Claude
+  linemenu.jsx      # `LineMenu` — the product line's action menu (issue 087,
+                    # owner "option A" 2026-08-13): opened by a plain CLICK on
+                    # the row-end ⋯ (a HOLD on the same button drags — the dots
+                    # are the row's one grip; no tip line, the grab cursor is
+                    # the affordance) or a right-click on the row (suppressed
+                    # inside fields so native paste keeps working). Duplicate /
+                    # Move to area (inline expand, no floating submenu) / Flag
+                    # for Claude / Delete (routes to the existing inline
+                    # confirm). The old hand + trash hover icons are retired on
+                    # product rows; the empty search-row adder keeps them
+  claudeissuespreview.jsx  # dev-only harness (claude-issues-preview.html): the
+                    # REAL TeamTodos tabs + LineMenu + FlagForClaude over local
+                    # mock state, no Supabase; not part of the app build
   custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
                     # group-by-salesman over the boot's light rows (custbrowser.test.js)
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
@@ -103,7 +136,8 @@ src/
                     # background-loaded after the books metadata (ADR 0026); feeds the row
                     # search's instant stock tier, the grout family projection, the Settings
                     # picker, and link warnings (ADR 0027)
-  usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006)
+  usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006);
+                    # the central Claude bucket lives beside it in useclaudeissues.js
   uselabels.js      # `useLabels` — Apps hub label-set state + write paths
   useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
                     # order-row drift fetch
