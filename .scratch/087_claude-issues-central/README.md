@@ -36,9 +36,10 @@ popover, bucket and toast are all clickable):
    **Owner decision 2026-08-13 ("option A"):** the ⋯ replaces BOTH row-end
    hover icons (the hand drag-handle and the trash). It is the row's one grip —
    a plain click opens the menu, a press-hold-and-pull drags the row (the same
-   hold-to-arm detection `startDrag` already does, pointed at one button; the
-   menu carries a "hold ⋯ and pull to reorder" tip line, and "Move to area"
-   covers long cross-area hauls without dragging). Delete moves into the menu.
+   hold-to-arm detection `startDrag` already does, pointed at one button —
+   no tip line in the menu, owner 2026-08-13: it clutters; the grab cursor on
+   hover is the affordance, and "Move to area" covers long cross-area hauls
+   without dragging). Delete moves into the menu.
    Mobile is unchanged: long-press-the-row still drags, the menu items live in
    the row sheet. The prototype's drag is live — hold the dots and pull.
 
