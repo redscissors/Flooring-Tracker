@@ -385,7 +385,10 @@ export function floorBase(f) {
   return t[f.cons === "eng" ? (f.grade === "clear" ? "eClear" : "eChar") : f.grade === "clear" ? "clear" : "char"][i];
 }
 
-export const gradeName = (f) => (f.sp === LIVE_SAWN_SP ? "Live Sawn" : f.grade === "clear" ? "Clear" : "Character");
+// Live Sawn White Oak is a one-grade product whose species name already says
+// the cut, so its descriptions carry no grade slot — "Live Sawn White Oak
+// Live Sawn" repeated itself (2026-08-13).
+export const gradeName = (f) => (f.sp === LIVE_SAWN_SP ? "" : f.grade === "clear" ? "Clear" : "Character");
 
 export function finishName(f) {
   const x = FINISHES.find((z) => z.id === f.finish);
@@ -420,7 +423,7 @@ export function calcFloor(f, sf) {
   const finAdd = fin.add(f);
   const fee = smallOrderFee(f.finish, sf);
   const cost = base + sap + lenAdd + tex.add + edge.add + finAdd;
-  const rows = [[`Unfinished base — ${f.sp}, ${gradeName(f)}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
+  const rows = [[`Unfinished base — ${[f.sp, gradeName(f)].filter(Boolean).join(", ")}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
   if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
   if (len.pct) rows.push([`${len.name} lengths (+${len.pct}% of base)`, `+${fm(lenAdd)}/sf`]);
   if (tex.add) rows.push([`Texture — ${tex.name}`, `+${fm(tex.add)}/sf`]);
@@ -449,7 +452,7 @@ export function calcFloor(f, sf) {
   if (edge.id !== "square") parts.push(edge.name);
   if (len.pct) parts.push(len.name.replace(" (standard)", "") + " lengths");
   parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${f.sheen || "30"} sheen`);
-  const rest = parts.join(" ");
+  const rest = parts.filter(Boolean).join(" ");
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
 }
 
@@ -809,7 +812,7 @@ export const SP_SHORT = {
   "White Oak": "WO", "Red Oak": "RO", Hickory: "Hick", Maple: "Mpl", Cherry: "Chry",
   Walnut: "Wal", Beech: "Bch", "Q/R White Oak": "QRWO", [LIVE_SAWN_SP]: "LSWO",
 };
-const GRADE_SHORT = { Clear: "Clr", Character: "Char", "Live Sawn": "LS" };
+const GRADE_SHORT = { Clear: "Clr", Character: "Char" };
 const TEX_SHORT = { smooth: "Smth", aged: "AgdBr", sawcut: "SawCut", bandsawn: "BndSwn", country: "CtryWrn", vintage: "VntChrm", oldmill: "OldMill" };
 const EDGE_SHORT = { square: "Sq", bevel: "MBvl", pillow: "HndPlw", vgroove: "VGrv" };
 const LEN_SHORT = { "1-8": "1-8'", "1-10": "1-10'", "2-8": "2-8'", "2-10": "2-10'", "3-8": "3-8'", "3-10": "3-10'" };
@@ -853,7 +856,7 @@ function floorParts(f) {
   const out = [
     { full: WIDTH_LABEL[f.w], rank: 0 },
     { full: f.sp, short: SP_SHORT[f.sp] || f.sp, rank: 0 },
-    { full: grade, short: GRADE_SHORT[grade] || grade, rank: 0 },
+    ...(grade ? [{ full: grade, short: GRADE_SHORT[grade] || grade, rank: 0 }] : []),
     { full: f.cons === "solid" ? "Solid" : "Engineered", short: f.cons === "solid" ? "Sol" : "Eng", rank: 0 },
   ];
   if (f.noSap && sap) out.push({ full: "No sap", short: "NoSap", rank: 1 });
