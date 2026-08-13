@@ -33,6 +33,15 @@ popover, bucket and toast are all clickable):
    gives other row actions (duplicate, move, copy for order entry, delete) a
    discoverable home.
 
+   **Owner decision 2026-08-13 ("option A"):** the ⋯ replaces BOTH row-end
+   hover icons (the hand drag-handle and the trash). It is the row's one grip —
+   a plain click opens the menu, a press-hold-and-pull drags the row (the same
+   hold-to-arm detection `startDrag` already does, pointed at one button; the
+   menu carries a "hold ⋯ and pull to reorder" tip line, and "Move to area"
+   covers long cross-area hauls without dragging). Delete moves into the menu.
+   Mobile is unchanged: long-press-the-row still drags, the menu items live in
+   the row sheet. The prototype's drag is live — hold the dots and pull.
+
 3. **Every other flag point routes to the same bucket.** The price book's
    existing ✳ button opens the same popover and writes to the central list
    (the book page keeps its Claude filter chip, now reading the shared bucket
@@ -46,6 +55,7 @@ popover, bucket and toast are all clickable):
 |---|---|
 | A1 job sheet | A2 the line menu (⋯ / right-click) |
 | A3 flag popover with note | A4 toast + flagged-row ✳ |
+| A5 mid-drag off the ⋯ (drop bar) | A6 after the drop (flag rides along) |
 | B1 the Claude tab | B2 team tab unchanged |
 | C1 other flag points | C2 book ✳ → same popover |
 

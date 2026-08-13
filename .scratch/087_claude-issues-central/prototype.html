@@ -61,8 +61,9 @@
   .cell-sub{display:block;font-size:9.5px;font-weight:500;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .typechip{display:inline-block;font-size:8px;font-weight:700;color:#fff;border-radius:4px;padding:1.5px 5px;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
   .num{text-align:right;font-variant-numeric:tabular-nums}
-  .dots{border:none;background:none;color:var(--faint);font-weight:800;font-size:13px;border-radius:6px;padding:2px 6px;margin:0 auto;display:block}
+  .dots{border:none;background:none;color:var(--faint);font-weight:800;font-size:13px;border-radius:6px;padding:2px 6px;margin:0 auto;display:block;cursor:grab;touch-action:none}
   .dots:hover{background:var(--hover);color:var(--ink)}
+  .dropbar{position:absolute;left:4px;right:4px;height:3px;border-radius:99px;background:var(--moss);z-index:80;pointer-events:none}
   .rowflag{color:var(--clay);display:inline-flex;vertical-align:-2px;margin-left:5px}
 
   /* ---- context menu ---- */
@@ -80,6 +81,7 @@
   .mi.danger .ic{color:var(--red)}
   .mi.danger:hover{background:#FEF2F2}
   .msep{height:1px;background:var(--row-line);margin:4px 6px}
+  .mtip{font-size:10px;color:var(--faint);padding:6px 9px 3px;border-top:1px solid var(--row-line);margin-top:4px}
 
   /* ---- flag dialog ---- */
   .overlay{position:fixed;inset:0;z-index:300;background:rgba(28,26,23,.35);display:none;align-items:center;justify-content:center;padding:16px}
@@ -197,7 +199,7 @@
 
 <!-- ================= scene 1 ================= -->
 <div class="scene on" id="s1">
-  <div class="hint"><span data-mark="12"></span> Right-click any product line below — or click the row's ⋯ — to open the line menu. Pick "Flag for Claude…".</div>
+  <div class="hint"><span data-mark="12"></span> Right-click any line — or click its ⋯ — for the menu, then "Flag for Claude…". The ⋯ is also the grip: hold it and pull to reorder.</div>
   <div class="paper">
     <div class="projhead">
       <div class="cust">Klein, Whitney</div>
@@ -213,7 +215,7 @@
   </div>
   <div class="notes">
     <div class="note"><h3>Why a right-click menu</h3><p>The row already carries everything Claude needs — customer, area, product, SKU, the book it came from. Flagging <b>at the row</b> captures all of it automatically; nobody re-types context into a to-do. The menu also gives the row a home for other actions that currently hide in hover icons.</p></div>
-    <div class="note"><h3>Touch fallback</h3><p>Right-click doesn't exist on the iPad at the counter — the same menu opens from the <b>⋯ button</b> at the row end (and could long-press). One menu, two doors.</p></div>
+    <div class="note"><h3>One control, two gestures</h3><p>The ⋯ replaces the hand + trash icons and does both jobs: <b>click = menu, hold-and-pull = drag</b> (try it above — the drop bar is live). The app's <code>startDrag</code> already arms on a short hold, so this is the same detection pointed at one button. "Move to area" in the menu covers the long cross-area hauls without dragging. On the iPad the row keeps its long-press drag; the menu items live in the row sheet.</p></div>
     <div class="note"><h3>The note is optional</h3><p>A flag with no note still lands with full context. The quick-reason chips cover the common cases in one tap; the text box is for anything else.</p></div>
   </div>
 </div>
@@ -294,6 +296,7 @@
   <button class="mi claude" id="miFlag"><span class="ic" data-mark="13"></span> Flag for Claude…</button>
   <div class="msep"></div>
   <button class="mi danger"><span class="ic" data-ic="trash"></span> Delete line</button>
+  <div class="mtip">Tip: hold the ⋯ and pull to reorder rows</div>
 </div>
 
 <!-- ---- shared: flag dialog ---- -->
@@ -371,12 +374,12 @@ tabs.forEach((t) => t.addEventListener("click", () => showScene(t.dataset.scene)
 
 // ---------- scene 1: job rows ----------
 const jobrows = document.getElementById("jobrows");
-const flaggedRows = new Set();
+jobrows.style.position = "relative";
 function renderRows() {
   jobrows.innerHTML = ROWS.map((r, i) => `
     <div class="gridrow" data-row="${i}">
       <div><span class="num" style="text-align:left">${r.size}</span><span class="typechip" style="background:${r.tc}">${r.type}</span></div>
-      <div><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${r.name}${flaggedRows.has(i) ? `<span class="rowflag" title="Flagged for Claude">${claudeSvg(11)}</span>` : ""}</span><span class="cell-sub">${r.sub}</span></div>
+      <div><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${r.name}${r.flagged ? `<span class="rowflag" title="Flagged for Claude">${claudeSvg(11)}</span>` : ""}</span><span class="cell-sub">${r.sub}</span></div>
       <div style="color:var(--muted)">${r.sku}</div>
       <div class="num">${r.cov}</div>
       <div class="num">${r.price}</div>
@@ -393,7 +396,6 @@ const menuHead = document.getElementById("menuHead");
 let menuRow = null;
 function openMenu(x, y, rowIdx) {
   menuRow = ROWS[rowIdx];
-  menuRow.idx = rowIdx;
   menuHead.textContent = `${menuRow.size} ${menuRow.name} — Master Bath`;
   menu.classList.add("on");
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
@@ -407,11 +409,60 @@ jobrows.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   openMenu(e.clientX, e.clientY, +row.dataset.row);
 });
-jobrows.addEventListener("click", (e) => {
+// Option A: the ⋯ is the row's one grip — a plain click opens the menu, a
+// hold-and-pull drags the row (same hold-to-arm idea as the app's startDrag).
+jobrows.addEventListener("pointerdown", (e) => {
   const d = e.target.closest("[data-dots]");
-  if (!d) return;
-  const rc = d.getBoundingClientRect();
-  openMenu(rc.left - 200, rc.bottom + 4, +d.dataset.dots);
+  if (!d || (e.button != null && e.button !== 0)) return;
+  e.preventDefault();
+  const idx = +d.dataset.dots;
+  const rowEl = d.closest("[data-row]");
+  const startY = e.clientY, startX = e.clientX;
+  let dragging = false, target = idx, bar = null;
+  try { d.setPointerCapture(e.pointerId); } catch (x) { }
+  const others = () => [...jobrows.querySelectorAll("[data-row]")].filter((r) => r !== rowEl);
+  const onMove = (ev) => {
+    if (!dragging) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+      dragging = true;
+      closeMenu();
+      Object.assign(rowEl.style, { position: "relative", zIndex: "40", scale: "1.01", boxShadow: "0 10px 26px rgba(28,26,23,.18)", cursor: "grabbing" });
+      document.body.style.userSelect = "none";
+      bar = document.createElement("div");
+      bar.className = "dropbar";
+      jobrows.appendChild(bar);
+    }
+    rowEl.style.translate = `0 ${ev.clientY - startY}px`;
+    let t = 0;
+    for (const r of others()) { const rc = r.getBoundingClientRect(); if (ev.clientY > rc.top + rc.height / 2) t++; }
+    target = t;
+    const jr = jobrows.getBoundingClientRect(), rest = others();
+    const y = t < rest.length ? rest[t].getBoundingClientRect().top - jr.top - 2 : rest[rest.length - 1].getBoundingClientRect().bottom - jr.top - 1;
+    bar.style.top = y + "px";
+    bar.style.display = t === idx ? "none" : "";
+  };
+  const finish = (commit) => {
+    d.removeEventListener("pointermove", onMove);
+    d.removeEventListener("pointerup", onUp);
+    d.removeEventListener("pointercancel", onCancel);
+    document.body.style.userSelect = "";
+    Object.assign(rowEl.style, { position: "", zIndex: "", scale: "", boxShadow: "", cursor: "", translate: "" });
+    if (bar) bar.remove();
+    if (!dragging) {
+      if (commit) { const rc = d.getBoundingClientRect(); openMenu(rc.left - 200, rc.bottom + 4, idx); }
+      return;
+    }
+    if (commit && target !== idx) {
+      const [m] = ROWS.splice(idx, 1);
+      ROWS.splice(target, 0, m);
+      renderRows();
+    }
+  };
+  const onUp = () => finish(true);
+  const onCancel = () => finish(false);
+  d.addEventListener("pointermove", onMove);
+  d.addEventListener("pointerup", onUp);
+  d.addEventListener("pointercancel", onCancel);
 });
 addEventListener("pointerdown", (e) => { if (!menu.contains(e.target)) closeMenu(); });
 addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMenu(); closeDlg(); } });
@@ -422,7 +473,7 @@ const overlay = document.getElementById("overlay");
 const ctxLines = document.getElementById("ctxLines");
 const noteBox = document.getElementById("noteBox");
 const quickChips = document.querySelectorAll("#quickChips .qc");
-let dlgCtx = null; // { src, ref, lines: [] , rowIdx? }
+let dlgCtx = null; // { src, ref, lines: [], row? }
 function openDlg(ctx) {
   dlgCtx = ctx;
   ctxLines.innerHTML = ctx.lines.map((l) => `<div>${l}</div>`).join("");
@@ -435,7 +486,7 @@ const closeDlg = () => overlay.classList.remove("on");
 document.getElementById("miFlag").addEventListener("click", () => {
   closeMenu();
   const c = menuRow.ctx;
-  openDlg({ src: "job", ref: `${c.where.split(" · ")[0]} · Master Bath · ${menuRow.sku}`, rowIdx: menuRow.idx,
+  openDlg({ src: "job", ref: `${c.where.split(" · ")[0]} · Master Bath · ${menuRow.sku}`, row: menuRow,
     lines: [c.where, `${c.row} <span>· ${c.book}</span>`] });
 });
 document.getElementById("bookFlag").addEventListener("click", () => {
@@ -452,7 +503,7 @@ document.getElementById("dlgCancel").addEventListener("click", closeDlg);
 overlay.addEventListener("pointerdown", (e) => { if (e.target === overlay) closeDlg(); });
 document.getElementById("dlgAdd").addEventListener("click", () => {
   issues.unshift({ id: nextId++, src: dlgCtx.src, ref: dlgCtx.ref, text: noteBox.value.trim(), by: "You", at: "8/13/2026", done: false });
-  if (dlgCtx.rowIdx != null) { flaggedRows.add(dlgCtx.rowIdx); renderRows(); }
+  if (dlgCtx.row) { dlgCtx.row.flagged = true; renderRows(); }
   closeDlg();
   renderBucket();
   showToast("Added to Claude issues");

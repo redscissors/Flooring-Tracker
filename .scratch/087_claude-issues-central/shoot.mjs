@@ -26,6 +26,15 @@ await shot("A3-flag-dialog.png");
 await page.click("#dlgAdd");
 await shot("A4-toast-flagged-row.png");
 
+// option A: hold the ⋯ and pull — capture mid-drag with the drop bar showing
+const dots = await page.locator('[data-dots="0"]').boundingBox();
+await page.mouse.move(dots.x + dots.width / 2, dots.y + dots.height / 2);
+await page.mouse.down();
+await page.mouse.move(dots.x + dots.width / 2 + 6, dots.y + 62, { steps: 10 });
+await shot("A5-dots-drag.png");
+await page.mouse.up();
+await shot("A6-after-drop.png");
+
 // the central bucket with the new issue on top
 await page.click("#toastView");
 await shot("B1-claude-tab.png");
