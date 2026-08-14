@@ -14,7 +14,7 @@ const noop = () => {};
 const DAY = 86400000;
 
 function ProjectHeaderDemo() {
-  const nameRef = useRef(null), nameTabRef = useRef(null), orderEntryRef = useRef(null), addAreaRef = useRef(null), attRef = useRef(null);
+  const nameRef = useRef(null), nameTabRef = useRef(null), orderEntryRef = useRef(null), attRef = useRef(null);
   const [proj, setProj] = useState({
     id: "p1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls",
     notes: "Tear-out week of the 24th. Owner wants the herringbone quote separate.",
@@ -32,12 +32,12 @@ function ProjectHeaderDemo() {
       freightCost={214} saveOk settings={{ pricing: {}, waste: { tile: 15, floor: 10 } }} jobWasteUI={waste}
       updateProject={(id, patch) => setProj((p) => ({ ...p, ...patch }))}
       onOpenCustomer={noop} onPromote={noop}
-      nameRef={nameRef} nameTabRef={nameTabRef} orderEntryRef={orderEntryRef} addAreaRef={addAreaRef} attRef={attRef}
+      nameRef={nameRef} nameTabRef={nameTabRef} orderEntryRef={orderEntryRef} attRef={attRef}
       focusName={false} namingVersion={namingVersion} setNamingVersion={setNamingVersion}
       versionName={versionName} setVersionName={setVersionName}
       startVersionName={() => setNamingVersion(true)} confirmVersion={() => setNamingVersion(false)}
       openAttachment={noop} delAttachment={noop} addAttachment={noop}
-      setShowVersions={noop} setPrintMode={noop} setConfirm={noop} setShowOrderCopy={noop} addArea={noop}
+      setShowVersions={noop} setPrintMode={noop} setConfirm={noop} setShowOrderCopy={noop}
     />
   );
 }
