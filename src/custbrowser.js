@@ -10,6 +10,12 @@ export const salesNameOf = (p) => ((p.salesperson && p.salesperson.name) || "").
 
 export const NO_SALES = "No salesperson";
 
+// Order-number search (the project-numbers spec's deferred follow-up): the
+// query hits a project's number as "N214" or bare "214" — the same case-blind
+// substring contract as every other searched field. Callers pass the query
+// already trimmed + lowercased.
+export const projNoHit = (p, q) => !!(p && p.projectNo) && !!q && `n${p.projectNo}`.includes(q);
+
 // One grid row per customer. `activity` bubbles on any edit — the customer's
 // own or any of their projects' (same rule as the sidebar's "Newest" sort).
 // `sales` is the salesperson of the most recently touched project that has
@@ -48,7 +54,7 @@ function unfiledRows(projects, wantQuick, q, sales) {
   const sp = (sales || "").trim().toLowerCase();
   return projects
     .filter((p) => !p.customerId && !!p.quick === wantQuick)
-    .filter((p) => !s || (p.name || "").toLowerCase().includes(s) || salesNameOf(p).toLowerCase().includes(s))
+    .filter((p) => !s || (p.name || "").toLowerCase().includes(s) || salesNameOf(p).toLowerCase().includes(s) || projNoHit(p, s))
     .filter((p) => !sp || salesNameOf(p).toLowerCase().includes(sp))
     .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
 }
@@ -56,14 +62,14 @@ export const quickRows = (projects = [], q, sales) => unfiledRows(projects, true
 export const draftRows = (projects = [], q, sales) => unfiledRows(projects, false, q, sales);
 
 // Substring search over the row's own contact fields, its builder, and its
-// project names — the same span as the sidebar search (ADR 0005).
+// project names + order numbers — the same span as the sidebar search (ADR 0005).
 export function filterRows(rows, q) {
   const s = (q || "").trim().toLowerCase();
   if (!s) return rows;
   const has = (f) => (f || "").toLowerCase().includes(s);
   return rows.filter((r) =>
     [r.name, r.phone, r.email, r.address, r.builderName].some(has) ||
-    r.projs.some((p) => has(p.name)));
+    r.projs.some((p) => has(p.name) || projNoHit(p, s)));
 }
 
 // Every salesperson the shop's saved jobs carry, A–Z. The boot's light rows

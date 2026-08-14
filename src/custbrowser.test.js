@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -92,6 +92,39 @@ test("filterRows spans name, phone, address, builder, and project names", () => 
   assert.deepEqual(filterRows(all, "master bath").map((r) => r.id), ["c1"]);
   assert.equal(filterRows(all, "").length, 3);
   assert.equal(filterRows(all, "zzz").length, 0);
+});
+
+test("projNoHit: N-form or bare digits against a project's number, nothing else", () => {
+  const p = { projectNo: 214 };
+  assert.equal(projNoHit(p, "n214"), true);
+  assert.equal(projNoHit(p, "214"), true);
+  assert.equal(projNoHit(p, "21"), true);
+  assert.equal(projNoHit(p, "n2"), true);
+  assert.equal(projNoHit(p, "215"), false);
+  assert.equal(projNoHit(p, ""), false);
+  assert.equal(projNoHit({ projectNo: null }, "214"), false);
+  assert.equal(projNoHit({}, "214"), false);
+});
+
+test("filterRows finds a customer by a project's order number", () => {
+  const numbered = browserRows({
+    people, builders,
+    projects: projects.map((p) => p.id === "p2" ? { ...p, projectNo: 214 } : p),
+  });
+  assert.deepEqual(filterRows(numbered, "N214").map((r) => r.id), ["c1"]);
+  assert.deepEqual(filterRows(numbered, "214").map((r) => r.id), ["c1"]);
+  assert.equal(filterRows(numbered, "n999").length, 0);
+});
+
+test("quickRows/draftRows match the order number like the grid search", () => {
+  const projs = [
+    ...projects,
+    { id: "p8", customerId: null, name: "Smith house", updatedAt: 600, projectNo: 305 },
+    { id: "p9", customerId: null, name: "Renamed quick", quick: true, updatedAt: 500, projectNo: 306 },
+  ];
+  assert.deepEqual(draftRows(projs, "n305").map((p) => p.id), ["p8"]);
+  assert.deepEqual(quickRows(projs, "306").map((p) => p.id), ["p9"]);
+  assert.equal(draftRows(projs, "n999").length, 0);
 });
 
 test("filterBySales matches any project's salesperson, case-blind substring", () => {
