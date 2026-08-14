@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Plus, Check, Truck, X } from "lucide-react";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X } from "lucide-react";
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
@@ -130,7 +130,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   );
 }
 
-export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy }) {
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
@@ -247,7 +247,6 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
           </button>
         </div>
       </div>
-      <button ref={addAreaRef} onClick={addArea} className="ft-noprint -mt-2 mb-4 w-full h-[26px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
     </>
   );
 }
@@ -256,7 +255,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 // Moved whole from App.jsx (print-sheet style: customer | project | salesperson
 // up top, then pricing + notes | actions, then the Add-area row).
 
-export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, addArea }) {
+export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy }) {
   const sp = sel.salesperson || profile;
   const cols = { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 };
   const midPad = { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" };
@@ -374,9 +373,6 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
           </div>
         </div>
       </div>
-      {/* Ink row — same action as the dashed Add-area bar that
-          trails the areas list; both stay on purpose. */}
-      <button ref={addAreaRef} onClick={addArea} className="ft-noprint mt-2 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
     </div>
   );
 }

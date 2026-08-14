@@ -1399,15 +1399,15 @@ export default function App({ user, onSignOut }) {
               {isWide && (() => {
                 const cust = data.people.find((c) => c.id === sel.customerId);
                 // Tab out of the header lands on the first area's name; with no
-                // areas yet it falls back to the header's Add-area button.
+                // areas yet it falls back to the Add-area bar below the header.
                 const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
                 const hp = {
                   sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, optionBadges, freightCost, saveOk, settings, jobWasteUI, updateProject,
                   onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
-                  nameRef, nameTabRef, orderEntryRef, addAreaRef, focusName,
+                  nameRef, nameTabRef, orderEntryRef, focusName,
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
-                  setShowVersions, setConfirm, addArea,
+                  setShowVersions, setConfirm,
                   // Both header layouts call these with (true) / ("order") respectively —
                   // wrapped here so projectheader.jsx needs no changes to route through
                   // the option scope picker (Task 8). "estimate" passes straight through.
@@ -2250,10 +2250,13 @@ export default function App({ user, onSignOut }) {
               </div>
 
               {/* Mobile gets its + Area in the bottom add bar instead. */}
-              {isWide && sel.categories.length > 0 && (
-                // Tab flow: after the last area's search row this Add-area bar is
-                // the next stop; Tab from it jumps back up to Order entry → Print.
-                <button onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
+              {isWide && (
+                // The one desktop Add-area control (the header's ink twin was
+                // removed 2026-08-14). Tab flow: after the last area's search row
+                // this bar is the next stop; Tab from it jumps back up to Order
+                // entry → Print. With no areas yet it also catches Tab out of
+                // the header (addAreaRef).
+                <button ref={addAreaRef} onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0 || freightCost > 0) && (
