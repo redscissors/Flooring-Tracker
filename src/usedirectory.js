@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabase.js";
 import { SHARED_SETTINGS_ID } from "./bootload.js";
 import { normalizeSettings, withDerived, serializeSettings } from "./catalog.js";
 import { ATT_BUCKET } from "./uiconst.js";
-import { uid, catSig, rowBlank, newProject, newPerson, newBuilder, normC, personData, isQuickAutoName, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
+import { uid, catSig, rowBlank, newProject, newPerson, newBuilder, normC, personData, isQuickAutoName, isRealProjectName, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
 
 export const attPath = (custId, fileId) => `${custId}/${fileId}`;
 export const normProfile = (p) => ({ name: "", phone: "", email: "", ...(p || {}) });
@@ -98,7 +98,9 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   // their own table; _full is load state; updatedAt mirrors the updated_at
   // column; ownerId/visibility/archived are legacy fields old records may carry).
   // customerId is the projects.customer_id column, not part of the data blob.
-  const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, customerId, ...rest }) => rest;
+  // projectNo mirrors the project_no column (spec 2026-08-14) — column only,
+  // so the DB stays the sole authority on the number.
+  const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, customerId, projectNo, ...rest }) => rest;
 
   // Settings live in one shared record (ADR 0002) — last-write-wins across the
   // whole team, the same as a Public customer's data.
@@ -125,6 +127,25 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   const builderNameOf = (id) => data.builders.find((b) => b.id === id)?.name || "";
   const projectsOf = (customerId) => data.projects.filter((p) => p.customerId === customerId);
 
+  // Mint the project's permanent number (spec 2026-08-14). Fire-and-forget and
+  // idempotent server-side; before supabase/project-numbers.sql runs, the RPC
+  // is missing and the catch leaves the project numberless — by design.
+  // `name` is passed by updateProject because dataRef still holds the pre-edit
+  // state when this fires — reading cur.name here would lag one keystroke.
+  const claimInFlight = useRef(new Set());
+  const claimProjectNo = (id, name) => {
+    const cur = dataRef.current.projects.find((c) => c.id === id);
+    if (!cur || cur.projectNo || claimInFlight.current.has(id) || !isRealProjectName(name ?? cur.name)) return;
+    claimInFlight.current.add(id);
+    (async () => {
+      try {
+        const { data: n, error } = await supabase.rpc("claim_project_no", { pid: id });
+        if (error) throw error;
+        if (n != null) setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, projectNo: n } : c) }));
+      } catch (e) { /* SQL not run yet, or offline — the number arrives on a later save */ }
+      finally { claimInFlight.current.delete(id); }
+    })();
+  };
   // Every project-content mutation goes through here: optimistic state update +
   // an UPDATE of that one row's data blob. customer_id is a column, moved via
   // linkProject — never through here.
@@ -139,6 +160,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     }
     const next = { ...data, projects: data.projects.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
     setData(next);
+    if ("name" in patch) claimProjectNo(id, patch.name);
     const cust = next.projects.find((c) => c.id === id);
     (async () => { try { const { error } = await supabase.from("projects").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
   };
@@ -265,7 +287,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     data, setData, loading, setLoading, hydrateDirectory: setData,
     selId, setSelId, selCustId, setSelCustId, sel, selCust,
     loadDetail,
-    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject,
+    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo,
     linkProject, promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
