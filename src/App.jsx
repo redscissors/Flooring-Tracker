@@ -2422,7 +2422,7 @@ export default function App({ user, onSignOut }) {
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-3">
               <div className="font-bold text-xl">Order sheet</div>
-              <div className="text-sm">{sel.name}{optsUsed.length && scope !== "all" ? ` — ${optionShort(sel, scope)}` : ""} · {new Date().toLocaleDateString()}</div>
+              <div className="text-sm">{sel.projectNo ? `N${sel.projectNo} · ` : ""}{sel.name}{optsUsed.length && scope !== "all" ? ` — ${optionShort(sel, scope)}` : ""} · {new Date().toLocaleDateString()}</div>
             </div>
             <table className="w-full border-collapse text-[12px]">
               <thead>
