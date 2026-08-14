@@ -68,7 +68,9 @@ src/
   fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
                     # `import("pdfjs-dist")` preserved
   widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
-                    # anchored-panel machinery, `ThemeSwitch`, popovers, bars
+                    # anchored-panel machinery, `ThemeSwitch`, popovers, bars,
+                    # `HelpTip` (the hover/focus/tap ? for STANDING RULES only —
+                    # state & warnings stay inline, hiding them hides the problem)
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
   grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
@@ -114,6 +116,10 @@ src/
   claudeissuespreview.jsx  # dev-only harness (claude-issues-preview.html): the
                     # REAL TeamTodos tabs + LineMenu + FlagForClaude over local
                     # mock state, no Supabase; not part of the app build
+  headerpreview.jsx # dev-only harness (header-preview.html): the REAL
+                    # ProjectHeaderBar + PriceBookLibrary over local mock state,
+                    # no Supabase — preview proof for the 2026-08-14 compact
+                    # headers; not part of the app build
   custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
                     # group-by-salesman over the boot's light rows (custbrowser.test.js)
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
