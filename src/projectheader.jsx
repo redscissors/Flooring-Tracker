@@ -165,10 +165,14 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
           <div style={idbox}>
             {/* fixed-height row: the tier badge / Saved ✓ pop in and out, and
                 without the reservation they nudge the whole band's height */}
-            <div className="ft-eyebrow text-[8px] flex items-center gap-2" style={{ color: "var(--ft-faint)", height: 10 }}>
-              Job total
-              {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px font-semibold normal-case tracking-normal" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-              {saveOk && <span className="font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 9 }}>Saved ✓</span>}
+            {/* the row is 10px tall in a 138px column, so when a tier tag is up
+                everything else yields to it: the label drops to "Total", the
+                save flash to "✓", and the tag itself sits flush in the 10px
+                line — it must never spill the box or truncate into "B…" */}
+            <div className="ft-eyebrow text-[8px] flex items-center gap-1" style={{ color: "var(--ft-faint)", height: 10 }}>
+              <span className="shrink-0">{tierBadgeText(tv.tier, tv.pct) ? "Total" : "Job total"}</span>
+              {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-0.5 font-semibold normal-case tracking-normal truncate" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 8, lineHeight: "10px" }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
+              {saveOk && <span className="shrink-0 font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 9 }}>{tierBadgeText(tv.tier, tv.pct) ? "✓" : "Saved ✓"}</span>}
             </div>
             {optionBadges ? (
               <div className="flex items-center gap-1.5 flex-wrap justify-end">

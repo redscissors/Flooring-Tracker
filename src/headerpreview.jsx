@@ -27,7 +27,8 @@ function ProjectHeaderDemo() {
   return (
     <ProjectHeaderBar
       sel={proj} cust={{ name: "Kathy Marsh", address: "214 Old Mill Rd" }} builderName="Meridian Homes"
-      profile={{ name: "Danny", phone: "(555) 210-0114" }} tv={{ tier: proj.priceTier, pct: 0 }} grandTotal={12847.2}
+      profile={{ name: "Danny", phone: "(555) 210-0114" }}
+      tv={{ tier: proj.priceTier, pct: proj.priceTier === "builder" ? 8 : proj.priceTier === "sale" ? 15 : proj.priceTier === "custom" ? Number(proj.customPct) || 0 : 0 }} grandTotal={12847.2}
       freightCost={214} saveOk settings={{ pricing: {}, waste: { tile: 15, floor: 10 } }} jobWasteUI={waste}
       updateProject={(id, patch) => setProj((p) => ({ ...p, ...patch }))}
       onOpenCustomer={noop} onPromote={noop}

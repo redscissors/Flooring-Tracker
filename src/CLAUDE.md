@@ -112,7 +112,8 @@ src/
                     # Move to area (inline expand, no floating submenu) / Flag
                     # for Claude / Delete (routes to the existing inline
                     # confirm). The old hand + trash hover icons are retired on
-                    # product rows; the empty search-row adder keeps them
+                    # product rows; the empty search-row adder wears the same ⋯
+                    # dots (drag-only grip — no menu) and keeps its trash
   claudeissuespreview.jsx  # dev-only harness (claude-issues-preview.html): the
                     # REAL TeamTodos tabs + LineMenu + FlagForClaude over local
                     # mock state, no Supabase; not part of the app build

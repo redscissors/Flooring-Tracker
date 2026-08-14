@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Hand, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -1864,7 +1864,7 @@ export default function App({ user, onSignOut }) {
                                   inputRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
                               </div>
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-card)" }}>
-                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-500"><Hand size={12} /></button>
+                                <button tabIndex={-1} onPointerDown={(e) => startDrag(e, a.id, p, pi)} title="Drag to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-600"><MoreHorizontal size={13} /></button>
                                 {a.products.length > 1 && !isAdder && <button tabIndex={-1} onClick={() => delProduct(a.id, p.id)} title="Remove this empty row" className="p-0.5 text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>}
                               </div>
                             </div>
