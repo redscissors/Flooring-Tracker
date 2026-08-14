@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -106,4 +106,11 @@ test("normC: optionNames normalize to trimmed strings on valid slots", () => {
   const c = normC({ id: "c1", categories: [], optionNames: { A: " Porcelain ", B: "", X: "no" } });
   assert.deepEqual(c.optionNames, { A: "Porcelain" });
   assert.deepEqual(normC({ id: "c2", categories: [] }).optionNames, {});
+});
+
+test("isRealProjectName: only a hand-typed name counts (spec 2026-08-14 claim rule)", () => {
+  for (const bad of ["", "  ", null, undefined, "New Project", " New Project ", "Quick price", "Q-Marazzi Rice-8/14"])
+    assert.equal(isRealProjectName(bad), false, JSON.stringify(bad));
+  for (const good of ["Marsh — whole first floor", "N house", "Quick pricers club", "Q-shaped room"])
+    assert.equal(isRealProjectName(good), true, good);
 });

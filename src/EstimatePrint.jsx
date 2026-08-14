@@ -37,7 +37,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             <div className="flex justify-between items-center mb-5" style={{ borderBottom: "2px solid var(--ft-text)", paddingBottom: 16 }}>
               <img src={keimLogo} alt="Keim" style={{ height: 40, width: "auto", display: "block" }} />
               <div className="flex flex-col items-end" style={{ gap: 4 }}>
-                <div className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".24em", color: "var(--ft-brand-deep)" }}>Selection Sheet</div>
+                <div className="uppercase" style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", lineHeight: 1.45, textAlign: "right" }}>Flooring &amp; Tile<br />Selections</div>
+                {sel.projectNo && <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".02em" }}>N{sel.projectNo}</div>}
                 <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</div>
                 {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
               </div>
@@ -50,18 +51,18 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               const pname = sp.name || sp.email;
               const wMeta = wasteMeta(jobWaste, "waste factor");
               const printName = sel.quick ? quickPrintName(sel) : sel.name;
-              const col = (label, name, detail) => (
+              const col = (label, name, details) => (
                 <div className="flex flex-col" style={{ gap: 2 }}>
                   <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
                   <div style={{ fontSize: 12.5, fontWeight: 700 }}>{name || PRINT_DASH}</div>
-                  {detail && <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>{detail}</div>}
+                  {details.filter(Boolean).map((d, j) => <div key={j} style={{ fontSize: 11, color: "var(--ft-muted)" }}>{d}</div>)}
                 </div>
               );
               return (
                 <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                  {col("Customer", cust?.name || printName, cust?.address || sel.address)}
-                  {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  "))}
-                  {col("Project", printName, wMeta)}
+                  {col("Customer", cust?.name || printName, [cust?.address || sel.address])}
+                  {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname))}
+                  {col("Project", printName, [wMeta])}
                 </div>
               );
             })()}
@@ -251,7 +252,8 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 2 }}>For planning purposes only · pricing subject to change on final order</div>
           </div>
           <div className="flex flex-col items-end" style={{ gap: 3, flexShrink: 0 }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".24em", color: "var(--ft-brand-deep)" }}>Selection Sheet</div>
+            <div className="uppercase" style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", lineHeight: 1.45, textAlign: "right" }}>Flooring &amp; Tile<br />Selections</div>
+            {sel.projectNo && <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".02em" }}>N{sel.projectNo}</div>}
             <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</div>
             {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
           </div>
@@ -259,14 +261,14 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 12 }}>
           {[
-            ["Customer", cust?.name || printName, cust?.address || sel.address],
-            ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname).join("  ·  ")],
-            ["Project", printName, [scopeNote, wMeta].filter(Boolean).join(" · ")],
-          ].map(([label, name, detail], i) => (
+            ["Customer", cust?.name || printName, [cust?.address || sel.address]],
+            ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname)],
+            ["Project", printName, [[scopeNote, wMeta].filter(Boolean).join(" · ")]],
+          ].map(([label, name, details], i) => (
             <div key={i} className="flex flex-col" style={{ gap: 2 }}>
               <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
               <div style={{ fontSize: 12.5, fontWeight: 800 }}>{name || PRINT_DASH}</div>
-              {detail && <div style={{ fontSize: 11, color: "var(--ft-muted)" }}>{detail}</div>}
+              {details.filter(Boolean).map((d, j) => <div key={j} style={{ fontSize: 11, color: "var(--ft-muted)" }}>{d}</div>)}
             </div>
           ))}
         </div>

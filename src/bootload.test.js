@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow } from "./bootload.js";
+import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow, listSelect } from "./bootload.js";
 
 // Chainable thenable standing in for the supabase query builder (same idea as
 // fetchall.test.js): select/eq/order return the builder; awaiting it resolves
@@ -41,4 +41,25 @@ test("resolveSharedSettings seeds when the shared row is missing and not when pr
 
   const row = await loadSettingsRow(fakeDb({ shared_settings: [{ data: { catalog: null } }] }));
   assert.ok(row);
+});
+
+// --- project numbers (spec 2026-08-14) ---
+// Module note: listSelect() is downgrade-once state, so the success-path test
+// must run before the fallback test (node:test runs a file in order).
+test("loadProjects mirrors project_no as projectNo (null when absent)", async () => {
+  const db = fakeDb({ projects: [{ id: "p1", project_no: 214 }, { id: "p2" }] });
+  const rows = await loadProjects(db);
+  assert.equal(rows[0].projectNo, 214);
+  assert.equal(rows[1].projectNo, null);
+  assert.ok(listSelect().includes("project_no"));
+});
+
+test("loadProjects falls back to the legacy select when project_no is missing", async () => {
+  const asked = [];
+  const db = { from: () => ({ select: (sel) => { asked.push(sel); const error = sel.includes("project_no") ? { message: "column projects.project_no does not exist" } : null; return { then: (ok, err) => Promise.resolve({ data: error ? null : [{ id: "a" }], error }).then(ok, err) }; } }) };
+  const rows = await loadProjects(db);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].projectNo, null);
+  assert.equal(asked.length, 2);
+  assert.ok(!listSelect().includes("project_no"));
 });

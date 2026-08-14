@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
@@ -17,7 +17,7 @@ import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 // engine stay inside the lazy WediConfigurator chunk (ADR 0026, issue 066).
 import { seedFromQuery as wediSeed } from "./wediquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, QUICK_DEFAULT_NAME } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto } from "./options.js";
@@ -156,7 +156,7 @@ export default function App({ user, onSignOut }) {
   const {
     data, setData, loading, setLoading, hydrateDirectory,
     selId, setSelId, selCustId, setSelCustId, sel, selCust,
-    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject,
+    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo,
     promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
@@ -523,7 +523,7 @@ export default function App({ user, onSignOut }) {
         // Strip characters that would break PostgREST's or=() syntax.
         const pat = "%" + q.replace(/[%_,()"\\]/g, " ").trim() + "%";
         const ors = ["name", "address", "phone", "email"].map((f) => `data->>${f}.ilike.${pat}`).join(",");
-        const { data: rows, error } = await supabase.from("projects").select(LIST_SELECT).or(ors);
+        const { data: rows, error } = await supabase.from("projects").select(listSelect()).or(ors);
         if (error) throw error;
         if (stale) return;
         const found = (rows || []).map(lightRow);
@@ -1049,6 +1049,9 @@ export default function App({ user, onSignOut }) {
       const idMap = {};
       c.attachments = (c.attachments || []).map((m) => { const nid = uid(); idMap[m.id] = nid; return { ...m, id: nid }; });
       try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: c.customerId, data: custData(c), created_at: new Date(c.createdAt || Date.now()).toISOString() }); if (error) throw error; } catch (x) { continue; }
+      // A restore adds copies under fresh ids, so old numbers can't ride along
+      // (the originals may still hold them) — a real-named copy claims fresh.
+      if (isRealProjectName(c.name)) { try { await supabase.rpc("claim_project_no", { pid: c.id }); } catch (x) { } }
       const vRows = (c.versions || []).map((v) => ({ id: uid(), customer_id: c.id, label: v.label || "Version", auto: !!v.auto, saved_at: new Date(v.savedAt || Date.now()).toISOString(), snapshot: v.snapshot || [] }));
       if (vRows.length) { try { const { error } = await supabase.from("versions").insert(vRows); if (error) throw error; } catch (x) { } }
       c.versions = vRows.map((r) => vMeta(r));
@@ -2419,7 +2422,7 @@ export default function App({ user, onSignOut }) {
           <div>
             <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-3">
               <div className="font-bold text-xl">Order sheet</div>
-              <div className="text-sm">{sel.name}{optsUsed.length && scope !== "all" ? ` — ${optionShort(sel, scope)}` : ""} · {new Date().toLocaleDateString()}</div>
+              <div className="text-sm">{sel.projectNo ? `N${sel.projectNo} · ` : ""}{sel.name}{optsUsed.length && scope !== "all" ? ` — ${optionShort(sel, scope)}` : ""} · {new Date().toLocaleDateString()}</div>
             </div>
             <table className="w-full border-collapse text-[12px]">
               <thead>

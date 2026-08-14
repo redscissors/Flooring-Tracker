@@ -51,6 +51,10 @@ export const catSig = (cats) => JSON.stringify((cats || []).map((a) => ({ ...a, 
 export const QUICK_DEFAULT_NAME = "Quick price";
 const QUICK_AUTO_RE = /^Q-.*-\d{1,2}\/\d{1,2}$/;
 export const isQuickAutoName = (name) => { const s = String(name || "").trim(); return !s || s === QUICK_DEFAULT_NAME || QUICK_AUTO_RE.test(s); };
+// The project-number claim gate (spec 2026-08-14): a number is minted only for
+// a name a person typed — the "New Project" birth default and quick auto-names
+// never claim, so drafts stay unnumbered until someone names them.
+export const isRealProjectName = (name) => { const s = String(name || "").trim(); return !!s && s !== "New Project" && !isQuickAutoName(s); };
 export const quickAutoName = (proj) => {
   const first = (proj.categories || []).flatMap((a) => a.products || []).find((p) => !rowBlank(p));
   if (!first) return QUICK_DEFAULT_NAME;
