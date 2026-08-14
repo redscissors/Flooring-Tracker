@@ -255,7 +255,7 @@ top-right corner carries it.</p>
     <div class="pfade">…the estimate continues unchanged…</div>
   </div>
 
-  <div class="lbl" style="margin-top:20px">Option 3A·stacked, one size up — the narrower title can afford it</div>
+  <div class="lbl" style="margin-top:20px">Option 3A·stacked, one size up — with the stacked salesperson block <span class="pick">final pick</span></div>
   <div class="sheet">
     <div class="ptop">
       <div class="plogo">Keim</div>
@@ -268,7 +268,7 @@ top-right corner carries it.</p>
     </div>
     <div class="prule">
       <div class="pcol"><div class="peyebrow">Customer</div><div class="pval">Kathy Marsh</div></div>
-      <div class="pcol"><div class="peyebrow">Your salesperson</div><div class="pval">Danny</div></div>
+      <div class="pcol"><div class="peyebrow">Your salesperson</div><div class="pval">Danny</div><div class="psub">(555) 210-0114</div><div class="psub">danny@keimlumber.com</div></div>
       <div class="pcol"><div class="peyebrow">Project</div><div class="pval">Marsh — whole first floor</div><div class="psub">waste tile 15% · other 10%</div></div>
     </div>
     <div class="pbandhint">KITCHEN</div>
@@ -277,8 +277,11 @@ top-right corner carries it.</p>
   <p class="note" style="margin:8px 0 0">Stacking breaks the title where you asked — <b>Flooring &amp; Tile</b> over
   <b>Selections</b> — which halves the corner's width and hands that room back to the Rough-Estimate badge. The
   corner grows one line taller (four lines), still shorter than the badge beside it, so the header row's height
-  doesn't move. Two weights: the top sheet keeps today's exact title size; the bottom one takes the title and
-  number up a step, which the narrower block can afford without crowding the badge.</p>
+  doesn't move. Two weights were tried: today's exact title size (above) and one step up (this sheet) — the
+  narrower block affords the larger type, and it balances the logo. <b>Also picked here:</b> the salesperson's
+  phone and email stack on their own lines instead of riding one line with a dot between them — the column
+  reads name / phone / email, the way you'd copy it into a phone. The identity row gets one line deeper only
+  when a salesperson has both.</p>
 
   <div class="lbl" style="margin-top:20px">Option 3B — the number is the headline</div>
   <div class="sheet">
@@ -333,7 +336,8 @@ top-right corner carries it.</p>
     <tr><td>Number source</td><td>A database sequence (one SQL file) · B highest+1 in the app (no SQL, small collision risk) </td><td><span class="v yes">A ✓</span></td></tr>
     <tr><td>Existing projects</td><td>Backfill by creation date · fresh start at N100 for new ones only</td><td><span class="v yes">backfill ✓</span></td></tr>
     <tr><td>Screen placement</td><td>2A quiet corner label · 2B moss chip · 2C riding the name</td><td><span class="v yes">2A ✓</span></td></tr>
-    <tr><td>Print corner</td><td>3A number under title, date below · 3B big number · 3C one-line number+date</td><td><span class="v yes">3A ✓</span> <span class="v alt">stacked title — which weight?</span></td></tr>
+    <tr><td>Print corner</td><td>3A number under title, date below · 3B big number · 3C one-line number+date</td><td><span class="v yes">3A stacked, one size up ✓</span></td></tr>
+    <tr><td>Salesperson block</td><td>Phone and email on one dotted line (today) · each on its own line</td><td><span class="v yes">stacked ✓</span></td></tr>
     <tr><td>Title rename</td><td>The corner today says <b>Selection Sheet</b> — confirm it becomes <b>Flooring &amp; Tile Selections</b> on both print layouts (cards + classic)</td><td><span class="v yes">yes ✓</span></td></tr>
     <tr><td>Order sheet too?</td><td>The printed order sheet shares the sheet chrome — carry the same corner there?</td><td><span class="v yes">yes ✓</span></td></tr>
   </table>
@@ -343,8 +347,8 @@ top-right corner carries it.</p>
   <code>supabase/project-numbers.sql</code> (the <code>project_no</code> column + sequence + claim RPC — shipped as a
   file for you to run, per house rules), the first-name-save claim in the project write path, <code>normC</code>
   carrying the number, the eyebrow row in <code>projectheader.jsx</code> (both bar and Classic layouts), and the
-  corner block in <code>EstimatePrint.jsx</code> (cards + classic + order sheet). Everything else on the sheet and
-  in the header stays where it is.</p>
+  corner block and the salesperson column's stacked phone/email lines in <code>EstimatePrint.jsx</code> (cards +
+  classic + order sheet). Everything else on the sheet and in the header stays where it is.</p>
 </section>
 
 </body>
