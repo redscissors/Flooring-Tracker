@@ -3,7 +3,7 @@ import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pe
 import { supabase } from "./lib/supabase.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, sheetMagic, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
 import { bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS } from "./orderbook.js";
-import { DotMenu } from "./widgets.jsx";
+import { DotMenu, HelpTip } from "./widgets.jsx";
 
 export const FLAG_SEMANTICS = [["", "— ignore —"], ["discontinued", "Discontinued"], ["freight", "Extra freight"], ["madeToOrder", "Made to order"], ["transitioning", "Transitioning"]];
 
@@ -792,9 +792,8 @@ export function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
           <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
           {setupOpen && (
             <div className="mt-3 border-t border-slate-200 pt-3">
-              <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download:</p>
+              <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download. <HelpTip className="align-middle" w={280} tip={<>First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (<b>Ctrl+J</b> → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</>} /></p>
               <VendorBookmarklet />
-              <p className="text-[11px] text-slate-400 mt-2">First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (Ctrl+J → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</p>
             </div>
           )}
         </div>

@@ -654,7 +654,9 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   return (
     <>
       <div className="mt-6">
-        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-400"><History size={13} /> Import history</div>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-400"><History size={13} /> Import history
+          <HelpTip tip={<>The newest {BOOK_VERSION_KEEP} unpinned imports are kept; pin one to keep it indefinitely.</>} />
+        </div>
         <div className="mt-2 border border-slate-100 rounded-lg divide-y divide-slate-100">
           {versions.map((v, i) => (
             <div key={v.id} className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -670,7 +672,6 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-slate-400 mt-1">The newest {BOOK_VERSION_KEEP} unpinned imports are kept; pin one to keep it indefinitely.</p>
       </div>
 
       {rollback && (
@@ -1293,12 +1294,11 @@ function BookItemEditModal({ item, isOrder, onClose, onSave, inp, lbl }) {
             <div className="w-24"><label className={lbl}>U/M</label><input className={inp} value={d.unit} onChange={(e) => set("unit", e.target.value)} /></div>
           </div>
           <div className="flex gap-3">
-            <div className="flex-1"><label className={lbl}>{isOrder ? "Cost" : "Price"}</label><input className={inp} inputMode="decimal" value={isOrder ? d.cost : d.price} onChange={(e) => set(isOrder ? "cost" : "price", e.target.value)} /></div>
+            <div className="flex-1"><label className={lbl}>{isOrder ? "Cost" : "Price"} {isOrder && <HelpTip className="align-middle" tip="Selling price stays cost × markup — edit the markup on the book to move sell." />}</label><input className={inp} inputMode="decimal" value={isOrder ? d.cost : d.price} onChange={(e) => set(isOrder ? "cost" : "price", e.target.value)} /></div>
             <div className="flex-1"><label className={lbl}>Lead time</label><input className={inp} value={d.leadTime} onChange={(e) => set("leadTime", e.target.value)} /></div>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={d.discontinued} onChange={(e) => set("discontinued", e.target.checked)} /> Discontinued</label>
         </div>
-        {isOrder && <p className="text-[11px] text-slate-400 mt-3">Selling price stays cost × markup — edit the markup on the book to move sell.</p>}
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
           <button onClick={save} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Save edit</button>
@@ -1369,9 +1369,8 @@ export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   //
         <span className={"text-[11px] pb-2 " + (noMarkup ? "text-red-600" : "text-slate-400")}>$10 cost → {money(10 * (1 + num(def) / 100))} sell</span>
         {hasTrims && (
           <div className="ml-auto text-right">
-            <label className={lbl}>Trim %</label>
+            <label className={lbl}>Trim % <HelpTip className="align-middle" tip="Applies to reducers, T-molds, stair-noses and other trims. Blank = the default markup." /></label>
             <input type="number" className={`${inp} w-24`} value={trim} onChange={(e) => setTrim(e.target.value)} onBlur={() => commit(def, byGroup, trim)} placeholder={String(num(def))} />
-            <p className="text-[10px] text-slate-400 mt-0.5">reducers, T-molds, stair-noses… (blank = default)</p>
           </div>
         )}
       </div>
@@ -1447,7 +1446,9 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
       <div className="flex items-center gap-2 flex-wrap">
         {!embedded && <Truck size={14} className="text-slate-400" />}
         {!embedded && <span className="text-sm font-medium">Freight</span>}
-        <span className="text-[11px] text-slate-400">charged once per order, on top of the item cost</span>
+        <span className="text-[11px] text-slate-400 flex items-center gap-1.5">charged once per order, on top of the item cost
+          <HelpTip tip="Rates read live — changing one moves every open quote, saved estimates included." />
+        </span>
         {/* Switching a blank program on prefills it — but only on the book the
             transcribed sheet belongs to (freightSeedFor). Any other vendor opens
             empty rather than wearing Glazzio's rates. */}
@@ -1481,7 +1482,6 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
                 title="Words that mean the piece is a chip on a backing sheet, not a foot of tile — so the row ships small format whatever the sheet measures. This is what keeps a 12x12 mosaic off the large-format line. Matched against the row's description; comma-separated." />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1.5">Rates read live — changing one moves every open quote, saved estimates included.</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 mt-3 max-w-2xl">
             {FREIGHT_FIELDS.map((x) => (
               <div key={x.k}>
