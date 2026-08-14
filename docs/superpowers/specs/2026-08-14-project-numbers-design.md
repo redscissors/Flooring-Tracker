@@ -1,6 +1,6 @@
 # Project numbers (N100) — design
 
-**Date:** 2026-08-14 · **Status:** approved prototype, spec awaiting review
+**Date:** 2026-08-14 · **Status:** approved, implemented on claude/project-numbering-prototype-rjp1am
 **Prototype:** `.scratch/mockups/project-numbers-2026-08-14.html` (picks recorded in its Decisions table)
 
 ## What
@@ -56,9 +56,10 @@ swallows the error, nothing renders (no number anywhere), the app is otherwise
 unaffected. Same fallback pattern as `pricebook-search.sql`. A transient claim
 failure just retries on a later save; the number simply arrives late.
 
-**Backup/restore:** the JSON export gains `projectNo` per project; restore
-writes it back to the column as-is (restore recreates rows, it must not
-re-claim — a restored N137 stays N137).
+**Backup/restore** (amended at plan time): restore adds copies under fresh ids
+— "nothing existing is overwritten" — so old numbers cannot ride along without
+colliding with the still-live originals. Restored real-named projects claim
+fresh numbers; the export carries no numbers.
 
 ## On screen (pick 2A — quiet corner label)
 

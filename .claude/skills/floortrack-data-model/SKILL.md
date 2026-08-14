@@ -15,7 +15,15 @@ app_data.data : { profile: { name, phone, email } }   // per user; stamped onto 
                                                       // snapshot (ADR 0008)
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
-                  data: Customer, created_at, updated_at }
+                  data: Customer, created_at, updated_at,
+                  project_no (int, unique, nullable) }
+                  // project_no (projects table post-ADR-0005, spec 2026-08-14):
+                  // the permanent N-number, minted by the claim_project_no RPC
+                  // on the first REAL name (isRealProjectName — never for the
+                  // "New Project" default or quick auto-names), never reused or
+                  // renumbered. Column only: the app mirrors it as `projectNo`
+                  // in memory and custData strips it from every jsonb write.
+                  // supabase/project-numbers.sql; absent until the owner runs it.
 
 versions row  : { id (text), customer_id, label, auto (bool), saved_at,
                   snapshot: Area[] }            // one row per saved version
