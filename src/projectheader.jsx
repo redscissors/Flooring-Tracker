@@ -190,7 +190,10 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           <div style={{ ...idbox, flex: "0 0 auto", justifyContent: "flex-start", padding: "4px 8px 5px" }}>
-            <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)" }}>Project</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)" }}>Project</div>
+              {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)", letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
+            </div>
             <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
               className={"w-full bg-transparent text-[15px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.15, marginTop: 1 }} />
             <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[10px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-0.5" />
@@ -295,7 +298,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
             {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px mt-0.5 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
           </div>
           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: 16, color: "var(--ft-brand)" }}>Saved ✓</span>}
-          <div className="ft-eyebrow text-[9px] mb-1 text-center">Project</div>
+          <div className="ft-eyebrow text-[9px] mb-1 text-center">Project{sel.projectNo ? <span style={{ letterSpacing: ".08em" }}> · N{sel.projectNo}</span> : null}</div>
           <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition text-center" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1 text-center" />
         </div>

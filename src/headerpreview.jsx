@@ -16,7 +16,7 @@ const DAY = 86400000;
 function ProjectHeaderDemo() {
   const nameRef = useRef(null), nameTabRef = useRef(null), orderEntryRef = useRef(null), attRef = useRef(null);
   const [proj, setProj] = useState({
-    id: "p1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls",
+    id: "p1", projectNo: 214, name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls",
     notes: "Tear-out week of the 24th. Owner wants the herringbone quote separate.",
     salesperson: { name: "Danny", phone: "(555) 210-0114" },
     priceTier: "retail", customPct: "", printPricing: "full", freight: true, attachments: [], versions: [],
