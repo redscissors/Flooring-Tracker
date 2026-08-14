@@ -10,7 +10,9 @@ import { money } from "./model.js";
 // The desktop project header, two layouts behind a per-device switch
 // (Settings → General, localStorage "ft-header"):
 //   ProjectHeaderBar     — the one-bar (2026-07-21,
-//                          .scratch/mockups/header-redesign-2026-07-21.html rev 5)
+//                          .scratch/mockups/header-redesign-2026-07-21.html rev 5;
+//                          compacted ~30% 2026-08-14,
+//                          .scratch/mockups/header-compact-2026-08-14.html)
 //   ProjectHeaderClassic — the print-sheet original it replaced, kept whole so
 //                          the team can flip back without a revert
 // Both take the same props from App and share all state — switching layouts
@@ -18,7 +20,7 @@ import { money } from "./model.js";
 
 // ---- one-bar ----------------------------------------------------------------
 
-const MINI = "ft-tip w-[45px] h-[40px] flex items-center justify-center rounded-md hover:bg-slate-50";
+const MINI = "ft-tip w-[45px] h-[26px] flex items-center justify-center rounded-md hover:bg-slate-50";
 const MINI_STYLE = { border: "1px solid var(--ft-border-strong)" };
 
 // Tab-flow cleanup (2026-07-21): Tab from anywhere in the header card hands
@@ -84,11 +86,11 @@ function WasteCard({ w, dflt, onChange }) {
         const custom = on && pct !== n(dflt?.[c.k]);
         if (unlocked) return (
           <label key={c.k} className="ft-hopt cursor-text gap-1">
-            <span className="text-[10.5px]" style={{ color: "var(--ft-brand-deep)" }}>{c.label}</span>
+            <span className="text-[10px]" style={{ color: "var(--ft-brand-deep)" }}>{c.label}</span>
             <input value={w[c.k]} inputMode="numeric" onChange={(e) => onChange({ [c.k]: e.target.value })}
-              className="ml-auto w-6 min-w-0 bg-transparent text-right text-[12.5px] font-semibold focus:outline-none"
+              className="ml-auto w-6 min-w-0 bg-transparent text-right text-[11.5px] font-semibold focus:outline-none"
               style={{ color: "var(--ft-text)", borderBottom: "1px solid var(--ft-brand)" }} />
-            <span className="text-[10px]" style={{ color: "var(--ft-faint)" }}>%</span>
+            <span className="text-[9.5px]" style={{ color: "var(--ft-faint)" }}>%</span>
           </label>
         );
         const dim = on ? "color-mix(in oklab, var(--ft-cream) 70%, transparent)" : "var(--ft-faint)";
@@ -96,9 +98,9 @@ function WasteCard({ w, dflt, onChange }) {
           <button key={c.k} onClick={() => onChange({ [c.flag]: !on })}
             title={on ? `${pct}% waste applied to ${c.of} — press to order raw measured footage` : `No waste on ${c.of} — press to add ${pct}%`}
             className="ft-hopt gap-1" style={on ? { background: custom ? "var(--ft-brand-deep)" : "var(--ft-text)" } : undefined}>
-            <span className="text-[10.5px]" style={{ color: dim }}>{c.label}</span>
-            <span className="ml-auto text-[12.5px]" style={{ color: on ? "var(--ft-cream)" : "var(--ft-faint)", fontWeight: on ? 700 : 500 }}>{pct}</span>
-            <span className="text-[10px]" style={{ color: dim }}>%</span>
+            <span className="text-[10px]" style={{ color: dim }}>{c.label}</span>
+            <span className="ml-auto text-[11.5px]" style={{ color: on ? "var(--ft-cream)" : "var(--ft-faint)", fontWeight: on ? 700 : 500 }}>{pct}</span>
+            <span className="text-[9.5px]" style={{ color: dim }}>%</span>
           </button>
         );
       })}
@@ -115,7 +117,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   const W = 230;
   return (
     <>
-      <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={15} /></button>
+      <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={13} /></button>
       {open && pos && createPortal(
         <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width / 2 - W / 2, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
           <div className="ft-eyebrow text-[9px] mb-1.5">Save a version</div>
@@ -132,41 +134,41 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
-  const idbox = { background: "transparent", border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "5px 10px 6px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 };
-  const prim = "rounded-md flex flex-col items-center justify-center text-[13.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700";
+  const idbox = { background: "transparent", border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "1px 8px 2px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 0 };
+  const prim = "rounded-md flex flex-col items-center justify-center text-[12.5px] font-bold text-white bg-indigo-600 hover:bg-indigo-700";
   return (
     <>
       <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-      <div className="rounded-lg border mb-4" onKeyDown={headerTabOut(nameTabRef)} style={{ padding: 10, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 7, alignItems: "stretch" }}>
-        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 138 }}>
+      <div className="ft-hbar rounded-lg border mb-4" onKeyDown={headerTabOut(nameTabRef)} style={{ padding: 5, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 5, alignItems: "stretch" }}>
+        <div className="flex flex-col gap-[3px] shrink-0" style={{ width: 138 }}>
           <div style={idbox}>
-            <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Customer</div>
+            <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)" }}>Customer</div>
             {cust ? (
               <>
-                <button onClick={onOpenCustomer} title="Open customer details" className="flex items-center gap-1 min-w-0 max-w-full text-indigo-600 hover:text-indigo-700 text-[14px] font-bold" style={{ lineHeight: 1.2 }}>
-                  <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={12} className="shrink-0" />
+                <button onClick={onOpenCustomer} title="Open customer details" className="flex items-center gap-1 min-w-0 max-w-full text-indigo-600 hover:text-indigo-700 text-[12px] font-bold" style={{ lineHeight: 1.15 }}>
+                  <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={10} className="shrink-0" />
                 </button>
-                {builderName && <div className="text-[10px] text-slate-500 truncate flex items-center gap-1"><Building2 size={10} className="shrink-0 text-slate-400" /> {builderName}</div>}
+                {builderName && <div className="text-[9.5px] text-slate-500 truncate flex items-center gap-1" style={{ lineHeight: 1.2 }}><Building2 size={9} className="shrink-0 text-slate-400" /> {builderName}</div>}
               </>
             ) : (
               <button onClick={onPromote} title="File this job under a customer" className="flex flex-col items-start gap-0.5 text-amber-600 hover:text-amber-700 transition">
-                <span className="text-[13px] font-bold" style={{ lineHeight: 1.2 }}>{sel.quick ? "Quick price" : "Unassigned"}</span>
-                <span className="text-[9.5px] font-semibold rounded border border-amber-300 px-1 py-px">File under customer ▾</span>
+                <span className="text-[12px] font-bold" style={{ lineHeight: 1.15 }}>{sel.quick ? "Quick price" : "Unassigned"}</span>
+                <span className="text-[9px] font-semibold rounded border border-amber-300 px-1 py-px">File under customer ▾</span>
               </button>
             )}
           </div>
           <div style={idbox}>
-            <div className="ft-eyebrow text-[8.5px] flex items-center gap-1" style={{ color: "var(--ft-faint)" }}><Lock size={9} /> Salesperson</div>
+            <div className="ft-eyebrow text-[8px] flex items-center gap-1" style={{ color: "var(--ft-faint)" }}><Lock size={8} /> Salesperson</div>
             <SalespersonPop small value={sel.salesperson} fallback={profile} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
-            <div className="text-[10px] text-slate-500 truncate max-w-full">{sp.phone || " "}</div>
+            <div className="text-[9.5px] text-slate-500 truncate max-w-full" style={{ lineHeight: 1.2 }}>{sp.phone || " "}</div>
           </div>
           <div style={idbox}>
             {/* fixed-height row: the tier badge / Saved ✓ pop in and out, and
                 without the reservation they nudge the whole band's height */}
-            <div className="ft-eyebrow text-[8.5px] flex items-center gap-2" style={{ color: "var(--ft-faint)", height: 15 }}>
+            <div className="ft-eyebrow text-[8px] flex items-center gap-2" style={{ color: "var(--ft-faint)", height: 10 }}>
               Job total
               {tierBadgeText(tv.tier, tv.pct) && <span className="rounded px-1 py-px font-semibold normal-case tracking-normal" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9 }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-              {saveOk && <span className="font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 10 }}>Saved ✓</span>}
+              {saveOk && <span className="font-medium normal-case tracking-normal" style={{ color: "var(--ft-brand)", fontSize: 9 }}>Saved ✓</span>}
             </div>
             {optionBadges ? (
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -177,20 +179,20 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
                 ))}
               </div>
             ) : (
-              <div className="ft-mono font-bold" style={{ fontSize: 18, lineHeight: 1.15, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+              <div className="ft-mono font-bold" style={{ fontSize: 14, lineHeight: 1.1, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
             )}
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          <div style={{ ...idbox, flex: "2 1 0", justifyContent: "flex-start", paddingTop: 7 }}>
-            <div className="ft-eyebrow text-[8.5px]" style={{ color: "var(--ft-faint)" }}>Project</div>
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <div style={{ ...idbox, flex: "0 0 auto", justifyContent: "flex-start", padding: "4px 8px 5px" }}>
+            <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)" }}>Project</div>
             <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
-              className={"w-full bg-transparent text-[17px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.25, marginTop: 2 }} />
-            <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[11px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1" />
+              className={"w-full bg-transparent text-[15px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.15, marginTop: 1 }} />
+            <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[10px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-0.5" />
           </div>
           <textarea value={sel.notes} onChange={(e) => updateProject(sel.id, { notes: e.target.value })} placeholder="Project notes…"
-            className="w-full rounded-md px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-md px-2 py-1 text-[12px] resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
             style={{ flex: "1 1 0", minHeight: 0, background: "var(--ft-cream)", border: "1px solid var(--ft-border-strong)" }} />
         </div>
 
@@ -198,7 +200,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             but is its own bordered category, not a fourth row hanging off the
             end of it (it answers its own question). The waste/minis column
             stacks the same way. */}
-        <div className="flex flex-col gap-1.5 shrink-0" style={{ width: 120 }}>
+        <div className="flex flex-col gap-1 shrink-0" style={{ width: 120 }}>
           <VertBar header="Estimate shows" className="flex-1" value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
             options={[
               { v: "full", label: "All prices", title: "Print every price and total" },
@@ -220,28 +222,28 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             { v: "custom", label: "Custom", input: true, color: TIER_COLOR.custom.main, title: "Custom % off retail" },
           ]} />
 
-        <div className="flex flex-col gap-2 shrink-0" style={{ width: 96 }}>
+        <div className="flex flex-col gap-1 shrink-0" style={{ width: 96 }}>
           <WasteCard w={jobWasteUI} dflt={settings.waste} onChange={(patch) => updateProject(sel.id, { waste: { ...jobWasteUI, ...patch } })} />
-          <div className="grid gap-1.5 shrink-0" style={{ gridTemplateColumns: "repeat(2,45px)" }}>
-            <button onClick={() => setPrintMode("order")} data-tip="Order sheet — pull list for ordering & the warehouse" className={MINI} style={MINI_STYLE}><ClipboardList size={15} /></button>
+          <div className="grid gap-1 shrink-0" style={{ gridTemplateColumns: "repeat(2,45px)" }}>
+            <button onClick={() => setPrintMode("order")} data-tip="Order sheet — pull list for ordering & the warehouse" className={MINI} style={MINI_STYLE}><ClipboardList size={13} /></button>
             <FilesPop mini tip="Files — photos & docs attached to this job" attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
             <SaveVersionPop open={namingVersion} onOpen={startVersionName} onClose={() => setNamingVersion(false)} name={versionName} setName={setVersionName} onConfirm={confirmVersion} tip="Save version — snapshot today's numbers before big changes" />
-            <button onClick={() => setShowVersions(true)} data-tip={`History — reopen or restore an earlier version (${sel.versions?.length || 0} saved)`} className={MINI} style={MINI_STYLE}><History size={15} /></button>
+            <button onClick={() => setShowVersions(true)} data-tip={`History — reopen or restore an earlier version (${sel.versions?.length || 0} saved)`} className={MINI} style={MINI_STYLE}><History size={13} /></button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 shrink-0" style={{ width: 148 }}>
-          <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md flex items-center justify-center gap-1.5 text-[10.5px] font-bold shrink-0 border text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500" style={{ height: 24, borderColor: "var(--ft-border-strong)" }}><Trash2 size={12} /> Delete</button>
+        <div className="flex flex-col gap-1 shrink-0" style={{ width: 148 }}>
+          <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md flex items-center justify-center gap-1.5 text-[10px] font-bold shrink-0 border text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500" style={{ height: 19, borderColor: "var(--ft-border-strong)" }}><Trash2 size={11} /> Delete</button>
           <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
-            <span className="flex items-center gap-1.5"><Copy size={14} /> Order entry</span>
-            <span className="text-[9.5px] font-semibold opacity-70" style={{ marginTop: 1 }}>For ERP One</span>
+            <span className="flex items-center gap-1.5"><Copy size={13} /> Order entry</span>
+            <span className="text-[9px] font-semibold opacity-70">For ERP One</span>
           </button>
           <button data-flow-end="1" onClick={() => setPrintMode("estimate")} className={prim} style={{ flex: 1, ...tierFill }}>
-            <span className="flex items-center gap-1.5"><Printer size={14} /> Print</span>
+            <span className="flex items-center gap-1.5"><Printer size={13} /> Print</span>
           </button>
         </div>
       </div>
-      <button ref={addAreaRef} onClick={addArea} className="ft-noprint -mt-2 mb-4 w-full h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
+      <button ref={addAreaRef} onClick={addArea} className="ft-noprint -mt-2 mb-4 w-full h-[26px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md transition hover:opacity-90" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}><Plus size={14} /> Add area</button>
     </>
   );
 }

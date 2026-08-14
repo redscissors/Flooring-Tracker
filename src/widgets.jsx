@@ -190,7 +190,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
   const W = 240;
   return (
     <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Salesperson — locked in when the project was created. Click to change." className={"min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")} style={{ fontSize: small ? 13 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Salesperson — locked in when the project was created. Click to change." className={"min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")} style={{ fontSize: small ? 11.5 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && createPortal(
@@ -205,6 +205,30 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
           </div>
         </div>, document.body)}
     </>
+  );
+}
+
+// A tiny ? that pops the full explanation on hover, keyboard focus, or tap —
+// unlike a title= tooltip it works on the shop iPads. For STANDING RULES only:
+// text that's true every day and needs reading once. Text that reports state
+// or a warning (import hazards, ASSUMED quantities, drift) stays inline —
+// hiding it hides the problem.
+export function HelpTip({ tip, w = 240, className = "" }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  useEscClose(open, () => setOpen(false));
+  return (
+    <span className={"inline-flex shrink-0 " + className} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button ref={anchorRef} type="button" aria-label="More about this" aria-expanded={open}
+        onClick={() => setOpen((v) => !v)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
+        className="w-3.5 h-3.5 rounded-full border border-slate-300 text-slate-400 hover:text-indigo-600 hover:border-indigo-500 text-[9.5px] font-extrabold leading-none flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-indigo-500">?</button>
+      {open && pos && createPortal(
+        <div ref={panelRef} role="tooltip"
+          style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width / 2 - w / 2, window.innerWidth - w - 8)), width: w, background: "var(--ft-text)", color: "var(--ft-cream)" }}
+          className="fixed z-[70] rounded-md px-3 py-2 text-[11px] font-medium leading-relaxed shadow-lg">{tip}</div>, document.body)}
+    </span>
   );
 }
 
@@ -299,12 +323,12 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
   const W = 260;
   return (
     <>
-      {/* mini = the one-bar header's 45×40 square with a count badge and the
+      {/* mini = the one-bar header's 45×26 square with a count badge and the
           square hover-tip card in place of the native title */}
       <button ref={anchorRef} onClick={() => setOpen((o) => !o)} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
-        className={mini ? "ft-tip relative w-[45px] h-[40px] flex items-center justify-center rounded-md hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
+        className={mini ? "ft-tip relative w-[45px] h-[26px] flex items-center justify-center rounded-md hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
         style={mini ? { border: "1px solid var(--ft-border-strong)" } : undefined}>
-        <Paperclip size={mini ? 15 : 14} />
+        <Paperclip size={mini ? 13 : 14} />
         {n > 0 && (mini
           ? <span className="absolute rounded-full font-bold" style={{ top: -6, right: -6, fontSize: 10, padding: "1px 5px", background: "var(--ft-sand)", color: "var(--ft-muted)", border: "1px solid var(--ft-border)" }}>{n}</span>
           : <span className="font-semibold">{n}</span>)}

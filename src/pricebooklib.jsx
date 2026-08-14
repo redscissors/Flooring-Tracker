@@ -13,14 +13,14 @@ import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, markupGroups, pricedItem, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, markupGroups, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
 import { ClaudeMark, FlagForClaude } from "./claudeflag.jsx";
 import { bookSource } from "./claudeissues.js";
-import { Modal } from "./widgets.jsx";
+import { Modal, HelpTip } from "./widgets.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 
 // --- Price book library (ADR 0009, Phase 1) ---------------------------------
@@ -347,8 +347,10 @@ function QuickMarkupsCard({ value, onChange }) {
   const [draft, setDraft] = useState(() => value.map(String));
   const commit = (next) => { setDraft(next); onChange(next); };
   return (
-    <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
-      <span className="ft-eyebrow text-[10px]">Quick markups</span>
+    <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
+      <span className="ft-eyebrow text-[10px] flex items-center gap-1.5">Quick markups
+        <HelpTip tip={<>The preset buttons on the price cell's cost popup. A markup that isn't listed can still be typed into the popup's % box — these are the ones worth one click.</>} />
+      </span>
       <div className="flex flex-wrap items-center gap-1" title="The buttons on the price cell's cost popup. A markup that isn't listed can still be typed into the popup's % box — these are the ones worth one click.">
         {draft.map((v, i) => (
           <span key={i} className="flex items-center rounded-full border border-slate-200 bg-slate-50 pl-0.5 pr-px py-px">
@@ -365,9 +367,6 @@ function QuickMarkupsCard({ value, onChange }) {
             className="rounded-full border border-dashed border-slate-300 px-1.5 py-px text-[11px] font-semibold text-slate-500 hover:bg-slate-50">+</button>
         )}
       </div>
-      <p className="text-[10px] text-slate-400 leading-snug">
-        {value.length ? "on the price cell's cost popup" : "none — the popup's % box still takes any markup"}
-      </p>
     </div>
   );
 }
@@ -453,18 +452,28 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+      {/* Compact landing header (2026-08-14, .scratch/mockups/header-compact-
+          2026-08-14.html): the action row folded up into the title row, the
+          panels one control-height tall, and the standing-rule captions moved
+          behind HelpTips — the board starts a full panel row higher. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-baseline gap-2 min-w-0">
-          <h2 className="ft-serif text-3xl">Price books</h2>
+          <h2 className="ft-serif text-xl">Price books</h2>
           <p className="text-xs text-slate-400 truncate hidden sm:block">Every book in one place — grouped by portal sign-in.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <label className="flex items-center gap-1.5 text-xs text-slate-500" title="Books not re-imported within this many days get an amber ‘stale’ flag. Vendors re-issue cost lists roughly quarterly.">
-            Flag stale after
-            <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className={inp + " w-16 text-center"} />
+          {sel === "library" && (
+            <>
+              <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
+              <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New book</button>
+            </>
+          )}
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap" title="Books not re-imported within this many days get an amber ‘stale’ flag. Vendors re-issue cost lists roughly quarterly.">
+            Stale after
+            <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className="ft-field w-14 text-center rounded-md border border-slate-200 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             days
           </label>
-          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1.5 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
             {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
           </button>
         </div>
@@ -481,106 +490,94 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
         // Compact twins of `inp` / the ± chips: the panels stack three rows, so
         // the control height sets the header's height. Built standalone rather
         // than appended to `inp` — same-specificity utilities don't override.
-        const pctInp = "ft-field w-12 text-center rounded-md border border-slate-200 px-1.5 py-px text-xs leading-5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
+        const pctInp = "ft-field w-10 text-center rounded-md border border-slate-200 px-1 py-px text-xs leading-5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
         const minus = <span className="inline-grid place-items-center w-4 h-4 shrink-0 rounded text-slate-500 bg-slate-100 text-[12px] font-extrabold leading-none">−</span>;
         const plus = <span className="inline-grid place-items-center w-4 h-4 shrink-0 rounded text-indigo-700 bg-indigo-50 text-[12px] font-extrabold leading-none">+</span>;
         const strictWord = (t) => t <= 0.2 ? "Loose" : t <= 0.28 ? "Forgiving" : t <= 0.4 ? "Balanced" : t <= 0.55 ? "Tight" : "Strict";
         return (
         <>
-          <div className="mt-3 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[880px] md:max-w-full md:pb-0 md:snap-none items-stretch">
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[132px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+          <div className="mt-2 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[1080px] md:max-w-full md:pb-0 md:snap-none items-stretch">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[150px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Import</span>
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); takeFiles(e.dataTransfer?.files); }}
                 onClick={() => dropRef.current?.click()}
-                className={`flex-1 rounded-lg border border-dashed px-2 text-[11px] cursor-pointer flex flex-col items-center justify-center text-center gap-0.5 ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-300 text-slate-400 hover:bg-slate-50"}`}
+                className={`flex-1 rounded-lg border border-dashed px-2 py-1 text-[10.5px] cursor-pointer flex items-center justify-center text-center gap-1.5 ${dragOver ? "border-indigo-400 bg-indigo-50/60 text-indigo-700" : "border-slate-300 text-slate-400 hover:bg-slate-50"}`}
                 title="Drop vendor sheets or ERP stock exports here — each file routes to its book"
               >
-                <Upload size={15} className="shrink-0" />
-                <span className="font-semibold text-slate-600 leading-tight">Drop sheets</span>
-                <span className="text-slate-400 leading-tight">or <span className="underline text-indigo-600">browse…</span></span>
+                <Upload size={13} className="shrink-0" />
+                <span className="leading-tight"><span className="font-semibold text-slate-600">Drop sheets</span> or <span className="underline text-indigo-600">browse…</span></span>
                 <input ref={dropRef} type="file" multiple accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onClick={(e) => e.stopPropagation()} onChange={(e) => { takeFiles(e.target.files); e.target.value = ""; }} />
               </div>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[252px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Price tiers</span>
-              <div className="flex flex-col gap-1 text-[11px] text-slate-600">
+              <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 text-[11px] text-slate-600">
                 <label className="flex items-center gap-1.5" title="Builder tier — percent off retail on the printed estimate">
-                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={pctInp} /><span className="font-medium">Builder</span>
+                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.builderPct} onChange={(e) => setPct("builderPct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">Builder</span>
                 </label>
                 <label className="flex items-center gap-1.5" title="Builder tier on wedi lines — percent off retail the wedi configurator stamps onto each line it adds (18% = the owner's ×0.82 rule). The stamp is snapshotted with the line, so changing this only affects lines added from here on.">
-                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.wediBuilderPct} onChange={(e) => setPct("wediBuilderPct")(e.target.value)} className={pctInp} /><span className="font-medium">wedi Builder</span>
+                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.wediBuilderPct} onChange={(e) => setPct("wediBuilderPct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">wedi Bldr</span>
                 </label>
                 <label className="flex items-center gap-1.5" title="Sale tier — percent off retail on the printed estimate">
-                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={pctInp} /><span className="font-medium">Sale</span>
+                  {minus}<input type="number" min="0" max="100" step="0.5" value={pcts.salePct} onChange={(e) => setPct("salePct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">Sale</span>
                 </label>
                 <div className="flex items-center gap-1.5" title="Employee tier is fixed at cost + 6%; lines without a cost stay retail">
-                  {plus}<span className="w-12 text-center rounded-md bg-indigo-50 text-indigo-700 text-[11px] font-bold leading-[22px]">6%</span><span className="font-medium">Employee</span>
+                  {plus}<span className="w-10 text-center rounded-md bg-indigo-50 text-indigo-700 text-[11px] font-bold leading-[22px]">6%</span><span className="font-medium whitespace-nowrap">Employee</span>
                 </div>
               </div>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Sheoga markup</span>
               <div className="flex flex-col gap-1 text-[11px] text-slate-600">
                 <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
-                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium">Flooring</span>
+                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">Flooring</span>
                 </label>
                 <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to wood vents & dampers over distributor cost — adjustable per configuration in the popup">
-                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium">Vents &amp; dampers</span>
+                  {plus}<input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">Vents &amp; dmp.</span>
                 </label>
               </div>
             </div>
 
             <QuickMarkupsCard value={pcts.quickMarkups} onChange={(list) => setSettings({ pricing: { ...pcts, quickMarkups: list } })} />
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
-              <span className="ft-eyebrow text-[10px]">Order entry</span>
-              <div className="flex flex-col gap-1 text-[11px] text-slate-600">
-                <label className="flex items-center gap-1.5" title="How many characters your ERP's order-description field holds. Special-order lines abbreviate to fit; anything that still won't fit gets a second copy button for the extended-text field. Set 0 to turn fitting off.">
-                  <span className="grid place-items-center w-5 h-[22px] text-slate-400 font-bold">¶</span>
-                  <input type="number" min="0" max="200" step="1" value={pcts.descLimit} onChange={(e) => setPct("descLimit")(e.target.value)} className={pctInp} />
-                  <span className="font-medium">Desc. field</span>
-                </label>
-                <p className="text-[10px] text-slate-400 leading-snug pl-[26px]">characters · 0 = no limit</p>
-              </div>
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
+              <span className="ft-eyebrow text-[10px] flex items-center gap-1.5">Order entry
+                <HelpTip tip={<>How many <b>characters</b> your ERP's order-description field holds. Special-order lines abbreviate to fit; anything that still won't fit gets a second copy button for the extended-text field. <b>0 = no limit.</b></>} />
+              </span>
+              <label className="flex items-center gap-1.5 text-[11px] text-slate-600" title="How many characters your ERP's order-description field holds. Special-order lines abbreviate to fit; anything that still won't fit gets a second copy button for the extended-text field. Set 0 to turn fitting off.">
+                <span className="grid place-items-center w-4 text-slate-400 font-bold">¶</span>
+                <input type="number" min="0" max="200" step="1" value={pcts.descLimit} onChange={(e) => setPct("descLimit")(e.target.value)} className={pctInp} />
+                <span className="font-medium whitespace-nowrap">Desc. field</span>
+              </label>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[168px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex flex-col gap-1">
-              <span className="ft-eyebrow text-[10px]">Item search</span>
-              <p className="text-[10px] text-slate-400 leading-snug -mt-0.5">Exact matches always come first — in stock and special order alike. These tune the retry when nothing matches exactly.</p>
-              <div className="flex flex-col gap-1 text-[11px] text-slate-600">
-                <div title="When nothing matches your words exactly, the search retries fuzzily at this cutoff and labels the hits as near-matches. Lower catches more typos (reducar → Reducer); higher demands near-exact words. Never affects exact results.">
-                  <div className="flex items-baseline justify-between gap-1.5">
-                    <span className="font-medium">Near-match</span>
-                    <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
-                  </div>
-                  <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Near-match strictness" />
-                  <div className="flex justify-between text-[10px] text-slate-400"><span>Loose</span><span>Strict</span></div>
+            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[190px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
+              <span className="ft-eyebrow text-[10px] flex items-center gap-1.5">Item search
+                <HelpTip tip={<><b>Exact matches always come first</b> — in stock and special order alike. These sliders only tune the fuzzy retry when nothing matches exactly. <b>Near-match</b> sets how close a typo must be — lower is looser (reducar → Reducer), higher demands near-exact words. <b>Wider retry</b> is a second, looser pass so a bad typo never comes back empty; drag it up to the near-match cutoff to switch it off.</>} />
+              </span>
+              <div className="flex flex-col gap-0.5 text-[11px] text-slate-600">
+                <div className="flex items-baseline justify-between gap-1.5" title="When nothing matches your words exactly, the search retries fuzzily at this cutoff and labels the hits as near-matches. Lower catches more typos (reducar → Reducer); higher demands near-exact words. Never affects exact results.">
+                  <span className="font-medium">Near-match</span>
+                  <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
                 </div>
-                <div className="mt-1 pt-1 border-t border-slate-100" title="A second, wider near-match pass when the one above still finds nothing — so a bad typo never comes back empty. Drag it up to meet the near-match cutoff to switch it off.">
-                  <div className="flex items-baseline justify-between gap-1.5">
-                    <span className="font-medium">Wider retry</span>
-                    <span className="ft-mono text-[10px] font-semibold text-slate-500">{pcts.searchFallback < pcts.searchStrictness ? pcts.searchFallback.toFixed(2) : "Off"}</span>
-                  </div>
-                  <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchFallback} onChange={(e) => setPct("searchFallback")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Wider retry" />
-                  <div className="flex justify-between text-[10px] text-slate-400"><span>Wider</span><span>Off</span></div>
+                <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Near-match strictness" />
+                <div className="flex items-baseline justify-between gap-1.5 mt-0.5" title="A second, wider near-match pass when the one above still finds nothing — so a bad typo never comes back empty. Drag it up to meet the near-match cutoff to switch it off.">
+                  <span className="font-medium">Wider retry</span>
+                  <span className="ft-mono text-[10px] font-semibold text-slate-500">{pcts.searchFallback < pcts.searchStrictness ? pcts.searchFallback.toFixed(2) : "Off"}</span>
                 </div>
+                <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchFallback} onChange={(e) => setPct("searchFallback")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Wider retry" />
               </div>
             </div>
           </div>
 
           <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup · Order entry · Item search</div>
 
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
-            <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1.5 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New book</button>
-          </div>
-
-          <div className="mt-4 border-t-2 border-slate-300" />
+          <div className="mt-2.5 border-t-2 border-slate-300" />
         </>
         ); })()}
 
@@ -657,7 +654,9 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
   return (
     <>
       <div className="mt-6">
-        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-400"><History size={13} /> Import history</div>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-400"><History size={13} /> Import history
+          <HelpTip tip={<>The newest {BOOK_VERSION_KEEP} unpinned imports are kept; pin one to keep it indefinitely.</>} />
+        </div>
         <div className="mt-2 border border-slate-100 rounded-lg divide-y divide-slate-100">
           {versions.map((v, i) => (
             <div key={v.id} className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -673,7 +672,6 @@ function ImportHistory({ bookId, refreshKey, currentItems, loadVersions, loadSna
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-slate-400 mt-1">The newest {BOOK_VERSION_KEEP} unpinned imports are kept; pin one to keep it indefinitely.</p>
       </div>
 
       {rollback && (
@@ -1296,12 +1294,11 @@ function BookItemEditModal({ item, isOrder, onClose, onSave, inp, lbl }) {
             <div className="w-24"><label className={lbl}>U/M</label><input className={inp} value={d.unit} onChange={(e) => set("unit", e.target.value)} /></div>
           </div>
           <div className="flex gap-3">
-            <div className="flex-1"><label className={lbl}>{isOrder ? "Cost" : "Price"}</label><input className={inp} inputMode="decimal" value={isOrder ? d.cost : d.price} onChange={(e) => set(isOrder ? "cost" : "price", e.target.value)} /></div>
+            <div className="flex-1"><label className={lbl}>{isOrder ? "Cost" : "Price"} {isOrder && <HelpTip className="align-middle" tip="Selling price stays cost × markup — edit the markup on the book to move sell." />}</label><input className={inp} inputMode="decimal" value={isOrder ? d.cost : d.price} onChange={(e) => set(isOrder ? "cost" : "price", e.target.value)} /></div>
             <div className="flex-1"><label className={lbl}>Lead time</label><input className={inp} value={d.leadTime} onChange={(e) => set("leadTime", e.target.value)} /></div>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={d.discontinued} onChange={(e) => set("discontinued", e.target.checked)} /> Discontinued</label>
         </div>
-        {isOrder && <p className="text-[11px] text-slate-400 mt-3">Selling price stays cost × markup — edit the markup on the book to move sell.</p>}
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
           <button onClick={save} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Save edit</button>
@@ -1372,9 +1369,8 @@ export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   //
         <span className={"text-[11px] pb-2 " + (noMarkup ? "text-red-600" : "text-slate-400")}>$10 cost → {money(10 * (1 + num(def) / 100))} sell</span>
         {hasTrims && (
           <div className="ml-auto text-right">
-            <label className={lbl}>Trim %</label>
+            <label className={lbl}>Trim % <HelpTip className="align-middle" tip="Applies to reducers, T-molds, stair-noses and other trims. Blank = the default markup." /></label>
             <input type="number" className={`${inp} w-24`} value={trim} onChange={(e) => setTrim(e.target.value)} onBlur={() => commit(def, byGroup, trim)} placeholder={String(num(def))} />
-            <p className="text-[10px] text-slate-400 mt-0.5">reducers, T-molds, stair-noses… (blank = default)</p>
           </div>
         )}
       </div>
@@ -1450,7 +1446,9 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
       <div className="flex items-center gap-2 flex-wrap">
         {!embedded && <Truck size={14} className="text-slate-400" />}
         {!embedded && <span className="text-sm font-medium">Freight</span>}
-        <span className="text-[11px] text-slate-400">charged once per order, on top of the item cost</span>
+        <span className="text-[11px] text-slate-400 flex items-center gap-1.5">charged once per order, on top of the item cost
+          <HelpTip tip="Rates read live — changing one moves every open quote, saved estimates included." />
+        </span>
         {/* Switching a blank program on prefills it — but only on the book the
             transcribed sheet belongs to (freightSeedFor). Any other vendor opens
             empty rather than wearing Glazzio's rates. */}
@@ -1484,7 +1482,6 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
                 title="Words that mean the piece is a chip on a backing sheet, not a foot of tile — so the row ships small format whatever the sheet measures. This is what keeps a 12x12 mosaic off the large-format line. Matched against the row's description; comma-separated." />
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1.5">Rates read live — changing one moves every open quote, saved estimates included.</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 mt-3 max-w-2xl">
             {FREIGHT_FIELDS.map((x) => (
               <div key={x.k}>

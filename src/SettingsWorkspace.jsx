@@ -4,7 +4,7 @@ import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicat
 import { stockBaseCompanion } from "./stock.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
-import { DotMenu, Modal } from "./widgets.jsx";
+import { DotMenu, Modal, HelpTip } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 
@@ -426,12 +426,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Quantity</span><span className="text-slate-500">{meta.math}</span></div>
         </div>
         <div className="mt-6 max-w-xs">
-          <label className={lbl}>Default product</label>
+          <label className={lbl}>Default product <HelpTip className="align-middle" tip={cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."} /></label>
           <select value={offered.includes(current) ? current : ""} onChange={(e) => onChange(setCatalogDefault(catalog, meta.kind, e.target.value))} className={inp}>
             {cat === "underlay" ? <option value="">— first offered —</option> : !offered.includes(current) && <option value="">Select…</option>}
             {offered.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
-          <p className="text-[11px] text-slate-400 mt-1.5">{cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."}</p>
         </div>
         <p className="text-xs text-slate-400 mt-8">Pick a product on the left to edit its numbers — or add one under its company.</p>
       </div>
@@ -470,25 +469,23 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         )}
         <div className="mt-5 space-y-5 max-w-md">
           <div>
+            <label className={lbl}>Applies to <HelpTip className="align-middle" tip="Which product rows offer this add-on's chip. None selected = every type." /></label>
             {typeChips(c.floorTypes, (v) => onChange(updateCategory(catalog, c.id, { floorTypes: v })), floorTypeList)}
-            <p className="text-[11px] text-slate-400 mt-1">Which product rows offer this add-on's chip. None selected = every type.</p>
           </div>
           <div>
-            <label className={lbl}>Quantity</label>
+            <label className={lbl}>Quantity <HelpTip className="align-middle" tip={<><b>Coverage</b> — one unit covers a set sq ft, so quantities scale off the row's area plus waste, with a per-row manual override. <b>Manual</b> — a typed per-row quantity (starts at 1), no area math.</>} /></label>
             <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
               {[["coverage", "Coverage"], ["manual", "Manual"]].map(([k, t]) => (
                 <button key={k} onClick={() => onChange(updateCategory(catalog, c.id, { math: k }))} className={`px-3.5 py-2 font-medium ${c.math === k ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{t}</button>
               ))}
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">{c.math === "coverage" ? "One unit covers a set sq ft — quantities scale off the row's area plus waste, with a per-row manual override." : "A typed per-row quantity (starts at 1) — no area math."}</p>
           </div>
           <div className="max-w-xs">
-            <label className={lbl}>Default product</label>
+            <label className={lbl}>Default product <HelpTip className="align-middle" tip={`Pre-selected when a row's ${c.name} chip is turned on.`} /></label>
             <select value={offered.includes(c.default) ? c.default : ""} onChange={(e) => onChange(updateCategory(catalog, c.id, { default: e.target.value }))} className={inp}>
               <option value="">— first offered —</option>
               {offered.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <p className="text-[11px] text-slate-400 mt-1.5">Pre-selected when a row's {c.name} chip is turned on.</p>
           </div>
           <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(c.enabled, () => onChange(updateCategory(catalog, c.id, { enabled: !c.enabled })), c.enabled ? "Hide this add-on's chip from job rows" : "Offer this add-on's chip on job rows")} offered on jobs</label>
         </div>
@@ -552,8 +549,8 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <div className="w-24">{txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}</div>
           <div className="w-28">{numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}</div>
           <div className="w-36">{txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}</div>
+          <HelpTip className="pb-2.5" tip={<>Coverage is calibrated here — the book doesn't carry one. Grout scales for tile size, joint and thickness from the 12×12×3/8" / 1/8" baseline.</>} />
         </div>
-        <p className="text-[11px] text-slate-400 mt-1.5">Coverage is calibrated here — the book doesn't carry one. Grout scales for tile size, joint and thickness from the 12×12×3/8" / 1/8" baseline.</p>
         <div className="mt-6 flex items-baseline justify-between gap-3">
           <div className="font-medium text-sm">Colors &amp; SKUs</div>
           {family && <span className="text-[11px] text-slate-400">picking a color on a job stamps that color's SKU on the estimate</span>}
@@ -617,8 +614,8 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="w-24">{txtField("Unit", m.unit, (v) => setProduct(co.id, "mortars", m.id, { unit: v }))}</div>
         <div className="w-28">{numField("$/unit", m.price, (v) => setProduct(co.id, "mortars", m.id, { price: v }))}</div>
         <div className="w-36">{txtField("SKU", m.sku || "", (v) => setProduct(co.id, "mortars", m.id, { sku: v }))}</div>
+        <HelpTip className="pb-2.5" tip="Coverage sq ft per unit, tiered by the tile's longest side." />
       </div>
-      <p className="text-[11px] text-slate-400 mt-1.5">Coverage sq ft per unit, tiered by the tile's longest side.</p>
     </div>
   );
 
@@ -678,8 +675,8 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="w-24">{txtField("Unit", p.unit, (v) => setProduct(co.id, "attached", p.id, { unit: v }))}</div>
         <div className="w-28">{numField("$/unit", p.price, (v) => setProduct(co.id, "attached", p.id, { price: v }))}</div>
         <div className="w-36">{txtField("SKU", p.sku || "", (v) => setProduct(co.id, "attached", p.id, { sku: v }))}</div>
+        <HelpTip className="pb-2.5" tip={<>{customCat?.math === "coverage" ? "One unit covers this many sq ft — quantities scale off the row's area plus waste." : "Ordered by a typed per-row quantity — no coverage math."} A SKU lets price-book imports refresh the price.</>} />
       </div>
-      <p className="text-[11px] text-slate-400 mt-1.5">{customCat?.math === "coverage" ? "One unit covers this many sq ft — quantities scale off the row's area plus waste." : "Ordered by a typed per-row quantity — no coverage math."} A SKU lets price-book imports refresh the price.</p>
     </div>
   );
   const renderAddForm = () => addCo && (
@@ -868,8 +865,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               <div className="text-[11px] text-slate-400 self-end pb-1 max-w-[15rem]">The rates a new project starts with. Each job carries its own waste from there — changing these never touches a project that already exists.</div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl}>Appearance</label>
-              <p className="text-[11px] text-slate-400 mt-1 mb-2.5 max-w-md">Applies on this device only. The printed estimate stays on white paper.</p>
+              <label className={lbl + " mb-2"}>Appearance <HelpTip className="align-middle" tip="Applies on this device only. The printed estimate stays on white paper." /></label>
               <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
                 {[{ v: "system", label: "System", icon: Laptop }, { v: "light", label: "Light", icon: Sun }, { v: "dark", label: "Dark", icon: Moon }].map(({ v, label, icon: Icon }) => (
                   <button key={v} onClick={() => setTheme(v)} className={`flex items-center gap-1.5 px-3.5 py-2 font-medium ${theme === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}><Icon size={14} /> {label}</button>
@@ -877,8 +873,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               </div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl}>Project header</label>
-              <p className="text-[11px] text-slate-400 mt-1 mb-2.5 max-w-md">Applies on this device only. One-bar is the 2026-07 redesign; Classic is the original two-row header.</p>
+              <label className={lbl + " mb-2"}>Project header <HelpTip className="align-middle" tip="Applies on this device only. One-bar is the 2026-07 redesign; Classic is the original two-row header." /></label>
               <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
                 {[{ v: "bar", label: "One-bar" }, { v: "classic", label: "Classic" }].map(({ v, label }) => (
                   <button key={v} onClick={() => setHeaderLayout(v)} className={`px-3.5 py-2 font-medium ${headerLayout === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
@@ -890,8 +885,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <PriceBookLibrary books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} settings={settings} setSettings={setSettings} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl">Backup &amp; restore</h2>
-            <p className="text-xs text-slate-400 mt-2 max-w-xl">Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten.</p>
+            <h2 className="ft-serif text-3xl">Backup &amp; restore <HelpTip className="align-middle" w={280} tip="Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten." /></h2>
             {settings.ops?.lastBackup && <p className="text-xs text-slate-400 mt-1">Last backup downloaded {new Date(settings.ops.lastBackup.at).toLocaleDateString()}{settings.ops.lastBackup.by ? ` by ${settings.ops.lastBackup.by}` : ""}</p>}
             <div className="flex gap-2 mt-4">
               <button onClick={exportBackup} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Download size={14} /> Download backup</button>

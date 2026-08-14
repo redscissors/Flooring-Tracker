@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Compact Headers</title>
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --band:#E7E3D6;
+    --border:rgba(28,26,23,.10); --border-strong:rgba(28,26,23,.25);
+    --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A;
+    --moss-soft:color-mix(in oklab, #57703A 13%, transparent);
+    --hover:color-mix(in oklab, #57703A 7%, transparent);
+    --amber:#B45309; --amber-soft:#FEF3C7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--cream)}
+  body{background:var(--cream);color:var(--ink);font-family:Manrope,ui-sans-serif,system-ui,-apple-system,sans-serif;padding:18px 20px 120px;max-width:1140px;margin:0 auto}
+  svg{display:block}
+  button{font-family:inherit;cursor:pointer;color:inherit}
+  input,textarea{font-family:inherit;color:var(--ink)}
+  h1{font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .sub{font-size:12.5px;color:var(--muted);margin:4px 0 0;max-width:760px;line-height:1.55}
+  .sechead{margin:34px 0 4px;display:flex;align-items:baseline;gap:10px;border-top:2px solid var(--border-strong);padding-top:18px}
+  .sechead h2{font-size:16px;font-weight:800}
+  .sechead .tag{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--moss-deep);background:var(--moss-soft);border-radius:5px;padding:2px 8px}
+  .note{font-size:12.5px;color:var(--muted);line-height:1.55;max-width:760px;margin:6px 0 14px}
+  .lbl{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:16px 0 6px;display:flex;align-items:center;gap:8px}
+  .lbl .hpx{font-weight:700;letter-spacing:0;text-transform:none;color:var(--moss-deep);background:var(--moss-soft);border-radius:4px;padding:1px 7px;font-size:11px}
+  .lbl .delta{font-weight:800;letter-spacing:0;text-transform:none;color:#fff;background:var(--moss);border-radius:4px;padding:1px 7px;font-size:11px}
+  .eyebrow{font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--moss-deep)}
+  .money{font-weight:800;letter-spacing:-.02em}
+  .icon{display:inline-flex;line-height:0;flex:none}
+
+  /* ---------- ? help tip (the proposed HelpTip widget) ---------- */
+  .q{position:relative;display:inline-flex;vertical-align:baseline}
+  .q>button{width:14px;height:14px;border-radius:50%;border:1px solid var(--border-strong);background:var(--card);color:var(--faint);font-size:9.5px;font-weight:800;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+  .q>button:hover,.q>button:focus-visible{color:var(--moss-deep);border-color:var(--moss);outline:none}
+  .q .pop{display:none;position:absolute;top:calc(100% + 7px);left:50%;transform:translateX(-50%);width:236px;background:var(--ink);color:var(--cream);font-size:11px;font-weight:500;line-height:1.5;padding:9px 11px;border-radius:7px;z-index:80;box-shadow:0 8px 22px rgba(0,0,0,.22);text-align:left;text-transform:none;letter-spacing:0}
+  .q .pop b{font-weight:800}
+  .q:hover .pop,.q:focus-within .pop,.q.open .pop{display:block}
+  .q.left .pop{left:auto;right:-8px;transform:none}
+
+  /* ---------- shared header-card chrome (mirrors index.css) ---------- */
+  .headcard{border:1px solid var(--border);border-radius:8px;background:var(--band);display:flex;align-items:stretch}
+  .idbox{background:transparent;border:1px solid var(--border-strong);border-radius:6px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  .hcol{background:transparent;border:1px solid var(--border-strong);border-radius:6px;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+  .hhead{font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--moss-deep);display:flex;align-items:center;gap:4px;white-space:nowrap;border-bottom:1px solid var(--border);background:var(--sand)}
+  .hopt{border:0;border-bottom:1px solid var(--border);font-weight:700;text-align:left;white-space:nowrap;flex:1 1 0;display:flex;align-items:center;background:none;color:var(--muted);width:100%}
+  .hopt:last-child{border-bottom:0}
+  .hopt.on{background:var(--ink);color:var(--cream);font-weight:800;box-shadow:inset 0 2px 4px rgba(0,0,0,.28)}
+  .hopt.on.tier{background:var(--moss-deep)}
+  .prim{border:0;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;color:#fff;background:var(--ink)}
+  .prim:hover{background:#3A3630}
+  .mini{background:none;border:1px solid var(--border-strong);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .mini:hover{background:var(--hover)}
+  .ghostline{background:transparent;border:0;border-bottom:1px solid transparent;width:100%;min-width:0}
+  .notes{width:100%;border-radius:6px;border:1px solid var(--border-strong);background:var(--cream);resize:none;font-size:13px;padding:6px 10px}
+  .addarea{width:100%;border:0;border-radius:6px;background:var(--ink);color:var(--cream);font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:6px}
+
+  /* ===== current one-bar sizes (as coded today) ===== */
+  .cur.headcard{padding:10px;gap:7px}
+  .cur .colL{display:flex;flex-direction:column;gap:6px;width:138px;flex:none}
+  .cur .idbox{padding:5px 10px 6px;flex:1}
+  .cur .eyebrow{font-size:8.5px;color:var(--faint)}
+  .cur .hhead{font-size:8.5px;padding:6px 10px 5px}
+  .cur .hopt{font-size:11.5px;padding:5px 11px;min-height:24px}
+  .cur .mini{width:45px;height:40px}
+  .cur .custname{font-size:14px;font-weight:800;color:var(--moss-deep);line-height:1.2;display:flex;align-items:center;gap:4px;min-width:0}
+  .cur .subline{font-size:10px;color:var(--faint)}
+  .cur .projname{font-size:17px;font-weight:800;line-height:1.25;margin-top:2px}
+  .cur .projaddr{font-size:11px;color:var(--faint);margin-top:4px}
+  .cur .jobtotal{font-size:18px;line-height:1.15}
+
+  /* ===== compact one-bar (proposed, ~30% shorter) ===== */
+  .cmp.headcard{padding:5px;gap:5px}
+  .cmp .colL{display:flex;flex-direction:column;gap:3px;width:138px;flex:none}
+  .cmp .idbox{padding:1px 8px 2px;flex:1}
+  .cmp .eyebrow{font-size:8px;color:var(--faint);line-height:1.2}
+  .cmp .hhead{font-size:8px;padding:2px 8px}
+  .cmp .hopt{font-size:10.5px;padding:0 9px;min-height:16px}
+  .cmp .mini{width:45px;height:26px}
+  .cmp .custname{font-size:12px;font-weight:800;color:var(--moss-deep);line-height:1.15;display:flex;align-items:center;gap:4px;min-width:0}
+  .cmp .subline{font-size:9.5px;color:var(--faint);line-height:1.2}
+  .cmp .projname{font-size:15px;font-weight:800;line-height:1.15;margin-top:1px}
+  .cmp .projaddr{font-size:10px;color:var(--faint);margin-top:2px}
+  .cmp .jobtotal{font-size:14px;line-height:1.1}
+  .cmp .notes{font-size:12px;padding:4px 8px}
+
+  .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ===== price-books header — current ===== */
+  .pb{border:1px dashed var(--border-strong);border-radius:10px;background:var(--cream);padding:14px 16px 0}
+  .pb .panelrow{display:flex;gap:12px;align-items:stretch;margin-top:12px}
+  .panel{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:8px;display:flex;flex-direction:column;gap:4px}
+  .panel .eyebrow{font-size:10px}
+  .pctin{width:48px;text-align:center;border-radius:6px;border:1px solid var(--border);padding:1px 6px;font-size:12px;line-height:20px;background:var(--card)}
+  .pm{display:inline-grid;place-items:center;width:16px;height:16px;flex:none;border-radius:4px;font-size:12px;font-weight:800;line-height:1}
+  .pm.minus{color:var(--muted);background:var(--sand)}
+  .pm.plus{color:var(--moss-deep);background:var(--moss-soft)}
+  .tierrow{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+  .tierrow b{font-weight:600;color:var(--ink);white-space:nowrap}
+  .tierrow.c{gap:5px;font-size:10.5px}
+  .pctin.c{width:38px;line-height:16px;font-size:11px;padding:1px 4px}
+  .slider{appearance:none;width:100%;height:5px;border-radius:3px;background:var(--sand);outline:none}
+  .slider::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:var(--moss)}
+  .chipbtn{border:1px solid var(--border-strong);background:var(--card);border-radius:6px;font-size:11px;font-weight:700;padding:2px 8px;color:var(--muted)}
+  .toolbtn{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--muted);background:var(--card)}
+  .toolbtn:hover{background:var(--hover)}
+  .toolbtn.dash{border-style:dashed;border-color:var(--border-strong)}
+  .drop{border:1px dashed var(--border-strong);border-radius:8px;color:var(--faint);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2px;font-size:11px;flex:1;padding:0 8px;cursor:pointer}
+  .drop:hover{background:var(--hover)}
+  .hardrule{border-top:2px solid var(--border-strong);margin-top:16px}
+  .boardhint{font-size:11.5px;color:var(--faint);padding:14px 2px 16px;font-style:italic}
+
+  /* candidates table */
+  table.cand{border-collapse:collapse;width:100%;font-size:12px;margin-top:10px}
+  .cand th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);padding:6px 10px;border-bottom:2px solid var(--border-strong)}
+  .cand td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.45;color:var(--muted)}
+  .cand td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+  .cand .v{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:2px 7px;white-space:nowrap}
+  .v.yes{background:var(--moss-soft);color:var(--moss-deep)}
+  .v.keep{background:var(--amber-soft);color:var(--amber)}
+  .cand q{quotes:"“" "”";color:var(--ink);font-style:italic}
+  .overx{overflow-x:auto}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<h1>Compact headers — prototype</h1>
+<p class="sub">Three proposals, measured live (the green badges are real rendered heights, so the % is honest on your screen).
+<b>1)</b> The project header one-bar, every control kept, ~30% shorter. <b>2)</b> The Price books landing header at
+roughly half height, with its Item-search paragraph moved behind a small <b>?</b>. <b>3)</b> That <b>?</b> as a reusable
+pattern — hover any of them on this page to try it — plus everywhere else in the app it could tidy up.</p>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><h2>1 · Project header (one-bar)</h2><span class="tag">target −30%</span></div>
+  <p class="note">Nothing is removed — same three ID boxes, project + notes, Estimate shows, Freight, Price level,
+  Waste, the four minis and the action stack. Paddings, row heights and type sizes tighten one step; the notes box
+  gives up the slack. The Classic layout is untouched.</p>
+
+  <div class="lbl">Today <span class="hpx" data-h="cur-proj"></span></div>
+  <div class="headcard cur" id="cur-proj" style="max-width:1060px">
+    <div class="colL">
+      <div class="idbox">
+        <div class="eyebrow">Customer</div>
+        <div class="custname"><span class="truncate">Kathy Marsh</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></div>
+        <div class="subline truncate">⌂ Meridian Homes</div>
+      </div>
+      <div class="idbox">
+        <div class="eyebrow">🔒 Salesperson</div>
+        <div style="font-size:12.5px;font-weight:700">Danny</div>
+        <div class="subline truncate">(555) 210-0114</div>
+      </div>
+      <div class="idbox">
+        <div class="eyebrow" style="display:flex;gap:6px;height:15px;align-items:center">Job total <span style="color:var(--moss);font-size:10px;font-weight:600;letter-spacing:0;text-transform:none">Saved ✓</span></div>
+        <div class="money jobtotal" style="color:var(--moss-deep)">$12,847.20</div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+      <div class="idbox" style="flex:2;justify-content:flex-start;padding:7px 10px 6px">
+        <div class="eyebrow">Project</div>
+        <div class="projname">Marsh — whole first floor</div>
+        <div class="projaddr">214 Old Mill Rd, Chagrin Falls</div>
+      </div>
+      <textarea class="notes" style="flex:1" placeholder="Project notes…">Tear-out week of the 24th. Owner wants the herringbone quote separate.</textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;width:120px;flex:none">
+      <div class="hcol" style="flex:1">
+        <div class="hhead">Estimate shows</div>
+        <button class="hopt on">All prices</button>
+        <button class="hopt">Unit only</button>
+        <button class="hopt">No prices</button>
+      </div>
+      <div class="hcol">
+        <div class="hhead">Freight</div>
+        <button class="hopt on tier">Included · $214</button>
+      </div>
+    </div>
+    <div class="hcol" style="width:116px;flex:none">
+      <div class="hhead">Price level</div>
+      <button class="hopt on">Retail</button>
+      <button class="hopt">Builder</button>
+      <button class="hopt">Employee</button>
+      <button class="hopt">Sale</button>
+      <button class="hopt">Custom&nbsp;&nbsp;%</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;width:96px;flex:none">
+      <div class="hcol" style="flex:1">
+        <div class="hhead">Waste 🔒</div>
+        <button class="hopt on tier">Tile <span style="margin-left:auto">15%</span></button>
+        <button class="hopt">Flooring <span style="margin-left:auto">10%</span></button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,45px);gap:6px">
+        <button class="mini" title="Order sheet"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h6"/></svg></button>
+        <button class="mini" title="Files"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9z"/><path d="M13 3v6h6"/></svg></button>
+        <button class="mini" title="Save version"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></button>
+        <button class="mini" title="History"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M4 5l3-2"/></svg></button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;width:148px;flex:none">
+      <button class="mini" style="width:100%;height:24px;font-size:10.5px;font-weight:800;color:var(--faint);gap:5px">🗑 Delete</button>
+      <button class="prim" style="flex:1;font-size:13.5px">⧉ Order entry<span style="font-size:9.5px;font-weight:600;opacity:.7;margin-top:1px">For ERP One</span></button>
+      <button class="prim" style="flex:1;font-size:13.5px">🖶 Print</button>
+    </div>
+  </div>
+  <button class="addarea" style="height:30px;max-width:1060px;margin-top:8px">＋ Add area</button>
+
+  <div class="lbl" style="margin-top:22px">Proposed <span class="hpx" data-h="cmp-proj"></span> <span class="delta" data-delta="cur-proj,cmp-proj"></span></div>
+  <div class="headcard cmp" id="cmp-proj" style="max-width:1060px">
+    <div class="colL">
+      <div class="idbox">
+        <div class="eyebrow">Customer</div>
+        <div class="custname"><span class="truncate">Kathy Marsh</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></div>
+        <div class="subline truncate">⌂ Meridian Homes</div>
+      </div>
+      <div class="idbox">
+        <div class="eyebrow">🔒 Salesperson</div>
+        <div style="font-size:11.5px;font-weight:700;line-height:1.2">Danny</div>
+        <div class="subline truncate">(555) 210-0114</div>
+      </div>
+      <div class="idbox">
+        <div class="eyebrow" style="display:flex;gap:6px;height:10px;align-items:center">Job total <span style="color:var(--moss);font-size:9px;font-weight:600;letter-spacing:0;text-transform:none">Saved ✓</span></div>
+        <div class="money jobtotal" style="color:var(--moss-deep)">$12,847.20</div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+      <div class="idbox" style="flex:0 0 auto;justify-content:flex-start;padding:4px 8px 5px">
+        <div class="eyebrow">Project</div>
+        <div class="projname">Marsh — whole first floor</div>
+        <div class="projaddr">214 Old Mill Rd, Chagrin Falls</div>
+      </div>
+      <textarea class="notes" style="flex:1;min-height:0" placeholder="Project notes…">Tear-out week of the 24th. Owner wants the herringbone quote separate.</textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;width:120px;flex:none">
+      <div class="hcol" style="flex:1">
+        <div class="hhead">Estimate shows</div>
+        <button class="hopt on">All prices</button>
+        <button class="hopt">Unit only</button>
+        <button class="hopt">No prices</button>
+      </div>
+      <div class="hcol">
+        <div class="hhead">Freight</div>
+        <button class="hopt on tier">Included · $214</button>
+      </div>
+    </div>
+    <div class="hcol" style="width:116px;flex:none">
+      <div class="hhead">Price level</div>
+      <button class="hopt on">Retail</button>
+      <button class="hopt">Builder</button>
+      <button class="hopt">Employee</button>
+      <button class="hopt">Sale</button>
+      <button class="hopt">Custom&nbsp;&nbsp;%</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;width:96px;flex:none">
+      <div class="hcol" style="flex:1">
+        <div class="hhead">Waste 🔒</div>
+        <button class="hopt on tier">Tile <span style="margin-left:auto">15%</span></button>
+        <button class="hopt">Flooring <span style="margin-left:auto">10%</span></button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,45px);gap:4px">
+        <button class="mini" title="Order sheet"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h6"/></svg></button>
+        <button class="mini" title="Files"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9z"/><path d="M13 3v6h6"/></svg></button>
+        <button class="mini" title="Save version"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></button>
+        <button class="mini" title="History"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M4 5l3-2"/></svg></button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;width:148px;flex:none">
+      <button class="mini" style="width:100%;height:19px;font-size:10px;font-weight:800;color:var(--faint);gap:5px">🗑 Delete</button>
+      <button class="prim" style="flex:1;font-size:12.5px">⧉ Order entry<span style="font-size:9px;font-weight:600;opacity:.7">For ERP One</span></button>
+      <button class="prim" style="flex:1;font-size:12.5px">🖶 Print</button>
+    </div>
+  </div>
+  <button class="addarea" style="height:26px;max-width:1060px;margin-top:6px">＋ Add area</button>
+  <p class="note" style="margin-top:12px">What changed: card padding 10→6, box padding one step tighter, option rows
+  24→17px, minis 40→26px tall (icons 15→13), Save-flash/eyebrow rows merged into their fixed heights, notes absorbs
+  the rest. Every label, phone number, builder line, tier badge and tooltip survives.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><h2>2 · Price books — landing header</h2><span class="tag">target −50%</span></div>
+  <p class="note">Two structural moves do most of the work: the <b>Paste sign-in / New book</b> row folds up into the
+  title row, and the Item-search paragraph (today the tallest thing in the row — every panel stretches to match it)
+  moves behind a <b>?</b>. Price tiers go two-up. Every number stays editable in place.</p>
+
+  <div class="lbl">Today <span class="hpx" data-h="cur-pb"></span></div>
+  <div class="pb" id="cur-pb">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">Price books</div>
+        <span style="font-size:12px;color:var(--faint)">Every book in one place — grouped by portal sign-in.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--muted)">Flag stale after <input class="pctin" style="width:52px" value="120"> days</span>
+        <button class="toolbtn">％ Hide costs</button>
+      </div>
+    </div>
+    <div class="panelrow">
+      <div class="panel" style="width:132px;flex:none">
+        <span class="eyebrow">Import</span>
+        <div class="drop"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0-12L8 7m4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><b style="color:var(--muted)">Drop sheets</b><span>or <u style="color:var(--moss-deep)">browse…</u></span></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0">
+        <span class="eyebrow">Price tiers</span>
+        <div class="tierrow"><span class="pm minus">−</span><input class="pctin" value="10"><b>Builder</b></div>
+        <div class="tierrow"><span class="pm minus">−</span><input class="pctin" value="18"><b>wedi Builder</b></div>
+        <div class="tierrow"><span class="pm minus">−</span><input class="pctin" value="15"><b>Sale</b></div>
+        <div class="tierrow"><span class="pm plus">＋</span><span class="pctin" style="background:var(--moss-soft);color:var(--moss-deep);font-weight:800;border-color:transparent">6%</span><b>Employee</b></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0">
+        <span class="eyebrow">Sheoga markup</span>
+        <div class="tierrow"><span class="pm plus">＋</span><input class="pctin" value="40"><b>Flooring</b></div>
+        <div class="tierrow"><span class="pm plus">＋</span><input class="pctin" value="50"><b>Vents &amp; dampers</b></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0">
+        <span class="eyebrow">Quick markups</span>
+        <div style="display:flex;gap:4px;flex-wrap:wrap"><span class="chipbtn">30%</span><span class="chipbtn">50%</span><span class="chipbtn">100%</span><span class="chipbtn" style="border-style:dashed">＋</span></div>
+        <div style="font-size:10px;color:var(--faint);line-height:1.4">The cost-entry popup's preset buttons — edit to match how the desk quotes.</div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0">
+        <span class="eyebrow">Order entry</span>
+        <div class="tierrow"><span class="pm" style="color:var(--faint);font-weight:800">¶</span><input class="pctin" value="40"><b>Desc. field</b></div>
+        <div style="font-size:10px;color:var(--faint);padding-left:26px">characters · 0 = no limit</div>
+      </div>
+      <div class="panel" style="width:168px;flex:none">
+        <span class="eyebrow">Item search</span>
+        <div style="font-size:10px;color:var(--faint);line-height:1.4;margin-top:-2px">Exact matches always come first — in stock and special order alike. These tune the retry when nothing matches exactly.</div>
+        <div style="font-size:11px;color:var(--muted)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-weight:600;color:var(--ink)">Near-match</b><span style="font-size:10px;font-weight:700;color:var(--faint)">Balanced · 0.30</span></div>
+          <input type="range" class="slider" min="0" max="100" value="30">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faint)"><span>Loose</span><span>Strict</span></div>
+          <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-weight:600;color:var(--ink)">Wider retry</b><span style="font-size:10px;font-weight:700;color:var(--faint)">0.18</span></div>
+            <input type="range" class="slider" min="0" max="100" value="18">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faint)"><span>Wider</span><span>Off</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="toolbtn">🔑 Paste sign-in…</button>
+      <button class="toolbtn dash">＋ New book</button>
+    </div>
+    <div class="hardrule"></div>
+    <div class="boardhint">…the books board (sign-in columns) starts here…</div>
+  </div>
+
+  <div class="lbl" style="margin-top:22px">Proposed <span class="hpx" data-h="cmp-pb"></span> <span class="delta" data-delta="cur-pb,cmp-pb"></span></div>
+  <div class="pb" id="cmp-pb" style="padding-top:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+        <div style="font-size:19px;font-weight:800;letter-spacing:-.01em">Price books</div>
+        <span style="font-size:11.5px;color:var(--faint)">Every book in one place — grouped by portal sign-in.</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="toolbtn" style="padding:3px 9px">🔑 Paste sign-in…</button>
+        <button class="toolbtn dash" style="padding:3px 9px">＋ New book</button>
+        <span style="font-size:11.5px;color:var(--muted)">Stale after <input class="pctin" style="width:46px;line-height:18px" value="120"> days</span>
+        <button class="toolbtn" style="padding:3px 9px">％ Hide costs</button>
+      </div>
+    </div>
+    <div class="panelrow" style="margin-top:8px">
+      <div class="panel" style="width:150px;flex:none;padding:6px">
+        <span class="eyebrow">Import</span>
+        <div class="drop" style="flex-direction:row;gap:6px;font-size:10.5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0-12L8 7m4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span><b style="color:var(--muted)">Drop sheets</b> or <u style="color:var(--moss-deep)">browse…</u></span></div>
+      </div>
+      <div class="panel" style="width:252px;flex:none;padding:6px">
+        <span class="eyebrow">Price tiers</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px">
+          <div class="tierrow c"><span class="pm minus">−</span><input class="pctin c" value="10"><b>Builder</b></div>
+          <div class="tierrow c"><span class="pm minus">−</span><input class="pctin c" value="18"><b>wedi Bldr</b></div>
+          <div class="tierrow c"><span class="pm minus">−</span><input class="pctin c" value="15"><b>Sale</b></div>
+          <div class="tierrow c"><span class="pm plus">＋</span><span class="pctin c" style="background:var(--moss-soft);color:var(--moss-deep);font-weight:800;border-color:transparent">6%</span><b>Employee</b></div>
+        </div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0;padding:6px">
+        <span class="eyebrow">Sheoga markup</span>
+        <div class="tierrow c"><span class="pm plus">＋</span><input class="pctin c" value="40"><b>Flooring</b></div>
+        <div class="tierrow c"><span class="pm plus">＋</span><input class="pctin c" value="50"><b>Vents &amp; dmp.</b></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0;padding:6px">
+        <span class="eyebrow" style="display:flex;align-items:center;gap:5px">Quick markups
+          <span class="q"><button aria-label="About quick markups">?</button><span class="pop">The cost-entry popup's preset markup buttons — edit these to match how the desk quotes.</span></span>
+        </span>
+        <div style="display:flex;gap:3px;flex-wrap:wrap"><span class="chipbtn" style="font-size:10px;padding:1px 5px">30%</span><span class="chipbtn" style="font-size:10px;padding:1px 5px">50%</span><span class="chipbtn" style="font-size:10px;padding:1px 5px">100%</span><span class="chipbtn" style="font-size:10px;padding:1px 5px;border-style:dashed">＋</span></div>
+      </div>
+      <div class="panel" style="flex:1;min-width:0;padding:6px">
+        <span class="eyebrow" style="display:flex;align-items:center;gap:5px">Order entry
+          <span class="q"><button aria-label="About the description field limit">?</button><span class="pop">How many <b>characters</b> your ERP's order-description field holds. Special-order lines abbreviate to fit; anything that still won't fit gets a second copy button for the extended-text field. <b>0 = no limit.</b></span></span>
+        </span>
+        <div class="tierrow c"><span class="pm" style="color:var(--faint);font-weight:800">¶</span><input class="pctin c" value="40"><b>Desc. field</b></div>
+      </div>
+      <div class="panel" style="width:190px;flex:none;padding:6px">
+        <span class="eyebrow" style="display:flex;align-items:center;gap:5px">Item search
+          <span class="q left"><button aria-label="How item search matching works">?</button><span class="pop"><b>Exact matches always come first</b> — in stock and special order alike. These sliders only tune the fuzzy retry when nothing matches exactly: <b>Near-match</b> sets how close a typo must be (lower = looser, catches “reducar” → Reducer); <b>Wider retry</b> is a second, looser pass so a bad typo never comes back empty — drag it up to the near-match cutoff to switch it off.</span></span>
+        </span>
+        <div style="font-size:11px;color:var(--muted);display:grid;grid-template-columns:1fr;gap:2px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-weight:600;color:var(--ink)">Near-match</b><span style="font-size:10px;font-weight:700;color:var(--faint)">Balanced · 0.30</span></div>
+          <input type="range" class="slider" min="0" max="100" value="30">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:2px"><b style="font-weight:600;color:var(--ink)">Wider retry</b><span style="font-size:10px;font-weight:700;color:var(--faint)">0.18</span></div>
+          <input type="range" class="slider" min="0" max="100" value="18">
+        </div>
+      </div>
+    </div>
+    <div class="hardrule" style="margin-top:10px"></div>
+    <div class="boardhint">…the books board starts here — one full panel row higher…</div>
+  </div>
+  <p class="note" style="margin-top:12px">The sliders keep their live value word (“Balanced · 0.30”), which carries the
+  Loose↔Strict direction; the endpoint captions and the paragraph live in the <b>?</b>. On mobile the panels still
+  swipe as cards, unchanged.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><h2>3 · The ? pattern, app-wide</h2><span class="tag">proposal</span></div>
+  <p class="note">The <b>?</b> becomes a tiny shared widget (<code>HelpTip</code> in widgets.jsx): a 14px circle that pops
+  the full text on hover, keyboard focus, or tap — so it works on the shop iPads too, unlike the current
+  <code>title=</code> tooltips. Try it: <span class="q"><button>?</button><span class="pop">Like this. The popup is ink-on-paper,
+  240px wide, and can hold <b>bold</b> and multi-sentence rules without pushing the layout around.</span></span></p>
+  <p class="note"><b>The dividing line we'd follow:</b> a ? hides <i>standing rules</i> — text that's true every day and
+  only needs reading once. Text that reports <i>state or a warning</i> (amber import hazards, “ASSUMED” quantities,
+  drift chips, empty states) stays inline, because hiding it hides the problem.</p>
+
+  <div class="overx">
+  <table class="cand">
+    <tr><th>Surface</th><th>Text it would absorb</th><th>Verdict</th></tr>
+    <tr><td>Price books · Item search</td><td><q>Exact matches always come first…</q> + the two slider endpoint captions</td><td><span class="v yes">? — this PR</span></td></tr>
+    <tr><td>Price books · Order entry</td><td><q>characters · 0 = no limit</q> caption under the Desc. field input</td><td><span class="v yes">? — this PR</span></td></tr>
+    <tr><td>Price books · Quick markups</td><td>The preset-buttons explainer line</td><td><span class="v yes">? — this PR</span></td></tr>
+    <tr><td>Book page · Versions drawer</td><td><q>The newest 6 unpinned imports are kept; pin one to keep it indefinitely.</q></td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Book page · Markup tab</td><td><q>reducers, T-molds, stair-noses… (blank = default)</q> and the item editor's <q>Selling price stays cost × markup…</q></td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Book page · Freight tab</td><td><q>Rates read live — changing one moves every open quote, saved estimates included.</q></td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Settings · Materials</td><td>The grout-baseline calibration note, mortar tier note, and the add-on chip-scoping notes</td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Settings · General</td><td><q>Applies on this device only…</q> under Theme and Header layout</td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Settings · Backup</td><td>The two-sentence backup/restore explanation</td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Versions modal</td><td><q>Auto versions are saved when you leave a job… the newest are kept.</q></td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Vendor board · Paste sign-in</td><td>The long <q>First time on a portal…</q> walkthrough (Ctrl+J instructions)</td><td><span class="v yes">? later</span></td></tr>
+    <tr><td>Import review warnings</td><td><q>Ignored rows still import, but disabled…</q>, unit-combo hazards, supersede notes</td><td><span class="v keep">keep inline</span></td></tr>
+    <tr><td>Order entry panel</td><td>Amber <q>ASSUMED</q> quantity flags, <q>by description — no SKU</q></td><td><span class="v keep">keep inline</span></td></tr>
+    <tr><td>Empty states &amp; drift chips</td><td><q>This book is empty…</q>, Qty/price drift chips</td><td><span class="v keep">keep inline</span></td></tr>
+  </table>
+  </div>
+
+  <p class="note" style="margin-top:14px"><b>If this looks right:</b> the PR would touch <code>projectheader.jsx</code>
+  (bar layout only — Classic untouched), the library header in <code>pricebooklib.jsx</code>, and add
+  <code>HelpTip</code> to <code>widgets.jsx</code>, converting just the three landing-header captions above. The
+  “? later” rows would be a follow-up so this change stays reviewable.</p>
+</section>
+
+<script>
+  // live height badges + honest deltas
+  const px = id => document.getElementById(id).getBoundingClientRect().height;
+  document.querySelectorAll('[data-h]').forEach(el => { el.textContent = Math.round(px(el.dataset.h)) + 'px tall'; });
+  document.querySelectorAll('[data-delta]').forEach(el => {
+    const [a,b] = el.dataset.delta.split(',');
+    el.textContent = '−' + Math.round((1 - px(b)/px(a)) * 100) + '%';
+  });
+  // tap-to-toggle for the ? tips (touch devices)
+  document.querySelectorAll('.q > button').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation(); const q = btn.parentElement;
+    document.querySelectorAll('.q.open').forEach(o => o !== q && o.classList.remove('open'));
+    q.classList.toggle('open');
+  }));
+  document.addEventListener('click', () => document.querySelectorAll('.q.open').forEach(o => o.classList.remove('open')));
+</script>
+</body>
+</html>
