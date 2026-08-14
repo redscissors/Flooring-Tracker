@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { LIST_SELECT, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
@@ -523,7 +523,7 @@ export default function App({ user, onSignOut }) {
         // Strip characters that would break PostgREST's or=() syntax.
         const pat = "%" + q.replace(/[%_,()"\\]/g, " ").trim() + "%";
         const ors = ["name", "address", "phone", "email"].map((f) => `data->>${f}.ilike.${pat}`).join(",");
-        const { data: rows, error } = await supabase.from("projects").select(LIST_SELECT).or(ors);
+        const { data: rows, error } = await supabase.from("projects").select(listSelect()).or(ors);
         if (error) throw error;
         if (stale) return;
         const found = (rows || []).map(lightRow);

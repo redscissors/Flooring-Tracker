@@ -12,10 +12,18 @@ export const SHARED_SETTINGS_ID = "singleton";
 
 // The light list row: everything the sidebar draws/searches/sorts, projected out
 // of the jsonb server-side. Shared by the initial load and server-side search.
-export const LIST_SELECT = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick, sales:data->salesperson->>name";
+// LIST_SELECT asks for project_no (spec 2026-08-14); an install that hasn't
+// run supabase/project-numbers.sql would fail the whole projects load on it,
+// so loadProjects retries without and listSelect() remembers which select
+// works (App's server-side search reuses it). Downgrade-once per page load.
+const LIST_SELECT_LEGACY = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick, sales:data->salesperson->>name";
+export const LIST_SELECT = LIST_SELECT_LEGACY + ", project_no";
+let activeListSelect = LIST_SELECT;
+export const listSelect = () => activeListSelect;
 export const lightRow = (r) => ({
   id: r.id,
   customerId: r.customer_id ?? null,
+  projectNo: r.project_no ?? null,
   createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
   updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
   name: r.name || "", address: r.address || "", phone: r.phone || "", email: r.email || "",
@@ -37,7 +45,11 @@ const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 // sorts, projected out of the jsonb server-side. The heavy detail stays on the
 // server until a project is opened (loadDetail in App.jsx).
 export const loadProjects = async (db) => {
-  const { data: rows, error } = await db.from("projects").select(LIST_SELECT);
+  let { data: rows, error } = await db.from("projects").select(activeListSelect);
+  if (error && activeListSelect !== LIST_SELECT_LEGACY) {
+    activeListSelect = LIST_SELECT_LEGACY;
+    ({ data: rows, error } = await db.from("projects").select(activeListSelect));
+  }
   if (error) throw error;
   return (rows || []).map(lightRow);
 };
