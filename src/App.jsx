@@ -12,6 +12,7 @@ import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
 import { matchName } from "./names.js";
+import { projNoHit } from "./custbrowser.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 // The wedi search seed comes from wediquery.js, not wedi.js — the catalog and
 // engine stay inside the lazy WediConfigurator chunk (ADR 0026, issue 066).
@@ -1138,9 +1139,10 @@ export default function App({ user, onSignOut }) {
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
-  // Search spans builder + customer contact + project names (ADR 0005).
+  // Search spans builder + customer contact + project names + order numbers
+  // ("N214" or bare "214", ADR 0005).
   const q = search.trim().toLowerCase();
-  const matchProj = (p) => [p.name, p.address, p.phone, p.email].some((f) => (f || "").toLowerCase().includes(q));
+  const matchProj = (p) => [p.name, p.address, p.phone, p.email].some((f) => (f || "").toLowerCase().includes(q)) || projNoHit(p, q);
   const matchPerson = (c) => !q || [c.name, c.phone, c.email, c.address, builderNameOf(c.builderId)].some((f) => (f || "").toLowerCase().includes(q)) || projectsOf(c.id).some(matchProj);
   // The rail is recency-ordered: a customer bubbles up on any activity — their
   // own edit or any of their projects'. (A–Z lives in the customer browser.)
