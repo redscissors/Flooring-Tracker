@@ -16,6 +16,13 @@ export const NO_SALES = "No salesperson";
 // already trimmed + lowercased.
 export const projNoHit = (p, q) => !!(p && p.projectNo) && !!q && `n${p.projectNo}`.includes(q);
 
+// A customer's project numbers in the caller's project order (browserRows
+// hands them over newest edit first), N-form, unnumbered projects skipped —
+// the grid's Project # column. A customer is several jobs, so the cell is a
+// list, not a field: the numbers are what the team quotes by, and the newest
+// one leads because that's the job on the phone.
+export const projNos = (projs = []) => projs.filter((p) => p.projectNo).map((p) => `N${p.projectNo}`);
+
 // One grid row per customer. `activity` bubbles on any edit — the customer's
 // own or any of their projects' (same rule as the sidebar's "Newest" sort).
 // `sales` is the salesperson of the most recently touched project that has
@@ -141,7 +148,7 @@ export function groupBySales(rows) {
 // app_data blob (ui.browserCols), so each salesperson's arrangement follows
 // their login. `sales` carries the salesman in the default flat view — the
 // band grouping only kicks in once the salesperson box has a name.
-export const BROWSER_COLS = ["sales", "builder", "phone", "address", "email", "jobs", "created", "modified"];
+export const BROWSER_COLS = ["projno", "sales", "builder", "phone", "address", "email", "jobs", "created", "modified"];
 
 // Sanitize a saved order: unknown keys drop, duplicates collapse, columns
 // added since the save append in default position.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -104,6 +104,23 @@ test("projNoHit: N-form or bare digits against a project's number, nothing else"
   assert.equal(projNoHit(p, ""), false);
   assert.equal(projNoHit({ projectNo: null }, "214"), false);
   assert.equal(projNoHit({}, "214"), false);
+});
+
+test("projNos: the row's numbers in project order, unnumbered jobs skipped", () => {
+  const numbered = browserRows({
+    people, builders,
+    projects: projects.map((p) => p.id === "p1" ? { ...p, projectNo: 187 } : p.id === "p2" ? { ...p, projectNo: 214 } : p),
+  });
+  // p2 (newest edit) leads, and c1's numbers read newest-first
+  assert.deepEqual(projNos(numbered[0].projs), ["N214", "N187"]);
+  assert.deepEqual(projNos(numbered[1].projs), []);
+  assert.deepEqual(projNos([{ projectNo: 100 }, {}, { projectNo: null }]), ["N100"]);
+  assert.deepEqual(projNos(), []);
+});
+
+test("the Project # column ships in the default order and survives a stale save", () => {
+  assert.equal(BROWSER_COLS[0], "projno");
+  assert.equal(normColOrder(["phone", "sales"]).includes("projno"), true);
 });
 
 test("filterRows finds a customer by a project's order number", () => {
