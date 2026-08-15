@@ -1,0 +1,20 @@
+— cmp-rail —
+printable page box: 710 x 950px
+paper height: 1439px  =  1.51 pages of content
+PDF pages: 2
+
+top-level blocks:
+   60px    4.2%  Rough EstimateFor planning purposes only · pri
+   64px    4.4%  CustomerHartzler — Whole house remodel4821 Kid
+  143px    9.9%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+   86px    6.0%  Kitchen backsplash＋ extras priced belowDaltile
+   86px    6.0%  Master bath floor＋ extras priced belowAnatolia
+  192px   13.3%  Master shower＋ extras priced belowAnatolia May
+  121px    8.4%  Hall bath＋ extras priced belowDaltile Restore 
+  100px    6.9%  Laundry / mudroomMannington AduraMax MPB822 No
+  137px    9.5%  Great roomMannington AduraMax MPB801 Sundance 
+  100px    6.9%  Bedrooms 2 & 3Mannington AduraMax MPB770 Docks
+  135px    9.4%  ExtrasGroutPermaColor Select — Midnight BlackS
+   51px    3.5%  Estimated total$12,985.97
+   14px    1.0%  Includes material waste (tile 10%, other floor
+   31px    2.2%  Prepared with

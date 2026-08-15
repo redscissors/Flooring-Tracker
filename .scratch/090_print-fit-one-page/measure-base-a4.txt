@@ -1,0 +1,16 @@
+— base-a4 —
+printable page box: 710 x 950px
+paper height: 1147px  =  1.21 pages of content
+PDF pages: 2
+
+top-level blocks:
+   66px    5.8%  Rough EstimateFor planning purposes only · pri
+   71px    6.2%  CustomerHartzler — Whole house remodel4821 Kid
+  187px   16.3%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+  106px    9.2%  Kitchen backsplash＋ extras priced belowDaltile
+  106px    9.2%  Master bath floor＋ extras priced belowAnatolia
+  244px   21.3%  Master shower＋ extras priced belowAnatolia May
+  143px   12.5%  ExtrasGroutPermaColor Select — Midnight BlackS
+   51px    4.4%  Estimated total$12,985.97
+   14px    1.2%  Includes material waste (tile 10%, other floor
+   31px    2.7%  Prepared with

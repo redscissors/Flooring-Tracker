@@ -1,0 +1,20 @@
+— zoom0.65 (zoom 0.65) —
+printable page box: 710 x 950px
+paper height: 1200px  =  1.26 pages of content
+PDF pages: 2
+
+top-level blocks:
+   44px    3.7%  Rough EstimateFor planning purposes only · pri
+   46px    3.8%  CustomerHartzler — Whole house remodel4821 Kid
+  123px   10.3%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+   70px    5.8%  Kitchen backsplash＋ extras priced belowDaltile
+   70px    5.8%  Master bath floor＋ extras priced belowAnatolia
+  161px   13.4%  Master shower＋ extras priced belowAnatolia May
+  109px    9.1%  Hall bath＋ extras priced belowDaltile Restore 
+  104px    8.7%  Laundry / mudroomMannington AduraMax MPB822 No
+  104px    8.7%  Great roomMannington AduraMax MPB801 Sundance 
+  104px    8.7%  Bedrooms 2 & 3Mannington AduraMax MPB770 Docks
+   89px    7.4%  ExtrasGroutPermaColor Select — Midnight BlackS
+   33px    2.8%  Estimated total$12,985.97
+    9px    0.8%  Includes material waste (tile 10%, other floor
+   20px    1.7%  Prepared with

@@ -1,0 +1,20 @@
+— classic —
+printable page box: 710 x 950px
+paper height: 1959px  =  2.06 pages of content
+PDF pages: 3
+
+top-level blocks:
+   71px    3.6%  Flooring & TileSelections8/15/2026
+   71px    3.6%  CustomerHartzler — Whole house remodel4821 Kid
+  181px    9.2%  Kitchen95 SF · $1,250.85SizeProduct / ColorSKU
+  117px    6.0%  Kitchen backsplash48 SF · $787.63SizeProduct /
+  117px    6.0%  Master bath floor112 SF · $767.56SizeProduct /
+  220px   11.2%  Master shower156 SF · $1,699.61SizeProduct / C
+  159px    8.1%  Hall bath64 SF · $398.78SizeProduct / ColorSKU
+  141px    7.2%  Laundry / mudroom210 SF · $1,222.44SizeProduct
+  163px    8.3%  Great room640 SF · $3,854.28SizeProduct / Colo
+  141px    7.2%  Bedrooms 2 & 3410 SF · $2,454.88SizeProduct / 
+  142px    7.2%  Setting materials & sundriesGroutPermaColor Se
+   87px    4.4%  Flooring $12,436.02 · Materials $549.95 · 1,73
+   46px    2.3%  Customer approvalDate
+   28px    1.4%  Prepared with the ned

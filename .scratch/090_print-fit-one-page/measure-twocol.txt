@@ -1,0 +1,13 @@
+— twocol —
+printable page box: 710 x 950px
+paper height: 1595px  =  1.68 pages of content
+PDF pages: 2
+
+top-level blocks:
+   66px    4.1%  Rough EstimateFor planning purposes only · pri
+   71px    4.5%  CustomerHartzler — Whole house remodel4821 Kid
+ 1127px   70.7%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+  143px    9.0%  ExtrasGroutPermaColor Select — Midnight BlackS
+   51px    3.2%  Estimated total$12,985.97
+   14px    0.9%  Includes material waste (tile 10%, other floor
+   31px    1.9%  Prepared with
