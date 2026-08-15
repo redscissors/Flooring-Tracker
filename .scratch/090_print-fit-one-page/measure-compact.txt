@@ -1,20 +1,20 @@
 — compact —
 printable page box: 710 x 950px
-paper height: 1302px  =  1.37 pages of content
+paper height: 1324px  =  1.39 pages of content
 PDF pages: 2
 
 top-level blocks:
-   60px    4.6%  Rough EstimateFor planning purposes only · pri
-   64px    4.9%  CustomerHartzler — Whole house remodel4821 Kid
-  125px    9.6%  Kitchen＋ extras priced belowMarazzi Rice Tile 
-   68px    5.2%  Kitchen backsplash＋ extras priced belowDaltile
-   68px    5.2%  Master bath floor＋ extras priced belowAnatolia
-  155px   11.9%  Master shower＋ extras priced belowAnatolia May
-  103px    7.9%  Hall bath＋ extras priced belowDaltile Restore 
-  101px    7.8%  Laundry / mudroomMannington AduraMax MPB822 No
-  108px    8.3%  Great roomMannington AduraMax MPB801 Sundance 
-  101px    7.8%  Bedrooms 2 & 3Mannington AduraMax MPB770 Docks
-  135px   10.4%  ExtrasGroutPermaColor Select — Midnight BlackS
+   83px    6.3%  Rough EstimateFor planning purposes only · pri
+   64px    4.8%  CustomerHartzler — Whole house remodel4821 Kid
+  125px    9.4%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+   68px    5.1%  Kitchen backsplash＋ extras priced belowDaltile
+   68px    5.1%  Master bath floor＋ extras priced belowAnatolia
+  155px   11.7%  Master shower＋ extras priced belowAnatolia May
+  103px    7.8%  Hall bath＋ extras priced belowDaltile Restore 
+  101px    7.6%  Laundry / mudroomMannington AduraMax MPB822 No
+  108px    8.2%  Great roomMannington AduraMax MPB801 Sundance 
+  101px    7.6%  Bedrooms 2 & 3Mannington AduraMax MPB770 Docks
+  135px   10.2%  ExtrasGroutPermaColor Select — Midnight BlackS
    51px    3.9%  Estimated total$12,985.97
    14px    1.1%  Includes material waste (tile 10%, other floor
-   31px    2.4%  Prepared with
+   31px    2.3%  Prepared with
