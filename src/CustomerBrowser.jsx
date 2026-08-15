@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check } from "lucide-react";
-import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
 import { useEscClose, DotMenu } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -76,6 +76,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   // The draggable columns (Customer stays pinned — the row's identity).
   // Per-key head config + cell renderer, laid out in `cols` order.
   const HEAD = {
+    projno: { label: "Project #" },
     sales: { label: "Salesman" },
     builder: { label: "Builder" },
     phone: { label: "Phone" },
@@ -86,6 +87,10 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
     modified: { label: "Modified", sort: "modified", cls: "text-right" },
   };
   const CELL = {
+    projno: (r) => {
+      const nos = projNos(r.projs).join(" ");
+      return <td key="projno" className={`${td} ft-mono max-w-[136px] text-slate-500`} title={nos || undefined}>{nos}</td>;
+    },
     sales: (r) => <td key="sales" className={`${td} max-w-[130px] text-slate-500`}>{r.sales}</td>,
     builder: (r) => <td key="builder" className={`${td} max-w-[160px] text-slate-500`}>{r.builderName}</td>,
     phone: (r) => <td key="phone" className={`${td} ft-mono whitespace-nowrap text-slate-600`}>{r.phone}</td>,
@@ -129,6 +134,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
     <button key={p.id} onClick={() => onOpenProject(p.id)}
       className="w-full text-left rounded-md px-2 py-1 flex items-center gap-2 border border-transparent hover:bg-slate-50 group">
       <Icon size={13} className="text-slate-300 shrink-0" />
+      {p.projectNo && <span className="ft-mono text-[11px] text-slate-400 shrink-0">N{p.projectNo}</span>}
       <span className="ft-item-name text-[12.5px] truncate">{p.name || fallbackName}</span>
       {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
       <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
@@ -277,6 +283,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                 <button key={p.id} onClick={() => onOpenProject(p.id)}
                   className="w-full text-left rounded-md px-2 py-1 flex items-center gap-2 border border-transparent hover:bg-slate-50 group">
                   <FileText size={13} className="text-slate-300 shrink-0" />
+                  {p.projectNo && <span className="ft-mono text-[11px] text-slate-400 shrink-0">N{p.projectNo}</span>}
                   <span className="ft-item-name text-[12.5px] truncate">{p.name || "Untitled project"}</span>
                   {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
                   <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
@@ -298,8 +305,8 @@ function FragmentRows({ group, rowEl }) {
     <>
       {group.sales != null && (
         <tr>
-          {/* 11 ≥ the widest layout (incl. filler); browsers clamp the span */}
-          <td colSpan={11} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
+          {/* 12 ≥ the widest layout (incl. filler); browsers clamp the span */}
+          <td colSpan={12} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
             <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
               <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
               {group.sales}
