@@ -38,7 +38,7 @@ console.log(heights);
 const shoot = async (tag) => {
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: `${OUT}/header-today-${tag}.png`, clip: await todayClip() });
-  for (const v of ["v-a", "v-b", "v-c"]) {
+  for (const v of ["v-a", "v-b", "v-c", "v-d"]) {
     await page.locator(`[data-shot="${v}"]`).screenshot({ path: `${OUT}/header-${v}-${tag}.png` });
   }
   await page.screenshot({ path: `${OUT}/header-all-${tag}.png`, fullPage: true });

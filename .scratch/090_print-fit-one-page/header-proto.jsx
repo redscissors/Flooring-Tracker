@@ -119,6 +119,56 @@ function InkBand() {
   );
 }
 
+// ---------------------------------------------------------------- variant D --
+// Owner sketch 2026-08-16, B reworked: waste leaves the header entirely (the
+// bottom of the sheet already prints "Includes material waste (tile 10%…)", so
+// nothing is lost), the PROJECT name moves up into the masthead's right block
+// left of its number, and the line below the rule carries no CUSTOMER/
+// SALESPERSON labels — just two tight stacks: customer (name over phone,
+// address to its right) and salesperson (name over phone · email), right-
+// aligned. In the real implementation the customer facts come from
+// EstimatePaper's existing `people` lookup.
+const CUST = { name: "Dan & Ruth Hartzler", phone: "330-555-8123" };
+function MastheadSketch() {
+  const stack = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
+  return (
+    <div>
+      <div className="flex items-center justify-between" style={{ gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
+        <div className="flex items-center" style={{ gap: 16, flexShrink: 0 }}>
+          <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
+          <div className="ft-pbadge" style={{ maxWidth: 210, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.3 }}>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
+            <div style={{ fontSize: 7.5, color: "var(--ft-muted)" }}>{DISCLAIMER}</div>
+          </div>
+        </div>
+        <div style={{ minWidth: 0, textAlign: "right" }}>
+          <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", whiteSpace: "nowrap", marginBottom: 1 }}>Flooring &amp; Tile Selections</div>
+          {/* One right-aligned run, so an extra-long project name wraps to a
+              second line instead of truncating; number + date never break. */}
+          <div style={{ lineHeight: 1.3 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 800 }}>{sel.name}</span>
+            <span style={{ whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>&nbsp; N{sel.projectNo}</span>
+              <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>&nbsp; {DATE}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-baseline" style={{ gap: 22, padding: "5px 0 6px", borderBottom: "1px solid var(--ft-paper-rule)" }}>
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.35 }}>{CUST.name}</div>
+          <div style={stack}>{CUST.phone}</div>
+        </div>
+        <div style={{ ...stack, alignSelf: "center" }}>{ADDRESS}</div>
+        <div style={{ marginLeft: "auto", textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.35 }}>{PROFILE.name}</div>
+          <div style={stack}>{PROFILE.phone} · {PROFILE.email}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Each variant in its own paper box, captioned with its measured height.
 function Box({ tag, title, note, children }) {
   const ref = useRef(null);
@@ -164,5 +214,6 @@ createRoot(document.getElementById("preview")).render(
     <Box tag="v-a" title="A · One bar" note="one 24px masthead row + one run line" ><OneBar /></Box>
     <Box tag="v-b" title="B · Masthead kept, columns merged" note="32px mark, two-line title, ruled run line"><Masthead /></Box>
     <Box tag="v-c" title="C · Ink band" note="masthead becomes the sheet's own black band"><InkBand /></Box>
+    <Box tag="v-d" title="D · Owner sketch" note="B + project name in the masthead, no waste, unlabeled tight stacks"><MastheadSketch /></Box>
   </div>
 );

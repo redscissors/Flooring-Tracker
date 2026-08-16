@@ -102,9 +102,23 @@ Project run only when it differs.
 | A · one bar (24px mark, one masthead row) | **84px** | −76px |
 | B · masthead kept, columns merged (32px mark, two-line title) | **89px** | −71px |
 | C · ink band (masthead becomes the sheet's own black band) | **81px** | −79px |
+| D · owner sketch 2026-08-16 (B reworked, see below) | **87px** | −73px |
 
 Roughly two product lines (~0.8in). Real, worth taking, and not
 where the three pages come from — see finding 1.
+
+**Variant D — the owner's own sketch (2026-08-16), based on B:** waste leaves
+the header entirely (the sheet's bottom line already prints "Includes material
+waste (tile 10%…)", so nothing is lost); the PROJECT name moves up into the
+masthead's right block, left of its N-number; and the line below the rule drops
+the CUSTOMER/SALESPERSON eyebrow labels for two tight stacks — customer name
+over phone with the address to its right, salesperson name over phone · email
+right-aligned. The badge moves into a left cluster beside the logo so the
+project name gets the masthead's width; an extra-long name wraps to a second
+line rather than truncating (the name + number + date render as one
+right-aligned run with the number/date pair unbreakable). Customer name/phone
+come from EstimatePaper's existing `people` lookup — the prototype fakes the
+record inline.
 
 Open question for the owner: C reuses the solid black band the area headers
 already wear, which makes the top of the sheet read like the rest of it, but the
