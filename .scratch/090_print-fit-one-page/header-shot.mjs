@@ -35,27 +35,32 @@ const today = await page.evaluate(() => {
 console.log(`today: ${today[0] + today[1]}px (masthead ${today[0]} + grid ${today[1]})`);
 console.log(heights);
 
-// Variant D's project-name width budget: the right grid column's width minus
-// the number + date + gaps is what the name may occupy. Convert that to a
-// character cap by measuring real Manrope 800 11.5px glyphs — a WIDE reference
-// name (no dot-width padding tricks) so the cap holds for worst-ish names.
+// Variant D's project-name width budget: the name now owns the second row's
+// center cell, flanked by the customer and salesperson stacks. Its budget is
+// the row width minus the two stacks' natural widths and gaps. Convert to a
+// character cap by measuring real Manrope 800 glyphs — a WIDE reference name
+// (no dot-width padding tricks) so the cap holds for worst-ish names.
 const budget = await page.evaluate(() => {
-  const col = document.querySelector("[data-mast-right]");
   const name = document.querySelector("[data-mast-name]");
-  const no = document.querySelector("[data-mast-no]");
-  const date = document.querySelector("[data-mast-date]");
-  const colW = col.getBoundingClientRect().width;
-  const fixed = no.getBoundingClientRect().width + date.getBoundingClientRect().width + 2 * 7;
-  const avail = colW - fixed;
+  const row = name.parentElement;
+  const [cust, , sp] = row.children;
+  const ctx0 = document.createElement("canvas").getContext("2d");
+  // The flank cells are 1fr (stretched) — their real footprint is the widest
+  // LINE they contain, measured with each line's own font.
+  const natural = (cell) => Math.max(...[...cell.children].map((d) => {
+    ctx0.font = getComputedStyle(d).font;
+    return ctx0.measureText(d.textContent).width;
+  }));
+  const avail = row.getBoundingClientRect().width - natural(cust) - natural(sp) - 2 * 18;
   const ctx = document.createElement("canvas").getContext("2d");
   ctx.font = getComputedStyle(name).font;
   const wide = "Hammond Woodworks LLC";       // ~average-to-wide real name
   const perChar = ctx.measureText(wide).width / wide.length;
   const caps = "SHOWROOM REMODEL MAIN";       // all-caps worst case
   const perCharCaps = ctx.measureText(caps).width / caps.length;
-  return { colW: Math.round(colW), fixed: Math.round(fixed), avail: Math.round(avail), perChar: +perChar.toFixed(2), perCharCaps: +perCharCaps.toFixed(2), fit: Math.floor(avail / perChar), fitCaps: Math.floor(avail / perCharCaps) };
+  return { avail: Math.round(avail), perChar: +perChar.toFixed(2), perCharCaps: +perCharCaps.toFixed(2), fit: Math.floor(avail / perChar), fitCaps: Math.floor(avail / perCharCaps) };
 });
-console.log(`name budget: right col ${budget.colW}px − N+date ${budget.fixed}px = ${budget.avail}px`);
+console.log(`name budget: center cell ${budget.avail}px`);
 console.log(`  ≈ ${budget.fit} chars mixed-case (${budget.perChar}px/ch) · ${budget.fitCaps} chars ALL-CAPS (${budget.perCharCaps}px/ch)`);
 
 const shoot = async (tag) => {

@@ -102,7 +102,7 @@ Project run only when it differs.
 | A · one bar (24px mark, one masthead row) | **84px** | −76px |
 | B · masthead kept, columns merged (32px mark, two-line title) | **89px** | −71px |
 | C · ink band (masthead becomes the sheet's own black band) | **81px** | −79px |
-| D · owner sketch 2026-08-16 (B reworked, see below) | **87px** | −73px |
+| D · owner sketch 2026-08-16 (B reworked, see below) | **100px** | −60px |
 
 Roughly two product lines (~0.8in). Real, worth taking, and not
 where the three pages come from — see finding 1.
@@ -116,20 +116,29 @@ over phone with the address to its right, salesperson name over phone · email
 right-aligned. Customer name/phone come from EstimatePaper's existing `people`
 lookup — the prototype fakes the record inline.
 
-Owner follow-up (2026-08-16): the badge stays CENTERED — no moving pieces
-around to dodge a long name; shrink text if needed, and CAP THE PROJECT NAME at
-entry to whatever fits. The prototype centers the badge on a `1fr auto 1fr`
-grid (true page center regardless of what flanks it) and narrows it by letting
-the disclaimer wrap to two 8px lines, which hands both side columns ~55px.
-`header-shot.mjs` then measures the name's budget with real Manrope metrics:
+Owner follow-ups (2026-08-16), in order:
 
-    right column 238px − N-number+date 101px = 137px for the name
-    ≈ 16 chars mixed-case (8.18px/ch) · 15 chars ALL-CAPS (8.82px/ch)
+1. The badge stays CENTERED — no moving pieces around to dodge a long name;
+   shrink text if needed, and cap the project name at entry to whatever fits.
+   The prototype centers the badge on a `1fr auto 1fr` grid (true page center
+   regardless of what flanks it) and narrows it by letting the disclaimer wrap
+   to two 8px lines.
+2. Full stacks at the edges: the address moves UNDER the customer's phone
+   (name / phone / address), the salesperson's phone moves under their name
+   with the email below (name / phone / email) — and the PROJECT NAME comes
+   down out of the masthead to the CENTER of that second row, between the two
+   stacks. The masthead's right block goes back to title over N-number + date.
 
-**Recommended entry cap: `maxLength={15}`** on the project-name input (covers
-the all-caps case; typical one-or-two-word names — "Whole house", "Kitchen",
-"Master bath" — fit with room). Pre-existing longer names: render at 10.5px
-(~18 chars) before ellipsizing, so old jobs stay printable without edits.
+The move to the second row's center transforms the name's width budget —
+`header-shot.mjs` measures it against the stacks' natural line widths with real
+Manrope glyph metrics:
+
+    center cell 388px ≈ 43 chars mixed-case (8.89px/ch) · 40 chars ALL-CAPS
+
+The tight 15-char cap from follow-up 1 is superseded: **`maxLength={40}`** on
+the project-name entry is now enough to guarantee the header never collides,
+and every realistic name renders at full 12.5px. The three-line stacks make D
+100px (was 87) — still 60px under today's 160.
 
 Open question for the owner: C reuses the solid black band the area headers
 already wear, which makes the top of the sheet read like the rest of it, but the

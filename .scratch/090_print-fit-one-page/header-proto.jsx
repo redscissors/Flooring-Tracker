@@ -149,24 +149,29 @@ function MastheadSketch() {
           <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
           <div style={{ fontSize: 8, color: "var(--ft-muted)" }}>{DISCLAIMER}</div>
         </div>
-        <div data-mast-right style={{ minWidth: 0, textAlign: "right" }}>
+        <div style={{ minWidth: 0, textAlign: "right" }}>
           <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", whiteSpace: "nowrap", marginBottom: 1 }}>Flooring &amp; Tile Selections</div>
-          <div className="flex items-baseline justify-end" style={{ gap: 7, whiteSpace: "nowrap" }}>
-            <span data-mast-name style={{ fontSize: 11.5, fontWeight: 800 }}>{DEMO_NAME}</span>
-            <span data-mast-no style={{ fontSize: 13, fontWeight: 800 }}>N{sel.projectNo}</span>
-            <span data-mast-date className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{DATE}</span>
+          <div className="flex items-baseline justify-end" style={{ gap: 8, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 800 }}>N{sel.projectNo}</span>
+            <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{DATE}</span>
           </div>
         </div>
       </div>
-      <div className="flex items-baseline" style={{ gap: 22, padding: "5px 0 6px", borderBottom: "1px solid var(--ft-paper-rule)" }}>
-        <div style={{ flexShrink: 0 }}>
+      {/* Second row (owner tweak 2026-08-16): full stacks at the edges —
+          customer name/phone/address, salesperson name/phone/email — and the
+          project name CENTERED between them, where it has the row's width to
+          itself instead of fighting the masthead for room. */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 18, padding: "5px 0 6px", borderBottom: "1px solid var(--ft-paper-rule)" }}>
+        <div>
           <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.35 }}>{CUST.name}</div>
           <div style={stack}>{CUST.phone}</div>
+          <div style={stack}>{ADDRESS}</div>
         </div>
-        <div style={{ ...stack, alignSelf: "center" }}>{ADDRESS}</div>
-        <div style={{ marginLeft: "auto", textAlign: "right", flexShrink: 0 }}>
+        <div data-mast-name style={{ fontSize: 12.5, fontWeight: 800, textAlign: "center" }}>{DEMO_NAME}</div>
+        <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.35 }}>{PROFILE.name}</div>
-          <div style={stack}>{PROFILE.phone} · {PROFILE.email}</div>
+          <div style={stack}>{PROFILE.phone}</div>
+          <div style={stack}>{PROFILE.email}</div>
         </div>
       </div>
     </div>
