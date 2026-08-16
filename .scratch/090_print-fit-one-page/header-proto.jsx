@@ -128,29 +128,33 @@ function InkBand() {
 // address to its right) and salesperson (name over phone · email), right-
 // aligned. In the real implementation the customer facts come from
 // EstimatePaper's existing `people` lookup.
+//
+// Owner follow-up: the badge stays CENTERED (a 1fr/auto/1fr grid, so it sits on
+// the true center of the sheet regardless of what flanks it), and instead of
+// dodging a long project name the NAME FIELD gets a cap: header-shot.mjs
+// measures the right column, subtracts the number + date, and reports how many
+// characters fit — that becomes the entry-side maxLength on the project name.
+// A typical one-or-two-word name is the design case (DEMO_NAME).
 const CUST = { name: "Dan & Ruth Hartzler", phone: "330-555-8123" };
+const DEMO_NAME = "Whole house";
 function MastheadSketch() {
   const stack = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
   return (
     <div>
-      <div className="flex items-center justify-between" style={{ gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
-        <div className="flex items-center" style={{ gap: 16, flexShrink: 0 }}>
-          <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
-          <div className="ft-pbadge" style={{ maxWidth: 210, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.3 }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
-            <div style={{ fontSize: 7.5, color: "var(--ft-muted)" }}>{DISCLAIMER}</div>
-          </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
+        <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
+        {/* Narrower badge than B's: the disclaimer wraps to two 8px lines so
+            both side columns gain ~60px — the room the project name lives in. */}
+        <div className="ft-pbadge" style={{ maxWidth: 190, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.25 }}>
+          <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
+          <div style={{ fontSize: 8, color: "var(--ft-muted)" }}>{DISCLAIMER}</div>
         </div>
-        <div style={{ minWidth: 0, textAlign: "right" }}>
+        <div data-mast-right style={{ minWidth: 0, textAlign: "right" }}>
           <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", whiteSpace: "nowrap", marginBottom: 1 }}>Flooring &amp; Tile Selections</div>
-          {/* One right-aligned run, so an extra-long project name wraps to a
-              second line instead of truncating; number + date never break. */}
-          <div style={{ lineHeight: 1.3 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 800 }}>{sel.name}</span>
-            <span style={{ whiteSpace: "nowrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 800 }}>&nbsp; N{sel.projectNo}</span>
-              <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>&nbsp; {DATE}</span>
-            </span>
+          <div className="flex items-baseline justify-end" style={{ gap: 7, whiteSpace: "nowrap" }}>
+            <span data-mast-name style={{ fontSize: 11.5, fontWeight: 800 }}>{DEMO_NAME}</span>
+            <span data-mast-no style={{ fontSize: 13, fontWeight: 800 }}>N{sel.projectNo}</span>
+            <span data-mast-date className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{DATE}</span>
           </div>
         </div>
       </div>

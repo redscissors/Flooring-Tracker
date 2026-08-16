@@ -113,12 +113,23 @@ waste (tile 10%…)", so nothing is lost); the PROJECT name moves up into the
 masthead's right block, left of its N-number; and the line below the rule drops
 the CUSTOMER/SALESPERSON eyebrow labels for two tight stacks — customer name
 over phone with the address to its right, salesperson name over phone · email
-right-aligned. The badge moves into a left cluster beside the logo so the
-project name gets the masthead's width; an extra-long name wraps to a second
-line rather than truncating (the name + number + date render as one
-right-aligned run with the number/date pair unbreakable). Customer name/phone
-come from EstimatePaper's existing `people` lookup — the prototype fakes the
-record inline.
+right-aligned. Customer name/phone come from EstimatePaper's existing `people`
+lookup — the prototype fakes the record inline.
+
+Owner follow-up (2026-08-16): the badge stays CENTERED — no moving pieces
+around to dodge a long name; shrink text if needed, and CAP THE PROJECT NAME at
+entry to whatever fits. The prototype centers the badge on a `1fr auto 1fr`
+grid (true page center regardless of what flanks it) and narrows it by letting
+the disclaimer wrap to two 8px lines, which hands both side columns ~55px.
+`header-shot.mjs` then measures the name's budget with real Manrope metrics:
+
+    right column 238px − N-number+date 101px = 137px for the name
+    ≈ 16 chars mixed-case (8.18px/ch) · 15 chars ALL-CAPS (8.82px/ch)
+
+**Recommended entry cap: `maxLength={15}`** on the project-name input (covers
+the all-caps case; typical one-or-two-word names — "Whole house", "Kitchen",
+"Master bath" — fit with room). Pre-existing longer names: render at 10.5px
+(~18 chars) before ellipsizing, so old jobs stay printable without edits.
 
 Open question for the owner: C reuses the solid black band the area headers
 already wear, which makes the top of the sheet read like the rest of it, but the
