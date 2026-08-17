@@ -2472,7 +2472,7 @@ export default function App({ user, onSignOut }) {
             <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
           );
-        })() : <EstimatePaper {...paperProps} />)}
+        })() : <EstimatePaper {...paperProps} printSheet />)}
       </div>
 
       {/* Customer browser (issue 040) — the ERP-style directory grid over the

@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { normPrintPricing, tierTag } from "./pricing.js";
 import { num } from "./catalog.js";
 import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
@@ -11,7 +11,51 @@ import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
+// The printable box: Letter at 96dpi (816×1056) minus index.css's @page 1.4cm
+// margins — the same numbers the .scratch print harnesses measure against.
+const PRINT_PAGE_H = 950, PRINT_PAGE_W = 710, FOOT_GAP = 12;
+
+// Pins the "Prepared with" footer to the bottom of the LAST printed page
+// (owner ask 2026-08-17). CSS can't address "the last page" in paged media, so
+// on beforeprint the hidden print wrapper is laid out offscreen in page-height
+// CSS COLUMNS — column fragmentation runs the same break-inside/break-after
+// rules as printing, so a card that jumps a page turn jumps a column the same
+// way, which plain flow-height arithmetic gets wrong. The footer's landing spot
+// in its last column is where it lands on the last page; the leftover below it
+// becomes its top margin. afterprint puts the margin back, and Ctrl+P and the
+// Print buttons both pass through beforeprint. The slack below the footer
+// covers what still follows it (the print wrapper's 8px bottom padding) plus
+// the print stylesheet's extra chip/box borders and engine rounding, so the
+// push can never spill onto a blank extra page; a non-Letter paper (A4 is
+// taller) just leaves the footer a little above the bottom.
+function usePinFooter(active, paperRef, footRef) {
+  useEffect(() => {
+    if (!active) return;
+    const before = () => {
+      const paper = paperRef.current, foot = footRef.current, wrap = paper?.parentElement;
+      if (!paper || !foot || !wrap) return;
+      foot.style.marginTop = `${FOOT_GAP}px`;
+      const prev = wrap.style.cssText, prevPad = paper.style.paddingTop;
+      // padding:0 so every column is exactly one page tall; the wrapper's own
+      // p-2 top padding moves onto the paper so page 1 still starts 8px down.
+      wrap.style.cssText = `display:block;position:fixed;left:-10000px;top:0;width:${PRINT_PAGE_W}px;height:${PRINT_PAGE_H}px;padding:0;column-width:${PRINT_PAGE_W}px;column-gap:0;column-fill:auto;`;
+      paper.style.paddingTop = "8px";
+      const bottomInPage = foot.getBoundingClientRect().bottom - wrap.getBoundingClientRect().top;
+      wrap.style.cssText = prev;
+      paper.style.paddingTop = prevPad;
+      const push = PRINT_PAGE_H - 24 - bottomInPage;
+      if (push > 0) foot.style.marginTop = `${FOOT_GAP + push}px`;
+    };
+    const after = () => { if (footRef.current) footRef.current.style.marginTop = `${FOOT_GAP}px`; };
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, [active]);
+}
+
+export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "", printSheet = false }) {
+  const paperRef = useRef(null), footRef = useRef(null);
+  usePinFooter(printSheet, paperRef, footRef);
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -209,12 +253,12 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       // refuses to split (issue 090 — whole-area avoidance orphaned big areas
       // onto fresh pages and left page tails blank).
       return (
-        <div key={p.id} className="flex justify-between" style={{ gap: 18, padding: "4px 10px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none", breakInside: "avoid" }}>
+        <div key={p.id} className="flex justify-between" style={{ gap: 18, padding: "2.5px 10px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none", breakInside: "avoid" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
-            {specParts && <div style={{ fontSize: 9.5, color: "var(--ft-muted)", marginTop: 1 }}>{specParts}</div>}
+            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && p.type !== "misc" && <span style={{ fontWeight: 500, fontSize: 10, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
+            {specParts && <div style={{ fontSize: 9.5, lineHeight: 1.3, color: "var(--ft-muted)", marginTop: 1 }}>{specParts}</div>}
             {inline.length > 0 && (
-              <div className="flex flex-wrap" style={{ gap: 5, marginTop: 4 }}>
+              <div className="flex flex-wrap" style={{ gap: 5, marginTop: 3 }}>
                 {inline.map((m, i) => (
                   <span key={i} className="ft-pchip" style={{ fontSize: 9, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "1px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
@@ -222,19 +266,19 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 ))}
               </div>
             )}
-            {p.note && <div style={{ fontSize: 9.5, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 3 }}>{p.note}</div>}
+            {p.note && <div style={{ fontSize: 9.5, lineHeight: 1.3, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 2 }}>{p.note}</div>}
           </div>
           <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
             {isEach ? (
               <>
-                {showUnit && <div style={{ fontSize: 10, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
-                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
+                {showUnit && <div style={{ fontSize: 10, lineHeight: 1.3, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, lineHeight: 1.3, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             ) : (
               <>
-                {showTotals && qtyLine && <div style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
-                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 10, color: "var(--ft-text)", marginTop: 1 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
-                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
+                {showTotals && qtyLine && <div style={{ fontSize: 9.5, lineHeight: 1.3, color: "var(--ft-muted)" }}>{qtyLine}</div>}
+                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 10, lineHeight: 1.3, color: "var(--ft-text)", marginTop: 1 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, lineHeight: 1.3, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             )}
           </div>
@@ -255,7 +299,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     // it. The stack line height everywhere is the tight 1.35.
     const stackLine = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
     return (
-      <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
+      <div ref={paperRef} style={{ fontSize: 11, color: "var(--ft-text)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
           <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
           <div className="ft-pbadge" style={{ maxWidth: 190, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.25 }}>
@@ -297,7 +341,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         {areas.map((a, ai) => {
           const areaHasExtras = a.products.some((p) => printProduct(p, tSet).mats.length > 0);
           return (
-            <div key={a.id} style={{ marginBottom: 7 }}>
+            <div key={a.id} style={{ marginBottom: 5 }}>
               <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "3px 10px", breakAfter: "avoid" }}>
                 <div className="uppercase" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                 {showUnit && areaHasExtras && <div style={{ fontSize: 9, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
@@ -410,7 +454,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             090) — so it prints in every pricing mode, not just "full". */}
         {wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 5, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
 
-        <div className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 8, marginTop: 12 }}>
+        <div ref={footRef} className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 8, marginTop: FOOT_GAP }}>
           <span style={{ fontSize: 10.5, color: "var(--ft-faint)" }}>Prepared with</span>
           <NedMark size={18} />
         </div>
