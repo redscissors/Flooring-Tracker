@@ -16,9 +16,14 @@ const wedi = (name, sizeText, sku, price, qty) => ({
   priceSqft: String(price), qtyType: "count", qty: String(qty), sellUnit: "EA",
 });
 
+// ?short=1 keeps only the first area — the one-line-quote case for the
+// pinned-footer proof (footer should sit at the bottom of page 1).
+const SHORT = new URLSearchParams(location.search).has("short");
+
 function Paper() {
   const sel = makeJob();
-  sel.categories.push({
+  if (SHORT) sel.categories = sel.categories.slice(0, 1);
+  else sel.categories.push({
     ...newArea(), name: "Shower waterproofing", option: "", products: [
       wedi("wedi — 3'x5' Shower Base", '36" x 60" x 1 37/64"', "1504156", 566.01, 1),
       wedi("wedi — 60\" Lean Curb", "", "29118", 53.99, 1),
@@ -38,7 +43,7 @@ function Paper() {
   const paperProps = { pMats: T.pMats, materialsCost: T.materialsCost, freightCost: T.freightCost, flooringPrice: T.flooringPrice, miscCost: T.miscCost, totalSqft: T.totalSqft, orderedSqft: T.orderedSqft, grandTotal: T.grandTotal, optionPrint: null };
   return (
     <EstimatePaper sel={sel} people={PEOPLE} profile={PROFILE} tv={tv}
-      jobWaste={wSet.waste} tSet={tSet} {...paperProps} />
+      jobWaste={wSet.waste} tSet={tSet} {...paperProps} printSheet />
   );
 }
 

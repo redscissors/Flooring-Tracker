@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { normPrintPricing, tierTag } from "./pricing.js";
 import { num } from "./catalog.js";
 import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
@@ -11,7 +11,51 @@ import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
+// The printable box: Letter at 96dpi (816×1056) minus index.css's @page 1.4cm
+// margins — the same numbers the .scratch print harnesses measure against.
+const PRINT_PAGE_H = 950, PRINT_PAGE_W = 710, FOOT_GAP = 12;
+
+// Pins the "Prepared with" footer to the bottom of the LAST printed page
+// (owner ask 2026-08-17). CSS can't address "the last page" in paged media, so
+// on beforeprint the hidden print wrapper is laid out offscreen in page-height
+// CSS COLUMNS — column fragmentation runs the same break-inside/break-after
+// rules as printing, so a card that jumps a page turn jumps a column the same
+// way, which plain flow-height arithmetic gets wrong. The footer's landing spot
+// in its last column is where it lands on the last page; the leftover below it
+// becomes its top margin. afterprint puts the margin back, and Ctrl+P and the
+// Print buttons both pass through beforeprint. The slack below the footer
+// covers what still follows it (the print wrapper's 8px bottom padding) plus
+// the print stylesheet's extra chip/box borders and engine rounding, so the
+// push can never spill onto a blank extra page; a non-Letter paper (A4 is
+// taller) just leaves the footer a little above the bottom.
+function usePinFooter(active, paperRef, footRef) {
+  useEffect(() => {
+    if (!active) return;
+    const before = () => {
+      const paper = paperRef.current, foot = footRef.current, wrap = paper?.parentElement;
+      if (!paper || !foot || !wrap) return;
+      foot.style.marginTop = `${FOOT_GAP}px`;
+      const prev = wrap.style.cssText, prevPad = paper.style.paddingTop;
+      // padding:0 so every column is exactly one page tall; the wrapper's own
+      // p-2 top padding moves onto the paper so page 1 still starts 8px down.
+      wrap.style.cssText = `display:block;position:fixed;left:-10000px;top:0;width:${PRINT_PAGE_W}px;height:${PRINT_PAGE_H}px;padding:0;column-width:${PRINT_PAGE_W}px;column-gap:0;column-fill:auto;`;
+      paper.style.paddingTop = "8px";
+      const bottomInPage = foot.getBoundingClientRect().bottom - wrap.getBoundingClientRect().top;
+      wrap.style.cssText = prev;
+      paper.style.paddingTop = prevPad;
+      const push = PRINT_PAGE_H - 24 - bottomInPage;
+      if (push > 0) foot.style.marginTop = `${FOOT_GAP + push}px`;
+    };
+    const after = () => { if (footRef.current) footRef.current.style.marginTop = `${FOOT_GAP}px`; };
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, [active]);
+}
+
+export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "", printSheet = false }) {
+  const paperRef = useRef(null), footRef = useRef(null);
+  usePinFooter(printSheet, paperRef, footRef);
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -255,7 +299,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     // it. The stack line height everywhere is the tight 1.35.
     const stackLine = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
     return (
-      <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
+      <div ref={paperRef} style={{ fontSize: 11, color: "var(--ft-text)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
           <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
           <div className="ft-pbadge" style={{ maxWidth: 190, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.25 }}>
@@ -410,7 +454,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             090) — so it prints in every pricing mode, not just "full". */}
         {wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 5, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
 
-        <div className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 8, marginTop: 12 }}>
+        <div ref={footRef} className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 8, marginTop: FOOT_GAP }}>
           <span style={{ fontSize: 10.5, color: "var(--ft-faint)" }}>Prepared with</span>
           <NedMark size={18} />
         </div>

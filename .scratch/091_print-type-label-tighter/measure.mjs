@@ -6,6 +6,10 @@ const require = createRequire(import.meta.url);
 const { chromium } = require("playwright-core");
 
 const LABEL = (process.argv[2] || "baseline").replace(/^--.*/, "baseline");
+// --pin: fire the beforeprint handler (the pinned-footer hook) the way a real
+// print does — page.pdf() alone never fires it. --short: the one-area job.
+const PIN = process.argv.includes("--pin");
+const SHORT = process.argv.includes("--short");
 const OUT = "/home/user/Flooring-Tracker/.scratch/091_print-type-label-tighter";
 const PAGE_H = 1056 - 2 * 52.9;
 
@@ -14,9 +18,10 @@ const page = await browser.newPage({ viewport: { width: 710, height: 1200 } });
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 page.on("console", (m) => m.type() === "error" && console.log("[console]", m.text()));
 
-await page.goto("http://localhost:5199/.scratch/091_print-type-label-tighter/preview.html", { waitUntil: "networkidle" });
+await page.goto(`http://localhost:5199/.scratch/091_print-type-label-tighter/preview.html${SHORT ? "?short=1" : ""}`, { waitUntil: "networkidle" });
 await page.emulateMedia({ media: "print" });
 await page.waitForTimeout(500);
+if (PIN) await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
 
 const blocks = await page.evaluate(() => {
   const paper = document.querySelector('[data-shot="paper"] > div');
