@@ -209,12 +209,12 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       // refuses to split (issue 090 — whole-area avoidance orphaned big areas
       // onto fresh pages and left page tails blank).
       return (
-        <div key={p.id} className="flex justify-between" style={{ gap: 18, padding: "4px 10px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none", breakInside: "avoid" }}>
+        <div key={p.id} className="flex justify-between" style={{ gap: 18, padding: "2.5px 10px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none", breakInside: "avoid" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
-            {specParts && <div style={{ fontSize: 9.5, color: "var(--ft-muted)", marginTop: 1 }}>{specParts}</div>}
+            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}</div>
+            {specParts && <div style={{ fontSize: 9.5, lineHeight: 1.3, color: "var(--ft-muted)", marginTop: 1 }}>{specParts}</div>}
             {inline.length > 0 && (
-              <div className="flex flex-wrap" style={{ gap: 5, marginTop: 4 }}>
+              <div className="flex flex-wrap" style={{ gap: 5, marginTop: 3 }}>
                 {inline.map((m, i) => (
                   <span key={i} className="ft-pchip" style={{ fontSize: 9, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "1px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
@@ -222,19 +222,19 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 ))}
               </div>
             )}
-            {p.note && <div style={{ fontSize: 9.5, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 3 }}>{p.note}</div>}
+            {p.note && <div style={{ fontSize: 9.5, lineHeight: 1.3, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 2 }}>{p.note}</div>}
           </div>
           <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
             {isEach ? (
               <>
-                {showUnit && <div style={{ fontSize: 10, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
-                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
+                {showUnit && <div style={{ fontSize: 10, lineHeight: 1.3, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, lineHeight: 1.3, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             ) : (
               <>
-                {showTotals && qtyLine && <div style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
-                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 10, color: "var(--ft-text)", marginTop: 1 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
-                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
+                {showTotals && qtyLine && <div style={{ fontSize: 9.5, lineHeight: 1.3, color: "var(--ft-muted)" }}>{qtyLine}</div>}
+                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 10, lineHeight: 1.3, color: "var(--ft-text)", marginTop: 1 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, lineHeight: 1.3, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             )}
           </div>
@@ -297,7 +297,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         {areas.map((a, ai) => {
           const areaHasExtras = a.products.some((p) => printProduct(p, tSet).mats.length > 0);
           return (
-            <div key={a.id} style={{ marginBottom: 7 }}>
+            <div key={a.id} style={{ marginBottom: 5 }}>
               <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "3px 10px", breakAfter: "avoid" }}>
                 <div className="uppercase" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
                 {showUnit && areaHasExtras && <div style={{ fontSize: 9, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
