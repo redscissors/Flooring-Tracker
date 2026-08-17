@@ -50,7 +50,10 @@ export const jobSource = (project, area, p) => ({
   } : null,
 });
 
-export const bookSource = (book, item) => ({
+// `extra` folds additional context into the snapshot — the import wizard passes
+// { importDiff: "new in this import" / "Cost 2.1 → 2.35 · …" } so an issue
+// flagged mid-review records why the row caught the eye.
+export const bookSource = (book, item, extra) => ({
   kind: "book",
   bookId: book?.id || "", bookName: book?.name || "", sku: item?.sku || "",
   snapshot: item ? {
@@ -58,6 +61,7 @@ export const bookSource = (book, item) => ({
     unit: item.unit, priceUnit: item.priceUnit, orderUnit: item.orderUnit,
     cost: item.cost, sfPerUnit: item.sfPerUnit, pcPerUnit: item.pcPerUnit,
     disabled: item.disabled, active: item.active,
+    ...(extra || {}),
   } : null,
 });
 
@@ -71,7 +75,7 @@ export const sourceLines = (source) => {
     ].filter(Boolean);
   }
   if (s.kind === "book") {
-    return [s.bookName, [s.sku, s.snapshot?.description].filter(Boolean).join(" — ")].filter(Boolean);
+    return [s.bookName, [s.sku, s.snapshot?.description].filter(Boolean).join(" — "), s.snapshot?.importDiff].filter(Boolean);
   }
   return [];
 };

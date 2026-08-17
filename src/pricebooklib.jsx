@@ -13,12 +13,12 @@ import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, markupGroups, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
-import { ClaudeMark, FlagForClaude } from "./claudeflag.jsx";
+import { ClaudeMark, FlagForClaude, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { bookSource } from "./claudeissues.js";
 import { Modal, HelpTip } from "./widgets.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
@@ -113,7 +113,7 @@ function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, addBook, applyBookImport, updateBook, loadBookItems, onClose, types, typeLabels, inp, lbl, hideCosts }) {
+export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, addBook, applyBookImport, updateBook, loadBookItems, onClose, types, typeLabels, inp, lbl, hideCosts, addClaudeIssue }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -183,8 +183,11 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   // and only the LAST step diffs and applies. One import, one retire decision.
   const runnable = bundleByBook(flat);
   const advance = () => setQi((i) => i + 1);
-  // Items collected from the earlier files of the current book's bundle.
+  // Items collected from the earlier files of the current book's bundle, and
+  // the Claude-flagged SKUs those steps' reviews queued (only the last file's
+  // apply writes, so earlier steps' flags have to ride along like the items).
   const [carry, setCarry] = useState([]);
+  const [carryFlags, setCarryFlags] = useState([]);
 
   // Drive the queue: each row loads its book's items and renders the wizard.
   // Past the end, close the router.
@@ -197,7 +200,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     // applied that partial parse and retired the rest of the book.
     const step = runnable[qi];
     const { row, bundle } = step;
-    if (bundle.index === 0) setCarry([]); // first file of a book's bundle
+    if (bundle.index === 0) { setCarry([]); setCarryFlags([]); } // first file of a book's bundle
     let ok = true;
     setActive(null);
     loadBookItems(row.target).then((items) => { if (ok) setActive({ ...step, book: books.find((b) => b.id === row.target), items: items || [] }); }).catch(() => ok && advance());
@@ -321,19 +324,20 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
       onApply={async (diff, opts, bundleItems) => {
         // Not the last file of this book's bundle: bank the items and move on —
         // nothing is written until the whole bundle has been through.
-        if (active.bundle.index < active.bundle.total - 1) { setCarry(bundleItems); advance(); return; }
+        if (active.bundle.index < active.bundle.total - 1) { setCarry(bundleItems); setCarryFlags((f) => [...new Set([...f, ...(opts.claudeSkus || [])])]); advance(); return; }
         try {
           // Record what this book was made of, so a later import can tell when a
           // file is missing (ADR 0025). Slots are never dropped — absence is the
           // thing the completeness gate exists to report.
           const sources = mergeSources(active.book.data?.sources, active.rows.map((r) => r.slot).filter(Boolean));
-          await applyBookImport(active.book.id, diff, { ...opts, sources });
+          const claudeSkus = [...new Set([...carryFlags, ...(opts.claudeSkus || [])])];
+          await applyBookImport(active.book.id, diff, { ...opts, claudeSkus, sources });
           for (const f of active.files) onFileDone && onFileDone(f, true);
         } catch (x) { for (const f of active.files) onFileDone && onFileDone(f, false); /* error surfaced by applyBookImport */ }
         advance();
       }}
       saveMapping={(m) => updateBook(active.book.id, { dataPatch: { mapping: m } })}
-      types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote}
+      types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} stepNote={stepNote} addClaudeIssue={addClaudeIssue}
     />
   );
 }
@@ -589,7 +593,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} addClaudeIssue={addClaudeIssue} />}
 
       {pendingReviews.length > 0 && !dropped && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
@@ -1255,7 +1259,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
 
       {editItem && <BookItemEditModal item={editItem} isOrder={isOrder} onClose={() => setEditItem(null)} onSave={saveItemEdit} inp={inp} lbl={lbl} />}
 
-      {wizard && <BookImportWizard book={book} existingItems={items || []} addMode={wizard === "add"} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} />}
+      {wizard && <BookImportWizard book={book} existingItems={items || []} addMode={wizard === "add"} onClose={() => setWizard(false)} onApply={onApply} saveMapping={(m) => updateBook(book.id, { dataPatch: { mapping: m } })} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} addClaudeIssue={addClaudeIssue} />}
     </div>
   );
 }
@@ -1517,6 +1521,84 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
 // What "Add a file" is about to do. Adding a file the book already knows is
 // almost certainly meant as a replacement, so that case says so and points at
 // Import… rather than quietly refreshing and leaving dropped rows behind.
+// One diff bucket unfolded under the wizard's counts: every row the import
+// adds / changes / retires, a changed row saying WHAT moved (changedFieldBits),
+// and — when the central bucket is wired — a per-line Flag-for-Claude button.
+// `diffLine` is the context the flag records (claudeissues bookSource extra).
+const DIFF_ROW_CAP = 300;
+function ImportDiffDetail({ bucket, diff, hideCosts, canFlag, flaggedSkus, onFlag }) {
+  // Capped for render speed (the wizard re-diffs on every mapping keystroke);
+  // "show all" lifts it on demand. Keyed by bucket at the call site, so
+  // switching buckets folds back to the cap.
+  const [showAll, setShowAll] = useState(false);
+  const moneyVal = (v) => (hideCosts ? "•••" : v === "—" ? "—" : money(parseFloat(v)));
+  const rowCost = (it) => (hideCosts ? "•••" : it.cost != null ? money(it.cost) : it.price != null ? money(it.price) : "—");
+  const flagBtn = (it, prevMark, diffLine) => {
+    if (!canFlag) return null;
+    if (prevMark) return <span className="shrink-0 cursor-help" style={{ color: CLAUDE_CLAY }} title={`Already in the Claude issue bucket${prevMark.by ? ` — parked by ${prevMark.by}` : ""}${prevMark.at ? ` ${new Date(prevMark.at).toLocaleDateString()}` : ""}. The mark carries through this import.`}><ClaudeMark size={12} /></span>;
+    const on = flaggedSkus.has(it.sku);
+    return (
+      <button onClick={() => onFlag(it, on, diffLine)}
+        title={on ? "Flagged for Claude — the book's mark lands when this import applies. Click to skip the mark (the central issue already landed)." : "Flag this row for Claude — a note is optional; it lands on the central Claude issues list now, and marks the SKU in this book when the import applies"}
+        className={`shrink-0 ${on ? "hover:opacity-70" : "text-slate-300 hover:text-slate-600"}`} style={on ? { color: CLAUDE_CLAY } : undefined}>
+        <ClaudeMark size={12} />
+      </button>
+    );
+  };
+  const entries = bucket === "changed" ? diff.changed : diff[bucket] || [];
+  const shown = showAll ? entries : entries.slice(0, DIFF_ROW_CAP);
+  const note = {
+    added: "New SKUs this import adds to the book.",
+    changed: "Rows already in the book whose incoming values moved — each line says what.",
+    missing: "In the book but not on the incoming sheet — applying marks them inactive (never deleted, so saved estimates keep resolving).",
+  }[bucket];
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 p-3">
+      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+        {bucket === "changed" ? shown.map(({ item, prev, fields }) => {
+          const bits = changedFieldBits(prev, item, fields);
+          const diffLine = bits.length
+            ? `Changed in this import — ${bits.map((b) => `${b.label} ${b.from} → ${b.to}`).join(" · ")}`
+            : "Restored by this import — was retired";
+          return (
+            <div key={item.sku} className="py-1.5 flex items-start gap-2 text-xs">
+              <span className="font-mono text-slate-500 shrink-0">{item.sku}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block truncate">{item.description || "—"}</span>
+                <span className="block text-[10.5px] leading-snug">
+                  {bits.length === 0 && <span className="text-emerald-600">restored — was retired</span>}
+                  {bits.map((b, i) => (
+                    <span key={b.field} className="whitespace-nowrap">{i > 0 && <span className="text-slate-300"> · </span>}
+                      <span className="text-slate-400">{b.label}</span>{" "}
+                      <span className="text-slate-500">{b.money ? moneyVal(b.from) : b.from}</span>
+                      <span className="text-slate-300"> → </span>
+                      <span className="font-medium text-slate-700">{b.money ? moneyVal(b.to) : b.to}</span>
+                    </span>
+                  ))}
+                </span>
+              </span>
+              {flagBtn(item, prev?.claudeIssue, diffLine)}
+            </div>
+          );
+        }) : shown.map((it) => (
+          <div key={it.sku} className={`py-1.5 flex items-center gap-2 text-xs ${bucket === "missing" ? "text-slate-400" : ""}`}>
+            <span className="font-mono text-slate-500 shrink-0">{it.sku}</span>
+            <span className="truncate flex-1 min-w-0">{it.description || "—"}</span>
+            <span className="shrink-0 tabular-nums text-slate-500">{rowCost(it)}</span>
+            {flagBtn(it, bucket === "missing" ? it.claudeIssue : null,
+              bucket === "missing" ? "Retiring in this import — missing from the incoming sheet" : "New in this import")}
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] text-slate-400">
+        {entries.length > shown.length && (
+          <>Showing {shown.length} of {entries.length} — <button onClick={() => setShowAll(true)} className="underline hover:text-slate-600">show all {entries.length}</button>. </>
+        )}{note}
+      </p>
+    </div>
+  );
+}
+
 // The amber surface stays light under the dark theme while slate inks are
 // remapped to near-white, so it states an amber ink instead of inheriting.
 // Exported for the preview harness.
@@ -1536,7 +1618,7 @@ function AddFileNotice({ knownSlot }) {
   );
 }
 
-export function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null, addMode = false }) {
+export function BookImportWizard({ book, existingItems, onClose, onApply, saveMapping, types, typeLabels, inp, lbl, hideCosts, preParsed, stepNote, carryItems = [], bundle = null, addMode = false, addClaudeIssue }) {
   const saved = book.data?.mapping || null;
   const [sheets, setSheets] = useState(null); // [{ name, rows }]
   const [sheetName, setSheetName] = useState(saved?.sheet || "");
@@ -1568,6 +1650,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
   const [keepArea, setKeepArea] = useState(() => new Set()); // reclassified trims the user opted to KEEP as sqft
   const [force, setForce] = useState(false); // "Force full re-import" — rewrite every row even with no changes
+  const [openBucket, setOpenBucket] = useState(null); // null | "added" | "changed" | "missing" — which diff list is unfolded
+  const [claudeFlags, setClaudeFlags] = useState(() => new Set()); // SKUs flagged for Claude in the review — marks land with the apply
+  const [flagCtx, setFlagCtx] = useState(null); // { item, diffLine } for the Flag-for-Claude popover
   const toggleSet = (setter) => (key) => setter((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleIgnored = toggleSet(setIgnored);
   const toggleKeepOld = toggleSet(setKeepOld);
@@ -1887,12 +1972,31 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               </div>
             )}
             <div>
+              {/* The diff counts are buttons: clicking one unfolds that bucket's
+                  rows (ImportDiffDetail) — the changed list says what moved on
+                  each row, and every line can be flagged for Claude. */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium">{items.length} item{items.length === 1 ? "" : "s"} parsed</span>
-                <span className="text-xs text-emerald-600">{diff.added.length} new</span>
-                <span className="text-xs text-amber-600">{diff.changed.length} changed</span>
-                <span className="text-xs text-slate-400">{diff.missing.length} retiring · {diff.unchanged.length} unchanged</span>
+                {[["added", diff.added.length, "new", "text-emerald-600"], ["changed", diff.changed.length, "changed", "text-amber-600"], ["missing", diff.missing.length, "retiring", "text-slate-500"]].map(([key, n, label, cls]) => (
+                  <button key={key} onClick={() => setOpenBucket(openBucket === key ? null : key)} disabled={!n}
+                    title={n ? `${openBucket === key ? "Hide" : "Show"} the ${n} ${label} row${n === 1 ? "" : "s"}` : undefined}
+                    className={`text-xs flex items-center gap-0.5 ${cls} ${n ? "hover:underline" : "cursor-default"}`}>
+                    {n} {label}
+                    {n > 0 && <ChevronRight size={11} className={`transition-transform ${openBucket === key ? "rotate-90" : ""}`} />}
+                  </button>
+                ))}
+                <span className="text-xs text-slate-400">{diff.unchanged.length} unchanged</span>
+                {claudeFlags.size > 0 && (
+                  <span className="text-xs flex items-center gap-1 font-medium" style={{ color: CLAUDE_CLAY }} title="Rows flagged for Claude in this review — the central issues already landed; the book's marks land when the import applies">
+                    <ClaudeMark size={11} /> {claudeFlags.size} flagged
+                  </span>
+                )}
               </div>
+              {openBucket && (
+                <ImportDiffDetail key={openBucket} bucket={openBucket} diff={diff} hideCosts={hideCosts}
+                  canFlag={!!addClaudeIssue} flaggedSkus={claudeFlags}
+                  onFlag={(it, on, diffLine) => { if (on) setClaudeFlags((s) => { const n = new Set(s); n.delete(it.sku); return n; }); else setFlagCtx({ item: it, diffLine }); }} />
+              )}
               {lastOfBundle && sheet && items.length > 0 && (
                 <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer">
                   <input type="checkbox" className="mt-0.5" checked={force} onChange={(e) => setForce(e.target.checked)} />
@@ -1998,11 +2102,17 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing }, bundleItems); }} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => { saveMapping(mapping); onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing, claudeSkus: [...claudeFlags] }, bundleItems); }} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>
         )}
+        {/* Flagging from the review lands the central issue NOW (with the diff
+            context in its snapshot); the book's item mark rides the apply via
+            opts.claudeSkus, since an added row doesn't exist to mark yet. */}
+        <FlagForClaude ctx={flagCtx ? { source: bookSource(book, flagCtx.item, { importDiff: flagCtx.diffLine }) } : null}
+          onAdd={(text, source) => { addClaudeIssue?.(text, source); setClaudeFlags((s) => new Set(s).add(flagCtx.item.sku)); }}
+          onClose={() => setFlagCtx(null)} />
       </div>
     </div>
   );
