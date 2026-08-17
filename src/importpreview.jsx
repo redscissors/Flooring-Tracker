@@ -38,6 +38,13 @@ const NEXT_ROWS = [
   ["VT2001", "CARRARA WHITE HONED", "ANATOLIA", "CT", "12X24", 15.5, 35.34, "2 wk"],
   ["VT2002", "BULLNOSE CARRARA WHITE", "ANATOLIA", "PC", "3X24", "", 3.9, "2 wk"],
 ];
+// ?big appends 350 generated new SKUs, pushing the "new" bucket past the
+// 300-row display cap so its "show all" footer can be exercised.
+if (new URLSearchParams(location.search).has("big")) {
+  for (let i = 0; i < 350; i++) {
+    NEXT_ROWS.push([`VT3${String(i).padStart(3, "0")}`, `FIELD TILE COLOR ${i}`, "ANATOLIA", "CT", "12X24", 15.5, 30 + (i % 20), "2 wk"]);
+  }
+}
 
 const MAPPING = {
   sheet: "Price list",

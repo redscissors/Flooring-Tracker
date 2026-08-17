@@ -1527,6 +1527,10 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
 // `diffLine` is the context the flag records (claudeissues bookSource extra).
 const DIFF_ROW_CAP = 300;
 function ImportDiffDetail({ bucket, diff, hideCosts, canFlag, flaggedSkus, onFlag }) {
+  // Capped for render speed (the wizard re-diffs on every mapping keystroke);
+  // "show all" lifts it on demand. Keyed by bucket at the call site, so
+  // switching buckets folds back to the cap.
+  const [showAll, setShowAll] = useState(false);
   const moneyVal = (v) => (hideCosts ? "•••" : v === "—" ? "—" : money(parseFloat(v)));
   const rowCost = (it) => (hideCosts ? "•••" : it.cost != null ? money(it.cost) : it.price != null ? money(it.price) : "—");
   const flagBtn = (it, prevMark, diffLine) => {
@@ -1542,7 +1546,7 @@ function ImportDiffDetail({ bucket, diff, hideCosts, canFlag, flaggedSkus, onFla
     );
   };
   const entries = bucket === "changed" ? diff.changed : diff[bucket] || [];
-  const shown = entries.slice(0, DIFF_ROW_CAP);
+  const shown = showAll ? entries : entries.slice(0, DIFF_ROW_CAP);
   const note = {
     added: "New SKUs this import adds to the book.",
     changed: "Rows already in the book whose incoming values moved — each line says what.",
@@ -1587,7 +1591,9 @@ function ImportDiffDetail({ bucket, diff, hideCosts, canFlag, flaggedSkus, onFla
         ))}
       </div>
       <p className="mt-1.5 text-[11px] text-slate-400">
-        {entries.length > shown.length ? `Showing ${shown.length} of ${entries.length}. ` : ""}{note}
+        {entries.length > shown.length && (
+          <>Showing {shown.length} of {entries.length} — <button onClick={() => setShowAll(true)} className="underline hover:text-slate-600">show all {entries.length}</button>. </>
+        )}{note}
       </p>
     </div>
   );
@@ -1987,7 +1993,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                 )}
               </div>
               {openBucket && (
-                <ImportDiffDetail bucket={openBucket} diff={diff} hideCosts={hideCosts}
+                <ImportDiffDetail key={openBucket} bucket={openBucket} diff={diff} hideCosts={hideCosts}
                   canFlag={!!addClaudeIssue} flaggedSkus={claudeFlags}
                   onFlag={(it, on, diffLine) => { if (on) setClaudeFlags((s) => { const n = new Set(s); n.delete(it.sku); return n; }); else setFlagCtx({ item: it, diffLine }); }} />
               )}
