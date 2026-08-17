@@ -131,7 +131,9 @@ they agree or the auto quantity isn't computable.
   `reviewBookItemFlags` (data jsonb, no edited stamp); the Claude issue-bucket
   mark writes only through `setBookItemIssue` (same contract); `applyBookImport`
   carries the previous row's `flagReview` and `claudeIssue` onto changed upserts
-  so verdicts and bucket marks survive re-import. Central Claude issues (issue
+  so verdicts and bucket marks survive re-import, and stamps new marks for rows
+  flagged in the wizard's diff review (`opts.claudeSkus` — the same review-time
+  channel `disableSkus` rides). Central Claude issues (issue
   087, their own `claude_issues` table) write only through `addClaudeIssue`/
   `updateClaudeIssue`/`delClaudeIssue`/`clearDoneClaudeIssues`
   (useclaudeissues.js); a price-book flag writes BOTH — the item mark (the

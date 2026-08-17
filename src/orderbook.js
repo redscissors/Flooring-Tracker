@@ -511,8 +511,11 @@ export function orderFloorFirst(results, query) {
 // --- import diff -------------------------------------------------------------
 
 // The item fields whose change makes a re-import a "changed" row. Order books
-// track cost (not sell) plus the vendor attributes a re-issue can move.
-const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "fits", "vendorSkus", "cost", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
+// track cost (not sell) plus the vendor attributes a re-issue can move. `price`
+// is here for the stock-kind registry books (the ERP exports carry the shop's
+// real retail beside the cost) — without it a re-export that moved only the
+// shelf price read as unchanged and the row was never upserted.
+export const BOOK_FIELDS = ["description", "brand", "mfg", "productLine", "color", "unit", "priceUnit", "orderUnit", "size", "thickness", "type", "trim", "fits", "vendorSkus", "cost", "price", "sfPerUnit", "pcPerUnit", "coverage", "leadTime", "msrp", "freightFlag", "discontinued"];
 
 // Field equality for the diff. `fits` is an array, so identity comparison would
 // mark every trim changed on every re-import; compare by value instead.
@@ -538,6 +541,38 @@ export function diffBookItems(existing, parsed) {
   }
   const missing = (existing || []).filter((it) => it.active && !seen.has(it.sku));
   return { added, changed, missing, unchanged };
+}
+
+// Human labels for the tracked fields — the wizard's changed-row detail. One
+// entry per BOOK_FIELDS member so a tracked field can't change namelessly.
+export const BOOK_FIELD_LABELS = {
+  description: "Description", brand: "Brand", mfg: "Mfg", productLine: "Product line",
+  color: "Color", unit: "Unit", priceUnit: "Price U/M", orderUnit: "Order U/M",
+  size: "Size", thickness: "Thickness", type: "Type", trim: "Trim", fits: "Fits",
+  vendorSkus: "Mfg codes", cost: "Cost", price: "Price", sfPerUnit: "SF/CT",
+  pcPerUnit: "PC/CT", coverage: "Coverage", leadTime: "Lead time", msrp: "MSRP",
+  freightFlag: "Freight", discontinued: "Discontinued",
+};
+
+// Money-valued fields, so the wizard can render them as dollars and mask them
+// under the hide-costs toggle.
+const MONEY_FIELDS = new Set(["cost", "price", "msrp"]);
+
+// One changed row's field movements for the wizard's diff detail: `fields` as
+// diffBookItems produced them, each as { field, label, from, to, money }.
+// Values render the way the sheet states them — arrays joined, booleans as
+// yes/no, blanks as "—" — so "what changed" reads without opening the row.
+export function changedFieldBits(prev, item, fields) {
+  const fmt = (v) => (Array.isArray(v) ? (v.length ? v.join(" ") : "—")
+    : typeof v === "boolean" ? (v ? "yes" : "no")
+      : v == null || v === "" ? "—" : String(v));
+  return (fields || []).map((f) => ({
+    field: f,
+    label: BOOK_FIELD_LABELS[f] || f,
+    from: fmt(prev?.[f]),
+    to: fmt(item?.[f]),
+    money: MONEY_FIELDS.has(f),
+  }));
 }
 
 // Recast a diff so a forced re-import rewrites every row, not just the deltas

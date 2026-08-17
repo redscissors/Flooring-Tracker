@@ -121,6 +121,11 @@ src/
                     # ProjectHeaderBar + PriceBookLibrary over local mock state,
                     # no Supabase — preview proof for the 2026-08-14 compact
                     # headers; not part of the app build
+  importpreview.jsx # dev-only harness (import-preview.html): the REAL
+                    # BookImportWizard over local mock state, no Supabase —
+                    # preview proof for the diff review's unfolding new/changed/
+                    # retiring lists + per-line Flag for Claude (2026-08-17);
+                    # not part of the app build
   custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
                     # group-by-salesman over the boot's light rows (custbrowser.test.js)
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
@@ -192,7 +197,15 @@ src/
                     # (bookRowPreview) with parse failures amber and every other
                     # stored field on a muted detail line; the ✳ button beside
                     # Edit parks a SKU in the Claude issue bucket (filter chip +
-                    # paste-ready copy report for a Claude session)
+                    # paste-ready copy report for a Claude session).
+                    # The import wizard's diff counts are buttons: each unfolds
+                    # its bucket's rows (ImportDiffDetail) — a changed row says
+                    # WHAT moved (changedFieldBits) — and every line has the
+                    # shared Flag-for-Claude popover: the central issue lands at
+                    # flag time (with the diff context in its snapshot), the
+                    # book's item mark rides the apply as opts.claudeSkus since
+                    # an added row doesn't exist to mark yet; a bundle carries
+                    # earlier files' flags to the last file's apply
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
@@ -228,7 +241,10 @@ src/
                     # series-rule + color-token parsing, family resolution + projection into
                     # stock-shaped items, import-time sync, migration link proposals
   orderbook.js      # special-order ("order") book helpers (ADR 0009): item shape,
-                    # cost/markup/sell, pick snapshot, drift, import diff, and the
+                    # cost/markup/sell, pick snapshot, drift, import diff
+                    # (BOOK_FIELDS — tracking stock-kind `price` too, so a
+                    # retail-only re-export still upserts — with changedFieldBits
+                    # for the wizard's what-moved lines), and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
                     # — plus the search collapse: `mergeSearch` (a stock twin

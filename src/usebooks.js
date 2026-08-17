@@ -90,10 +90,20 @@ export function useBooks({ user, profile, ping, flashSaved }) {
   const applyBookImport = async (bookId, diff, opts = {}) => {
     const disable = new Set(opts.disableSkus || []);
     const off = (sku, prevDisabled) => (disable.has(sku) ? true : !!prevDisabled);
+    // SKUs flagged for Claude in the wizard's diff review (opts.claudeSkus) get
+    // the issue-bucket mark stamped as part of the import batch — the same
+    // review-time channel disableSkus rides. A mark the row already carries
+    // (carried across the re-import, or on a retiring row) keeps its by/at.
+    const claude = new Set(opts.claudeSkus || []);
+    const stamp = { by: profile.name || user.email || "", at: Date.now() };
+    const mark = (item) => (claude.has(item.sku) && !item.claudeIssue ? { ...item, claudeIssue: stamp } : item);
     const upserts = [
-      ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, disabled: disable.has(it.sku), data: bookItemData(it) })),
-      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(carryMarks(item, prev)) })),
-      ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, disabled: off(it.sku, it.disabled), data: bookItemData(it) })),
+      ...diff.added.map((it) => ({ book_id: bookId, sku: it.sku, active: true, disabled: disable.has(it.sku), data: bookItemData(mark(it)) })),
+      ...diff.changed.map(({ item, prev }) => ({ book_id: bookId, sku: item.sku, active: true, disabled: off(item.sku, prev?.disabled), data: bookItemData(mark(carryMarks(item, prev))) })),
+      ...diff.missing.map((it) => ({ book_id: bookId, sku: it.sku, active: false, disabled: off(it.sku, it.disabled), data: bookItemData(mark(it)) })),
+      // A flagged row that ended the bundle unchanged (an earlier file's diff
+      // showed it, a later file re-supplied it identically) still lands its mark.
+      ...(diff.unchanged || []).filter((it) => claude.has(it.sku) && !it.claudeIssue).map((it) => ({ book_id: bookId, sku: it.sku, active: true, disabled: off(it.sku, it.disabled), data: bookItemData(mark(it)) })),
     ];
     for (let i = 0; i < upserts.length; i += 200) {
       const { error } = await supabase.from("price_book_items").upsert(upserts.slice(i, i + 200), { onConflict: "book_id,sku" });
@@ -102,10 +112,11 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     const inBuckets = new Set(upserts.map((u) => u.sku));
     const rest = [...disable].filter((s) => !inBuckets.has(s));
     if (rest.length) await setBookItemsDisabled(bookId, rest, true);
-    // A disable-only apply (identical book, just toggling SKUs) must NOT reset
-    // the book's last-import date/staleness or add an import-history version —
-    // no vendor data actually landed. Only a real import stamps/snapshots.
-    if (!upserts.length) { flashSaved(); return; }
+    // A disable- or flag-only apply (identical book, just toggling SKUs or
+    // parking marks) must NOT reset the book's last-import date/staleness or add
+    // an import-history version — no vendor data actually landed. Only a real
+    // import (something in the diff's three buckets) stamps/snapshots.
+    if (!(diff.added.length + diff.changed.length + diff.missing.length)) { flashSaved(); return; }
     const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
     if (opts.superseded?.length) li.superseded = opts.superseded;
     if (disable.size) li.disabled = disable.size;

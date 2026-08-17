@@ -6,6 +6,7 @@ import {
   bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
   flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged,
+  BOOK_FIELDS, BOOK_FIELD_LABELS, changedFieldBits,
 } from "./orderbook.js";
 
 const DAY = 86400000;
@@ -90,6 +91,38 @@ test("re-importing an unchanged trim doesn't churn the diff on its fits array", 
   assert.equal(diffBookItems([prev], [same]).changed.length, 0);
   const grew = oi({ sku: "384469", trim: true, fits: "APX020 APX040 APX060" });
   assert.deepEqual(diffBookItems([prev], [grew]).changed[0].fields, ["fits"]);
+});
+
+// --- changed-row field detail (import wizard) ---------------------------------
+
+test("a stock-kind retail price move alone registers as changed", () => {
+  const prev = oi({ sku: "S1", cost: 2.1, price: 4.99 });
+  const moved = oi({ sku: "S1", cost: 2.1, price: 5.49 });
+  assert.deepEqual(diffBookItems([prev], [moved]).changed[0].fields, ["price"]);
+});
+
+test("every tracked field carries a label", () => {
+  for (const f of BOOK_FIELDS) assert.ok(BOOK_FIELD_LABELS[f], `no label for ${f}`);
+});
+
+test("changedFieldBits renders labels, values, and the money marker", () => {
+  const prev = oi({ sku: "A1", cost: 2.1, leadTime: "2 wk", fits: "APX020", freightFlag: false });
+  const next = oi({ sku: "A1", cost: 2.35, leadTime: "", fits: "APX020 APX040", freightFlag: true });
+  const diff = diffBookItems([prev], [next]);
+  const bits = changedFieldBits(prev, next, diff.changed[0].fields);
+  const by = Object.fromEntries(bits.map((b) => [b.field, b]));
+  assert.deepEqual(by.cost, { field: "cost", label: "Cost", from: "2.1", to: "2.35", money: true });
+  assert.deepEqual(by.leadTime, { field: "leadTime", label: "Lead time", from: "2 wk", to: "—", money: false });
+  assert.equal(by.fits.to, "APX020 APX040");
+  assert.deepEqual([by.freightFlag.from, by.freightFlag.to], ["no", "yes"]);
+});
+
+test("a restored row (retired → active, values identical) has no field bits", () => {
+  const prev = oi({ sku: "R1", active: false });
+  const back = oi({ sku: "R1" });
+  const diff = diffBookItems([prev], [back]);
+  assert.equal(diff.changed.length, 1);
+  assert.deepEqual(changedFieldBits(prev, back, diff.changed[0].fields), []);
 });
 
 // --- forceDiff (force full re-import) -----------------------------------------
