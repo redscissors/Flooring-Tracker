@@ -1,0 +1,17 @@
+— cmp-a5 —
+printable page box: 710 x 950px
+paper height: 999px  =  1.05 pages of content
+PDF pages: 2
+
+top-level blocks:
+   83px    8.3%  Rough EstimateFor planning purposes only · pri
+   64px    6.4%  CustomerHartzler — Whole house remodel4821 Kid
+  125px   12.5%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+   68px    6.8%  Kitchen backsplash＋ extras priced belowDaltile
+   68px    6.8%  Master bath floor＋ extras priced belowAnatolia
+  155px   15.5%  Master shower＋ extras priced belowAnatolia May
+  103px   10.3%  Hall bath＋ extras priced belowDaltile Restore 
+  135px   13.5%  ExtrasGroutPermaColor Select — Midnight BlackS
+   51px    5.1%  Estimated total$12,985.97
+   14px    1.4%  Includes material waste (tile 10%, other floor
+   31px    3.1%  Prepared with

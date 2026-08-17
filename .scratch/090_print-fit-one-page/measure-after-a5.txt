@@ -1,0 +1,17 @@
+— after-a5 —
+printable page box: 710 x 950px
+paper height: 1011px  =  1.06 pages of content
+PDF pages: 2
+
+top-level blocks:
+   48px    4.7%  Rough EstimateFor planning purposes only · pri
+   52px    5.1%  Dan & Ruth Hartzler330-555-81234821 Kidron Rd,
+  142px   14.0%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+   80px    7.9%  Kitchen backsplash＋ extras priced belowDaltile
+   80px    7.9%  Master bath floor＋ extras priced belowAnatolia
+  185px   18.3%  Master shower＋ extras priced belowAnatolia May
+  124px   12.3%  Hall bath＋ extras priced belowDaltile Restore 
+  125px   12.4%  ExtrasGroutPermaColor Select — Midnight BlackS
+   49px    4.8%  Estimated total$12,985.97
+   14px    1.4%  Includes material waste (tile 10%, other floor
+   27px    2.7%  Prepared with

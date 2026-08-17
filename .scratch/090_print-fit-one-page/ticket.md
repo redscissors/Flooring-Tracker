@@ -1,0 +1,200 @@
+Status: done
+
+Fit a large job's printed estimate on fewer pages (owner, 2026-08-15: "printing
+a larger order like N167 ... very wasteful with space, I'd like it to try to fit
+on one page vs the three it does now" — plus "the header also takes up so so
+much space").
+
+This ticket started as the MEASUREMENT pass and ended with the implementation —
+see "Implementation" at the bottom.
+
+## The harness
+
+`preview.html` / `preview.jsx` render the REAL `EstimatePaper`
+(src/EstimatePrint.jsx) over a fixture job built through the REAL math
+(`jobTotals`), inside App.jsx's exact print wrapper (`.ft-light … p-2`).
+`measure.mjs` drives it in Chromium under **print media** at the true printable
+box — Letter 816×1056px at 96dpi minus `@page{margin:1.4cm}` = **710 × 950px** —
+reports every top-level block's height, then PDFs the page for a real page
+count. No Supabase.
+
+The fixture is an N167-scale stand-in — **8 areas, 20 product lines**, most tile
+rows carrying grout + mortar chips, two with notes — because this session had no
+database access to read N167 itself. Re-point the fixture if the real job's
+shape differs materially.
+
+```
+npx vite --port 5199
+node measure.mjs baseline
+node measure.mjs compact --css="$(cat compact.css) @media print{ .break-inside-avoid{break-inside:auto !important} }"
+```
+
+`compact.css` is a CSS-only stand-in for a "compact" print density (every rule
+maps to an inline style in the cards layout, hence the `!important`) — it exists
+to PRICE the idea before anyone writes it into EstimatePrint.jsx.
+
+## Findings
+
+**1. A whole page is lost to page-break orphaning, not to design.**
+The fixture's content is **1861px = 1.96 pages**, yet it prints on **3**. Every
+area block carries `break-inside-avoid` (EstimatePrint.jsx:280), so an area that
+doesn't fit the remaining space jumps whole to the next page and leaves the tail
+of the page blank. Relaxing it — or scoping it to small areas only — is
+**3 pages → 2, with no visual change whatsoever** (`measure-nobreak.txt`).
+
+**2. The right rail sets row height; the material chips are free.**
+Hiding every grout/mortar chip on every row saves **~27px total** on the whole
+compact sheet. The chips sit beside a right rail that is already 3 lines tall
+(SF ordered · cartons / unit price / line total), so they cost nothing. Any
+future win on the product row has to come from the RAIL — aligned qty · price ·
+total columns, one line per product — which is a redesign, not a tweak.
+
+**3. A density pass is worth ~29% and stays legible.**
+`compact.css` takes the fixture 1861 → **1324px** with body type at ~8pt.
+One-page capacity goes from ~3 areas / 5 lines to ~4–5 areas / 9 lines:
+
+| job size | today | compact |
+|---|---|---|
+| 3 areas (7 lines) | 1 page (913px) | 1 page (732px) |
+| 4 areas (8 lines) | **2 pages** (1169px) | **1 page** (891px) |
+| 5 areas (10 lines) | 2 pages (1346px) | 2 pages (999px) — 49px over |
+| 8 areas (20 lines) | 3 pages (1861px) | 2 pages (1324px) |
+
+**4. Fit-to-page zoom reaches one page, but at unreadable type.**
+compact + `zoom:0.70` = **925px = 1 page** for the full 20-line job
+(`measure-compact-z0.70.txt`; 0.72 measures 952px — two points over, second
+page). That puts body copy at ~6pt — fine as an explicit
+"squeeze it onto one page" opt-in, not as a default on a customer-facing sheet.
+Zoom alone (no density pass) never gets there: 0.65 still leaves ~1.3 pages.
+
+**5. Two-column area flow: measured, not worth it.**
+Flowing the area blocks down 2 newspaper columns saves only 1861 → **1617px** —
+at 355px wide the product cards wrap far more, giving most of the halving back.
+
+**6. The `classic` table layout is not a shortcut.**
+Flipping `ESTIMATE_PRINT_LAYOUT` to `"classic"` measures **taller** — 1959px —
+because it repeats a column header row inside every area.
+
+**7. The header is ~9% of the sheet.**
+Masthead 89px + customer/salesperson/project band 71px = **160px**, about 17% of
+a single page. A genuine merge reaches 81–89px — the prototypes below. Real, but
+not where the three pages come from.
+
+## Header prototypes (owner ask, 2026-08-15)
+
+`header-proto.html` / `header-proto.jsx` render the CURRENT masthead — the real
+`EstimatePaper`, so the reference can't drift — beside three merged variants, all
+at 710px through the real print tokens. `header-shot.mjs` shoots both media.
+
+The saving in every variant comes from the same two moves: the **badge's
+disclaimer drops out of the badge** onto a 8px line of its own (it is what forces
+the badge two lines tall and pushes the title stack down), and the **three-column
+customer grid collapses to labelled runs on one wrapping line** (each column is
+today a bold 12.5px name over two 11px detail lines — three lines tall for what
+reads fine inline). A third saving is content, not layout: on a job whose
+project is named after the customer, today's sheet prints that name **three
+times** — masthead-adjacent Customer, and Project. The variants print the
+Project run only when it differs.
+
+| | height | vs today |
+|---|---|---|
+| today (masthead 89 + grid 71) | **160px** | — |
+| A · one bar (24px mark, one masthead row) | **84px** | −76px |
+| B · masthead kept, columns merged (32px mark, two-line title) | **89px** | −71px |
+| C · ink band (masthead becomes the sheet's own black band) | **81px** | −79px |
+| D · owner sketch 2026-08-16 (B reworked, see below) | **100px** | −60px |
+
+Roughly two product lines (~0.8in). Real, worth taking, and not
+where the three pages come from — see finding 1.
+
+**Variant D — the owner's own sketch (2026-08-16), based on B:** waste leaves
+the header entirely (the sheet's bottom line already prints "Includes material
+waste (tile 10%…)", so nothing is lost); the PROJECT name moves up into the
+masthead's right block, left of its N-number; and the line below the rule drops
+the CUSTOMER/SALESPERSON eyebrow labels for two tight stacks — customer name
+over phone with the address to its right, salesperson name over phone · email
+right-aligned. Customer name/phone come from EstimatePaper's existing `people`
+lookup — the prototype fakes the record inline.
+
+Owner follow-ups (2026-08-16), in order:
+
+1. The badge stays CENTERED — no moving pieces around to dodge a long name;
+   shrink text if needed, and cap the project name at entry to whatever fits.
+   The prototype centers the badge on a `1fr auto 1fr` grid (true page center
+   regardless of what flanks it) and narrows it by letting the disclaimer wrap
+   to two 8px lines.
+2. Full stacks at the edges: the address moves UNDER the customer's phone
+   (name / phone / address), the salesperson's phone moves under their name
+   with the email below (name / phone / email) — and the PROJECT NAME comes
+   down out of the masthead to the CENTER of that second row, between the two
+   stacks. The masthead's right block goes back to title over N-number + date.
+
+The move to the second row's center transforms the name's width budget —
+`header-shot.mjs` measures it against the stacks' natural line widths with real
+Manrope glyph metrics:
+
+    center cell 388px ≈ 43 chars mixed-case (8.89px/ch) · 40 chars ALL-CAPS
+
+The tight 15-char cap from follow-up 1 is superseded: **`maxLength={40}`** on
+the project-name entry is now enough to guarantee the header never collides,
+and every realistic name renders at full 12.5px. The three-line stacks make D
+100px (was 87) — still 60px under today's 160.
+
+Open question for the owner: C reuses the solid black band the area headers
+already wear, which makes the top of the sheet read like the rest of it, but the
+Keim mark has to invert to sit on ink (the prototype does it with a CSS
+`filter:invert(1)` — a proper knockout asset would be better).
+
+## Artifacts
+
+- `shot-baseline.png` / `shot-compact.png` — the same job, today vs the density
+  stand-in (print media)
+- `shot-base-a4.png` / `shot-cmp-a4.png` — the 4-area job that crosses from 2
+  pages to 1
+- `shot-compact-z0.70.png` — the whole 20-line job on one page, at the type size
+  that costs
+- `shot-classic.png` — the classic table layout for comparison
+- `header-today-print.png` and `header-v-{a,b,c}-print.png` — the masthead
+  variants (also `-screen` copies, where the sheet keeps its color)
+- `measure-*.txt` — per-block height reports behind every number above
+
+## Implementation (2026-08-17)
+
+Owner approved variant D round 2 + the recommended package. Shipped in
+EstimatePrint.jsx (cards layout only; classic untouched):
+
+- **Header** — the approved design exactly: 1fr/auto/1fr masthead (32px logo ·
+  centered Rough Estimate badge with the disclaimer wrapped inside · title over
+  N-number + date + tier tag), then the second row with the customer stack
+  (name/phone/address) left, the salesperson stack (name/phone/email) right,
+  and the project name centered between them (scopeNote beneath it on option-
+  scoped prints). Waste left the header; the "Includes material waste…" line by
+  the total now prints in EVERY pricing mode (it was gated on "full"), so the
+  fact survives the move. With no customer record the left stack simply omits
+  the name instead of repeating the project name.
+- **Page breaks** — areas and option bands may split across pages; product
+  cards carry `breakInside: avoid` and the band headers `breakAfter: avoid`, so
+  cards never tear and a band never strands at a page bottom. The option band
+  lost its `overflow: hidden` (it would clip the second page's half) — the
+  rounded corners moved onto the header band itself. Verified: the 2-page PDF
+  breaks between complete cards, page 2 opening with a band + its first card.
+- **Density** — the compact.css values, hand-applied: rows 4px/10px padding,
+  11.5px titles, 9.5px detail/chips-at-9, tighter extras box, tighter margins.
+- **Name cap** — `PROJECT_NAME_MAX = 40` (uiconst.js) as `maxLength` on all
+  three project-name inputs (one-bar header, classic header, project sheet).
+
+Measured on the same 8-area/20-line fixture, same harness:
+
+| | before | after |
+|---|---|---|
+| paper height | 1861px (1.96 pages) | **1401px (1.47 pages)** |
+| PDF pages | 3 | **2** |
+| header | 160px | **100px** |
+| 4-area job | 2 pages | **1 page** |
+| 5-area job | 2 pages (1346px) | 2 pages (1011px) |
+
+Proof: `shot-before.png` / `shot-after.png` (identical fixture, print media),
+`after-options-print.png` (options path), `after-plain-screen.png` (the color
+Print-preview tab). 943 tests pass; eslint clean on the changed files (the
+App.jsx `claimProjectNo` unused-var and the index.html build placeholder are
+pre-existing on the branch).

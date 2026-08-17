@@ -4,7 +4,7 @@ import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, C
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
-import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
+import { TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
 import { money } from "./model.js";
 
 // The desktop project header, two layouts behind a per-device switch
@@ -194,7 +194,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
               <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)" }}>Project</div>
               {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)", letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
             </div>
-            <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
+            <input ref={nameRef} value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
               className={"w-full bg-transparent text-[15px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.15, marginTop: 1 }} />
             <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-[10px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-0.5" />
           </div>
@@ -299,7 +299,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
           </div>
           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: 16, color: "var(--ft-brand)" }}>Saved ✓</span>}
           <div className="ft-eyebrow text-[9px] mb-1 text-center">Project{sel.projectNo ? <span style={{ letterSpacing: ".08em" }}> · N{sel.projectNo}</span> : null}</div>
-          <input ref={nameRef} value={sel.name} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition text-center" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
+          <input ref={nameRef} value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition text-center" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1 text-center" />
         </div>
         <div className="min-w-0 flex flex-col items-end text-right">

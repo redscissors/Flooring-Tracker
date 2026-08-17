@@ -188,7 +188,6 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     const cust = people.find((c) => c.id === sel.customerId);
     const sp = sel.salesperson || profile;
     const pname = sp.name || sp.email;
-    const wMeta = wasteMeta(jobWaste);
     const printName = sel.quick ? quickPrintName(sel) : sel.name;
     // CT/SH/RL read as cartons/sheets/rolls on the qty line; the price keeps the
     // short unit.
@@ -206,33 +205,36 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       const cartonPrice = c.C ? c.C.sf * num(p.priceSqft) : 0;
       const qtyLine = c.C ? `${sf1(c.orderedSf)} SF ordered · ${c.C.order} ${unitLong(c.C.unit, c.C.order)}` : (num(p.qty) > 0 ? `${sf1(num(p.qty))} SF` : "");
       const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.pieces} pcs` : `${miscQty(p)} ${unitNoun(miscQty(p), c.countUnit)}`) : (num(p.qty) > 0 ? `${p.qty} ${unitNoun(num(p.qty), c.countUnit)}` : "");
+      // breakInside keeps a card whole across a page turn; the AREA no longer
+      // refuses to split (issue 090 — whole-area avoidance orphaned big areas
+      // onto fresh pages and left page tails blank).
       return (
-        <div key={p.id} className="flex justify-between" style={{ gap: 22, padding: "8px 12px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none" }}>
+        <div key={p.id} className="flex justify-between" style={{ gap: 18, padding: "4px 10px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none", breakInside: "avoid" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 12.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10.5, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
-            {specParts && <div style={{ fontSize: 10.5, color: "var(--ft-muted)", marginTop: 2 }}>{specParts}</div>}
+            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && <span style={{ fontWeight: 500, fontSize: 10, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
+            {specParts && <div style={{ fontSize: 9.5, color: "var(--ft-muted)", marginTop: 1 }}>{specParts}</div>}
             {inline.length > 0 && (
-              <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
+              <div className="flex flex-wrap" style={{ gap: 5, marginTop: 4 }}>
                 {inline.map((m, i) => (
-                  <span key={i} className="ft-pchip" style={{ fontSize: 10, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "2px 10px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <span key={i} className="ft-pchip" style={{ fontSize: 9, background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)", borderRadius: 20, padding: "1px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     <b style={{ fontWeight: 800 }}>{KSHORT[m.kind] || m.kind}</b>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : `${m.name}${m.spec ? ` — ${m.spec}` : ""}${m.kind === "Grout" && m.detail ? ` · ${m.detail}` : ""}`}
                   </span>
                 ))}
               </div>
             )}
-            {p.note && <div style={{ fontSize: 10.5, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 6 }}>{p.note}</div>}
+            {p.note && <div style={{ fontSize: 9.5, fontStyle: "italic", color: "var(--ft-muted)", marginTop: 3 }}>{p.note}</div>}
           </div>
           <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
             {isEach ? (
               <>
-                {showUnit && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
-                {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
+                {showUnit && <div style={{ fontSize: 10, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             ) : (
               <>
-                {showTotals && qtyLine && <div style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
-                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 11, color: "var(--ft-text)", marginTop: 2 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
-                {showTotals && c.line > 0 && <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{money(c.line)}</div>}
+                {showTotals && qtyLine && <div style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{qtyLine}</div>}
+                {showUnit && num(p.priceSqft) > 0 && <div style={{ fontSize: 10, color: "var(--ft-text)", marginTop: 1 }}>{money(num(p.priceSqft))}/{c.priceUnit.toLowerCase()}{c.C ? <span style={{ color: "var(--ft-muted)" }}> · {money(cartonPrice)}/{String(c.C.unit).toLowerCase()}</span> : null}</div>}
+                {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             )}
           </div>
@@ -243,44 +245,62 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     // "Whole job" beside an option total only earns its ink when shared areas
     // actually add cost — otherwise it repeats the option total verbatim.
     const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
+    // Compact header (issue 090, owner sketch 2026-08-16): the badge holds the
+    // page's true center on a 1fr/auto/1fr grid, its disclaimer wrapping inside
+    // so it stays narrow; the right block is the sheet title over number + date.
+    // The second row is the same grid — customer stack (name/phone/address) at
+    // the left edge, salesperson stack (name/phone/email) at the right, and the
+    // project name centered between them, where it has the row's width to
+    // itself. Waste no longer prints here — the line beside the total carries
+    // it. The stack line height everywhere is the tight 1.35.
+    const stackLine = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
     return (
       <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
-        <div className="flex justify-between items-center" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 12, marginBottom: 14 }}>
-          <img src={keimLogo} alt="Keim" style={{ height: 40, width: "auto", display: "block", flexShrink: 0 }} />
-          <div className="ft-pbadge" style={{ flex: "0 1 auto", maxWidth: 320, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 6, padding: "5px 14px", lineHeight: 1.28 }}>
-            <div className="uppercase" style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
-            <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 2 }}>For planning purposes only · pricing subject to change on final order</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
+          <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
+          <div className="ft-pbadge" style={{ maxWidth: 190, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.25 }}>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
+            <div style={{ fontSize: 8, color: "var(--ft-muted)" }}>For planning purposes only · pricing subject to change on final order</div>
           </div>
-          <div className="flex flex-col items-end" style={{ gap: 3, flexShrink: 0 }}>
-            <div className="uppercase" style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", lineHeight: 1.45, textAlign: "right" }}>Flooring &amp; Tile<br />Selections</div>
-            {sel.projectNo && <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".02em" }}>N{sel.projectNo}</div>}
-            <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</div>
+          <div style={{ minWidth: 0, textAlign: "right" }}>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", whiteSpace: "nowrap", marginBottom: 1 }}>Flooring &amp; Tile Selections</div>
+            <div className="flex items-baseline justify-end" style={{ gap: 8, whiteSpace: "nowrap" }}>
+              {sel.projectNo && <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".02em" }}>N{sel.projectNo}</span>}
+              <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</span>
+            </div>
             {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
           </div>
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 12 }}>
-          {[
-            ["Customer", cust?.name || printName, [cust?.address || sel.address]],
-            ["Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname)],
-            ["Project", printName, [[scopeNote, wMeta].filter(Boolean).join(" · ")]],
-          ].map(([label, name, details], i) => (
-            <div key={i} className="flex flex-col" style={{ gap: 2 }}>
-              <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-faint)" }}>{label}</div>
-              <div style={{ fontSize: 12.5, fontWeight: 800 }}>{name || PRINT_DASH}</div>
-              {details.filter(Boolean).map((d, j) => <div key={j} style={{ fontSize: 11, color: "var(--ft-muted)" }}>{d}</div>)}
-            </div>
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 18, padding: "5px 0 6px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
+          {/* No customer record → no name fallback here: the centered project
+              name already identifies the job, and repeating it as a fake
+              customer prints the same words twice on one line. */}
+          <div>
+            {cust?.name && <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.35 }}>{cust.name}</div>}
+            {(cust?.phone || sel.phone) && <div style={stackLine}>{cust?.phone || sel.phone}</div>}
+            {(cust?.address || sel.address) && <div style={stackLine}>{cust?.address || sel.address}</div>}
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800 }}>{printName || PRINT_DASH}</div>
+            {scopeNote && <div style={stackLine}>{scopeNote}</div>}
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.35 }}>{pname || PRINT_DASH}</div>
+            {[sp.phone, sp.email].filter((x) => x && x !== pname).map((d, j) => <div key={j} style={stackLine}>{d}</div>)}
+          </div>
         </div>
-        {sel.notes && <div style={{ fontSize: 12, fontStyle: "italic", color: "var(--ft-muted)", margin: "-2px 0 12px" }}>{sel.notes}</div>}
+        {sel.notes && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ft-muted)", margin: "0 0 8px" }}>{sel.notes}</div>}
 
+        {/* Areas may split across a page turn (cards themselves never do, and
+            the band sticks with its first card via breakAfter) — refusing to
+            split whole areas is what pushed big jobs onto a third page. */}
         {areas.map((a, ai) => {
           const areaHasExtras = a.products.some((p) => printProduct(p, tSet).mats.length > 0);
           return (
-            <div key={a.id} className="break-inside-avoid" style={{ marginBottom: 12 }}>
-              <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "6px 12px", minHeight: 28 }}>
-                <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
-                {showUnit && areaHasExtras && <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
+            <div key={a.id} style={{ marginBottom: 7 }}>
+              <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: "var(--ft-paper-band)", borderRadius: 4, padding: "3px 10px", breakAfter: "avoid" }}>
+                <div className="uppercase" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>{areaPrintLabel(a, ai)}</div>
+                {showUnit && areaHasExtras && <div style={{ fontSize: 9, fontStyle: "italic", color: "var(--ft-muted)", whiteSpace: "nowrap" }}><b style={{ fontStyle: "normal", fontWeight: 800, color: "var(--ft-brand-deep)" }}>＋</b> extras priced below</div>}
               </div>
               {a.products.filter((p) => !rowBlank(p)).map((p, pi) => renderProduct(p, pi))}
             </div>
@@ -288,29 +308,29 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         })}
 
         {pMats.length > 0 && (
-          <div className="break-inside-avoid" style={{ margin: "15px 0 6px" }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 6 }}>{optionPrint ? "Setting materials & sundries — shared areas" : "Extras"}</div>
-            <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "11px 15px" }}>
+          <div style={{ margin: "10px 0 5px" }}>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 4, breakAfter: "avoid" }}>{optionPrint ? "Setting materials & sundries — shared areas" : "Extras"}</div>
+            <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
               <div style={{ columns: 2, columnGap: 28 }}>
                 {groups.map((g, gi) => (
-                  <div key={gi} className="break-inside-avoid" style={{ marginBottom: 9 }}>
-                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>{g.kind}</div>
+                  <div key={gi} className="break-inside-avoid" style={{ marginBottom: 6 }}>
+                    <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)", marginBottom: 2 }}>{g.kind}</div>
                     {g.items.map((m, i) => (
-                      <div key={i} className="flex justify-between" style={{ gap: 14, alignItems: "baseline", marginBottom: 6, breakInside: "avoid" }}>
+                      <div key={i} className="flex justify-between" style={{ gap: 14, alignItems: "baseline", marginBottom: 4, breakInside: "avoid" }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 11.5, fontWeight: 800 }}>{m.name}{m.spec ? ` — ${m.spec}` : ""}</div>
+                          <div style={{ fontSize: 10.5, fontWeight: 800 }}>{m.name}{m.spec ? ` — ${m.spec}` : ""}</div>
                           {/* A grout's detail (joint width) prints on its product's puck above,
                               where the joint was chosen — not repeated down here. */}
-                          {((m.kind !== "Grout" && m.detail) || m.sku) && <div style={{ fontSize: 10, color: "var(--ft-muted)", marginTop: 1 }}>{[m.kind !== "Grout" ? m.detail : "", m.sku ? `SKU ${m.sku}` : ""].filter(Boolean).join(" · ")}</div>}
+                          {((m.kind !== "Grout" && m.detail) || m.sku) && <div style={{ fontSize: 9.5, color: "var(--ft-muted)", marginTop: 1 }}>{[m.kind !== "Grout" ? m.detail : "", m.sku ? `SKU ${m.sku}` : ""].filter(Boolean).join(" · ")}</div>}
                         </div>
                         <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
                           {(showTotals && m.order > 0) || (showUnit && m.price > 0) ? (
-                            <div style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>
+                            <div style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>
                               {showTotals && m.order > 0 && <span>{m.order} {u1(m.order, m.unit)}{showUnit && m.price > 0 ? " · " : ""}</span>}
                               {showUnit && m.price > 0 && <span style={{ color: "var(--ft-text)" }}>{money(m.price)}/{u1(1, m.unit)}</span>}
                             </div>
                           ) : null}
-                          {showTotals && m.cost > 0 && <div style={{ fontSize: 12, fontWeight: 800, marginTop: 1 }}>{money(m.cost)}</div>}
+                          {showTotals && m.cost > 0 && <div style={{ fontSize: 11.5, fontWeight: 800, marginTop: 1 }}>{money(m.cost)}</div>}
                         </div>
                       </div>
                     ))}
@@ -318,7 +338,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 ))}
               </div>
               {showTotals && (
-                <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-paper-rule)", marginTop: 4, paddingTop: 7 }}>
+                <div className="flex justify-between items-baseline" style={{ borderTop: "1px solid var(--ft-paper-rule)", marginTop: 2, paddingTop: 5 }}>
                   <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>{optionPrint ? "Shared job subtotal" : "Extras subtotal"}</div>
                   <div className="ft-mono" style={{ fontSize: 12, fontWeight: 800 }}>{money(optionPrint ? optionPrint.sharedT.grandTotal : extrasCost)}</div>
                 </div>
@@ -329,9 +349,14 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
 
         {optionPrint && (
           <>
+            {/* An option band may split across pages like an area does; its
+                header sticks to the first card and the materials box stays
+                whole. overflow:hidden had to go with the split — it clips the
+                second page's half otherwise — so the rounded corners are only
+                on the header band. */}
             {optionPrint.sections.map((S) => (
-              <div key={S.slot} className="ft-popt break-inside-avoid" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 9, overflow: "hidden" }}>
-                <div className="ft-pband flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", padding: "5px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em" }}>
+              <div key={S.slot} className="ft-popt" style={{ border: `1.3px solid ${S.color.main}`, borderRadius: 5, marginBottom: 7 }}>
+                <div className="ft-pband flex items-center uppercase" style={{ gap: 8, background: S.color.main, color: "#fff", borderRadius: "3.5px 3.5px 0 0", padding: "3px 10px", fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em", breakAfter: "avoid" }}>
                   Option {S.slot}{S.title !== `Option ${S.slot}` ? ` · ${S.title}` : ""}
                   {/* Only areas someone actually named earn the header — a list of
                       "Area 01 · Area 02" placeholders says nothing. */}
@@ -339,7 +364,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 </div>
                 {S.cats.flatMap((a) => a.products.filter((p) => !rowBlank(p))).map((p, pi) => renderProduct(p, pi))}
                 {showTotals && S.t.matLines.length > 0 && (
-                  <div className="ft-pbox" style={{ margin: "2px 8px 8px", borderRadius: 4, padding: "7px 10px 8px", background: `color-mix(in srgb, ${S.color.main} 7%, #fff)` }}>
+                  <div className="ft-pbox" style={{ margin: "2px 8px 8px", borderRadius: 4, padding: "7px 10px 8px", background: `color-mix(in srgb, ${S.color.main} 7%, #fff)`, breakInside: "avoid" }}>
                     <div className="ft-pink uppercase" style={{ fontSize: 7, fontWeight: 800, letterSpacing: ".2em", color: S.color.main, marginBottom: 4 }}>Materials for this option</div>
                     {S.t.matLines.map((m, i) => (
                       <div key={i} className="flex justify-between" style={{ gap: 12, fontSize: 8.8, padding: "1.5px 0" }}>
@@ -374,16 +399,18 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           </div>
         )}
         {showTotals && !optionPrint && grandTotal > 0 && (
-          <div className="break-inside-avoid flex justify-end items-baseline" style={{ borderTop: "2px solid var(--ft-text)", paddingTop: 10, marginTop: 10 }}>
+          <div className="break-inside-avoid flex justify-end items-baseline" style={{ borderTop: "2px solid var(--ft-text)", paddingTop: 8, marginTop: 8 }}>
             <div className="flex items-baseline" style={{ gap: 10 }}>
               <span className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span>
               <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.01em" }}>{money(grandTotal)}</span>
             </div>
           </div>
         )}
-        {showTotals && wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 6, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
+        {/* The waste factor's one appearance since it left the header (issue
+            090) — so it prints in every pricing mode, not just "full". */}
+        {wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 5, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
 
-        <div className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 12, marginTop: 18 }}>
+        <div className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 8, marginTop: 12 }}>
           <span style={{ fontSize: 10.5, color: "var(--ft-faint)" }}>Prepared with</span>
           <NedMark size={18} />
         </div>

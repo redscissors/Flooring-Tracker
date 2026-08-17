@@ -5,6 +5,11 @@ export const STOCK_LOADING_MSG = "Price book still loading — try again in a mo
 // the desktop grid and the mobile row sheet must never disagree.
 export const skuSearchable = (stock, searchOrder, stockReady) => stock.length > 0 || !!searchOrder || !stockReady;
 
+// Project names print centered in the estimate header's second row (issue 090)
+// with ~390px to themselves — 40 chars guarantees they can never collide with
+// the customer/salesperson stacks beside them.
+export const PROJECT_NAME_MAX = 40;
+
 export const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
 export const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
 // The underlayment row is labelled per flooring type — a tile job wants "backer"

@@ -1,0 +1,20 @@
+— after —
+printable page box: 710 x 950px
+paper height: 1401px  =  1.47 pages of content
+PDF pages: 2
+
+top-level blocks:
+   48px    3.4%  Rough EstimateFor planning purposes only · pri
+   52px    3.7%  Dan & Ruth Hartzler330-555-81234821 Kidron Rd,
+  142px   10.1%  Kitchen＋ extras priced belowMarazzi Rice Tile 
+   80px    5.7%  Kitchen backsplash＋ extras priced belowDaltile
+   80px    5.7%  Master bath floor＋ extras priced belowAnatolia
+  185px   13.2%  Master shower＋ extras priced belowAnatolia May
+  124px    8.9%  Hall bath＋ extras priced belowDaltile Restore 
+  123px    8.8%  Laundry / mudroomMannington AduraMax MPB822 No
+  123px    8.8%  Great roomMannington AduraMax MPB801 Sundance 
+  123px    8.8%  Bedrooms 2 & 3Mannington AduraMax MPB770 Docks
+  125px    8.9%  ExtrasGroutPermaColor Select — Midnight BlackS
+   49px    3.5%  Estimated total$12,985.97
+   14px    1.0%  Includes material waste (tile 10%, other floor
+   27px    1.9%  Prepared with
