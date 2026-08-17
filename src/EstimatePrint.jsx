@@ -211,7 +211,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       return (
         <div key={p.id} className="flex justify-between" style={{ gap: 18, padding: "2.5px 10px", borderTop: pi > 0 ? "1px solid var(--ft-paper-rule)" : "none", breakInside: "avoid" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}</div>
+            <div style={{ fontWeight: 800, fontSize: 11.5, lineHeight: 1.25 }}>{p.brandColor || typeLbl}{p.brandColor && p.type !== "misc" && <span style={{ fontWeight: 500, fontSize: 10, color: "var(--ft-muted)" }}> — {typeLbl.toLowerCase()}</span>}</div>
             {specParts && <div style={{ fontSize: 9.5, lineHeight: 1.3, color: "var(--ft-muted)", marginTop: 1 }}>{specParts}</div>}
             {inline.length > 0 && (
               <div className="flex flex-wrap" style={{ gap: 5, marginTop: 3 }}>

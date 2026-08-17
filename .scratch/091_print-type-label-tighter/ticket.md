@@ -10,9 +10,11 @@ one-piece line reads "— miscellaneous" and costs a full card of vertical space
 
 ## Changes (src/EstimatePrint.jsx, cards layout only)
 
-- The "— tile / — miscellaneous / — vinyl" suffix after the product name is
-  gone. `TLBL[p.type]` still prints as the name when a row has no brandColor,
-  so an unnamed row doesn't go blank.
+- The "— miscellaneous" suffix after the product name is gone. The other type
+  labels STAY (owner follow-up, same day: "everything but the miscellaneous as
+  far as the labels can stay" — a real type reads as information, misc reads
+  as unimportant). `TLBL[p.type]` still prints as the name when a row has no
+  brandColor, so an unnamed row doesn't go blank.
 - Card vertical padding 4px → 2.5px; chip row margin 4 → 3; note margin 3 → 2;
   area block margin 7 → 5.
 - Explicit `lineHeight: 1.3` on the spec line, note, and every right-rail line
