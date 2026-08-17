@@ -9,6 +9,8 @@ settings.grouts["PermaColor Select"] = { ...settings.grouts["PermaColor Select"]
 settings.mortars["ProLite"] = { ...settings.mortars["ProLite"], price: 39.99, sku: "29438" };
 
 export const PROFILE = { name: "Sam Weaver", phone: "330-555-0142", email: "sam@keimlumber.com" };
+// A customer record so the header's people lookup resolves like production.
+export const PEOPLE = [{ id: "cust-hartzler", name: "Dan & Ruth Hartzler", phone: "330-555-8123", address: "4821 Kidron Rd, Dalton OH 44618" }];
 
 const tile = (over) => ({
   ...newProduct(), brandColor: "Marazzi Rice Tile - RC21RCT38GL Natural", L: "3", W: "8",
@@ -30,7 +32,7 @@ const area = (name, products) => ({ ...newArea(), name, option: "", products });
 
 // 8 areas, 20 product lines — the shape that currently runs three pages.
 export const makeJob = () => ({
-  ...newProject(null, "Hartzler — Whole house remodel"), _full: true,
+  ...newProject("cust-hartzler", "Whole house"), _full: true,
   projectNo: 167,
   address: "4821 Kidron Rd, Dalton OH 44618",
   waste: { tile: 10, floor: 5, tileOn: true, floorOn: true },

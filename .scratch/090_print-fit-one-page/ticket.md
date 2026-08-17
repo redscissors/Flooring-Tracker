@@ -1,12 +1,12 @@
-Status: open
+Status: done
 
 Fit a large job's printed estimate on fewer pages (owner, 2026-08-15: "printing
 a larger order like N167 ... very wasteful with space, I'd like it to try to fit
 on one page vs the three it does now" — plus "the header also takes up so so
 much space").
 
-This ticket is the MEASUREMENT pass: what the sheet actually spends its inches
-on, and what each candidate fix is worth. No app code changed yet.
+This ticket started as the MEASUREMENT pass and ended with the implementation —
+see "Implementation" at the bottom.
 
 ## The harness
 
@@ -157,3 +157,44 @@ Keim mark has to invert to sit on ink (the prototype does it with a CSS
 - `header-today-print.png` and `header-v-{a,b,c}-print.png` — the masthead
   variants (also `-screen` copies, where the sheet keeps its color)
 - `measure-*.txt` — per-block height reports behind every number above
+
+## Implementation (2026-08-17)
+
+Owner approved variant D round 2 + the recommended package. Shipped in
+EstimatePrint.jsx (cards layout only; classic untouched):
+
+- **Header** — the approved design exactly: 1fr/auto/1fr masthead (32px logo ·
+  centered Rough Estimate badge with the disclaimer wrapped inside · title over
+  N-number + date + tier tag), then the second row with the customer stack
+  (name/phone/address) left, the salesperson stack (name/phone/email) right,
+  and the project name centered between them (scopeNote beneath it on option-
+  scoped prints). Waste left the header; the "Includes material waste…" line by
+  the total now prints in EVERY pricing mode (it was gated on "full"), so the
+  fact survives the move. With no customer record the left stack simply omits
+  the name instead of repeating the project name.
+- **Page breaks** — areas and option bands may split across pages; product
+  cards carry `breakInside: avoid` and the band headers `breakAfter: avoid`, so
+  cards never tear and a band never strands at a page bottom. The option band
+  lost its `overflow: hidden` (it would clip the second page's half) — the
+  rounded corners moved onto the header band itself. Verified: the 2-page PDF
+  breaks between complete cards, page 2 opening with a band + its first card.
+- **Density** — the compact.css values, hand-applied: rows 4px/10px padding,
+  11.5px titles, 9.5px detail/chips-at-9, tighter extras box, tighter margins.
+- **Name cap** — `PROJECT_NAME_MAX = 40` (uiconst.js) as `maxLength` on all
+  three project-name inputs (one-bar header, classic header, project sheet).
+
+Measured on the same 8-area/20-line fixture, same harness:
+
+| | before | after |
+|---|---|---|
+| paper height | 1861px (1.96 pages) | **1401px (1.47 pages)** |
+| PDF pages | 3 | **2** |
+| header | 160px | **100px** |
+| 4-area job | 2 pages | **1 page** |
+| 5-area job | 2 pages (1346px) | 2 pages (1011px) |
+
+Proof: `shot-before.png` / `shot-after.png` (identical fixture, print media),
+`after-options-print.png` (options path), `after-plain-screen.png` (the color
+Print-preview tab). 943 tests pass; eslint clean on the changed files (the
+App.jsx `claimProjectNo` unused-var and the index.html build placeholder are
+pre-existing on the branch).

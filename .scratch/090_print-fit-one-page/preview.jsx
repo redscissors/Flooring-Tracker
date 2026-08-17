@@ -9,7 +9,7 @@ import { EstimatePaper } from "../../src/EstimatePrint.jsx";
 import { jobTotals } from "../../src/jobtotals.js";
 import { withProjWaste } from "../../src/catalog.js";
 import { tierView } from "../../src/pricing.js";
-import { makeJob, settings, PROFILE } from "./fixture.js";
+import { makeJob, settings, PROFILE, PEOPLE } from "./fixture.js";
 
 function Paper() {
   const sel = makeJob();
@@ -19,7 +19,7 @@ function Paper() {
   const T = jobTotals(tv.proj, sel, tSet, wSet, settings, []);
   const paperProps = { pMats: T.pMats, materialsCost: T.materialsCost, freightCost: T.freightCost, flooringPrice: T.flooringPrice, miscCost: T.miscCost, totalSqft: T.totalSqft, orderedSqft: T.orderedSqft, grandTotal: T.grandTotal, optionPrint: null };
   return (
-    <EstimatePaper sel={sel} people={[]} profile={PROFILE} tv={tv}
+    <EstimatePaper sel={sel} people={PEOPLE} profile={PROFILE} tv={tv}
       jobWaste={wSet.waste} tSet={tSet} {...paperProps} />
   );
 }
