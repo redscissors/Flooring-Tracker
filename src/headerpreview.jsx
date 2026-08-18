@@ -49,13 +49,17 @@ const BOOKS = [
   // The brand-box demo (2026-08-18): an order book whose sheet carries no brand
   // column, a few real-shaped items, so the Brand tab and the table's landed
   // names can be exercised live.
-  { id: "glz", kind: "order", name: "Glazzio Tile", active: true, data: { markups: { default: 50 }, lastImport: { at: Date.now() - 20 * DAY, by: "Sam", count: 3 } } },
+  { id: "glz", kind: "order", name: "Glazzio Tile", active: true, data: { markups: { default: 50 }, lastImport: { at: Date.now() - 20 * DAY, by: "Sam", count: 4 } } },
 ];
 
 const GLZ_ITEMS = [
   { sku: "CS-108", type: "tile", size: "2x8", description: "CRYSTAL SERIES ICE BLUE", cost: 8.4, sfPerUnit: 5.4, unit: "SF", orderUnit: "CT" },
   { sku: "AR-214", type: "tile", size: "12x24", description: "ARVORA GLACIER MATTE", cost: 4.1, sfPerUnit: 15.5, unit: "SF", orderUnit: "CT" },
   { sku: "PC-77", size: "", description: "PENCIL LINER SILVER", cost: 11.2, unit: "PC" },
+  // The RYM5532 report (2026-08-18): a stored name that doubled the series
+  // around the heading's "Collection" — normOrderItem's load-time clean
+  // renders it "Rythmique Fandango".
+  { sku: "RYM5532", type: "tile", size: "2.5x9", description: "RYTHMIQUE COLLECTION RYTHMIQUE FANDANGO", cost: 78.35, sfPerUnit: 8.61, unit: "BX", orderUnit: "BX" },
 ].map((it) => normOrderItem({ ...it, bookId: "glz" }));
 
 function LibraryDemo() {

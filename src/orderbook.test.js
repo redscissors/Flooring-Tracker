@@ -213,6 +213,18 @@ test("normOrderItem drops ERP noise words from the description", () => {
   assert.equal(normOrderItem({ sku: "XD", description: "Pro Duty Membrane" }).description, "Pro Duty Membrane");
 });
 
+test("normOrderItem collapses a series doubled around 'Collection' (the Glazzio RYM5532 shape)", () => {
+  // Already-imported rows carry the doubled name; the load-time clean fixes
+  // them without a re-import.
+  assert.equal(normOrderItem({ sku: "R1", description: "Rythmique Collection Rythmique Fandango" }).description, "Rythmique Fandango");
+  assert.equal(normOrderItem({ sku: "R2", description: "RYTHMIQUE COLLECTION RYTHMIQUE FANDANGO" }).description, "Rythmique Fandango");
+  // a multi-word series doubles the same way
+  assert.equal(normOrderItem({ sku: "R3", description: "Aragon Hills Collection Aragon Hills Qassle Blu" }).description, "Aragon Hills Qassle Blu");
+  // not the doubled shape — the word is part of the name and stays
+  assert.equal(normOrderItem({ sku: "R4", description: "Alta Vista Collection Balboa" }).description, "Alta Vista Collection Balboa");
+  assert.equal(normOrderItem({ sku: "R5", description: "Colonial Collection Presidential Grey" }).description, "Colonial Collection Presidential Grey");
+});
+
 test("normOrderItem drops RECT edge stamps and parenthesized vendor codes", () => {
   // The COEREBE1836R report (owner ask 2026-08-10): "Reverso Beige Matte Rect
   // (Rv492r)" should read "Reverso Beige Matte" — the edge treatment and the

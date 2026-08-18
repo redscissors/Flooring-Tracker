@@ -244,7 +244,14 @@ function collectionTitleFor(rows, header, floorY) {
     if (isSkuish(left.str)) break;
     const text = [...r.items].sort((a, b) => a.x - b.x).map((it) => it.str).join(" ").trim();
     if (!text || TITLE_SKIP.test(text)) continue;
-    return text;
+    // A letterless heading ("24x48-6", the large-format pages' size label) is a
+    // format tag, not a collection name — keep scanning for a real one.
+    if (!/[a-z]/i.test(text.replace(/[x×]/gi, " "))) continue;
+    // Glazzio sets every heading as "<NAME> COLLECTION". The trailing word is
+    // typography, not the name: kept, it bloats every label and defeats the
+    // series-lead dedupe when the color names repeat the series ("Rythmique
+    // Collection Rythmique …", the RYM5532 report 2026-08-18).
+    return text.replace(/\s+collection$/i, "");
   }
   return "";
 }
