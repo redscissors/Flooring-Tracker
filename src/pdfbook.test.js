@@ -147,7 +147,7 @@ test("photo-caption SKU grid is dropped and does not collapse the columns", () =
   const it = items[0];
   assert.equal(it.sku, "ABS6001");
   assert.equal(it.cost, 50);        // columns intact → cost read from its own cell
-  assert.equal(it.productLine, "Abstract Collection");
+  assert.equal(it.productLine, "Abstract"); // the heading's "COLLECTION" is typography, dropped
 });
 
 test("two sections on one page each take their own heading as the collection", () => {
@@ -174,7 +174,21 @@ test("a header whose labels wrap above the Item# line does not leak as the colle
     ...noCollRow(149, "MYN1301", "Aztec", "6", "5.19", "$17.50", "$90.83"),
   ];
   const { items } = parse(page);
-  assert.equal(items[0].productLine, "Mayan Garden Collection");
+  assert.equal(items[0].productLine, "Mayan Garden");
+});
+
+// The RYM5532 report (2026-08-18): the heading says "RYTHMIQUE COLLECTION" and
+// the color names lead with the series, so rows read "Rythmique Collection
+// Rythmique …" — the series twice with "Collection" wedged between. Dropping
+// the heading's trailing word lets the series-lead dedupe do its job.
+test("a heading's trailing 'Collection' is dropped so a series-led color name doesn't double", () => {
+  const page = noCollSection(98, ["Rythmique", "Collection"], [
+    ["RYM5532", "Rythmique Fandango", "44", "8.61", "$9.10", "$78.35"],
+  ]);
+  const { items } = parse(page);
+  const it = items.find((i) => i.sku === "RYM5532");
+  assert.equal(it.productLine, "Rythmique");
+  assert.equal(it.description, "Rythmique Fandango");
 });
 
 // --- Glazzio mosaics: chip vs. sheet (issue 016, ADR 0014 amendment) ----------
@@ -263,6 +277,7 @@ test("mosaic sub-table: merged SKU is un-split so the row survives with its 2x2 
   const { items } = parse(page);
   const it = items.find((i) => i.sku === "LRGSTB10-M");
   assert.ok(it, "the merged-SKU row is not dropped");
+  assert.equal(it.productLine, "", "the '24x48-6' size label is a format tag, never the collection");
   assert.equal(it.size, "2x2", "the name-borne chip size parses");
   assert.equal(it.sheetSize, "12x12", "sheet from the MOSAIC COVERAGE segment, not the 24x48 before it");
   assert.equal(it.sfPerUnit, 1, "one 12x12 sheet = 1 SQF");

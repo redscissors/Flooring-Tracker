@@ -46,13 +46,21 @@ const DESC_NOISE_RE = new RegExp(`\\(\\s*(?:${DESC_NOISE})\\s*\\)|\\*+\\s*(?:${D
 const PAREN_CODE_RE = /\(\s*([A-Za-z0-9][A-Za-z0-9./-]{1,15})\s*\)/g;
 const dropParenCodes = (s) => s.replace(PAREN_CODE_RE, (m, tok) =>
   (/\d/.test(tok) && /[a-z]/i.test(tok) && !/^\d+(?:\.\d+)?[x×]\d+(?:\.\d+)?$/i.test(tok) ? " " : m));
+// A name that says its series twice around the word "Collection" ("Rythmique
+// Collection Rythmique Fandango" — the Glazzio RYM5532 report, 2026-08-18):
+// the section heading fronted the name AND the color name led with the series,
+// and the heading's "Collection" kept the lead dedupe from seeing the repeat.
+// Collapsed here so already-imported rows clean up on load without a re-import.
+// Only the exact doubled shape matches — "Alta Vista Collection Balboa" and
+// "Heritage 2022 Collection" keep their names.
+const SERIES_DOUBLE_RE = /\b([a-z'’-]+(?:\s+[a-z'’-]+){0,2})\s+collection\s+\1\b/gi;
 // SHOUTING vendor text → Title Case, already-cased text left alone (pricebook's
 // smartCase, applied here too because the import only cases descriptions the
 // size-split touched — accessory rows with nothing to extract kept the vendor's
 // ALL CAPS, the LATDSGRACS10OZ / SLRJ100TSSG report).
 const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 const smartCase = (s) => (s && !/[a-z]/.test(s) ? titleCase(s) : s);
-const cleanDescription = (v) => smartCase(dropParenCodes(str(v)).replace(DESC_NOISE_RE, " ").replace(/\s{2,}/g, " ").trim());
+const cleanDescription = (v) => smartCase(dropParenCodes(str(v)).replace(DESC_NOISE_RE, " ").replace(SERIES_DOUBLE_RE, "$1").replace(/\s{2,}/g, " ").trim());
 
 // The Claude issue-bucket mark ({ by, at, note? }) — a SKU parked for a later
 // Claude session to dig into. Presence is the whole state; junk shapes drop.
