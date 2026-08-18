@@ -288,13 +288,25 @@ export function pricedItem(item, markups) {
 
 // --- pick snapshot -----------------------------------------------------------
 
+// A book-level brand label (book.data.brandLabel — the Glazzio ask, 2026-08-18)
+// standing in for the brand column the vendor's sheet never had. Filled only
+// when the item carries no brand of its own, so a mapped brand column still
+// wins; stockPatch's label() then leads the landed name with it unless the
+// description already says it. Applied at pick/preview time, never written to
+// the items — clearing the box stops future picks without a re-import, and
+// saved rows keep their text (ADR 0003 snapshot doctrine).
+export const withBookBrand = (item, brandLabel) => {
+  const b = str(brandLabel);
+  return b && item && !str(item.brand) ? { ...item, brand: b } : item;
+};
+
 // The snapshot patch a picked order-book item applies to a product row: the
 // same fields stockPatch fills (type, $/sqft, carton, brand/size), plus the
 // order-book provenance the drift chip and (later) contractor pricing need.
 // bookId/cost/markupPct/tierPrice are stored as strings, matching how the row
 // keeps its other numeric fields.
 export function orderPatch(item, book, product) {
-  const priced = pricedItem(item, book?.data?.markups);
+  const priced = pricedItem(withBookBrand(item, book?.data?.brandLabel), book?.data?.markups);
   const patch = stockPatch(priced, product);
   patch.bookId = str(item.bookId || book?.id);
   patch.cost = item.cost != null ? String(item.cost) : "";
@@ -317,8 +329,10 @@ export function orderPatch(item, book, product) {
 // pick — a blank cell here IS a blank cell on the estimate, which is the whole
 // troubleshooting value. `sizeParsed` distinguishes a tile size that landed in
 // L×W (grout/mortar compute) from one that fell through as free text.
-export function bookRowPreview(item, markups) {
-  const priced = pricedItem(item, markups);
+// `brandLabel` is the book's brand box (withBookBrand) — the preview has to
+// wear it for the same reason: a pick lands it.
+export function bookRowPreview(item, markups, brandLabel) {
+  const priced = pricedItem(withBookBrand(item, brandLabel), markups);
   const patch = stockPatch(priced, {});
   const flooring = patch.type !== "misc";
   const sizeParsed = flooring && patch.L != null && patch.W != null;

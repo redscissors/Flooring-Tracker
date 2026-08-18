@@ -131,8 +131,10 @@ export function printMatList(cust, s) {
 // dropped, spaces only. Rows bought in anything but pieces lead with their unit
 // tag (also in the copied text) since the order-entry system can't be switched
 // off "each". A row with no quantity yet keys as one and sets `qtyAssumed` so
-// the panel can flag it (orderQty). Read-only; no math is mutated.
-export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
+// the panel can flag it (orderQty). `bookBrands` (bookId → the book's brand
+// label, optional) lets orderDescription drop a leading brand first when the
+// field runs tight. Read-only; no math is mutated.
+export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands) {
   const isMisc = p.type === "misc";
   // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
   // desk keys the order in cartons even though the row quotes per piece.
@@ -164,7 +166,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds) {
   const byDesc = !!p.sheoga && !p.sku;
   const r = {
     id: p.id, special: isSpecialOrder(p, stockBookIds), byDesc, area,
-    tag, sizePlain, name, sku: p.sku, coverage, sheoga: p.sheoga,
+    tag, sizePlain, name, brand: (p.bookId && bookBrands?.get(p.bookId)) || "", sku: p.sku, coverage, sheoga: p.sheoga,
     qty, qtyAssumed, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,

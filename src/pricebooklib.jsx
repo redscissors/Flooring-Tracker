@@ -850,6 +850,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
   useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); return () => { ok = false; }; }, [book.id]);
 
   const markups = book.data?.markups || null;
+  const brandLabel = (book.data?.brandLabel || "").trim();
   const li = book.data?.lastImport;
   const st = bookStaleness(li?.at, staleDays);
   const noMarkup = bookNoMarkup(book);
@@ -1008,6 +1009,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
     : `${num(markups?.default) || 0}%${markups?.groupBy ? ` · by ${axisLabel(markups.groupBy)}` : ""}${overrides ? ` · ${overrides} override${overrides === 1 ? "" : "s"}` : ""}`;
   const fr = normFreight(book.data?.freight);
   const frSummary = fr.mode === "program" ? `on${fr.destination ? ` — ${fr.destination}` : ""}` : "none";
+  const brSummary = brandLabel || "none";
 
   return (
     <div className="mt-3">
@@ -1047,6 +1049,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
           <BookTab label="Source" summary={srcSummary} tone={srcTone} active={tab === "source"} onClick={() => setTab(tab === "source" ? null : "source")} />
           {isOrder && <BookTab label="Markup" summary={mkSummary} tone={noMarkup ? "bad" : ""} active={tab === "markup"} onClick={() => setTab(tab === "markup" ? null : "markup")} />}
           {isOrder && <BookTab label="Freight" summary={frSummary} active={tab === "freight"} onClick={() => setTab(tab === "freight" ? null : "freight")} />}
+          {isOrder && <BookTab label="Brand" summary={brSummary} active={tab === "brand"} onClick={() => setTab(tab === "brand" ? null : "brand")} />}
         </div>
         {tab && (
           <div className="rounded-b-md px-4 pb-3" style={{ border: "1px solid var(--ft-border)", borderTop: "none", background: "var(--ft-card)" }}>
@@ -1066,6 +1069,9 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
             )}
             {tab === "freight" && (
               <FreightCard embedded book={book} onSave={(f) => updateBook(book.id, { dataPatch: { freight: f } })} inp={inp} lbl={lbl} />
+            )}
+            {tab === "brand" && (
+              <BrandCard book={book} items={items || []} onSave={(v) => updateBook(book.id, { dataPatch: { brandLabel: v } })} inp={inp} lbl={lbl} />
             )}
           </div>
         )}
@@ -1158,7 +1164,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
               </thead>
               <tbody>
                 {shown.map((it) => {
-                  const pv = bookRowPreview(it, markups);
+                  const pv = bookRowPreview(it, markups, brandLabel);
                   const openCodes = (flagsBySku.get(it.sku) || []).filter((f) => !f.resolved).map((f) => f.code);
                   const reviewedCodes = Object.keys(it.flagReview || {});
                   const detail = itemDetailBits(it);
@@ -1510,6 +1516,39 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// The book's brand box (the Glazzio ask, 2026-08-18): a label the vendor's
+// sheet never carried as a column, written to book.data.brandLabel and worn by
+// every FUTURE pick (withBookBrand): the landed product text leads with it
+// unless the row's own description already says it. Nothing is written to the
+// items and saved rows never change (ADR 0003) — clearing the box just stops
+// new picks, and any one line sheds it by editing the row's text.
+export function BrandCard({ book, items, onSave, inp, lbl }) {   // exported for the preview harness
+  const saved = (book.data?.brandLabel || "").trim();
+  const [v, setV] = useState(saved);
+  const commit = () => { const t = v.trim(); setV(t); if (t !== saved) onSave(t); };
+  // A worked example off the book's own first row — the same lead-unless-said
+  // rule the pick applies (stock.js label via withBookBrand).
+  const t = v.trim();
+  const ex = (items || []).find((it) => it.active && !it.disabled && it.description);
+  const exName = ex ? (t && !ex.description.toLowerCase().includes(t.toLowerCase()) ? `${t} ${ex.description}` : ex.description) : t ? `${t} …` : "";
+  return (
+    <div className="pt-3">
+      <div className="flex items-end gap-3 flex-wrap">
+        <div>
+          <label className={lbl}>Brand on descriptions</label>
+          <input className={`${inp} w-48`} value={v} placeholder="Glazzio" onChange={(e) => setV(e.target.value)}
+            onBlur={commit} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            title="Leads the product text a pick from this book lands on a job line — unless the sheet's row already names it." />
+        </div>
+        <span className="text-[11px] text-slate-400 pb-1.5 flex items-center gap-1.5">
+          {t ? <>a pick lands “{exName}”</> : "picks land the sheet's description as-is"}
+          <HelpTip tip="Future picks only — lines already on estimates keep their text (edit a line to add or drop it there). In Copy-for-order-entry, the brand is the first thing dropped when the ERP description field runs out of room." />
+        </span>
+      </div>
     </div>
   );
 }

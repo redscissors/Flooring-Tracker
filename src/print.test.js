@@ -160,3 +160,17 @@ test("orderEntryRow: a line with a quantity is never flagged", () => {
   assert.equal(r.qtyAssumed, false);
   assert.equal(r.perSell, 6.5);
 });
+
+test("orderEntryRow: the book's brand label rides the row for the fit ladder", () => {
+  const p = { ...newProduct(), type: "tile", qty: "120", priceSqft: "6.5", costSqft: "4", sku: "GLZ-CI28", brandColor: "Glazzio Crystal Ice Blue", bookId: "bkGLZ", L: "2", W: "8" };
+  const brands = new Map([["bkGLZ", "Glazzio"]]);
+  const full = orderEntryRow(p, s, "Kitchen", 0, new Set(), brands);
+  assert.equal(full.brand, "Glazzio");
+  assert.ok(full.desc.main.includes("Glazzio Crystal Ice Blue"), "room to spare — the brand stays");
+  const tight = orderEntryRow(p, s, "Kitchen", 34, new Set(), brands);
+  assert.ok(!tight.desc.main.includes("Glazzio"), "cramped — the brand goes first");
+  assert.ok(tight.desc.main.includes("GLZ-CI28"), "the SKU outlives it");
+  assert.ok(tight.desc.ext.includes("Glazzio"), "the extended text keeps the whole line");
+  // No entry for the row's book → nothing changes.
+  assert.equal(orderEntryRow(p, s, "Kitchen", 0, new Set(), new Map()).brand, "");
+});

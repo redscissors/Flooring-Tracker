@@ -71,8 +71,12 @@ price_books (
   name        text,                      -- "Shaw 2026 Q3", "Daltile SO list"
   active      boolean default true,      -- retired books hide from search/UI
   data        jsonb,                     -- { vendor, note, mapping, markups,
-                                         --   freight, skuPattern,
+                                         --   freight, skuPattern, brandLabel,
                                          --   lastImport{at,by,count} }
+                                         -- brandLabel (issue 092): the book
+                                         -- page's brand box — worn by future
+                                         -- picks as item.brand when the sheet
+                                         -- has none (orderbook withBookBrand)
   created_at / updated_at timestamptz
 )
 

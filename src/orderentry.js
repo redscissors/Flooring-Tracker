@@ -61,15 +61,29 @@ export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[
 // keys every line as "each", so a carton line that doesn't say CT in its own
 // text is an order for 12 tiles instead of 12 cartons. It's the same tag the
 // panel shows in front of the item, so what pastes is what's on screen.
+//
+// `r.brand` is the row's book brand label (book.data.brandLabel, the Glazzio
+// ask 2026-08-18). When the name leads with it, the brand splits into its own
+// part at rank 3 — first to go when the field runs tight, because unlike every
+// other category it doesn't identify the product to the vendor being ordered
+// from (the Sheoga VENDOR_PREFIX reasoning, softened: kept while there's room,
+// dropped before anything else). It stays in place — between the size and the
+// product text, exactly where the panel shows it — so the paste still matches
+// the screen. A name that doesn't lead with the brand (the salesperson deleted
+// it, or it never landed) passes through untouched.
 export function orderDescription(r, limit) {
-  const body = String(r.name || "").replace(VENDOR_PREFIX, "").trim();
+  const named = String(r.name || "").replace(VENDOR_PREFIX, "").trim();
+  const brand = !r.sheoga ? String(r.brand || "").trim() : "";
+  const branded = brand && (named.toLowerCase() + " ").startsWith(brand.toLowerCase() + " ");
+  const body = branded ? named.slice(brand.length).trim() : named;
   const spec = [tightSize(r.sizePlain), body].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   // Structured parts win over the row's name text: they're the same description
   // (descfit.test.js asserts the join matches across every configuration) but
   // carry the per-category short forms that make the abbreviated rung possible.
   const parts = [
     ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
-    ...((r.sheoga && descParts(r.sheoga)) || textParts(spec)),
+    ...((r.sheoga && descParts(r.sheoga))
+      || (branded ? [...textParts(tightSize(r.sizePlain)), { full: brand, rank: 3 }, ...textParts(body)] : textParts(spec))),
   ];
   const tail = [];
   if (r.sku) tail.push({ full: String(r.sku), rank: 1 });
