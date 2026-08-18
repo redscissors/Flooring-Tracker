@@ -147,3 +147,30 @@ test("orderDescription: a fee line has no structured parts and falls back to its
   assert.equal(d.tier, "split");
   assert.ok(d.main.endsWith("+"));
 });
+
+// --- book brand label on the fit ladder (the Glazzio ask, 2026-08-18) ---------
+
+const glazzio = { tag: "CT", sizePlain: "2x8", name: "Glazzio Crystal Ice Blue", brand: "Glazzio", sku: "GLZ-CI28", coverage: "5.4 SF/CT" };
+
+test("orderDescription: the brand stays in place while there's room — paste matches screen", () => {
+  const d = orderDescription(glazzio, 0);
+  assert.equal(d.main, "CT 2x8 Glazzio Crystal Ice Blue GLZ-CI28 5.4 SF/CT");
+  assert.equal(d.tier, "full");
+});
+
+test("orderDescription: the brand is the first thing dropped when the field runs tight", () => {
+  const d = orderDescription(glazzio, 48); // full is 50 — over by just the brand
+  assert.equal(d.tier, "split");
+  assert.ok(!d.main.includes("Glazzio"), "the brand is the least identifying part");
+  assert.ok(d.main.includes("GLZ-CI28"), "the SKU outlives the brand");
+  assert.ok(d.main.includes("5.4 SF/CT"), "so does coverage");
+  assert.ok(d.ext.includes("Glazzio"), "the extended text keeps the whole line");
+});
+
+test("orderDescription: a name that doesn't lead with the brand passes through untouched", () => {
+  const edited = { ...glazzio, name: "Crystal Ice Blue" }; // salesperson dropped it by hand
+  assert.equal(orderDescription(edited, 0).main, "CT 2x8 Crystal Ice Blue GLZ-CI28 5.4 SF/CT");
+  const partial = { ...glazzio, name: "Glazzioish Crystal" }; // whole word only
+  assert.ok(orderDescription(partial, 0).main.includes("Glazzioish Crystal"));
+  assert.equal(orderDescription(partial, 30).ext, orderDescription(partial, 30).full);
+});

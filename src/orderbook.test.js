@@ -1159,3 +1159,29 @@ test("pricedItem: an explicit retail price wins over cost × markup (ERP stock e
   assert.equal(p.price, 141.45); // the shop's retail, not 85.34 × 1.45
   assert.equal(p.markupPct, 45);
 });
+
+// --- book brand label (the Glazzio ask, 2026-08-18) ---------------------------
+
+test("orderPatch: the book's brand label leads the landed name when the sheet carries no brand", () => {
+  const item = oi({ sku: "GLZ-CI28", type: "tile", unit: "SF", cost: 8, size: "2x8", description: "CRYSTAL ICE BLUE" });
+  const patch = orderPatch(item, book({ brandLabel: "Glazzio" }), {});
+  assert.equal(patch.brandColor, "Glazzio Crystal Ice Blue");
+});
+
+test("withBookBrand: a description already naming the brand never doubles it", () => {
+  const item = oi({ sku: "GLZ2", type: "tile", unit: "SF", cost: 8, size: "2x8", description: "Glazzio Crystal Ice" });
+  assert.equal(orderPatch(item, book({ brandLabel: "Glazzio" }), {}).brandColor, "Glazzio Crystal Ice");
+});
+
+test("withBookBrand: the sheet's own brand column outranks the book label, and no label is a no-op", () => {
+  const own = oi({ sku: "ANA1", type: "tile", unit: "SF", cost: 8, brand: "Anatolia", description: "Marlow Grey" });
+  assert.equal(orderPatch(own, book({ brandLabel: "Glazzio" }), {}).brandColor, "Anatolia Marlow Grey");
+  const plain = oi({ sku: "P1", type: "tile", unit: "SF", cost: 8, description: "Marlow Grey" });
+  assert.equal(orderPatch(plain, book(), {}).brandColor, "Marlow Grey");
+});
+
+test("bookRowPreview wears the brand label too — the table shows what a pick lands", () => {
+  const item = oi({ sku: "GLZ3", type: "tile", size: "12X24", cost: 31, sfPerUnit: 15.5, unit: "CT", description: "Reverso Beige" });
+  assert.equal(bookRowPreview(item, { default: 50 }, "Glazzio").name, "Glazzio Reverso Beige");
+  assert.equal(bookRowPreview(item, { default: 50 }).name, "Reverso Beige");
+});

@@ -120,7 +120,10 @@ src/
   headerpreview.jsx # dev-only harness (header-preview.html): the REAL
                     # ProjectHeaderBar + PriceBookLibrary over local mock state,
                     # no Supabase — preview proof for the 2026-08-14 compact
-                    # headers; not part of the app build
+                    # headers and the book page's config drawers (stateful
+                    # updateBook + a mock Glazzio book with items, so the
+                    # markup/freight/brand tabs save-and-rerender);
+                    # not part of the app build
   importpreview.jsx # dev-only harness (import-preview.html): the REAL
                     # BookImportWizard over local mock state, no Supabase —
                     # preview proof for the diff review's unfolding new/changed/
@@ -186,8 +189,9 @@ src/
   pricebooklib.jsx  # the price-book library (`PriceBookLibrary` + book detail,
                     # import wizard, stock items panel, markup editor — internal).
                     # The book page's config — source sheets + hand-added files,
-                    # markup, freight — folds behind FOLDER TABS under a one-line
-                    # title row (owner sketch 2026-08-07): each tab carries its
+                    # markup, freight, brand (BrandCard — the issue 092 brand
+                    # box, order books only) — folds behind FOLDER TABS under a
+                    # one-line title row (owner sketch 2026-08-07): each tab carries its
                     # live summary, one drawer opens at a time, and a book that
                     # needs attention starts open on the right tab (pending sheet
                     # review → Source, selling at cost → Markup).
@@ -260,7 +264,12 @@ src/
                     # bucket, same carry. `bookRowPreview` derives the book
                     # table's project-line cells through the REAL pick path
                     # (pricedItem → stockPatch) so the table can't drift from
-                    # what a pick lands
+                    # what a pick lands. `withBookBrand` (issue 092): the book
+                    # page's brand box (book.data.brandLabel) filled in as
+                    # item.brand at pick/preview time when the sheet carried no
+                    # brand of its own — label()'s lead-unless-said dedupe does
+                    # the rest; never written to items, so clearing the box
+                    # needs no re-import and saved rows never move (ADR 0003)
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
   sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
                     # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
@@ -569,7 +578,13 @@ src/
                     # `orderCopyText` (the description field's contents, nothing
                     # else — qty/cost/sell are separate ERP fields with their own
                     # columns; the unit tag is NOT one of them, so it rides
-                    # inside the description), and `orderQty` (2026-07-27): a line with no
+                    # inside the description). A row whose name leads with its
+                    # book's brand label (r.brand, issue 092) carries the brand
+                    # as its own rank-3 part — FIRST dropped when the field
+                    # runs tight (before coverage and the SKU: the PO already
+                    # names the vendor), kept in place between size and product
+                    # while there's room so the paste matches the screen, and
+                    # always surviving into the extended text. And `orderQty` (2026-07-27): a line with no
                     # quantity is keyed as ONE of its sell unit — the ERP takes
                     # no zero-quantity line, and a zero qty also blanks the
                     # per-unit cost/sell, which are extended totals ÷ qty.
