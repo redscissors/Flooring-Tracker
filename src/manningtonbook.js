@@ -19,7 +19,8 @@
 //     ("Adura Max", not "ADURA Max Plank"), and a color that wraps to a second
 //     print line ("African" / "Sunset") is folded back to "African Sunset".
 //   • trim     — SKU = Catalog # of the molding piece, type blank (a misc /
-//     transition line), cost = the header price for that trim column, and a
+//     transition line), cost = the header price for that trim column, size =
+//     the molding length the same header prints (94"), and a
 //     `trim` marker (the "Kind" canonical column) so the book can price trims at
 //     their own markup, separate from the floors (orderbook resolveMarkup). A
 //     trim is color-matched to one or more flooring items; its parent Color
@@ -71,6 +72,17 @@ function trimLabel(parts) {
   return s || "Trim";
 }
 
+// The molding length the same header prints ("Quarter Round 94\" (Piece)" →
+// 94") — the one size a trim row has, since the grid's Width column belongs to
+// the floor. Read off the sheet, never assumed: a header with no length leaves
+// the size blank. The inch-marked form wins; a bare 2–3 digit number stands in
+// when the PDF drops the quote mark.
+function trimSize(parts) {
+  const s = parts.join(" ").replace(/\((?:Piece|PC|2PC)\)/gi, " ");
+  const m = s.match(/\b(\d{2,3})\s*"/) || s.match(/\b(\d{2,3})\b/);
+  return m ? `${m[1]}"` : "";
+}
+
 // The trim columns for one section: pair each price in the "Pattern …" header row
 // (trim zone) with the stacked label text in the ~55px band above it, by x.
 function trimColumns(rows, patternRow) {
@@ -78,10 +90,10 @@ function trimColumns(rows, patternRow) {
   const labelItems = rows
     .filter((r) => r.y < patternRow.y - 1 && r.y > patternRow.y - 55)
     .flatMap((r) => r.items)
-    .filter((i) => i.x >= TRIM_X && /[A-Za-z]/.test(str(i.str)) && !/^\$/.test(str(i.str)));
+    .filter((i) => i.x >= TRIM_X && /[A-Za-z0-9]/.test(str(i.str)) && !/^\$/.test(str(i.str)));
   return prices.map((p) => {
     const parts = labelItems.filter((l) => Math.abs(l.x - p.x) < 20).sort((a, b) => a.y - b.y).map((l) => str(l.str));
-    return { x: p.x, price: p.price, label: trimLabel(parts) };
+    return { x: p.x, price: p.price, label: trimLabel(parts), size: trimSize(parts) };
   });
 }
 
@@ -209,8 +221,9 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
         const sku = str(it.str);
         if (!/^\d{4,7}[A-Z]?$/.test(sku)) continue;
         const col = trimCols.filter((c) => Math.abs(c.x - it.x) < 20).sort((a, b) => Math.abs(a.x - it.x) - Math.abs(b.x - it.x))[0];
-        const t = trims.get(sku) || { sku, label: col?.label || "Trim", price: col?.price ?? null, type: rowType, codes: new Set(), names: new Set() };
+        const t = trims.get(sku) || { sku, label: col?.label || "Trim", price: col?.price ?? null, size: col?.size || "", type: rowType, codes: new Set(), names: new Set() };
         if (t.price == null && col?.price != null) { t.price = col.price; t.label = col.label; }
+        if (!t.size && col?.size) t.size = col.size;
         t.codes.add(colorCode);
         if (patternName || color) t.names.add([patternName, color].filter(Boolean).join(" "));
         trims.set(sku, t);
@@ -233,7 +246,7 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, codes.length && `· fits ${codes.join(" ")}`]
       .filter(Boolean).join(" ");
-    rows.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, codes.join(" ")]);
+    rows.push([t.sku, desc, "", "", t.size, "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, codes.join(" ")]);
   }
 
   if (!dataRows) warnings.push("No Mannington product rows were recognized — is this the Cartons Detail price list?");

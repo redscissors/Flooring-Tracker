@@ -14,9 +14,10 @@ function page(category, sectionLine, dataRows) {
   const items = [
     word(378, 10, category),                                  // category banner (top)
     word(9, 100, sectionLine), word(433, 100, "Warranty: Limited"), // section header
-    // stacked trim labels (band above the Pattern row)
-    word(496, 150, "Quarter"), word(491, 158, "Round"),
-    word(531, 150, "Reducer"),
+    // stacked trim labels (band above the Pattern row) — the length prints with
+    // the name, inch-marked or bare depending on how the PDF splits the tokens
+    word(496, 150, "Quarter"), word(491, 158, "Round"), word(494, 166, '94"'),
+    word(531, 150, "Reducer"), word(533, 158, "94"),
     word(564, 150, "T-Mold"),
     // the "Pattern …" row carries each trim column's single price
     word(30, 175, "Pattern"), word(96, 175, "Width"), word(144, 175, "Color"),
@@ -94,6 +95,15 @@ test("trim rows: SKU = catalog #, per-piece cost, no floor type, 'fits' code in 
   assert.equal(trim.cost, 13.68);                // Quarter Round header price
   assert.match(trim.description, /Spalted Wych Elm Dew — Quarter Round/);
   assert.match(trim.description, /fits APX020/);  // shown in the search bar, searchable
+});
+
+test("trim rows carry the header's molding length as their size", () => {
+  const { items } = run(apexPage);
+  assert.equal(items.find((i) => i.sku === "384421").size, '94"'); // inch-marked header token
+  assert.equal(items.find((i) => i.sku === "384469").size, '94"'); // bare "94" reads the same
+  assert.equal(items.find((i) => i.sku === "384445").size, "");    // no length printed → honest blank
+  // the length stays out of the molding NAME — it lives in the size field
+  assert.match(items.find((i) => i.sku === "384421").description, /— Quarter Round(?! 94)/);
 });
 
 test("trims carry the trim marker, floors don't — the book can price them apart", () => {
