@@ -95,6 +95,7 @@ test("money formats to two decimals", () => {
 
 test("normA: option keeps valid slots, drops junk, defaults shared; note is gone", () => {
   assert.equal(normA({ option: "B" }).option, "B");
+  assert.equal(normA({ option: "F" }).option, "F");
   assert.equal(normA({ option: "Z" }).option, "");
   assert.equal(normA({}).option, "");
   const a = normA({ note: "old note", name: "Bath" });
@@ -103,8 +104,8 @@ test("normA: option keeps valid slots, drops junk, defaults shared; note is gone
 });
 
 test("normC: optionNames normalize to trimmed strings on valid slots", () => {
-  const c = normC({ id: "c1", categories: [], optionNames: { A: " Porcelain ", B: "", X: "no" } });
-  assert.deepEqual(c.optionNames, { A: "Porcelain" });
+  const c = normC({ id: "c1", categories: [], optionNames: { A: " Porcelain ", B: "", X: "no", E: "Carpet" } });
+  assert.deepEqual(c.optionNames, { A: "Porcelain", E: "Carpet" });
   assert.deepEqual(normC({ id: "c2", categories: [] }).optionNames, {});
 });
 

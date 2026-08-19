@@ -145,6 +145,34 @@ test("price reconciliation guard: mismatched carton drops to per-sq-ft cost", ()
   assert.equal(f.priceUnit, "SF");
 });
 
+test("laminate stepnose columns keep their profile: Overlap vs Flush stay distinct", () => {
+  // The laminate pages carry TWO stepnose columns whose stacked labels differ
+  // only by the profile word ("Stepnose Cn O-lap" vs "Stepnose Flush") — the
+  // one word a salesperson needs to pick the right piece (Marcus 2026-08-19).
+  const items = [
+    word(378, 10, "Laminate"),
+    word(9, 100, "Restoration Collection (RST8V)"), word(433, 100, "Warranty: Limited"),
+    word(494, 150, "Stepnose"), word(496, 158, "Cn"), word(492, 166, "O-lap"),
+    word(531, 150, "Stepnose"), word(533, 158, "Flush"),
+    word(30, 175, "Pattern"), word(96, 175, "Width"), word(144, 175, "Color"),
+    word(184, 175, "Color"), word(200, 175, "Code"), word(233, 175, "Catalog"), word(258, 175, "#"),
+    word(269, 175, "SQ.Ft."), word(301, 175, "Carton"), word(459, 175, "Profile"),
+    word(497, 175, "$45.10"), word(534, 175, "$52.30"),
+    // one data row carrying a trim SKU in each stepnose column
+    word(12, 190, "Hillside"), word(42, 190, "Hickory"),
+    word(97, 190, "8"), word(145, 190, "Acorn"), word(189, 190, "28210"), word(236, 190, "553376"),
+    word(271, 190, "$2.50"), word(301, 190, "$43.75"), word(336, 190, "17.50"),
+    word(496, 190, "310001"), word(533, 190, "310002"),
+  ];
+  const { items: parsed } = run(items);
+  const olap = parsed.find((i) => i.sku === "310001");
+  const flush = parsed.find((i) => i.sku === "310002");
+  assert.match(olap.description, /Stepnose Overlap/);   // O-lap read back out
+  assert.match(flush.description, /Stepnose Flush/);
+  assert.equal(olap.cost, 45.1);
+  assert.equal(flush.cost, 52.3);
+});
+
 test("laminate page maps to laminate type", () => {
   const lam = page("Laminate", "Restoration Collection (RST8V)", [
     { pattern: "Hillside Hickory", size: "8", color: "Acorn", code: "28210", catalog: "553376",

@@ -5,7 +5,7 @@ import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scoped
 const area = (option, id = "x") => ({ id, name: "n" + id, option, products: [{ id: "p" + id, sku: "S" + id }] });
 
 test("slots and colors are fixed", () => {
-  assert.deepEqual(OPTION_SLOTS, ["A", "B", "C"]);
+  assert.deepEqual(OPTION_SLOTS, ["A", "B", "C", "D", "E", "F"]);
   for (const s of OPTION_SLOTS) { assert.ok(OPTION_COLOR[s].main); assert.ok(OPTION_COLOR[s].soft); }
 });
 
@@ -40,6 +40,7 @@ test("titles: custom name or Option letter; short form leads with the letter", (
 
 test("normOptionNames keeps trimmed non-empty strings on valid slots", () => {
   assert.deepEqual(normOptionNames({ A: " Porcelain ", B: "", Z: "no", C: 3 }), { A: "Porcelain" });
+  assert.deepEqual(normOptionNames({ D: "Marble", F: " LVP " }), { D: "Marble", F: "LVP" });
   assert.deepEqual(normOptionNames(null), {});
 });
 
