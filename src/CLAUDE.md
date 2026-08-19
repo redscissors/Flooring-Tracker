@@ -237,7 +237,8 @@ src/
   manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,
                     # fixed x-band grid (leftmost col is Pattern, not the code);
                     # floors keyed by Color Code, trims imported as their own
-                    # transition products keyed by Catalog #, flagged `trim` so
+                    # transition products keyed by Catalog # (their 94" length
+                    # read off the column header into size), flagged `trim` so
                     # the book can mark trims up separately from floors (ADR 0012)
   stock.js          # stock-item search / SKU fill snapshot / drift / base
                     # companions / grout families, over stock-shaped items
