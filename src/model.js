@@ -101,7 +101,11 @@ export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ?
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.
 export const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
-const OPT_RE = /^[ABC]$/;
+// Quote-option slot letters (ADR 0031; extended past A–C on the 2026-08-19
+// team ask). Defined here, not options.js, because normA/normC gate on them
+// and options.js imports from this file — it re-exports the list.
+export const OPTION_SLOTS = ["A", "B", "C", "D", "E", "F"];
+const OPT_RE = new RegExp(`^[${OPTION_SLOTS.join("")}]$`);
 export const normA = (a) => ({ id: a.id || uid(), name: a.name || "", option: OPT_RE.test(a.option) ? a.option : "", products: (a.products || [{}]).map(normP) });
 // Projects written before waste moved off Settings have no `waste` — keep it
 // null rather than filling a default, so `projWaste` can tell "quoted under
@@ -110,7 +114,7 @@ export const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, flo
 // The job's freight master switch (ADR 0030) defaults ON — an absent field is a
 // project quoted before the switch existed, and vendor freight was always owed
 // on those orders too.
-export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of ["A", "B", "C"]) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })() });
+export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })() });
 
 // personData is what gets written back to a person's data jsonb; the person/
 // builder row mappers and selects live in bootload.js.

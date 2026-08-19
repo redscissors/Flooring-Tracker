@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Upload, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Unlock, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
 import { normFreight, freightBasis, freightParts, freightSummary, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 import { MAX_QUICK_MARKUPS } from "./costentry.js";
@@ -375,6 +375,41 @@ function QuickMarkupsCard({ value, onChange }) {
   );
 }
 
+// The fuzzy-search cutoffs are set-and-forget, but the sliders sit in the
+// settings strip — a horizontal swipe row on a phone — where a passing drag
+// retunes the whole team's search without anyone noticing ("add a lock to the
+// item search slider bars", Marcus 2026-08-14). So the card opens LOCKED on
+// every visit and the padlock arms edits; nothing is stored — closing the
+// page re-locks it.
+function ItemSearchCard({ pcts, setPct }) {
+  const [locked, setLocked] = useState(true);
+  const strictWord = (t) => t <= 0.2 ? "Loose" : t <= 0.28 ? "Forgiving" : t <= 0.4 ? "Balanced" : t <= 0.55 ? "Tight" : "Strict";
+  return (
+    <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[190px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
+      <span className="ft-eyebrow text-[10px] flex items-center gap-1.5">Item search
+        <HelpTip tip={<><b>Exact matches always come first</b> — in stock and special order alike. These sliders only tune the fuzzy retry when nothing matches exactly. <b>Near-match</b> sets how close a typo must be — lower is looser (reducar → Reducer), higher demands near-exact words. <b>Wider retry</b> is a second, looser pass so a bad typo never comes back empty; drag it up to the near-match cutoff to switch it off. The padlock guards both against accidental drags.</>} />
+        <button onClick={() => setLocked((v) => !v)} aria-pressed={!locked}
+          title={locked ? "Sliders locked — click to adjust" : "Sliders unlocked — click to lock them against accidental drags"}
+          className={`ml-auto grid place-items-center w-5 h-5 rounded ${locked ? "text-slate-400 hover:text-slate-600 hover:bg-slate-100" : "text-indigo-700 bg-indigo-50"}`}>
+          {locked ? <Lock size={11} /> : <Unlock size={11} />}
+        </button>
+      </span>
+      <div className="flex flex-col gap-0.5 text-[11px] text-slate-600">
+        <div className="flex items-baseline justify-between gap-1.5" title="When nothing matches your words exactly, the search retries fuzzily at this cutoff and labels the hits as near-matches. Lower catches more typos (reducar → Reducer); higher demands near-exact words. Never affects exact results.">
+          <span className="font-medium">Near-match</span>
+          <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
+        </div>
+        <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} disabled={locked} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5 disabled:opacity-40" style={{ accentColor: "var(--ft-brand)" }} aria-label="Near-match strictness" />
+        <div className="flex items-baseline justify-between gap-1.5 mt-0.5" title="A second, wider near-match pass when the one above still finds nothing — so a bad typo never comes back empty. Drag it up to meet the near-match cutoff to switch it off.">
+          <span className="font-medium">Wider retry</span>
+          <span className="ft-mono text-[10px] font-semibold text-slate-500">{pcts.searchFallback < pcts.searchStrictness ? pcts.searchFallback.toFixed(2) : "Off"}</span>
+        </div>
+        <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchFallback} disabled={locked} onChange={(e) => setPct("searchFallback")(e.target.value)} className="w-full h-1.5 disabled:opacity-40" style={{ accentColor: "var(--ft-brand)" }} aria-label="Wider retry" />
+      </div>
+    </div>
+  );
+}
+
 export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
@@ -497,7 +532,6 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
         const pctInp = "ft-field w-10 text-center rounded-md border border-slate-200 px-1 py-px text-xs leading-5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
         const minus = <span className="inline-grid place-items-center w-4 h-4 shrink-0 rounded text-slate-500 bg-slate-100 text-[12px] font-extrabold leading-none">−</span>;
         const plus = <span className="inline-grid place-items-center w-4 h-4 shrink-0 rounded text-indigo-700 bg-indigo-50 text-[12px] font-extrabold leading-none">+</span>;
-        const strictWord = (t) => t <= 0.2 ? "Loose" : t <= 0.28 ? "Forgiving" : t <= 0.4 ? "Balanced" : t <= 0.55 ? "Tight" : "Strict";
         return (
         <>
           <div className="mt-2 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 md:overflow-visible md:w-[1080px] md:max-w-full md:pb-0 md:snap-none items-stretch">
@@ -560,23 +594,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
               </label>
             </div>
 
-            <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-auto md:w-[190px] md:grow-0 md:shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
-              <span className="ft-eyebrow text-[10px] flex items-center gap-1.5">Item search
-                <HelpTip tip={<><b>Exact matches always come first</b> — in stock and special order alike. These sliders only tune the fuzzy retry when nothing matches exactly. <b>Near-match</b> sets how close a typo must be — lower is looser (reducar → Reducer), higher demands near-exact words. <b>Wider retry</b> is a second, looser pass so a bad typo never comes back empty; drag it up to the near-match cutoff to switch it off.</>} />
-              </span>
-              <div className="flex flex-col gap-0.5 text-[11px] text-slate-600">
-                <div className="flex items-baseline justify-between gap-1.5" title="When nothing matches your words exactly, the search retries fuzzily at this cutoff and labels the hits as near-matches. Lower catches more typos (reducar → Reducer); higher demands near-exact words. Never affects exact results.">
-                  <span className="font-medium">Near-match</span>
-                  <span className="ft-mono text-[10px] font-semibold text-slate-500">{strictWord(pcts.searchStrictness)} · {pcts.searchStrictness.toFixed(2)}</span>
-                </div>
-                <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchStrictness} onChange={(e) => setPct("searchStrictness")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Near-match strictness" />
-                <div className="flex items-baseline justify-between gap-1.5 mt-0.5" title="A second, wider near-match pass when the one above still finds nothing — so a bad typo never comes back empty. Drag it up to meet the near-match cutoff to switch it off.">
-                  <span className="font-medium">Wider retry</span>
-                  <span className="ft-mono text-[10px] font-semibold text-slate-500">{pcts.searchFallback < pcts.searchStrictness ? pcts.searchFallback.toFixed(2) : "Off"}</span>
-                </div>
-                <input type="range" min="0.1" max="0.9" step="0.05" value={pcts.searchFallback} onChange={(e) => setPct("searchFallback")(e.target.value)} className="w-full h-1.5" style={{ accentColor: "var(--ft-brand)" }} aria-label="Wider retry" />
-              </div>
-            </div>
+            <ItemSearchCard pcts={pcts} setPct={setPct} />
           </div>
 
           <div className="md:hidden mt-1 px-0.5 text-[11px] text-slate-400">‹ swipe › Import · Price tiers · Sheoga markup · Order entry · Item search</div>

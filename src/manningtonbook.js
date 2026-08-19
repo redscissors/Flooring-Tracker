@@ -54,13 +54,17 @@ const sectionOf = (line, leftX) => {
 
 // Clean a stacked trim-column header ("Quarter Round 94\" (Piece)") down to its
 // molding name ("Quarter Round"). The size/piece annotations vary per section
-// and carry no product meaning.
+// and carry no product meaning — but Overlap/Flush is the stepnose PROFILE,
+// the one word that tells the laminate pages' two stepnose columns apart
+// (Marcus 2026-08-19), so it survives; the sheet's "O-lap" shorthand reads
+// back out as Overlap.
 function trimLabel(parts) {
   let s = parts.join(" ")
     .replace(/\((?:Piece|PC|2PC)\)/gi, " ")
     .replace(/\b\d{1,3}"?\b/g, " ")
     .replace(/["']/g, " ")
-    .replace(/\b(?:Cn|O-?lap|Overlap|Flush|Piece)\b/gi, " ")
+    .replace(/\bO-?lap\b/gi, "Overlap")
+    .replace(/\b(?:Cn|Piece)\b/gi, " ")
     .replace(/\s+/g, " ").trim();
   if (/^Qtr\b/i.test(s)) s = s.replace(/^Qtr/i, "Quarter");
   if (/^SimpleSt/i.test(s)) s = "SimpleStart";

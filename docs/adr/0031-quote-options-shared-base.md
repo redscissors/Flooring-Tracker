@@ -38,3 +38,15 @@ covers.
   union-exact on BOTH sheets, since the whole-job's option bucket carries the
   union's increment over the shared bucket rather than a standalone per-bucket
   charge (Fix 2, final-review round).
+
+## Amendment 2026-08-19 — slots extended to A–F
+
+Three slots weren't enough ("need to be able to make more than three options",
+Marcus 2026-08-14). `OPTION_SLOTS` is now `A–F` (six); slots stay fixed
+positional identities and everything else in this ADR is unchanged. The slot
+letters moved to `model.js` (normA/normC gate on them; `options.js` re-exports
+the list), and D/E/F got their own compare colors (teal/berry/ochre, still
+outside the moss palette). No migration: old records carry only A–C, which
+remain valid. One rollout caveat: a client running a pre-amendment build
+normalizes an area tagged D–F back to shared on its next save of that job, so
+stale tabs should refresh before teams lean on the new slots.

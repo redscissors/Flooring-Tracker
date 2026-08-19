@@ -2851,7 +2851,7 @@ export default function App({ user, onSignOut }) {
         const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
         return (
           <div className="ft-noprint fixed inset-0 z-50" onClick={() => setAreaMenu(null)} onContextMenu={(e) => { e.preventDefault(); setAreaMenu(null); }}>
-            <div className="absolute bg-white rounded-lg border border-slate-200 shadow-xl p-1" style={{ left: Math.min(areaMenu.x, window.innerWidth - 250), top: Math.min(areaMenu.y, window.innerHeight - 300), width: 236 }} onClick={(e) => e.stopPropagation()}>
+            <div className="absolute bg-white rounded-lg border border-slate-200 shadow-xl p-1 overflow-y-auto" style={{ left: Math.min(areaMenu.x, window.innerWidth - 250), top: Math.min(areaMenu.y, window.innerHeight - 300), maxHeight: window.innerHeight - Math.min(areaMenu.y, window.innerHeight - 300) - 12, width: 236 }} onClick={(e) => e.stopPropagation()}>
               <div className="uppercase text-[9px] font-bold tracking-widest text-slate-400 px-2.5 pt-1.5 pb-0.5">This area is in</div>
               <button className={item} onClick={() => setOpt("")}><span className="w-2 h-2 rounded-sm" style={{ background: "var(--ft-faint)" }} />Shared — every option{!a.option && <Check size={12} className="ml-auto" />}</button>
               {OPTION_SLOTS.map((s) => (optsUsed.includes(s) || free[0] === s) && (
