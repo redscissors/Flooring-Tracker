@@ -1,6 +1,6 @@
 # Schluter shower-system configurator — prototypes
 
-**Status:** prototype · 2026-08-20
+**Status:** prototype, real data · 2026-08-20
 **Open:** `prototype.html` in a browser (fully standalone, no build).
 **Ask (owner):** a Schluter configurator like wedi; a stock-only / full-catalog
 mode; a way to compare wedi and Schluter.
@@ -13,32 +13,41 @@ Three surfaces on one page:
 | P2 | **Stock only / Full catalog** | A source switch in the popup header. Full catalog ranks freely and tags non-stock lines *special order*; Stock only removes non-stocked parts from the candidate pool and swaps stocked substitutes in (curb 60″ → 2× 48″ cut to length, 323 sf KERDI roll → 108 sf rolls). Lands in the shared shell, so wedi gets it for free. |
 | P3 | **wedi ⇄ Schluter compare** | One room, both engines, lined up by category (Base / Drain / Walls / Seams / Curb / Setting) with totals per tier, stock coverage, and the differences that matter (walls, fit strategy, pricing model). |
 
-## Data status
+## Data status — REAL (owner uploads, 2026-08-20)
 
-- **wedi side: real numbers** pulled from `src/wedi.js` (pan/panel/curb/sealant
-  retail = the Jan-2026 pricelist / ERP export). Two allowance lines are
-  marked `est.`
-- **Schluter side: placeholders** at plausible MAP with realistic SKUs. Good
-  enough to judge the UI; **not quotable**. The production engine would be
-  generated from real sheets like wedi's was.
+- **wedi side:** real numbers from `src/wedi.js` (Jan-2026 pricelist / ERP
+  export). Two allowance lines are marked `est.`
+- **Schluter side:** generated from the owner-uploaded **ERP Vendor SKU
+  Analysis** (`Sheet1.xlsx`, 525 rows, 226 Schluter — cost / retail / on-shelf
+  counts) joined with **`SLR_EFT_25_10_01_2.xls`** (7,083 rows, dealer cost,
+  lead times). 54 curated shower-system items + 5 boxed kits drive the page.
+  Raw sheets NOT committed (shop pricing) — same rule as issue 008/066.
 
-## What the owner needs to upload
+## Findings from the sheets
 
-1. Current **Virginia Tile Schluter EFT** (`SLR_EFT_*.xls`) — catalog + net
-   cost. The import pipeline already parses every Schluter size spelling
-   (issue 083).
-2. The shop's **Schluter stock sheet** / ERP Vendor SKU Analysis for Schluter —
-   stock flags + shop retail (the 107-item sheet from
-   `.scratch/008_multi-pricebook-system/sheets/` is dated 4.30.2024).
-3. The **Schluter Illustrated Price List / shower-system brochure** — kit
-   contents and coverage rules to transcribe, the way wedi's handbook rules
-   were.
+- **Pricing rule:** the Schluter stock book prices every row at
+  **retail = 1.5 × cost** (mean ratio 1.502 over 226 rows). Schluter is a
+  plain markup book — the wedi 0.82 publish-retail model does not apply. The
+  EFT is cost-only: its "consumer" column equals dealer cost because the
+  account markup cell is 0.
+- **Drift:** stock-book costs trail the 10/01/2025 EFT ~6% on trays/boards
+  (48"×60" tray $121.03 book vs $128.59 EFT; KERDI-BOARD 4'×8' $74.36 vs
+  $79.01). A registry re-import would surface these through the existing
+  drift machinery.
+- **Range:** the shop shelves the whole KST/LTS tray lineup, all five KERDI
+  roll sizes, band, corners, seals, KERDI-BOARD ½" panels + fasteners,
+  KBSC curbs 38/48/60, Kerdi-Line-Vario 4'/8' + flange, drain kits in four
+  finishes, niches (incl. lighted), benches, All-Set, Kerdi-Fix. The factory
+  KERDI-SHOWER-KIT boxes are all special order — the shop-built kit from
+  shelf stock is the natural play, which the Kits tab says out loud.
+- **Blocked:** `assets.schluter.com` (the official price-list PDF) is
+  egress-blocked from this environment — needs an upload or a network-policy
+  allowlist entry. Wanted for kit contents / coverage rules transcription.
 
 ## Open owner questions
 
-- **Pricing rule:** wedi is retail/0.82-builder with no markup knob. Schluter
-  has no equivalent published program in the repo — prototype shows the app's
-  flat −8% builder with an asterisk. Real rule TBD.
+- **Builder tier:** retail is settled (1.5×); is Schluter's builder price the
+  app's flat −8%, or its own rule? Prototype shows −8% with an asterisk.
 - **Compare delivery:** A) compare tab in the popup (this prototype) ·
   B) cross-price chip in the build column · C) quote options (ADR 0031) — wedi
   in Option A, Schluter in Option B, printed side by side. Recommended: A + C.
