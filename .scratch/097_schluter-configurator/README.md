@@ -51,6 +51,36 @@ Three surfaces on one page:
   curb/ramp, niche + bench markers. The isometric is production work — the
   wedi drawing machinery generalizes once the shell is shared.
 
+## Owner decisions (2026-08-20, on the parity review)
+
+1. **wedi gets the wall fork too**: S-Dry is wedi's membrane-over-backer
+   analog — design the same "wall system" choice INTO the wedi configurator
+   (companion issue for the wedi config, not this build).
+2. **Mortar-bed fallback carries a real mortar**: the fallback card lands a
+   mortar line whose product is a Settings → Materials pick (e.g. 60 lb deck
+   mud), quantity from the picked product's own rate — plus KERDI over the
+   cured bed. Engine takes `cfg.mortarItem`; never a $0 by-installer line.
+3. Two-part drains + cuttable Vario — accepted as prototyped.
+4. **Benches match wedi's doctrine**: premade KERDI-BOARD-SB on the tray,
+   **installer-framed + ½" board wrap** (interrupts the envelope, wedi rule),
+   or **2" KERDI-BOARD build-up on the finished tray**.
+5. **Factory boxed kits show ONLY in Browse** (→ Factory kits filter) — the
+   Kits tab is the shelf trays alone.
+6. Curbless: Schluter TT thin trays + ramp/recess vs wedi's dedicated
+   curbless pans — see the note in the session log; solver prefers TT when
+   curbless.
+7. Registry-driven pricing plumbing — approved.
+8. **Geometry convention carries over**: "Sizes are Pan | Max — curb inside"
+   + tile-thickness insets apply to Schluter exactly as wedi.
+
+**Drawing engine**: production reuses wedi's — extract `TopDown`/isometric/
+`railSplit` out of WediConfigurator.jsx into a shared drawing module both
+configurators feed with the same build-geometry shape (walls + heights/faces,
+base rect + cuts, curbs, benches, drain). Schluter feeds no extension seams,
+panel-course ticks only on board walls, and the Vario channel as a length.
+The 2"-board stock row (KB506252440: shop cost $166.73 vs EFT $59.06) looks
+like a pack row — flag-for-Claude candidate on the next import.
+
 ## Open owner questions
 
 - **Builder tier:** retail is settled (1.5×); is Schluter's builder price the

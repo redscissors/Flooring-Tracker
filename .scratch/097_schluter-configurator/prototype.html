@@ -323,7 +323,9 @@ const SLT = [
  {"sku": "KERSB135KLR", "erp": "1509800", "name": "KERS-B bench corner kit", "price": 35.8, "cost": 23.86, "unit": "PK", "stock": true, "free": 5, "lead": "READY SHIP", "g": "extra", "size": "1 left + 1 right", "eftCost": 25.35},
  {"sku": "SLRSETA50W", "erp": "23051", "name": "Schluter ALL-SET modified thin-set", "price": 39.21, "cost": 26.14, "unit": "BG", "stock": true, "free": 121, "lead": "READY SHIP", "g": "set", "size": "50 lb bag", "sfPerBag": 55, "eftCost": 27.49},
  {"sku": "KERDIFIX/BW", "erp": "1509787", "name": "KERDI-FIX sealing adhesive", "price": 25.66, "cost": 17.11, "unit": "TB", "stock": true, "free": 4, "lead": "READY SHIP", "g": "set", "size": "9.81 oz, bright white", "eftCost": 18.17}
+ ,{"sku": "KB506252440", "erp": "1509754", "name": "KERDI-BOARD 2\" panel", "price": 250.10, "cost": 166.73, "unit": "EA", "stock": true, "free": 8, "lead": "READY SHIP", "g": "board", "size": "2\"×24.5\"×96\"", "thick2": true, "eftCost": 59.06}
 ];
+/* stock cost $166.73 vs EFT $59.06 on the 2" board reads like a pack row - a real flag-for-Claude candidate */
 const SLT_KITS = [
  {"sku": "SLRKSK9651525PVC", "w": 60, "d": 38, "drain": "point", "cost": 372.72, "price": 559.08, "stock": false, "desc": "KERDI-SHOWER-KIT 38 X 60 PVC FLANGE 2 IN"},
  {"sku": "SLRKSK9651525SP", "w": 60, "d": 38, "drain": "offset", "cost": 372.72, "price": 559.08, "stock": false, "desc": "KERDI-SHOWER-KIT 38 X 60 OFFSET PVC FLANGE 2 IN"},
@@ -331,6 +333,7 @@ const SLT_KITS = [
  {"sku": "SLRKSK12201830P", "w": 72, "d": 48, "drain": "point", "cost": 501.41, "price": 752.12, "stock": false, "desc": "KERDI-SHOWER-KIT 48 X 72 PVC FLANGE 2 IN"},
  {"sku": "SLRKSK1830PVC", "w": 72, "d": 72, "drain": "point", "cost": 584.66, "price": 876.99, "stock": false, "desc": "KERDI-SHOWER-KIT 72 X 72 PVC FLANGE 2 IN"}
 ];
+SLT_KITS.forEach(k=>SLT.push({sku:k.sku, name:`KERDI-SHOWER-KIT ${k.d}\"×${k.w}\"${k.drain==="offset"?" offset":""} PVC`, size:"tray + curbs + KERDI + band + flange + corners + seals", price:k.price, cost:k.cost, unit:"EA", stock:false, lead:"READY SHIP", g:"kit", w:k.w, d:k.d}));
 
 /* ---------------- wedi mini-table for compare — REAL numbers from src/wedi.js (cost/retail = ERP export / Jan-2026 pricelist) ---------------- */
 const WEDI = {
@@ -385,7 +388,9 @@ function buildSchluter(cfg, source, pick){
   const add=(g,item,qty,note)=>{ if(item) L.push({g,item,qty,note,so:!item.stock}); };
   const cand = pick || trayCandidates(cfg, source)[0];
   if (cand.kind==="mortar"){
-    L.push({g:"Base", item:{name:"Site-built mortar bed + KERDI membrane floor", sku:"— by installer", price:0, cost:0, stock:true}, qty:1, note:"no tray fits this room"+(source==="stock"?" from stock":"")});
+    const floorSfM = cfg.w*cfg.d/144;
+    L.push({g:"Base", item:{name:"Mortar bed mix — Settings → Materials pick", sku:"— e.g. 60 lb deck mud", price:0, cost:0, stock:true}, qty:Math.max(1,Math.ceil(floorSfM/8)), note:"no tray fits"+(source==="stock"?" from stock":"")+" — qty at ≈8 sf/bag @ 1-1/2\"; rate follows the picked product"});
+    for (const p of pickRolls(floorSfM*1.15, source)) L.push({g:"Base", item:p.item, qty:p.qty, note:"KERDI over the cured bed", so:!p.item.stock});
   } else {
     add("Base", cand.tray, 1, (cand.tray.drain!==cfg.drain && cfg.drain==="offset" ? "centre-drain tray — offset size not made; " : "") + (cand.cut? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit"));
   }
@@ -425,6 +430,11 @@ function buildSchluter(cfg, source, pick){
   } else {
     add("Curb", SLT.find(i=>i.ramp), 1, "12\" run, 1-1/4\"→1/4\" — ADA slope (KERDI-SHOWER-FRS recess system lands Fall 2026)");
   }
+  if (cfg.bench==="framed"){
+    add("Extras", SLT.find(i=>i.g==="board"&&i.sf===32), 1, "framed bench — ½\" KERDI-BOARD wrap, framing by installer (wedi rule: only a framed bench interrupts the envelope)");
+  } else if (cfg.bench==="buildup"){
+    add("Extras", SLT.find(i=>i.thick2), 2, "2\" KERDI-BOARD build-up ON the finished tray — top + face + supports, wedi-style");
+  }
   const floorSf = cfg.w*cfg.d/144;
   const allset = SLT.find(i=>i.sfPerBag);
   add("Setting", allset, Math.max(1,Math.ceil((sf+floorSf)/allset.sfPerBag)), "sets membrane/board");
@@ -452,6 +462,7 @@ const SLT_SECTIONS = [
    { key:"curbs", label:"Curbs & ramp", hit:i=>i.g==="curb" },
    { key:"set",   label:"Setting", hit:i=>i.g==="set" } ]},
  { key:"extras", label:"Extras", hit:i=>i.g==="extra" },
+ { key:"kits", label:"Factory kits", hit:i=>i.g==="kit" },
 ];
 const sltSectionHit = (s,i) => s.hit ? s.hit(i) : s.subs.some(sb=>sb.hit(i));
 
@@ -560,7 +571,7 @@ function popupState(id, over={}){
   return Object.assign({ id, tab:"custom", tier:"retail", source:"all",
     cfg:{ w:60, d:38, curbed:true, drain:"point", wallSys:"membrane",
       walls:[{name:"Back",on:true,len:60,h:84},{name:"Left",on:true,len:38,h:84},{name:"Right",on:true,len:38,h:84}]},
-    pick:null, manual:[], q:"", sec:"", sub:"", figOpen:false, figSf:"" }, over);
+    pick:null, manual:[], q:"", sec:"", sub:"", figOpen:false, figSf:"", bench:null }, over);
 }
 const S1 = popupState("p1");
 
@@ -573,13 +584,7 @@ function renderPopup(S, host, opts={}){
   const st = stockStats(build.lines, S.tier);
   const qtyIn = sku => (S.manual.find(m=>m.sku===sku)||{qty:0}).qty;
 
-  const kitRows = f => SLT_KITS.map(k=>{
-    const dis = S.source==="stock" && !k.stock;
-    return `<button class="kitrow ${!dis&&cfg.w===k.w&&cfg.d===k.d?'on':''} ${dis?'dis':''}" data-kit="${k.sku}" ${dis?'disabled':''}>
-      <span class="sz">${inches(k.w)}×${inches(k.d)}<small>${k.drain}</small></span>
-      <span class="tag ${k.stock?'':'so'}">${k.stock?'stock':'special order'}</span>
-      <span class="sku">${k.sku} — tray + KERDI + band + corners + seals + PVC flange, boxed</span>
-      <span class="pr">${money(priceOf(k,S.tier))}</span></button>`;}).join("");
+
 
   const trayRows = SLT.filter(i=>i.g==="tray").map(t=>{
     const dis = S.source==="stock" && !t.stock;
@@ -669,8 +674,7 @@ function renderPopup(S, host, opts={}){
     <div class="pop-body">
       <div class="main">
         ${S.tab==="kits"?`
-          <div class="fam"><div class="fam-h"><span class="t">Boxed kits</span><span class="hint">the factory box (tray + curbs + KERDI + band + flange + corners + seals; grate separate) — special order at Virginia Tile, and at 1.5× it undercuts the shelf-built bill by ~$60; shelf wins on same-day</span></div>${kitRows()}</div>
-          <div class="fam"><div class="fam-h"><span class="t">Trays</span><span class="hint">the whole KST / LTS lineup is on the shelf — click one and the build column fills in the rest</span></div>${trayRows}</div>`
+          <div class="fam"><div class="fam-h"><span class="t">Trays</span><span class="hint">the whole KST / LTS lineup is on the shelf — click one and the build column fills the kit in. The factory boxed kits (special order, ~$60 under the shelf bill) live in Browse → Factory kits</span></div>${trayRows}</div>`
         :S.tab==="custom"?`
           <div class="formgrid">
             <div class="fgroup"><div class="gt">Room</div>
@@ -686,8 +690,13 @@ function renderPopup(S, host, opts={}){
           </div>
           <div class="fam-h"><span class="t">Options</span><span class="hint">ranked — click one to build from it</span></div>
           <div class="optcards">${optCards}</div>
-          <div class="fam-h" style="margin-top:16px"><span class="t">Add-ons</span><span class="hint">niches, bench — land as build lines</span></div>
-          <div class="chipset">${extrasBar}</div>`
+          <div class="fam-h" style="margin-top:16px"><span class="t">Add-ons</span><span class="hint">niches, benches — land as build lines</span></div>
+          <div class="chipset">${extrasBar}</div>
+          <div class="fam-h" style="margin-top:12px"><span class="t">Site-built bench</span><span class="hint">the wedi bench doctrine — premade sits on the tray; framed interrupts the envelope; 2&Prime; board builds up on it</span></div>
+          <div class="chipset">
+            <button class="chip ${cfg.bench==='framed'?'on':''}" data-bench="framed">Framed + ½&Prime; board wrap</button>
+            <button class="chip ${cfg.bench==='buildup'?'on':''}" data-bench="buildup">2&Prime; board build-up on tray</button>
+          </div>`
         :`
           <div class="browse">
             <div class="searchbar"><input placeholder="Search the Schluter catalog — name, SKU, group…" value="${S.q}" data-q><button class="gchip ${S.figOpen?'on':''}" data-fig>Figure thin-set &amp; KERDI</button></div>
@@ -706,7 +715,7 @@ function renderPopup(S, host, opts={}){
         <button class="addbtn">Add to product lines — ${build.lines.filter(l=>!l.noteOnly).length} rows · schluter:{ mode, cfg } marker</button>
       </div>
       ${opts.noRail?"":`<div class="rail">
-        <div class="pt-t">Plan — to scale</div>${planSvg(cfg, pick, S.manual.map(m=>SLT.find(i=>i.sku===m.sku)).filter(Boolean))}
+        <div class="pt-t">Plan — to scale</div>${planSvg(cfg, pick, S.manual.map(m=>SLT.find(i=>i.sku===m.sku)).filter(Boolean).concat(cfg.bench?[{name:"bench"}]:[]))}
         <div class="pt-t">Isometric</div>${isoSvg(cfg, pick)}
         ${cutList(cfg, build, pick)}
       </div>`}
@@ -720,7 +729,7 @@ function renderPopup(S, host, opts={}){
   host.querySelectorAll("[data-wall]").forEach(b=>b.onclick=()=>{cfg.walls[+b.dataset.wall].on=!cfg.walls[+b.dataset.wall].on; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-wh]").forEach(i=>i.onchange=()=>{cfg.walls[+i.dataset.wh].h=+i.value||84; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-opt]").forEach(b=>b.onclick=()=>{S.pick=cands[+b.dataset.opt]; renderPopup(S,host,opts)});
-  host.querySelectorAll("[data-kit]").forEach(b=>b.onclick=()=>{const k=SLT_KITS.find(x=>x.sku===b.dataset.kit); cfg.w=k.w; cfg.d=k.d; cfg.drain=k.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-bench]").forEach(b=>b.onclick=()=>{cfg.bench = cfg.bench===b.dataset.bench? null : b.dataset.bench; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-tray]").forEach(b=>b.onclick=()=>{const t=SLT.find(x=>x.sku===b.dataset.tray); cfg.w=t.w; cfg.d=t.d; cfg.drain=t.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
   const setQty=(sku,q)=>{ S.manual=S.manual.filter(m=>m.sku!==sku); if(q>0) S.manual.push({sku,qty:q}); };
   host.querySelectorAll("[data-extra]").forEach(b=>b.onclick=()=>{const sku=b.dataset.extra; setQty(sku, qtyIn(sku)>0?0:1); renderPopup(S,host,opts)});
