@@ -165,7 +165,7 @@
 
 <div class="intro">
   <h1><span>ned</span>Schluter shower-system configurator — prototypes</h1>
-  <p>Three surfaces, one page: <b>P1</b> the Schluter configurator popup (the wedi popup's sibling — Kits / Custom shower / Browse over a shared build column), <b>P2</b> the new <b>Stock only / Full catalog</b> source switch that constrains what the solver and the kits may use, and <b>P3</b> a <b>wedi ⇄ Schluter compare</b> that prices the same room in both systems side by side. wedi prices are real (from <code>src/wedi.js</code>); <b>Schluter prices are placeholders</b> pending the real catalogs — see the notes at the end for exactly which files to upload.</p>
+  <p>Three surfaces, one page: <b>P1</b> the Schluter configurator popup (the wedi popup's sibling — Kits / Custom shower / Browse over a shared build column), <b>P2</b> the new <b>Stock only / Full catalog</b> source switch that constrains what the solver and the kits may use, and <b>P3</b> a <b>wedi ⇄ Schluter compare</b> that prices the same room in both systems side by side. Both sides now price from <b>real data</b>: wedi from <code>src/wedi.js</code>, Schluter from the shop's stock sheet (retail, cost, on-shelf counts) and the 10/01/2025 Virginia Tile EFT (dealer cost for special-order parts) uploaded 2026-08-20.</p>
 </div>
 
 <div class="proto-label"><h2><b>P1</b>Schluter configurator</h2><span>Kits · Custom shower · Browse — same shell as wedi, with the Source switch in the header. Everything below is live: click around.</span></div>
@@ -175,7 +175,7 @@
     <ul>
       <li><b>The walls are a fork, not a given.</b> wedi walls are always wedi panel. Schluter walls are either <b>KERDI-BOARD</b> (foam board, like wedi) or <b>KERDI membrane over backer</b> (backer by others) — different bills, different labor. The Custom tab makes it a first-class choice and the build column regroups around it.</li>
       <li><b>Trays cut, they don't extend.</b> wedi solves rooms with extensions; Schluter's answer is the next tray up cut down (soft 6&Prime; rule kept) or a mortar-bed fallback card.</li>
-      <li><b>No published-retail rule yet.</b> wedi's Builder = retail × 0.82 is a wedi program. Schluter pricing here shows Retail / Builder −8% as the app default — the real rule is an open question for the owner.</li>
+      <li><b>Pricing rule found in the sheets:</b> the Schluter stock book prices every one of its 226 rows at <b>retail = 1.5 × cost</b> — so Schluter is a plain markup book (the EFT's "consumer" column just equals dealer cost at 0% account markup). The tier bar shows Retail (1.5×) / Builder (−8% app default, still an owner call) / Cost.</li>
     </ul>
   </div>
 </div>
@@ -186,7 +186,7 @@
   <div class="nc"><h3>How the switch behaves</h3>
     <ul>
       <li><b>Full catalog</b> (default): the solver ranks freely; a line the shop doesn't stock wears the rust <b>special order</b> tag and the build column's stock meter says how much of the bill ships from the shelf.</li>
-      <li><b>Stock only</b>: non-stocked parts leave the candidate pool entirely — kits gray out, option cards re-rank, and where a stocked substitute exists the build swaps to it (larger tray cut down, 108 sf KERDI rolls instead of the 323 sf roll). A line with <i>no</i> stocked substitute stays, flagged, so the build is never silently wrong.</li>
+      <li><b>Stock only</b>: non-stocked parts leave the candidate pool entirely — kits gray out, option cards re-rank, and where a stocked substitute exists the build swaps to it. The demo room (48"×48", linear drain) shows it live: the exact LTS 48"×48" tray is special order, so Stock only re-ranks to the stocked 55"×55" cut down — a deep cut, labeled as one. A line with <i>no</i> stocked substitute stays, flagged, so the build is never silently wrong.</li>
       <li><b>It's a shell feature.</b> The switch lands in the shared popup header, so wedi gets it for free the same day — wedi's Browse tab already ranks stock first; this makes it a hard constraint when you want one.</li>
     </ul>
   </div>
@@ -195,12 +195,12 @@
 <div class="proto-label"><h2><b>P3</b>wedi ⇄ Schluter compare</h2><span>One room in, two systems out. Pick a preset room; both engines build their house kit and the grid lines them up by category.</span></div>
 <div class="popwrap"><div class="popup" id="p3"></div></div>
 <div class="notecard">
-  <div class="nc"><h3>Data status — what to upload</h3>
+  <div class="nc"><h3>Data status — what the sheets said</h3>
     <ul>
-      <li><b>Schluter catalog & net cost:</b> the current Virginia Tile Schluter EFT (<code>SLR_EFT_*.xls</code> — the 7,033-row one from issue 083, or newer). The import pipeline already parses every Schluter size spelling; the configurator engine would be generated from it like wedi's was.</li>
-      <li><b>Stock flags & shop retail:</b> the shop's <code>Schluter_stock</code> sheet (107 items, "updated 4.30.2024" — a current export) and/or the ERP Vendor SKU Analysis for Schluter, to mark what's on the shelf and price it.</li>
-      <li><b>System recipes:</b> the Schluter Illustrated Price List / Shower System brochure PDF, to transcribe kit contents and coverage rules the way wedi's handbook rules were transcribed.</li>
-      <li>Every price on this page marked <b>est.</b> is a placeholder at plausible MAP — good enough to judge the UI, not good enough to quote from.</li>
+      <li><b>Loaded for real:</b> the ERP Vendor SKU Analysis (525 rows, 226 Schluter — trays, membrane, band, corners, drains, Kerdi-Line-Vario, boards, curbs, niches, benches, All-Set, with cost / retail / on-shelf counts) and the 7,083-row <code>SLR_EFT_25_10_01_2.xls</code> (dealer cost, lead times). 54 shower-system items + 5 boxed kits drive this page.</li>
+      <li><b>Rule found:</b> retail = 1.5 × cost on every Schluter stock row. The EFT is cost-only (its consumer column = dealer at the account's 0% markup).</li>
+      <li><b>Drift found:</b> the stock book's costs trail the 10/01/2025 EFT by ~6% on trays and boards (48"×60" tray: $121.03 in the book, $128.59 on the new sheet). A re-import of the EFT into the price-book library would surface every one through the existing drift chips.</li>
+      <li><b>Still wanted:</b> the Schluter USA price-list / shower brochure PDF for kit contents and coverage rules. <code>assets.schluter.com</code> is egress-blocked from this environment — upload the PDF like the sheets, or allowlist the domain in the environment's network settings.</li>
     </ul>
   </div>
   <div class="nc"><h3>Three ways to ship "compare" — recommendation</h3>
@@ -214,61 +214,71 @@
 </div>
 
 <script>
-/* ---------------- placeholder Schluter catalog (est. MAP; stock flags guessed from the 107-item shop sheet) ---------------- */
+/* ---------------- REAL Schluter catalog - generated from the shop stock sheet (retail/cost/free stock)
+   and SLR_EFT_25_10_01_2.xls (dealer cost, lead) 2026-08-20. eftCost marks stocked rows whose shop cost
+   trails the 10/01/2025 EFT. ---------------- */
 const SLT = [
- // trays — point drain, centre
- {sku:"KST965/965",    name:"KERDI-SHOWER-T Tray", w:38,d:38, price:255,  unit:"EA", stock:false, g:"tray", drain:"point"},
- {sku:"KST965/1220",   name:"KERDI-SHOWER-T Tray", w:38,d:48, price:285,  unit:"EA", stock:true,  g:"tray", drain:"point"},
- {sku:"KST1220/1220",  name:"KERDI-SHOWER-T Tray", w:48,d:48, price:330,  unit:"EA", stock:true,  g:"tray", drain:"point"},
- {sku:"KST965/1525",   name:"KERDI-SHOWER-T Tray", w:60,d:38, price:355,  unit:"EA", stock:true,  g:"tray", drain:"point"},
- {sku:"KST1220/1525",  name:"KERDI-SHOWER-T Tray", w:60,d:48, price:420,  unit:"EA", stock:true,  g:"tray", drain:"point"},
- {sku:"KST1220/1830",  name:"KERDI-SHOWER-T Tray", w:72,d:48, price:505,  unit:"EA", stock:false, g:"tray", drain:"point"},
- {sku:"KST1397/1397",  name:"KERDI-SHOWER-T Tray", w:55,d:55, price:470,  unit:"EA", stock:false, g:"tray", drain:"point"},
- {sku:"KST1830/1830",  name:"KERDI-SHOWER-TT Tray",w:72,d:72, price:798,  unit:"EA", stock:false, g:"tray", drain:"point"},
- // trays — offset drain
- {sku:"KST965/1525S1", name:"KERDI-SHOWER-T Tray, offset drain", w:60,d:38, price:375, unit:"EA", stock:false, g:"tray", drain:"offset"},
- {sku:"KST1220/1525S1",name:"KERDI-SHOWER-T Tray, offset drain", w:60,d:48, price:445, unit:"EA", stock:false, g:"tray", drain:"offset"},
- // trays — sloped to one edge for KERDI-LINE
- {sku:"KSLT965/1525",  name:"KERDI-LINE-SHOWER-LTS Tray", w:60,d:38, price:465, unit:"EA", stock:true,  g:"tray", drain:"linear"},
- {sku:"KSLT1220/1525", name:"KERDI-LINE-SHOWER-LTS Tray", w:60,d:48, price:540, unit:"EA", stock:false, g:"tray", drain:"linear"},
- {sku:"KSLT1220/1830", name:"KERDI-LINE-SHOWER-LTS Tray", w:72,d:48, price:625, unit:"EA", stock:false, g:"tray", drain:"linear"},
- // drains
- {sku:"KD2/ATS",   name:"KERDI-DRAIN kit, 4\" grate, stainless", price:128, unit:"EA", stock:true,  g:"drain", drain:"point"},
- {sku:"KD2/AOB",   name:"KERDI-DRAIN kit, 4\" grate, oil-rubbed bronze", price:172, unit:"EA", stock:false, g:"drain", drain:"point"},
- {sku:"KLG3-24",   name:"KERDI-LINE-G3 linear drain 24\"", price:398, unit:"EA", stock:false, g:"drain", drain:"linear", len:24},
- {sku:"KLG3-32",   name:"KERDI-LINE-G3 linear drain 32\"", price:452, unit:"EA", stock:true,  g:"drain", drain:"linear", len:32},
- {sku:"KLG3-40",   name:"KERDI-LINE-G3 linear drain 40\"", price:498, unit:"EA", stock:false, g:"drain", drain:"linear", len:40},
- {sku:"KLG3-48",   name:"KERDI-LINE-G3 linear drain 48\"", price:556, unit:"EA", stock:false, g:"drain", drain:"linear", len:48},
- // membrane path
- {sku:"KERDI200/108", name:"KERDI 200 membrane roll", size:"3'3\"×33' = 108 sf", price:214, unit:"RL", stock:true,  g:"membrane", sf:108},
- {sku:"KERDI200/323", name:"KERDI 200 membrane roll", size:"3'3\"×98'5\" = 323 sf", price:565, unit:"RL", stock:false, g:"membrane", sf:323},
- {sku:"KEBA100/125",  name:"KERDI-BAND 5\" seam band", size:"98'6\" roll", price:88, unit:"RL", stock:true, g:"seam"},
- {sku:"KERECK-F2",    name:"KERECK-F preformed inside corners", size:"2 per bag", price:16, unit:"BG", stock:true, g:"seam"},
- {sku:"KERECK-FAE2",  name:"KERECK-F preformed outside corners", size:"2 per bag", price:16, unit:"BG", stock:false, g:"seam"},
- {sku:"KM5117",       name:"KERDI-SEAL-PS pipe seal", price:19, unit:"EA", stock:true, g:"seam"},
- {sku:"KMV",          name:"KERDI-SEAL-MV mixing-valve seal", price:31, unit:"EA", stock:true, g:"seam"},
- // board path
- {sku:"KB12-48x96", name:"KERDI-BOARD 1/2\" panel", size:"48\"×96\" = 32 sf", price:104, unit:"SH", stock:true,  g:"board", sf:32},
- {sku:"KB12-48x64", name:"KERDI-BOARD 1/2\" panel", size:"48\"×64\" = 21.3 sf", price:76, unit:"SH", stock:false, g:"board", sf:21.3},
- {sku:"KBZS-KIT",   name:"KERDI-BOARD-ZT screws + washers", size:"100 ct", price:44, unit:"BX", stock:true, g:"board"},
- // curb / curbless
- {sku:"KSC48",  name:"KERDI-SHOWER-SC curb 48\"", size:"6\"×4\"×48\"", price:92, unit:"EA", stock:true,  g:"curb", len:48},
- {sku:"KSC60",  name:"KERDI-SHOWER-SC curb 60\"", size:"6\"×4\"×60\"", price:108, unit:"EA", stock:false, g:"curb", len:60},
- {sku:"KSR-U",  name:"KERDI-SHOWER-SR curbless ramp", price:139, unit:"EA", stock:false, g:"curb"},
- // extras
- {sku:"KBSN1220A", name:"KERDI-BOARD-SN niche 12\"×20\"", price:134, unit:"EA", stock:true,  g:"extra"},
- {sku:"KBSN1228AS",name:"KERDI-BOARD-SN niche 12\"×28\" + shelf", price:186, unit:"EA", stock:false, g:"extra"},
- {sku:"KSB38",     name:"KERDI-SHOWER-SB corner bench 16\"×16\"×38\"", price:392, unit:"EA", stock:false, g:"extra"},
- // setting & seal
- {sku:"ALLSET-50", name:"Schluter ALL-SET modified thin-set", size:"50 lb bag", price:43, unit:"BG", stock:true, g:"set", sfPerBag:55},
- {sku:"KERDI-FIX", name:"KERDI-FIX sealing adhesive", size:"10.1 oz cartridge", price:33, unit:"EA", stock:true, g:"set"},
+ {"sku": "KST965BF", "erp": "1509824", "name": "KERDI-SHOWER-TT Tray 38\"×38\"", "price": 101.14, "cost": 67.42, "unit": "EA", "stock": true, "free": 2, "lead": "READY SHIP", "g": "tray", "w": 38, "d": 38, "drain": "point", "eftCost": 71.64},
+ {"sku": "KST965/810BF", "erp": "1509823", "name": "KERDI-SHOWER-TT Tray 38\"×32\"", "price": 119.32, "cost": 79.54, "unit": "EA", "stock": true, "free": 2, "lead": "IMPORT", "g": "tray", "w": 38, "d": 32, "drain": "point", "eftCost": 84.52},
+ {"sku": "KST915BF", "erp": "1509820", "name": "KERDI-SHOWER-TT Tray 36\"×36\"", "price": 90.78, "cost": 60.52, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 36, "d": 36, "drain": "point", "eftCost": 64.3},
+ {"sku": "KST915/1220BF", "erp": "1509819", "name": "KERDI-SHOWER-TT Tray 36\"×48\"", "price": 140.06, "cost": 93.37, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 48, "d": 36, "drain": "point", "eftCost": 99.2},
+ {"sku": "KST1220BF", "erp": "1509816", "name": "KERDI-SHOWER-TT Tray 48\"×48\"", "price": 111.53, "cost": 74.35, "unit": "EA", "stock": true, "free": 2, "lead": "READY SHIP", "g": "tray", "w": 48, "d": 48, "drain": "point", "eftCost": 79.0},
+ {"sku": "KST965/1525", "erp": "1509821", "name": "KERDI-SHOWER-T Tray 38\"×60\"", "price": 121.91, "cost": 81.27, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 38, "drain": "point", "eftCost": 86.35},
+ {"sku": "KST965/1525S", "erp": "1509822", "name": "KERDI-SHOWER-TS Tray 38\"×60\" offset drain", "price": 121.91, "cost": 81.27, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 38, "drain": "offset", "eftCost": 86.35},
+ {"sku": "KST1220/1525", "erp": "1509814", "name": "KERDI-SHOWER-T Tray 48\"×60\"", "price": 181.55, "cost": 121.03, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 48, "drain": "point", "eftCost": 128.59},
+ {"sku": "KST1220/1830", "erp": "1509815", "name": "KERDI-SHOWER-T Tray 48\"×72\"", "price": 194.52, "cost": 129.68, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "tray", "w": 72, "d": 48, "drain": "point", "eftCost": 137.79},
+ {"sku": "KST1525", "erp": "1509817", "name": "KERDI-SHOWER-T Tray 60\"×60\"", "price": 238.61, "cost": 159.07, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 60, "drain": "point", "eftCost": 169.01},
+ {"sku": "KST1830", "erp": "1509818", "name": "KERDI-SHOWER-T Tray 72\"×72\"", "price": 259.35, "cost": 172.9, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 72, "d": 72, "drain": "point", "eftCost": 183.71},
+ {"sku": "SLRKSLT1000S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 39\"×39\"", "price": 194.64, "cost": 129.76, "unit": "PC", "stock": false, "free": null, "lead": "IMPORT", "g": "tray", "w": 39, "d": 39, "drain": "linear"},
+ {"sku": "SLRKSLT1220S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 48\"×48\"", "price": 259.59, "cost": 173.06, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "tray", "w": 48, "d": 48, "drain": "linear"},
+ {"sku": "SLRKSLT9151395S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 36\"×55\"", "price": 228.42, "cost": 152.28, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "tray", "w": 55, "d": 36, "drain": "linear"},
+ {"sku": "KSLT1395S", "erp": "1509812", "name": "KERDI-SHOWER-LTS Tray 55\"×55\"", "price": 307.85, "cost": 205.23, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 55, "d": 55, "drain": "linear", "eftCost": 218.06},
+ {"sku": "SLRKSLT9151830S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 36\"×72\"", "price": 306.3, "cost": 204.2, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "tray", "w": 72, "d": 36, "drain": "linear"},
+ {"sku": "KSLT965/1930S", "erp": "1509813", "name": "KERDI-SHOWER-LTS Tray 38\"×76\"", "price": 317.61, "cost": 211.74, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "tray", "w": 76, "d": 38, "drain": "linear", "eftCost": 224.97},
+ {"sku": "KD2FLKPVC", "erp": "1509762", "name": "KERDI-DRAIN flange kit 2\" PVC", "price": 84.62, "cost": 56.41, "unit": "EA", "stock": true, "free": 8, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "flange", "eftCost": 53.02},
+ {"sku": "KD4GRKE", "erp": "1509763", "name": "KERDI-DRAIN grate 4\" stainless", "price": 52.9, "cost": 35.27, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "grate", "eftCost": 37.47},
+ {"sku": "KD4GRKECS", "erp": "1509764", "name": "KERDI-DRAIN grate 4\" tileable", "price": 52.9, "cost": 35.27, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "grate", "eftCost": 37.47},
+ {"sku": "KDIF4GRKEBD5", "erp": "1509768", "name": "KERDI-DRAIN grate kit 4\" floral brushed SS", "price": 86.29, "cost": 57.52, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "grate", "eftCost": 61.13},
+ {"sku": "KLVRID3EB122", "erp": "1509801", "name": "KERDI-LINE-VARIO 4' square, brushed SS", "price": 220.48, "cost": 146.98, "unit": "EA", "stock": true, "free": 2, "lead": "READY SHIP", "g": "drain", "size": "cut to length", "drain": "linear", "part": "channel", "len": 48, "eftCost": 156.16},
+ {"sku": "KLVRID3EB244", "erp": "1509802", "name": "KERDI-LINE-VARIO 8' square, brushed SS", "price": 403.09, "cost": 268.73, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "drain", "size": "cut to length", "drain": "linear", "part": "channel", "len": 96, "eftCost": 285.52},
+ {"sku": "KLVRID5EB122", "erp": "1509803", "name": "KERDI-LINE-VARIO 4' floral, brushed SS", "price": 210.12, "cost": 140.08, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "drain", "size": "cut to length", "drain": "linear", "part": "channel", "len": 48, "eftCost": 148.83},
+ {"sku": "KLVR2FLK", "erp": "1510357", "name": "KERDI-LINE-VARIO flange kit 2\"", "price": 103.51, "cost": 69.0, "unit": "EA", "stock": true, "free": 5, "lead": "READY SHIP", "g": "drain", "drain": "linear", "part": "flange", "eftCost": 73.31},
+ {"sku": "KERDI200/5M", "erp": "1509785", "name": "KERDI membrane roll", "price": 106.94, "cost": 71.29, "unit": "RL", "stock": true, "free": 3, "lead": null, "g": "membrane", "size": "3'3\"×16'5\" = 54 sf", "sf": 54},
+ {"sku": "KERDI200/7M", "erp": "1509784", "name": "KERDI membrane roll", "price": 146.47, "cost": 97.64, "unit": "RL", "stock": true, "free": 4, "lead": "READY SHIP", "g": "membrane", "size": "3'3\"×23' = 75 sf", "sf": 75, "eftCost": 103.74},
+ {"sku": "KERDI200/10M", "erp": "1509783", "name": "KERDI membrane roll", "price": 207.65, "cost": 138.43, "unit": "RL", "stock": true, "free": 5, "lead": null, "g": "membrane", "size": "3'3\"×33' = 108 sf", "sf": 108},
+ {"sku": "KERDI200/20M", "erp": "1509782", "name": "KERDI membrane roll", "price": 396.83, "cost": 264.55, "unit": "RL", "stock": true, "free": 2, "lead": null, "g": "membrane", "size": "3'3\"×66' = 215 sf", "sf": 215},
+ {"sku": "KERDI200", "erp": "1509781", "name": "KERDI membrane roll", "price": 528.1, "cost": 352.07, "unit": "RL", "stock": true, "free": 2, "lead": "READY SHIP", "g": "membrane", "size": "3'3\"×98'5\" = 323 sf", "sf": 323},
+ {"sku": "KERDI200200/15M", "erp": "1509786", "name": "KERDI wide roll", "price": 559.48, "cost": 372.98, "unit": "RL", "stock": true, "free": 2, "lead": null, "g": "membrane", "size": "6'7\"×49' = 323 sf", "sf": 323},
+ {"sku": "KEBA100/125/5M", "erp": "1509778", "name": "KERDI-BAND 5\" seam band", "price": 19.85, "cost": 13.23, "unit": "RL", "stock": true, "free": 4, "lead": "READY SHIP", "g": "seam", "size": "16'5\" roll", "lf": 16, "eftCost": 14.06},
+ {"sku": "KEBA100/125/10M", "erp": "1509779", "name": "KERDI-BAND 5\" seam band", "price": 37.71, "cost": 25.14, "unit": "RL", "stock": true, "free": 3, "lead": "READY SHIP", "g": "seam", "size": "32'10\" roll", "lf": 33, "eftCost": 26.71},
+ {"sku": "KEBA100/125", "erp": "1509780", "name": "KERDI-BAND 5\" seam band", "price": 93.16, "cost": 62.11, "unit": "RL", "stock": true, "free": 5, "lead": "READY SHIP", "g": "seam", "size": "98'5\" roll", "lf": 98, "eftCost": 65.99},
+ {"sku": "KERECK/FI2", "erp": "1509791", "name": "KERECK-F inside corners", "price": 15.32, "cost": 10.21, "unit": "PK", "stock": true, "free": 3, "lead": "READY SHIP", "g": "seam", "size": "2 per pack", "eftCost": 10.85},
+ {"sku": "KERECK/FA2", "erp": "1509789", "name": "KERECK-F outside corners", "price": 15.32, "cost": 10.21, "unit": "PK", "stock": true, "free": 6, "lead": "READY SHIP", "g": "seam", "size": "2 per pack", "eftCost": 10.85},
+ {"sku": "KMS172/12", "erp": "1509807", "name": "KERDI-SEAL-PS pipe seal 1/2\"", "price": 7.55, "cost": 5.03, "unit": "EA", "stock": true, "free": 6, "lead": "READY SHIP", "g": "seam"},
+ {"sku": "KMSMV235/114", "erp": "1509811", "name": "KERDI-SEAL-MV mixing-valve seal", "price": 8.71, "cost": 5.8, "unit": "EA", "stock": true, "free": 6, "lead": "READY SHIP", "g": "seam"},
+ {"sku": "KB1212201625", "erp": "1509748", "name": "KERDI-BOARD 1/2\" panel", "price": 74.38, "cost": 49.58, "unit": "EA", "stock": true, "free": 52, "lead": "READY SHIP", "g": "board", "size": "48\"×64\" = 21.3 sf", "sf": 21.3, "eftCost": 52.68},
+ {"sku": "KB1212202440", "erp": "1509749", "name": "KERDI-BOARD 1/2\" panel", "price": 111.54, "cost": 74.36, "unit": "EA", "stock": true, "free": 20, "lead": "READY SHIP", "g": "board", "size": "48\"×96\" = 32 sf", "sf": 32, "eftCost": 79.01},
+ {"sku": "KBZS35GT32Z", "erp": "1509758", "name": "KERDI-BOARD screws + washers", "price": 12.58, "cost": 8.38, "unit": "BX", "stock": true, "free": 3, "lead": "READY SHIP", "g": "board", "size": "40 ct", "eftCost": 8.91},
+ {"sku": "KBZS35GT32Z100", "erp": "1509759", "name": "KERDI-BOARD screws + washers", "price": 23.73, "cost": 15.82, "unit": "BX", "stock": true, "free": 8, "lead": null, "g": "board", "size": "100 ct"},
+ {"sku": "KBSC115150970", "erp": "1509755", "name": "KERDI-BOARD-SC curb 38\"", "price": 55.42, "cost": 36.94, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "curb", "size": "6\"×4½\"×38\"", "len": 38, "eftCost": 39.26},
+ {"sku": "KBSC1151501220", "erp": "1509756", "name": "KERDI-BOARD-SC curb 48\"", "price": 60.45, "cost": 40.3, "unit": "EA", "stock": true, "free": 2, "lead": null, "g": "curb", "size": "6\"×4½\"×48\"", "len": 48},
+ {"sku": "KBSC1151501524", "erp": "1509757", "name": "KERDI-BOARD-SC curb 60\"", "price": 88.66, "cost": 59.1, "unit": "EA", "stock": true, "free": 4, "lead": null, "g": "curb", "size": "6\"×4½\"×60\"", "len": 60},
+ {"sku": "SLRKSR3051220", "erp": null, "name": "KERDI-SHOWER-R curbless ramp 12\"×48\"", "price": 99.03, "cost": 66.02, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "curb", "ramp": true},
+ {"sku": "KB12SN305508A1", "erp": "1509750", "name": "KERDI-BOARD-SN niche 12\"×20\"", "price": 88.91, "cost": 59.27, "unit": "EA", "stock": true, "free": 4, "lead": null, "g": "extra"},
+ {"sku": "KB12SN305711A1", "erp": "1509751", "name": "KERDI-BOARD-SN niche 12\"×28\"", "price": 106.26, "cost": 70.84, "unit": "EA", "stock": true, "free": 5, "lead": null, "g": "extra"},
+ {"sku": "KB12SNLT2WW", "erp": "1509752", "name": "KERDI-BOARD-SN-LT lighted niche 12\"×20\"", "price": 269.76, "cost": 179.84, "unit": "EA", "stock": true, "free": 5, "lead": null, "g": "extra", "size": "warm white"},
+ {"sku": "KBSB410TA", "erp": "1509830", "name": "KERDI-BOARD-SB bench 16\"×16\" triangular", "price": 153.13, "cost": 102.09, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "extra", "eftCost": 108.47},
+ {"sku": "KBSB4101220RA", "erp": "1509831", "name": "KERDI-BOARD-SB bench 16\"×48\" rectangular", "price": 327.43, "cost": 218.28, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "extra", "eftCost": 231.93},
+ {"sku": "KERSB135KLR", "erp": "1509800", "name": "KERS-B bench corner kit", "price": 35.8, "cost": 23.86, "unit": "PK", "stock": true, "free": 5, "lead": "READY SHIP", "g": "extra", "size": "1 left + 1 right", "eftCost": 25.35},
+ {"sku": "SLRSETA50W", "erp": "23051", "name": "Schluter ALL-SET modified thin-set", "price": 39.21, "cost": 26.14, "unit": "BG", "stock": true, "free": 121, "lead": "READY SHIP", "g": "set", "size": "50 lb bag", "sfPerBag": 55, "eftCost": 27.49},
+ {"sku": "KERDIFIX/BW", "erp": "1509787", "name": "KERDI-FIX sealing adhesive", "price": 25.66, "cost": 17.11, "unit": "TB", "stock": true, "free": 4, "lead": "READY SHIP", "g": "set", "size": "9.81 oz, bright white", "eftCost": 18.17}
 ];
-/* factory kits (tray + KERDI + band + corners + drain + seals in one box) */
 const SLT_KITS = [
- {sku:"KIT965/1220KD",  w:38,d:48, price:645, stock:false},
- {sku:"KIT1220/1220KD", w:48,d:48, price:689, stock:true},
- {sku:"KIT965/1525KD",  w:60,d:38, price:722, stock:true},
- {sku:"KIT1220/1830KD", w:72,d:48, price:889, stock:false},
+ {"sku": "SLRKSK9651525PVC", "w": 60, "d": 38, "drain": "point", "cost": 372.72, "price": 559.08, "stock": false, "desc": "KERDI-SHOWER-KIT 38 X 60 PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK9651525SP", "w": 60, "d": 38, "drain": "offset", "cost": 372.72, "price": 559.08, "stock": false, "desc": "KERDI-SHOWER-KIT 38 X 60 OFFSET PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK1220PVC", "w": 48, "d": 48, "drain": "point", "cost": 340.89, "price": 511.33, "stock": false, "desc": "KERDI-SHOWER-KIT 48 X 48 PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK12201830P", "w": 72, "d": 48, "drain": "point", "cost": 501.41, "price": 752.12, "stock": false, "desc": "KERDI-SHOWER-KIT 48 X 72 PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK1830PVC", "w": 72, "d": 72, "drain": "point", "cost": 584.66, "price": 876.99, "stock": false, "desc": "KERDI-SHOWER-KIT 72 X 72 PVC FLANGE 2 IN"}
 ];
 
 /* ---------------- wedi mini-table for compare — REAL numbers from src/wedi.js (cost/retail = ERP export / Jan-2026 pricelist) ---------------- */
@@ -288,85 +298,85 @@ const WEDI = {
 /* ---------------- shared helpers ---------------- */
 const $$ = s => document.querySelector(s);
 const money = n => n==null ? "—" : n.toLocaleString("en-US",{style:"currency",currency:"USD"});
-const TIERS = {retail:{lbl:"Retail",mult:1}, builder:{lbl:"Builder",mult:.92,note:"−8% app default*"}};
+const TIERS = {retail:{lbl:"Retail",mult:1,note:"1.5× cost"}, builder:{lbl:"Builder",mult:.92,note:"−8% app default*"}, cost:{lbl:"Cost",mult:1,note:"shop book / EFT"}};
 const WEDI_BUILDER = .82;
 const inches = n => n % 12 === 0 ? (n/12)+"'" : n+'"';
 const szLbl = t => `${inches(t.w)}×${inches(t.d)}`;
 
-/* ---------------- schluter engine (prototype-sized) ---------------- */
+/* ---------------- schluter engine (real data) ---------------- */
 function wallArea(cfg){ return cfg.walls.filter(w=>w.on).reduce((s,w)=>s + w.len*w.h/144, 0); }
+const priceOf = (item, tier) => tier==="cost" ? (item.cost||0) : (item.price||0)*TIERS[tier].mult;
 function trayCandidates(cfg, source){
-  const want = cfg.drain, pool = SLT.filter(i=>i.g==="tray" && (source==="all"||i.stock));
+  const pool = SLT.filter(i=>i.g==="tray" && (source==="all"||i.stock) &&
+    (cfg.drain==="linear" ? i.drain==="linear" : i.drain!=="linear"));
   const fits = t => t.w>=cfg.w && t.d>=cfg.d && (t.w-cfg.w)+(t.d-cfg.d) <= 26;
-  const out = [];
-  for (const t of pool.filter(p=>p.drain===want && fits(p))){
-    const cut = (t.w-cfg.w)+(t.d-cfg.d);
-    out.push({tray:t, cut, deep:(t.w-cfg.w>6||t.d-cfg.d>6),
-      kind: cut===0 ? "exact" : "cut"});
-  }
-  if (want!=="linear"){                       // linear tray never substitutes a point build
-    out.sort((a,b)=>a.cut-b.cut || a.tray.price-b.tray.price);
-  } else out.sort((a,b)=>a.cut-b.cut);
+  const out = pool.filter(fits).map(t=>({tray:t, cut:(t.w-cfg.w)+(t.d-cfg.d),
+    deep:(t.w-cfg.w>6||t.d-cfg.d>6), kind:((t.w-cfg.w)+(t.d-cfg.d))===0?"exact":"cut"}));
+  out.sort((a,b)=>((a.tray.drain===cfg.drain?0:1)-(b.tray.drain===cfg.drain?0:1)) || a.cut-b.cut || a.tray.price-b.tray.price);
   if (!out.length) out.push({kind:"mortar", cut:0});
   return out.slice(0,4);
 }
+function pickRolls(sfNeed, source){
+  const rolls = SLT.filter(i=>i.g==="membrane" && !/wide/i.test(i.name) && (source==="all"||i.stock)).sort((a,b)=>a.sf-b.sf);
+  if (!rolls.length) return [];
+  const picks = []; const big = rolls[rolls.length-1];
+  let need = sfNeed;
+  const nBig = Math.floor(need/big.sf);
+  if (nBig>0){ picks.push({item:big, qty:nBig}); need -= nBig*big.sf; }
+  if (need>0){ const top = rolls.find(r=>r.sf>=need) || big;
+    const ex = picks.find(p=>p.item===top); ex ? ex.qty++ : picks.push({item:top, qty:1}); }
+  return picks;
+}
 function buildSchluter(cfg, source, pick){
-  const L=[], stockOr = (item, alt) => (source==="stock" && !item.stock && alt && alt.stock) ? alt : item;
-  const add=(g,item,qty,note,forced)=>L.push({g,item,qty,note,so:!item.stock,forced});
+  const L=[];
+  const add=(g,item,qty,note)=>{ if(item) L.push({g,item,qty,note,so:!item.stock}); };
   const cand = pick || trayCandidates(cfg, source)[0];
   if (cand.kind==="mortar"){
-    L.push({g:"Base", item:{name:"Site-built mortar bed + KERDI membrane floor", sku:"— by installer", price:0, stock:true}, qty:1, note:"no tray fits this room"});
+    L.push({g:"Base", item:{name:"Site-built mortar bed + KERDI membrane floor", sku:"— by installer", price:0, cost:0, stock:true}, qty:1, note:"no tray fits this room"+(source==="stock"?" from stock":"")});
   } else {
-    add("Base", cand.tray, 1, cand.cut? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit");
+    add("Base", cand.tray, 1, (cand.tray.drain!==cfg.drain && cfg.drain==="offset" ? "centre-drain tray — offset size not made; " : "") + (cand.cut? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit"));
   }
-  // drain
   if (cfg.drain==="linear"){
-    const lens = SLT.filter(i=>i.g==="drain"&&i.drain==="linear"&&(source==="all"||i.stock));
-    const d = lens.filter(x=>x.len<=cfg.w-8).sort((a,b)=>b.len-a.len)[0] || lens[0];
-    if (d) add("Drain", d, 1, "at the wall");
+    const chans = SLT.filter(i=>i.g==="drain"&&i.part==="channel"&&(source==="all"||i.stock)).sort((a,b)=>a.len-b.len||a.price-b.price);
+    const need = cfg.w-8;
+    const ch = chans.find(c=>c.len>=need) || chans[chans.length-1];
+    add("Drain", ch, 1, ch && ch.len>need ? `cut to ${need}"` : "at the wall");
+    add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="linear"), 1);
   } else {
-    const drains = SLT.filter(i=>i.g==="drain"&&i.drain==="point");
-    add("Drain", stockOr(drains[0], drains[0]), 1, "bonded-flange kit");
+    add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="point"), 1, 'bonded flange, 2" PVC');
+    const grates = SLT.filter(i=>i.g==="drain"&&i.part==="grate"&&(source==="all"||i.stock));
+    add("Drain", grates[0], 1, "finish pick — tileable & floral stocked too");
   }
-  // walls
   const sf = wallArea(cfg);
   if (cfg.wallSys==="board"){
-    let b = SLT.find(i=>i.sku==="KB12-48x96");
-    if (source==="stock" && !b.stock) b = SLT.find(i=>i.g==="board"&&i.stock) || b;
+    const b = SLT.find(i=>i.sf===32&&i.g==="board");
     add("Walls", b, Math.ceil(sf*1.05/b.sf), `${sf.toFixed(0)} sf of wall`);
-    add("Walls", SLT.find(i=>i.sku==="KBZS-KIT"), Math.max(1,Math.ceil(sf/120)), "board fasteners");
+    add("Walls", SLT.find(i=>i.g==="board"&&i.size==="100 ct"), Math.max(1,Math.ceil(sf/60)), "board fasteners");
   } else {
-    let roll = SLT.find(i=>i.sku==="KERDI200/323");
-    const small = SLT.find(i=>i.sku==="KERDI200/108");
-    let qty = Math.ceil(sf*1.1/roll.sf);
-    if (source==="stock" && !roll.stock){ roll = small; qty = Math.ceil(sf*1.1/roll.sf); }
-    else if (sf*1.1 <= small.sf*2) { roll = small; qty = Math.ceil(sf*1.1/small.sf); }
-    add("Walls", roll, qty, `${sf.toFixed(0)} sf of wall`);
-    L.push({g:"Walls", item:{name:"Cement board / drywall substrate", sku:"— by others", price:0, stock:true}, qty:1, note:"membrane needs a backer", noteOnly:true});
+    for (const p of pickRolls(sf*1.1, source)) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
+    L.push({g:"Walls", item:{name:"Cement board / drywall substrate", sku:"— by others", price:0, cost:0, stock:true}, qty:1, note:"membrane needs a backer", noteOnly:true});
   }
-  // seams & seals
-  add("Seams", SLT.find(i=>i.sku==="KEBA100/125"), 1, "seams + tray perimeter");
-  add("Seams", SLT.find(i=>i.sku==="KERECK-F2"), 2, "inside corners");
-  add("Seams", SLT.find(i=>i.sku==="KM5117"), 1);
-  add("Seams", SLT.find(i=>i.sku==="KMV"), 1);
-  // curb
+  const bands = SLT.filter(i=>i.g==="seam"&&i.lf).sort((a,b)=>a.lf-b.lf);
+  const lfNeed = 2*(cfg.w+cfg.d)/12 + sf/6;
+  add("Seams", bands.find(b=>b.lf>=lfNeed)||bands[bands.length-1], 1, "seams + tray perimeter");
+  add("Seams", SLT.find(i=>/inside corner/i.test(i.name)), 2, "inside corners");
+  add("Seams", SLT.find(i=>/pipe seal/i.test(i.name)), 1);
+  add("Seams", SLT.find(i=>/valve seal/i.test(i.name)), 1);
   if (cfg.curbed){
     const curbs = SLT.filter(i=>i.g==="curb"&&i.len).sort((a,b)=>a.len-b.len);
-    let c = curbs.find(x=>x.len>=cfg.w) || curbs[curbs.length-1];
-    if (source==="stock" && !c.stock){ const s=curbs.filter(x=>x.stock).sort((a,b)=>b.len-a.len)[0]; if(s) c=s; }
+    const c = curbs.find(x=>x.len>=cfg.w && (source==="all"||x.stock)) || curbs[curbs.length-1];
     add("Curb", c, Math.max(1,Math.ceil(cfg.w/c.len)), c.len<cfg.w? "cut to length end-to-end":"cut to entry width");
   } else {
-    add("Curb", SLT.find(i=>i.sku==="KSR-U"), 1, "curbless entry ramp / recess by installer");
+    add("Curb", SLT.find(i=>i.ramp), 1, "curbless entry ramp / recess by installer");
   }
-  // setting
   const floorSf = cfg.w*cfg.d/144;
-  const allset = SLT.find(i=>i.sku==="ALLSET-50");
+  const allset = SLT.find(i=>i.sfPerBag);
   add("Setting", allset, Math.max(1,Math.ceil((sf+floorSf)/allset.sfPerBag)), "sets membrane/board");
-  add("Setting", SLT.find(i=>i.sku==="KERDI-FIX"), 1);
+  add("Setting", SLT.find(i=>/KERDI-FIX/.test(i.name)), 1);
   return {lines:L, cand};
 }
-const linesTotal = (L,mult=1) => L.reduce((s,l)=>s + (l.item.price||0)*l.qty, 0)*mult;
-const stockStats = L => { const b=L.filter(l=>!l.noteOnly && l.item.price>0); const st=b.filter(l=>l.item.stock); return {n:st.length, of:b.length, val:st.reduce((s,l)=>s+l.item.price*l.qty,0), tot:linesTotal(b)} };
+const linesTotal = (L,tier="retail") => L.reduce((s,l)=>s + priceOf(l.item,tier)*l.qty, 0);
+const stockStats = (L,tier="retail") => { const b=L.filter(l=>!l.noteOnly && (l.item.price||0)>0); const st=b.filter(l=>l.item.stock); return {n:st.length, of:b.length, val:st.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0), tot:b.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0)} };
 
 /* ---------------- P1/P2 popup renderer ---------------- */
 function popupState(id, over={}){
@@ -383,16 +393,15 @@ function renderPopup(S, host, opts={}){
   const pick = S.pick && cands.find(c=>c.tray && S.pick.tray && c.tray.sku===S.pick.tray.sku) || cands[0];
   const build = buildSchluter(cfg, S.source, pick);
   S.extras.forEach(x=>build.lines.push({g:"Extras", item:x, qty:1, so:!x.stock}));
-  const mult = TIERS[S.tier].mult;
-  const st = stockStats(build.lines);
+  const st = stockStats(build.lines, S.tier);
 
   const kitRows = f => SLT_KITS.map(k=>{
     const dis = S.source==="stock" && !k.stock;
     return `<button class="kitrow ${!dis&&cfg.w===k.w&&cfg.d===k.d?'on':''} ${dis?'dis':''}" data-kit="${k.sku}" ${dis?'disabled':''}>
-      <span class="sz">${inches(k.w)}×${inches(k.d)}</span>
+      <span class="sz">${inches(k.w)}×${inches(k.d)}<small>${k.drain}</small></span>
       <span class="tag ${k.stock?'':'so'}">${k.stock?'stock':'special order'}</span>
-      <span class="sku">${k.sku} — tray + KERDI + band + corners + drain + seals, boxed</span>
-      <span class="pr">${money(k.price*mult)}</span></button>`;}).join("");
+      <span class="sku">${k.sku} — tray + KERDI + band + corners + seals + PVC flange, boxed</span>
+      <span class="pr">${money(priceOf(k,S.tier))}</span></button>`;}).join("");
 
   const trayRows = SLT.filter(i=>i.g==="tray").map(t=>{
     const dis = S.source==="stock" && !t.stock;
@@ -400,7 +409,7 @@ function renderPopup(S, host, opts={}){
       <span class="sz">${szLbl(t)}<small>${t.drain}</small></span>
       <span class="tag ${t.stock?'':'so'}">${t.stock?'stock':'special order'}</span>
       <span class="sku">${t.sku} — ${t.name}</span>
-      <span class="pr">${money(t.price*mult)}</span></button>`;}).join("");
+      <span class="pr">${money(priceOf(t,S.tier))}</span></button>`;}).join("");
 
   const optCards = cands.map((c,i)=>{
     if (c.kind==="mortar") return `<div class="optcard on"><div class="rank warn">Fallback</div><div class="big">Mortar bed + KERDI</div><div class="sub">No tray covers this room${S.source==="stock"?" from stock":""} — site-built pitch, membrane floor.</div></div>`;
@@ -409,7 +418,7 @@ function renderPopup(S, host, opts={}){
       <div class="rank ${deep?'warn':''}">${c.kind==="exact"?"Exact tray":deep?"Deep cut":"Cut down"}</div>
       <div class="big">${szLbl(c.tray)}</div>
       <div class="sub">${c.kind==="exact"?"Drops in as-is, drain on layout.":`Trim ${c.cut}&Prime; total to hit ${inches(cfg.w)}×${inches(cfg.d)}${deep?" — past the 6&Prime; soft rule, drain moves off-centre":""}.`}</div>
-      <div class="foot"><span class="stockdot ${c.tray.stock?'':'so'}">${c.tray.stock?'stock':'special order'}</span><span class="pr">${money(c.tray.price*mult)}</span></div>
+      <div class="foot"><span class="stockdot ${c.tray.stock?'':'so'}">${c.tray.stock?'stock':'special order'}</span><span class="pr">${money(priceOf(c.tray,S.tier))}</span></div>
     </button>`;}).join("");
 
   const wallRows = cfg.walls.map((w,i)=>`<div class="wallrow ${w.on?'on':''}">
@@ -424,19 +433,20 @@ function renderPopup(S, host, opts={}){
       <div class="bline ${l.so&&!l.noteOnly?'so':''} ${l.noteOnly?'note':''}">
         <span class="q">${l.noteOnly?"":l.qty+"×"}</span>
         <span class="nm">${l.item.name}${l.item.size?` <small>${l.item.size} · ${l.item.sku}</small>`:` <small>${l.item.sku||""}${l.note?" · "+l.note:""}</small>`}${l.item.size&&l.note?`<small>${l.note}</small>`:""}</span>
-        <span class="pr">${l.item.price?money(l.item.price*l.qty*mult):""}</span>
+        <span class="pr">${l.item.price?money(priceOf(l.item,S.tier)*l.qty):""}</span>
       </div>`).join("");
   }).join("");
 
   const extrasBar = SLT.filter(i=>i.g==="extra").map(x=>{
     const on = S.extras.includes(x); const dis = S.source==="stock"&&!x.stock;
-    return `<button class="chip ${on?'on':''}" data-extra="${x.sku}" ${dis?'disabled style="opacity:.35"':''}>${x.name.split(" ")[0].replace("KERDI-BOARD-SN","Niche").replace("KERDI-SHOWER-SB","Bench")} ${x.name.match(/\d+\"×\d+\"/)?.[0]||""}</button>`;
+    const lbl = x.name.replace("KERDI-BOARD-SN-LT lighted niche","Lit niche").replace("KERDI-BOARD-SN niche","Niche").replace("KERDI-BOARD-SB bench","Bench").replace("KERS-B bench corner kit","Bench corner kit").replace(" triangular"," tri").replace(" rectangular","");
+    return `<button class="chip ${on?'on':''}" data-extra="${x.sku}" ${dis?'disabled style="opacity:.35"':''}>${lbl}</button>`;
   }).join("");
 
   const browseRows = SLT
     .filter(i=>(S.source==="all"||i.stock) && (!S.q || (i.name+" "+i.sku).toLowerCase().includes(S.q.toLowerCase())))
     .sort((a,b)=>(b.stock?1:0)-(a.stock?1:0))
-    .map(i=>`<div class="brow ${i.stock?'stock':''}"><span class="nm">${i.name}<small>${i.size?i.size+" · ":""}${i.sku}${i.stock?"":" · special order"}</small></span><span class="pr">${money(i.price*mult)}</span><button class="add" data-badd="${i.sku}">+ Add</button></div>`).join("");
+    .map(i=>`<div class="brow ${i.stock?'stock':''}"><span class="nm">${i.name}<small>${i.size?i.size+" · ":""}${i.sku}${i.stock?` · ${i.free} on shelf`:" · special order"}</small></span><span class="pr">${money(priceOf(i,S.tier))}</span><button class="add" data-badd="${i.sku}">+ Add</button></div>`).join("");
 
   host.innerHTML = `
     <div class="pop-head">
@@ -451,8 +461,8 @@ function renderPopup(S, host, opts={}){
     <div class="pop-body">
       <div class="main">
         ${S.tab==="kits"?`
-          <div class="fam"><div class="fam-h"><span class="t">Boxed kits</span><span class="hint">one click builds the whole system — tray, membrane, band, corners, drain, seals</span></div>${kitRows()}</div>
-          <div class="fam"><div class="fam-h"><span class="t">Trays</span><span class="hint">start from a tray instead — the build column fills in the rest</span></div>${trayRows}</div>`
+          <div class="fam"><div class="fam-h"><span class="t">Boxed kits</span><span class="hint">the factory box — all special order at Virginia Tile; the Custom tab builds the same system from shelf stock</span></div>${kitRows()}</div>
+          <div class="fam"><div class="fam-h"><span class="t">Trays</span><span class="hint">the whole KST / LTS lineup is on the shelf — click one and the build column fills in the rest</span></div>${trayRows}</div>`
         :S.tab==="custom"?`
           <div class="formgrid">
             <div class="fgroup"><div class="gt">Room</div>
@@ -479,11 +489,11 @@ function renderPopup(S, host, opts={}){
       <div class="buildcol">
         <div class="bc-head"><div class="t">Build</div><div class="sub">${inches(cfg.w)}×${inches(cfg.d)} · ${cfg.curbed?"curbed":"curbless"} · ${cfg.drain} drain · ${cfg.wallSys==="board"?"KERDI-BOARD walls":"KERDI membrane walls"}${build.cand.cut?` · tray cut ${build.cand.cut}&Prime;`:""}</div></div>
         <div class="bc-lines">${lineHtml||'<div class="empty">Pick a kit, a tray, or solve a room.</div>'}</div>
-        <div class="bc-meter"><div class="mlab"><span>From stock</span><span>${st.n} of ${st.of} lines · ${money(st.val*mult)} of ${money(st.tot*mult)}</span></div><div class="meterbar"><i style="width:${st.tot?Math.round(st.val/st.tot*100):0}%"></i></div></div>
+        <div class="bc-meter"><div class="mlab"><span>From stock</span><span>${st.n} of ${st.of} lines · ${money(st.val)} of ${money(st.tot)}</span></div><div class="meterbar"><i style="width:${st.tot?Math.round(st.val/st.tot*100):0}%"></i></div></div>
         <div class="bc-total">
-          <div class="trow"><span>Material</span><span class="v">${money(linesTotal(build.lines)*mult)}</span></div>
-          <div class="trow"><span>Tier</span><span class="v">${TIERS[S.tier].lbl}${S.tier==="builder"?" (−8%*)":""}</span></div>
-          <div class="trow big"><span>Total</span><span class="v">${money(linesTotal(build.lines)*mult)}</span></div>
+          <div class="trow"><span>Material</span><span class="v">${money(linesTotal(build.lines,S.tier))}</span></div>
+          <div class="trow"><span>Tier</span><span class="v">${TIERS[S.tier].lbl}${S.tier==="builder"?" (−8%*)":S.tier==="cost"?" (shop book / EFT net)":" (1.5× cost)"}</span></div>
+          <div class="trow big"><span>Total</span><span class="v">${money(linesTotal(build.lines,S.tier))}</span></div>
         </div>
         <button class="addbtn">Add to product lines — ${build.lines.filter(l=>!l.noteOnly).length} rows · schluter:{ mode, cfg } marker</button>
       </div>
@@ -497,7 +507,7 @@ function renderPopup(S, host, opts={}){
   host.querySelectorAll("[data-wall]").forEach(b=>b.onclick=()=>{cfg.walls[+b.dataset.wall].on=!cfg.walls[+b.dataset.wall].on; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-wh]").forEach(i=>i.onchange=()=>{cfg.walls[+i.dataset.wh].h=+i.value||84; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-opt]").forEach(b=>b.onclick=()=>{S.pick=cands[+b.dataset.opt]; renderPopup(S,host,opts)});
-  host.querySelectorAll("[data-kit]").forEach(b=>b.onclick=()=>{const k=SLT_KITS.find(x=>x.sku===b.dataset.kit); cfg.w=k.w; cfg.d=k.d; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-kit]").forEach(b=>b.onclick=()=>{const k=SLT_KITS.find(x=>x.sku===b.dataset.kit); cfg.w=k.w; cfg.d=k.d; cfg.drain=k.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-tray]").forEach(b=>b.onclick=()=>{const t=SLT.find(x=>x.sku===b.dataset.tray); cfg.w=t.w; cfg.d=t.d; cfg.drain=t.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-extra]").forEach(b=>b.onclick=()=>{const x=SLT.find(i=>i.sku===b.dataset.extra); const ix=S.extras.indexOf(x); ix>=0?S.extras.splice(ix,1):S.extras.push(x); renderPopup(S,host,opts)});
   host.querySelectorAll("[data-badd]").forEach(b=>b.onclick=()=>{const x=SLT.find(i=>i.sku===b.dataset.badd); if(!S.extras.includes(x))S.extras.push(x); renderPopup(S,host,opts)});
@@ -508,7 +518,7 @@ renderPopup(S1, $$("#p1"));
 /* P2 — the same build, both source modes, side by side (source switch locked per pane) */
 const P2A = popupState("p2a", {source:"all",   tab:"custom"});
 const P2B = popupState("p2b", {source:"stock", tab:"custom"});
-[P2A,P2B].forEach(s=>{ s.cfg.wallSys="membrane"; s.cfg.w=60; s.cfg.d=38; });
+[P2A,P2B].forEach(s=>{ s.cfg.wallSys="membrane"; s.cfg.w=48; s.cfg.d=48; s.cfg.drain="linear"; });
 const p2 = $$("#p2");
 p2.innerHTML = `<div class="popup" id="p2a"></div><div class="popup" id="p2b"></div>`;
 renderPopup(P2A, $$("#p2a"), {lockSource:true});
@@ -541,7 +551,7 @@ function schluterKit(p){
     walls:[{name:"Back",on:true,len:p.w,h:84},{name:"Left",on:true,len:p.d,h:84},{name:"Right",on:true,len:p.d,h:84}] };
   const b = buildSchluter(cfg, "all");
   const cats = {Base:"Base",Drain:"Drain",Walls:"Walls",Seams:"Seams",Curb:"Curb",Setting:"Setting"};
-  return b.lines.filter(l=>!l.noteOnly).map(l=>({cat:cats[l.g]||l.g, n:`${l.qty>1?l.qty+"× ":""}${l.item.name}`, sub:(l.item.sku||"")+(l.note?" · "+l.note:""), p:(l.item.price||0)*l.qty, stock:l.item.stock, est:true}));
+  return b.lines.filter(l=>!l.noteOnly).map(l=>({cat:cats[l.g]||l.g, n:`${l.qty>1?l.qty+"× ":""}${l.item.name}`, sub:(l.item.sku||"")+(l.note?" · "+l.note:""), p:(l.item.price||0)*l.qty, stock:l.item.stock}));
 }
 function renderCompare(){
   const p = CMP_PRESETS[C.preset];
@@ -562,7 +572,7 @@ function renderCompare(){
     <div class="cmp-grid">
       <div class="cat"></div>
       <div class="brandh"><span class="bbadge wedi">wedi</span> foam pan system <small style="color:var(--faint);font-weight:600">&nbsp;real pricing</small></div>
-      <div class="brandh"><span class="bbadge slt">Schluter</span> KERDI system <small style="color:var(--faint);font-weight:600">&nbsp;placeholder pricing</small></div>
+      <div class="brandh"><span class="bbadge slt">Schluter</span> KERDI system <small style="color:var(--faint);font-weight:600">&nbsp;shop stock-book pricing</small></div>
       ${cats.map(c=>`<div class="cat">${c}</div><div class="cell">${wc(c)}</div><div class="cell">${sc(c)}</div>`).join("")}
     </div>
     <div class="cmp-tot">
@@ -574,7 +584,7 @@ function renderCompare(){
     <div class="diffnotes">
       <div class="dn"><h4>Walls</h4><p>wedi: structural foam panel, no backer, sealant seams. Schluter: KERDI membrane over cement board (cheap material, more labor) or KERDI-BOARD (closest to wedi).</p></div>
       <div class="dn"><h4>Fit strategy</h4><p>wedi extends pans and cuts them (extensions + the 6&Prime;/12&Prime; deep-cut rule). Schluter cuts trays only — no extension parts — so odd rooms lean on the next tray up or a mortar bed.</p></div>
-      <div class="dn"><h4>Pricing model</h4><p>wedi publishes retail; Builder = ×0.82, cost = ERP net, no markup knob. Schluter tier rule is an open owner question — this page shows −8% as the app default.</p></div>
+      <div class="dn"><h4>Pricing model</h4><p>wedi publishes retail; Builder = ×0.82, cost = ERP net, no markup knob. Schluter is a markup book: the shop stock sheet prices all 226 rows at retail = 1.5 × cost. Builder −8% shown — whether Schluter follows the app default is still an owner call.</p></div>
     </div>`;
   $$("#p3").querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>{C.preset=+b.dataset.cp; renderCompare()});
   $$("#p3").querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{C.tier=b.dataset.ct; renderCompare()});
