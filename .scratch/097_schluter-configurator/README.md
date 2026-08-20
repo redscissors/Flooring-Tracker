@@ -40,9 +40,16 @@ Three surfaces on one page:
   finishes, niches (incl. lighted), benches, All-Set, Kerdi-Fix. The factory
   KERDI-SHOWER-KIT boxes are all special order — the shop-built kit from
   shelf stock is the natural play, which the Kits tab says out loud.
-- **Blocked:** `assets.schluter.com` (the official price-list PDF) is
-  egress-blocked from this environment — needs an upload or a network-policy
-  allowlist entry. Wanted for kit contents / coverage rules transcription.
+- **Price-list pages received (2026-08-20):** a 16-page split covering
+  KERDI-BOARD / benches / niches / fasteners / KERDI-BAND / membranes — see
+  `pricelist-notes.md` (kit-contents facts, MSRP-vs-shop table). Still
+  wanted: the KERDI-SHOWER tray/kit chapter and the KERDI-LINE / KERDI-DRAIN
+  chapter (`assets.schluter.com` itself stays egress-blocked).
+- **Drawing (owner ask 2026-08-20):** the popup now carries a to-scale
+  top-down plan like wedi's — wall bands, ghost of the uncut tray with rust
+  cut lines, drain placement (an off-centre drain after a cut is called out),
+  curb/ramp, niche + bench markers. The isometric is production work — the
+  wedi drawing machinery generalizes once the shell is shared.
 
 ## Open owner questions
 

@@ -134,6 +134,21 @@
   .notecard .nc ul{padding-left:16px;margin-top:4px}
   .notecard .nc b{color:#F6F3EC}
 
+  .planwrap{border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:8px 12px 6px;margin-bottom:14px}
+  .planwrap .pt-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--moss-deep);margin-bottom:4px}
+  .planwrap svg{display:block;width:100%;height:auto}
+  .pw{fill:var(--band);stroke:rgba(28,26,23,.35);stroke-width:1}
+  .pt{fill:var(--moss-soft);stroke:var(--moss-deep);stroke-width:1.2}
+  .pg{fill:none;stroke:var(--faint);stroke-dasharray:4 3;stroke-width:1}
+  .pcut{stroke:var(--rust);stroke-dasharray:5 3;stroke-width:1.4}
+  .pdrain{fill:var(--card);stroke:var(--ink);stroke-width:1.2}
+  .pcurb{fill:var(--rust-soft);stroke:rgba(180,85,45,.5)}
+  .pniche{fill:var(--card);stroke:var(--moss-deep);stroke-width:1}
+  .pbench{fill:var(--sand);stroke:rgba(28,26,23,.4)}
+  .plbl{font:600 9.5px var(--ui);fill:var(--muted)}
+  .plbl.b{font:800 11px var(--ui);fill:var(--ink)}
+  .plbl.warn{fill:var(--rust);font-weight:800}
+
   /* compare */
   .cmp-head{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line-strong);flex-wrap:wrap}
   .cmp-head .t{font-size:15px;font-weight:800}
@@ -308,7 +323,9 @@ function wallArea(cfg){ return cfg.walls.filter(w=>w.on).reduce((s,w)=>s + w.len
 const priceOf = (item, tier) => tier==="cost" ? (item.cost||0) : (item.price||0)*TIERS[tier].mult;
 function trayCandidates(cfg, source){
   const pool = SLT.filter(i=>i.g==="tray" && (source==="all"||i.stock) &&
-    (cfg.drain==="linear" ? i.drain==="linear" : i.drain!=="linear"));
+    (cfg.drain==="linear" ? i.drain==="linear"
+     : cfg.drain==="offset" ? i.drain!=="linear"
+     : i.drain==="point"));
   const fits = t => t.w>=cfg.w && t.d>=cfg.d && (t.w-cfg.w)+(t.d-cfg.d) <= 26;
   const out = pool.filter(fits).map(t=>({tray:t, cut:(t.w-cfg.w)+(t.d-cfg.d),
     deep:(t.w-cfg.w>6||t.d-cfg.d>6), kind:((t.w-cfg.w)+(t.d-cfg.d))===0?"exact":"cut"}));
@@ -365,7 +382,7 @@ function buildSchluter(cfg, source, pick){
   if (cfg.curbed){
     const curbs = SLT.filter(i=>i.g==="curb"&&i.len).sort((a,b)=>a.len-b.len);
     const c = curbs.find(x=>x.len>=cfg.w && (source==="all"||x.stock)) || curbs[curbs.length-1];
-    add("Curb", c, Math.max(1,Math.ceil(cfg.w/c.len)), c.len<cfg.w? "cut to length end-to-end":"cut to entry width");
+    add("Curb", c, Math.max(1,Math.ceil(cfg.w/c.len)), (c.len<cfg.w? "cut to length end-to-end":"cut to entry width")+" — incl. 2+2 Kereck corners");
   } else {
     add("Curb", SLT.find(i=>i.ramp), 1, "curbless entry ramp / recess by installer");
   }
@@ -377,6 +394,64 @@ function buildSchluter(cfg, source, pick){
 }
 const linesTotal = (L,tier="retail") => L.reduce((s,l)=>s + priceOf(l.item,tier)*l.qty, 0);
 const stockStats = (L,tier="retail") => { const b=L.filter(l=>!l.noteOnly && (l.item.price||0)>0); const st=b.filter(l=>l.item.stock); return {n:st.length, of:b.length, val:st.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0), tot:b.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0)} };
+
+/* ---------------- top-down plan drawing (issue: "a drawing like wedi") ---------------- */
+function planSvg(cfg, cand, extras=[]){
+  const tray = cand && cand.tray;
+  const W = cfg.w, D = cfg.d;
+  const tW = tray? tray.w : W, tD = tray? tray.d : D;
+  const wall = 4, frontD = cfg.curbed? 4.5 : 12, m = 15;
+  const totW = Math.max(W, tW) + wall*2 + m*2;
+  const totD = Math.max(D, tD) + wall + frontD + m*2;
+  const scale = Math.min(600/totW, 250/totD);
+  const X = x => ((x + wall + m) * scale).toFixed(1);
+  const Y = y => ((y + wall + m) * scale).toFixed(1);
+  const L = v => (v*scale).toFixed(1);
+  const on = i => cfg.walls[i] && cfg.walls[i].on;
+  const p = [];
+  // wall bands: back runs through, sides butt it (wedi corner rule)
+  if (on(0)) p.push(`<rect x="${X(-wall)}" y="${Y(-wall)}" width="${L(W+wall*2)}" height="${L(wall)}" class="pw"/>`);
+  if (on(1)) p.push(`<rect x="${X(-wall)}" y="${Y(on(0)?0:-wall)}" width="${L(wall)}" height="${L(D+(on(0)?0:wall))}" class="pw"/>`);
+  if (on(2)) p.push(`<rect x="${X(W)}" y="${Y(on(0)?0:-wall)}" width="${L(wall)}" height="${L(D+(on(0)?0:wall))}" class="pw"/>`);
+  // ghost of the uncut tray, anchored back-left
+  const cut = tray && (tW>W || tD>D);
+  if (cut) p.push(`<rect x="${X(0)}" y="${Y(0)}" width="${L(tW)}" height="${L(tD)}" class="pg"/>`);
+  // finished pan
+  p.push(`<rect x="${X(0)}" y="${Y(0)}" width="${L(W)}" height="${L(D)}" class="pt"/>`);
+  if (cut && tW>W) p.push(`<line x1="${X(W)}" y1="${Y(0)}" x2="${X(W)}" y2="${Y(Math.min(D,tD))}" class="pcut"/>`);
+  if (cut && tD>D) p.push(`<line x1="${X(0)}" y1="${Y(D)}" x2="${X(Math.min(W,tW))}" y2="${Y(D)}" class="pcut"/>`);
+  // drain — trays keep their moulded drain: centre (or offset) of the UNCUT tray
+  if (tray){
+    if (cfg.drain==="linear"){
+      const dl = Math.min(W-8, 96);
+      p.push(`<rect x="${X((W-dl)/2)}" y="${Y(1.5)}" width="${L(dl)}" height="${L(2.5)}" class="pdrain"/>`);
+      p.push(`<text x="${X(W/2)}" y="${Y(8.6)}" text-anchor="middle" class="plbl">linear drain at wall</text>`);
+    } else {
+      const dx = tW/2, dy = cfg.drain==="offset"? tD*0.27 : tD/2;
+      p.push(`<rect x="${X(dx-2)}" y="${Y(dy-2)}" width="${L(4)}" height="${L(4)}" class="pdrain"/>`);
+      const off = cut && Math.abs(dx - W/2) > 1;
+      p.push(`<text x="${X(dx)}" y="${Y(dy+7)}" text-anchor="middle" class="plbl${off?' warn':''}">${off? `drain ${Math.round(Math.abs(dx-W/2))}&#8243; off room centre` : cfg.drain==="offset"? "offset drain" : "drain"}</text>`);
+    }
+  }
+  // entry: curb or ramp
+  if (cfg.curbed){
+    p.push(`<rect x="${X(0)}" y="${Y(D)}" width="${L(W)}" height="${L(4.5)}" class="pcurb"/>`);
+    p.push(`<text x="${X(W/2)}" y="${Y(D+3.4)}" text-anchor="middle" class="plbl">curb</text>`);
+  } else {
+    p.push(`<rect x="${X(0)}" y="${Y(D)}" width="${L(W)}" height="${L(12)}" class="pg"/>`);
+    p.push(`<text x="${X(W/2)}" y="${Y(D+7)}" text-anchor="middle" class="plbl">curbless — ramp / recess</text>`);
+  }
+  // extras markers
+  if (extras.some(x=>/niche/i.test(x.name)) && on(0))
+    p.push(`<rect x="${X(W/2-6)}" y="${Y(-wall)}" width="${L(12)}" height="${L(wall)}" class="pniche"/><text x="${X(W/2)}" y="${Y(-wall-2)}" text-anchor="middle" class="plbl">niche</text>`);
+  if (extras.some(x=>/bench/i.test(x.name) && !/corner kit/i.test(x.name)))
+    p.push(`<polygon points="${X(W)},${Y(0)} ${X(W-16)},${Y(0)} ${X(W)},${Y(16)}" class="pbench"/><text x="${X(W-7)}" y="${Y(7)}" text-anchor="middle" class="plbl">bench</text>`);
+  // dimensions
+  p.push(`<text x="${X(W/2)}" y="${Y(D-3)}" text-anchor="middle" class="plbl b">${inches(W)} × ${inches(D)}</text>`);
+  if (tray) p.push(`<text x="${X(0)+4}" y="${Y(2.5)+4}" class="plbl">${tray.sku}${cut?` — cut from ${szLbl(tray)}`:""}</text>`);
+  const vw = (totW*scale).toFixed(0), vh = (totD*scale).toFixed(0);
+  return `<svg viewBox="0 0 ${vw} ${vh}" style="max-width:${vw}px">${p.join("")}</svg>`;
+}
 
 /* ---------------- P1/P2 popup renderer ---------------- */
 function popupState(id, over={}){
@@ -476,6 +551,7 @@ function renderPopup(S, host, opts={}){
             </div>
             <div class="fgroup"><div class="gt">Walls</div>${wallRows}</div>
           </div>
+          <div class="planwrap"><div class="pt-t">Plan — to scale</div>${planSvg(cfg, pick, S.extras)}</div>
           <div class="fam-h"><span class="t">Options</span><span class="hint">ranked — click one to build from it</span></div>
           <div class="optcards">${optCards}</div>
           <div class="fam-h" style="margin-top:16px"><span class="t">Add-ons</span><span class="hint">niches, bench — land as build lines</span></div>
