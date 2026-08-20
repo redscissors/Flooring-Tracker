@@ -357,8 +357,8 @@ function buildSchluter(cfg, source, pick){
     const chans = SLT.filter(i=>i.g==="drain"&&i.part==="channel"&&(source==="all"||i.stock)).sort((a,b)=>a.len-b.len||a.price-b.price);
     const need = cfg.w-8;
     const ch = chans.find(c=>c.len>=need) || chans[chans.length-1];
-    add("Drain", ch, 1, ch && ch.len>need ? `cut to ${need}"` : "at the wall");
-    add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="linear"), 1);
+    add("Drain", ch, 1, (ch && ch.len>need ? `cut to ${need}"` : "at the wall")+" — min cut 10\", IPC 2.5 gpm");
+    add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="linear"), 1, "incl. 4+2 corners, pipe + valve seals, couplings");
   } else {
     add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="point"), 1, 'bonded flange, 2" PVC');
     const grates = SLT.filter(i=>i.g==="drain"&&i.part==="grate"&&(source==="all"||i.stock));
@@ -376,15 +376,18 @@ function buildSchluter(cfg, source, pick){
   const bands = SLT.filter(i=>i.g==="seam"&&i.lf).sort((a,b)=>a.lf-b.lf);
   const lfNeed = 2*(cfg.w+cfg.d)/12 + sf/6;
   add("Seams", bands.find(b=>b.lf>=lfNeed)||bands[bands.length-1], 1, "seams + tray perimeter");
-  add("Seams", SLT.find(i=>/inside corner/i.test(i.name)), 2, "inside corners");
-  add("Seams", SLT.find(i=>/pipe seal/i.test(i.name)), 1);
-  add("Seams", SLT.find(i=>/valve seal/i.test(i.name)), 1);
+  if (cfg.drain!=="linear"){
+    add("Seams", SLT.find(i=>/inside corner/i.test(i.name)), 2, "4 inside — factory kit recipe");
+    add("Seams", SLT.find(i=>/outside corner/i.test(i.name)), 1, "2 outside — factory kit recipe");
+    add("Seams", SLT.find(i=>/pipe seal/i.test(i.name)), 1);
+    add("Seams", SLT.find(i=>/valve seal/i.test(i.name)), 1);
+  }
   if (cfg.curbed){
     const curbs = SLT.filter(i=>i.g==="curb"&&i.len).sort((a,b)=>a.len-b.len);
     const c = curbs.find(x=>x.len>=cfg.w && (source==="all"||x.stock)) || curbs[curbs.length-1];
     add("Curb", c, Math.max(1,Math.ceil(cfg.w/c.len)), (c.len<cfg.w? "cut to length end-to-end":"cut to entry width")+" — incl. 2+2 Kereck corners");
   } else {
-    add("Curb", SLT.find(i=>i.ramp), 1, "curbless entry ramp / recess by installer");
+    add("Curb", SLT.find(i=>i.ramp), 1, "12\" run, 1-1/4\"→1/4\" — ADA slope (KERDI-SHOWER-FRS recess system lands Fall 2026)");
   }
   const floorSf = cfg.w*cfg.d/144;
   const allset = SLT.find(i=>i.sfPerBag);
@@ -536,7 +539,7 @@ function renderPopup(S, host, opts={}){
     <div class="pop-body">
       <div class="main">
         ${S.tab==="kits"?`
-          <div class="fam"><div class="fam-h"><span class="t">Boxed kits</span><span class="hint">the factory box — all special order at Virginia Tile; the Custom tab builds the same system from shelf stock</span></div>${kitRows()}</div>
+          <div class="fam"><div class="fam-h"><span class="t">Boxed kits</span><span class="hint">the factory box (tray + curbs + KERDI + band + flange + corners + seals; grate separate) — special order at Virginia Tile, and at 1.5× it undercuts the shelf-built bill by ~$60; shelf wins on same-day</span></div>${kitRows()}</div>
           <div class="fam"><div class="fam-h"><span class="t">Trays</span><span class="hint">the whole KST / LTS lineup is on the shelf — click one and the build column fills in the rest</span></div>${trayRows}</div>`
         :S.tab==="custom"?`
           <div class="formgrid">

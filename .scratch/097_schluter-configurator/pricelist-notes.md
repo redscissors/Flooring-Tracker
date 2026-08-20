@@ -38,10 +38,64 @@ Schluter's printed list price sits well above the shop's 1.5×-cost retail:
 The shop consistently sells ~22–27% under Schluter MSRP — a selling point
 the configurator could surface (and headroom if pricing ever needs a knob).
 
-## Still wanted from the full book
+## Shower Systems chapter (2nd upload, 70 pages — `schluterpricelistusa_shower_2.pdf`)
 
-- **Shower systems chapter** (KERDI-SHOWER trays/kits, contents diagrams,
-  curb/ramp, mixed assemblies) — the kit recipes.
-- **KERDI-LINE + KERDI-DRAIN chapter** — drain/grate/frame matrices and
-  the Vario cut-to-length rules.
-- Any **coverage/consumption tables** (ALL-SET sf per bag by trowel size).
+The whole chapter arrived 2026-08-20: KERDI-DRAIN (p.147–163), KERDI-LINE
+(p.165–175), KERDI-LINE-VARIO (p.176–179), trays (p.181–182), CB/ramp
+(p.183), benches/niches (p.184–193), kits (p.195–198), shelves & shower
+profiles (p.199–210).
+
+### KERDI-SHOWER-KIT factory recipe (p.195–196) — now encoded in the engine
+
+Complete kit (ABS/PVC, grate separate): tray + curbs + KERDI roll + band 33'
++ 2" drain flange + **4 inside + 2 outside KERECK corners** + pipe seal +
+valve seal.
+
+| Kit | Curbs | KERDI roll | Band 33' | MSRP (PVC) |
+|---|---|---|---|---|
+| 48"×48" KSK1220 | 1× 48" | 5M (54 sf) | 1 | $619.80 |
+| 38"×60" KSK965/1525(S) | **2× 38"** | 10M (108 sf) | 1 | $677.66 |
+| 48"×72" KSK1220/1830 | 2× 38" | 10M | 2 | $911.64 |
+| 72"×72" KSK1830 | 2× 38" | 12M (128 sf, kit-only size) | 2 | $1,063.03 |
+
+Shop angle: the boxed 38×60 PVC kit at the shop's 1.5× (EFT $372.72 →
+**$559.08**) undercuts the same bill built from shelf stock (≈$625) by ~$60 —
+but ships special order; the shelf build is same-day. Both now show in the
+prototype's Kits tab.
+
+### KERDI-LINE-VARIO rules (p.176–178) — now encoded
+
+- Channel/grate cut to length on-site; **minimum cut 10"**; grate end caps
+  supplied. Min tile thickness 3/8".
+- **Flange kit (KLVR2FLK) is self-contained**: flange + 4 inside + 2 outside
+  corners + downspout + pipe seal + valve seal + ABS & PVC couplings + tools —
+  a Vario build adds NO separate corner/seal lines.
+- Best at the wall; centre OK; **entrance placement → use KERDI-LINE instead**;
+  IPC single-showerhead 2.5 gpm max — higher flow → KERDI-LINE.
+- Grate designs: SQUARE / FLORAL / HERRINGBONE / SLANT; brushed SS or 9
+  Trendline colors; 48" ($283.94 SQ) and 96" ($519.13) MSRP.
+
+### Trays (p.181–182)
+
+- T = centre point drain (5 sizes); TS = off-centre (38×60 only, drain 10"
+  o.c. from end); **TT thin trays (7/8"–1" perimeter) are the curbless play**;
+  Neo-angle TT includes 2× 135° inside corners.
+- LT = centre linear (39/48/55 squares); LTS = perimeter linear (+ 36×55,
+  36×72, 38×76, and 76×38 orientation twin); end heights 1-5/8"–2-3/8".
+
+### Curbless & misc
+
+- KERDI-SHOWER-R ramp: 12"×48", 1-1/4"→1/4" (ADA slope), MSRP $120.03.
+- KERDI-SHOWER-CB compensation boards: 1" (for -A adaptors, bundles of 6)
+  and 3-1/2" (for KERDI-DRAIN-H horizontal outlet).
+- **KERDI-SHOWER-FRS "Floor Recessing System" for curbless lands Fall 2026**
+  (p.185–187) — worth watching for the stock book.
+- KERDI-TUBKIT (KKB7 $285.45) and KERDI-BOARD-KIT (KBKIT $774.59, 8 boards
+  = 101 sf + band 98' + seals + 140 fasteners + 2 KERDI-FIX) exist as tub-
+  surround plays — out of shower-configurator scope but easy add-ons later.
+
+## Still wanted
+
+- Nothing blocking. Optional: the ALL-SET / SET mortar coverage table (sf per
+  bag by trowel size) from the setting-materials chapter, to replace the
+  prototype's 55 sf/bag estimate.
