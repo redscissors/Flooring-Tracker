@@ -46,7 +46,43 @@
   .modetab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--card)}
   .pop-body{flex:1;display:flex;min-height:0;background:var(--card)}
   .main{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--card);padding:16px 18px 26px;max-height:820px}
-  .buildcol{flex:0 0 380px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;max-height:820px}
+  .buildcol{flex:1 1 0;min-width:300px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;max-height:820px}
+  .rail{flex:1 1 0;min-width:250px;border-left:1px solid var(--line-strong);background:var(--paper);padding:12px 14px;overflow-y:auto;max-height:820px}
+  .rail .pt-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--moss-deep);margin:2px 0 6px}
+  .rail svg{display:block;width:auto;max-width:100%;max-height:260px;height:auto;margin:0 auto 12px}
+  .warnrow{display:flex;gap:7px;font-size:11px;color:var(--muted);line-height:1.45;padding:2px 0}
+  .warnrow .ic{flex:none}
+  .fboard{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap}
+  .fbcol{min-width:108px;flex:0 0 auto;display:flex;flex-direction:column;gap:2px}
+  .fbhead{border:none;background:var(--sand);color:var(--ink);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:5px 8px;border-radius:6px 6px 0 0;cursor:pointer;text-align:left}
+  .fbhead.on{background:var(--ink);color:var(--paper)}
+  .fbhead small,.fbopt small{float:right;font-weight:600;opacity:.6;font-size:9.5px}
+  .fbopt{border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:11px;font-weight:700;padding:4px 8px;cursor:pointer;text-align:left}
+  .fbopt.on{background:var(--moss);border-color:var(--moss);color:#F6F3EC}
+  .brow2{border-bottom:1px solid var(--rowline);padding:5px 4px 4px}
+  .brow2.stk{background:var(--moss-soft)}
+  .brow2 .bn{display:flex;align-items:baseline;gap:7px;font-size:12.5px;font-weight:700}
+  .sdot{width:7px;height:7px;border-radius:50%;background:var(--moss);flex:none;align-self:center}
+  .sdot.so{background:var(--rust)}
+  .brow2 .bmeta{display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--faint);margin-top:1px;padding-left:14px}
+  .brow2 .bmeta .s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brow2 .bmeta .pr{font-weight:800;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .stepper{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden;flex:none}
+  .stepper button{border:none;background:var(--card);width:22px;height:20px;font-weight:800;cursor:pointer;color:var(--muted);font-size:13px;line-height:1}
+  .stepper .q{width:24px;text-align:center;font-weight:800;font-size:11.5px;font-variant-numeric:tabular-nums}
+  .stepper .q.zero{color:var(--faint);font-weight:600}
+  .iw.top{fill:#E7E3D6;stroke:rgba(28,26,23,.45);stroke-width:.7}
+  .iw.front{fill:#DDD8C7;stroke:rgba(28,26,23,.45);stroke-width:.7}
+  .iw.side{fill:#D2CDBB;stroke:rgba(28,26,23,.45);stroke-width:.7}
+  .iw2.top,.iw2.front,.iw2.side{fill:none;stroke:rgba(28,26,23,.5);stroke-width:.8;stroke-dasharray:4 3}
+  .it.top{fill:rgba(87,112,58,.20);stroke:#40542A;stroke-width:.9}
+  .it.front,.it.side{fill:rgba(87,112,58,.32);stroke:#40542A;stroke-width:.9}
+  .ic.top,.ic.front,.ic.side{fill:#EDE9DD;stroke:rgba(28,26,23,.55);stroke-width:.8}
+  .figcard{border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:9px 12px;margin-bottom:10px;font-size:12px}
+  .figcard b{font-variant-numeric:tabular-nums}
+  .figfoot{font-size:10px;color:var(--faint);margin-top:5px;line-height:1.4}
+  .gchip{border:1px solid var(--line-strong);background:var(--card);color:var(--muted);border-radius:7px;font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;flex:none}
+  .gchip.on{background:var(--moss);border-color:var(--moss);color:#F6F3EC}
 
   .fam{margin-bottom:20px}
   .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:7px}
@@ -398,6 +434,27 @@ function buildSchluter(cfg, source, pick){
 const linesTotal = (L,tier="retail") => L.reduce((s,l)=>s + priceOf(l.item,tier)*l.qty, 0);
 const stockStats = (L,tier="retail") => { const b=L.filter(l=>!l.noteOnly && (l.item.price||0)>0); const st=b.filter(l=>l.item.stock); return {n:st.length, of:b.length, val:st.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0), tot:b.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0)} };
 
+/* Browse taxonomy — the wedi filter-board idiom (BROWSE_SECTIONS) over Schluter groups */
+const SLT_SECTIONS = [
+ { key:"trays", label:"Trays", subs:[
+   { key:"point",  label:"Point drain",  hit:i=>i.g==="tray" && i.drain!=="linear" },
+   { key:"linear", label:"Linear (LTS)", hit:i=>i.g==="tray" && i.drain==="linear" } ]},
+ { key:"drains", label:"Drains", subs:[
+   { key:"flanges", label:"Flanges", hit:i=>i.g==="drain" && i.part==="flange" },
+   { key:"grates",  label:"Grates",  hit:i=>i.g==="drain" && i.part==="grate" },
+   { key:"vario",   label:"Line-Vario", hit:i=>i.g==="drain" && i.drain==="linear" } ]},
+ { key:"wp", label:"Waterproofing", subs:[
+   { key:"membrane", label:"KERDI rolls", hit:i=>i.g==="membrane" },
+   { key:"band",     label:"Band",        hit:i=>i.g==="seam" && i.lf },
+   { key:"corners",  label:"Corners & seals", hit:i=>i.g==="seam" && !i.lf } ]},
+ { key:"build", label:"Build", subs:[
+   { key:"board", label:"KERDI-BOARD", hit:i=>i.g==="board" },
+   { key:"curbs", label:"Curbs & ramp", hit:i=>i.g==="curb" },
+   { key:"set",   label:"Setting", hit:i=>i.g==="set" } ]},
+ { key:"extras", label:"Extras", hit:i=>i.g==="extra" },
+];
+const sltSectionHit = (s,i) => s.hit ? s.hit(i) : s.subs.some(sb=>sb.hit(i));
+
 /* ---------------- top-down plan drawing (issue: "a drawing like wedi") ---------------- */
 function planSvg(cfg, cand, extras=[]){
   const tray = cand && cand.tray;
@@ -456,12 +513,54 @@ function planSvg(cfg, cand, extras=[]){
   return `<svg viewBox="0 0 ${vw} ${vh}" style="max-width:${vw}px">${p.join("")}</svg>`;
 }
 
+/* isometric — oblique box projection; back/left walls solid, tray + curb massed */
+function isoSvg(cfg, cand){
+  const W=cfg.w, D=cfg.d, on=i=>cfg.walls[i]&&cfg.walls[i].on, hOf=i=>cfg.walls[i].h;
+  const px=(x,y,z)=>[x + y*0.52, y*0.40 - z];
+  const P=[];
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  const seen=[];
+  const face=(pts,cls)=>{ seen.push([pts,cls]); pts.forEach(([a,b])=>{minx=Math.min(minx,a);maxx=Math.max(maxx,a);miny=Math.min(miny,b);maxy=Math.max(maxy,b)}); };
+  const box=(x,y,z,dx,dy,dz,c)=>{
+    face([px(x,y,z+dz),px(x+dx,y,z+dz),px(x+dx,y+dy,z+dz),px(x,y+dy,z+dz)], c+" top");
+    face([px(x,y+dy,z),px(x+dx,y+dy,z),px(x+dx,y+dy,z+dz),px(x,y+dy,z+dz)], c+" front");
+    face([px(x+dx,y,z),px(x+dx,y+dy,z),px(x+dx,y+dy,z+dz),px(x+dx,y,z+dz)], c+" side");
+  };
+  if (on(0)) box(-4, -4, 0, W+8, 4, hOf(0), "iw");
+  if (on(1)) box(-4, 0, 0, 4, D, hOf(1), "iw");
+  const tray = cand && cand.tray;
+  box(0, 0, 0, W, D, 1.5, "it");
+  if (on(2)) box(W, 0, 0, 4, D, hOf(2), "iw2");
+  if (cfg.curbed) box(0, D, 0, W, 4.5, 6, "ic");
+  if (tray && cfg.drain!=="linear"){ const [dx,dy]=px(tray.w/2, cfg.drain==="offset"? tray.d*0.27 : Math.min(tray.d,D)/2, 1.6); seen.push([[[dx,dy]],"idrain"]); }
+  const sc = Math.min(560/(maxx-minx), 300/(maxy-miny));
+  const T=([a,b])=>`${((a-minx)*sc).toFixed(1)},${((b-miny)*sc).toFixed(1)}`;
+  for (const [pts,cls] of seen){
+    if (cls==="idrain"){ const [a,b]=pts[0]; P.push(`<circle cx="${((a-minx)*sc).toFixed(1)}" cy="${((b-miny)*sc).toFixed(1)}" r="4" class="pdrain"/>`); continue; }
+    P.push(`<polygon points="${pts.map(T).join(" ")}" class="${cls}"/>`);
+  }
+  return `<svg viewBox="0 0 ${((maxx-minx)*sc).toFixed(0)} ${((maxy-miny)*sc).toFixed(0)}">${P.join("")}</svg>`;
+}
+
+/* the rail's cut list — wedi's warnlist idiom over the schluter build */
+function cutList(cfg, build, cand){
+  const rows = [];
+  if (cand && cand.tray && cand.cut) rows.push(`✂ Cut ${cand.tray.sku} to ${inches(cfg.w)} × ${inches(cfg.d)} (from ${szLbl(cand.tray)})${cand.deep?" — deep cut, drain moves off-centre":""}`);
+  const ch = build.lines.find(l=>l.item.part==="channel");
+  if (ch && /cut to/.test(ch.note||"")) rows.push(`✂ Trim the Vario channel + grate ${ch.note.match(/cut to \d+"/)[0].replace("cut to ","to ")} — end caps supplied, min 10"`);
+  const curb = build.lines.find(l=>l.g==="Curb" && l.item.len);
+  if (curb && /cut/.test(curb.note||"")) rows.push(`✂ ${curb.qty>1?curb.qty+"× ":""}${curb.item.name.replace("KERDI-BOARD-SC ","")} — ${curb.note.split(" — ")[0]}`);
+  if (cfg.wallSys==="membrane") rows.push(`• Backer behind the membrane is by others — cement board or drywall`);
+  if (!cfg.curbed) rows.push(`• Curbless needs the floor recessed or the ramp — KERDI-SHOWER-FRS recess system lands Fall 2026`);
+  return rows.length? `<div class="pt-t" style="margin-top:2px">Cut list</div>` + rows.map(r=>`<div class="warnrow"><span class="ic">${r.slice(0,1)}</span><span>${r.slice(2)}</span></div>`).join("") : "";
+}
+
 /* ---------------- P1/P2 popup renderer ---------------- */
 function popupState(id, over={}){
   return Object.assign({ id, tab:"custom", tier:"retail", source:"all",
     cfg:{ w:60, d:38, curbed:true, drain:"point", wallSys:"membrane",
       walls:[{name:"Back",on:true,len:60,h:84},{name:"Left",on:true,len:38,h:84},{name:"Right",on:true,len:38,h:84}]},
-    pick:null, extras:[], q:"" }, over);
+    pick:null, manual:[], q:"", sec:"", sub:"", figOpen:false, figSf:"" }, over);
 }
 const S1 = popupState("p1");
 
@@ -470,8 +569,9 @@ function renderPopup(S, host, opts={}){
   const cands = trayCandidates(cfg, S.source);
   const pick = S.pick && cands.find(c=>c.tray && S.pick.tray && c.tray.sku===S.pick.tray.sku) || cands[0];
   const build = buildSchluter(cfg, S.source, pick);
-  S.extras.forEach(x=>build.lines.push({g:"Extras", item:x, qty:1, so:!x.stock}));
+  S.manual.forEach(m=>{ const x=SLT.find(i=>i.sku===m.sku); if(x) build.lines.push({g:"Extras", item:x, qty:m.qty, so:!x.stock}); });
   const st = stockStats(build.lines, S.tier);
+  const qtyIn = sku => (S.manual.find(m=>m.sku===sku)||{qty:0}).qty;
 
   const kitRows = f => SLT_KITS.map(k=>{
     const dis = S.source==="stock" && !k.stock;
@@ -516,15 +616,45 @@ function renderPopup(S, host, opts={}){
   }).join("");
 
   const extrasBar = SLT.filter(i=>i.g==="extra").map(x=>{
-    const on = S.extras.includes(x); const dis = S.source==="stock"&&!x.stock;
+    const on = qtyIn(x.sku)>0; const dis = S.source==="stock"&&!x.stock;
     const lbl = x.name.replace("KERDI-BOARD-SN-LT lighted niche","Lit niche").replace("KERDI-BOARD-SN niche","Niche").replace("KERDI-BOARD-SB bench","Bench").replace("KERS-B bench corner kit","Bench corner kit").replace(" triangular"," tri").replace(" rectangular","");
     return `<button class="chip ${on?'on':''}" data-extra="${x.sku}" ${dis?'disabled style="opacity:.35"':''}>${lbl}</button>`;
   }).join("");
 
-  const browseRows = SLT
-    .filter(i=>(S.source==="all"||i.stock) && (!S.q || (i.name+" "+i.sku).toLowerCase().includes(S.q.toLowerCase())))
-    .sort((a,b)=>(b.stock?1:0)-(a.stock?1:0))
-    .map(i=>`<div class="brow ${i.stock?'stock':''}"><span class="nm">${i.name}<small>${i.size?i.size+" · ":""}${i.sku}${i.stock?` · ${i.free} on shelf`:" · special order"}</small></span><span class="pr">${money(priceOf(i,S.tier))}</span><button class="add" data-badd="${i.sku}">+ Add</button></div>`).join("");
+  const secObj = SLT_SECTIONS.find(s=>s.key===S.sec) || null;
+  const subObj = secObj && secObj.subs ? secObj.subs.find(s=>s.key===S.sub) || null : null;
+  const toks = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const browseList = SLT
+    .filter(i=>(S.source==="all"||i.stock))
+    .filter(i=>!secObj || (subObj ? subObj.hit(i) : sltSectionHit(secObj,i)))
+    .filter(i=>{ if(!toks.length) return true; const hay=(i.name+" "+i.sku+" "+(i.size||"")+" "+i.g).toLowerCase(); return toks.every(t=>hay.indexOf(t)>=0); })
+    .sort((a,b)=>(b.stock?1:0)-(a.stock?1:0) || (a.g>b.g?1:a.g<b.g?-1:0) || a.price-b.price);
+  const fboard = `<div class="fboard">` + SLT_SECTIONS.filter(s=>s.subs).map(s=>{
+      const secOn = S.sec===s.key && !S.sub;
+      return `<div class="fbcol"><button class="fbhead ${secOn?'on':''}" data-fsec="${s.key}">${s.label}<small>${SLT.filter(i=>sltSectionHit(s,i)).length}</small></button>` +
+        s.subs.map(sb=>`<button class="fbopt ${S.sec===s.key&&S.sub===sb.key?'on':''}" data-fsec="${s.key}" data-fsub="${sb.key}">${sb.label}<small>${SLT.filter(sb.hit).length}</small></button>`).join("") + `</div>`;
+    }).join("") +
+    `<div class="fbcol">` + SLT_SECTIONS.filter(s=>!s.subs).map(s=>`<button class="fbopt ${S.sec===s.key?'on':''}" data-fsec="${s.key}">${s.label}<small>${SLT.filter(i=>sltSectionHit(s,i)).length}</small></button>`).join("") +
+    `<button class="fbopt ${!S.sec?'on':''}" data-fsec="">All<small>${SLT.length}</small></button></div></div>`;
+  const wallSfNow = wallArea(cfg), floorSfNow = cfg.w*cfg.d/144;
+  const figSf = S.figSf==="" ? Math.round(wallSfNow) : (+S.figSf||0);
+  const figBags = Math.max(1, Math.ceil((figSf + floorSfNow)/55));
+  const figRolls = pickRolls(figSf*1.1, S.source);
+  const figCard = S.figOpen ? `<div class="figcard">
+      Wall area <input data-figsf type="number" value="${figSf}" style="width:64px;border:1px solid var(--line-strong);border-radius:6px;padding:3px 6px;font-weight:700;font-family:var(--ui)"> sf
+      → <b>${figRolls.map(p=>p.qty+"× "+p.item.size.split("=")[1].trim()).join(" + ")}</b> KERDI · <b>${figBags}</b> bag${figBags>1?"s":""} ALL-SET (walls + ${floorSfNow.toFixed(0)} sf floor)
+      <div class="figfoot">ALL-SET at ≈55 sf/bag (1/4"×1/4" est. — real trowel table pending) · KERDI +10% for laps · band, corners and seals ride the build's Seams group</div>
+    </div>` : "";
+  const browseRows = fboard + figCard + browseList.slice(0,48).map(i=>{
+    const n = qtyIn(i.sku);
+    return `<div class="brow2 ${i.stock?'stk':''}">
+      <div class="bn"><span class="sdot ${i.stock?'':'so'}"></span>${i.size&&!/cut to length/.test(i.size)?i.size+" · ":""}${i.name}</div>
+      <div class="bmeta"><div class="s">${i.g}${i.stock?` · ${i.free} on shelf`:" · special order · "+(i.lead||"")}</div>
+        <div class="sku">${i.sku}</div>
+        <div class="pr">${money(priceOf(i,S.tier))}</div>
+        <div class="stepper"><button data-step="${i.sku}|-1">−</button><span class="q ${n?'':'zero'}">${n}</span><button data-step="${i.sku}|1">+</button></div>
+      </div></div>`;
+  }).join("");
 
   host.innerHTML = `
     <div class="pop-head">
@@ -554,14 +684,13 @@ function renderPopup(S, host, opts={}){
             </div>
             <div class="fgroup"><div class="gt">Walls</div>${wallRows}</div>
           </div>
-          <div class="planwrap"><div class="pt-t">Plan — to scale</div>${planSvg(cfg, pick, S.extras)}</div>
           <div class="fam-h"><span class="t">Options</span><span class="hint">ranked — click one to build from it</span></div>
           <div class="optcards">${optCards}</div>
           <div class="fam-h" style="margin-top:16px"><span class="t">Add-ons</span><span class="hint">niches, bench — land as build lines</span></div>
           <div class="chipset">${extrasBar}</div>`
         :`
           <div class="browse">
-            <div class="searchbar"><input placeholder="Search the Schluter catalog… (try 'kerdi-board' or 'drain')" value="${S.q}" data-q></div>
+            <div class="searchbar"><input placeholder="Search the Schluter catalog — name, SKU, group…" value="${S.q}" data-q><button class="gchip ${S.figOpen?'on':''}" data-fig>Figure thin-set &amp; KERDI</button></div>
             ${browseRows||'<div class="empty">Nothing matches.</div>'}
           </div>`}
       </div>
@@ -576,6 +705,11 @@ function renderPopup(S, host, opts={}){
         </div>
         <button class="addbtn">Add to product lines — ${build.lines.filter(l=>!l.noteOnly).length} rows · schluter:{ mode, cfg } marker</button>
       </div>
+      ${opts.noRail?"":`<div class="rail">
+        <div class="pt-t">Plan — to scale</div>${planSvg(cfg, pick, S.manual.map(m=>SLT.find(i=>i.sku===m.sku)).filter(Boolean))}
+        <div class="pt-t">Isometric</div>${isoSvg(cfg, pick)}
+        ${cutList(cfg, build, pick)}
+      </div>`}
     </div>`;
 
   host.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab; renderPopup(S,host,opts)});
@@ -588,8 +722,12 @@ function renderPopup(S, host, opts={}){
   host.querySelectorAll("[data-opt]").forEach(b=>b.onclick=()=>{S.pick=cands[+b.dataset.opt]; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-kit]").forEach(b=>b.onclick=()=>{const k=SLT_KITS.find(x=>x.sku===b.dataset.kit); cfg.w=k.w; cfg.d=k.d; cfg.drain=k.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
   host.querySelectorAll("[data-tray]").forEach(b=>b.onclick=()=>{const t=SLT.find(x=>x.sku===b.dataset.tray); cfg.w=t.w; cfg.d=t.d; cfg.drain=t.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
-  host.querySelectorAll("[data-extra]").forEach(b=>b.onclick=()=>{const x=SLT.find(i=>i.sku===b.dataset.extra); const ix=S.extras.indexOf(x); ix>=0?S.extras.splice(ix,1):S.extras.push(x); renderPopup(S,host,opts)});
-  host.querySelectorAll("[data-badd]").forEach(b=>b.onclick=()=>{const x=SLT.find(i=>i.sku===b.dataset.badd); if(!S.extras.includes(x))S.extras.push(x); renderPopup(S,host,opts)});
+  const setQty=(sku,q)=>{ S.manual=S.manual.filter(m=>m.sku!==sku); if(q>0) S.manual.push({sku,qty:q}); };
+  host.querySelectorAll("[data-extra]").forEach(b=>b.onclick=()=>{const sku=b.dataset.extra; setQty(sku, qtyIn(sku)>0?0:1); renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{const [sku,d]=b.dataset.step.split("|"); setQty(sku, Math.max(0, qtyIn(sku)+(+d))); renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-fsec]").forEach(b=>b.onclick=()=>{const sec=b.dataset.fsec, sub=b.dataset.fsub||""; const same=S.sec===sec&&S.sub===sub; S.sec=same?"":sec; S.sub=same?"":sub; renderPopup(S,host,opts)});
+  const fg=host.querySelector("[data-fig]"); if(fg) fg.onclick=()=>{S.figOpen=!S.figOpen; renderPopup(S,host,opts)};
+  const fs=host.querySelector("[data-figsf]"); if(fs) fs.onchange=()=>{S.figSf=fs.value; renderPopup(S,host,opts)};
   const q=host.querySelector("[data-q]"); if(q){ q.oninput=()=>{S.q=q.value; renderPopup(S,host,opts); const nq=host.querySelector("[data-q]"); nq.focus(); nq.setSelectionRange(nq.value.length,nq.value.length)} }
 }
 renderPopup(S1, $$("#p1"));
@@ -600,8 +738,8 @@ const P2B = popupState("p2b", {source:"stock", tab:"custom"});
 [P2A,P2B].forEach(s=>{ s.cfg.wallSys="membrane"; s.cfg.w=48; s.cfg.d=48; s.cfg.drain="linear"; });
 const p2 = $$("#p2");
 p2.innerHTML = `<div class="popup" id="p2a"></div><div class="popup" id="p2b"></div>`;
-renderPopup(P2A, $$("#p2a"), {lockSource:true});
-renderPopup(P2B, $$("#p2b"), {lockSource:true});
+renderPopup(P2A, $$("#p2a"), {lockSource:true, noRail:true});
+renderPopup(P2B, $$("#p2b"), {lockSource:true, noRail:true});
 
 /* ---------------- P3 compare ---------------- */
 const CMP_PRESETS = [
