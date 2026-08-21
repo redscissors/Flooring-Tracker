@@ -24,8 +24,10 @@ const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 // wediquery's STRONG/WEAK — so a bare "schluter" (no other word) falls
 // through parseQuery's kitWords/partWords checks to the "kits" default.
 const STRONG = ["kerdi", "kerdi-board", "kerdi-line", "kerdi-drain",
-  "kerdi-band", "kerdi-fix", "kerdi-shower", "kereck", "vario", "kst", "kslt",
-  "kbsc", "all-set", "allset", "shower kit", "shower system"];
+  "kerdi-band", "kerdi-fix", "kerdi-shower", "kereck", "vario",
+  "all-set", "allset", "shower kit", "shower system"];
+// short SKU prefixes match token-initial only — "quickstep" must not hit
+const SKU_PREFIX = ["kst", "kslt", "kbsc"];
 const WEAK = ["tray", "curb", "drain", "bench", "niche", "board", "membrane",
   "channel", "corner", "seal", "screw", "washer", "fastener", "ramp", "shower"];
 
@@ -58,6 +60,7 @@ export function queryHit(q) {
   const s = String(q || "").toLowerCase();
   const toks = s.split(/[^a-z0-9'"×.\/-]+/).filter(Boolean);
   if (toks.some((t) => t.length >= 3 && "schluter".indexOf(t) === 0)) return true;
+  if (SKU_PREFIX.some((p) => toks.some((t) => t.startsWith(p)))) return true;
   if (STRONG.some((w) => s.indexOf(w) >= 0)) return true;
   const weak = WEAK.filter((w) => s.indexOf(w) >= 0);
   if (!weak.length) return false;

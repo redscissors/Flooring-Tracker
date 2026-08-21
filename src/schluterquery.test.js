@@ -14,7 +14,7 @@ test("trade words hit", () => {
 });
 
 test("non-hits stay quiet", () => {
-  for (const q of ["wedi", "mannington", "grout", "12x24 tile"])
+  for (const q of ["wedi", "mannington", "grout", "12x24 tile", "quickstep laminate", "darkstone tile", "backstop membrane", "blackstone patio"])
     assert.equal(queryHit(q), false, q);
 });
 
@@ -23,7 +23,7 @@ test("size parse seeds the room", () => {
 });
 
 test("schluter search entry: what pins the configurator and where it lands", () => {
-  assert.ok(queryHit("KST") && queryHit("kslt") && queryHit("kbsc"), "queryHit family part-number prefixes");
+  assert.ok(queryHit("kst965") && queryHit("kst 965/1525") && queryHit("kslt1395s"), "queryHit token-initial SKU prefixes");
   assert.ok(queryHit("38x60 tray"), "queryHit '38x60 tray' (weak word + size)");
   assert.ok(!queryHit("porcelain 12x24") && !queryHit("wedi reducer") && !queryHit("ditra"),
     "queryHit ignores unrelated trade text, wedi, and the floor-product ditra (binding word-list decision)");
