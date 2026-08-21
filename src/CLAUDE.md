@@ -788,7 +788,13 @@ src/
                     # shared build column (grouped lines, from-stock meter,
                     # cost & margin behind a click, payload preview modal)
                     # and the showerdraw rail (TopDown/Iso via
-                    # schluterdraw.js + the cut list). The Source switch
+                    # schluterdraw.js + the cut list) — plus a FOURTH tab,
+                    # Compare (phase 5), which is the one surface that spans
+                    # the whole body: the build column and the drawings rail
+                    # step aside for CompareTab.jsx (its own React.lazy chunk,
+                    # handed host="schluter", the live markCfg, the current
+                    # build, the assembled cat, source, tier and both builder
+                    # knobs). The Source switch
                     # (Stock only / Full catalog) is the shared SourceSwitch
                     # (widgets.jsx, phase 4) — both configurators mount it.
                     # Stock-only picks go through the engine's pickFrom/
@@ -845,6 +851,34 @@ src/
                     # walls-difference story (the wedi panel IS the
                     # substrate); `compareTotals` then excludes them
                     # (comparekit.test.js, over the frozen schluterfixture)
+  CompareTab.jsx    # the Compare surface (phase 5, prototype P3): the fourth
+                    # tab in EITHER vendor popup — the category rail beside a
+                    # wedi column and a Schluter column, a Retail/Builder lens,
+                    # totals + the delta line (with the walls-aren't-apples-to-
+                    # apples caveat), the three diffnotes cards, and the
+                    # optional quote-options footer. The popup passes its raw
+                    # live cfg as `hostCfg` and the NEUTRAL ROOM is derived HERE
+                    # (roomFromWedi/roomFromSchluter) — the popups must never
+                    # import comparekit themselves, so the two engines only ever
+                    # meet inside this lazy chunk. The HOST column shows that
+                    # popup's build as it stands; the other column is that
+                    # engine's derived house kit for the same room. A column
+                    # that can't be built (no wedi pan solves the room, no
+                    # Schluter rows in the books yet, no room typed) renders ONE
+                    # faint explanatory cell and the totals dash — never a
+                    # crash, and the delta line stays hidden. Inside the wedi
+                    # popup it assembles the Schluter catalog itself via
+                    # useSchluterCatalog (the hook runs unconditionally; the
+                    # Schluter popup's own `cat` prop wins when given). The
+                    # quote-options confirm modal composes each side's payload
+                    # through that engine's OWN lineItems — wedi
+                    # `lineItems(build,{tier,builderPct})`, Schluter
+                    # `lineItems({...build,mode:"custom",cfg},{builderPct})` —
+                    # so both anchors keep their reconfigure markers, then hands
+                    # {wediLines, schluterLines, label} to `onQuoteOptions`
+                    # (App.jsx's compareOptionsPatch landing). LAZY-CHUNK-ONLY
+                    # (ADR 0026): it pulls comparekit → both engines, so only a
+                    # React.lazy mount may reach it
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

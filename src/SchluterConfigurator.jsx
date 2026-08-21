@@ -8,7 +8,7 @@
 //
 // The Source switch (Stock only / Full catalog) is the popup's own header
 // control for now; phase 4 lifts it into the shared shell so wedi inherits it.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch } from "./widgets.jsx";
@@ -20,6 +20,10 @@ import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb } from "./schluterdraw.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2 } from "./showerdraw.jsx";
+
+// The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
+// own chunk behind this popup's own lazy boundary (ADR 0026).
+const CompareTab = lazy(() => import("./CompareTab.jsx"));
 
 const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
@@ -280,7 +284,7 @@ function seedState(seed) {
     s.kitPick = seed.mode === "kit";
     return s;
   }
-  if (seed.tab) s.tab = seed.tab === "custom" ? "custom" : seed.tab === "browse" ? "browse" : "kits";
+  if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
   if (seed.input) {
     if (seed.input.w) s.w = String(seed.input.w);
     if (seed.input.d) s.d = String(seed.input.d);
@@ -293,8 +297,8 @@ function seedState(seed) {
 }
 
 export default function SchluterConfigurator({
-  seed, tier, onTierChange, schluterBuilderPct, onAdd, onClose, areaName, projectName,
-  onConfigChange, embedded = false,
+  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onClose, areaName, projectName,
+  onConfigChange, onQuoteOptions, embedded = false,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
 }) {
   const init = useRef(null);
@@ -388,7 +392,9 @@ export default function SchluterConfigurator({
     const ro = new ResizeObserver(on);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // the Compare tab unmounts the rail — re-attach the observer to the new
+    // node when it comes back, or the drawings freeze at their last size
+  }, [tab]);
   const railFit = useMemo(() => railSplit(railBox, false), [railBox]);
 
   // --- the build -------------------------------------------------------------
@@ -892,7 +898,20 @@ export default function SchluterConfigurator({
     ["kits", "Kits", trays.length + " trays"],
     ["custom", "Custom shower", "solver"],
     ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"],
+    ["compare", "Compare", "wedi ⇄ Schluter"],
   ];
+
+  // The compare surface spans the whole body — its own two-column grid IS the
+  // comparison, so the build column and the drawings rail step aside.
+  const compareTab = (
+    <Suspense fallback={null}>
+      <CompareTab host="schluter" hostCfg={markCfg} hostBuild={build} cat={cat}
+        source={source} tier={tierId}
+        wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
+        mortars={mortars} mortarDefault={mortarDefault}
+        areaName={areaName} onQuoteOptions={onQuoteOptions} />
+    </Suspense>
+  );
 
   return (
     <div ref={shellRef} className={embedded
@@ -925,9 +944,11 @@ export default function SchluterConfigurator({
         </div>
         <div className="flex-1 min-h-0 overflow-x-auto flex">
           <div className="pop-body flex-1">
-            <div className="main">{tab === "kits" ? kitsTab : tab === "custom" ? customTab : browseTab}</div>
-            <div className="buildcol">{buildCol}</div>
-            {diagRail}
+            {tab === "compare" ? compareTab : (<>
+              <div className="main">{tab === "kits" ? kitsTab : tab === "custom" ? customTab : browseTab}</div>
+              <div className="buildcol">{buildCol}</div>
+              {diagRail}
+            </>)}
           </div>
         </div>
       </div>
