@@ -33,6 +33,19 @@ test("normP passes the configurator markers through and defaults them to null", 
   assert.deepEqual(normP({ id: "x", wedi: { part: true } }).wedi, { part: true }, "a companion line keeps its marker");
 });
 
+test("normP passes the schluter marker through", () => {
+  const p = normP({ name: "x", schluter: { mode: "custom", cfg: { w: 60 } } });
+  assert.deepEqual(p.schluter, { mode: "custom", cfg: { w: 60 } });
+});
+
+test("normP defaults schluter to null so old records are unaffected", () => {
+  assert.equal(normP({ name: "x" }).schluter, null);
+});
+
+test("normP round-trips a schluter companion marker", () => {
+  assert.deepEqual(normP({ name: "x", schluter: { part: true } }).schluter, { part: true });
+});
+
 test("normP maps the legacy brand/color pair into brandColor", () => {
   assert.equal(normP({ brand: "Daltile", color: "Ash" }).brandColor, "Daltile / Ash");
 });
