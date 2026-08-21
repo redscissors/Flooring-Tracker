@@ -8,6 +8,8 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 // wediquery.js, never wedi.js — the boot chunk pays for the recognizer only
 // (ADR 0026); the wedi catalog rides its lazy popup chunk.
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
+// schluterquery.js, never schluter.js — same boot contract (ADR 0026).
+import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
@@ -133,6 +135,7 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
   const vendorRows = !onVendor ? [] : [
     sheogaQueryHit(q) && { id: "sheoga", attr: "data-sheoga-entry", title: "Sheoga Hardwood — configure by description", sub: sheogaQuerySummary(sheogaParseQuery(q)) },
     wediQueryHit(q) && { id: "wedi", attr: "data-wedi-entry", title: "wedi shower systems — kits, custom rooms, catalog", sub: wediQuerySummary(wediParseQuery(q)) },
+    schluterQueryHit(q) && { id: "schluter", attr: "data-schluter-entry", title: "Schluter shower systems — kits, custom rooms, catalog", sub: schluterQuerySummary(schluterParseQuery(q)) },
   ].filter(Boolean);
   const vendor = vendorRows.length > 0;
   const noHits = q.trim() && results.length === 0;

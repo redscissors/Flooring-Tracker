@@ -177,18 +177,30 @@ function classifyCode(item, rawSku) {
     return entry;
   }
 
-  // KERDI membrane rolls (incl. the KERDI200200 wide roll).
+  // KERDI membrane rolls; KERDI200200 is the wide roll — a different-width
+  // product, flagged out of the pickRolls ladder.
   if (/^KERDI200/.test(code)) {
-    return { ...item, g: "membrane", sf: membraneSf(item, code) };
+    const entry = { ...item, g: "membrane", sf: membraneSf(item, code) };
+    if (/^KERDI200200/.test(code)) entry.wide = true;
+    return entry;
   }
 
   // KERDI-BAND seam band.
   if (/^KEBA/.test(code)) {
     return { ...item, g: "seam", lf: bandLf(code) };
   }
-  // KERECK corners, KERDI-SEAL pipe/mixing-valve seals.
-  if (/^KERECK/.test(code) || /^KMS/.test(code)) {
-    return { ...item, g: "seam" };
+  // KERECK corners (FI = inside, FA = outside), KERDI-SEAL pipe (KMS172) /
+  // mixing-valve (KMSMV) seals. buildKit keys on these facts, never the row's
+  // name — a live registry name is normOrderItem's cleaned (title-cased)
+  // description, so name text is not a stable key.
+  if (/^KERECK/.test(code)) {
+    const entry = { ...item, g: "seam" };
+    if (/\/FI/.test(code)) entry.corner = "inside";
+    else if (/\/FA/.test(code)) entry.corner = "outside";
+    return entry;
+  }
+  if (/^KMS/.test(code)) {
+    return { ...item, g: "seam", seal: /^KMSMV/.test(code) ? "valve" : "pipe" };
   }
 
   // KERDI-BOARD-SC curb (len via the mm table).
@@ -206,9 +218,24 @@ function classifyCode(item, rawSku) {
   if (/^KB12SN/.test(code) || /^KBSB/.test(code) || /^KERSB/.test(code)) {
     return { ...item, g: "extra" };
   }
-  // Every other KERDI-BOARD panel/accessory (KB12…, KB50…, screws, …).
+  // KBZS screws + washers: board fasteners, counted by the "N ct" in the
+  // size text — never part of the wall-panel sf pick.
+  if (/^KBZS/.test(code)) {
+    const m = /(\d+)\s*ct/i.exec(item.size || item.name || item.description || "");
+    return { ...item, g: "board", fastener: true, ct: m ? Number(m[1]) : 0 };
+  }
+  // Every other KERDI-BOARD panel/accessory. The two digits after KB are the
+  // board thickness in mm (KB12 = ½", KB50 = 2") — the grammar marks the 2"
+  // board even when the row's size text is unreadable, and the wall pick
+  // keys ½" panels off thickMm rather than trusting the sheet's text.
   if (/^KB/.test(code)) {
-    return { ...item, g: "board", ...boardDims(item) };
+    const entry = { ...item, g: "board", ...boardDims(item) };
+    const m = /^KB(\d{2})/.exec(code);
+    if (m) {
+      entry.thickMm = Number(m[1]);
+      if (entry.thickMm >= 40) entry.thick2 = true;
+    }
+    return entry;
   }
 
   // ALL-SET thin-set (sfPerBag: 55) and KERDI-FIX sealing adhesive — the two
@@ -220,7 +247,7 @@ function classifyCode(item, rawSku) {
     return { ...item, g: "set", sfPerBag: 55 };
   }
   if (/^KERDIFIX/.test(code)) {
-    return { ...item, g: "set" };
+    return { ...item, g: "set", adhesive: true };
   }
 
   // KERDI-SHOWER-KIT factory kits (tray + curbs + membrane + band + flange +
@@ -256,16 +283,31 @@ export function catalogOf(items) {
  * non-thin one — a tray with a curb lip doesn't belong on a curbless
  * install even if a non-thin tray would cut less (decision 6); then
  * smaller total cut; then lower price. No fit -> a single mortar-bed card.
+ *
+ * A point/offset tray also tries the ROTATED orientation (a square drain
+ * doesn't care which way the tray lies), so a room deeper than wide still
+ * finds its tray; the candidate carries the effective dims as tw/td with
+ * rot marking the turn. A linear tray never rotates — its channel edge is
+ * directional and belongs at the back wall.
  */
 export function trayCandidates(cfg, cat, { source } = {}) {
   const pool = cat.filter((i) => i.g === "tray" && (source === "all" || i.stock) &&
     (cfg.drain === "linear" ? i.drain === "linear"
      : cfg.drain === "offset" ? i.drain !== "linear"
      : i.drain === "point"));
-  const fits = (t) => t.w >= cfg.w && t.d >= cfg.d && (t.w - cfg.w) + (t.d - cfg.d) <= 26;
-  const out = pool.filter(fits).map((tray) => {
-    const cut = (tray.w - cfg.w) + (tray.d - cfg.d);
-    return { tray, cut, deep: tray.w - cfg.w > 6 || tray.d - cfg.d > 6, kind: cut === 0 ? "exact" : "cut" };
+  const out = [];
+  pool.forEach((tray) => {
+    const orients = tray.drain === "linear" || tray.w === tray.d
+      ? [[tray.w, tray.d, false]]
+      : [[tray.w, tray.d, false], [tray.d, tray.w, true]];
+    let best = null;
+    orients.forEach(([tw, td, rot]) => {
+      if (!(tw >= cfg.w && td >= cfg.d && (tw - cfg.w) + (td - cfg.d) <= 26)) return;
+      const cut = (tw - cfg.w) + (td - cfg.d);
+      const cand = { tray, tw, td, rot, cut, deep: tw - cfg.w > 6 || td - cfg.d > 6, kind: cut === 0 ? "exact" : "cut" };
+      if (!best || cand.cut < best.cut) best = cand;
+    });
+    if (best) out.push(best);
   });
   out.sort((a, b) =>
     ((a.tray.drain === cfg.drain ? 0 : 1) - (b.tray.drain === cfg.drain ? 0 : 1)) ||
@@ -284,7 +326,7 @@ export function trayCandidates(cfg, cat, { source } = {}) {
  * product, not a drop-in size option on this ladder.
  */
 export function pickRolls(sfNeed, cat, { source } = {}) {
-  const rolls = cat.filter((i) => i.g === "membrane" && !/wide/i.test(i.name) && (source === "all" || i.stock))
+  const rolls = cat.filter((i) => i.g === "membrane" && !i.wide && (source === "all" || i.stock))
     .sort((a, b) => a.sf - b.sf);
   if (!rolls.length) return [];
   const picks = [];
@@ -372,9 +414,18 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 
   const sf = wallArea(cfg);
   if (cfg.wallSys === "board") {
-    const b = cat.find((i) => i.sf === 32 && i.g === "board");
+    // largest ½" panel wins the wall pick (48×96 = 32 sf in today's range)
+    // largest ½" panel wins — thickMm keys the thickness so a fatter live
+    // board with more sf can't take the wall pick
+    const b = cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
+      && (i.thickMm == null || i.thickMm <= 13))
+      .sort((x, y) => y.sf - x.sf)[0];
     add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
-    add("Walls", cat.find((i) => i.g === "board" && i.size === "100 ct"), Math.max(1, Math.ceil(sf / 60)), "board fasteners");
+    // recipe density: one 100-ct box per 60 sf — scaled to the box actually
+    // in the catalog so a 40-ct pack doesn't silently under-order
+    const fast = cat.filter((i) => i.fastener).sort((x, y) => (y.ct || 0) - (x.ct || 0))[0];
+    const screws = (sf * 100) / 60;
+    add("Walls", fast, fast ? Math.max(1, Math.ceil(fast.ct > 0 ? screws / fast.ct : sf / 60)) : 0, "board fasteners");
   } else {
     for (const p of pickRolls(sf * 1.1, cat, { source })) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
     L.push({
@@ -388,10 +439,10 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const lfNeed = (2 * (cfg.w + cfg.d)) / 12 + sf / 6;
   add("Seams", bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1], 1, "seams + tray perimeter");
   if (cfg.drain !== "linear") {
-    add("Seams", cat.find((i) => /inside corner/i.test(i.name)), 2, "4 inside — factory kit recipe");
-    add("Seams", cat.find((i) => /outside corner/i.test(i.name)), 1, "2 outside — factory kit recipe");
-    add("Seams", cat.find((i) => /pipe seal/i.test(i.name)), 1);
-    add("Seams", cat.find((i) => /valve seal/i.test(i.name)), 1);
+    add("Seams", cat.find((i) => i.corner === "inside"), 2, "4 inside — factory kit recipe");
+    add("Seams", cat.find((i) => i.corner === "outside"), 1, "2 outside — factory kit recipe");
+    add("Seams", cat.find((i) => i.seal === "pipe"), 1);
+    add("Seams", cat.find((i) => i.seal === "valve"), 1);
   }
 
   if (cfg.curbed) {
@@ -404,7 +455,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   }
 
   if (cfg.bench === "framed") {
-    add("Extras", cat.find((i) => i.g === "board" && i.sf === 32), 1,
+    add("Extras", cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+      .sort((x, y) => y.sf - x.sf)[0], 1,
       "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
   } else if (cfg.bench === "buildup") {
     add("Extras", cat.find((i) => i.thick2), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
@@ -413,7 +465,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const floorSf = (cfg.w * cfg.d) / 144;
   const allset = cat.find((i) => i.sfPerBag);
   add("Setting", allset, allset ? Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)) : 0, "sets membrane/board");
-  add("Setting", cat.find((i) => /KERDI-FIX/.test(i.name)), 1);
+  add("Setting", cat.find((i) => i.adhesive), 1);
 
   return { lines: L, cand };
 }
@@ -455,21 +507,29 @@ export function tierPrice(entry, tier, { builderPct } = {}) {
 // product-row payloads
 // ============================================================================
 
+// The wedi lead idiom: a classified entry whose name doesn't already say a
+// Schluter family word gets the vendor in front. A non-classified item (the
+// Settings mortar pick) is not necessarily Schluter goods, so it never leads.
+const SCHLUTER_LEAD = /^\s*(schluter|kerdi|kereck|kers|all.?set)/i;
+const brandName = (e) => (e.g && !SCHLUTER_LEAD.test(e.name || "") ? "Schluter — " : "") + (e.name || "");
+
 /**
- * Turn a buildKit() bill into product-row payloads ready for the job sheet,
- * mirroring product.wedi's marker shape (wedi.js lineItems, requirement 12):
- * noteOnly lines (informational, $0 by-others placeholders) are dropped, and
- * every surviving line lands RETAIL — the job sheet's own tier lens reprices
- * it (ADR 0018) — with a builder-tier `tierPrice` snapshot riding along, like
- * wedi's own Builder stamp. `cfg` is the room configuration buildKit() was
- * given; it lands untouched on the anchor row so "Schluter — reconfigure" can
- * re-run buildKit(cfg, …) and replace the kit's lines. Every companion line
- * carries { part: true } instead.
+ * Turn a build into product-row payloads ready for the job sheet, the
+ * wedi-shaped signature (wedi.js lineItems, requirement 12): the popup
+ * composes { ...buildKit(...), mode, cfg } and passes it whole. noteOnly
+ * lines (informational, $0 by-others placeholders) are dropped, and every
+ * surviving line lands RETAIL — the job sheet's own tier lens reprices it
+ * (ADR 0018) — with a builder-tier `tierPrice` snapshot riding along, like
+ * wedi's own Builder stamp. `build.cfg` is the room configuration buildKit()
+ * was given; it lands untouched on the anchor row so "Schluter — reconfigure"
+ * can re-run buildKit(cfg, …) and replace the kit's lines; `build.mode`
+ * ("kit" for an untouched Kits-tab pick, else "custom") rides beside it.
+ * Every companion line carries { part: true } instead.
  */
-export function lineItems(build, cfg, opts) {
+export function lineItems(build, opts) {
   if (!build || !build.lines) return [];
   opts = opts || {};
-  const mark = { mode: "custom", cfg: JSON.parse(JSON.stringify(cfg || {})) };
+  const mark = { mode: build.mode === "kit" ? "kit" : "custom", cfg: JSON.parse(JSON.stringify(build.cfg || {})) };
   return build.lines.filter((l) => !l.noteOnly).map((l, i) => {
     const e = l.item;
     return {
@@ -477,7 +537,7 @@ export function lineItems(build, cfg, opts) {
       // live registry rows are not fixture-shaped — a stock row may carry its shop number in sku with no erp field
       sku: e.stock ? e.erp || e.sku || "" : "",
       sizeText: e.size || "",
-      brandColor: e.name,
+      brandColor: brandName(e),
       qtyType: "count",
       qty: String(l.qty),
       priceSqft: String(tierPrice(e, "retail", {})),
