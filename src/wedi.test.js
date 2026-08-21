@@ -1184,3 +1184,18 @@ test("wedi benches: kitFor files the group, keeps the curb across, feeds the sea
     "cfg.benches round-trips to the identical build");
   assert.equal(kitFor("US9100004", { walls: threeWallsB }).cfg.benches.length, 0, "no benches → cfg says so");
 });
+
+// --- Phase 4: solve pools honor input.source (the shared Stock only switch) --
+
+test("stock-only leaves non-stocked modules out of the solve pool; no source is Full catalog", () => {
+  const room = { w: 36, d: 60, curb: "curbed", drain: "linear" };
+  const all = solve({ ...room });
+  assert.ok(all.some((o) => o.pan && !o.pan.stock), "the 36\" SO neo module is offered under Full catalog");
+  const stockOnly = solve({ ...room, source: "stock" });
+  assert.ok(stockOnly.length > 0, "the stocked linear pan option remains");
+  assert.ok(stockOnly.every((o) => !o.pan || o.pan.stock), "no option's pan/module is special order");
+  // absent source === "all": defaults must not move
+  assert.deepEqual(solve({ ...room }), solve({ ...room, source: "all" }));
+  const pt = { w: 60, d: 36, curb: "curbed", drain: "center" };
+  assert.deepEqual(solve({ ...pt }), solve({ ...pt, source: "all" }));
+});

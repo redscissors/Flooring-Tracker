@@ -5609,7 +5609,7 @@ function cutdownOption(input, list, fam) {
 function linearOption(input) {
   const tol = input.tolerance || 0;
   let base = null;
-  group("pan").filter((p) => p.sub === "linear").forEach((p) => {
+  group("pan").filter((p) => p.sub === "linear" && (input.source !== "stock" || p.stock)).forEach((p) => {
     orientations(p).forEach((o) => {
       if (Math.abs(o.w - input.w) > tol || Math.abs(o.d - input.d) > tol) return;
       if (!base || p.retail < base.pan.retail) base = { pan: p, o: o };
@@ -5634,17 +5634,18 @@ function linearOption(input) {
 // The module's length has to span the run: it pairs with an extension of its
 // own length and may only lose moduleEndTrim() an end, so nothing else fills a
 // short-fall.
-function modulePair(len) {
-  const mod = group("module").filter((m) => m.sub === "neo" && m.len === len)
+function modulePair(len, source) {
+  const mod = group("module").filter((m) => m.sub === "neo" && m.len === len
+    && (source !== "stock" || m.stock))
     .sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0))[0];
   const ext = group("modExt").filter((m) => m.len === len)[0];
   return mod && ext ? { mod: mod, ext: ext, len: len } : null;
 }
 
-function moduleSpans(span, tol) {
+function moduleSpans(span, tol, source) {
   const out = [];
   MODULE_LENGTHS.forEach((L) => {
-    const pr = modulePair(L);
+    const pr = modulePair(L, source);
     if (!pr) return;
     const over = round2(L - span);
     if (over < -(tol || 0) - 0.01) return;
@@ -5721,7 +5722,7 @@ function moduleOptions(input, pin) {
     const run = axis === "w" ? input.d : input.w;
     // Only the tightest-fitting module earns a card: a longer one sawn down to
     // the same run is the same layout with more cutting.
-    moduleSpans(along, tol).slice(0, 1).forEach((fit) => {
+    moduleSpans(along, tol, input.source).slice(0, 1).forEach((fit) => {
       if (pin) {
         const at = axis === "w" ? pin.x : pin.y;
         if (Math.abs(at - along / 2) > 1) return;
@@ -5754,6 +5755,12 @@ export function solve(input) {
     drainX: +(input && input.drainX) || 0,
     drainY: +(input && input.drainY) || 0,
     anchor: (input && input.anchor) === "right" ? "right" : "left",
+    // The shared Stock only switch (phase 4): "stock" drops non-stocked
+    // pans/modules from the candidate pools — options re-rank rather than
+    // carry a special-order base. Companion pieces an option needs
+    // (extensions, covers) stay as picked and render flagged: a line with no
+    // stocked substitute is never silently dropped.
+    source: (input && input.source) === "stock" ? "stock" : "all",
   };
   if (!(input.w > 0) || !(input.d > 0)) return [];
   const explicitTarget = input.drainX > 0 && input.drainY > 0;
@@ -5767,6 +5774,7 @@ export function solve(input) {
   const list = group("pan").filter((p) => {
     if (p.sub !== fam) return false;
     if (input.drain !== "any" && p.drain.type !== input.drain) return false;
+    if (input.source === "stock" && !p.stock) return false;
     return true;
   });
 
