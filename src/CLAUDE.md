@@ -16,7 +16,15 @@ src/
                     # localStorage, dev builds console.table it (ADR 0026)
   Auth.jsx          # sign-in screen (sign-up disabled by design)
   App.jsx           # the FloorTrack application (props: { user, onSignOut }) —
-                    # the split files below carry its extracted pieces
+                    # the split files below carry its extracted pieces.
+                    # Boot-chunk hygiene (ADR 0026): it may import options.js
+                    # (`compareOptionsPatch` — model.js only) but NEVER
+                    # comparekit.js or CompareTab.jsx; the Compare tab reaches
+                    # it only through each popup's own React.lazy boundary.
+                    # `addCompareOptions(aid, payload)` is the landing —
+                    # ONE `updateProject` with compareOptionsPatch's single
+                    # patch, wired as `onQuoteOptions` on both job-context
+                    # vendor mounts (never on the Apps-hub copies)
   uiconst.js        # shared UI constants: TYPES/TLBL, tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
@@ -59,7 +67,20 @@ src/
                     # model.js, re-exported here; extended past A–C 2026-08-19) +
                     # colors, shared/option scoping (bucketCats/scopedCats),
                     # titles, duplicateInto — an option is a TAG on an area,
-                    # never a copy of the job (options.test.js)
+                    # never a copy of the job. `compareOptionsPatch` (phase 5,
+                    # ADR 0034) is the Compare tab's ONE-PATCH
+                    # landing: two fresh sibling areas (`{...newArea(), …}`,
+                    # never duplicateInto's shared-source retag — these aren't
+                    # copies of shared work) tagged option A/B, inserted right
+                    # after the host area (append if its id is gone), each
+                    # `lines.map(p => ({...newProduct(), ...p}))` plus a
+                    # trailing blank adder row; `optionNames` fills {A:"wedi",
+                    # B:"Schluter"} only into empty slots, never over a custom
+                    # name; null when either lines array is empty. Returns the
+                    # patch object for the caller's single `updateProject`
+                    # call — usedirectory's setter is built off a stale
+                    # closure, so two calls in one tick would clobber each
+                    # other (options.test.js)
   jobtotals.js      # the job's money math, extracted from App.jsx so it runs per
                     # option scope: one filtered project in, every aggregate out
                     # (totals, gList/mList/…, matAll, pMats, freight, margin).
@@ -538,10 +559,25 @@ src/
                     # not just the walls, so it reads as a header action on every
                     # tab rather than a control of the Custom shower's Walls
                     # group, where it used to hide.
+                    # A FOURTH tab, Compare (phase 5), is the one surface that
+                    # spans the whole body: the build column and the drawings
+                    # rail step aside for CompareTab.jsx (its own React.lazy
+                    # chunk), handed host="wedi", the live `build.cfg` as raw
+                    # `hostCfg` — the neutral room is derived INSIDE CompareTab,
+                    # this popup must never import comparekit.js — the live
+                    # build, source, tier, both builder knobs, and the Schluter
+                    # registry bag (stockRows/bookStockReady/books/
+                    # loadBookItems/mortars/mortarDefault) the tab needs to
+                    # assemble the OTHER engine's catalog. No build yet, or no
+                    # registry rows, is a faint explanatory column, never a
+                    # crash. `onQuoteOptions` lands both bills as option areas
+                    # A/B and is passed only from the JOB-context mount.
                     # Also an Apps-hub tab beside Sheoga (embedded, still its
                     # own lazy chunk): the tier bar falls back to a local
                     # retail-seeded preview and Add raises the hub's shared
-                    # destination prompt (current project / new quick price)
+                    # destination prompt (current project / new quick price);
+                    # the hub gets the registry bag too (so Compare works
+                    # there) but no `onQuoteOptions` — there is no host area
   showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
                     # Iso's constants and math, extracted out of
                     # WediConfigurator.jsx (issue 097, ADR 0033) so a second
@@ -740,6 +776,20 @@ src/
                     # the ramp is a build line), `schluterWallOn`. Never
                     # imports wedi.js (ADR 0033 chunk hygiene)
                     # (schluterdraw.test.js)
+  useschlutercatalog.js  # `useSchluterCatalog` — the registry→catalog
+                    # assembly (task 3, phase 5), cut verbatim out of
+                    # SchluterConfigurator.jsx so a later Compare tab inside
+                    # the WEDI popup can build the same live Schluter catalog
+                    # without duplicating it: stock cache rows adapted
+                    # `{stock:true}` (bookStockReady gated) plus every active
+                    # order book matching /schluter/i on name/brandLabel,
+                    # fetched via `loadBookItems` and adapted `{stock:false}`,
+                    # `active !== false && !disabled` filtered, stock winning
+                    # SKU collisions, through `catalogOf` — returns
+                    # `{cat, catReady}`, the popup's own names, unchanged.
+                    # LAZY-CHUNK-ONLY: imports schluteradapter.js, so it must
+                    # never be pulled onto the boot path — only a
+                    # `React.lazy` popup may import it
   SchluterConfigurator.jsx  # the Schluter popup, a `React.lazy` chunk (ADR
                     # 0026) — the React port of the approved prototype
                     # (.scratch/097, P1/P2), wedi's sibling over the same
@@ -760,14 +810,22 @@ src/
                     # shared build column (grouped lines, from-stock meter,
                     # cost & margin behind a click, payload preview modal)
                     # and the showerdraw rail (TopDown/Iso via
-                    # schluterdraw.js + the cut list). The Source switch
+                    # schluterdraw.js + the cut list) — plus a FOURTH tab,
+                    # Compare (phase 5), which is the one surface that spans
+                    # the whole body: the build column and the drawings rail
+                    # step aside for CompareTab.jsx (its own React.lazy chunk,
+                    # handed host="schluter", the live markCfg, the current
+                    # build, the assembled cat, source, tier and both builder
+                    # knobs). The Source switch
                     # (Stock only / Full catalog) is the shared SourceSwitch
                     # (widgets.jsx, phase 4) — both configurators mount it.
                     # Stock-only picks go through the engine's pickFrom/
                     # stockPool rule: a stocked match wins, a role with no
                     # stocked option lands flagged, never silently dropped.
                     # The catalog is LIVE registry rows through
-                    # schluteradapter: the stock cache (bookStockReady
+                    # schluteradapter, assembled by the shared
+                    # useSchluterCatalog hook (task 3, useschlutercatalog.js):
+                    # the stock cache (bookStockReady
                     # gated) plus every active order book named/branded
                     # Schluter, fetched on open (ADR 0026's
                     # re-fetch-on-open pattern); stock rows win a SKU
@@ -788,7 +846,82 @@ src/
                     # code in sku + mfg code in vendorSkus for stocked rows,
                     # EFT-shaped special-order rows), so preview shots
                     # exercise the production adapter path end to end; no
-                    # Supabase, not part of the app build
+                    # Supabase, not part of the app build. Carries
+                    # `wediBuilderPct` + a no-op `onQuoteOptions` too (phase 5),
+                    # so the Compare tab shows both builder knobs and renders
+                    # its quote-options footer — a footer that only exists when
+                    # the prop is given
+  wedipreview.jsx   # dev-only harness (wedi-preview.html): the REAL
+                    # WediConfigurator over the real engine, no Supabase and no
+                    # App shell — the wedi half of the change-control preview
+                    # shots. It feeds the SAME fixture-through-normOrderItem
+                    # registry bag schluterpreview.jsx does (stockRows/books/
+                    # loadBookItems/mortars), because the Compare tab inside
+                    # the wedi popup assembles the Schluter catalog itself
+                    # (useSchluterCatalog) — without the bag that column is
+                    # only ever "Loading the Schluter price books…". Same
+                    # no-op `onQuoteOptions`; not part of the app build
+  comparekit.js     # one room priced in BOTH shower systems (phase 5,
+                    # ADR 0034) — the first module allowed to import wedi.js
+                    # and schluter.js together, and outside the compare chunk
+                    # the only one that should: it owns the mapping and nothing
+                    # else, so neither engine has to learn about the other and
+                    # neither engine's pinned totals can move. A neutral room
+                    # ({w,d,curbed,drain,walls[{side,on,len,h}]}) sits between
+                    # them — `roomFromSchluter`/`roomFromWedi` read it off
+                    # either engine's cfg (a Kits-tab wedi build has no solver
+                    # input — kitFor stamps `solve: null` — so roomFromWedi
+                    # falls back to the PAN's own drain type and curbless
+                    # family, never to a curbed point drain),
+                    # `wediBuildFor` re-makes WediConfigurator's own
+                    # solve()→kitFor() composition (top-ranked option, mode
+                    # "kit", no popup customizations) and `schluterBuildFor`
+                    # re-makes SchluterConfigurator's cfg useMemo +
+                    # trayCandidates[0] pick, returning the cfg beside the
+                    # build because that cfg is what a Reconfigure chip
+                    # reopens on. `wediCompareRows`/`schluterCompareRows`
+                    # align both bills on COMPARE_CATS (Schluter lines carry
+                    # the token in `l.g`; wedi maps from the catalog
+                    # `item.group`) as EXTENDED amounts, every price coming
+                    # back out of the engine that made the line — nothing is
+                    # re-derived here. `noteOnly` rows are KEPT at $0: the
+                    # wedi column appends the "Thin-set for pan bed — by
+                    # others" note and the Schluter column carries its
+                    # substrate-by-others line, which together are the
+                    # walls-difference story (the wedi panel IS the
+                    # substrate); `compareTotals` then excludes them
+                    # (comparekit.test.js, over the frozen schluterfixture)
+  CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
+                    # the fourth tab in EITHER vendor popup — the category rail
+                    # beside a wedi column and a Schluter column, a Retail/
+                    # Builder lens, totals + the delta line (with the
+                    # walls-aren't-apples-to-apples caveat), the three
+                    # diffnotes cards, and the optional quote-options footer,
+                    # whose confirm modal takes its own rung on the Esc ladder
+                    # (useEscClose, ADR 0028) so a press dismisses the modal
+                    # and leaves the live build standing. The popup passes its
+                    # raw live cfg as `hostCfg`, the NEUTRAL ROOM derived HERE
+                    # (roomFromWedi/roomFromSchluter) — the popups must never
+                    # import comparekit themselves, so the two engines only ever
+                    # meet inside this lazy chunk. The HOST column shows that
+                    # popup's build as it stands; the other column is that
+                    # engine's derived house kit for the same room. A column
+                    # that can't be built (no wedi pan solves the room, no
+                    # Schluter rows in the books yet, no room typed) renders ONE
+                    # faint explanatory cell and the totals dash — never a
+                    # crash, and the delta line stays hidden. Inside the wedi
+                    # popup it assembles the Schluter catalog itself via
+                    # useSchluterCatalog (the hook runs unconditionally; the
+                    # Schluter popup's own `cat` prop wins when given). The
+                    # quote-options confirm modal composes each side's payload
+                    # through that engine's OWN lineItems — wedi
+                    # `lineItems(build,{tier,builderPct})`, Schluter
+                    # `lineItems({...build,mode:"custom",cfg},{builderPct})` —
+                    # so both anchors keep their reconfigure markers, then hands
+                    # {wediLines, schluterLines, label} to `onQuoteOptions`
+                    # (App.jsx's compareOptionsPatch landing). LAZY-CHUNK-ONLY
+                    # (ADR 0026): it pulls comparekit → both engines, so only a
+                    # React.lazy mount may reach it
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
@@ -898,6 +1031,12 @@ src/
   AppsWorkspace.jsx # the Apps hub overlay (SettingsWorkspace-style shell) +
                     # the Label Generator UI (preset strip, SKU fill,
                     # drag-to-reorder lines + filler spacers, preview with
-                    # line-boxes toggle, label set, print)
+                    # line-boxes toggle, label set, print). Also hosts the
+                    # embedded vendor configurators, each fed by App.jsx's
+                    # `sheoga`/`wedi`/`schluter` prop bag — both shower bags now
+                    # carry the OTHER engine's builder knob (and the wedi bag
+                    # the Schluter registry props) so the hub's copies render
+                    # their Compare tab; neither gets `onQuoteOptions`, since
+                    # the hub has no host area to hang option A/B on
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 ```

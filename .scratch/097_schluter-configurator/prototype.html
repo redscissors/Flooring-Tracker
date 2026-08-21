@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schluter Configurator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --paper:#F6F3EC; --card:#FFFFFF; --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A; --band:#E7E3D6; --sand:#EDE9DD; --rowline:#ECE8DC;
+    --line:rgba(28,26,23,.10); --line-strong:rgba(28,26,23,.25);
+    --moss-soft:rgba(87,112,58,.13); --tint:#F2F3EC; --rust:#B4552D; --rust-soft:rgba(180,85,45,.11);
+    --ui:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:var(--ui);-webkit-tap-highlight-color:transparent}
+  html{background:#1C1A17}
+  body{background:#1C1A17;color:#F6F3EC;padding:28px 20px 90px}
+  .intro{max-width:1560px;margin:0 auto 8px}
+  .intro h1{font-size:21px;font-weight:800;letter-spacing:-.01em}
+  .intro h1 span{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:12px;padding:2px 7px;margin-right:8px;vertical-align:3px}
+  .intro p{font-size:13px;color:#A8A29A;margin-top:6px;max-width:960px;line-height:1.55}
+  .intro p b{color:#F6F3EC}
+  .proto-label{max-width:1560px;margin:38px auto 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .proto-label h2{font-size:15px;font-weight:800}
+  .proto-label h2 b{display:inline-block;background:#93B56A;color:#1C1A17;border-radius:4px;font-size:11px;padding:1px 6px;margin-right:7px;vertical-align:1px}
+  .proto-label span{font-size:12px;color:#A8A29A}
+  .popwrap{max-width:1560px;margin:0 auto;background:rgba(246,243,236,.06);border:1px solid rgba(246,243,236,.14);border-radius:14px;padding:24px}
+  .popup{background:var(--paper);color:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;border:1px solid rgba(0,0,0,.4)}
+  .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--paper);flex-wrap:wrap}
+  .pop-head .idblock{min-width:170px}
+  .pop-head .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--moss-deep)}
+  .pop-head .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
+  .pop-head .name small{font-weight:600;color:var(--muted);font-size:12px;margin-left:6px}
+  .headctl{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden}
+  .seg button{border:none;background:var(--card);color:var(--muted);font-size:11.5px;font-weight:700;padding:7px 12px;cursor:pointer;line-height:1.1}
+  .seg button + button{border-left:1px solid var(--line-strong)}
+  .seg button.on{background:var(--moss);color:#F6F3EC}
+  .seg button small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
+  .seg.tiers button.on{background:var(--ink)}
+  .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;cursor:default;flex:none}
+  .modetabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--line-strong);background:var(--paper)}
+  .modetab{border:1px solid var(--line);border-bottom:none;background:var(--sand);color:var(--muted);font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:7px 7px 0 0;cursor:pointer}
+  .modetab.on{background:var(--card);color:var(--ink);border-color:var(--line-strong);position:relative}
+  .modetab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--card)}
+  .pop-body{flex:1;display:flex;min-height:0;background:var(--card)}
+  .main{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--card);padding:16px 18px 26px;max-height:820px}
+  .buildcol{flex:1 1 0;min-width:300px;border-left:1px solid var(--line-strong);background:var(--paper);display:flex;flex-direction:column;max-height:820px}
+  .rail{flex:1 1 0;min-width:250px;border-left:1px solid var(--line-strong);background:var(--paper);padding:12px 14px;overflow-y:auto;max-height:820px}
+  .rail .pt-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--moss-deep);margin:2px 0 6px}
+  .rail svg{display:block;width:auto;max-width:100%;max-height:260px;height:auto;margin:0 auto 12px}
+  .warnrow{display:flex;gap:7px;font-size:11px;color:var(--muted);line-height:1.45;padding:2px 0}
+  .warnrow .ic{flex:none}
+  .fboard{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap}
+  .fbcol{min-width:108px;flex:0 0 auto;display:flex;flex-direction:column;gap:2px}
+  .fbhead{border:none;background:var(--sand);color:var(--ink);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:5px 8px;border-radius:6px 6px 0 0;cursor:pointer;text-align:left}
+  .fbhead.on{background:var(--ink);color:var(--paper)}
+  .fbhead small,.fbopt small{float:right;font-weight:600;opacity:.6;font-size:9.5px}
+  .fbopt{border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:11px;font-weight:700;padding:4px 8px;cursor:pointer;text-align:left}
+  .fbopt.on{background:var(--moss);border-color:var(--moss);color:#F6F3EC}
+  .brow2{border-bottom:1px solid var(--rowline);padding:5px 4px 4px}
+  .brow2.stk{background:var(--moss-soft)}
+  .brow2 .bn{display:flex;align-items:baseline;gap:7px;font-size:12.5px;font-weight:700}
+  .sdot{width:7px;height:7px;border-radius:50%;background:var(--moss);flex:none;align-self:center}
+  .sdot.so{background:var(--rust)}
+  .brow2 .bmeta{display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--faint);margin-top:1px;padding-left:14px}
+  .brow2 .bmeta .s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brow2 .bmeta .pr{font-weight:800;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .stepper{display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden;flex:none}
+  .stepper button{border:none;background:var(--card);width:22px;height:20px;font-weight:800;cursor:pointer;color:var(--muted);font-size:13px;line-height:1}
+  .stepper .q{width:24px;text-align:center;font-weight:800;font-size:11.5px;font-variant-numeric:tabular-nums}
+  .stepper .q.zero{color:var(--faint);font-weight:600}
+  .iw.top{fill:#E7E3D6;stroke:rgba(28,26,23,.45);stroke-width:.7}
+  .iw.front{fill:#DDD8C7;stroke:rgba(28,26,23,.45);stroke-width:.7}
+  .iw.side{fill:#D2CDBB;stroke:rgba(28,26,23,.45);stroke-width:.7}
+  .iw2.top,.iw2.front,.iw2.side{fill:none;stroke:rgba(28,26,23,.5);stroke-width:.8;stroke-dasharray:4 3}
+  .it.top{fill:rgba(87,112,58,.20);stroke:#40542A;stroke-width:.9}
+  .it.front,.it.side{fill:rgba(87,112,58,.32);stroke:#40542A;stroke-width:.9}
+  .ic.top,.ic.front,.ic.side{fill:#EDE9DD;stroke:rgba(28,26,23,.55);stroke-width:.8}
+  .figcard{border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:9px 12px;margin-bottom:10px;font-size:12px}
+  .figcard b{font-variant-numeric:tabular-nums}
+  .figfoot{font-size:10px;color:var(--faint);margin-top:5px;line-height:1.4}
+  .gchip{border:1px solid var(--line-strong);background:var(--card);color:var(--muted);border-radius:7px;font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;flex:none}
+  .gchip.on{background:var(--moss);border-color:var(--moss);color:#F6F3EC}
+
+  .fam{margin-bottom:20px}
+  .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:7px}
+  .fam-h .t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--moss-deep)}
+  .fam-h .hint{font-size:11px;color:var(--faint)}
+  .kitrow{display:flex;align-items:center;gap:10px;width:100%;padding:4px 8px;border:none;background:none;border-bottom:1px solid var(--rowline);cursor:pointer;text-align:left;font-size:12.5px;min-height:23px}
+  .kitrow:hover{background:var(--tint)}
+  .kitrow.on{background:var(--moss-soft)}
+  .kitrow .sz{font-weight:800;width:120px;flex:none;letter-spacing:-.01em}
+  .kitrow .sz small{font-weight:600;color:var(--faint);font-size:10.5px;margin-left:4px}
+  .kitrow .tag{font-size:10px;font-weight:700;color:var(--muted);background:var(--sand);border-radius:4px;padding:1px 6px}
+  .kitrow .tag.so{color:var(--rust);background:var(--rust-soft)}
+  .kitrow .sku{font-size:10.5px;color:var(--faint);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kitrow .pr{font-weight:800;margin-left:auto;flex:none;font-variant-numeric:tabular-nums}
+  .kitrow.dis{opacity:.38;cursor:not-allowed}
+
+  .formgrid{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+  .fgroup{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--paper)}
+  .fgroup .gt{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--moss-deep);margin-bottom:7px}
+  .frow{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px}
+  .frow:last-child{margin-bottom:0}
+  .frow label{color:var(--muted);font-weight:600;min-width:52px}
+  .frow input[type=number]{width:58px;border:1px solid var(--line-strong);border-radius:6px;padding:4px 6px;font-size:12.5px;font-weight:700;font-family:var(--ui);background:var(--card);color:var(--ink)}
+  .chipset{display:flex;gap:5px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line-strong);background:var(--card);color:var(--muted);border-radius:6px;font-size:11px;font-weight:700;padding:4px 9px;cursor:pointer}
+  .chip.on{background:var(--moss);border-color:var(--moss);color:#F6F3EC}
+  .wallrow{display:flex;align-items:center;gap:7px;font-size:11.5px;margin-bottom:5px}
+  .wallrow .wname{border:1px solid var(--line-strong);border-radius:6px;background:var(--card);font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer;color:var(--faint)}
+  .wallrow.on .wname{background:var(--moss);border-color:var(--moss);color:#F6F3EC}
+  .wallrow input{width:48px;border:1px solid var(--line-strong);border-radius:5px;padding:3px 5px;font-size:11.5px;font-weight:700;font-family:var(--ui)}
+  .wallrow .sf{color:var(--faint);font-variant-numeric:tabular-nums}
+
+  .optcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:9px;margin-top:4px}
+  .optcard{border:1px solid var(--line-strong);border-radius:9px;background:var(--card);padding:10px 12px;cursor:pointer;text-align:left;position:relative}
+  .optcard:hover{border-color:var(--moss)}
+  .optcard.on{outline:2px solid var(--moss);outline-offset:-1px;background:var(--tint)}
+  .optcard .rank{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--moss-deep)}
+  .optcard .rank.warn{color:var(--rust)}
+  .optcard .big{font-size:15.5px;font-weight:800;margin:2px 0 1px;letter-spacing:-.01em}
+  .optcard .sub{font-size:11px;color:var(--muted);line-height:1.45}
+  .optcard .foot{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .optcard .foot .pr{font-weight:800;font-size:13px;margin-left:auto;font-variant-numeric:tabular-nums}
+  .stockdot{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--moss-deep);background:var(--moss-soft);border-radius:4px;padding:1px 6px}
+  .stockdot.so{color:var(--rust);background:var(--rust-soft)}
+
+  .browse .brow{display:flex;align-items:center;gap:10px;padding:4px 8px;border-bottom:1px solid var(--rowline);font-size:12px}
+  .browse .brow.stock{background:var(--moss-soft)}
+  .browse .brow .nm{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .browse .brow .nm small{font-weight:600;color:var(--faint);margin-left:6px}
+  .browse .brow .pr{font-weight:800;font-variant-numeric:tabular-nums}
+  .browse .brow .add{border:1px solid var(--line-strong);background:var(--card);border-radius:5px;font-size:11px;font-weight:800;padding:2px 8px;cursor:pointer;color:var(--moss-deep)}
+  .searchbar{display:flex;gap:8px;margin-bottom:10px}
+  .searchbar input{flex:1;border:1px solid var(--line-strong);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:var(--ui);background:var(--card)}
+
+  .bc-head{padding:12px 14px 8px;border-bottom:1px solid var(--line)}
+  .bc-head .t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--moss-deep)}
+  .bc-head .sub{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4}
+  .bc-lines{flex:1;overflow-y:auto;padding:6px 0}
+  .bgroup{padding:5px 14px 2px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--faint)}
+  .bline{display:flex;align-items:baseline;gap:8px;padding:2.5px 14px;font-size:12px}
+  .bline .q{font-weight:800;width:22px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+  .bline .nm{flex:1;min-width:0}
+  .bline .nm small{display:block;font-size:10px;color:var(--faint)}
+  .bline .pr{font-weight:700;font-variant-numeric:tabular-nums}
+  .bline.so .nm::after{content:"special order";display:inline-block;font-size:9px;font-weight:800;color:var(--rust);background:var(--rust-soft);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+  .bline.note .nm{color:var(--muted);font-style:italic}
+  .bc-meter{padding:9px 14px;border-top:1px solid var(--line)}
+  .meterbar{height:6px;border-radius:3px;background:var(--band);overflow:hidden;margin-top:4px}
+  .meterbar i{display:block;height:100%;background:var(--moss)}
+  .bc-meter .mlab{display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:var(--muted)}
+  .bc-total{padding:10px 14px;border-top:1px solid var(--line-strong);background:var(--card)}
+  .trow{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:2px}
+  .trow.big{font-size:15px;color:var(--ink);font-weight:800;margin-top:4px}
+  .trow .v{font-variant-numeric:tabular-nums}
+  .addbtn{margin:10px 14px 14px;padding:10px;border:none;border-radius:8px;background:var(--moss);color:#F6F3EC;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ui)}
+  .addbtn:hover{background:var(--moss-deep)}
+  .empty{padding:26px 16px;font-size:12px;color:var(--faint);text-align:center;line-height:1.5}
+
+  .duo{display:flex;gap:18px;flex-wrap:wrap}
+  .duo .popup{flex:1 1 430px}
+  .notecard{max-width:1560px;margin:12px auto 0;display:flex;gap:14px;flex-wrap:wrap}
+  .notecard .nc{flex:1 1 300px;background:rgba(246,243,236,.05);border:1px solid rgba(246,243,236,.13);border-radius:10px;padding:14px 16px}
+  .notecard .nc h3{font-size:12px;font-weight:800;color:#93B56A;margin-bottom:6px;text-transform:uppercase;letter-spacing:.1em}
+  .notecard .nc p, .notecard .nc li{font-size:12.5px;color:#C9C3B8;line-height:1.55}
+  .notecard .nc ul{padding-left:16px;margin-top:4px}
+  .notecard .nc b{color:#F6F3EC}
+
+  .planwrap{border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:8px 12px 6px;margin-bottom:14px}
+  .planwrap .pt-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--moss-deep);margin-bottom:4px}
+  .planwrap svg{display:block;width:100%;height:auto}
+  .pw{fill:var(--band);stroke:rgba(28,26,23,.35);stroke-width:1}
+  .pt{fill:var(--moss-soft);stroke:var(--moss-deep);stroke-width:1.2}
+  .pg{fill:none;stroke:var(--faint);stroke-dasharray:4 3;stroke-width:1}
+  .pcut{stroke:var(--rust);stroke-dasharray:5 3;stroke-width:1.4}
+  .pdrain{fill:var(--card);stroke:var(--ink);stroke-width:1.2}
+  .pcurb{fill:var(--rust-soft);stroke:rgba(180,85,45,.5)}
+  .pniche{fill:var(--card);stroke:var(--moss-deep);stroke-width:1}
+  .pbench{fill:var(--sand);stroke:rgba(28,26,23,.4)}
+  .plbl{font:600 9.5px var(--ui);fill:var(--muted)}
+  .plbl.b{font:800 11px var(--ui);fill:var(--ink)}
+  .plbl.warn{fill:var(--rust);font-weight:800}
+
+  /* compare */
+  .cmp-head{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line-strong);flex-wrap:wrap}
+  .cmp-head .t{font-size:15px;font-weight:800}
+  .cmp-grid{display:grid;grid-template-columns:150px 1fr 1fr;border-bottom:1px solid var(--line)}
+  .cmp-grid>div{padding:8px 14px;font-size:12px;border-bottom:1px solid var(--rowline)}
+  .cmp-grid .cat{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--faint);display:flex;align-items:center}
+  .cmp-grid .cell .ln{display:flex;justify-content:space-between;gap:10px;padding:1px 0}
+  .cmp-grid .cell .ln .n{min-width:0}
+  .cmp-grid .cell .ln .n small{color:var(--faint);font-size:10px;display:block}
+  .cmp-grid .cell .ln .p{font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+  .cmp-grid .cell .ln.so .n{color:var(--rust)}
+  .cmp-grid .brandh{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .bbadge{font-size:9.5px;font-weight:800;border-radius:4px;padding:2px 7px;text-transform:uppercase;letter-spacing:.08em}
+  .bbadge.wedi{background:var(--moss);color:#F6F3EC}
+  .bbadge.slt{background:var(--rust);color:#F6F3EC}
+  .cmp-tot{display:grid;grid-template-columns:150px 1fr 1fr}
+  .cmp-tot>div{padding:10px 14px}
+  .cmp-tot .tv{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+  .cmp-tot .tv small{font-size:11px;font-weight:700;color:var(--muted);margin-left:6px}
+  .delta{margin:0 18px 14px;background:var(--tint);border:1px solid var(--line);border-radius:9px;padding:10px 14px;font-size:12.5px;line-height:1.5}
+  .diffnotes{padding:4px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+  .diffnotes .dn{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--card)}
+  .diffnotes .dn h4{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--moss-deep);margin-bottom:4px}
+  .diffnotes .dn p{font-size:11.5px;color:var(--muted);line-height:1.5}
+  @media (max-width:900px){ .buildcol{flex:1 1 100%;border-left:none;border-top:1px solid var(--line-strong)} .pop-body{flex-wrap:wrap} .cmp-grid,.cmp-tot{grid-template-columns:110px 1fr 1fr} }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1><span>ned</span>Schluter shower-system configurator — prototypes</h1>
+  <p>Three surfaces, one page: <b>P1</b> the Schluter configurator popup (the wedi popup's sibling — Kits / Custom shower / Browse over a shared build column), <b>P2</b> the new <b>Stock only / Full catalog</b> source switch that constrains what the solver and the kits may use, and <b>P3</b> a <b>wedi ⇄ Schluter compare</b> that prices the same room in both systems side by side. Both sides now price from <b>real data</b>: wedi from <code>src/wedi.js</code>, Schluter from the shop's stock sheet (retail, cost, on-shelf counts) and the 10/01/2025 Virginia Tile EFT (dealer cost for special-order parts) uploaded 2026-08-20.</p>
+</div>
+
+<div class="proto-label"><h2><b>P1</b>Schluter configurator</h2><span>Kits · Custom shower · Browse — same shell as wedi, with the Source switch in the header. Everything below is live: click around.</span></div>
+<div class="popwrap"><div class="popup" id="p1"></div></div>
+<div class="notecard">
+  <div class="nc"><h3>What's Schluter-specific</h3>
+    <ul>
+      <li><b>The walls are a fork, not a given.</b> wedi walls are always wedi panel. Schluter walls are either <b>KERDI-BOARD</b> (foam board, like wedi) or <b>KERDI membrane over backer</b> (backer by others) — different bills, different labor. The Custom tab makes it a first-class choice and the build column regroups around it.</li>
+      <li><b>Trays cut, they don't extend.</b> wedi solves rooms with extensions; Schluter's answer is the next tray up cut down (soft 6&Prime; rule kept) or a mortar-bed fallback card.</li>
+      <li><b>Pricing rule found in the sheets:</b> the Schluter stock book prices every one of its 226 rows at <b>retail = 1.5 × cost</b> — so Schluter is a plain markup book (the EFT's "consumer" column just equals dealer cost at 0% account markup). The tier bar shows Retail (1.5×) / Builder (−8% app default, still an owner call) / Cost.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="proto-label"><h2><b>P2</b>Stock only / Full catalog</h2><span>The same 38&Prime;×60&Prime; curbed build rendered under each source mode — this is one popup with the header switch flipped, shown twice.</span></div>
+<div class="popwrap"><div class="duo" id="p2"></div></div>
+<div class="notecard">
+  <div class="nc"><h3>How the switch behaves</h3>
+    <ul>
+      <li><b>Full catalog</b> (default): the solver ranks freely; a line the shop doesn't stock wears the rust <b>special order</b> tag and the build column's stock meter says how much of the bill ships from the shelf.</li>
+      <li><b>Stock only</b>: non-stocked parts leave the candidate pool entirely — kits gray out, option cards re-rank, and where a stocked substitute exists the build swaps to it. The demo room (48"×48", linear drain) shows it live: the exact LTS 48"×48" tray is special order, so Stock only re-ranks to the stocked 55"×55" cut down — a deep cut, labeled as one. A line with <i>no</i> stocked substitute stays, flagged, so the build is never silently wrong.</li>
+      <li><b>It's a shell feature.</b> The switch lands in the shared popup header, so wedi gets it for free the same day — wedi's Browse tab already ranks stock first; this makes it a hard constraint when you want one.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="proto-label"><h2><b>P3</b>wedi ⇄ Schluter compare</h2><span>One room in, two systems out. Pick a preset room; both engines build their house kit and the grid lines them up by category.</span></div>
+<div class="popwrap"><div class="popup" id="p3"></div></div>
+<div class="notecard">
+  <div class="nc"><h3>Data status — what the sheets said</h3>
+    <ul>
+      <li><b>Loaded for real:</b> the ERP Vendor SKU Analysis (525 rows, 226 Schluter — trays, membrane, band, corners, drains, Kerdi-Line-Vario, boards, curbs, niches, benches, All-Set, with cost / retail / on-shelf counts) and the 7,083-row <code>SLR_EFT_25_10_01_2.xls</code> (dealer cost, lead times). 54 shower-system items + 5 boxed kits drive this page.</li>
+      <li><b>Rule found:</b> retail = 1.5 × cost on every Schluter stock row. The EFT is cost-only (its consumer column = dealer at the account's 0% markup).</li>
+      <li><b>Drift found:</b> the stock book's costs trail the 10/01/2025 EFT by ~6% on trays and boards (48"×60" tray: $121.03 in the book, $128.59 on the new sheet). A re-import of the EFT into the price-book library would surface every one through the existing drift chips.</li>
+      <li><b>Still wanted:</b> the Schluter USA price-list / shower brochure PDF for kit contents and coverage rules. <code>assets.schluter.com</code> is egress-blocked from this environment — upload the PDF like the sheets, or allowlist the domain in the environment's network settings.</li>
+    </ul>
+  </div>
+  <div class="nc"><h3>Three ways to ship "compare" — recommendation</h3>
+    <ul>
+      <li><b>A. Compare tab (this prototype):</b> a fourth tab in whichever configurator is open — runs the other engine on the same room. Salesman-facing, zero new data model.</li>
+      <li><b>B. Cross-price chip:</b> lighter — the build column footer shows "≈ $1,9xx in Schluter — open", jumping to the other popup with the room carried over.</li>
+      <li><b>C. Quote options (already shipped, ADR 0031):</b> customer-facing — land the wedi build in Option A and the Schluter build in Option B of the same area; the estimate prints both prices side by side with zero new print work.</li>
+      <li><b>Recommendation: A + C.</b> A is where the salesman decides; C is how the customer sees it. B falls out of A almost for free later.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+/* ---------------- REAL Schluter catalog - generated from the shop stock sheet (retail/cost/free stock)
+   and SLR_EFT_25_10_01_2.xls (dealer cost, lead) 2026-08-20. eftCost marks stocked rows whose shop cost
+   trails the 10/01/2025 EFT. ---------------- */
+const SLT = [
+ {"sku": "KST965BF", "erp": "1509824", "name": "KERDI-SHOWER-TT Tray 38\"×38\"", "price": 101.14, "cost": 67.42, "unit": "EA", "stock": true, "free": 2, "lead": "READY SHIP", "g": "tray", "w": 38, "d": 38, "drain": "point", "eftCost": 71.64},
+ {"sku": "KST965/810BF", "erp": "1509823", "name": "KERDI-SHOWER-TT Tray 38\"×32\"", "price": 119.32, "cost": 79.54, "unit": "EA", "stock": true, "free": 2, "lead": "IMPORT", "g": "tray", "w": 38, "d": 32, "drain": "point", "eftCost": 84.52},
+ {"sku": "KST915BF", "erp": "1509820", "name": "KERDI-SHOWER-TT Tray 36\"×36\"", "price": 90.78, "cost": 60.52, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 36, "d": 36, "drain": "point", "eftCost": 64.3},
+ {"sku": "KST915/1220BF", "erp": "1509819", "name": "KERDI-SHOWER-TT Tray 36\"×48\"", "price": 140.06, "cost": 93.37, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 48, "d": 36, "drain": "point", "eftCost": 99.2},
+ {"sku": "KST1220BF", "erp": "1509816", "name": "KERDI-SHOWER-TT Tray 48\"×48\"", "price": 111.53, "cost": 74.35, "unit": "EA", "stock": true, "free": 2, "lead": "READY SHIP", "g": "tray", "w": 48, "d": 48, "drain": "point", "eftCost": 79.0},
+ {"sku": "KST965/1525", "erp": "1509821", "name": "KERDI-SHOWER-T Tray 38\"×60\"", "price": 121.91, "cost": 81.27, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 38, "drain": "point", "eftCost": 86.35},
+ {"sku": "KST965/1525S", "erp": "1509822", "name": "KERDI-SHOWER-TS Tray 38\"×60\" offset drain", "price": 121.91, "cost": 81.27, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 38, "drain": "offset", "eftCost": 86.35},
+ {"sku": "KST1220/1525", "erp": "1509814", "name": "KERDI-SHOWER-T Tray 48\"×60\"", "price": 181.55, "cost": 121.03, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 48, "drain": "point", "eftCost": 128.59},
+ {"sku": "KST1220/1830", "erp": "1509815", "name": "KERDI-SHOWER-T Tray 48\"×72\"", "price": 194.52, "cost": 129.68, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "tray", "w": 72, "d": 48, "drain": "point", "eftCost": 137.79},
+ {"sku": "KST1525", "erp": "1509817", "name": "KERDI-SHOWER-T Tray 60\"×60\"", "price": 238.61, "cost": 159.07, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 60, "d": 60, "drain": "point", "eftCost": 169.01},
+ {"sku": "KST1830", "erp": "1509818", "name": "KERDI-SHOWER-T Tray 72\"×72\"", "price": 259.35, "cost": 172.9, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 72, "d": 72, "drain": "point", "eftCost": 183.71},
+ {"sku": "SLRKSLT1000S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 39\"×39\"", "price": 194.64, "cost": 129.76, "unit": "PC", "stock": false, "free": null, "lead": "IMPORT", "g": "tray", "w": 39, "d": 39, "drain": "linear"},
+ {"sku": "SLRKSLT1220S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 48\"×48\"", "price": 259.59, "cost": 173.06, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "tray", "w": 48, "d": 48, "drain": "linear"},
+ {"sku": "SLRKSLT9151395S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 36\"×55\"", "price": 228.42, "cost": 152.28, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "tray", "w": 55, "d": 36, "drain": "linear"},
+ {"sku": "KSLT1395S", "erp": "1509812", "name": "KERDI-SHOWER-LTS Tray 55\"×55\"", "price": 307.85, "cost": 205.23, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "tray", "w": 55, "d": 55, "drain": "linear", "eftCost": 218.06},
+ {"sku": "SLRKSLT9151830S", "erp": null, "name": "KERDI-SHOWER-LTS Tray 36\"×72\"", "price": 306.3, "cost": 204.2, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "tray", "w": 72, "d": 36, "drain": "linear"},
+ {"sku": "KSLT965/1930S", "erp": "1509813", "name": "KERDI-SHOWER-LTS Tray 38\"×76\"", "price": 317.61, "cost": 211.74, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "tray", "w": 76, "d": 38, "drain": "linear", "eftCost": 224.97},
+ {"sku": "KD2FLKPVC", "erp": "1509762", "name": "KERDI-DRAIN flange kit 2\" PVC", "price": 84.62, "cost": 56.41, "unit": "EA", "stock": true, "free": 8, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "flange", "eftCost": 53.02},
+ {"sku": "KD4GRKE", "erp": "1509763", "name": "KERDI-DRAIN grate 4\" stainless", "price": 52.9, "cost": 35.27, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "grate", "eftCost": 37.47},
+ {"sku": "KD4GRKECS", "erp": "1509764", "name": "KERDI-DRAIN grate 4\" tileable", "price": 52.9, "cost": 35.27, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "grate", "eftCost": 37.47},
+ {"sku": "KDIF4GRKEBD5", "erp": "1509768", "name": "KERDI-DRAIN grate kit 4\" floral brushed SS", "price": 86.29, "cost": 57.52, "unit": "EA", "stock": true, "free": 3, "lead": "READY SHIP", "g": "drain", "drain": "point", "part": "grate", "eftCost": 61.13},
+ {"sku": "KLVRID3EB122", "erp": "1509801", "name": "KERDI-LINE-VARIO 4' square, brushed SS", "price": 220.48, "cost": 146.98, "unit": "EA", "stock": true, "free": 2, "lead": "READY SHIP", "g": "drain", "size": "cut to length", "drain": "linear", "part": "channel", "len": 48, "eftCost": 156.16},
+ {"sku": "KLVRID3EB244", "erp": "1509802", "name": "KERDI-LINE-VARIO 8' square, brushed SS", "price": 403.09, "cost": 268.73, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "drain", "size": "cut to length", "drain": "linear", "part": "channel", "len": 96, "eftCost": 285.52},
+ {"sku": "KLVRID5EB122", "erp": "1509803", "name": "KERDI-LINE-VARIO 4' floral, brushed SS", "price": 210.12, "cost": 140.08, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "drain", "size": "cut to length", "drain": "linear", "part": "channel", "len": 48, "eftCost": 148.83},
+ {"sku": "KLVR2FLK", "erp": "1510357", "name": "KERDI-LINE-VARIO flange kit 2\"", "price": 103.51, "cost": 69.0, "unit": "EA", "stock": true, "free": 5, "lead": "READY SHIP", "g": "drain", "drain": "linear", "part": "flange", "eftCost": 73.31},
+ {"sku": "KERDI200/5M", "erp": "1509785", "name": "KERDI membrane roll", "price": 106.94, "cost": 71.29, "unit": "RL", "stock": true, "free": 3, "lead": null, "g": "membrane", "size": "3'3\"×16'5\" = 54 sf", "sf": 54},
+ {"sku": "KERDI200/7M", "erp": "1509784", "name": "KERDI membrane roll", "price": 146.47, "cost": 97.64, "unit": "RL", "stock": true, "free": 4, "lead": "READY SHIP", "g": "membrane", "size": "3'3\"×23' = 75 sf", "sf": 75, "eftCost": 103.74},
+ {"sku": "KERDI200/10M", "erp": "1509783", "name": "KERDI membrane roll", "price": 207.65, "cost": 138.43, "unit": "RL", "stock": true, "free": 5, "lead": null, "g": "membrane", "size": "3'3\"×33' = 108 sf", "sf": 108},
+ {"sku": "KERDI200/20M", "erp": "1509782", "name": "KERDI membrane roll", "price": 396.83, "cost": 264.55, "unit": "RL", "stock": true, "free": 2, "lead": null, "g": "membrane", "size": "3'3\"×66' = 215 sf", "sf": 215},
+ {"sku": "KERDI200", "erp": "1509781", "name": "KERDI membrane roll", "price": 528.1, "cost": 352.07, "unit": "RL", "stock": true, "free": 2, "lead": "READY SHIP", "g": "membrane", "size": "3'3\"×98'5\" = 323 sf", "sf": 323},
+ {"sku": "KERDI200200/15M", "erp": "1509786", "name": "KERDI wide roll", "price": 559.48, "cost": 372.98, "unit": "RL", "stock": true, "free": 2, "lead": null, "g": "membrane", "size": "6'7\"×49' = 323 sf", "sf": 323},
+ {"sku": "KEBA100/125/5M", "erp": "1509778", "name": "KERDI-BAND 5\" seam band", "price": 19.85, "cost": 13.23, "unit": "RL", "stock": true, "free": 4, "lead": "READY SHIP", "g": "seam", "size": "16'5\" roll", "lf": 16, "eftCost": 14.06},
+ {"sku": "KEBA100/125/10M", "erp": "1509779", "name": "KERDI-BAND 5\" seam band", "price": 37.71, "cost": 25.14, "unit": "RL", "stock": true, "free": 3, "lead": "READY SHIP", "g": "seam", "size": "32'10\" roll", "lf": 33, "eftCost": 26.71},
+ {"sku": "KEBA100/125", "erp": "1509780", "name": "KERDI-BAND 5\" seam band", "price": 93.16, "cost": 62.11, "unit": "RL", "stock": true, "free": 5, "lead": "READY SHIP", "g": "seam", "size": "98'5\" roll", "lf": 98, "eftCost": 65.99},
+ {"sku": "KERECK/FI2", "erp": "1509791", "name": "KERECK-F inside corners", "price": 15.32, "cost": 10.21, "unit": "PK", "stock": true, "free": 3, "lead": "READY SHIP", "g": "seam", "size": "2 per pack", "eftCost": 10.85},
+ {"sku": "KERECK/FA2", "erp": "1509789", "name": "KERECK-F outside corners", "price": 15.32, "cost": 10.21, "unit": "PK", "stock": true, "free": 6, "lead": "READY SHIP", "g": "seam", "size": "2 per pack", "eftCost": 10.85},
+ {"sku": "KMS172/12", "erp": "1509807", "name": "KERDI-SEAL-PS pipe seal 1/2\"", "price": 7.55, "cost": 5.03, "unit": "EA", "stock": true, "free": 6, "lead": "READY SHIP", "g": "seam"},
+ {"sku": "KMSMV235/114", "erp": "1509811", "name": "KERDI-SEAL-MV mixing-valve seal", "price": 8.71, "cost": 5.8, "unit": "EA", "stock": true, "free": 6, "lead": "READY SHIP", "g": "seam"},
+ {"sku": "KB1212201625", "erp": "1509748", "name": "KERDI-BOARD 1/2\" panel", "price": 74.38, "cost": 49.58, "unit": "EA", "stock": true, "free": 52, "lead": "READY SHIP", "g": "board", "size": "48\"×64\" = 21.3 sf", "sf": 21.3, "eftCost": 52.68},
+ {"sku": "KB1212202440", "erp": "1509749", "name": "KERDI-BOARD 1/2\" panel", "price": 111.54, "cost": 74.36, "unit": "EA", "stock": true, "free": 20, "lead": "READY SHIP", "g": "board", "size": "48\"×96\" = 32 sf", "sf": 32, "eftCost": 79.01},
+ {"sku": "KBZS35GT32Z", "erp": "1509758", "name": "KERDI-BOARD screws + washers", "price": 12.58, "cost": 8.38, "unit": "BX", "stock": true, "free": 3, "lead": "READY SHIP", "g": "board", "size": "40 ct", "eftCost": 8.91},
+ {"sku": "KBZS35GT32Z100", "erp": "1509759", "name": "KERDI-BOARD screws + washers", "price": 23.73, "cost": 15.82, "unit": "BX", "stock": true, "free": 8, "lead": null, "g": "board", "size": "100 ct"},
+ {"sku": "KBSC115150970", "erp": "1509755", "name": "KERDI-BOARD-SC curb 38\"", "price": 55.42, "cost": 36.94, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "curb", "size": "6\"×4½\"×38\"", "len": 38, "eftCost": 39.26},
+ {"sku": "KBSC1151501220", "erp": "1509756", "name": "KERDI-BOARD-SC curb 48\"", "price": 60.45, "cost": 40.3, "unit": "EA", "stock": true, "free": 2, "lead": null, "g": "curb", "size": "6\"×4½\"×48\"", "len": 48},
+ {"sku": "KBSC1151501524", "erp": "1509757", "name": "KERDI-BOARD-SC curb 60\"", "price": 88.66, "cost": 59.1, "unit": "EA", "stock": true, "free": 4, "lead": null, "g": "curb", "size": "6\"×4½\"×60\"", "len": 60},
+ {"sku": "SLRKSR3051220", "erp": null, "name": "KERDI-SHOWER-R curbless ramp 12\"×48\"", "price": 99.03, "cost": 66.02, "unit": "PC", "stock": false, "free": null, "lead": "READY SHIP", "g": "curb", "ramp": true},
+ {"sku": "KB12SN305508A1", "erp": "1509750", "name": "KERDI-BOARD-SN niche 12\"×20\"", "price": 88.91, "cost": 59.27, "unit": "EA", "stock": true, "free": 4, "lead": null, "g": "extra"},
+ {"sku": "KB12SN305711A1", "erp": "1509751", "name": "KERDI-BOARD-SN niche 12\"×28\"", "price": 106.26, "cost": 70.84, "unit": "EA", "stock": true, "free": 5, "lead": null, "g": "extra"},
+ {"sku": "KB12SNLT2WW", "erp": "1509752", "name": "KERDI-BOARD-SN-LT lighted niche 12\"×20\"", "price": 269.76, "cost": 179.84, "unit": "EA", "stock": true, "free": 5, "lead": null, "g": "extra", "size": "warm white"},
+ {"sku": "KBSB410TA", "erp": "1509830", "name": "KERDI-BOARD-SB bench 16\"×16\" triangular", "price": 153.13, "cost": 102.09, "unit": "EA", "stock": true, "free": 1, "lead": "READY SHIP", "g": "extra", "eftCost": 108.47},
+ {"sku": "KBSB4101220RA", "erp": "1509831", "name": "KERDI-BOARD-SB bench 16\"×48\" rectangular", "price": 327.43, "cost": 218.28, "unit": "EA", "stock": true, "free": 4, "lead": "READY SHIP", "g": "extra", "eftCost": 231.93},
+ {"sku": "KERSB135KLR", "erp": "1509800", "name": "KERS-B bench corner kit", "price": 35.8, "cost": 23.86, "unit": "PK", "stock": true, "free": 5, "lead": "READY SHIP", "g": "extra", "size": "1 left + 1 right", "eftCost": 25.35},
+ {"sku": "SLRSETA50W", "erp": "23051", "name": "Schluter ALL-SET modified thin-set", "price": 39.21, "cost": 26.14, "unit": "BG", "stock": true, "free": 121, "lead": "READY SHIP", "g": "set", "size": "50 lb bag", "sfPerBag": 55, "eftCost": 27.49},
+ {"sku": "KERDIFIX/BW", "erp": "1509787", "name": "KERDI-FIX sealing adhesive", "price": 25.66, "cost": 17.11, "unit": "TB", "stock": true, "free": 4, "lead": "READY SHIP", "g": "set", "size": "9.81 oz, bright white", "eftCost": 18.17}
+ ,{"sku": "KB506252440", "erp": "1509754", "name": "KERDI-BOARD 2\" panel", "price": 250.10, "cost": 166.73, "unit": "EA", "stock": true, "free": 8, "lead": "READY SHIP", "g": "board", "size": "2\"×24.5\"×96\"", "thick2": true, "eftCost": 59.06}
+];
+/* stock cost $166.73 vs EFT $59.06 on the 2" board reads like a pack row - a real flag-for-Claude candidate */
+const SLT_KITS = [
+ {"sku": "SLRKSK9651525PVC", "w": 60, "d": 38, "drain": "point", "cost": 372.72, "price": 559.08, "stock": false, "desc": "KERDI-SHOWER-KIT 38 X 60 PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK9651525SP", "w": 60, "d": 38, "drain": "offset", "cost": 372.72, "price": 559.08, "stock": false, "desc": "KERDI-SHOWER-KIT 38 X 60 OFFSET PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK1220PVC", "w": 48, "d": 48, "drain": "point", "cost": 340.89, "price": 511.33, "stock": false, "desc": "KERDI-SHOWER-KIT 48 X 48 PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK12201830P", "w": 72, "d": 48, "drain": "point", "cost": 501.41, "price": 752.12, "stock": false, "desc": "KERDI-SHOWER-KIT 48 X 72 PVC FLANGE 2 IN"},
+ {"sku": "SLRKSK1830PVC", "w": 72, "d": 72, "drain": "point", "cost": 584.66, "price": 876.99, "stock": false, "desc": "KERDI-SHOWER-KIT 72 X 72 PVC FLANGE 2 IN"}
+];
+SLT_KITS.forEach(k=>SLT.push({sku:k.sku, name:`KERDI-SHOWER-KIT ${k.d}\"×${k.w}\"${k.drain==="offset"?" offset":""} PVC`, size:"tray + curbs + KERDI + band + flange + corners + seals", price:k.price, cost:k.cost, unit:"EA", stock:false, lead:"READY SHIP", g:"kit", w:k.w, d:k.d}));
+
+/* ---------------- wedi mini-table for compare — REAL numbers from src/wedi.js (cost/retail = ERP export / Jan-2026 pricelist) ---------------- */
+const WEDI = {
+ pans: [
+  {us:"US9100004", name:"3'×5' Fundo Pan, center drain",  w:60,d:36, retail:566.01, curbed:true,  stock:true},
+  {us:"US9100009", name:"4'×5' Fundo Pan, center drain",  w:60,d:48, retail:806.06, curbed:true,  stock:true},
+  {us:"US9200003", name:"3'×5' Curbless Pan, center drain",w:60,d:36, retail:715.94, curbed:false, stock:true},
+ ],
+ panel45: {us:"US8000014", name:"4'×5'×1/2\" Building Panel", retail:72.74, sf:20, stock:true},
+ curb5:   {us:"US3000039", name:"5' Curb, full foam", retail:102.34, stock:true},
+ sealant: {us:"US5000083", name:"Joint Sealant 620, 20 oz sausage", retail:41.46, stock:true},
+ fasteners:{name:"Screws + washers (allowance)", retail:45.00, est:true, stock:true},
+ cover:   {name:"Drain cover, stainless (est.)", retail:95.00, est:true, stock:true},
+};
+
+/* ---------------- shared helpers ---------------- */
+const $$ = s => document.querySelector(s);
+const money = n => n==null ? "—" : n.toLocaleString("en-US",{style:"currency",currency:"USD"});
+const TIERS = {retail:{lbl:"Retail",mult:1,note:"1.5× cost"}, builder:{lbl:"Builder",mult:.92,note:"−8% app default*"}, cost:{lbl:"Cost",mult:1,note:"shop book / EFT"}};
+const WEDI_BUILDER = .82;
+const inches = n => n % 12 === 0 ? (n/12)+"'" : n+'"';
+const szLbl = t => `${inches(t.w)}×${inches(t.d)}`;
+
+/* ---------------- schluter engine (real data) ---------------- */
+function wallArea(cfg){ return cfg.walls.filter(w=>w.on).reduce((s,w)=>s + w.len*w.h/144, 0); }
+const priceOf = (item, tier) => tier==="cost" ? (item.cost||0) : (item.price||0)*TIERS[tier].mult;
+function trayCandidates(cfg, source){
+  const pool = SLT.filter(i=>i.g==="tray" && (source==="all"||i.stock) &&
+    (cfg.drain==="linear" ? i.drain==="linear"
+     : cfg.drain==="offset" ? i.drain!=="linear"
+     : i.drain==="point"));
+  const fits = t => t.w>=cfg.w && t.d>=cfg.d && (t.w-cfg.w)+(t.d-cfg.d) <= 26;
+  const out = pool.filter(fits).map(t=>({tray:t, cut:(t.w-cfg.w)+(t.d-cfg.d),
+    deep:(t.w-cfg.w>6||t.d-cfg.d>6), kind:((t.w-cfg.w)+(t.d-cfg.d))===0?"exact":"cut"}));
+  out.sort((a,b)=>((a.tray.drain===cfg.drain?0:1)-(b.tray.drain===cfg.drain?0:1)) || a.cut-b.cut || a.tray.price-b.tray.price);
+  if (!out.length) out.push({kind:"mortar", cut:0});
+  return out.slice(0,4);
+}
+function pickRolls(sfNeed, source){
+  const rolls = SLT.filter(i=>i.g==="membrane" && !/wide/i.test(i.name) && (source==="all"||i.stock)).sort((a,b)=>a.sf-b.sf);
+  if (!rolls.length) return [];
+  const picks = []; const big = rolls[rolls.length-1];
+  let need = sfNeed;
+  const nBig = Math.floor(need/big.sf);
+  if (nBig>0){ picks.push({item:big, qty:nBig}); need -= nBig*big.sf; }
+  if (need>0){ const top = rolls.find(r=>r.sf>=need) || big;
+    const ex = picks.find(p=>p.item===top); ex ? ex.qty++ : picks.push({item:top, qty:1}); }
+  return picks;
+}
+function buildSchluter(cfg, source, pick){
+  const L=[];
+  const add=(g,item,qty,note)=>{ if(item) L.push({g,item,qty,note,so:!item.stock}); };
+  const cand = pick || trayCandidates(cfg, source)[0];
+  if (cand.kind==="mortar"){
+    const floorSfM = cfg.w*cfg.d/144;
+    L.push({g:"Base", item:{name:"Mortar bed mix — Settings → Materials pick", sku:"— e.g. 60 lb deck mud", price:0, cost:0, stock:true}, qty:Math.max(1,Math.ceil(floorSfM/8)), note:"no tray fits"+(source==="stock"?" from stock":"")+" — qty at ≈8 sf/bag @ 1-1/2\"; rate follows the picked product"});
+    for (const p of pickRolls(floorSfM*1.15, source)) L.push({g:"Base", item:p.item, qty:p.qty, note:"KERDI over the cured bed", so:!p.item.stock});
+  } else {
+    add("Base", cand.tray, 1, (cand.tray.drain!==cfg.drain && cfg.drain==="offset" ? "centre-drain tray — offset size not made; " : "") + (cand.cut? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit"));
+  }
+  if (cfg.drain==="linear"){
+    const chans = SLT.filter(i=>i.g==="drain"&&i.part==="channel"&&(source==="all"||i.stock)).sort((a,b)=>a.len-b.len||a.price-b.price);
+    const need = cfg.w-8;
+    const ch = chans.find(c=>c.len>=need) || chans[chans.length-1];
+    add("Drain", ch, 1, (ch && ch.len>need ? `cut to ${need}"` : "at the wall")+" — min cut 10\", IPC 2.5 gpm");
+    add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="linear"), 1, "incl. 4+2 corners, pipe + valve seals, couplings");
+  } else {
+    add("Drain", SLT.find(i=>i.g==="drain"&&i.part==="flange"&&i.drain==="point"), 1, 'bonded flange, 2" PVC');
+    const grates = SLT.filter(i=>i.g==="drain"&&i.part==="grate"&&(source==="all"||i.stock));
+    add("Drain", grates[0], 1, "finish pick — tileable & floral stocked too");
+  }
+  const sf = wallArea(cfg);
+  if (cfg.wallSys==="board"){
+    const b = SLT.find(i=>i.sf===32&&i.g==="board");
+    add("Walls", b, Math.ceil(sf*1.05/b.sf), `${sf.toFixed(0)} sf of wall`);
+    add("Walls", SLT.find(i=>i.g==="board"&&i.size==="100 ct"), Math.max(1,Math.ceil(sf/60)), "board fasteners");
+  } else {
+    for (const p of pickRolls(sf*1.1, source)) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
+    L.push({g:"Walls", item:{name:"Cement board / drywall substrate", sku:"— by others", price:0, cost:0, stock:true}, qty:1, note:"membrane needs a backer", noteOnly:true});
+  }
+  const bands = SLT.filter(i=>i.g==="seam"&&i.lf).sort((a,b)=>a.lf-b.lf);
+  const lfNeed = 2*(cfg.w+cfg.d)/12 + sf/6;
+  add("Seams", bands.find(b=>b.lf>=lfNeed)||bands[bands.length-1], 1, "seams + tray perimeter");
+  if (cfg.drain!=="linear"){
+    add("Seams", SLT.find(i=>/inside corner/i.test(i.name)), 2, "4 inside — factory kit recipe");
+    add("Seams", SLT.find(i=>/outside corner/i.test(i.name)), 1, "2 outside — factory kit recipe");
+    add("Seams", SLT.find(i=>/pipe seal/i.test(i.name)), 1);
+    add("Seams", SLT.find(i=>/valve seal/i.test(i.name)), 1);
+  }
+  if (cfg.curbed){
+    const curbs = SLT.filter(i=>i.g==="curb"&&i.len).sort((a,b)=>a.len-b.len);
+    const c = curbs.find(x=>x.len>=cfg.w && (source==="all"||x.stock)) || curbs[curbs.length-1];
+    add("Curb", c, Math.max(1,Math.ceil(cfg.w/c.len)), (c.len<cfg.w? "cut to length end-to-end":"cut to entry width")+" — incl. 2+2 Kereck corners");
+  } else {
+    add("Curb", SLT.find(i=>i.ramp), 1, "12\" run, 1-1/4\"→1/4\" — ADA slope (KERDI-SHOWER-FRS recess system lands Fall 2026)");
+  }
+  if (cfg.bench==="framed"){
+    add("Extras", SLT.find(i=>i.g==="board"&&i.sf===32), 1, "framed bench — ½\" KERDI-BOARD wrap, framing by installer (wedi rule: only a framed bench interrupts the envelope)");
+  } else if (cfg.bench==="buildup"){
+    add("Extras", SLT.find(i=>i.thick2), 2, "2\" KERDI-BOARD build-up ON the finished tray — top + face + supports, wedi-style");
+  }
+  const floorSf = cfg.w*cfg.d/144;
+  const allset = SLT.find(i=>i.sfPerBag);
+  add("Setting", allset, Math.max(1,Math.ceil((sf+floorSf)/allset.sfPerBag)), "sets membrane/board");
+  add("Setting", SLT.find(i=>/KERDI-FIX/.test(i.name)), 1);
+  return {lines:L, cand};
+}
+const linesTotal = (L,tier="retail") => L.reduce((s,l)=>s + priceOf(l.item,tier)*l.qty, 0);
+const stockStats = (L,tier="retail") => { const b=L.filter(l=>!l.noteOnly && (l.item.price||0)>0); const st=b.filter(l=>l.item.stock); return {n:st.length, of:b.length, val:st.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0), tot:b.reduce((s,l)=>s+priceOf(l.item,tier)*l.qty,0)} };
+
+/* Browse taxonomy — the wedi filter-board idiom (BROWSE_SECTIONS) over Schluter groups */
+const SLT_SECTIONS = [
+ { key:"trays", label:"Trays", subs:[
+   { key:"point",  label:"Point drain",  hit:i=>i.g==="tray" && i.drain!=="linear" },
+   { key:"linear", label:"Linear (LTS)", hit:i=>i.g==="tray" && i.drain==="linear" } ]},
+ { key:"drains", label:"Drains", subs:[
+   { key:"flanges", label:"Flanges", hit:i=>i.g==="drain" && i.part==="flange" },
+   { key:"grates",  label:"Grates",  hit:i=>i.g==="drain" && i.part==="grate" },
+   { key:"vario",   label:"Line-Vario", hit:i=>i.g==="drain" && i.drain==="linear" } ]},
+ { key:"wp", label:"Waterproofing", subs:[
+   { key:"membrane", label:"KERDI rolls", hit:i=>i.g==="membrane" },
+   { key:"band",     label:"Band",        hit:i=>i.g==="seam" && i.lf },
+   { key:"corners",  label:"Corners & seals", hit:i=>i.g==="seam" && !i.lf } ]},
+ { key:"build", label:"Build", subs:[
+   { key:"board", label:"KERDI-BOARD", hit:i=>i.g==="board" },
+   { key:"curbs", label:"Curbs & ramp", hit:i=>i.g==="curb" },
+   { key:"set",   label:"Setting", hit:i=>i.g==="set" } ]},
+ { key:"extras", label:"Extras", hit:i=>i.g==="extra" },
+ { key:"kits", label:"Factory kits", hit:i=>i.g==="kit" },
+];
+const sltSectionHit = (s,i) => s.hit ? s.hit(i) : s.subs.some(sb=>sb.hit(i));
+
+/* ---------------- top-down plan drawing (issue: "a drawing like wedi") ---------------- */
+function planSvg(cfg, cand, extras=[]){
+  const tray = cand && cand.tray;
+  const W = cfg.w, D = cfg.d;
+  const tW = tray? tray.w : W, tD = tray? tray.d : D;
+  const wall = 4, frontD = cfg.curbed? 4.5 : 12, m = 15;
+  const totW = Math.max(W, tW) + wall*2 + m*2;
+  const totD = Math.max(D, tD) + wall + frontD + m*2;
+  const scale = Math.min(600/totW, 250/totD);
+  const X = x => ((x + wall + m) * scale).toFixed(1);
+  const Y = y => ((y + wall + m) * scale).toFixed(1);
+  const L = v => (v*scale).toFixed(1);
+  const on = i => cfg.walls[i] && cfg.walls[i].on;
+  const p = [];
+  // wall bands: back runs through, sides butt it (wedi corner rule)
+  if (on(0)) p.push(`<rect x="${X(-wall)}" y="${Y(-wall)}" width="${L(W+wall*2)}" height="${L(wall)}" class="pw"/>`);
+  if (on(1)) p.push(`<rect x="${X(-wall)}" y="${Y(on(0)?0:-wall)}" width="${L(wall)}" height="${L(D+(on(0)?0:wall))}" class="pw"/>`);
+  if (on(2)) p.push(`<rect x="${X(W)}" y="${Y(on(0)?0:-wall)}" width="${L(wall)}" height="${L(D+(on(0)?0:wall))}" class="pw"/>`);
+  // ghost of the uncut tray, anchored back-left
+  const cut = tray && (tW>W || tD>D);
+  if (cut) p.push(`<rect x="${X(0)}" y="${Y(0)}" width="${L(tW)}" height="${L(tD)}" class="pg"/>`);
+  // finished pan
+  p.push(`<rect x="${X(0)}" y="${Y(0)}" width="${L(W)}" height="${L(D)}" class="pt"/>`);
+  if (cut && tW>W) p.push(`<line x1="${X(W)}" y1="${Y(0)}" x2="${X(W)}" y2="${Y(Math.min(D,tD))}" class="pcut"/>`);
+  if (cut && tD>D) p.push(`<line x1="${X(0)}" y1="${Y(D)}" x2="${X(Math.min(W,tW))}" y2="${Y(D)}" class="pcut"/>`);
+  // drain — trays keep their moulded drain: centre (or offset) of the UNCUT tray
+  if (tray){
+    if (cfg.drain==="linear"){
+      const dl = Math.min(W-8, 96);
+      p.push(`<rect x="${X((W-dl)/2)}" y="${Y(1.5)}" width="${L(dl)}" height="${L(2.5)}" class="pdrain"/>`);
+      p.push(`<text x="${X(W/2)}" y="${Y(8.6)}" text-anchor="middle" class="plbl">linear drain at wall</text>`);
+    } else {
+      const dx = tW/2, dy = cfg.drain==="offset"? tD*0.27 : tD/2;
+      p.push(`<rect x="${X(dx-2)}" y="${Y(dy-2)}" width="${L(4)}" height="${L(4)}" class="pdrain"/>`);
+      const off = cut && Math.abs(dx - W/2) > 1;
+      p.push(`<text x="${X(dx)}" y="${Y(dy+7)}" text-anchor="middle" class="plbl${off?' warn':''}">${off? `drain ${Math.round(Math.abs(dx-W/2))}&#8243; off room centre` : cfg.drain==="offset"? "offset drain" : "drain"}</text>`);
+    }
+  }
+  // entry: curb or ramp
+  if (cfg.curbed){
+    p.push(`<rect x="${X(0)}" y="${Y(D)}" width="${L(W)}" height="${L(4.5)}" class="pcurb"/>`);
+    p.push(`<text x="${X(W/2)}" y="${Y(D+3.4)}" text-anchor="middle" class="plbl">curb</text>`);
+  } else {
+    p.push(`<rect x="${X(0)}" y="${Y(D)}" width="${L(W)}" height="${L(12)}" class="pg"/>`);
+    p.push(`<text x="${X(W/2)}" y="${Y(D+7)}" text-anchor="middle" class="plbl">curbless — ramp / recess</text>`);
+  }
+  // extras markers
+  if (extras.some(x=>/niche/i.test(x.name)) && on(0))
+    p.push(`<rect x="${X(W/2-6)}" y="${Y(-wall)}" width="${L(12)}" height="${L(wall)}" class="pniche"/><text x="${X(W/2)}" y="${Y(-wall-2)}" text-anchor="middle" class="plbl">niche</text>`);
+  if (extras.some(x=>/bench/i.test(x.name) && !/corner kit/i.test(x.name)))
+    p.push(`<polygon points="${X(W)},${Y(0)} ${X(W-16)},${Y(0)} ${X(W)},${Y(16)}" class="pbench"/><text x="${X(W-7)}" y="${Y(7)}" text-anchor="middle" class="plbl">bench</text>`);
+  // dimensions
+  p.push(`<text x="${X(W/2)}" y="${Y(D-3)}" text-anchor="middle" class="plbl b">${inches(W)} × ${inches(D)}</text>`);
+  if (tray) p.push(`<text x="${X(0)+4}" y="${Y(2.5)+4}" class="plbl">${tray.sku}${cut?` — cut from ${szLbl(tray)}`:""}</text>`);
+  const vw = (totW*scale).toFixed(0), vh = (totD*scale).toFixed(0);
+  return `<svg viewBox="0 0 ${vw} ${vh}" style="max-width:${vw}px">${p.join("")}</svg>`;
+}
+
+/* isometric — oblique box projection; back/left walls solid, tray + curb massed */
+function isoSvg(cfg, cand){
+  const W=cfg.w, D=cfg.d, on=i=>cfg.walls[i]&&cfg.walls[i].on, hOf=i=>cfg.walls[i].h;
+  const px=(x,y,z)=>[x + y*0.52, y*0.40 - z];
+  const P=[];
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  const seen=[];
+  const face=(pts,cls)=>{ seen.push([pts,cls]); pts.forEach(([a,b])=>{minx=Math.min(minx,a);maxx=Math.max(maxx,a);miny=Math.min(miny,b);maxy=Math.max(maxy,b)}); };
+  const box=(x,y,z,dx,dy,dz,c)=>{
+    face([px(x,y,z+dz),px(x+dx,y,z+dz),px(x+dx,y+dy,z+dz),px(x,y+dy,z+dz)], c+" top");
+    face([px(x,y+dy,z),px(x+dx,y+dy,z),px(x+dx,y+dy,z+dz),px(x,y+dy,z+dz)], c+" front");
+    face([px(x+dx,y,z),px(x+dx,y+dy,z),px(x+dx,y+dy,z+dz),px(x+dx,y,z+dz)], c+" side");
+  };
+  if (on(0)) box(-4, -4, 0, W+8, 4, hOf(0), "iw");
+  if (on(1)) box(-4, 0, 0, 4, D, hOf(1), "iw");
+  const tray = cand && cand.tray;
+  box(0, 0, 0, W, D, 1.5, "it");
+  if (on(2)) box(W, 0, 0, 4, D, hOf(2), "iw2");
+  if (cfg.curbed) box(0, D, 0, W, 4.5, 6, "ic");
+  if (tray && cfg.drain!=="linear"){ const [dx,dy]=px(tray.w/2, cfg.drain==="offset"? tray.d*0.27 : Math.min(tray.d,D)/2, 1.6); seen.push([[[dx,dy]],"idrain"]); }
+  const sc = Math.min(560/(maxx-minx), 300/(maxy-miny));
+  const T=([a,b])=>`${((a-minx)*sc).toFixed(1)},${((b-miny)*sc).toFixed(1)}`;
+  for (const [pts,cls] of seen){
+    if (cls==="idrain"){ const [a,b]=pts[0]; P.push(`<circle cx="${((a-minx)*sc).toFixed(1)}" cy="${((b-miny)*sc).toFixed(1)}" r="4" class="pdrain"/>`); continue; }
+    P.push(`<polygon points="${pts.map(T).join(" ")}" class="${cls}"/>`);
+  }
+  return `<svg viewBox="0 0 ${((maxx-minx)*sc).toFixed(0)} ${((maxy-miny)*sc).toFixed(0)}">${P.join("")}</svg>`;
+}
+
+/* the rail's cut list — wedi's warnlist idiom over the schluter build */
+function cutList(cfg, build, cand){
+  const rows = [];
+  if (cand && cand.tray && cand.cut) rows.push(`✂ Cut ${cand.tray.sku} to ${inches(cfg.w)} × ${inches(cfg.d)} (from ${szLbl(cand.tray)})${cand.deep?" — deep cut, drain moves off-centre":""}`);
+  const ch = build.lines.find(l=>l.item.part==="channel");
+  if (ch && /cut to/.test(ch.note||"")) rows.push(`✂ Trim the Vario channel + grate ${ch.note.match(/cut to \d+"/)[0].replace("cut to ","to ")} — end caps supplied, min 10"`);
+  const curb = build.lines.find(l=>l.g==="Curb" && l.item.len);
+  if (curb && /cut/.test(curb.note||"")) rows.push(`✂ ${curb.qty>1?curb.qty+"× ":""}${curb.item.name.replace("KERDI-BOARD-SC ","")} — ${curb.note.split(" — ")[0]}`);
+  if (cfg.wallSys==="membrane") rows.push(`• Backer behind the membrane is by others — cement board or drywall`);
+  if (!cfg.curbed) rows.push(`• Curbless needs the floor recessed or the ramp — KERDI-SHOWER-FRS recess system lands Fall 2026`);
+  return rows.length? `<div class="pt-t" style="margin-top:2px">Cut list</div>` + rows.map(r=>`<div class="warnrow"><span class="ic">${r.slice(0,1)}</span><span>${r.slice(2)}</span></div>`).join("") : "";
+}
+
+/* ---------------- P1/P2 popup renderer ---------------- */
+function popupState(id, over={}){
+  return Object.assign({ id, tab:"custom", tier:"retail", source:"all",
+    cfg:{ w:60, d:38, curbed:true, drain:"point", wallSys:"membrane",
+      walls:[{name:"Back",on:true,len:60,h:84},{name:"Left",on:true,len:38,h:84},{name:"Right",on:true,len:38,h:84}]},
+    pick:null, manual:[], q:"", sec:"", sub:"", figOpen:false, figSf:"", bench:null }, over);
+}
+const S1 = popupState("p1");
+
+function renderPopup(S, host, opts={}){
+  const cfg=S.cfg; cfg.walls[0].len=cfg.w; cfg.walls[1].len=cfg.d; cfg.walls[2].len=cfg.d;
+  const cands = trayCandidates(cfg, S.source);
+  const pick = S.pick && cands.find(c=>c.tray && S.pick.tray && c.tray.sku===S.pick.tray.sku) || cands[0];
+  const build = buildSchluter(cfg, S.source, pick);
+  S.manual.forEach(m=>{ const x=SLT.find(i=>i.sku===m.sku); if(x) build.lines.push({g:"Extras", item:x, qty:m.qty, so:!x.stock}); });
+  const st = stockStats(build.lines, S.tier);
+  const qtyIn = sku => (S.manual.find(m=>m.sku===sku)||{qty:0}).qty;
+
+
+
+  const trayRows = SLT.filter(i=>i.g==="tray").map(t=>{
+    const dis = S.source==="stock" && !t.stock;
+    return `<button class="kitrow ${dis?'dis':''}" data-tray="${t.sku}" ${dis?'disabled':''}>
+      <span class="sz">${szLbl(t)}<small>${t.drain}</small></span>
+      <span class="tag ${t.stock?'':'so'}">${t.stock?'stock':'special order'}</span>
+      <span class="sku">${t.sku} — ${t.name}</span>
+      <span class="pr">${money(priceOf(t,S.tier))}</span></button>`;}).join("");
+
+  const optCards = cands.map((c,i)=>{
+    if (c.kind==="mortar") return `<div class="optcard on"><div class="rank warn">Fallback</div><div class="big">Mortar bed + KERDI</div><div class="sub">No tray covers this room${S.source==="stock"?" from stock":""} — site-built pitch, membrane floor.</div></div>`;
+    const deep = c.deep;
+    return `<button class="optcard ${pick===c?'on':''}" data-opt="${i}">
+      <div class="rank ${deep?'warn':''}">${c.kind==="exact"?"Exact tray":deep?"Deep cut":"Cut down"}</div>
+      <div class="big">${szLbl(c.tray)}</div>
+      <div class="sub">${c.kind==="exact"?"Drops in as-is, drain on layout.":`Trim ${c.cut}&Prime; total to hit ${inches(cfg.w)}×${inches(cfg.d)}${deep?" — past the 6&Prime; soft rule, drain moves off-centre":""}.`}</div>
+      <div class="foot"><span class="stockdot ${c.tray.stock?'':'so'}">${c.tray.stock?'stock':'special order'}</span><span class="pr">${money(priceOf(c.tray,S.tier))}</span></div>
+    </button>`;}).join("");
+
+  const wallRows = cfg.walls.map((w,i)=>`<div class="wallrow ${w.on?'on':''}">
+      <button class="wname" data-wall="${i}">${w.name}</button>
+      <input data-wlen="${i}" type="number" value="${w.len}" ${i===0?'disabled':''}>×<input data-wh="${i}" type="number" value="${w.h}">
+      <span class="sf">${w.on?(w.len*w.h/144).toFixed(1)+" sf":"off"}</span></div>`).join("");
+
+  const groups=["Base","Drain","Walls","Seams","Curb","Setting","Extras"];
+  const lineHtml = groups.map(g=>{
+    const gl = build.lines.filter(l=>l.g===g); if(!gl.length) return "";
+    return `<div class="bgroup">${g}</div>` + gl.map(l=>`
+      <div class="bline ${l.so&&!l.noteOnly?'so':''} ${l.noteOnly?'note':''}">
+        <span class="q">${l.noteOnly?"":l.qty+"×"}</span>
+        <span class="nm">${l.item.name}${l.item.size?` <small>${l.item.size} · ${l.item.sku}</small>`:` <small>${l.item.sku||""}${l.note?" · "+l.note:""}</small>`}${l.item.size&&l.note?`<small>${l.note}</small>`:""}</span>
+        <span class="pr">${l.item.price?money(priceOf(l.item,S.tier)*l.qty):""}</span>
+      </div>`).join("");
+  }).join("");
+
+  const extrasBar = SLT.filter(i=>i.g==="extra").map(x=>{
+    const on = qtyIn(x.sku)>0; const dis = S.source==="stock"&&!x.stock;
+    const lbl = x.name.replace("KERDI-BOARD-SN-LT lighted niche","Lit niche").replace("KERDI-BOARD-SN niche","Niche").replace("KERDI-BOARD-SB bench","Bench").replace("KERS-B bench corner kit","Bench corner kit").replace(" triangular"," tri").replace(" rectangular","");
+    return `<button class="chip ${on?'on':''}" data-extra="${x.sku}" ${dis?'disabled style="opacity:.35"':''}>${lbl}</button>`;
+  }).join("");
+
+  const secObj = SLT_SECTIONS.find(s=>s.key===S.sec) || null;
+  const subObj = secObj && secObj.subs ? secObj.subs.find(s=>s.key===S.sub) || null : null;
+  const toks = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const browseList = SLT
+    .filter(i=>(S.source==="all"||i.stock))
+    .filter(i=>!secObj || (subObj ? subObj.hit(i) : sltSectionHit(secObj,i)))
+    .filter(i=>{ if(!toks.length) return true; const hay=(i.name+" "+i.sku+" "+(i.size||"")+" "+i.g).toLowerCase(); return toks.every(t=>hay.indexOf(t)>=0); })
+    .sort((a,b)=>(b.stock?1:0)-(a.stock?1:0) || (a.g>b.g?1:a.g<b.g?-1:0) || a.price-b.price);
+  const fboard = `<div class="fboard">` + SLT_SECTIONS.filter(s=>s.subs).map(s=>{
+      const secOn = S.sec===s.key && !S.sub;
+      return `<div class="fbcol"><button class="fbhead ${secOn?'on':''}" data-fsec="${s.key}">${s.label}<small>${SLT.filter(i=>sltSectionHit(s,i)).length}</small></button>` +
+        s.subs.map(sb=>`<button class="fbopt ${S.sec===s.key&&S.sub===sb.key?'on':''}" data-fsec="${s.key}" data-fsub="${sb.key}">${sb.label}<small>${SLT.filter(sb.hit).length}</small></button>`).join("") + `</div>`;
+    }).join("") +
+    `<div class="fbcol">` + SLT_SECTIONS.filter(s=>!s.subs).map(s=>`<button class="fbopt ${S.sec===s.key?'on':''}" data-fsec="${s.key}">${s.label}<small>${SLT.filter(i=>sltSectionHit(s,i)).length}</small></button>`).join("") +
+    `<button class="fbopt ${!S.sec?'on':''}" data-fsec="">All<small>${SLT.length}</small></button></div></div>`;
+  const wallSfNow = wallArea(cfg), floorSfNow = cfg.w*cfg.d/144;
+  const figSf = S.figSf==="" ? Math.round(wallSfNow) : (+S.figSf||0);
+  const figBags = Math.max(1, Math.ceil((figSf + floorSfNow)/55));
+  const figRolls = pickRolls(figSf*1.1, S.source);
+  const figCard = S.figOpen ? `<div class="figcard">
+      Wall area <input data-figsf type="number" value="${figSf}" style="width:64px;border:1px solid var(--line-strong);border-radius:6px;padding:3px 6px;font-weight:700;font-family:var(--ui)"> sf
+      → <b>${figRolls.map(p=>p.qty+"× "+p.item.size.split("=")[1].trim()).join(" + ")}</b> KERDI · <b>${figBags}</b> bag${figBags>1?"s":""} ALL-SET (walls + ${floorSfNow.toFixed(0)} sf floor)
+      <div class="figfoot">ALL-SET at ≈55 sf/bag (1/4"×1/4" est. — real trowel table pending) · KERDI +10% for laps · band, corners and seals ride the build's Seams group</div>
+    </div>` : "";
+  const browseRows = fboard + figCard + browseList.slice(0,48).map(i=>{
+    const n = qtyIn(i.sku);
+    return `<div class="brow2 ${i.stock?'stk':''}">
+      <div class="bn"><span class="sdot ${i.stock?'':'so'}"></span>${i.size&&!/cut to length/.test(i.size)?i.size+" · ":""}${i.name}</div>
+      <div class="bmeta"><div class="s">${i.g}${i.stock?` · ${i.free} on shelf`:" · special order · "+(i.lead||"")}</div>
+        <div class="sku">${i.sku}</div>
+        <div class="pr">${money(priceOf(i,S.tier))}</div>
+        <div class="stepper"><button data-step="${i.sku}|-1">−</button><span class="q ${n?'':'zero'}">${n}</span><button data-step="${i.sku}|1">+</button></div>
+      </div></div>`;
+  }).join("");
+
+  host.innerHTML = `
+    <div class="pop-head">
+      <div class="idblock"><div class="eyebrow">Vendor configurator</div><div class="name">Schluter <small>shower systems</small></div></div>
+      <div class="headctl">
+        <div class="seg src"><button data-src="stock" class="${S.source==='stock'?'on':''}">Stock only</button><button data-src="all" class="${S.source==='all'?'on':''}">Full catalog</button></div>
+        <div class="seg tiers">${Object.entries(TIERS).map(([k,t])=>`<button data-tier="${k}" class="${S.tier===k?'on':''}">${t.lbl}${t.note?`<small>${t.note}</small>`:""}</button>`).join("")}</div>
+        <button class="xbtn">×</button>
+      </div>
+    </div>
+    <div class="modetabs">${[["kits","Kits"],["custom","Custom shower"],["browse","Browse"]].map(([k,l])=>`<button class="modetab ${S.tab===k?'on':''}" data-tab="${k}">${l}</button>`).join("")}</div>
+    <div class="pop-body">
+      <div class="main">
+        ${S.tab==="kits"?`
+          <div class="fam"><div class="fam-h"><span class="t">Trays</span><span class="hint">the whole KST / LTS lineup is on the shelf — click one and the build column fills the kit in. The factory boxed kits (special order, ~$60 under the shelf bill) live in Browse → Factory kits</span></div>${trayRows}</div>`
+        :S.tab==="custom"?`
+          <div class="formgrid">
+            <div class="fgroup"><div class="gt">Room</div>
+              <div class="frow"><label>Width</label><input type="number" data-cfg="w" value="${cfg.w}"> × <label style="min-width:0">Depth</label><input type="number" data-cfg="d" value="${cfg.d}"> in</div>
+              <div class="frow"><label>Entry</label><div class="chipset"><button class="chip ${cfg.curbed?'on':''}" data-set="curbed:true">Curbed</button><button class="chip ${!cfg.curbed?'on':''}" data-set="curbed:false">Curbless</button></div></div>
+              <div class="frow"><label>Drain</label><div class="chipset"><button class="chip ${cfg.drain==='point'?'on':''}" data-set="drain:point">Point · centre</button><button class="chip ${cfg.drain==='offset'?'on':''}" data-set="drain:offset">Point · offset</button><button class="chip ${cfg.drain==='linear'?'on':''}" data-set="drain:linear">Linear at wall</button></div></div>
+            </div>
+            <div class="fgroup"><div class="gt">Wall system — the Schluter fork</div>
+              <div class="frow"><div class="chipset"><button class="chip ${cfg.wallSys==='membrane'?'on':''}" data-set="wallSys:membrane">KERDI over backer</button><button class="chip ${cfg.wallSys==='board'?'on':''}" data-set="wallSys:board">KERDI-BOARD</button></div></div>
+              <div class="frow" style="font-size:10.5px;color:var(--faint);max-width:250px">${cfg.wallSys==='membrane'?"Membrane needs cement board / drywall behind it (by others) — cheapest material bill.":"Foam board is the substrate — no backer, dead flat, wedi-style install."}</div>
+            </div>
+            <div class="fgroup"><div class="gt">Walls</div>${wallRows}</div>
+          </div>
+          <div class="fam-h"><span class="t">Options</span><span class="hint">ranked — click one to build from it</span></div>
+          <div class="optcards">${optCards}</div>
+          <div class="fam-h" style="margin-top:16px"><span class="t">Add-ons</span><span class="hint">niches, benches — land as build lines</span></div>
+          <div class="chipset">${extrasBar}</div>
+          <div class="fam-h" style="margin-top:12px"><span class="t">Site-built bench</span><span class="hint">the wedi bench doctrine — premade sits on the tray; framed interrupts the envelope; 2&Prime; board builds up on it</span></div>
+          <div class="chipset">
+            <button class="chip ${cfg.bench==='framed'?'on':''}" data-bench="framed">Framed + ½&Prime; board wrap</button>
+            <button class="chip ${cfg.bench==='buildup'?'on':''}" data-bench="buildup">2&Prime; board build-up on tray</button>
+          </div>`
+        :`
+          <div class="browse">
+            <div class="searchbar"><input placeholder="Search the Schluter catalog — name, SKU, group…" value="${S.q}" data-q><button class="gchip ${S.figOpen?'on':''}" data-fig>Figure thin-set &amp; KERDI</button></div>
+            ${browseRows||'<div class="empty">Nothing matches.</div>'}
+          </div>`}
+      </div>
+      <div class="buildcol">
+        <div class="bc-head"><div class="t">Build</div><div class="sub">${inches(cfg.w)}×${inches(cfg.d)} · ${cfg.curbed?"curbed":"curbless"} · ${cfg.drain} drain · ${cfg.wallSys==="board"?"KERDI-BOARD walls":"KERDI membrane walls"}${build.cand.cut?` · tray cut ${build.cand.cut}&Prime;`:""}</div></div>
+        <div class="bc-lines">${lineHtml||'<div class="empty">Pick a kit, a tray, or solve a room.</div>'}</div>
+        <div class="bc-meter"><div class="mlab"><span>From stock</span><span>${st.n} of ${st.of} lines · ${money(st.val)} of ${money(st.tot)}</span></div><div class="meterbar"><i style="width:${st.tot?Math.round(st.val/st.tot*100):0}%"></i></div></div>
+        <div class="bc-total">
+          <div class="trow"><span>Material</span><span class="v">${money(linesTotal(build.lines,S.tier))}</span></div>
+          <div class="trow"><span>Tier</span><span class="v">${TIERS[S.tier].lbl}${S.tier==="builder"?" (−8%*)":S.tier==="cost"?" (shop book / EFT net)":" (1.5× cost)"}</span></div>
+          <div class="trow big"><span>Total</span><span class="v">${money(linesTotal(build.lines,S.tier))}</span></div>
+        </div>
+        <button class="addbtn">Add to product lines — ${build.lines.filter(l=>!l.noteOnly).length} rows · schluter:{ mode, cfg } marker</button>
+      </div>
+      ${opts.noRail?"":`<div class="rail">
+        <div class="pt-t">Plan — to scale</div>${planSvg(cfg, pick, S.manual.map(m=>SLT.find(i=>i.sku===m.sku)).filter(Boolean).concat(cfg.bench?[{name:"bench"}]:[]))}
+        <div class="pt-t">Isometric</div>${isoSvg(cfg, pick)}
+        ${cutList(cfg, build, pick)}
+      </div>`}
+    </div>`;
+
+  host.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-tier]").forEach(b=>b.onclick=()=>{S.tier=b.dataset.tier; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-src]").forEach(b=>b.onclick=()=>{ if(opts.lockSource)return; S.source=b.dataset.src; S.pick=null; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-cfg]").forEach(i=>i.onchange=()=>{cfg[i.dataset.cfg]=+i.value||cfg[i.dataset.cfg]; S.pick=null; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{const [k,v]=b.dataset.set.split(":"); cfg[k]= v==="true"?true : v==="false"?false : v; S.pick=null; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-wall]").forEach(b=>b.onclick=()=>{cfg.walls[+b.dataset.wall].on=!cfg.walls[+b.dataset.wall].on; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-wh]").forEach(i=>i.onchange=()=>{cfg.walls[+i.dataset.wh].h=+i.value||84; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-opt]").forEach(b=>b.onclick=()=>{S.pick=cands[+b.dataset.opt]; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-bench]").forEach(b=>b.onclick=()=>{cfg.bench = cfg.bench===b.dataset.bench? null : b.dataset.bench; renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-tray]").forEach(b=>b.onclick=()=>{const t=SLT.find(x=>x.sku===b.dataset.tray); cfg.w=t.w; cfg.d=t.d; cfg.drain=t.drain; S.tab="custom"; S.pick=null; renderPopup(S,host,opts)});
+  const setQty=(sku,q)=>{ S.manual=S.manual.filter(m=>m.sku!==sku); if(q>0) S.manual.push({sku,qty:q}); };
+  host.querySelectorAll("[data-extra]").forEach(b=>b.onclick=()=>{const sku=b.dataset.extra; setQty(sku, qtyIn(sku)>0?0:1); renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{const [sku,d]=b.dataset.step.split("|"); setQty(sku, Math.max(0, qtyIn(sku)+(+d))); renderPopup(S,host,opts)});
+  host.querySelectorAll("[data-fsec]").forEach(b=>b.onclick=()=>{const sec=b.dataset.fsec, sub=b.dataset.fsub||""; const same=S.sec===sec&&S.sub===sub; S.sec=same?"":sec; S.sub=same?"":sub; renderPopup(S,host,opts)});
+  const fg=host.querySelector("[data-fig]"); if(fg) fg.onclick=()=>{S.figOpen=!S.figOpen; renderPopup(S,host,opts)};
+  const fs=host.querySelector("[data-figsf]"); if(fs) fs.onchange=()=>{S.figSf=fs.value; renderPopup(S,host,opts)};
+  const q=host.querySelector("[data-q]"); if(q){ q.oninput=()=>{S.q=q.value; renderPopup(S,host,opts); const nq=host.querySelector("[data-q]"); nq.focus(); nq.setSelectionRange(nq.value.length,nq.value.length)} }
+}
+renderPopup(S1, $$("#p1"));
+
+/* P2 — the same build, both source modes, side by side (source switch locked per pane) */
+const P2A = popupState("p2a", {source:"all",   tab:"custom"});
+const P2B = popupState("p2b", {source:"stock", tab:"custom"});
+[P2A,P2B].forEach(s=>{ s.cfg.wallSys="membrane"; s.cfg.w=48; s.cfg.d=48; s.cfg.drain="linear"; });
+const p2 = $$("#p2");
+p2.innerHTML = `<div class="popup" id="p2a"></div><div class="popup" id="p2b"></div>`;
+renderPopup(P2A, $$("#p2a"), {lockSource:true, noRail:true});
+renderPopup(P2B, $$("#p2b"), {lockSource:true, noRail:true});
+
+/* ---------------- P3 compare ---------------- */
+const CMP_PRESETS = [
+  {lbl:"3'×5' curbed", w:60,d:36, curbed:true},
+  {lbl:"4'×5' curbed", w:60,d:48, curbed:true},
+  {lbl:"3'×5' curbless", w:60,d:36, curbed:false},
+];
+const C = { preset:0, tier:"retail" };
+
+function wediKit(p){
+  const pan = WEDI.pans.find(x=>x.w===p.w&&x.d===p.d&&x.curbed===p.curbed);
+  const wallSf = (p.w + 2*p.d) * 84 / 144;
+  const panels = Math.ceil(wallSf*1.05/WEDI.panel45.sf);
+  const L = [
+    {cat:"Base", n:pan.name, sub:pan.us+" · real ERP retail", p:pan.retail, stock:true},
+    {cat:"Drain", n:WEDI.cover.name, sub:"finish pick", p:WEDI.cover.retail, stock:true, est:true},
+    {cat:"Walls", n:`${panels}× ${WEDI.panel45.name}`, sub:WEDI.panel45.us+" — panel IS the substrate", p:panels*WEDI.panel45.retail, stock:true},
+    {cat:"Seams", n:"Joint Sealant 620 ×2 + fasteners", sub:WEDI.sealant.us+" · allowance", p:2*WEDI.sealant.retail + WEDI.fasteners.retail, stock:true, est:true},
+    {cat:"Curb", n:p.curbed? WEDI.curb5.name : "Curbless — recess/ramp is a pick", sub:p.curbed?WEDI.curb5.us:"bracket kit / ramp not in house kit", p:p.curbed?WEDI.curb5.retail:0, stock:true},
+    {cat:"Setting", n:"Thin-set for pan bed", sub:"by others / shop stock", p:0, stock:true},
+  ];
+  return L;
+}
+function schluterKit(p){
+  const cfg = { w:p.w, d:p.d, curbed:p.curbed, drain:"point", wallSys:"membrane",
+    walls:[{name:"Back",on:true,len:p.w,h:84},{name:"Left",on:true,len:p.d,h:84},{name:"Right",on:true,len:p.d,h:84}] };
+  const b = buildSchluter(cfg, "all");
+  const cats = {Base:"Base",Drain:"Drain",Walls:"Walls",Seams:"Seams",Curb:"Curb",Setting:"Setting"};
+  return b.lines.filter(l=>!l.noteOnly).map(l=>({cat:cats[l.g]||l.g, n:`${l.qty>1?l.qty+"× ":""}${l.item.name}`, sub:(l.item.sku||"")+(l.note?" · "+l.note:""), p:(l.item.price||0)*l.qty, stock:l.item.stock}));
+}
+function renderCompare(){
+  const p = CMP_PRESETS[C.preset];
+  const mult = C.tier==="builder";
+  const w = wediKit(p), s = schluterKit(p);
+  const wm = mult? WEDI_BUILDER : 1, sm = mult? .92 : 1;
+  const wTot = w.reduce((a,l)=>a+l.p,0)*wm, sTot = s.reduce((a,l)=>a+l.p,0)*sm;
+  const cats = ["Base","Drain","Walls","Seams","Curb","Setting"];
+  const cell = (L,m) => c => { const ls=L.filter(l=>l.cat===c); return ls.length? ls.map(l=>`<div class="ln ${l.stock?'':'so'}"><span class="n">${l.n}<small>${l.sub}${l.est?" · est.":""}</small></span><span class="p">${l.p?money(l.p*m):"—"}</span></div>`).join(""):"<div class='ln'><span class='n' style='color:var(--faint)'>—</span></div>"; };
+  const wc = cell(w,wm), sc = cell(s,sm);
+  const diff = sTot-wTot;
+  $$("#p3").innerHTML = `
+    <div class="cmp-head">
+      <div class="t">Compare — one room, both systems</div>
+      <div class="chipset">${CMP_PRESETS.map((x,i)=>`<button class="chip ${C.preset===i?'on':''}" data-cp="${i}">${x.lbl}</button>`).join("")}</div>
+      <div class="headctl"><div class="seg tiers"><button data-ct="retail" class="${C.tier==='retail'?'on':''}">Retail</button><button data-ct="builder" class="${C.tier==='builder'?'on':''}">Builder<small>wedi ×0.82 · Schluter −8%*</small></button></div></div>
+    </div>
+    <div class="cmp-grid">
+      <div class="cat"></div>
+      <div class="brandh"><span class="bbadge wedi">wedi</span> foam pan system <small style="color:var(--faint);font-weight:600">&nbsp;real pricing</small></div>
+      <div class="brandh"><span class="bbadge slt">Schluter</span> KERDI system <small style="color:var(--faint);font-weight:600">&nbsp;shop stock-book pricing</small></div>
+      ${cats.map(c=>`<div class="cat">${c}</div><div class="cell">${wc(c)}</div><div class="cell">${sc(c)}</div>`).join("")}
+    </div>
+    <div class="cmp-tot">
+      <div class="cat" style="font-size:10px;font-weight:800;letter-spacing:.11em;color:var(--faint);text-transform:uppercase;display:flex;align-items:center">Total</div>
+      <div><span class="tv">${money(wTot)}</span><small style="font-size:10.5px;color:var(--faint)"> all lines stocked</small></div>
+      <div><span class="tv">${money(sTot)}</span><small style="font-size:10.5px;color:var(--faint)"> ${s.filter(l=>!l.stock).length} special-order line(s)</small></div>
+    </div>
+    <div class="delta"><b>${diff>0? "wedi is "+money(Math.abs(diff))+" less on material" : "Schluter is "+money(Math.abs(diff))+" less on material"}</b> for this room at this tier — but the wall line isn't apples-to-apples: the wedi panel <i>is</i> the substrate, while KERDI membrane needs backer (by others) under it. Switch the Schluter build to KERDI-BOARD in P1 to compare like-for-like structure.</div>
+    <div class="diffnotes">
+      <div class="dn"><h4>Walls</h4><p>wedi: structural foam panel, no backer, sealant seams. Schluter: KERDI membrane over cement board (cheap material, more labor) or KERDI-BOARD (closest to wedi).</p></div>
+      <div class="dn"><h4>Fit strategy</h4><p>wedi extends pans and cuts them (extensions + the 6&Prime;/12&Prime; deep-cut rule). Schluter cuts trays only — no extension parts — so odd rooms lean on the next tray up or a mortar bed.</p></div>
+      <div class="dn"><h4>Pricing model</h4><p>wedi publishes retail; Builder = ×0.82, cost = ERP net, no markup knob. Schluter is a markup book: the shop stock sheet prices all 226 rows at retail = 1.5 × cost. Builder −8% shown — whether Schluter follows the app default is still an owner call.</p></div>
+    </div>`;
+  $$("#p3").querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>{C.preset=+b.dataset.cp; renderCompare()});
+  $$("#p3").querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{C.tier=b.dataset.ct; renderCompare()});
+}
+renderCompare();
+</script>
+</body>
+</html>

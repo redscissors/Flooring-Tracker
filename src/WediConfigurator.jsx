@@ -10,7 +10,7 @@
 // "Add to product lines" hands lineItems() payloads back to the caller; the
 // anchor row keeps the raw configuration (product.wedi) so Reconfigure reopens
 // here pre-filled.
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch } from "./widgets.jsx";
@@ -24,6 +24,10 @@ import {
   BENCH_CORNER_LBL,
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
+
+// The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
+// own chunk behind this popup's own lazy boundary (ADR 0026).
+const CompareTab = lazy(() => import("./CompareTab.jsx"));
 
 const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fm0 = (n) => "$" + Math.round(+n).toLocaleString("en-US");
@@ -553,14 +557,16 @@ function seedState(seed) {
     else if (cfg.room) s.inp = { ...s.inp, w: cfg.room.w, d: cfg.room.d };
     return s;
   }
-  if (seed.tab) s.tab = seed.tab === "custom" ? "custom" : seed.tab === "browse" ? "browse" : "kits";
+  if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
   if (seed.input) s.inp = { ...DEF_INP, ...seed.input, drainX: "", drainY: "" };
   if (seed.search) s.q = seed.search;
   if (s.tab === "custom") s.solveInput = { w: s.inp.w, d: s.inp.d, curb: s.inp.curb, drain: s.inp.drain };
   return s;
 }
 
-export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, onAdd, onClose, areaName, projectName, onConfigChange, embedded = false }) {
+export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
+  stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
+  onAdd, onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -642,7 +648,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const ro = new ResizeObserver(on);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // the Compare tab unmounts the rail — re-attach the observer to the new
+    // node when it comes back, or the drawings freeze at their last size
+  }, [tab]);
   const railFit = useMemo(() => railSplit(railBox, placing), [railBox, placing]);
 
   const [q, setQ] = useState(s0.q);
@@ -2326,7 +2334,22 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     ["kits", "Kits", pans().length + " pans"],
     ["custom", "Custom shower", "solver"],
     ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"],
+    ["compare", "Compare", "wedi ⇄ Schluter"],
   ];
+
+  // The compare surface spans the whole body — its own two-column grid IS the
+  // comparison, so the build column and the drawings rail step aside.
+  const compareTab = (
+    <Suspense fallback={null}>
+      <CompareTab host="wedi" hostCfg={build ? build.cfg : null} hostBuild={build}
+        source={source} tier={tierId}
+        wediBuilderPct={bPct} schluterBuilderPct={schluterBuilderPct}
+        stockRows={stockRows} bookStockReady={bookStockReady}
+        books={books} loadBookItems={loadBookItems}
+        mortars={mortars} mortarDefault={mortarDefault}
+        areaName={areaName} onQuoteOptions={onQuoteOptions} />
+    </Suspense>
+  );
 
   return (
     // Embedded (the Apps hub, like Sheoga): no backdrop or fixed overlay — the
@@ -2363,9 +2386,11 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         </div>
         <div className="flex-1 min-h-0 overflow-x-auto flex">
           <div className="pop-body flex-1">
-            <div className="main">{tab === "kits" ? kitsTab : tab === "custom" ? customTab : browseTab}</div>
-            <div className="buildcol">{buildCol}</div>
-            {diagRail}
+            {tab === "compare" ? compareTab : (<>
+              <div className="main">{tab === "kits" ? kitsTab : tab === "custom" ? customTab : browseTab}</div>
+              <div className="buildcol">{buildCol}</div>
+              {diagRail}
+            </>)}
           </div>
         </div>
       </div>

@@ -8,17 +8,22 @@
 //
 // The Source switch (Stock only / Full catalog) is the popup's own header
 // control for now; phase 4 lifts it into the shared shell so wedi inherits it.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  catalogOf, trayCandidates, pickRolls, buildKit, tierPrice, lineItems,
+  trayCandidates, pickRolls, buildKit, tierPrice, lineItems,
 } from "./schluter.js";
-import { adaptBookRows, mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
+import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
+import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb } from "./schluterdraw.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2 } from "./showerdraw.jsx";
+
+// The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
+// own chunk behind this popup's own lazy boundary (ADR 0026).
+const CompareTab = lazy(() => import("./CompareTab.jsx"));
 
 const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
@@ -279,7 +284,7 @@ function seedState(seed) {
     s.kitPick = seed.mode === "kit";
     return s;
   }
-  if (seed.tab) s.tab = seed.tab === "custom" ? "custom" : seed.tab === "browse" ? "browse" : "kits";
+  if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
   if (seed.input) {
     if (seed.input.w) s.w = String(seed.input.w);
     if (seed.input.d) s.d = String(seed.input.d);
@@ -292,8 +297,8 @@ function seedState(seed) {
 }
 
 export default function SchluterConfigurator({
-  seed, tier, onTierChange, schluterBuilderPct, onAdd, onClose, areaName, projectName,
-  onConfigChange, embedded = false,
+  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onClose, areaName, projectName,
+  onConfigChange, onQuoteOptions, embedded = false,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
 }) {
   const init = useRef(null);
@@ -328,30 +333,8 @@ export default function SchluterConfigurator({
   // Stock side: the boot cache's stock-kind rows (bookStockReady gates it).
   // Special-order side: any active order book that says Schluter, fetched on
   // open (ADR 0026's re-fetch-on-open pattern; the EFT import lands here).
-  const [orderRows, setOrderRows] = useState(null);
-  // keyed on the matching book ids, not run-once: an open-layer restore can
-  // mount this popup before stage 2's books metadata hydrates, and the EFT
-  // rows must arrive when it does rather than being dropped for the session
-  const targetIds = (books || []).filter((b) => b.kind === "order" && b.active !== false
-    && /schluter/i.test((b.name || "") + " " + (b.data?.brandLabel || ""))).map((b) => b.id).join("|");
-  useEffect(() => {
-    let alive = true;
-    const ids = targetIds ? targetIds.split("|") : [];
-    if (!ids.length || !loadBookItems) { setOrderRows([]); return; }
-    Promise.all(ids.map((id) => loadBookItems(id).catch(() => [])))
-      .then((lists) => { if (alive) setOrderRows(lists.flat().filter((it) => it.active !== false && !it.disabled)); });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetIds]);
-
-  const catReady = !!bookStockReady && orderRows !== null;
-  const cat = useMemo(() => {
-    if (!catReady) return [];
-    const stockAdapted = adaptBookRows((stockRows || []).filter((it) => it.active !== false && !it.disabled), { stock: true });
-    const seen = new Set(stockAdapted.map((e) => e.sku));
-    const orderAdapted = adaptBookRows(orderRows, { stock: false }).filter((e) => !seen.has(e.sku));
-    return catalogOf(stockAdapted.concat(orderAdapted));
-  }, [catReady, stockRows, orderRows]);
+  // Shared with the Compare tab (task 3) — see useschlutercatalog.js.
+  const { cat, catReady } = useSchluterCatalog({ stockRows, bookStockReady, books, loadBookItems });
 
   // --- price level: a lens on the JOB's tier, exactly like wedi's ------------
   const [localTier, setLocalTier] = useState({ tier: "retail", customPct: "" });
@@ -409,7 +392,9 @@ export default function SchluterConfigurator({
     const ro = new ResizeObserver(on);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // the Compare tab unmounts the rail — re-attach the observer to the new
+    // node when it comes back, or the drawings freeze at their last size
+  }, [tab]);
   const railFit = useMemo(() => railSplit(railBox, false), [railBox]);
 
   // --- the build -------------------------------------------------------------
@@ -913,7 +898,21 @@ export default function SchluterConfigurator({
     ["kits", "Kits", trays.length + " trays"],
     ["custom", "Custom shower", "solver"],
     ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"],
+    ["compare", "Compare", "wedi ⇄ Schluter"],
   ];
+
+  // The compare surface spans the whole body — its own two-column grid IS the
+  // comparison, so the build column and the drawings rail step aside.
+  const compareTab = (
+    <Suspense fallback={null}>
+      <CompareTab host="schluter" hostCfg={markCfg} hostBuild={build} cat={cat}
+        hostMode={mode}
+        source={source} tier={tierId}
+        wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
+        mortars={mortars} mortarDefault={mortarDefault}
+        areaName={areaName} onQuoteOptions={onQuoteOptions} />
+    </Suspense>
+  );
 
   return (
     <div ref={shellRef} className={embedded
@@ -946,9 +945,11 @@ export default function SchluterConfigurator({
         </div>
         <div className="flex-1 min-h-0 overflow-x-auto flex">
           <div className="pop-body flex-1">
-            <div className="main">{tab === "kits" ? kitsTab : tab === "custom" ? customTab : browseTab}</div>
-            <div className="buildcol">{buildCol}</div>
-            {diagRail}
+            {tab === "compare" ? compareTab : (<>
+              <div className="main">{tab === "kits" ? kitsTab : tab === "custom" ? customTab : browseTab}</div>
+              <div className="buildcol">{buildCol}</div>
+              {diagRail}
+            </>)}
           </div>
         </div>
       </div>

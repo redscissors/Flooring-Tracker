@@ -478,8 +478,12 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               <WediConfigurator
                 embedded
                 wediBuilderPct={wedi.builderPct}
+                schluterBuilderPct={wedi.schluterBuilderPct}
                 areaName={wedi.currentName || "a new quick price"}
                 projectName={wedi.currentName || ""}
+                stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
+                books={wedi.books} loadBookItems={wedi.loadBookItems}
+                mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
                 onAdd={(lines) => requestCommit(wedi, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
@@ -490,6 +494,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               <SchluterConfigurator
                 embedded
                 schluterBuilderPct={schluter.builderPct}
+                wediBuilderPct={schluter.wediBuilderPct}
                 areaName={schluter.currentName || "a new quick price"}
                 projectName={schluter.currentName || ""}
                 stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
