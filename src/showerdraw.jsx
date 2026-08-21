@@ -706,7 +706,7 @@ export function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs
     const cover = (
       <g key="cv" pointerEvents="none">
         <polygon points={face} fill={isFront ? WEDI_FILL_CLEAR : WEDI_FILL} stroke={isFront ? "none" : wallLine} strokeWidth=".5" />
-        <polygon points={face} fill="url(#wedi-hatch)" />
+        <polygon points={face} fill={`url(#${uid}hatch)`} />
       </g>
     );
     if (isFront) {
@@ -994,7 +994,7 @@ export function Iso({ o, w, h, dWalls, panelFit, benches, framedFit, cuts, curbs
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h}>
       <defs>
-        <pattern id="wedi-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <pattern id={`${uid}hatch`} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="7" stroke={MOSS_DEEP} strokeWidth="1" opacity=".26" />
         </pattern>
       </defs>
