@@ -95,9 +95,9 @@ only these five are real cluster call sites:
 
 | Identifier | wedi.js def | Real cluster call sites | wedi.js other callers (must keep working via re-export) |
 |---|---|---|---|
-| `WALL_THICK` | wedi.js:4439 (`export const … = 4`) | Iso :1286 (`const T = WALL_THICK`) | wedi.test.js:410,417 |
-| `CURB_LAP` | wedi.js:4530 (`export const … = 0.5`) | TopDown/Iso, 11 call sites, 702–1731 | (no other wedi.js internal caller found) |
-| `panThick` | wedi.js:4944 (`export function`) | Iso :1512 | wedi.test.js:657–658 |
+| `WALL_THICK` | wedi.js:4439 (`export const … = 4`) | Iso :1286 (`const T = WALL_THICK`) | wedi.test.js:410,417; expandWallFaces :4444 |
+| `CURB_LAP` | wedi.js:4530 (`export const … = 0.5`) | TopDown/Iso, 11 call sites, 702–1731 | wedi.js:4552 (`curbInsets`) |
+| `panThick` | wedi.js:4944 (`export function`) | Iso :1512 | wedi.test.js:657–658; wedi.js:5092, :5801 |
 
 `CORNER_CUT`, `expandWallFaces`, `curbInsets`, `applyCurbInset`, `openCorners`
 had **zero** real hits in the cluster (grep showed 0 in the brief's own loop)
@@ -148,8 +148,8 @@ prose inside `//` comments explaining the geometry, not code that calls
 
 | Identifier | wedi.js def | Real cluster call sites | wedi.test.js imports it too |
 |---|---|---|---|
-| `benchFootprint` | wedi.js:4751 (`export function`) | :757, :1045, :1218, :1624, :1682, :1693, :1709 (7 sites, TopDown+Iso) | yes (wedi.test.js:9, :908, :910, :914) |
-| `BENCH_DEPTH` | wedi.js:4700 (`export const … = 14`) | :1212 (TopDown, bench-zone hit-test) | yes (wedi.test.js:10, :907) |
+| `benchFootprint` | wedi.js:4751 (`export function`) | :757, :1045, :1218, :1624, :1682, :1693, :1709 (7 sites, TopDown+Iso) | yes (wedi.test.js:9, :908, :910, :914); benchEdgeSpans :4767 |
+| `BENCH_DEPTH` | wedi.js:4700 (`export const … = 14`) | :1212 (TopDown, bench-zone hit-test) | yes (wedi.test.js:10, :907); normBench :4741 |
 
 Both bodies are pure (no `item()`/catalog reads) — confirmed by reading their
 wedi.js source. Same delete + re-export treatment as `WALL_THICK`/`CURB_LAP`/
@@ -244,7 +244,7 @@ inside the cluster resolves to something else entirely):
 - **`X`** — the top-of-file `import { X, … } from "lucide-react"` (the close
   icon) is real and used elsewhere (:3455, :3578), but inside `TopDown` the
   cluster defines its **own** local `const X = (x) => round2(ox + x * sc), Y
-  = …` (:280) that shadows it for the whole function. `Iso` never references
+  = …` (WediConfigurator.jsx:809) that shadows it for the whole function. `Iso` never references
   bare `X` at all. Zero real dependency on the lucide import.
 - **`curbs`** (wedi.js catalog export) — inside `TopDown`/`Iso`, `curbs` is a
   **destructured prop name** in each function's own signature
@@ -295,7 +295,7 @@ like `B6BF96`, `C2CBA4`, which are not identifiers at all).
    o.room)` → `normBenchFn(benchZone, o.room)`, and add `itemFn, normBenchFn`
    to `TopDown`'s destructured parameter list.
 4. wedi.js — delete the bodies of `WALL_THICK` (:4439), `CURB_LAP` (:4530),
-   `curbWidth`'s last line only (:4531–4534, keep the function but rewrite —
+   `curbWidth` (edit line 4533, the return statement, :4531–4534; keep the function but rewrite —
    see below), `panThick` (:4944–4952), `benchFootprint` (:4751–4756),
    `BENCH_DEPTH` (:4700).
 
@@ -331,8 +331,11 @@ cut range, and previously required no import since it was a same-file local.)
 **Re-export line(s) wedi.js needs** (add near the deleted definitions'
 original spots, importing from the `.js` half per the split above):
 ```js
-export { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
+import { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
+export { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH };
 ```
+(`curbWidthOf` is imported but NOT publicly re-exported — nothing outside wedi.js needs it.)
+
 Plus rewrite wedi.js's own `curbWidth` to a thin wrapper (see MOVE §B
 callout):
 ```js
@@ -352,6 +355,8 @@ grep -l "curbCornerOut" dist/assets/*.js
 ---
 
 ## Self-review — would Task 3 compile purely from this list?
+
+**Bug found in audit review:** The checklist initially prescribed `export { ... } from "./showerdraw.js"` for wedi.js (a re-export), but this creates NO local bindings. Since wedi.js's retained code still uses all six moved identifiers internally (verified at call sites listed above), the re-export pattern would fail at runtime. The checklist now uses `import` + bare `export` instead, so wedi.js keeps the bindings it needs while only publicizing the five identifiers external code depends on (not `curbWidthOf`).
 
 Walked the top of both components against the final list:
 
