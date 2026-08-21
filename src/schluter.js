@@ -326,8 +326,9 @@ export function trayCandidates(cfg, cat, { source } = {}) {
  * product, not a drop-in size option on this ladder.
  */
 export function pickRolls(sfNeed, cat, { source } = {}) {
-  const rolls = cat.filter((i) => i.g === "membrane" && !i.wide && (source === "all" || i.stock))
-    .sort((a, b) => a.sf - b.sf);
+  // stockPool, not a hard filter: with every roll special-order the membrane
+  // role must still land (flagged), never vanish from the bill
+  const rolls = stockPool(cat.filter((i) => i.g === "membrane" && !i.wide).sort((a, b) => a.sf - b.sf), source);
   if (!rolls.length) return [];
   const picks = [];
   const big = rolls[rolls.length - 1];
@@ -341,6 +342,26 @@ export function pickRolls(sfNeed, cat, { source } = {}) {
   }
   return picks;
 }
+
+/**
+ * The one stock-only pick rule (phase 4): under source "stock" a stocked
+ * match wins, and when no stocked match exists the special-order match still
+ * lands — the line's `so` flag says so, the build is never silently wrong.
+ * Under "all" this is plain cat.find(pred), so defaults cannot move.
+ */
+export function pickFrom(cat, pred, { source } = {}) {
+  if (source === "stock") {
+    const stocked = cat.find((i) => pred(i) && i.stock);
+    if (stocked) return stocked;
+  }
+  return cat.find(pred);
+}
+
+// Same rule for the ordered pools (channels, bands, curbs, panels,
+// fasteners): stock-only narrows to the stocked rows when any exist,
+// otherwise the whole pool stays so the pick can land flagged.
+const stockPool = (list, source) =>
+  source === "stock" && list.some((i) => i.stock) ? list.filter((i) => i.stock) : list;
 
 // Whole-foot label when a dimension divides evenly, else inches — matches
 // how the prototype's plan/cut-list labels a tray or curb length.
@@ -398,18 +419,25 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   }
 
   if (cfg.drain === "linear") {
-    const chans = cat.filter((i) => i.g === "drain" && i.part === "channel" && (source === "all" || i.stock))
+    // a channel can't be doubled like a curb: a stocked covering channel
+    // wins, then a covering SO one (flagged), and only when nothing made
+    // covers the run does a shorter channel land — saying it runs short
+    const chansAll = cat.filter((i) => i.g === "drain" && i.part === "channel")
       .sort((a, b) => a.len - b.len || a.price - b.price);
+    const chansStocked = stockPool(chansAll, source);
     const need = cfg.w - 8;
-    const ch = chans.find((c) => c.len >= need) || chans[chans.length - 1];
-    add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"` : "at the wall") + ' — min cut 10", IPC 2.5 gpm');
-    add("Drain", cat.find((i) => i.g === "drain" && i.part === "flange" && i.drain === "linear"), 1,
+    const ch = chansStocked.find((c) => c.len >= need) || chansAll.find((c) => c.len >= need)
+      || chansStocked[chansStocked.length - 1] || chansAll[chansAll.length - 1];
+    add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"`
+      : ch && ch.len < need ? `${need}" run — the ${ch.len}" channel is the longest available, runs short`
+        : "at the wall") + ' — min cut 10", IPC 2.5 gpm');
+    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "linear", { source }), 1,
       "incl. 4+2 corners, pipe + valve seals, couplings");
   } else {
-    add("Drain", cat.find((i) => i.g === "drain" && i.part === "flange" && i.drain === "point"), 1,
+    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
       'bonded flange, 2" PVC');
-    const grates = cat.filter((i) => i.g === "drain" && i.part === "grate" && (source === "all" || i.stock));
-    add("Drain", grates[0], 1, "finish pick — tileable & floral stocked too");
+    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
+      "finish pick — tileable & floral stocked too");
   }
 
   const sf = wallArea(cfg);
@@ -417,13 +445,13 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     // largest ½" panel wins the wall pick (48×96 = 32 sf in today's range)
     // largest ½" panel wins — thickMm keys the thickness so a fatter live
     // board with more sf can't take the wall pick
-    const b = cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
+    const b = stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
       && (i.thickMm == null || i.thickMm <= 13))
-      .sort((x, y) => y.sf - x.sf)[0];
+      .sort((x, y) => y.sf - x.sf), source)[0];
     add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
     // recipe density: one 100-ct box per 60 sf — scaled to the box actually
     // in the catalog so a 40-ct pack doesn't silently under-order
-    const fast = cat.filter((i) => i.fastener).sort((x, y) => (y.ct || 0) - (x.ct || 0))[0];
+    const fast = stockPool(cat.filter((i) => i.fastener).sort((x, y) => (y.ct || 0) - (x.ct || 0)), source)[0];
     const screws = (sf * 100) / 60;
     add("Walls", fast, fast ? Math.max(1, Math.ceil(fast.ct > 0 ? screws / fast.ct : sf / 60)) : 0, "board fasteners");
   } else {
@@ -435,37 +463,42 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     });
   }
 
-  const bands = cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf);
+  const bands = stockPool(cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf), source);
   const lfNeed = (2 * (cfg.w + cfg.d)) / 12 + sf / 6;
-  add("Seams", bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1], 1, "seams + tray perimeter");
+  // when no single roll in the pool covers, multiples cover the need — a
+  // stock-narrowed pool must never quietly land one short roll
+  const band = bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1];
+  add("Seams", band, band ? Math.max(1, Math.ceil(lfNeed / band.lf)) : 0, "seams + tray perimeter");
   if (cfg.drain !== "linear") {
-    add("Seams", cat.find((i) => i.corner === "inside"), 2, "4 inside — factory kit recipe");
-    add("Seams", cat.find((i) => i.corner === "outside"), 1, "2 outside — factory kit recipe");
-    add("Seams", cat.find((i) => i.seal === "pipe"), 1);
-    add("Seams", cat.find((i) => i.seal === "valve"), 1);
+    add("Seams", pickFrom(cat, (i) => i.corner === "inside", { source }), 2, "4 inside — factory kit recipe");
+    add("Seams", pickFrom(cat, (i) => i.corner === "outside", { source }), 1, "2 outside — factory kit recipe");
+    add("Seams", pickFrom(cat, (i) => i.seal === "pipe", { source }), 1);
+    add("Seams", pickFrom(cat, (i) => i.seal === "valve", { source }), 1);
   }
 
   if (cfg.curbed) {
-    const curbs = cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len);
-    const c = curbs.find((x) => x.len >= cfg.w && (source === "all" || x.stock)) || curbs[curbs.length - 1];
+    // stock-only prefers stocked multiples cut end-to-end over a covering
+    // special-order curb (the P2 example: a SO 60" loses to 2× stocked 48")
+    const curbs = stockPool(cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len), source);
+    const c = curbs.find((x) => x.len >= cfg.w) || curbs[curbs.length - 1];
     add("Curb", c, c ? Math.max(1, Math.ceil(cfg.w / c.len)) : 0,
       c ? (c.len < cfg.w ? "cut to length end-to-end" : "cut to entry width") + " — incl. 2+2 Kereck corners" : undefined);
   } else {
-    add("Curb", cat.find((i) => i.ramp), 1, '12" run, 1-1/4"→1/4" — ADA slope');
+    add("Curb", pickFrom(cat, (i) => i.ramp, { source }), 1, '12" run, 1-1/4"→1/4" — ADA slope');
   }
 
   if (cfg.bench === "framed") {
-    add("Extras", cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
-      .sort((x, y) => y.sf - x.sf)[0], 1,
+    add("Extras", stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+      .sort((x, y) => y.sf - x.sf), source)[0], 1,
       "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
   } else if (cfg.bench === "buildup") {
-    add("Extras", cat.find((i) => i.thick2), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
+    add("Extras", pickFrom(cat, (i) => i.thick2, { source }), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
   }
 
   const floorSf = (cfg.w * cfg.d) / 144;
-  const allset = cat.find((i) => i.sfPerBag);
+  const allset = pickFrom(cat, (i) => i.sfPerBag, { source });
   add("Setting", allset, allset ? Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)) : 0, "sets membrane/board");
-  add("Setting", cat.find((i) => i.adhesive), 1);
+  add("Setting", pickFrom(cat, (i) => i.adhesive, { source }), 1);
 
   return { lines: L, cand };
 }

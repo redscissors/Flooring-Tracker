@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, buildKit, linesTotal, tierPrice, lineItems } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems } from "./schluter.js";
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -256,6 +256,108 @@ test("fastener quantity follows the box count (100-ct assumption scaled by ct)",
   // with the 100-ct box the math reduces to the old ceil(sf/60) — pinned so the recipe doesn't move
   const b2 = buildKit(c, CAT, { source: "all" });
   assert.equal(b2.lines.find((l) => l.item.fastener).qty, Math.ceil(sf / 60));
+});
+
+// --- Phase 4: pickFrom — uniform stock-only picks, no role drops silently ---
+
+// Flip named SKUs to special-order (the live registry can hold a role only as
+// an EFT row) without touching anything else.
+const soFlip = (skus) => catalogOf(FIXTURE_ITEMS.map((i) => (skus.includes(i.sku) ? { ...i, stock: false } : i)));
+
+test("pickFrom prefers a stocked match under stock, falls back to special order, and is plain find under all", () => {
+  const isGrate = (i) => i.g === "drain" && i.part === "grate";
+  // all three grates stocked: both sources take the first
+  assert.equal(pickFrom(CAT, isGrate, { source: "all" }).sku, CAT.find(isGrate).sku);
+  assert.equal(pickFrom(CAT, isGrate, { source: "stock" }).sku, CAT.find(isGrate).sku);
+  // first grate flipped SO: stock prefers the next stocked one, all keeps order
+  const flipped = soFlip(["KD4GRKE"]);
+  assert.equal(pickFrom(flipped, isGrate, { source: "all" }).sku, "KD4GRKE");
+  assert.equal(pickFrom(flipped, isGrate, { source: "stock" }).sku, "KD4GRKECS");
+  // every grate SO: stock still returns one (flagged by the line, never dropped)
+  const allSo = soFlip(["KD4GRKE", "KD4GRKECS", "KDIF4GRKEBD5"]);
+  assert.equal(pickFrom(allSo, isGrate, { source: "stock" }).sku, "KD4GRKE");
+});
+
+test("stock-only never silently drops a role: SO-only grate and channel still land, flagged", () => {
+  // point room, every grate SO
+  const noGrates = soFlip(["KD4GRKE", "KD4GRKECS", "KDIF4GRKEBD5"]);
+  const b1 = buildKit(cfg({}), noGrates, { source: "stock" });
+  const grate = b1.lines.find((l) => l.item.part === "grate");
+  assert.ok(grate, "grate line must survive stock-only");
+  assert.equal(grate.so, true);
+  // linear room, every channel SO — today this line vanishes under stock
+  const noChans = soFlip(["KLVRID3EB122", "KLVRID3EB244", "KLVRID5EB122"]);
+  const b2 = buildKit(cfg({ w: 48, d: 48, drain: "linear" }), noChans, { source: "stock" });
+  const chan = b2.lines.find((l) => l.item.part === "channel");
+  assert.ok(chan, "channel line must survive stock-only");
+  assert.equal(chan.so, true);
+});
+
+test("stock-only prefers stocked curb multiples over a special-order covering curb (the P2 example)", () => {
+  // 60" curb SO, 48" stocked → a 60" entry takes 2× 48" cut end-to-end
+  const flipped = soFlip(["KBSC1151501524"]);
+  const b = buildKit(cfg({}), flipped, { source: "stock" });
+  const curb = b.lines.find((l) => l.g === "Curb");
+  assert.equal(curb.item.sku, "KBSC1151501220");
+  assert.equal(curb.qty, 2);
+  assert.match(curb.note, /end-to-end/);
+  // under full catalog the covering 60" still wins (flagged SO)
+  const bAll = buildKit(cfg({}), flipped, { source: "all" });
+  assert.equal(bAll.lines.find((l) => l.g === "Curb").item.sku, "KBSC1151501524");
+});
+
+test("stock-only band uses stocked multiples to COVER the need, never a short single roll", () => {
+  // 72×60 membrane room needs ~41 lf; the 98' band flipped SO leaves the 33'
+  // stocked roll — two of them, not one silently short
+  const flipped = soFlip(["KEBA100/125"]);
+  const c = cfg({ w: 72, d: 60, walls: [
+    { on: true, len: 72, h: 84 }, { on: true, len: 60, h: 84 }, { on: true, len: 60, h: 84 }] });
+  const band = buildKit(c, flipped, { source: "stock" }).lines.find((l) => l.item.lf);
+  assert.equal(band.item.lf, 33);
+  assert.equal(band.qty, 2);
+  // full catalog keeps the covering 98' roll at qty 1
+  const bandAll = buildKit(c, flipped, { source: "all" }).lines.find((l) => l.item.lf);
+  assert.equal(bandAll.item.lf, 98);
+  assert.equal(bandAll.qty, 1);
+});
+
+test("stock-only never drops the membrane role: SO-only rolls still land, flagged", () => {
+  const rollSkus = FIXTURE_ITEMS.filter((i) => /^KERDI200/.test(i.sku)).map((i) => i.sku);
+  const noRolls = soFlip(rollSkus);
+  const b = buildKit(cfg({}), noRolls, { source: "stock" });
+  const rolls = b.lines.filter((l) => l.g === "Walls" && l.item.g === "membrane");
+  assert.ok(rolls.length > 0, "membrane wall lines must survive stock-only");
+  assert.ok(rolls.every((l) => l.so === true));
+});
+
+test("bench board picks follow the same stock-only rule as the walls", () => {
+  // framed bench: the 32-sf board SO → the stocked 21.3-sf board wraps it
+  const flipped = soFlip(["KB1212202440"]);
+  const framed = buildKit(cfg({ bench: "framed" }), flipped, { source: "stock" })
+    .lines.find((l) => l.g === "Extras");
+  assert.equal(framed.item.sku, "KB1212201625");
+  // 2" build-up: the only thick board SO → still lands, flagged
+  const noThick = soFlip(["KB506252440"]);
+  const buildup = buildKit(cfg({ bench: "buildup" }), noThick, { source: "stock" })
+    .lines.find((l) => l.g === "Extras");
+  assert.equal(buildup.item.thick2, true);
+  assert.equal(buildup.so, true);
+});
+
+test("stock-only linear channel: a covering SO channel beats a short stocked one, flagged", () => {
+  // 72\" room needs a 64\" run; the 8' channel SO, the 4' ones stocked —
+  // a channel can't be doubled, so the covering SO one wins, flagged
+  const flipped = soFlip(["KLVRID3EB244"]);
+  const b = buildKit(cfg({ w: 72, d: 48, drain: "linear" }), flipped, { source: "stock" });
+  const ch = b.lines.find((l) => l.item.part === "channel");
+  assert.equal(ch.item.len, 96);
+  assert.equal(ch.so, true);
+});
+
+test("the pinned 60×38 truth-table total is untouched by the pickFrom refactor", () => {
+  const retail = (e) => tierPrice(e, "retail", {});
+  const b = buildKit(cfg({}), CAT, { source: "all" });
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 75975);
 });
 
 test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead", () => {

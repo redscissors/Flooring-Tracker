@@ -13,7 +13,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose } from "./widgets.jsx";
+import { useEscClose, SourceSwitch } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
@@ -107,6 +107,13 @@ const CSS = `
 .wedi-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
 .wedi-pop .pop-head .rclear{margin-left:auto;font-size:11px;padding:5px 10px}
 .wedi-pop .pop-head .rclear + .tierbar{margin-left:0}
+.wedi-pop .pop-head .srcseg + .tierbar{margin-left:0}
+.wedi-pop .srcseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
+.wedi-pop .srcseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
+.wedi-pop .srcseg button + button{border-left:1px solid var(--ft-border-strong)}
+.wedi-pop .srcseg button:hover:not(.on){background:var(--ft-hover)}
+.wedi-pop .srcseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
+.wedi-pop .pancard.dis{opacity:.38;cursor:not-allowed}
 .wedi-pop .tierbar{margin-left:auto;display:flex;align-items:stretch;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .wedi-pop .tierbar button{border:none;background:none;color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer;line-height:1.1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .wedi-pop .tierbar button:not(.on):hover{background:var(--ft-hover)}
@@ -667,6 +674,20 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // screen while the build is put together (owner ask 2026-07-31).
   const [showMargin, setShowMargin] = useState(false);
 
+  // --- source: the shared Stock only / Full catalog switch (phase 4) --------
+  // Session state, never persisted into product.wedi — the switch constrains
+  // what the solver and the choice lists OFFER; a line already in the build
+  // stays flagged SO rather than being removed (the P2 doctrine).
+  const [source, setSource] = useState("all");
+  // Stock-only narrows a choice list to its stocked rows — unless none are,
+  // in which case the whole list stays so a swap menu is never empty and the
+  // pick lands flagged instead of silently vanishing.
+  const bySource = (list) => {
+    if (source !== "stock") return list;
+    const st = (list || []).filter((e) => e && e.stock);
+    return st.length ? st : list;
+  };
+
   // --- price level: a lens on the JOB's tier, exactly like Sheoga's ----------
   const [localTier, setLocalTier] = useState({ tier: "retail", customPct: "" });
   const tierCtl = !!(tier && onTierChange);
@@ -916,7 +937,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     setInp(next);
     // a kit's size IS the pan size — the seeded form reads it that way
     setMaxIn(false);
-    setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left" }));
+    setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left", source }));
   };
   // A kit card is a hard reset (owner rule 2026-07-30): once a build is
   // customized it IS the custom shower, so a kit click asks before wiping it.
@@ -937,7 +958,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       setInp({ ...DEF_INP });
       setMaxIn(false);
       setTileT("");
-      setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51 }));
+      setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51, source }));
     }
   };
   const pickPan = (key) => {
@@ -956,7 +977,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0, at: x.at === "hi" ? "hi" : "lo" }));
     return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60, tileIn);
   };
-  const solveRoom = (i, maxOn) => {
+  const solveRoom = (i, maxOn, src) => {
     const ins = insetFor(i, maxOn);
     const dx = +i.drainX || 0, dy = +i.drainY || 0;
     const res = solve({
@@ -966,6 +987,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       drainX: dx > 0 ? Math.max(0, round2(dx - (ins ? ins.left : 0))) : 0,
       drainY: dy > 0 ? Math.max(0, round2(dy - (ins ? ins.back : 0))) : 0,
       anchor: i.anchor || "left",
+      source: src || source,
     });
     return ins ? res.map((o) => applyCurbInset(o, ins, { w: +i.w || 0, d: +i.d || 0 })) : res;
   };
@@ -1046,6 +1068,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!same && !option) return;
     setOption(same);
     setPanKey(same ? same.pan.key : null);
+  };
+  // Flipping the source re-fits like a wall/curb change does — re-solve with
+  // the NEW source, re-pick the equivalent option, benches and add-ons left
+  // standing (the refit doctrine; runSolve here would adopt res[0] and wipe
+  // the build). An explicit handler, not an effect: it reads nothing stale
+  // and survives StrictMode's double effect invocation.
+  const changeSource = (next) => {
+    if (next === source) return;
+    setSource(next);
+    const res = solveRoom(inp, maxIn, next);
+    setResults(res);
+    if (option) refit(res);
   };
 
   // With "overall max" on, the walls, the curb pick and the tile thickness
@@ -1182,20 +1216,20 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // --- swaps ----------------------------------------------------------------
   const swapChoices = (line) => {
     const g = line.item.group;
-    if (g === "panel") return { title: "Wall panel", list: group("panel").filter((p) => p.sf), set: (k) => setOpts((o) => ({ ...o, panelKey: k || undefined })) };
-    if (g === "cover" && line.item.sub === "point") return { title: "Drain cover — 4×4 finish", list: group("cover").filter((c) => c.sub === "point"), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
+    if (g === "panel") return { title: "Wall panel", list: bySource(group("panel").filter((p) => p.sf)), set: (k) => setOpts((o) => ({ ...o, panelKey: k || undefined })) };
+    if (g === "cover" && line.item.sub === "point") return { title: "Drain cover — 4×4 finish", list: bySource(group("cover").filter((c) => c.sub === "point")), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
     if (g === "cover" && line.item.sub === "linear") {
       const nom = line.item.len;
-      return { title: "Linear cover — " + nom + '" channel', list: group("cover").filter((c) => c.sub === "linear" && c.len === nom), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
+      return { title: "Linear cover — " + nom + '" channel', list: bySource(group("cover").filter((c) => c.sub === "linear" && c.len === nom)), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
     }
     if (g === "coverFrame") {
       return {
         title: "Cover frame — " + line.item.len + '" channel',
-        list: group("coverFrame").filter((f) => f.len === line.item.len), none: "No frame",
+        list: bySource(group("coverFrame").filter((f) => f.len === line.item.len)), none: "No frame",
         set: (k) => setOpts((o) => ({ ...o, coverFrame: k ? item(k).finish : undefined })),
       };
     }
-    if (g === "curb") return { title: "Curb", list: curbs(), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
+    if (g === "curb") return { title: "Curb", list: bySource(curbs()), none: "No curb", set: (k) => setOpts((o) => ({ ...o, curbKey: k || null })) };
     if (g === "sealant" && line.item.sub === "joint") {
       return { title: "Joint sealant form", list: [item(SKU.sealantTube), item(SKU.sealantSausage)], set: (k) => setOpts((o) => ({ ...o, sealantForm: k === SKU.sealantSausage ? "sausage" : "tube" })) };
     }
@@ -1204,7 +1238,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     }
     if (["niche", "seat", "bench", "shelf"].includes(g)) {
       return {
-        title: GROUP_LABEL[g], list: group(g), set: (k) => {
+        title: GROUP_LABEL[g], list: bySource(group(g)), set: (k) => {
           if (!k) return;
           setAddons((a) => a.map((x) => (x === line.item.key ? k : x)));
           setManual((mm) => mm.map((x) => (x.key === line.item.key ? { ...x, key: k } : x)));
@@ -1224,8 +1258,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const chipChoices = (g) => {
     if (g === "gun") return [item(SKU.gun)];
     if (g === "recess") return [item(SKU.recessKit), item(SKU.ramp)];
-    if (g === "coverFrame") return frameOpts;
-    return group(g).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
+    if (g === "coverFrame") return bySource(frameOpts);
+    return bySource(group(g).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail));
   };
   const chipPick = (g, key) => {
     if (g === "recess") setOpts((o) => ({ ...o, recess: key === SKU.ramp ? "ramp" : "kit" }));
@@ -1319,7 +1353,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               {[...list].sort(panOrder).map((p) => {
                 const tag = panTag(p, usualDrain);
                 return (
-                  <button key={p.key} className={"pancard" + (panKey === p.key && !option ? " on" : "")} onClick={() => pickPan(p.key)} data-wedi-pan={p.key}
+                  <button key={p.key} disabled={source === "stock" && !p.stock}
+                    className={"pancard" + (panKey === p.key && !option ? " on" : "") + (source === "stock" && !p.stock ? " dis" : "")}
+                    onClick={() => pickPan(p.key)} data-wedi-pan={p.key}
                     title={unwedi(p.name) + (p.group === "module" ? ` · ${inch(p.channel)}″ channel` : ` · ${p.drain.type} drain`)}>
                     {p.stock && <div className="dot" title="stocked" />}
                     <div className="sz">
@@ -1569,6 +1605,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const activeSub = activeSec && activeSec.subs ? activeSec.subs.find((s) => s.key === sub) || null : null;
     const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
     const list = cat.filter((e) => {
+      if (source === "stock" && !e.stock) return false;   // the switch as a hard constraint (P2)
       if (sec === "starred" && !starred.has(e.key)) return false;
       if (activeSec && !(activeSub ? activeSub.hit(e) : sectionHit(activeSec, e))) return false;
       if (!toks.length) return true;
@@ -2054,7 +2091,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const upd = (patch) => setBenches((xs) => xs.map((b) => (b === row ? { ...b, ...patch } : b)));
     const del = () => { setBenches((xs) => xs.filter((b) => b !== row)); setBenchMenu(null); };
     const norm = row ? normBench(row, room) : null;
-    const pres = benchPremades(benchMenu.kind === "corner" ? "corner" : "wall");
+    const pres = bySource(benchPremades(benchMenu.kind === "corner" ? "corner" : "wall"));
     // The pricelist's first sentence says what the piece IS — "Suspended
     // Corner Seat", "Floor-mounted Triangular Corner Shower Bench Kit".
     const blurb = (e) => String(e.details || "").split(". ")[0].replace(/\.$/, "");
@@ -2315,6 +2352,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <button className="rclear" data-wedi-clear
             title="wipe the build — walls, cuts, parts — and reset the custom shower form"
             onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
+          <SourceSwitch source={source} onChange={changeSource} />
           {tierBar}
           {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
         </div>

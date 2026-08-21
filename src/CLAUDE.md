@@ -71,7 +71,12 @@ src/
   widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
                     # anchored-panel machinery, `ThemeSwitch`, popovers, bars,
                     # `HelpTip` (the hover/focus/tap ? for STANDING RULES only —
-                    # state & warnings stay inline, hiding them hides the problem)
+                    # state & warnings stay inline, hiding them hides the problem),
+                    # and `SourceSwitch` — the shared Stock only / Full catalog
+                    # seg both vendor configurators mount in their pop-head
+                    # (phase 4), so the two popups can't drift on the control;
+                    # it carries no engine knowledge, each popup owns what the
+                    # source constrains and styles `.srcseg` in its own CSS
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
   grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
@@ -353,7 +358,13 @@ src/
                     # generated tables (the 151-row WEDI_1 stock export + 229 Jan
                     # 2026 pricelist rows) behind a classified `catalog()`/`item`/
                     # `group`/`pans`, plus the system solver a shower needs:
-                    # `kitFor` (the house-kit recipe per pan), `solve` (room ->
+                    # `kitFor` (the house-kit recipe per pan; `input.source`
+                    # "stock" on `solve` — the shared phase-4 switch — drops
+                    # non-stocked pans/modules from the candidate pools so
+                    # options re-rank, while companion pieces an option needs
+                    # stay as picked and render flagged, never silently
+                    # dropped; absent source is Full catalog, pinned deepEqual
+                    # in wedi.test.js), `solve` (room ->
                     # ranked options: exact pan · pan + extensions with the corner
                     # rule · pan cut down · Riolito neo module + same-length
                     # extension, at the wall or centred with one leading away each
@@ -419,7 +430,16 @@ src/
                     # ~2 000-row catalog. Must NEVER import wedi.js — wedi.js
                     # re-exports these four (ADR 0026, wediquery.test.js)
   WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
-                    # tables stay off boot: three tabs — Kits (every stocked pan
+                    # tables stay off boot. Carries the shared SourceSwitch
+                    # (phase 4): Stock only re-solves an active custom room
+                    # (options re-rank; with only a kit loaded the cards
+                    # refresh WITHOUT touching the build — runSolve would
+                    # adopt res[0] and wipe the kit), grays SO kit rows,
+                    # hard-filters Browse, and narrows swap/chip/premade
+                    # choice lists to stocked rows unless none are (then the
+                    # full list stays so a menu is never empty and a pick
+                    # lands flagged). Session state only — never persisted
+                    # into product.wedi. Three tabs — Kits (every stocked pan
                     # a 21px ROW showing ONE price, the full kit through the tier
                     # lens — matching the build column's total; owner ask
                     # 2026-07-31 replaced the earlier our-stock-cost line — one
@@ -599,7 +619,14 @@ src/
                     # lipped one (decision 6: a curbed tray doesn't belong on
                     # a curbless install even if it cuts less), then cut size,
                     # then price; no fit at all is a single mortar-bed card,
-                    # never silently dropped. `pickRolls` is the same
+                    # never silently dropped. `pickFrom`/`stockPool` (phase 4)
+                    # are the one stock-only rule every buildKit pick runs
+                    # through: under "stock" a stocked match wins, a role with
+                    # no stocked option lands flagged (grates and channels
+                    # used to vanish), and a SO covering curb loses to stocked
+                    # multiples cut end-to-end (the P2 60"→2×48" example);
+                    # under "all" both are identity, so the pinned totals
+                    # can't move. `pickRolls` is the same
                     # greedy-ladder idea for membrane coverage (largest roll
                     # for whole multiples, smallest single roll for the
                     # remainder), reused for both floor and wall membrane.
@@ -734,8 +761,11 @@ src/
                     # cost & margin behind a click, payload preview modal)
                     # and the showerdraw rail (TopDown/Iso via
                     # schluterdraw.js + the cut list). The Source switch
-                    # (Stock only / Full catalog) is the popup's own header
-                    # control until phase 4 lifts it into the shared shell.
+                    # (Stock only / Full catalog) is the shared SourceSwitch
+                    # (widgets.jsx, phase 4) — both configurators mount it.
+                    # Stock-only picks go through the engine's pickFrom/
+                    # stockPool rule: a stocked match wins, a role with no
+                    # stocked option lands flagged, never silently dropped.
                     # The catalog is LIVE registry rows through
                     # schluteradapter: the stock cache (bookStockReady
                     # gated) plus every active order book named/branded
