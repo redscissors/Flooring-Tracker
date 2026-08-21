@@ -36,3 +36,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0030](0030-vendor-freight-program.md) | Vendor freight: a live rate program on the book, opted into per row, charged once per order | Accepted | 2026-07-27 |
 | [0031](0031-quote-options-shared-base.md) | Quote options are area tags over a shared base | Accepted | 2026-08-06 |
 | [0032](0032-schluter-registry-driven-pricing.md) | Schluter configurator pricing is registry-driven, not transcribed: no embedded catalog, retail = 1.5 × cost, own `schluterBuilderPct` knob | Accepted | 2026-08-21 |
+| [0033](0033-shared-shower-drawing-module.md) | Shared shower drawing module (`showerdraw.js`/`.jsx`), extracted with a pixel-parity gate; never imports `wedi.js` | Accepted | 2026-08-21 |

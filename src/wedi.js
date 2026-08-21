@@ -27,8 +27,10 @@
 // retail, net, section, discount, erp} (+ {kitNote, section} rows).
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./wediquery.js";
+import { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
+export { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH };
 
 const WEDI_STOCK = [
  {
@@ -4436,7 +4438,6 @@ function wallSf(walls) {
 // partial wall. The planner sees each extra face as its own wall: the outside
 // face at full length, the end as a WALL_THICK-wide strip, appended AFTER the
 // base list so callers indexing the plan's detail by wall still line up.
-export const WALL_THICK = 4;     // framing depth — the drawings draw it true
 export function expandWallFaces(walls) {
   const out = (walls || []).slice();
   (walls || []).forEach((w) => {
@@ -4527,10 +4528,9 @@ export const CURB_W = 3.5;       // the curb's plan width — ring fills + longe
 // 3½ × 2 H×W) — adds 1½". These drive the "overall max" solver
 // mode, where the stated dimensions INCLUDE the curb: each fully open edge
 // gives up (width − lap) of pan space and the curb draws inside the line.
-export const CURB_LAP = 0.5;
 export function curbWidth(key) {
   const it = typeof key === "string" ? item(key) : key;
-  return it && /lean/i.test(it.name || "") ? 2 : 4.5;
+  return curbWidthOf(it);
 }
 
 // Per-edge inset when the stated dims are the overall footprint. Only an
@@ -4697,7 +4697,6 @@ export function openCorners(dims, walls) {
 // clear beneath it, and the curb runs under it untouched.
 
 export const BENCH_H = 18;
-export const BENCH_DEPTH = 14;     // default seat depth along a wall (owner, 2026-07-31)
 export const BENCH_CORNER_LEG = 24;
 const BENCH_SUPPORT_EVERY = 12;
 const BENCH_THICK = 2;
@@ -4744,16 +4743,6 @@ export function normBench(b, dims) {
   if (susp) { o.suspended = true; o.thick = part.t || 4; }   // 3 1/8 must not round to 3.13
   if (build === "framed") o.panFit = b.panFit === "smaller" ? "smaller" : "cut";
   return o;
-}
-
-// Plan-view footprint in room coords (origin back-left). Wall benches anchor
-// at the back (a back bench at the left wall), corners wrap their corner.
-export function benchFootprint(b, dims) {
-  const rw = +dims.w || 0, rd = +dims.d || 0;
-  if (b.kind === "corner") return { kind: "corner", corner: b.corner, a: Math.min(b.size, rw || b.size, rd || b.size) };
-  if (b.side === "left") return { kind: "rect", x: 0, y: 0, w: Math.min(b.depth, rw), d: Math.min(b.len, rd) };
-  if (b.side === "right") return { kind: "rect", x: Math.max(0, rw - b.depth), y: 0, w: Math.min(b.depth, rw), d: Math.min(b.len, rd) };
-  return { kind: "rect", x: 0, y: 0, w: Math.min(b.len, rw), d: Math.min(b.depth, rd) };
 }
 
 // The intervals of each room edge a bench sits on — what the curb gives up.
@@ -4938,19 +4927,6 @@ function familyOf(pan) {
   return pan.sub === "sdry" ? "sdry" : pan.sub;
 }
 
-// A pan's thickness off its size text ('… x 2"' / '… x 1 37/64"'). The deep
-// 2" pans pair with 1 37/64" extensions, which the shop shims flush with
-// ½" building-panel strips underneath (owner practice 2026-07-30).
-export function panThick(p) {
-  const m = /x\s*(\d+(?:\s+\d+\/\d+)?|\d+\/\d+)"\s*$/.exec((p && p.sizeText) || "");
-  if (!m) return 0;
-  let v = 0;
-  m[1].trim().split(/\s+/).forEach((s) => {
-    const f = s.split("/");
-    v += f.length === 2 ? +f[0] / +f[1] : +s;
-  });
-  return round2(v);
-}
 const BUILDUP_NOTE = 'the 2" pan runs deeper than the 1 37/64" extensions — build the extensions up flush with ½" building-panel strips underneath';
 const BUILDUP_SHEET = "US8000015";   // ½" 4×8 building panel — ripped into strips
 function extensionSf(option) {
