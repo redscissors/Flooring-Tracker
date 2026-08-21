@@ -754,6 +754,20 @@ src/
                     # the ramp is a build line), `schluterWallOn`. Never
                     # imports wedi.js (ADR 0033 chunk hygiene)
                     # (schluterdraw.test.js)
+  useschlutercatalog.js  # `useSchluterCatalog` — the registry→catalog
+                    # assembly (task 3, phase 5), cut verbatim out of
+                    # SchluterConfigurator.jsx so a later Compare tab inside
+                    # the WEDI popup can build the same live Schluter catalog
+                    # without duplicating it: stock cache rows adapted
+                    # `{stock:true}` (bookStockReady gated) plus every active
+                    # order book matching /schluter/i on name/brandLabel,
+                    # fetched via `loadBookItems` and adapted `{stock:false}`,
+                    # `active !== false && !disabled` filtered, stock winning
+                    # SKU collisions, through `catalogOf` — returns
+                    # `{cat, catReady}`, the popup's own names, unchanged.
+                    # LAZY-CHUNK-ONLY: imports schluteradapter.js, so it must
+                    # never be pulled onto the boot path — only a
+                    # `React.lazy` popup may import it
   SchluterConfigurator.jsx  # the Schluter popup, a `React.lazy` chunk (ADR
                     # 0026) — the React port of the approved prototype
                     # (.scratch/097, P1/P2), wedi's sibling over the same
@@ -781,7 +795,9 @@ src/
                     # stockPool rule: a stocked match wins, a role with no
                     # stocked option lands flagged, never silently dropped.
                     # The catalog is LIVE registry rows through
-                    # schluteradapter: the stock cache (bookStockReady
+                    # schluteradapter, assembled by the shared
+                    # useSchluterCatalog hook (task 3, useschlutercatalog.js):
+                    # the stock cache (bookStockReady
                     # gated) plus every active order book named/branded
                     # Schluter, fetched on open (ADR 0026's
                     # re-fetch-on-open pattern); stock rows win a SKU
