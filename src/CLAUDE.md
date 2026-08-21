@@ -59,7 +59,21 @@ src/
                     # model.js, re-exported here; extended past A–C 2026-08-19) +
                     # colors, shared/option scoping (bucketCats/scopedCats),
                     # titles, duplicateInto — an option is a TAG on an area,
-                    # never a copy of the job (options.test.js)
+                    # never a copy of the job. `compareOptionsPatch` (phase 5
+                    # task 2, ADR recorded separately — task 7) is the Compare
+                    # tab's ONE-PATCH
+                    # landing: two fresh sibling areas (`{...newArea(), …}`,
+                    # never duplicateInto's shared-source retag — these aren't
+                    # copies of shared work) tagged option A/B, inserted right
+                    # after the host area (append if its id is gone), each
+                    # `lines.map(p => ({...newProduct(), ...p}))` plus a
+                    # trailing blank adder row; `optionNames` fills {A:"wedi",
+                    # B:"Schluter"} only into empty slots, never over a custom
+                    # name; null when either lines array is empty. Returns the
+                    # patch object for the caller's single `updateProject`
+                    # call — usedirectory's setter is built off a stale
+                    # closure, so two calls in one tick would clobber each
+                    # other (options.test.js)
   jobtotals.js      # the job's money math, extracted from App.jsx so it runs per
                     # option scope: one filtered project in, every aggregate out
                     # (totals, gList/mList/…, matAll, pMats, freight, margin).
