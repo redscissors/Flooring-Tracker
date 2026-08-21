@@ -27,6 +27,7 @@ createRoot(document.getElementById("preview")).render(
   <SchluterConfigurator
     seed={null}
     schluterBuilderPct={8}
+    wediBuilderPct={18}
     areaName="Master bath"
     projectName="Harper — 214 Ridgeway"
     stockRows={stockRows}
@@ -36,6 +37,7 @@ createRoot(document.getElementById("preview")).render(
     mortars={{ "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 }, "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 32.5 } }}
     mortarDefault="Schluter All Set"
     onAdd={(rows) => console.log("onAdd", rows)}
+    onQuoteOptions={(p) => console.log("onQuoteOptions", p)}
     onClose={() => console.log("onClose")}
     onConfigChange={() => {}}
   />
