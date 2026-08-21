@@ -67,9 +67,8 @@ src/
                     # model.js, re-exported here; extended past A–C 2026-08-19) +
                     # colors, shared/option scoping (bucketCats/scopedCats),
                     # titles, duplicateInto — an option is a TAG on an area,
-                    # never a copy of the job. `compareOptionsPatch` (phase 5
-                    # task 2, ADR recorded separately — task 7) is the Compare
-                    # tab's ONE-PATCH
+                    # never a copy of the job. `compareOptionsPatch` (phase 5,
+                    # ADR 0034) is the Compare tab's ONE-PATCH
                     # landing: two fresh sibling areas (`{...newArea(), …}`,
                     # never duplicateInto's shared-source retag — these aren't
                     # copies of shared work) tagged option A/B, inserted right
@@ -847,9 +846,24 @@ src/
                     # code in sku + mfg code in vendorSkus for stocked rows,
                     # EFT-shaped special-order rows), so preview shots
                     # exercise the production adapter path end to end; no
-                    # Supabase, not part of the app build
-  comparekit.js     # one room priced in BOTH shower systems (phase 5) — the
-                    # first module allowed to import wedi.js and schluter.js
+                    # Supabase, not part of the app build. Carries
+                    # `wediBuilderPct` + a no-op `onQuoteOptions` too (phase 5),
+                    # so the Compare tab shows both builder knobs and renders
+                    # its quote-options footer — a footer that only exists when
+                    # the prop is given
+  wedipreview.jsx   # dev-only harness (wedi-preview.html): the REAL
+                    # WediConfigurator over the real engine, no Supabase and no
+                    # App shell — the wedi half of the change-control preview
+                    # shots. It feeds the SAME fixture-through-normOrderItem
+                    # registry bag schluterpreview.jsx does (stockRows/books/
+                    # loadBookItems/mortars), because the Compare tab inside
+                    # the wedi popup assembles the Schluter catalog itself
+                    # (useSchluterCatalog) — without the bag that column is
+                    # only ever "Loading the Schluter price books…". Same
+                    # no-op `onQuoteOptions`; not part of the app build
+  comparekit.js     # one room priced in BOTH shower systems (phase 5,
+                    # ADR 0034) — the first module allowed to import wedi.js
+                    # and schluter.js
                     # together, and the only one that should: it owns the
                     # mapping and nothing else, so neither engine has to learn
                     # about the other and neither engine's pinned totals can
@@ -874,7 +888,8 @@ src/
                     # walls-difference story (the wedi panel IS the
                     # substrate); `compareTotals` then excludes them
                     # (comparekit.test.js, over the frozen schluterfixture)
-  CompareTab.jsx    # the Compare surface (phase 5, prototype P3): the fourth
+  CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
+                    # the fourth
                     # tab in EITHER vendor popup — the category rail beside a
                     # wedi column and a Schluter column, a Retail/Builder lens,
                     # totals + the delta line (with the walls-aren't-apples-to-
