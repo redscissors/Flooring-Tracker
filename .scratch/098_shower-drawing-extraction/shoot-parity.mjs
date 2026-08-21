@@ -10,6 +10,10 @@
 //
 // writes .scratch/098_shower-drawing-extraction/<label>/*.png (six PNGs) and
 // .scratch/098_shower-drawing-extraction/<label>.sha256 (their hashes).
+//
+// Every shot() waits on a settle guard (both rail SVGs present and non-empty)
+// before capturing, so a still-settling frame or a blank/half-rendered rail
+// fails loudly instead of producing a silent, spurious diff.
 import { createRequire } from "node:module";
 const { chromium } = createRequire("/opt/node22/lib/node_modules/playwright/")("playwright-core");
 import { createHash } from "node:crypto";
@@ -68,7 +72,19 @@ const addBenchAt = async (fx, fy) => {
   await pg.keyboard.press("Escape");
   await pg.waitForTimeout(300);
 };
-const shot = (name) => pg.locator(".diagcol").screenshot({ path: `${OUT}/${name}.png` });
+// Settle guard: both rail SVGs (plan + isometric) present and non-empty,
+// then one short paint-settle margin. Every scenario renders exactly two
+// SVGs in .diagcol (TopDown + Iso) once a diagram exists, so the predicate
+// is the same across all six — see WediConfigurator.jsx's diagRail.
+const settle = () => pg.waitForFunction(
+  () => document.querySelectorAll(".diagcol svg").length >= 2
+    && Array.from(document.querySelectorAll(".diagcol svg")).every((s) => s.childElementCount > 0),
+  null, { timeout: 8000 },
+).then(() => pg.waitForTimeout(250));
+const shot = async (name) => {
+  await settle();
+  await pg.locator(".diagcol").screenshot({ path: `${OUT}/${name}.png` });
+};
 
 // 1. kit-48x60 — Kits tab, the 4' × 5' pan row.
 await fresh();
