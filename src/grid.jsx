@@ -7,6 +7,8 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 // wediquery.js, never wedi.js: the recognizer is a few hundred bytes, the
 // catalog it fronts is ~150KB and stays inside the lazy popup chunk (ADR 0026).
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
+// schluterquery.js, never schluter.js — same boot contract (ADR 0026).
+import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
 import { useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
@@ -390,6 +392,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   const vendorRows = !onVendor ? [] : [
     sheogaQueryHit(query) && { id: "sheoga", attr: "data-sheoga-entry", title: "Sheoga Hardwood — configure by description", sub: sheogaQuerySummary(sheogaParseQuery(query)) },
     wediQueryHit(query) && { id: "wedi", attr: "data-wedi-entry", title: "wedi shower systems — kits, custom rooms, catalog", sub: wediQuerySummary(wediParseQuery(query)) },
+    schluterQueryHit(query) && { id: "schluter", attr: "data-schluter-entry", title: "Schluter shower systems — kits, custom rooms, catalog", sub: schluterQuerySummary(schluterParseQuery(query)) },
   ].filter(Boolean);
   const vendor = vendorRows.length > 0;
   const goVendor = (which) => { committedRef.current = true; onVendor(query, which); close(); };

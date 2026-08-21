@@ -627,16 +627,29 @@ src/
                     # publish-retail model); builder subtracts Settings'
                     # `pricing.schluterBuilderPct` (its own knob, default 8%
                     # — never shares wedi's or the flooring tier's percent).
-                    # `lineItems` mirrors `product.wedi`'s marker shape:
-                    # every surviving (non-`noteOnly`) line lands RETAIL for
-                    # the job sheet's own tier lens to reprice (ADR 0018),
-                    # with a builder-tier snapshot riding along; the anchor
-                    # row carries `cfg` untouched so "Schluter — reconfigure"
-                    # can re-run `buildKit` and replace the kit's lines,
-                    # companions carry `{ part: true }`. Geometry (the
-                    # Iso/TopDown drawings) is deliberately NOT this module's
-                    # concern — phase 3 adapts `buildKit`'s output + `cfg`
-                    # into the shared drawing shape wedi's popup already owns
+                    # `classify` also derives the FACTS `buildKit` keys on
+                    # (corner inside/outside, seal pipe/valve, fastener + ct,
+                    # adhesive, membrane `wide`) — never name text, because a
+                    # live row's name is normOrderItem's CLEANED (title-cased)
+                    # description and a name regex silently misses on it
+                    # (phase-3 ride-along; pinned by the name-case-immunity
+                    # test). `lineItems(build, opts)` is wedi-shaped: the
+                    # caller composes { ...buildKit(...), mode, cfg } —
+                    # mode "kit" for an untouched Kits pick, else "custom" —
+                    # and every surviving (non-`noteOnly`) line lands RETAIL
+                    # for the job sheet's own tier lens to reprice (ADR
+                    # 0018), with a builder-tier snapshot riding along; the
+                    # anchor row carries `cfg` untouched so "Schluter —
+                    # reconfigure" can re-run `buildKit` and replace the
+                    # kit's lines, companions carry `{ part: true }`. A
+                    # classified row whose name doesn't lead with a Schluter
+                    # family word gets a "Schluter — " brandColor lead (the
+                    # wedi idiom); a non-classified item (the Settings
+                    # mortar) never does — it isn't necessarily Schluter
+                    # goods. Geometry (the Iso/TopDown drawings) is
+                    # deliberately NOT this module's concern — that mapping
+                    # lives in schluterdraw.js, and every live row this
+                    # module sees crosses schluteradapter.js first
   schluterfixture.js  # the 2026-08-20 stock-sheet/EFT snapshot schluter.js's
                     # tests are pinned against (schluter.test.js) — the ERP
                     # Vendor SKU Analysis + dealer-cost EFT the prototype was
@@ -662,7 +675,90 @@ src/
                     # wediquery.js) so a bare brand mention lands on the
                     # shelf-kit tab rather than the catalog. Must NEVER
                     # import the engine module — it re-exports these four
-                    # (ADR 0026, schluterquery.test.js)
+                    # (ADR 0026, schluterquery.test.js). A weak word + size
+                    # can legitimately pin BOTH configurators' rows at once
+                    # (the phase-3 call: each row renders on its own
+                    # recognizer, wedi listed first)
+  schluteradapter.js  # the registry→engine adapter (ADR 0032 consequences —
+                    # phase 3's mandatory first deliverable): live rows are
+                    # normOrderItem-shaped (`description` title-cased by
+                    # cleanDescription, book-level stock kind, the ERP stock
+                    # export's shop code in `sku` with the manufacturer code
+                    # in `vendorSkus`), while the engine was built against
+                    # the prototype-shaped fixture. `adaptRow` tries the
+                    # row's own sku then each vendorSkus entry and keeps the
+                    # FIRST code classify() recognizes (null = not a shower
+                    # part), mapping description→name, shop code→erp, the
+                    # caller's book kind→stock; `mortarItemFrom` turns a
+                    # Settings mortars entry into buildKit's cfg.mortarItem
+                    # ({name, price, cost, stock, sfPerBagAt15}) — cost
+                    # mirrors price (a Settings material carries one number;
+                    # $0 on the Cost tier would lie) and the bed rate is the
+                    # exported MORTAR_BED_SF_PER_BAG = 8 constant, since the
+                    # Settings shape has no bed-coverage field. Tests build
+                    # rows through the REAL normOrderItem, never hand-shaped
+                    # literals (schluteradapter.test.js)
+  schluterdraw.js   # Schluter build → the shared showerdraw shape: pure
+                    # builders the popup feeds to TopDown/Iso exactly as the
+                    # wedi popup feeds its own — `schluterDiag` (one
+                    # room-sized tray piece, cut dims riding it the wedi
+                    # cutdown way so cut edges dash; the drain at the UNCUT
+                    # tray's moulded position with an off-centre warning past
+                    # 1"; the Vario channel at cfg.w−8 along the back wall),
+                    # `schluterWalls` (the three fixed walls as dWalls;
+                    # 48"-panel course joints ONLY on board walls — membrane
+                    # walls have no seams to tick — with y0/ch so the
+                    # isometric draws the same joints), `schluterCurb` (one
+                    # entry run, the KBSC 4½"×6" profile; curbless = no band,
+                    # the ramp is a build line), `schluterWallOn`. Never
+                    # imports wedi.js (ADR 0033 chunk hygiene)
+                    # (schluterdraw.test.js)
+  SchluterConfigurator.jsx  # the Schluter popup, a `React.lazy` chunk (ADR
+                    # 0026) — the React port of the approved prototype
+                    # (.scratch/097, P1/P2), wedi's sibling over the same
+                    # shell idioms: Kits (every tray a row — click one and
+                    # the build column fills the shelf kit; trays gray out
+                    # under Stock only) / Custom shower (room + entry +
+                    # drain, the WALL-SYSTEM FORK — KERDI-over-backer vs
+                    # KERDI-BOARD, Schluter's one structural choice wedi
+                    # doesn't have — wall rows whose lengths follow the room,
+                    # ranked tray option cards, add-on chips off the live
+                    # catalog's extras (premade SB bench = decision 4's third
+                    # option, landed here), site-built bench chips, and the
+                    # mortar-bed fallback card with its Settings → Materials
+                    # pick mapped through mortarItemFrom — decision 2) /
+                    # Browse (filter board over the classified groups,
+                    # factory kits ONLY here — decision 5 — the thin-set/
+                    # KERDI figurer, stock-tinted stepper rows), over the
+                    # shared build column (grouped lines, from-stock meter,
+                    # cost & margin behind a click, payload preview modal)
+                    # and the showerdraw rail (TopDown/Iso via
+                    # schluterdraw.js + the cut list). The Source switch
+                    # (Stock only / Full catalog) is the popup's own header
+                    # control until phase 4 lifts it into the shared shell.
+                    # The catalog is LIVE registry rows through
+                    # schluteradapter: the stock cache (bookStockReady
+                    # gated) plus every active order book named/branded
+                    # Schluter, fetched on open (ADR 0026's
+                    # re-fetch-on-open pattern); stock rows win a SKU
+                    # collision; an empty catalog after load names the
+                    # import path instead of a blank pane (ADR 0032's
+                    # inert-without-rows consequence). TierBar mirrors the
+                    # job's tier both ways (ADR 0018) with Builder on the
+                    # schluterBuilderPct knob; embedded (Apps hub) it falls
+                    # back to a local retail-seeded preview like wedi. Same
+                    # shrink-to-fit rig and open-layer/onConfigChange
+                    # contract as the wedi popup; Add lands lineItems() via
+                    # addSchluterLines, anchor row schluter:{mode,cfg} (the
+                    # cfg also carries manual + source so Reconfigure
+                    # restores add-ons and the source switch)
+  schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
+                    # SchluterConfigurator over the fixture pushed BACKWARDS
+                    # through normOrderItem into live registry shape (shop
+                    # code in sku + mfg code in vendorSkus for stocked rows,
+                    # EFT-shaped special-order rows), so preview shots
+                    # exercise the production adapter path end to end; no
+                    # Supabase, not part of the app build
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

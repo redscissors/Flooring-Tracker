@@ -8,11 +8,12 @@ import keimLogo from "./assets/keim-logo-ink.png";
 // Lazy so the wedi tables stay in their own chunk (ADR 0026) — opening the hub
 // for labels must not pay for ~2 000 catalog rows.
 const WediConfigurator = lazy(() => import("./WediConfigurator.jsx"));
+const SchluterConfigurator = lazy(() => import("./SchluterConfigurator.jsx"));
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
-const APP_NAME = { labels: "Label Generator", sheoga: "Sheoga configurator", wedi: "wedi configurator" };
+const APP_NAME = { labels: "Label Generator", sheoga: "Sheoga configurator", wedi: "wedi configurator", schluter: "Schluter configurator" };
 const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
 
 // ── The dark label card, data-driven over `lines` (screen render) ──────────────
@@ -100,7 +101,7 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
   );
 }
 
-export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, initialApp }) {
+export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, schluter, initialApp }) {
   const [app, setApp] = useState(() => (initialApp && APP_NAME[initialApp] ? initialApp : "labels"));
   // Below the breakpoint the 224px rail is width the open app needs more than
   // the nav does — the configurators are three columns wide and pay for it in
@@ -267,6 +268,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
             <button onClick={() => pickApp("labels")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "labels" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Label Generator</button>
             {sheoga && <button onClick={() => pickApp("sheoga")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "sheoga" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Sheoga configurator</button>}
             {wedi && <button onClick={() => pickApp("wedi")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "wedi" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>wedi configurator</button>}
+            {schluter && <button onClick={() => pickApp("schluter")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "schluter" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Schluter configurator</button>}
             <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-400">More coming soon</div>
           </nav>
           <div className="mt-auto p-4 text-[11px] text-slate-400 border-t border-slate-100">A home for shop tools.</div>
@@ -479,6 +481,21 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 areaName={wedi.currentName || "a new quick price"}
                 projectName={wedi.currentName || ""}
                 onAdd={(lines) => requestCommit(wedi, lines, null)}
+                onClose={() => { if (!pendingRef.current) setApp("labels"); }}
+              />
+            </Suspense>
+          )}
+          {app === "schluter" && schluter && (
+            <Suspense fallback={null}>
+              <SchluterConfigurator
+                embedded
+                schluterBuilderPct={schluter.builderPct}
+                areaName={schluter.currentName || "a new quick price"}
+                projectName={schluter.currentName || ""}
+                stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
+                books={schluter.books} loadBookItems={schluter.loadBookItems}
+                mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
+                onAdd={(lines) => requestCommit(schluter, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
             </Suspense>

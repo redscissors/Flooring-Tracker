@@ -17,6 +17,9 @@ import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 // The wedi search seed comes from wediquery.js, not wedi.js — the catalog and
 // engine stay inside the lazy WediConfigurator chunk (ADR 0026, issue 066).
 import { seedFromQuery as wediSeed } from "./wediquery.js";
+// Same boot contract for Schluter: the seed comes from schluterquery.js — the
+// engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
+import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
@@ -51,6 +54,7 @@ import { useVersions } from "./useversions.js";
 // overlays; a null Suspense fallback reads as normal open latency.
 const SheogaConfigurator = lazy(() => import("./SheogaConfigurator.jsx"));
 const WediConfigurator = lazy(() => import("./WediConfigurator.jsx"));
+const SchluterConfigurator = lazy(() => import("./SchluterConfigurator.jsx"));
 const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ default: m.AppsWorkspace })));
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
 const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
@@ -237,6 +241,8 @@ export default function App({ user, onSignOut }) {
   // Sheoga one: { aid, pid, seed } — seed is a search parse or the row's
   // saved { mode, cfg } marker.
   const [wediPop, setWediPop] = useState(null);
+  // Schluter configurator popup (issue 097 phase 3), same shape again.
+  const [schluterPop, setSchluterPop] = useState(null);
   // Trims popup (2026-07-22 spec), tied to the floor row it was opened from:
   // { aid, pid }. Opens from the materials drawer's Trims row.
   const [trimsPop, setTrimsPop] = useState(null);
@@ -582,7 +588,7 @@ export default function App({ user, onSignOut }) {
       if (!sel._full) return; // full record still loading — re-runs on sel
       setRestoreLayer(null);
       const row = sel.categories.find((a) => a.id === L.aid)?.products.find((p) => p.id === L.pid);
-      if (row) (L.kind === "wedi" ? setWediPop : setSheogaPop)({ aid: L.aid, pid: L.pid, seed: L.seed || null });
+      if (row) (L.kind === "wedi" ? setWediPop : L.kind === "schluter" ? setSchluterPop : setSheogaPop)({ aid: L.aid, pid: L.pid, seed: L.seed || null });
       return;
     }
     setRestoreLayer(null);
@@ -596,13 +602,14 @@ export default function App({ user, onSignOut }) {
     if (loading || restoreLayer) return;
     const layer = sheogaPop ? { kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: sheogaPop.seed || null }
       : wediPop ? { kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: wediPop.seed || null }
-        : showSettings ? { kind: "settings", section: settingsSection }
-          : showApps ? { kind: "apps" }
-            : showBrowser ? { kind: "browser" }
-              : showTodos ? { kind: "todos" }
-                : null;
+        : schluterPop ? { kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: schluterPop.seed || null }
+          : showSettings ? { kind: "settings", section: settingsSection }
+            : showApps ? { kind: "apps" }
+              : showBrowser ? { kind: "browser" }
+                : showTodos ? { kind: "todos" }
+                  : null;
     try { localStorage.setItem("ft-open-layer", JSON.stringify(layer)); } catch (x) { }
-  }, [sheogaPop, wediPop, showSettings, settingsSection, showApps, showBrowser, showTodos, loading, restoreLayer]);
+  }, [sheogaPop, wediPop, schluterPop, showSettings, settingsSection, showApps, showBrowser, showTodos, loading, restoreLayer]);
   // The row search's instant in-memory tier: every active stock-kind book's
   // items, flattened from the ADR 0026 background cache (the ERP exports that
   // replaced the shop workbook, ADR 0027). stockKind marks a hit as shop
@@ -788,6 +795,19 @@ export default function App({ user, onSignOut }) {
   // from and every companion lands as its own new row after it. Payloads come
   // from wedi.js lineItems(); nothing reprices later (ADR 0003).
   const addWediLines = (aid, pid, lines) => {
+    if (!lines.length) return;
+    const a = sel.categories.find((x) => x.id === aid);
+    if (!a || !a.products.some((p) => p.id === pid)) return;
+    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
+      { ...p, ...lines[0] },
+      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
+    ]);
+    updArea(aid, { products });
+  };
+  // Schluter (issue 097 phase 3): identical shape — the tray anchors with
+  // schluter:{mode,cfg}, companions land after it. Payloads come from
+  // schluter.js lineItems(); nothing reprices later (ADR 0003).
+  const addSchluterLines = (aid, pid, lines) => {
     if (!lines.length) return;
     const a = sel.categories.find((x) => x.id === aid);
     if (!a || !a.products.some((p) => p.id === pid)) return;
@@ -1770,7 +1790,9 @@ export default function App({ user, onSignOut }) {
                         // wedi only on the ANCHOR line (a companion carries wedi.part and
                         // a browse pick carries no panKey, so neither is reconfigurable).
                         const wediCfg = p.wedi?.cfg?.panKey && !p.wedi.part ? p.wedi : null;
-                        const driftBlock = (drift || oDrift || cDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg) ? (
+                        // Schluter's anchor test is the room (cfg.w) — its cfg has no panKey.
+                        const schluterCfg = p.schluter?.cfg?.w && !p.schluter.part ? p.schluter : null;
+                        const driftBlock = (drift || oDrift || cDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                             {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
@@ -1782,6 +1804,12 @@ export default function App({ user, onSignOut }) {
                               <button tabIndex={-1} onClick={() => setWediPop({ aid: a.id, pid: p.id, seed: wediCfg })} data-wedi-reconfig
                                 className="rounded-full border px-2 py-0.5 font-medium hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>
                                 wedi — reconfigure
+                              </button>
+                            )}
+                            {schluterCfg && (
+                              <button tabIndex={-1} onClick={() => setSchluterPop({ aid: a.id, pid: p.id, seed: schluterCfg })} data-schluter-reconfig
+                                className="rounded-full border px-2 py-0.5 font-medium hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>
+                                Schluter — reconfigure
                               </button>
                             )}
                             {drift && (<>
@@ -1821,6 +1849,7 @@ export default function App({ user, onSignOut }) {
                             onOpenVendor={(query, which) => {
                               setRowSheet(null);
                               if (which === "wedi") setWediPop({ aid: a.id, pid: p.id, seed: wediSeed(query) });
+                              else if (which === "schluter") setSchluterPop({ aid: a.id, pid: p.id, seed: schluterSeed(query) });
                               else setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(query) });
                             }}
                             onDelete={() => delProduct(a.id, p.id)}
@@ -1866,6 +1895,7 @@ export default function App({ user, onSignOut }) {
                                   onVendor={(q, which) => {
                                     clearOmni();
                                     if (which === "wedi") setWediPop({ aid: a.id, pid: p.id, seed: wediSeed(q) });
+                                    else if (which === "schluter") setSchluterPop({ aid: a.id, pid: p.id, seed: schluterSeed(q) });
                                     else setSheogaPop({ aid: a.id, pid: p.id, seed: sheogaSeed(q) });
                                   }}
                                   searchOrder={searchOrder} bookName={bookName} strictness={searchStrictness} fallback={searchFallback}
@@ -2544,6 +2574,14 @@ export default function App({ user, onSignOut }) {
             addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
             addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
           }}
+          schluter={{
+            builderPct: normPricing(settings.pricing).schluterBuilderPct,
+            stockRows: stockItems, bookStockReady, books, loadBookItems,
+            mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
+            currentName: sel?._full ? (sel.name || "Untitled project") : null,
+            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
+            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
+          }}
         />
         </Suspense>
         </LazyBoundary>
@@ -2627,6 +2665,33 @@ export default function App({ user, onSignOut }) {
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setWediPop(null)} />
+          </Suspense>
+          </LazyBoundary>
+        );
+      })()}
+
+      {/* Schluter configurator (issue 097 phase 3): the wedi contract plus the
+          registry catalog props — the popup adapts the stock cache and any
+          active Schluter order book at open (ADR 0032); the Builder stamp is
+          its own knob (schluterBuilderPct). Rows land RETAIL (ADR 0018). */}
+      {schluterPop && sel && (() => {
+        const row = sel.categories.find((x) => x.id === schluterPop.aid)?.products.find((x) => x.id === schluterPop.pid);
+        if (!row) { return null; }
+        return (
+          <LazyBoundary>
+          <Suspense fallback={null}>
+          <SchluterConfigurator seed={schluterPop.seed}
+            schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
+            tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
+            onTierChange={(patch) => updateProject(sel.id, patch)}
+            areaName={sel.categories.find((x) => x.id === schluterPop.aid)?.name || "this area"}
+            projectName={sel.name || ""}
+            stockRows={stockItems} bookStockReady={bookStockReady}
+            books={books} loadBookItems={loadBookItems}
+            mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
+            onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: live })); } catch (x) { } }}
+            onClose={() => setSchluterPop(null)} />
           </Suspense>
           </LazyBoundary>
         );
