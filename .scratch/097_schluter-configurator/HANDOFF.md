@@ -9,26 +9,23 @@ two PR bodies; that is the whole state.
 |---|---|
 | Prototype + owner decisions 1–8 | `.scratch/097_schluter-configurator/` on branch `claude/schluter-configurator-catalog-e1v6o8` (prototype.html, README.md with the decisions, pricelist-notes.md with the factory recipes) |
 | Plans | `docs/superpowers/plans/2026-08-20-*.md` on the same branch (roadmap + phase 1 + phase 2 task plans) |
-| **Phase 1 — drawing extraction** | **DONE — PR #320**, branch `claude/shower-drawing-extraction-e1v6o8`. Byte-identical pixel proof committed under `.scratch/098_shower-drawing-extraction/`. ADR 0033. |
-| **Phase 2 — schluter engine** | **DONE — PR #321**, branch `claude/schluter-engine-e1v6o8`. 993 tests. ADR 0032. |
+| **Phase 1 — drawing extraction** | **MERGED — PR #320** (2026-08-21). Byte-identical pixel proof under `.scratch/098_shower-drawing-extraction/`. ADR 0033. |
+| **Phase 2 — schluter engine** | **MERGED — PR #321** (2026-08-21, after a main merge-back resolving the ADR-index/CLAUDE.md overlap). 993 tests. ADR 0032. |
 | Phases 3–6 | Not started; phase plans get written when their inputs exist (roadmap has the map). |
 
 Both PRs went through per-task review + a whole-branch final review (fixes
-applied and verified). Neither is merged — owner review + preview-proof
-inspection is the gate (repo non-negotiables).
+applied and verified) and are on main.
 
-## What the owner must decide on the PRs
+## Standing owner item
 
-1. **PR #321**: the curbless thin-outranks-cut semantics (decision 6 reading —
-   pinned by an owner-reviewable test). Flip the comparator term + test if read
-   the other way.
-2. **Merge order**: both PRs append one ADR index row (0033 / 0032); whichever
-   merges second may need a one-line index re-sort.
+The curbless **thin-outranks-cut** semantics merged as pinned (decision 6
+reading, owner-reviewable test in `schluter.test.js`). If the owner reads
+decision 6 the other way, flip the comparator term + test in a follow-up.
 
 ## Phase 3 — how to start (the next session's job)
 
-1. Branch `claude/schluter-configurator-ui-<suffix>` off main AFTER #320 and
-   #321 merge (it needs both).
+1. Branch `claude/schluter-configurator-ui-<suffix>` off latest main (both
+   prerequisites are merged).
 2. **FIRST deliverable, before any JSX: the registry→engine adapter** (ADR
    0032 consequences records this as mandatory). Live `normOrderItem` rows ≠
    the engine's fixture shape: `description`→`name`, `stockKind`→`stock`
