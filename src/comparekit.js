@@ -100,6 +100,7 @@ export function schluterBuildFor(room, cat, { source, mortarItem } = {}) {
 }
 
 export function wediCompareRows(build, { builderPct } = {}) {
+  const hasBuild = !!(build && build.lines);
   const rows = ((build && build.lines) || []).map((l) => {
     const e = l.item;
     return {
@@ -111,6 +112,8 @@ export function wediCompareRows(build, { builderPct } = {}) {
       noteOnly: false,
       est: isEst(l.note),
       retail: round2(wediTierPrice(e, "retail") * l.qty),
+      // builderPct here is wedi's OWN percent-off knob (18 ≡ the ×0.82 house
+      // rule, wedi.js builderMult) — never feed it schluter's builderPct.
       builder: round2(wediTierPrice(e, "builder", builderPct) * l.qty),
       // wedi's tier lens has no cost tier — cost IS the distributor net field,
       // read the way the wedi popup's own cost line reads it
@@ -119,10 +122,13 @@ export function wediCompareRows(build, { builderPct } = {}) {
   });
   // wedi's house kit has no thin-set line, and a blank Setting cell beside
   // Schluter's ALL-SET reads as a missing part rather than a different system.
-  rows.push({
-    cat: "Setting", name: "Thin-set for pan bed", sub: "by others / shop stock",
-    qty: 1, stock: true, noteOnly: true, est: false, retail: 0, builder: 0, cost: 0,
-  });
+  // Only append the note beside a real build — wediCompareRows(null) is [].
+  if (hasBuild) {
+    rows.push({
+      cat: "Setting", name: "Thin-set for pan bed", sub: "by others / shop stock",
+      qty: 1, stock: true, noteOnly: true, est: false, retail: 0, builder: 0, cost: 0,
+    });
+  }
   return rows;
 }
 

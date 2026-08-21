@@ -89,6 +89,10 @@ test("wedi rows end with the $0 thin-set note — wedi has no setting line of it
     { cat: "Setting", name: "Thin-set for pan bed", sub: "by others / shop stock", noteOnly: true, retail: 0, builder: 0, cost: 0 });
 });
 
+test("wediCompareRows(null) is empty — no lone thin-set note on a null build", () => {
+  assert.deepEqual(wediCompareRows(null), []);
+});
+
 test("an engine note quoting an allowance marks the row est", () => {
   const rows = wediCompareRows({ lines: [{ item: item(SKU.sealantSausage), qty: 2, note: "field seal — allowance" }] });
   assert.equal(rows[0].est, true);
