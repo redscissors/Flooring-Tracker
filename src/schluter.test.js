@@ -178,8 +178,61 @@ test("lineItems preserves sku when stock item has no erp (live registry shape)",
     lines: [
       { item: trayNoErp, qty: 1, noteOnly: false },
     ],
+    cfg: cfg({}),
   };
-  const result = lineItems(build, cfg({}), {});
+  const result = lineItems(build, {});
   assert.equal(result.length, 1);
   assert.equal(result[0].sku, "KST965/1525");
+});
+
+// --- Phase-3 ride-alongs: classifier facts, kit mode, vendor lead ---
+
+test("classify derives the facts buildKit used to text-match", () => {
+  assert.equal(by("KERECK/FI2").corner, "inside");
+  assert.equal(by("KERECK/FA2").corner, "outside");
+  assert.equal(by("KMS172/12").seal, "pipe");
+  assert.equal(by("KMSMV235/114").seal, "valve");
+  assert.equal(by("KBZS35GT32Z").fastener, true);
+  assert.equal(by("KBZS35GT32Z").ct, 40);
+  assert.equal(by("KBZS35GT32Z100").ct, 100);
+  assert.equal(by("KERDIFIX/BW").adhesive, true);
+  assert.equal(by("KERDI200200/15M").wide, true);
+  // the fasteners stay out of the wall-panel pick
+  assert.equal(by("KBZS35GT32Z100").sf, undefined);
+});
+
+// A live registry row's name is normOrderItem's CLEANED description — often
+// title-cased, never the fixture's exact string. The bill must not move when
+// every name changes case: buildKit reads classifier facts, not name text.
+test("buildKit is name-case-immune (live cleaned descriptions build the same bill)", () => {
+  const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  const liveCat = catalogOf(FIXTURE_ITEMS.map((i) => ({ ...i, name: titleCase(i.name) })));
+  const retail = (e) => tierPrice(e, "retail", {});
+  for (const c of [cfg({}), cfg({ wallSys: "board", bench: "buildup" }), cfg({ drain: "linear", w: 48, d: 48 })]) {
+    const a = buildKit(c, CAT, { source: "all" });
+    const b = buildKit(c, liveCat, { source: "all" });
+    assert.equal(b.lines.length, a.lines.length);
+    assert.equal(Math.round(linesTotal(b.lines, retail) * 100), Math.round(linesTotal(a.lines, retail) * 100));
+  }
+});
+
+test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead", () => {
+  const c = cfg({});
+  const build = { ...buildKit(c, CAT, { source: "all" }), mode: "kit", cfg: c };
+  const rows = lineItems(build, {});
+  assert.equal(rows[0].schluter.mode, "kit");
+  assert.equal(rows[0].schluter.cfg.w, 60);
+  assert.ok(rows.slice(1).every((r) => r.schluter.part));
+  // mode defaults to custom when the build doesn't carry one
+  assert.equal(lineItems({ lines: build.lines, cfg: c }, {})[0].schluter.mode, "custom");
+  // fixture names already lead with a Schluter family word — no doubled lead
+  assert.ok(rows.every((r) => !/^Schluter — (Schluter|KERDI|KERECK|KERS)/i.test(r.brandColor)));
+  // a classified entry whose name doesn't say the brand gets the lead
+  const grate = { ...CAT.find((e) => e.part === "grate"), name: '4" grate kit floral brushed SS' };
+  const led = lineItems({ lines: [{ item: grate, qty: 1 }], cfg: c }, {});
+  assert.equal(led[0].brandColor, 'Schluter — 4" grate kit floral brushed SS');
+  // …but a Settings mortar line (no classifier g) never wears the vendor lead
+  const mortar = { name: "60 lb deck mud", price: 12, cost: 12, stock: true, sfPerBagAt15: 8 };
+  const mrows = lineItems({ lines: [{ item: mortar, qty: 4 }], cfg: c }, {});
+  assert.equal(mrows[0].brandColor, "60 lb deck mud");
 });
