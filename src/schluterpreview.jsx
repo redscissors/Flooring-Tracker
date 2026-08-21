@@ -22,6 +22,14 @@ const eftRows = FIXTURE_ITEMS.filter((i) => !i.stock).map((i) => normOrderItem({
   sku: i.sku, bookId: "bk_eft", description: i.name, size: i.size || "", unit: i.unit,
   cost: i.cost, price: i.price, leadTime: i.lead || "",
 }));
+// The live EFT book's re-lettered twin of a stocked tray (the dealer sheet
+// writes SLRKST965810BF for the stocked KST965/810BF) — carried here so the
+// catalog's stock-wins dedup stays visibly exercised: a second 38"×32" row on
+// the Kits tab is a regression.
+eftRows.push(normOrderItem({
+  sku: "SLRKST965810BF", bookId: "bk_eft", unit: "EA", cost: 84.52,
+  description: "KERDI-SHOWER-KIT KERDI-SHOWER TT 38 X 32", leadTime: "READY SHIP",
+}));
 
 createRoot(document.getElementById("preview")).render(
   <SchluterConfigurator

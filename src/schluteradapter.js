@@ -7,6 +7,7 @@
 // touches a raw book row.
 
 import { classify } from "./schluter.js";
+import { skuKeys } from "./orderbook.js";
 
 // Deck-mud bed coverage at the prototype's 1-1/2" bed, ≈8 sf per 60 lb bag.
 // The Settings mortars shape ({tier1..3} trowel coverages) has no bed-depth
@@ -46,6 +47,19 @@ export function adaptRow(row, { stock } = {}) {
 /** Map a book's rows, dropping everything the grammar doesn't recognize. */
 export function adaptBookRows(rows, opts) {
   return (rows || []).map((r) => adaptRow(r, opts)).filter(Boolean);
+}
+
+/**
+ * Drop adapted special-order entries whose code is a stocked entry in another
+ * spelling. The vendor's EFT re-letters the mfg code (SLR prefix, separators
+ * shed — "SLRKST965810BF" for the stocked "KST965/810BF"), so raw sku
+ * equality never collides and the same tray shows twice. Membership is
+ * skuKeys() spellings over each stock entry's mfg code AND shop code
+ * (sku/erp); stock wins the collision, same as mergeSearch.
+ */
+export function dropStockTwins(orderEntries, stockEntries) {
+  const seen = new Set((stockEntries || []).flatMap((e) => [e.sku, e.erp].flatMap(skuKeys)));
+  return (orderEntries || []).filter((e) => !skuKeys(e.sku).some((k) => seen.has(k)));
 }
 
 /**

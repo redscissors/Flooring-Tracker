@@ -6,7 +6,7 @@
 // anything on the boot path.
 import { useEffect, useMemo, useState } from "react";
 import { catalogOf } from "./schluter.js";
-import { adaptBookRows } from "./schluteradapter.js";
+import { adaptBookRows, dropStockTwins } from "./schluteradapter.js";
 
 // --- the catalog: live registry rows through the adapter -------------------
 // Stock side: the boot cache's stock-kind rows (bookStockReady gates it).
@@ -33,8 +33,8 @@ export function useSchluterCatalog({ stockRows, bookStockReady, books, loadBookI
   const cat = useMemo(() => {
     if (!catReady) return [];
     const stockAdapted = adaptBookRows((stockRows || []).filter((it) => it.active !== false && !it.disabled), { stock: true });
-    const seen = new Set(stockAdapted.map((e) => e.sku));
-    const orderAdapted = adaptBookRows(orderRows, { stock: false }).filter((e) => !seen.has(e.sku));
+    // stock wins the collision in any spelling — the EFT re-letters mfg codes
+    const orderAdapted = dropStockTwins(adaptBookRows(orderRows, { stock: false }), stockAdapted);
     return catalogOf(stockAdapted.concat(orderAdapted));
   }, [catReady, stockRows, orderRows]);
 
