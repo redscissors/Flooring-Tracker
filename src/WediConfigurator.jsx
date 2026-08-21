@@ -977,7 +977,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     extraWalls.forEach((x) => wl.push({ side: x.edge, len: +x.len || 0, at: x.at === "hi" ? "hi" : "lo" }));
     return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, opts.curbKey || SKU.curbLean60, tileIn);
   };
-  const solveRoom = (i, maxOn) => {
+  const solveRoom = (i, maxOn, src) => {
     const ins = insetFor(i, maxOn);
     const dx = +i.drainX || 0, dy = +i.drainY || 0;
     const res = solve({
@@ -987,7 +987,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       drainX: dx > 0 ? Math.max(0, round2(dx - (ins ? ins.left : 0))) : 0,
       drainY: dy > 0 ? Math.max(0, round2(dy - (ins ? ins.back : 0))) : 0,
       anchor: i.anchor || "left",
-      source,
+      source: src || source,
     });
     return ins ? res.map((o) => applyCurbInset(o, ins, { w: +i.w || 0, d: +i.d || 0 })) : res;
   };
@@ -1000,16 +1000,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     resetBuild();
   };
   const setInput = (patch) => { const next = { ...inp, ...patch }; setInp(next); runSolve(next); };
-  // Flipping the source re-solves an ACTIVE custom room (options re-rank);
-  // with only a kit loaded it refreshes the option cards without touching
-  // the build — runSolve would adopt res[0] and wipe the kit selection.
-  const srcMounted = useRef(false);
-  useEffect(() => {
-    if (!srcMounted.current) { srcMounted.current = true; return; }
-    if (option) runSolve();
-    else setResults(solveRoom(inp, maxIn));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
   const selectOption = (k) => { const o = results[k]; if (!o) return; retuneWalls(); setOption(o); setPanKey(o.pan.key); resetBuild(); };
 
   // One-shot at mount: the room always arrives solved, so the Custom tab is
@@ -1078,6 +1068,18 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     if (!same && !option) return;
     setOption(same);
     setPanKey(same ? same.pan.key : null);
+  };
+  // Flipping the source re-fits like a wall/curb change does — re-solve with
+  // the NEW source, re-pick the equivalent option, benches and add-ons left
+  // standing (the refit doctrine; runSolve here would adopt res[0] and wipe
+  // the build). An explicit handler, not an effect: it reads nothing stale
+  // and survives StrictMode's double effect invocation.
+  const changeSource = (next) => {
+    if (next === source) return;
+    setSource(next);
+    const res = solveRoom(inp, maxIn, next);
+    setResults(res);
+    if (option) refit(res);
   };
 
   // With "overall max" on, the walls, the curb pick and the tile thickness
@@ -2350,7 +2352,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           <button className="rclear" data-wedi-clear
             title="wipe the build — walls, cuts, parts — and reset the custom shower form"
             onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
-          <SourceSwitch source={source} onChange={setSource} />
+          <SourceSwitch source={source} onChange={changeSource} />
           {tierBar}
           {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
         </div>

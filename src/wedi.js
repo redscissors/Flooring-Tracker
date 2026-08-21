@@ -5812,7 +5812,7 @@ export function solve(input) {
     // with a pin the factory drain position only decides how the base sits —
     // and failing that the plain layouts stand in, saying the pin can't be met.
     if (!out.length && input.drain !== "any") {
-      out = drainAtOptions(input, group("pan").filter((p) => p.sub === fam), fam);
+      out = drainAtOptions(input, group("pan").filter((p) => p.sub === fam && (input.source !== "stock" || p.stock)), fam);
       out.forEach((o) => o.warnings.unshift("no " + input.drain + "-drain base fits this room — this is a "
         + o.drain.type + "-drain base floated to the plumbing"));
     }
@@ -5820,7 +5820,7 @@ export function solve(input) {
     // of the requested type cuts past 6", the whole family's closest SHALLOW
     // placements ride along so the salesman chooses.
     if (out.length && out.every((o) => o.deep) && input.drain !== "any") {
-      drainAtOptions(input, group("pan").filter((p) => p.sub === fam), fam)
+      drainAtOptions(input, group("pan").filter((p) => p.sub === fam && (input.source !== "stock" || p.stock)), fam)
         .filter((o) => !o.deep).slice(0, 2).forEach((o) => {
           o.warnings.unshift('shallow alternative — cuts stay under 6"; a ' + o.drain.type
             + "-drain base floated toward the plumbing");

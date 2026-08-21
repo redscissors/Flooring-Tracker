@@ -306,6 +306,54 @@ test("stock-only prefers stocked curb multiples over a special-order covering cu
   assert.equal(bAll.lines.find((l) => l.g === "Curb").item.sku, "KBSC1151501524");
 });
 
+test("stock-only band uses stocked multiples to COVER the need, never a short single roll", () => {
+  // 72×60 membrane room needs ~41 lf; the 98' band flipped SO leaves the 33'
+  // stocked roll — two of them, not one silently short
+  const flipped = soFlip(["KEBA100/125"]);
+  const c = cfg({ w: 72, d: 60, walls: [
+    { on: true, len: 72, h: 84 }, { on: true, len: 60, h: 84 }, { on: true, len: 60, h: 84 }] });
+  const band = buildKit(c, flipped, { source: "stock" }).lines.find((l) => l.item.lf);
+  assert.equal(band.item.lf, 33);
+  assert.equal(band.qty, 2);
+  // full catalog keeps the covering 98' roll at qty 1
+  const bandAll = buildKit(c, flipped, { source: "all" }).lines.find((l) => l.item.lf);
+  assert.equal(bandAll.item.lf, 98);
+  assert.equal(bandAll.qty, 1);
+});
+
+test("stock-only never drops the membrane role: SO-only rolls still land, flagged", () => {
+  const rollSkus = FIXTURE_ITEMS.filter((i) => /^KERDI200/.test(i.sku)).map((i) => i.sku);
+  const noRolls = soFlip(rollSkus);
+  const b = buildKit(cfg({}), noRolls, { source: "stock" });
+  const rolls = b.lines.filter((l) => l.g === "Walls" && l.item.g === "membrane");
+  assert.ok(rolls.length > 0, "membrane wall lines must survive stock-only");
+  assert.ok(rolls.every((l) => l.so === true));
+});
+
+test("bench board picks follow the same stock-only rule as the walls", () => {
+  // framed bench: the 32-sf board SO → the stocked 21.3-sf board wraps it
+  const flipped = soFlip(["KB1212202440"]);
+  const framed = buildKit(cfg({ bench: "framed" }), flipped, { source: "stock" })
+    .lines.find((l) => l.g === "Extras");
+  assert.equal(framed.item.sku, "KB1212201625");
+  // 2" build-up: the only thick board SO → still lands, flagged
+  const noThick = soFlip(["KB506252440"]);
+  const buildup = buildKit(cfg({ bench: "buildup" }), noThick, { source: "stock" })
+    .lines.find((l) => l.g === "Extras");
+  assert.equal(buildup.item.thick2, true);
+  assert.equal(buildup.so, true);
+});
+
+test("stock-only linear channel: a covering SO channel beats a short stocked one, flagged", () => {
+  // 72\" room needs a 64\" run; the 8' channel SO, the 4' ones stocked —
+  // a channel can't be doubled, so the covering SO one wins, flagged
+  const flipped = soFlip(["KLVRID3EB244"]);
+  const b = buildKit(cfg({ w: 72, d: 48, drain: "linear" }), flipped, { source: "stock" });
+  const ch = b.lines.find((l) => l.item.part === "channel");
+  assert.equal(ch.item.len, 96);
+  assert.equal(ch.so, true);
+});
+
 test("the pinned 60×38 truth-table total is untouched by the pickFrom refactor", () => {
   const retail = (e) => tierPrice(e, "retail", {});
   const b = buildKit(cfg({}), CAT, { source: "all" });

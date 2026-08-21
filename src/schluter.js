@@ -326,8 +326,9 @@ export function trayCandidates(cfg, cat, { source } = {}) {
  * product, not a drop-in size option on this ladder.
  */
 export function pickRolls(sfNeed, cat, { source } = {}) {
-  const rolls = cat.filter((i) => i.g === "membrane" && !i.wide && (source === "all" || i.stock))
-    .sort((a, b) => a.sf - b.sf);
+  // stockPool, not a hard filter: with every roll special-order the membrane
+  // role must still land (flagged), never vanish from the bill
+  const rolls = stockPool(cat.filter((i) => i.g === "membrane" && !i.wide).sort((a, b) => a.sf - b.sf), source);
   if (!rolls.length) return [];
   const picks = [];
   const big = rolls[rolls.length - 1];
@@ -418,11 +419,18 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   }
 
   if (cfg.drain === "linear") {
-    const chans = stockPool(cat.filter((i) => i.g === "drain" && i.part === "channel")
-      .sort((a, b) => a.len - b.len || a.price - b.price), source);
+    // a channel can't be doubled like a curb: a stocked covering channel
+    // wins, then a covering SO one (flagged), and only when nothing made
+    // covers the run does a shorter channel land — saying it runs short
+    const chansAll = cat.filter((i) => i.g === "drain" && i.part === "channel")
+      .sort((a, b) => a.len - b.len || a.price - b.price);
+    const chansStocked = stockPool(chansAll, source);
     const need = cfg.w - 8;
-    const ch = chans.find((c) => c.len >= need) || chans[chans.length - 1];
-    add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"` : "at the wall") + ' — min cut 10", IPC 2.5 gpm');
+    const ch = chansStocked.find((c) => c.len >= need) || chansAll.find((c) => c.len >= need)
+      || chansStocked[chansStocked.length - 1] || chansAll[chansAll.length - 1];
+    add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"`
+      : ch && ch.len < need ? `${need}" run — the ${ch.len}" channel is the longest available, runs short`
+        : "at the wall") + ' — min cut 10", IPC 2.5 gpm');
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "linear", { source }), 1,
       "incl. 4+2 corners, pipe + valve seals, couplings");
   } else {
@@ -457,7 +465,10 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 
   const bands = stockPool(cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf), source);
   const lfNeed = (2 * (cfg.w + cfg.d)) / 12 + sf / 6;
-  add("Seams", bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1], 1, "seams + tray perimeter");
+  // when no single roll in the pool covers, multiples cover the need — a
+  // stock-narrowed pool must never quietly land one short roll
+  const band = bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1];
+  add("Seams", band, band ? Math.max(1, Math.ceil(lfNeed / band.lf)) : 0, "seams + tray perimeter");
   if (cfg.drain !== "linear") {
     add("Seams", pickFrom(cat, (i) => i.corner === "inside", { source }), 2, "4 inside — factory kit recipe");
     add("Seams", pickFrom(cat, (i) => i.corner === "outside", { source }), 1, "2 outside — factory kit recipe");
@@ -477,11 +488,11 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   }
 
   if (cfg.bench === "framed") {
-    add("Extras", cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
-      .sort((x, y) => y.sf - x.sf)[0], 1,
+    add("Extras", stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+      .sort((x, y) => y.sf - x.sf), source)[0], 1,
       "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
   } else if (cfg.bench === "buildup") {
-    add("Extras", cat.find((i) => i.thick2), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
+    add("Extras", pickFrom(cat, (i) => i.thick2, { source }), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
   }
 
   const floorSf = (cfg.w * cfg.d) / 144;
