@@ -212,3 +212,71 @@ export function classify(item) {
 
   return null;
 }
+
+/**
+ * Classify a raw item list into a catalog: classified entries only,
+ * non-shower rows (classify() -> null) dropped.
+ */
+export function catalogOf(items) {
+  return items.map(classify).filter(Boolean);
+}
+
+/**
+ * Rank tray candidates for a shower config against the catalog.
+ *
+ * Pool: g==="tray", filtered to the source ("all" vs "stock"), and to trays
+ * that make sense for cfg.drain — linear rooms take only linear trays;
+ * point/offset rooms take only non-linear trays, further narrowed to
+ * exact-point trays when cfg.drain is "point" (an offset tray is not
+ * standard stock in that configuration; the fallback branch below encodes
+ * that). Fit window: tray covers w,d and total cut <= 26". "deep" flags a
+ * cut of more than 6" off any single side.
+ *
+ * Ranking (in order): drain match beats mismatch; then, for a curbless
+ * config (cfg.curbed === false), a thin ("TT" curbless-line) tray beats a
+ * non-thin one — a tray with a curb lip doesn't belong on a curbless
+ * install even if a non-thin tray would cut less (decision 6); then
+ * smaller total cut; then lower price. No fit -> a single mortar-bed card.
+ */
+export function trayCandidates(cfg, cat, { source } = {}) {
+  const pool = cat.filter((i) => i.g === "tray" && (source === "all" || i.stock) &&
+    (cfg.drain === "linear" ? i.drain === "linear"
+     : cfg.drain === "offset" ? i.drain !== "linear"
+     : i.drain === "point"));
+  const fits = (t) => t.w >= cfg.w && t.d >= cfg.d && (t.w - cfg.w) + (t.d - cfg.d) <= 26;
+  const out = pool.filter(fits).map((tray) => {
+    const cut = (tray.w - cfg.w) + (tray.d - cfg.d);
+    return { tray, cut, deep: tray.w - cfg.w > 6 || tray.d - cfg.d > 6, kind: cut === 0 ? "exact" : "cut" };
+  });
+  out.sort((a, b) =>
+    ((a.tray.drain === cfg.drain ? 0 : 1) - (b.tray.drain === cfg.drain ? 0 : 1)) ||
+    (cfg.curbed === false ? (a.tray.thin ? 0 : 1) - (b.tray.thin ? 0 : 1) : 0) ||
+    a.cut - b.cut ||
+    a.tray.price - b.tray.price);
+  if (!out.length) return [{ kind: "mortar", cut: 0, deep: false }];
+  return out.slice(0, 4);
+}
+
+/**
+ * Pick membrane rolls to cover sfNeed: greedy largest roll for whole
+ * multiples, then the smallest single roll that covers the remainder
+ * (falling back to another largest roll if none is big enough). "Wide"
+ * rolls (name contains "wide") are excluded — they're a different-width
+ * product, not a drop-in size option on this ladder.
+ */
+export function pickRolls(sfNeed, cat, { source } = {}) {
+  const rolls = cat.filter((i) => i.g === "membrane" && !/wide/i.test(i.name) && (source === "all" || i.stock))
+    .sort((a, b) => a.sf - b.sf);
+  if (!rolls.length) return [];
+  const picks = [];
+  const big = rolls[rolls.length - 1];
+  let need = sfNeed;
+  const nBig = Math.floor(need / big.sf);
+  if (nBig > 0) { picks.push({ item: big, qty: nBig }); need -= nBig * big.sf; }
+  if (need > 0) {
+    const top = rolls.find((r) => r.sf >= need) || big;
+    const existing = picks.find((p) => p.item === top);
+    if (existing) existing.qty++; else picks.push({ item: top, qty: 1 });
+  }
+  return picks;
+}

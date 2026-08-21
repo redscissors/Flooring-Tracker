@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls } from "./schluter.js";
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -47,4 +47,33 @@ test("classify covers every fixture row (expected-null set is empty)", () => {
     .filter((item) => classify(item) === null)
     .map((item) => item.sku);
   assert.deepEqual(new Set(nulls), EXPECTED_NULL_SKUS);
+});
+
+// --- Solver: catalogOf, trayCandidates, pickRolls (Task 3) ---
+
+const CAT = catalogOf(FIXTURE_ITEMS);
+const cfg = (o) => ({ w: 60, d: 38, curbed: true, drain: "point", wallSys: "membrane",
+  walls: [{ on: true, len: 60, h: 84 }, { on: true, len: 38, h: 84 }, { on: true, len: 38, h: 84 }], ...o });
+
+test("60x38 point: exact tray first", () => {
+  const c = trayCandidates(cfg({}), CAT, { source: "all" });
+  assert.equal(c[0].kind, "exact");
+  assert.equal(c[0].tray.sku, "KST965/1525");
+});
+test("48x48 linear stock-only re-ranks to the 55x55 deep cut", () => {
+  const c = trayCandidates(cfg({ w: 48, d: 48, drain: "linear" }), CAT, { source: "stock" });
+  assert.equal(c[0].tray.sku, "KSLT1395S");
+  assert.equal(c[0].deep, true);
+});
+test("no tray fits -> mortar card", () => {
+  const c = trayCandidates(cfg({ w: 30, d: 90 }), CAT, { source: "all" });
+  assert.equal(c[0].kind, "mortar");
+});
+test("curbless prefers thin trays", () => {
+  const c = trayCandidates(cfg({ w: 38, d: 38, curbed: false }), CAT, { source: "all" });
+  assert.equal(c[0].tray.thin, true);
+});
+test("roll ladder: 79 sf of wall -> one 108 sf roll", () => {
+  const p = pickRolls(79 * 1.1, CAT, { source: "all" });
+  assert.deepEqual(p.map((x) => [x.item.sku, x.qty]), [["KERDI200/10M", 1]]);
 });
