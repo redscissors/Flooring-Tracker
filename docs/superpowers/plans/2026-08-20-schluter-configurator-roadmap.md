@@ -49,10 +49,14 @@ mutually independent once 3 lands.
 ## ADRs to record (docs/adr/, via docs/skills-reference/decide/SKILL.md)
 
 - **Shared shower-drawing module** (phase 1): the TopDown/Iso/railSplit
-  drawings move from WediConfigurator.jsx into `src/showerdraw.jsx`, fed by a
-  brand-neutral geometry shape; wedi re-exports nothing, callers import the
-  new module. Rationale: two configurators must not drift on hard-won
-  drawing rules (corner fills, curb-flush walls, moulded drains).
+  drawings move from WediConfigurator.jsx into `src/showerdraw.js`/`.jsx`,
+  fed by a brand-neutral geometry shape; drawing consumers import the new
+  module directly, and wedi.js imports + bare-re-exports the six geometry
+  identifiers its own retained code and tests still use (the audited
+  exception ADR 0033 records — an earlier draft of this bullet said "wedi
+  re-exports nothing", which the extraction audit overturned). Rationale:
+  two configurators must not drift on hard-won drawing rules (corner
+  fills, curb-flush walls, moulded drains).
 - **Registry-driven configurator pricing** (phase 2/3): unlike wedi's
   transcribed tables, Schluter prices come from the registry books at
   popup-open time; the engine is a pure knowledge layer. A sheet upload in
