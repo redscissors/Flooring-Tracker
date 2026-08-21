@@ -463,54 +463,25 @@ src/
                     # EVERY tab and nothing moves when you switch surfaces; the
                     # build column's own content still floors it near 567px once
                     # a kit is loaded, which is the one place the split shifts.
-                    # The rail sizes both drawings to its own measured box
-                    # (railSplit) so they fit the column without scrolling on a
-                    # big monitor: the 328-wide viewBox still stretches to the
-                    # full width — type keeps its apparent size — and only the
-                    # HEIGHT gives, split 268:306 down to a floor below which
-                    # the rail scrolls as before. The column width never moves.
-                    # The rail draws a to-scale top-down (4"-thick wall
-                    # bands that only reach into a corner some perpendicular
-                    # wall actually fills, exactly one slab claiming each corner
-                    # square: at the BACK the back wall runs through and the side
-                    # walls butt it; at the FRONT it inverts — the side wall
-                    # carries all the way forward and the front wall butts
-                    # against it, the continuous member on a real frame (owner
-                    # 2026-08-03) — and a run carries out to the CURB's finished
-                    # face wherever a curb turns that corner, because the curb
-                    # butts into the wall: "the walls should always be flush with
-                    # the curb / curb and tile thickness" (owner 2026-08-03).
-                    # `curbCornerOut` is the ONE place that reach is figured and
-                    # BOTH drawings read it, so they cannot drift apart again; it
-                    # comes off the curb's own bands, so a lean curb asks 1½"
-                    # where a standard one asks 4", and an "overall max" curb asks
-                    # NOTHING — there the curb and the tile on its face sit inside
-                    # the stated line the wall already stands on, which is what
-                    # makes the wall flush with the TILED face. A run takes the
-                    # longer of the wall reach and the curb reach, so a corner
-                    # with both still draws one slab; with neither it stops on the
-                    # line (which retired the isometric's own 4" overhang into an
-                    # empty corner) — panel-seam ticks, square drains,
-                    # dashed cut edges,
-                    # drain callouts, corner cuts ghosting the full-size pan,
-                    # pan hips aimed at the UNCUT pan's corners and clipped to
-                    # the material — the folds are moulded, a site cut doesn't
-                    # re-pitch them (owner 2026-08-03) —
-                    # click an edge to add a wall — which HALF of the edge you
-                    # click picks the END it returns from, since a wall is a RUN
+                    # The rail hosts the two shared shower drawings — a to-scale
+                    # top-down and an isometric — over one shared build column;
+                    # their rendering (wall-band corner rules, curb overhang,
+                    # panel-seam ticks, drain callouts, pan hips, the isometric
+                    # slabs, and the box-fit sizing that keeps both on screen
+                    # without a scroll) now lives in `showerdraw.js`/
+                    # `showerdraw.jsx` — see those entries and ADR 0033. This
+                    # popup only wires up what you can click on them: click an
+                    # edge to add a wall — which HALF of the edge you click
+                    # picks the END it returns from, since a wall is a RUN
                     # with an end (`at: "lo"|"hi"`, wedi.js wallSpans) and not
                     # just a length: a front half wall can come off either side
                     # wall, and "both sides" is simply one at each end with the
                     # walk-in left between them (owner 2026-08-03) — a corner to
-                    # toggle a cut, and
-                    # hover the pan along a wall or into a corner for a BENCH
-                    # zone — click/right-click opens the bench menu (issue 069):
-                    # premades, 2" build-up, or framed with the pan cut/swapped,
-                    # the bench drawn in plan with the curb butting its face) over
-                    # an isometric with 4"-thick wall slabs at per-wall heights,
-                    # front (entry/right) walls drawn clear with dashed edges, and
-                    # the panel courses dotted on the inner faces. Right-clicking
-                    # a wall in either view opens its menu: size + which faces get
+                    # toggle a cut, and hover the pan along a wall or into a
+                    # corner for a BENCH zone — click/right-click opens the
+                    # bench menu (issue 069): premades, 2" build-up, or framed
+                    # with the pan cut/swapped. Right-clicking a wall in either
+                    # view opens its menu: size + which faces get
                     # wedi (inside / both sides / inside + exposed end — the extra
                     # faces feed the panel plan via expandWallFaces and read as
                     # moss edges). Modifying a kit's geometry moves the build to
@@ -551,6 +522,63 @@ src/
                     # own lazy chunk): the tier bar falls back to a local
                     # retail-seeded preview and Add raises the hub's shared
                     # destination prompt (current project / new quick price)
+  showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
+                    # Iso's constants and math, extracted out of
+                    # WediConfigurator.jsx (issue 097, ADR 0033) so a second
+                    # configurator (Schluter, phase 3) can draw the same shower
+                    # shape without paying for wedi's ~2 000-row tables: this
+                    # file and its JSX half MUST NEVER import wedi.js, in
+                    # either direction of the dependency — wedi.js imports
+                    # FROM here, never the reverse. No JSX, so plain
+                    # `node --test` can parse it through wedi.js's import of
+                    # its six geometry exports (WALL_THICK, CURB_LAP,
+                    # panThick, benchFootprint, BENCH_DEPTH, and the private
+                    # curbWidthOf — wedi.js wraps that last one in its own
+                    # exported curbWidth(key), which still resolves a string
+                    # key through the catalog before calling it). Also carries
+                    # the drawing-only geometry: curbCornerOut (the one place
+                    # a curb run's reach past the room line is figured — both
+                    # drawings read it so they can't drift apart), bandPoly/
+                    # curbBands (mitred plan outlines), framedStandIns, slopeMarks
+                    # (fall-line hips + arrows off the drain), topGeom, and
+                    # railSplit (the rail's box-fit sizing: natural 328×268 /
+                    # 328×306 proportions while both fit the measured column,
+                    # then only the HEIGHT gives — in drawing units, not
+                    # pixels, so type never shrinks — split 268:306 down to a
+                    # floor below which the rail scrolls as before). round2/
+                    # inch are deliberately duplicated from wedi.js rather than
+                    # shared — one comparison point, not worth the reach across
+                    # modules for two one-line formatters
+  showerdraw.jsx    # the shared shower drawings' React half — `TopDown` (plan)
+                    # and `Iso` (isometric), the two components WediConfigurator's
+                    # rail and Schluter (phase 3) render, imported from here
+                    # rather than duplicated (ADR 0033). `export * from
+                    # "./showerdraw.js"` so a caller gets both halves — geometry
+                    # and components — off one import line. Same never-import-
+                    # wedi.js rule as its .js half. TopDown draws wall bands at
+                    # their TRUE lengths (4"-thick, reaching into a corner only
+                    # where a perpendicular wall or curb run actually claims it —
+                    # exactly one slab per corner square), panel-seam ticks, cut
+                    # edges dashed, curb runs, the drain with slope arrows/hips
+                    # off `slopeMarks`, and dimensions; a square-drain pan's hips
+                    # aim at the UNCUT pan's corners, clipped to the material that
+                    # remains, since the folds are moulded at the factory and a
+                    # site cut doesn't re-pitch them (owner 2026-08-03). Iso draws
+                    # the same build as 4"-thick wall slabs at per-wall heights,
+                    # front (entry/right) walls clear with dashed edges, and the
+                    # panel courses dotted on the inner faces. Bench rendering
+                    # lives here too — premade part tags, site/framed bench
+                    # bands in plan and iso, and the curb butting the bench
+                    # face where a bench zone meets a curb run. All click targets
+                    # (onCorner/onEdge/onWallMenu/onBenchMenu) are callback props
+                    # — the caller (WediConfigurator.jsx today) owns what a click
+                    # DOES; this file only owns what gets drawn and where a click
+                    # landed. `itemFn` (the catalog part lookup) and `normBenchFn`
+                    # (normBench) are REQUIRED whenever `benches` is non-empty —
+                    # a premade bench's tag reads itemFn(b.part), and the hover
+                    # preview reads normBenchFn(zone, room); only the mini
+                    # thumbnail (WediConfigurator.jsx's kit-card preview) omits
+                    # all three props, since it never renders benches
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
