@@ -399,18 +399,44 @@ export function orderDrift(item, book, product) {
 
 // --- search collision (stock outranks order, by SKU) -------------------------
 
-// When the same SKU string exists in both spaces the order twin is dropped (the
-// stock item wins) and the surviving stock match is tagged with the book it is
-// also on, so the UI can show an "also on {book}" note instead of a second,
-// differently-priced row. Honest and simple: only exact-SKU equality collides —
-// no fuzzy cross-vendor product guessing (a wrong guess prices a job off the
-// wrong list). Which space a surviving hit RENDERS in is rankMerged's call, not
-// this one's.
+// One stated code, several spellings: a distributor re-letters the
+// manufacturer's code — Schluter's dealer EFT writes "SLRKST965810BF" for the
+// mfg "KST965/810BF", adding its reseller prefix and shedding the separators —
+// so raw string equality misses the twin and the same part shows twice.
+// skuKeys() is the exact-membership key set for one code: the spelling itself,
+// the separator-free uppercase form (lettered codes only — the shop's own
+// numbers are all digits, and colliding "12-34" with "1234" across vendors
+// would be a guess), and that form less a leading SLR reseller prefix. Still
+// identity over codes a sheet actually states, never similarity — the trims
+// codeVariants precedent, not a departure from the exact-equality doctrine.
+export const skuKey = (code) => str(code).toUpperCase().replace(/[^A-Z0-9]/g, "");
+export function skuKeys(code) {
+  const raw = str(code);
+  if (!raw) return [];
+  const out = [raw];
+  const key = skuKey(raw);
+  if (/[A-Z]/.test(key)) {
+    out.push(key);
+    if (/^SLR[A-Z0-9]{4,}$/.test(key)) out.push(key.slice(3));
+  }
+  return [...new Set(out)];
+}
+
+// When the same code exists in both spaces — the stock row's own SKU or one of
+// its sheet-stated manufacturer codes (vendorSkus, the exact bridge between
+// the spaces), in any skuKeys spelling — the order twin is dropped (the stock
+// item wins) and the surviving stock match is tagged with the book it is also
+// on, so the UI can show an "also on {book}" note instead of a second,
+// differently-priced row. Which space a surviving hit RENDERS in is
+// rankMerged's call, not this one's.
 export function mergeSearch(stockMatches, orderMatches) {
-  const bySku = new Map((stockMatches || []).map((it) => [it.sku, it]));
+  const byKey = new Map();
+  for (const it of stockMatches || [])
+    for (const code of [it.sku, ...(it.vendorSkus || [])])
+      for (const k of skuKeys(code)) if (!byKey.has(k)) byKey.set(k, it);
   const order = [];
   for (const it of orderMatches || []) {
-    const twin = bySku.get(it.sku);
+    const twin = skuKeys(it.sku).map((k) => byKey.get(k)).find(Boolean);
     if (twin) { (twin.alsoOn = twin.alsoOn || []).push(it.bookId); continue; }
     order.push(it);
   }
@@ -455,8 +481,10 @@ const descTokens = (it) => new Set(str(it?.description || it?.product).toLowerCa
 export const COPY_OVERLAP = 0.6;
 
 export function sameProduct(a, b) {
-  const sku = str(a?.sku);
-  if (!sku || sku !== str(b?.sku)) return false;
+  const aKeys = skuKeys(a?.sku);
+  if (!aKeys.length) return false;
+  const bKeys = new Set(skuKeys(b?.sku));
+  if (!aKeys.some((k) => bKeys.has(k))) return false;
   const A = descTokens(a);
   const B = descTokens(b);
   // Nothing to corroborate with: leave both rows standing rather than guess

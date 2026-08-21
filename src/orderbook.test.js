@@ -5,7 +5,7 @@ import {
   pricedItem, orderPatch, orderDrift, bookRowPreview, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
   bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
-  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged,
+  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged, skuKeys,
   BOOK_FIELDS, BOOK_FIELD_LABELS, changedFieldBits,
 } from "./orderbook.js";
 
@@ -564,6 +564,27 @@ test("mergeSearch: an exact-SKU order twin is dropped and the stock match tagged
   assert.equal(o[0].sku, "ZZ9");
 });
 
+test("skuKeys: spelling variants are exact keys, never fuzz", () => {
+  // the mfg spelling and its separator-free form
+  assert.deepEqual(skuKeys("KST965/810BF"), ["KST965/810BF", "KST965810BF"]);
+  // a reseller-prefixed EFT code also answers to the bare mfg code
+  assert.deepEqual(skuKeys("SLRKST965810BF"), ["SLRKST965810BF", "KST965810BF"]);
+  // all-digit codes (the shop's own numbers) stay verbatim — no stripped form
+  assert.deepEqual(skuKeys("15-09"), ["15-09"]);
+  assert.deepEqual(skuKeys("1509824"), ["1509824"]);
+  assert.deepEqual(skuKeys(""), []);
+});
+
+test("mergeSearch: the EFT's re-lettered twin collides with the stock row's mfg code", () => {
+  // The reported doubling: the ERP stock export says KST965/810BF (in
+  // vendorSkus, shop number in sku), the dealer EFT writes SLRKST965810BF.
+  const stock = [{ sku: "1509823", vendorSkus: ["KST965/810BF"], description: "Kerdi Shower Tray Thin" }];
+  const order = [{ sku: "SLRKST965810BF", bookId: "eft", description: "Kerdi Shower Kit Kerdi-Shower TT 38x32" }];
+  const { stock: s, order: o } = mergeSearch(stock, order);
+  assert.equal(o.length, 0);
+  assert.deepEqual(s[0].alsoOn, ["eft"]);
+});
+
 // --- cross-tier ranking ------------------------------------------------------
 
 test("rankMerged: an exact special-order hit outranks a loose stock one", () => {
@@ -613,6 +634,13 @@ test("sameProduct: same SKU only counts as a copy when the descriptions agree", 
   // No description on one side is no corroboration.
   assert.equal(sameProduct(copy("vtc"), copy("anatolia", { description: "" })), false);
   assert.equal(sameProduct(copy("vtc"), copy("anatolia", { sku: "OTHER" })), false);
+});
+
+test("sameProduct: a re-lettered spelling of the same code still counts, descriptions agreeing", () => {
+  const a = { sku: "KST965/810BF", bookId: "vtc", description: "Kerdi Shower TT Tray 38x32" };
+  const b = { sku: "SLRKST965810BF", bookId: "eft", description: "Kerdi Shower TT Tray 38x32 PVC" };
+  assert.equal(sameProduct(a, b), true);
+  assert.equal(sameProduct(a, { ...b, description: "Bullnose Oak Reducer" }), false);
 });
 
 test("collapseCopies: one row survives, the cheaper, tagged with the book it dropped", () => {

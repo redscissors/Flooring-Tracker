@@ -225,3 +225,31 @@ Mechanics: `collapseCopies` / `sameProduct` in `src/orderbook.js`, called from
 `src/search.jsx` renders the note for both hit kinds. Display-only, per the
 ADR 0003 doctrine — the collapse decides which row is offered, never what a pick
 snapshots, and a saved estimate is untouched.
+
+## Amendment (2026-08-21): one code, several spellings — the SKU key set
+
+The exact-SKU collision (decision item 6) and the copy collapse above both
+compared raw SKU strings. A distributor's sheet routinely re-letters the
+manufacturer's own code — Schluter's dealer EFT writes `SLRKST965810BF` for
+the mfg `KST965/810BF`, adding its `SLR` reseller prefix and shedding the
+separators — so the raw strings never collide and the same part shows twice:
+once from stock, once as special order, at two prices (the reported Schluter
+configurator doubling, 2026-08-21).
+
+So collision now runs over a **key set per stated code** (`skuKeys` in
+`src/orderbook.js`): the spelling itself, its separator-free uppercase form,
+and that form less a leading `SLR` reseller prefix. Two guards keep this
+identity, not similarity: the separator-free form exists only for codes that
+carry a letter (the shop's internal numbers are all digits, and colliding
+"12-34" with "1234" across vendors would be a guess), and every use remains
+an exact-membership test over codes a sheet actually states — the same
+argument that justified `codeVariants` in `src/trims.js` (the suffixed-code
+and `VN`-marker variants). The stock side of `mergeSearch` also keys its
+sheet-stated manufacturer codes (`vendorSkus`) now, the exact bridge between
+the spaces that the trims lookup already used; `sameProduct` still requires
+the descriptions to corroborate before two order books collapse.
+
+The Schluter configurator's catalog assembly inherits the same rule
+(`dropStockTwins` in `src/schluteradapter.js`, used by `useSchluterCatalog`):
+stock wins the collision in any spelling, so the EFT twin of a stocked tray
+no longer renders as a second, dearer row.

@@ -279,8 +279,15 @@ src/
                     # for the wizard's what-moved lines), and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
-                    # — plus the search collapse: `mergeSearch` (a stock twin
-                    # outranks its order copy) and `collapseCopies`/`sameProduct`
+                    # — plus the search collapse: `skuKeys` (the exact-membership
+                    # key set for one stated code — its spelling, the
+                    # separator-free form for lettered codes, less a leading SLR
+                    # reseller prefix — ADR 0009 amendment 2026-08-21, issue 099:
+                    # the EFT writes SLRKST965810BF for the stocked
+                    # KST965/810BF), `mergeSearch` (a stock twin outranks its
+                    # order copy, colliding on any skuKeys spelling of the stock
+                    # row's sku or its sheet-stated vendorSkus) and
+                    # `collapseCopies`/`sameProduct`
                     # (one product carried by two order books shows once, the
                     # cheapest, when the descriptions corroborate the SKU match;
                     # a spread past `PRICE_GAP_PCT` names the dearer book).
@@ -752,7 +759,10 @@ src/
                     # row's own sku then each vendorSkus entry and keeps the
                     # FIRST code classify() recognizes (null = not a shower
                     # part), mapping description→name, shop code→erp, the
-                    # caller's book kind→stock; `mortarItemFrom` turns a
+                    # caller's book kind→stock; `dropStockTwins` drops adapted
+                    # special-order entries whose code is a stocked entry in
+                    # another skuKeys spelling (the EFT re-letters mfg codes —
+                    # issue 099), stock winning; `mortarItemFrom` turns a
                     # Settings mortars entry into buildKit's cfg.mortarItem
                     # ({name, price, cost, stock, sfPerBagAt15}) — cost
                     # mirrors price (a Settings material carries one number;
@@ -785,7 +795,8 @@ src/
                     # order book matching /schluter/i on name/brandLabel,
                     # fetched via `loadBookItems` and adapted `{stock:false}`,
                     # `active !== false && !disabled` filtered, stock winning
-                    # SKU collisions, through `catalogOf` — returns
+                    # SKU collisions in any skuKeys spelling (dropStockTwins —
+                    # issue 099), through `catalogOf` — returns
                     # `{cat, catReady}`, the popup's own names, unchanged.
                     # LAZY-CHUNK-ONLY: imports schluteradapter.js, so it must
                     # never be pulled onto the boot path — only a
@@ -846,7 +857,10 @@ src/
                     # code in sku + mfg code in vendorSkus for stocked rows,
                     # EFT-shaped special-order rows), so preview shots
                     # exercise the production adapter path end to end; no
-                    # Supabase, not part of the app build. Carries
+                    # Supabase, not part of the app build. The EFT side also
+                    # carries the live book's re-lettered twin of a stocked
+                    # tray (SLRKST965810BF) so the catalog's stock-wins dedup
+                    # stays visibly exercised (issue 099). Carries
                     # `wediBuilderPct` + a no-op `onQuoteOptions` too (phase 5),
                     # so the Compare tab shows both builder knobs and renders
                     # its quote-options footer — a footer that only exists when

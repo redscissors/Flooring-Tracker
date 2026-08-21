@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normOrderItem } from "./orderbook.js";
-import { adaptRow, adaptBookRows, mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
+import { adaptRow, adaptBookRows, dropStockTwins, mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { classify } from "./schluter.js";
 
 // The ADR 0032 first deliverable: live registry rows are NOT fixture-shaped.
@@ -91,6 +91,24 @@ test("adaptBookRows maps and drops the nulls", () => {
   const out = adaptBookRows([stockTray, ditra, stockRoll], { stock: true });
   assert.deepEqual(out.map((e) => e.sku), ["KST965BF", "KERDI200/10M"]);
   assert.equal(out.every((e) => e.stock === true), true);
+});
+
+test("dropStockTwins: the EFT's re-lettered spelling of a stocked code is dropped, stock wins", () => {
+  // The reported doubling: the stock export states the mfg code with its
+  // slash (KST965/810BF), the dealer EFT re-letters it (SLR prefix, no
+  // separators) — same tray, two rows, until the spellings key together.
+  const stocked = adaptRow(normOrderItem({
+    sku: "1509823", bookId: "bk_stock", description: "KERDI-SHOWER-TT TRAY 38 X 32 PVC",
+    vendorSkus: ["KST965/810BF"], unit: "EA", price: 119.32, cost: 79.54,
+  }), { stock: true });
+  const twin = adaptRow(normOrderItem({
+    sku: "SLRKST965810BF", bookId: "bk_eft", description: "KERDI-SHOWER-KIT KERDI-SHOWER TT 38 X 32",
+    unit: "EA", cost: 84.52,
+  }), { stock: false });
+  const keeper = adaptRow(eftTray, { stock: false });
+  assert.deepEqual(dropStockTwins([twin, keeper], [stocked]).map((e) => e.sku), ["SLRKSLT1220S"]);
+  // and untouched when nothing collides
+  assert.deepEqual(dropStockTwins([keeper], [stocked]).map((e) => e.sku), ["SLRKSLT1220S"]);
 });
 
 test("mortarItemFrom maps a Settings mortars entry into cfg.mortarItem", () => {
