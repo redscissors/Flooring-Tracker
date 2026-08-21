@@ -112,6 +112,13 @@ test("mortar fallback carries the picked mortar", () => {
   assert.equal(m.qty, Math.ceil((30 * 90 / 144) / 8));
   assert.equal(b.lines.some((l) => l.g === "Base" && l.item.sf), true); // KERDI over the bed
 });
+test("mortar fallback without mortarItem: no-fit room must not crash", () => {
+  const b = buildKit(cfg({ w: 30, d: 90 }), CAT, { source: "all" });
+  const noteOnlyBase = b.lines.find((l) => l.g === "Base" && l.noteOnly);
+  assert.ok(noteOnlyBase, "noteOnly placeholder Base line present");
+  assert.equal(noteOnlyBase.item.name, "Mortar bed — pick a mortar in Settings → Materials");
+  assert.equal(b.lines.some((l) => l.g === "Base" && l.item.sf), true); // KERDI over the bed still present
+});
 test("bench build-up lands 2x 2-inch board", () => {
   const b = buildKit(cfg({ bench: "buildup" }), CAT, { source: "all" });
   const x = b.lines.find((l) => l.g === "Extras");

@@ -316,8 +316,12 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 
   if (cand.kind === "mortar") {
     const floorSfM = (cfg.w * cfg.d) / 144;
-    add("Base", cfg.mortarItem, Math.max(1, Math.ceil(floorSfM / cfg.mortarItem.sfPerBagAt15)),
-      "no tray fits" + (source === "stock" ? " from stock" : "") + " — mortar bed, qty at the picked product's rate");
+    if (cfg.mortarItem) {
+      add("Base", cfg.mortarItem, Math.max(1, Math.ceil(floorSfM / cfg.mortarItem.sfPerBagAt15)),
+        "no tray fits" + (source === "stock" ? " from stock" : "") + " — mortar bed, qty at the picked product's rate");
+    } else {
+      L.push({ g: "Base", item: { name: "Mortar bed — pick a mortar in Settings → Materials", price: 0, cost: 0, stock: true }, qty: 1, note: "no tray fits" + (source === "stock" ? " from stock" : ""), so: false, noteOnly: true });
+    }
     for (const p of pickRolls(floorSfM * 1.15, cat, { source }))
       L.push({ g: "Base", item: p.item, qty: p.qty, note: "KERDI over the cured bed", so: !p.item.stock });
   } else {
@@ -351,7 +355,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     L.push({
       g: "Walls",
       item: { name: "Cement board / drywall substrate", sku: "— by others", price: 0, cost: 0, stock: true },
-      qty: 1, note: "membrane needs a backer", noteOnly: true,
+      qty: 1, note: "membrane needs a backer", so: false, noteOnly: true,
     });
   }
 
