@@ -56,10 +56,59 @@ export function schluterWallOn(cfg) {
   return on;
 }
 
+// The 45° corner-cut leg — the wedi CORNER_CUT default, deliberately
+// duplicated from schluter.js (the round2/inch precedent).
+const SCH_CORNER_CUT = 12;
+
+// Does any wall claim this end of this edge? Base walls anchor at their low
+// end (back at the left, sides at the back); xwalls at whichever end their
+// `at` says. A wall spanning the whole edge covers both ends.
+function covers(cfg, edge, end) {
+  const max = edge === "back" || edge === "entry" ? +cfg.w || 0 : +cfg.d || 0;
+  const hits = [];
+  const bi = { back: 0, left: 1, right: 2 }[edge];
+  if (bi != null) {
+    const bw = (cfg.walls || [])[bi];
+    if (bw && bw.on && (+bw.len || 0) > 0.5) hits.push({ at: "lo", len: +bw.len });
+  }
+  (cfg.xwalls || []).forEach((x) => {
+    if (x.edge === edge && (+x.len || 0) > 0.5) hits.push({ at: x.at === "hi" ? "hi" : "lo", len: +x.len });
+  });
+  return hits.some((h) => (h.at === end ? true : h.len >= max - 0.5));
+}
+
+/**
+ * Which corners can take a 45° cut — the wedi openCorners rule: a corner
+ * boxed in by two walls can't be cut, the walls are standing on it. The curb
+ * never boxes a corner (it takes the diagonal instead).
+ */
+export function schluterOpenCorners(cfg) {
+  return {
+    bl: !(covers(cfg, "back", "lo") && covers(cfg, "left", "lo")),
+    br: !(covers(cfg, "back", "hi") && covers(cfg, "right", "lo")),
+    fl: !(covers(cfg, "entry", "lo") && covers(cfg, "left", "hi")),
+    fr: !(covers(cfg, "entry", "hi") && covers(cfg, "right", "hi")),
+  };
+}
+
+/**
+ * The cut corners as TopDown's `cuts` shape ({corner, h, v} legs) — only
+ * corners that are actually open; a stale cut behind a re-walled corner
+ * silently drops rather than drawing through the wall.
+ */
+export function schluterCuts(cfg) {
+  const open = schluterOpenCorners(cfg);
+  const h = Math.min(SCH_CORNER_CUT, +cfg.w || 0), v = Math.min(SCH_CORNER_CUT, +cfg.d || 0);
+  return (cfg.corners || []).filter((k) => open[k]).sort()
+    .map((k) => ({ corner: k, h: round2(h), v: round2(v) }));
+}
+
 /**
  * Curb geometry: one run across the entry OPENING — the KBSC profile, butting
- * any entry walls (cfg.xwalls) instead of running under them. Curbless builds
- * carry no curb band — the ramp/recess is a build line, not plan geometry.
+ * any entry walls (cfg.xwalls) instead of running under them. A cut FRONT
+ * corner the run reaches turns the curb diagonally across it (the wedi diag
+ * shape); the run gives up the leg. Curbless builds carry no curb band —
+ * the ramp/recess is a build line, not plan geometry.
  */
 export function schluterCurb(cfg) {
   if (!cfg.curbed) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
@@ -69,11 +118,20 @@ export function schluterCurb(cfg) {
     const len = Math.min(+x.len || 0, w);
     if (x.at === "hi") hi = Math.max(hi, len); else lo = Math.max(lo, len);
   });
-  const len = Math.max(0, w - lo - hi);
+  let from = lo, len = Math.max(0, w - lo - hi);
   if (len <= 0) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
+  const cutSet = schluterCuts(cfg);
+  const diags = [];
+  const diagOf = (c) => ({
+    corner: c.corner, h: c.h, v: c.v, len: round2(Math.hypot(c.h, c.v)),
+    cut: round2(Math.hypot(c.h + SCHLUTER_CURB_W, c.v + SCHLUTER_CURB_W)),
+  });
+  const fl = cutSet.find((c) => c.corner === "fl"), fr = cutSet.find((c) => c.corner === "fr");
+  if (fl && from <= 0.5) { const t = Math.min(fl.h, len); from += t; len -= t; diags.push(diagOf(fl)); }
+  if (fr && from + len >= w - 0.5) { len -= Math.min(fr.h, len); diags.push(diagOf(fr)); }
   return {
-    segs: [{ side: "entry", from: lo, len, ext0: 0, ext1: 0 }],
-    diags: [], h: SCHLUTER_CURB_H, w: SCHLUTER_CURB_W,
+    segs: len > 0.5 ? [{ side: "entry", from: round2(from), len: round2(len), ext0: 0, ext1: 0 }] : [],
+    diags, h: SCHLUTER_CURB_H, w: SCHLUTER_CURB_W,
   };
 }
 
@@ -94,16 +152,19 @@ export function schluterDiag(cfg, cand) {
   const cut = tray && (tw > w || td > d);
   const warnings = [];
   let drain;
-  if (cfg.drain === "linear") {
+  // under an "any" preference the picked tray decides what gets drawn — the
+  // same rule buildKit bills by; a mortar card falls back to the preference
+  const dk = tray ? tray.drain : (cfg.drain === "any" ? "point" : cfg.drain);
+  if (dk === "linear") {
     drain = { type: "linear", x: w / 2, y: 2.75, len: Math.max(10, w - 8), axis: "w", note: "" };
   } else {
     // the candidate's achieved position (trayCandidates splits the cut to
     // chase a pinned drain); the old anchored-at-0,0 formula stays as the
     // fallback for a mortar card or a candidate without the fields
     const dx = tray ? (cand.dx ?? Math.min(tw / 2, w - 2)) : w / 2;
-    const dy = tray ? (cand.dy ?? Math.min(cfg.drain === "offset" ? td * 0.27 : td / 2, d - 2)) : d / 2;
+    const dy = tray ? (cand.dy ?? Math.min(tray.drain === "offset" ? td * 0.27 : td / 2, d - 2)) : d / 2;
     drain = { type: "point", x: round2(dx), y: round2(dy), len: 0, axis: null, note: "" };
-    const off = Math.max(Math.abs(dx - w / 2), cfg.drain === "offset" ? 0 : Math.abs(dy - d / 2));
+    const off = Math.max(Math.abs(dx - w / 2), tray && tray.drain === "offset" ? 0 : Math.abs(dy - d / 2));
     // a pinned drain is off-centre on purpose — only a pin the cut can't
     // reach warns; the room-centre warning stays for unpinned cuts
     if (cand && cand.pinned) {

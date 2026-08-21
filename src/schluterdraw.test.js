@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { classify, catalogOf, trayCandidates } from "./schluter.js";
-import { schluterDiag, schluterWalls, schluterCurb, schluterWallOn } from "./schluterdraw.js";
+import { schluterDiag, schluterWalls, schluterCurb, schluterWallOn, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
 
 const CAT = catalogOf(FIXTURE_ITEMS);
 const cfg = (o) => ({
@@ -144,4 +144,41 @@ test("a pinned candidate's achieved drain position draws, without the centre war
   const o2 = schluterDiag(far, candFor(far));
   assert.equal(o2.warnings.length, 1);
   assert.match(o2.warnings[0], /off the pinned point/);
+});
+
+test("open corners: fronts are open (the curb never boxes), backs boxed by their walls", () => {
+  const walled = schluterOpenCorners(cfg({}));
+  assert.deepEqual(walled, { bl: false, br: false, fl: true, fr: true });
+  // left wall off frees both left corners
+  const noLeft = cfg({ walls: [{ on: true, len: 60, h: 84 }, { on: false, len: 38, h: 84 }, { on: true, len: 38, h: 84 }] });
+  assert.equal(schluterOpenCorners(noLeft).bl, true);
+  // an entry wall boxes its front corner
+  const entryLo = cfg({ xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] });
+  assert.equal(schluterOpenCorners(entryLo).fl, false);
+  assert.equal(schluterOpenCorners(entryLo).fr, true);
+});
+
+test("schluterCuts keeps only OPEN cut corners, legged 12x12", () => {
+  const c = cfg({ corners: ["bl", "fl"] });
+  assert.deepEqual(schluterCuts(c), [{ corner: "fl", h: 12, v: 12 }]);
+});
+
+test("a cut front corner turns the curb diagonally and the run gives up the leg", () => {
+  const one = schluterCurb(cfg({ corners: ["fl"] }));
+  assert.deepEqual(one.segs, [{ side: "entry", from: 12, len: 48, ext0: 0, ext1: 0 }]);
+  assert.equal(one.diags.length, 1);
+  assert.deepEqual(
+    (({ corner, h, v, len }) => ({ corner, h, v, len }))(one.diags[0]),
+    { corner: "fl", h: 12, v: 12, len: 16.97 });
+  const both = schluterCurb(cfg({ corners: ["fl", "fr"] }));
+  assert.deepEqual(both.segs, [{ side: "entry", from: 12, len: 36, ext0: 0, ext1: 0 }]);
+  assert.equal(both.diags.length, 2);
+});
+
+test('an "any" room draws whatever the picked tray is', () => {
+  const room = cfg({ w: 48, d: 48, drain: "any" });
+  const cands = trayCandidates(room, CAT, { source: "all" });
+  const lin = cands.find((c) => c.tray.drain === "linear");
+  assert.equal(schluterDiag(room, lin).drain.type, "linear");
+  assert.equal(schluterDiag(room, cands[0]).drain.type, "point");
 });

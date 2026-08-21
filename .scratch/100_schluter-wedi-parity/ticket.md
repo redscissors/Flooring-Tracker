@@ -75,3 +75,34 @@ Tests: schluter.test.js (xwalls sf, entry-opening curb, fully-walled entry,
 entryOpening clamp, pin split/clamp/ranking, linear ignores pin) and
 schluterdraw.test.js (xwalls dWalls, opening curb segs, pinned drain draw +
 warnings). 1075 pass; vite build clean.
+
+## Round 2 (owner screenshot of the wedi form, 2026-08-21)
+
+"We are missing features shown in this attachment" — the wedi custom-shower
+form. Closed in the same issue:
+
+- **Any** drain preference: every tray competes; the PICKED tray decides
+  what gets billed and drawn (buildKit/schluterDiag key on cand.tray.drain).
+  Under a pin, a linear tray scores against its fixed channel run.
+- **Sizes are — Tray size | Max — curb inside** + **Tile thickness**
+  (fraction-parsing): the entry curb (4½") plus the tile on its outer face
+  comes inside the stated depth and the tray gives it up. Curbed-only, the
+  wedi rule; marker keeps effective dims + maxIn/tileT, seedState recovers
+  the stated depth.
+- **Editable wall lengths** (blank = follows the room) + **Default height**
+  box seeding every wall's placeholder.
+- **⇄ flip**: w↔d, the drain pin follows, typed wall lengths re-auto.
+- **✂ Corner cuts**: "Cut open corners" chip + corner clicks on the
+  drawing (schluterOpenCorners gates — a corner boxed by two walls can't
+  cut; stale cuts behind re-walled corners drop silently). 12″ 45° legs;
+  the curb turns a cut front corner diagonally (drawing diags + the bill's
+  curb need grows by the diagonal extra). Cut-list lines per corner.
+- NOT ported: **Pan against Left/Right** — wedi places a smaller pan +
+  extensions, so the anchor matters; a Schluter tray is cut to the whole
+  room and the drain pin already decides which sides the saw takes.
+
+Proof: `shoot2.mjs` → `p5-any-max-tile.png` (48×66 stated → 48×61⅛ tray,
+Any + 3/8″ tile, wall autos follow), `p6-corner-cuts.png` (both front
+corners cut: chamfered tray + diagonal curb in both views, 2× curb "turns
+2 cut corners diagonally", cut-list lines), `p7-flip.png` (pin carried
+through the flip). Tests: 1082 pass (7 new engine/draw cases); build clean.

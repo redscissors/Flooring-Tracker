@@ -674,7 +674,17 @@ src/
                     # 100) feed wallArea like any wall, and `entryOpening`
                     # is what the entry walls leave open: the curb is picked
                     # and cut to the OPENING, and a fully walled entry
-                    # carries no curb line at all (curbless still ramps). `pickFrom`/`stockPool` (phase 4)
+                    # carries no curb line at all (curbless still ramps).
+                    # cfg.drain "any" (round 2) pools every tray and the
+                    # PICKED tray decides what gets billed and drawn — the
+                    # channel vs flange/grate/corner-pack branches key on
+                    # cand.tray.drain, the mortar fallback on the stated
+                    # preference; under a pin a linear tray's miss scores
+                    # against its fixed channel run, never a free zero.
+                    # cfg.corners (45° cut corners, the wedi CORNER_CUT
+                    # 12" legs) grow the curb need by each cut FRONT
+                    # corner's diagonal extra — back corners never touch
+                    # the bill. `pickFrom`/`stockPool` (phase 4)
                     # are the one stock-only rule every buildKit pick runs
                     # through: under "stock" a stocked match wins, a role with
                     # no stocked option lands flagged (grates and channels
@@ -802,7 +812,15 @@ src/
                     # entry run over the OPENING the entry xwalls leave,
                     # butting them — fully walled = no band —
                     # the KBSC 4½"×6" profile; curbless = no band,
-                    # the ramp is a build line), `schluterWallOn`. Never
+                    # the ramp is a build line — and a cut FRONT corner
+                    # the run reaches turns the curb DIAGONALLY across it
+                    # in the wedi diag shape, the run giving up the leg),
+                    # `schluterWallOn`, and the round-2 corner pair:
+                    # `schluterOpenCorners` (the wedi openCorners rule — a
+                    # corner boxed by two walls can't be cut; the curb
+                    # never boxes) and `schluterCuts` (cfg.corners →
+                    # TopDown's cuts shape, silently dropping a stale cut
+                    # behind a re-walled corner). Never
                     # imports wedi.js (ADR 0033 chunk hygiene)
                     # (schluterdraw.test.js)
   useschlutercatalog.js  # `useSchluterCatalog` — the registry→catalog
@@ -851,8 +869,24 @@ src/
                     # third option — and both site-built bench forms) moved
                     # to the BUILD COLUMN's Add-ons group (issue 100, the
                     # wedi idiom) so a shelf-kit pick reaches them on every
-                    # tab; the marker cfg carries xwalls/drainX/drainY and
-                    # any of them flips mode to "custom") /
+                    # tab. Round 2 (owner screenshot, same day) finished the
+                    # wedi form: an "Any" drain preference (pool everything,
+                    # the pick decides), "Sizes are — Tray size | Max — curb
+                    # inside" + Tile thickness (parseIn fractions; the entry
+                    # curb + tile step inside the stated depth, popup-level
+                    # like wedi's maxIn), editable base-wall lengths with a
+                    # Default height box (blank = auto), the ⇄ room flip
+                    # (w↔d, the drain pin follows, typed lengths re-auto),
+                    # and 45° corner cuts — "✂ Cut open corners" + a corner
+                    # click on the drawing, openMap-gated, the curb turning
+                    # cut front corners diagonally. "Pan against" is the one
+                    # wedi control deliberately NOT ported: a tray is cut to
+                    # the whole room, so there is no anchoring choice — the
+                    # drain pin already picks which sides the saw takes.
+                    # The marker cfg carries xwalls/drainX/drainY/corners/
+                    # maxIn/tileT (cfg.w/d stay the EFFECTIVE tray dims;
+                    # seedState adds the curb+tile back to recover the
+                    # stated depth) and any of them flips mode to "custom") /
                     # Browse (filter board over the classified groups,
                     # factory kits ONLY here — decision 5 — the thin-set/
                     # KERDI figurer, stock-tinted stepper rows), over the

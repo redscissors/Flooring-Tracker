@@ -453,3 +453,41 @@ test("a linear room ignores the pin", () => {
   assert.equal(c.pinned, undefined);
   assert.equal(c.miss, 0);
 });
+
+// --- drain preference "any" + corner cuts ---------------------------------
+
+test('"any" preference pools every tray and the PICK decides what gets billed', () => {
+  const room = cfg({ w: 48, d: 48, drain: "any" });
+  const cands = trayCandidates(room, CAT, { source: "all" });
+  // cheapest exact 48x48 leads; the linear 48x48 is in the pool too
+  assert.equal(cands[0].tray.sku, "KST1220BF");
+  const lin = cands.find((c) => c.tray.drain === "linear");
+  assert.ok(lin);
+  // billed off the picked tray, not the stated preference
+  const linBuild = buildKit(room, CAT, { source: "all", pick: lin });
+  assert.ok(linBuild.lines.some((l) => l.item.part === "channel"));
+  assert.equal(linBuild.lines.some((l) => l.item.corner), false);
+  const ptBuild = buildKit(room, CAT, { source: "all", pick: cands[0] });
+  assert.ok(ptBuild.lines.some((l) => l.item.part === "grate"));
+  assert.ok(ptBuild.lines.some((l) => l.item.corner === "inside"));
+});
+
+test('a pinned "any" room scores a linear tray against its channel run, never a free zero', () => {
+  const cands = trayCandidates(cfg({ w: 48, d: 48, drain: "any", drainX: 24, drainY: 24 }), CAT, { source: "all" });
+  assert.equal(cands[0].miss, 0);
+  assert.notEqual(cands[0].tray.drain, "linear");
+  const lin = cands.find((c) => c.tray.drain === "linear");
+  if (lin) assert.equal(lin.miss, 21.25); // pin 24 back vs the channel at 2.75
+});
+
+test("a cut FRONT corner adds the curb's diagonal; a back corner never does", () => {
+  const base = buildKit(cfg({}), CAT, { source: "all" });
+  const fl = buildKit(cfg({ corners: ["fl"] }), CAT, { source: "all" });
+  const bl = buildKit(cfg({ corners: ["bl"] }), CAT, { source: "all" });
+  const curbOf = (b) => b.lines.find((l) => l.g === "Curb");
+  assert.equal(curbOf(base).qty, 1);
+  // 60 + ~4.97 diagonal extra outruns the 60" curb — a second is cut on
+  assert.equal(curbOf(fl).qty, 2);
+  assert.match(curbOf(fl).note, /turns a cut corner diagonally/);
+  assert.equal(curbOf(bl).qty, 1);
+});
