@@ -280,3 +280,120 @@ export function pickRolls(sfNeed, cat, { source } = {}) {
   }
   return picks;
 }
+
+// Whole-foot label when a dimension divides evenly, else inches — matches
+// how the prototype's plan/cut-list labels a tray or curb length.
+function inches(n) {
+  return n % 12 === 0 ? n / 12 + "'" : n + '"';
+}
+
+function wallArea(cfg) {
+  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + (w.len * w.h) / 144, 0);
+}
+
+/**
+ * Build a Schluter shelf-kit bill of materials for one shower config.
+ * Ported from the prototype's buildSchluter (pricelist-notes.md, owner
+ * decisions 2026-08-20): factory-kit corner counts on point/offset builds
+ * (2× inside packs + 1× outside pack = 4 inside + 2 outside corners); the
+ * Vario flange kit is self-contained (a linear build carries no separate
+ * corner/seal lines); the Vario channel note enforces the 10" min cut;
+ * curb multiples are cut end-to-end and note their own 2+2 corners;
+ * membrane walls add 10% for laps plus a by-others backer note line;
+ * board walls use 1.05× coverage plus 100-count fasteners per 60 sf;
+ * ALL-SET at ceil((wallSf+floorSf)/sfPerBag); KERDI-FIX ×1; a curbless
+ * build gets the ramp instead of a curb; benches follow decision 4
+ * (framed -> ½" wrap board, buildup -> 2× 2" board); a no-fit room falls
+ * back to cfg.mortarItem at its own rate plus KERDI over the cured bed
+ * (decision 2 — never a $0 by-installer line).
+ */
+export function buildKit(cfg, cat, { source, pick } = {}) {
+  const L = [];
+  const add = (g, item, qty, note) => {
+    if (item) L.push({ g, item, qty, note, so: !item.stock });
+  };
+  const cand = pick || trayCandidates(cfg, cat, { source })[0];
+
+  if (cand.kind === "mortar") {
+    const floorSfM = (cfg.w * cfg.d) / 144;
+    add("Base", cfg.mortarItem, Math.max(1, Math.ceil(floorSfM / cfg.mortarItem.sfPerBagAt15)),
+      "no tray fits" + (source === "stock" ? " from stock" : "") + " — mortar bed, qty at the picked product's rate");
+    for (const p of pickRolls(floorSfM * 1.15, cat, { source }))
+      L.push({ g: "Base", item: p.item, qty: p.qty, note: "KERDI over the cured bed", so: !p.item.stock });
+  } else {
+    add("Base", cand.tray, 1,
+      (cand.tray.drain !== cfg.drain && cfg.drain === "offset" ? "centre-drain tray — offset size not made; " : "") +
+      (cand.cut ? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit"));
+  }
+
+  if (cfg.drain === "linear") {
+    const chans = cat.filter((i) => i.g === "drain" && i.part === "channel" && (source === "all" || i.stock))
+      .sort((a, b) => a.len - b.len || a.price - b.price);
+    const need = cfg.w - 8;
+    const ch = chans.find((c) => c.len >= need) || chans[chans.length - 1];
+    add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"` : "at the wall") + ' — min cut 10", IPC 2.5 gpm');
+    add("Drain", cat.find((i) => i.g === "drain" && i.part === "flange" && i.drain === "linear"), 1,
+      "incl. 4+2 corners, pipe + valve seals, couplings");
+  } else {
+    add("Drain", cat.find((i) => i.g === "drain" && i.part === "flange" && i.drain === "point"), 1,
+      'bonded flange, 2" PVC');
+    const grates = cat.filter((i) => i.g === "drain" && i.part === "grate" && (source === "all" || i.stock));
+    add("Drain", grates[0], 1, "finish pick — tileable & floral stocked too");
+  }
+
+  const sf = wallArea(cfg);
+  if (cfg.wallSys === "board") {
+    const b = cat.find((i) => i.sf === 32 && i.g === "board");
+    add("Walls", b, Math.ceil((sf * 1.05) / b.sf), `${sf.toFixed(0)} sf of wall`);
+    add("Walls", cat.find((i) => i.g === "board" && i.size === "100 ct"), Math.max(1, Math.ceil(sf / 60)), "board fasteners");
+  } else {
+    for (const p of pickRolls(sf * 1.1, cat, { source })) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
+    L.push({
+      g: "Walls",
+      item: { name: "Cement board / drywall substrate", sku: "— by others", price: 0, cost: 0, stock: true },
+      qty: 1, note: "membrane needs a backer", noteOnly: true,
+    });
+  }
+
+  const bands = cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf);
+  const lfNeed = (2 * (cfg.w + cfg.d)) / 12 + sf / 6;
+  add("Seams", bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1], 1, "seams + tray perimeter");
+  if (cfg.drain !== "linear") {
+    add("Seams", cat.find((i) => /inside corner/i.test(i.name)), 2, "4 inside — factory kit recipe");
+    add("Seams", cat.find((i) => /outside corner/i.test(i.name)), 1, "2 outside — factory kit recipe");
+    add("Seams", cat.find((i) => /pipe seal/i.test(i.name)), 1);
+    add("Seams", cat.find((i) => /valve seal/i.test(i.name)), 1);
+  }
+
+  if (cfg.curbed) {
+    const curbs = cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len);
+    const c = curbs.find((x) => x.len >= cfg.w && (source === "all" || x.stock)) || curbs[curbs.length - 1];
+    add("Curb", c, Math.max(1, Math.ceil(cfg.w / c.len)),
+      (c.len < cfg.w ? "cut to length end-to-end" : "cut to entry width") + " — incl. 2+2 Kereck corners");
+  } else {
+    add("Curb", cat.find((i) => i.ramp), 1, '12" run, 1-1/4"→1/4" — ADA slope');
+  }
+
+  if (cfg.bench === "framed") {
+    add("Extras", cat.find((i) => i.g === "board" && i.sf === 32), 1,
+      "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
+  } else if (cfg.bench === "buildup") {
+    add("Extras", cat.find((i) => i.thick2), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
+  }
+
+  const floorSf = (cfg.w * cfg.d) / 144;
+  const allset = cat.find((i) => i.sfPerBag);
+  add("Setting", allset, Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)), "sets membrane/board");
+  add("Setting", cat.find((i) => /KERDI-FIX/.test(i.name)), 1);
+
+  return { lines: L, cand };
+}
+
+/**
+ * Sum a build's material cost: priceFn(item) is the per-unit rate for
+ * whatever pricing tier the caller wants (retail, cost×multiplier, …) —
+ * this module has no pricing-tier opinion of its own.
+ */
+export function linesTotal(lines, priceFn) {
+  return lines.reduce((s, l) => s + priceFn(l.item) * l.qty, 0);
+}

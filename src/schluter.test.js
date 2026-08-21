@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, buildKit, linesTotal } from "./schluter.js";
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -76,4 +76,44 @@ test("curbless prefers thin trays", () => {
 test("roll ladder: 79 sf of wall -> one 108 sf roll", () => {
   const p = pickRolls(79 * 1.1, CAT, { source: "all" });
   assert.deepEqual(p.map((x) => [x.item.sku, x.qty]), [["KERDI200/10M", 1]]);
+});
+
+test("curbless thin-priority order pinned in trayCandidates", () => {
+  const synCat = [
+    { g: "tray", w: 38, d: 36, drain: "point", thin: true, stock: true, price: 100, sku: "SYN-THIN" },
+    { g: "tray", w: 36, d: 36, drain: "point", thin: false, stock: true, price: 90, sku: "SYN-EXACT" },
+  ];
+  // decision 6 pinned: for curbless, thin outranks cut — owner-reviewable
+  const curbless = trayCandidates(cfg({ w: 36, d: 36, curbed: false }), synCat, { source: "all" });
+  assert.equal(curbless[0].tray.sku, "SYN-THIN");
+  const curbed = trayCandidates(cfg({ w: 36, d: 36, curbed: true }), synCat, { source: "all" });
+  assert.equal(curbed[0].tray.sku, "SYN-EXACT");
+});
+
+// --- buildKit: the shelf-kit recipes (Task 4) ---
+
+const retail = (it) => it.stock ? it.price : it.cost * 1.5;
+
+test("60x38 curbed point membrane — the approved bill", () => {
+  const b = buildKit(cfg({}), CAT, { source: "all" });
+  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 12);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 75975); // $759.75
+  assert.equal(b.lines.filter((l) => l.so).length, 0);
+});
+test("linear build: Vario kit carries the seals", () => {
+  const b = buildKit(cfg({ w: 48, d: 48, drain: "linear" }), CAT, { source: "all" });
+  assert.equal(b.lines.some((l) => /KERECK|SEAL/.test(l.item.name)), false);
+  assert.equal(b.lines.some((l) => l.item.part === "flange" && l.item.drain === "linear"), true);
+});
+test("mortar fallback carries the picked mortar", () => {
+  const mortarItem = { name: "60 lb deck mud", price: 9.6, cost: 6.4, stock: true, sfPerBagAt15: 8 };
+  const b = buildKit(cfg({ w: 30, d: 90, mortarItem }), CAT, { source: "all" });
+  const m = b.lines.find((l) => l.item === mortarItem);
+  assert.equal(m.qty, Math.ceil((30 * 90 / 144) / 8));
+  assert.equal(b.lines.some((l) => l.g === "Base" && l.item.sf), true); // KERDI over the bed
+});
+test("bench build-up lands 2x 2-inch board", () => {
+  const b = buildKit(cfg({ bench: "buildup" }), CAT, { source: "all" });
+  const x = b.lines.find((l) => l.g === "Extras");
+  assert.equal(x.item.thick2, true); assert.equal(x.qty, 2);
 });
