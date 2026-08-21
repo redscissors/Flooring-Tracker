@@ -789,6 +789,32 @@ src/
                     # EFT-shaped special-order rows), so preview shots
                     # exercise the production adapter path end to end; no
                     # Supabase, not part of the app build
+  comparekit.js     # one room priced in BOTH shower systems (phase 5) — the
+                    # first module allowed to import wedi.js and schluter.js
+                    # together, and the only one that should: it owns the
+                    # mapping and nothing else, so neither engine has to learn
+                    # about the other and neither engine's pinned totals can
+                    # move. A neutral room ({w,d,curbed,drain,walls[{side,on,
+                    # len,h}]}) sits between them — `roomFromSchluter`/
+                    # `roomFromWedi` read it off either engine's cfg,
+                    # `wediBuildFor` re-makes WediConfigurator's own
+                    # solve()→kitFor() composition (top-ranked option, mode
+                    # "kit", no popup customizations) and `schluterBuildFor`
+                    # re-makes SchluterConfigurator's cfg useMemo +
+                    # trayCandidates[0] pick, returning the cfg beside the
+                    # build because that cfg is what a Reconfigure chip
+                    # reopens on. `wediCompareRows`/`schluterCompareRows`
+                    # align both bills on COMPARE_CATS (Schluter lines carry
+                    # the token in `l.g`; wedi maps from the catalog
+                    # `item.group`) as EXTENDED amounts, every price coming
+                    # back out of the engine that made the line — nothing is
+                    # re-derived here. `noteOnly` rows are KEPT at $0: the
+                    # wedi column appends the "Thin-set for pan bed — by
+                    # others" note and the Schluter column carries its
+                    # substrate-by-others line, which together are the
+                    # walls-difference story (the wedi panel IS the
+                    # substrate); `compareTotals` then excludes them
+                    # (comparekit.test.js, over the frozen schluterfixture)
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
