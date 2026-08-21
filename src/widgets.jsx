@@ -416,3 +416,17 @@ export function Modal({ title, children, onClose }) {
     </div>
   );
 }
+
+// The shared Stock only / Full catalog switch (phase 4): both vendor
+// configurators mount this seg in their pop-head, so the two popups can't
+// drift on what the control looks like or says. Styling is each popup's own
+// `.srcseg` block; this carries no engine knowledge — the caller owns what
+// the source constrains.
+export function SourceSwitch({ source, onChange, title }) {
+  return (
+    <div className="srcseg" title={title || "Stock only removes non-stocked parts from the candidate pool; Full catalog ranks freely and tags special order"}>
+      <button className={source === "stock" ? "on" : ""} onClick={() => onChange("stock")} data-source-stock>Stock only</button>
+      <button className={source === "all" ? "on" : ""} onClick={() => onChange("all")} data-source-all>Full catalog</button>
+    </div>
+  );
+}

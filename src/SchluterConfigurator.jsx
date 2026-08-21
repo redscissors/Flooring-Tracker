@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye } from "lucide-react";
-import { useEscClose } from "./widgets.jsx";
+import { useEscClose, SourceSwitch } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalogOf, trayCandidates, pickRolls, buildKit, tierPrice, lineItems,
@@ -934,10 +934,7 @@ export default function SchluterConfigurator({
             <div className="name">Schluter <small>shower systems · registry-priced (retail = 1.5× cost)</small></div>
           </div>
           <div className="headctl">
-            <div className="srcseg" title="Stock only removes non-stocked parts from the candidate pool; Full catalog ranks freely and tags special order">
-              <button className={source === "stock" ? "on" : ""} onClick={() => { setSource("stock"); setPick(null); }} data-schluter-src-stock>Stock only</button>
-              <button className={source === "all" ? "on" : ""} onClick={() => { setSource("all"); setPick(null); }} data-schluter-src-all>Full catalog</button>
-            </div>
+            <SourceSwitch source={source} onChange={(s) => { setSource(s); setPick(null); }} />
             {tierBar}
             {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
           </div>
