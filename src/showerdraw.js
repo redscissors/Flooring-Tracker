@@ -2,7 +2,7 @@
 // phase 1); both configurators feed the same geometry shape; must never
 // import the wedi data/engine module. This half is pure geometry and
 // constants (no JSX) so plain `node --test` can parse it through that
-// module's import of the five geometry exports below. The JSX components
+// module's import of the six geometry exports below. The JSX components
 // (TopDown, Iso) live in ./showerdraw.jsx, which imports everything here and
 // re-exports it alongside them.
 
