@@ -257,7 +257,7 @@ function seedState(seed) {
   const s = {
     tab: "kits", w: "60", d: "38", curbed: true, drain: "point", wallSys: "membrane",
     walls: DEF_WALLS.map((x) => ({ ...x })), bench: null, mortarName: "",
-    manual: [], q: "", source: "all", kitPick: false,
+    manual: [], q: "", source: "all", kitPick: false, pick: null,
   };
   if (!seed) return s;
   const cfg = seed.cfg;
@@ -275,6 +275,7 @@ function seedState(seed) {
     s.mortarName = cfg.mortarItem?.name || "";
     s.manual = Array.isArray(cfg.manual) ? cfg.manual.map((m) => ({ ...m })) : [];
     s.source = cfg.source === "stock" ? "stock" : "all";
+    s.pick = typeof cfg.pick === "string" ? cfg.pick : null;
     s.kitPick = seed.mode === "kit";
     return s;
   }
@@ -310,7 +311,7 @@ export default function SchluterConfigurator({
   const [bench, setBench] = useState(s0.bench);
   const [mortarName, setMortarName] = useState(s0.mortarName);
   const [manual, setManual] = useState(s0.manual);
-  const [pick, setPick] = useState(null);       // chosen tray candidate's sku
+  const [pick, setPick] = useState(s0.pick);    // chosen tray candidate's sku
   const [kitPick, setKitPick] = useState(s0.kitPick);
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");
@@ -328,16 +329,20 @@ export default function SchluterConfigurator({
   // Special-order side: any active order book that says Schluter, fetched on
   // open (ADR 0026's re-fetch-on-open pattern; the EFT import lands here).
   const [orderRows, setOrderRows] = useState(null);
+  // keyed on the matching book ids, not run-once: an open-layer restore can
+  // mount this popup before stage 2's books metadata hydrates, and the EFT
+  // rows must arrive when it does rather than being dropped for the session
+  const targetIds = (books || []).filter((b) => b.kind === "order" && b.active !== false
+    && /schluter/i.test((b.name || "") + " " + (b.data?.brandLabel || ""))).map((b) => b.id).join("|");
   useEffect(() => {
     let alive = true;
-    const targets = (books || []).filter((b) => b.kind === "order" && b.active !== false
-      && /schluter/i.test((b.name || "") + " " + (b.data?.brandLabel || "")));
-    if (!targets.length || !loadBookItems) { setOrderRows([]); return; }
-    Promise.all(targets.map((b) => loadBookItems(b.id).catch(() => [])))
+    const ids = targetIds ? targetIds.split("|") : [];
+    if (!ids.length || !loadBookItems) { setOrderRows([]); return; }
+    Promise.all(ids.map((id) => loadBookItems(id).catch(() => [])))
       .then((lists) => { if (alive) setOrderRows(lists.flat().filter((it) => it.active !== false && !it.disabled)); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [targetIds]);
 
   const catReady = !!bookStockReady && orderRows !== null;
   const cat = useMemo(() => {
@@ -417,7 +422,10 @@ export default function SchluterConfigurator({
     ...(mortarItem ? { mortarItem } : {}),
   }), [w, d, curbed, drain, wallSys, bench, walls, mortarItem]);
 
-  const cands = useMemo(() => (catReady && cat.length ? trayCandidates(cfg, cat, { source }) : []), [catReady, cat, cfg, source]);
+  // a blanked size input mid-edit means "no room yet" — no candidates, no
+  // build, no drawings (topGeom would divide by the room dims)
+  const roomOk = cfg.w > 0 && cfg.d > 0;
+  const cands = useMemo(() => (catReady && cat.length && roomOk ? trayCandidates(cfg, cat, { source }) : []), [catReady, cat, cfg, source, roomOk]);
   const pickCand = (pick && cands.find((c) => c.tray && c.tray.sku === pick)) || cands[0] || null;
   const build = useMemo(() => {
     if (!pickCand) return null;
@@ -430,7 +438,9 @@ export default function SchluterConfigurator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, cat, source, pickCand, manual]);
   const mode = kitPick && !manual.length && !bench ? "kit" : "custom";
-  const markCfg = useMemo(() => ({ ...cfg, manual, source }), [cfg, manual, source]);
+  // the saved marker records the PICKED tray too — Reconfigure must reopen on
+  // the candidate that was quoted, not whatever ranks first that day
+  const markCfg = useMemo(() => ({ ...cfg, manual, source, pick: pickCand?.tray?.sku || null }), [cfg, manual, source, pickCand]);
   const rows = useMemo(
     () => (build ? lineItems({ ...build, mode, cfg: markCfg }, { builderPct: bPct }) : []),
     [build, mode, markCfg, bPct]);
@@ -478,10 +488,11 @@ export default function SchluterConfigurator({
     if (!build || !pickCand) return [];
     const out = [];
     if (pickCand.tray && pickCand.cut) {
-      out.push(`✂ Cut ${pickCand.tray.sku} to ${inches(cfg.w)} × ${inches(cfg.d)} (from ${szLbl(pickCand.tray)})${pickCand.deep ? " — deep cut, drain moves off-centre" : ""}`);
+      out.push(`✂ Cut ${pickCand.tray.sku} to ${inches(cfg.w)} × ${inches(cfg.d)} (from ${inches(pickCand.tw)}×${inches(pickCand.td)}${pickCand.rot ? ", laid rotated" : ""})${pickCand.deep ? " — deep cut, drain moves off-centre" : ""}`);
     }
     const ch = build.lines.find((l) => l.item.part === "channel");
-    if (ch && /cut to/.test(ch.note || "")) out.push(`✂ Trim the Vario channel + grate ${ch.note.match(/cut to \d+"/)[0].replace("cut to ", "to ")} — end caps supplied, min 10"`);
+    const chCut = ch && (ch.note || "").match(/cut to [\d.]+"/);
+    if (chCut) out.push(`✂ Trim the Vario channel + grate ${chCut[0].replace("cut to ", "to ")} — end caps supplied, min 10"`);
     const cl = build.lines.find((l) => l.g === "Curb" && l.item.len);
     if (cl && /cut/.test(cl.note || "")) out.push(`✂ ${cl.qty > 1 ? cl.qty + "× " : ""}${cl.item.name} — ${(cl.note || "").split(" — ")[0]}`);
     (diag?.warnings || []).forEach((x) => out.push("• " + x));
@@ -529,7 +540,7 @@ export default function SchluterConfigurator({
     .sort((a, b) => ((a.drain === "linear" ? 1 : 0) - (b.drain === "linear" ? 1 : 0)) || (a.w * a.d) - (b.w * b.d) || a.sku.localeCompare(b.sku)), [cat]);
 
   const pickKit = (t) => {
-    setW(String(t.w)); setD(String(t.d)); setDrain(t.drain === "linear" ? "linear" : t.drain);
+    setW(String(t.w)); setD(String(t.d)); setDrain(t.drain);
     setBench(null); setManual([]); setPick(null); setKitPick(true); setTab("custom");
   };
 
@@ -560,11 +571,12 @@ export default function SchluterConfigurator({
       </div>
     );
     return (
-      <button key={c.tray.sku + i} className={"optcard" + (pickCand === c ? " on" : "")} onClick={() => setPick(c.tray.sku)} data-schluter-opt={c.tray.sku}>
+      <button key={c.tray.sku + i} className={"optcard" + (pickCand === c ? " on" : "")}
+        onClick={() => { setKitPick(false); setPick(c.tray.sku); }} data-schluter-opt={c.tray.sku}>
         <div className={"rank" + (c.deep ? " warn" : "")}>{c.kind === "exact" ? "Exact tray" : c.deep ? "Deep cut" : "Cut down"}</div>
         <div className="big">{szLbl(c.tray)}</div>
-        <div className="sub">{c.kind === "exact" ? "Drops in as-is, drain on layout."
-          : `Trim ${c.cut}″ total to hit ${inches(cfg.w)}×${inches(cfg.d)}${c.deep ? " — past the 6″ soft rule, drain moves off-centre" : ""}.`}</div>
+        <div className="sub">{c.kind === "exact" ? `Drops in as-is${c.rot ? ", laid rotated" : ""}, drain on layout.`
+          : `Trim ${c.cut}″ total${c.rot ? ", laid rotated," : ""} to hit ${inches(cfg.w)}×${inches(cfg.d)}${c.deep ? " — past the 6″ soft rule, drain moves off-centre" : ""}.`}</div>
         <div className="foot">
           <span className={"stockdot" + (c.tray.stock ? "" : " so")}>{c.tray.stock ? "stock" : "special order"}</span>
           <span className="pr" style={{ color: tierColor }}>{fm(tierOf(c.tray))}</span>

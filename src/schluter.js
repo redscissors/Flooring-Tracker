@@ -224,9 +224,18 @@ function classifyCode(item, rawSku) {
     const m = /(\d+)\s*ct/i.exec(item.size || item.name || item.description || "");
     return { ...item, g: "board", fastener: true, ct: m ? Number(m[1]) : 0 };
   }
-  // Every other KERDI-BOARD panel/accessory (KB12…, KB50…, …).
+  // Every other KERDI-BOARD panel/accessory. The two digits after KB are the
+  // board thickness in mm (KB12 = ½", KB50 = 2") — the grammar marks the 2"
+  // board even when the row's size text is unreadable, and the wall pick
+  // keys ½" panels off thickMm rather than trusting the sheet's text.
   if (/^KB/.test(code)) {
-    return { ...item, g: "board", ...boardDims(item) };
+    const entry = { ...item, g: "board", ...boardDims(item) };
+    const m = /^KB(\d{2})/.exec(code);
+    if (m) {
+      entry.thickMm = Number(m[1]);
+      if (entry.thickMm >= 40) entry.thick2 = true;
+    }
+    return entry;
   }
 
   // ALL-SET thin-set (sfPerBag: 55) and KERDI-FIX sealing adhesive — the two
@@ -274,16 +283,31 @@ export function catalogOf(items) {
  * non-thin one — a tray with a curb lip doesn't belong on a curbless
  * install even if a non-thin tray would cut less (decision 6); then
  * smaller total cut; then lower price. No fit -> a single mortar-bed card.
+ *
+ * A point/offset tray also tries the ROTATED orientation (a square drain
+ * doesn't care which way the tray lies), so a room deeper than wide still
+ * finds its tray; the candidate carries the effective dims as tw/td with
+ * rot marking the turn. A linear tray never rotates — its channel edge is
+ * directional and belongs at the back wall.
  */
 export function trayCandidates(cfg, cat, { source } = {}) {
   const pool = cat.filter((i) => i.g === "tray" && (source === "all" || i.stock) &&
     (cfg.drain === "linear" ? i.drain === "linear"
      : cfg.drain === "offset" ? i.drain !== "linear"
      : i.drain === "point"));
-  const fits = (t) => t.w >= cfg.w && t.d >= cfg.d && (t.w - cfg.w) + (t.d - cfg.d) <= 26;
-  const out = pool.filter(fits).map((tray) => {
-    const cut = (tray.w - cfg.w) + (tray.d - cfg.d);
-    return { tray, cut, deep: tray.w - cfg.w > 6 || tray.d - cfg.d > 6, kind: cut === 0 ? "exact" : "cut" };
+  const out = [];
+  pool.forEach((tray) => {
+    const orients = tray.drain === "linear" || tray.w === tray.d
+      ? [[tray.w, tray.d, false]]
+      : [[tray.w, tray.d, false], [tray.d, tray.w, true]];
+    let best = null;
+    orients.forEach(([tw, td, rot]) => {
+      if (!(tw >= cfg.w && td >= cfg.d && (tw - cfg.w) + (td - cfg.d) <= 26)) return;
+      const cut = (tw - cfg.w) + (td - cfg.d);
+      const cand = { tray, tw, td, rot, cut, deep: tw - cfg.w > 6 || td - cfg.d > 6, kind: cut === 0 ? "exact" : "cut" };
+      if (!best || cand.cut < best.cut) best = cand;
+    });
+    if (best) out.push(best);
   });
   out.sort((a, b) =>
     ((a.tray.drain === cfg.drain ? 0 : 1) - (b.tray.drain === cfg.drain ? 0 : 1)) ||
@@ -391,11 +415,17 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const sf = wallArea(cfg);
   if (cfg.wallSys === "board") {
     // largest ½" panel wins the wall pick (48×96 = 32 sf in today's range)
-    const b = cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+    // largest ½" panel wins — thickMm keys the thickness so a fatter live
+    // board with more sf can't take the wall pick
+    const b = cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
+      && (i.thickMm == null || i.thickMm <= 13))
       .sort((x, y) => y.sf - x.sf)[0];
     add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
+    // recipe density: one 100-ct box per 60 sf — scaled to the box actually
+    // in the catalog so a 40-ct pack doesn't silently under-order
     const fast = cat.filter((i) => i.fastener).sort((x, y) => (y.ct || 0) - (x.ct || 0))[0];
-    add("Walls", fast, Math.max(1, Math.ceil(sf / 60)), "board fasteners");
+    const screws = (sf * 100) / 60;
+    add("Walls", fast, fast ? Math.max(1, Math.ceil(fast.ct > 0 ? screws / fast.ct : sf / 60)) : 0, "board fasteners");
   } else {
     for (const p of pickRolls(sf * 1.1, cat, { source })) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
     L.push({

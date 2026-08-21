@@ -794,29 +794,13 @@ export default function App({ user, onSignOut }) {
   // line, the one carrying wedi:{mode,cfg}) fills the row the popup was opened
   // from and every companion lands as its own new row after it. Payloads come
   // from wedi.js lineItems(); nothing reprices later (ADR 0003).
-  const addWediLines = (aid, pid, lines) => {
-    if (!lines.length) return;
-    const a = sel.categories.find((x) => x.id === aid);
-    if (!a || !a.products.some((p) => p.id === pid)) return;
-    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...lines[0] },
-      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
-    ]);
-    updArea(aid, { products });
-  };
-  // Schluter (issue 097 phase 3): identical shape — the tray anchors with
-  // schluter:{mode,cfg}, companions land after it. Payloads come from
-  // schluter.js lineItems(); nothing reprices later (ADR 0003).
-  const addSchluterLines = (aid, pid, lines) => {
-    if (!lines.length) return;
-    const a = sel.categories.find((x) => x.id === aid);
-    if (!a || !a.products.some((p) => p.id === pid)) return;
-    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...lines[0] },
-      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
-    ]);
-    updArea(aid, { products });
-  };
+  // …and the same landing for wedi (issue 066) and Schluter (issue 097): the
+  // anchor line (the one carrying the vendor's {mode,cfg} marker) fills the
+  // row the popup was opened from and every companion lands as its own new
+  // row after it. One helper, three configurators — nothing reprices later
+  // (ADR 0003).
+  const addWediLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
+  const addSchluterLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
   // Sheoga opened from the Apps hub has no row/project context. Its lines drop
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else

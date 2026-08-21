@@ -71,10 +71,10 @@ test("walls: only the on walls, board walls carry 48\" course joints, membrane w
   assert.deepEqual(dw.map((w) => w.side), ["back", "right"]);
   assert.deepEqual(dw[0], {
     side: "back", len: 60, h: 84, at: "lo", faces: "in", wid: "back", extra: false,
-    courses: [{ lens: [48, 12] }],
+    courses: [{ lens: [48, 12], y0: 0, ch: 84 }],
   });
   // a 38" run fits inside one 48" panel — no joint
-  assert.deepEqual(dw[1].courses, [{ lens: [38] }]);
+  assert.deepEqual(dw[1].courses, [{ lens: [38], y0: 0, ch: 84 }]);
   assert.deepEqual(schluterWalls(cfg({})).map((w) => w.courses), [[], [], []]);
   assert.deepEqual(schluterWallOn(c), { back: true, left: false, right: true });
 });
@@ -86,6 +86,17 @@ test("curb: one entry run with the KBSC profile; curbless has none", () => {
   assert.equal(curbed.w, 4.5);
   assert.equal(curbed.h, 6);
   assert.deepEqual(schluterCurb(cfg({ curbed: false })).segs, []);
+});
+
+test("a rotated candidate draws in its effective orientation", () => {
+  const c = cfg({ w: 38, d: 60 });
+  const cand = candFor(c);
+  assert.equal(cand.rot, true);
+  const o = schluterDiag(c, cand);
+  // exact rotated fit — no cut, drain at the rotated tray's centre = room centre
+  assert.equal(o.pieces[0].cut, null);
+  assert.deepEqual({ x: o.drain.x, y: o.drain.y }, { x: 19, y: 30 });
+  assert.deepEqual(o.warnings, []);
 });
 
 test("the classified tray feeding the diag is the adapter's shape too", () => {

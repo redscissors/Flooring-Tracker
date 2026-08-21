@@ -18,6 +18,8 @@ branch, surfaces P1/P2).
 | 06-payload | Add to product lines | Shop ERP SKUs on stocked rows, schluter:{mode,cfg} anchor / part companions, the −8% Builder stamp |
 | 07-browse | Browse + filter board | Classified sections with counts, stock tint, steppers |
 | 08-factory-kits | Factory kits filter | Decision 5: the boxed kits live ONLY here |
+| 09-rotated-3860 | 38×60 room | Final-review fix: a room deeper than wide takes the 60×38 tray "laid rotated" — exact fit, no mortar dead-end |
+| 10-fractional-linear | 48.5×48 linear | Final-review fix: a fractional width no longer crashes the cut list; the Vario trim note carries the decimal |
 
 Shot rig: `shoot.mjs` pattern from `.scratch/098_shower-drawing-extraction/`
 (chromium via playwright-core, page errors fail the run; the only logged

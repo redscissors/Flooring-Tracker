@@ -31,10 +31,15 @@ const SIDE = ["back", "left", "right"];
  */
 export function schluterWalls(cfg) {
   return (cfg.walls || []).map((w, i) => ({ w, side: SIDE[i] })).filter(({ w }) => w.on)
-    .map(({ w, side }) => ({
-      side, len: +w.len || 0, h: +w.h || 84, at: "lo", faces: "in", wid: side, extra: false,
-      courses: cfg.wallSys === "board" ? [{ lens: courseLens(+w.len || 0) }] : [],
-    }));
+    .map(({ w, side }) => {
+      const h = +w.h || 84;
+      // one floor-to-top course: the plan ticks the 48" butt joints off lens,
+      // the isometric draws the same joints y0→y0+ch up the face
+      return {
+        side, len: +w.len || 0, h, at: "lo", faces: "in", wid: side, extra: false,
+        courses: cfg.wallSys === "board" ? [{ lens: courseLens(+w.len || 0), y0: 0, ch: h }] : [],
+      };
+    });
 }
 
 /** TopDown's thumbnail on/off map, keyed the wedi way (side names). */
@@ -66,14 +71,18 @@ export function schluterCurb(cfg) {
 export function schluterDiag(cfg, cand) {
   const w = +cfg.w || 0, d = +cfg.d || 0;
   const tray = cand && cand.tray;
-  const cut = tray && (tray.w > w || tray.d > d);
+  // the candidate's EFFECTIVE orientation (tw/td, rot) — a point tray may lie
+  // rotated (trayCandidates), and the ghost/cut/drain all follow the turn
+  const tw = tray ? (cand.tw ?? tray.w) : w;
+  const td = tray ? (cand.td ?? tray.d) : d;
+  const cut = tray && (tw > w || td > d);
   const warnings = [];
   let drain;
   if (cfg.drain === "linear") {
     drain = { type: "linear", x: w / 2, y: 2.75, len: Math.max(10, w - 8), axis: "w", note: "" };
   } else {
-    const dx = tray ? Math.min(tray.w / 2, w - 2) : w / 2;
-    const dy = tray ? Math.min(cfg.drain === "offset" ? tray.d * 0.27 : tray.d / 2, d - 2) : d / 2;
+    const dx = tray ? Math.min(tw / 2, w - 2) : w / 2;
+    const dy = tray ? Math.min(cfg.drain === "offset" ? td * 0.27 : td / 2, d - 2) : d / 2;
     drain = { type: "point", x: round2(dx), y: round2(dy), len: 0, axis: null, note: "" };
     const off = Math.max(Math.abs(dx - w / 2), cfg.drain === "offset" ? 0 : Math.abs(dy - d / 2));
     if (cut && off > 1) warnings.push(`the moulded drain lands ${Math.round(off)}" off the room centre after the cut`);
@@ -83,7 +92,7 @@ export function schluterDiag(cfg, cand) {
       kind: "pan",
       item: tray ? { name: tray.name, us: tray.sku } : { name: "Mortar bed + KERDI", us: "" },
       x: 0, y: 0, w, d,
-      cut: cut ? { w: tray.w, d: tray.d } : null,
+      cut: cut ? { w: tw, d: td } : null,
     }],
     drain, room: { w, d }, warnings,
     title: tray ? tray.name : "Mortar bed + KERDI",

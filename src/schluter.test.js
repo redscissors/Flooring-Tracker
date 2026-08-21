@@ -216,6 +216,48 @@ test("buildKit is name-case-immune (live cleaned descriptions build the same bil
   }
 });
 
+// --- Final-review fixes: rotation, board thickness, fastener packs ---
+
+test("a room deeper than wide fits a rotated point tray (linear trays never rotate)", () => {
+  // 38×60 room: the 60×38 KST tray drops in rotated 90° — exact, not mortar
+  const c = cfg({ w: 38, d: 60 });
+  const cands = trayCandidates(c, CAT, { source: "all" });
+  assert.equal(cands[0].kind, "exact");
+  assert.equal(cands[0].tray.sku, "KST965/1525");
+  assert.equal(cands[0].rot, true);
+  assert.deepEqual({ tw: cands[0].tw, td: cands[0].td }, { tw: 38, td: 60 });
+  // a linear tray's channel edge is directional — a 36×55 room must not
+  // reach the 55×36 LTS by rotation
+  const lin = trayCandidates(cfg({ w: 36, d: 55, drain: "linear" }), CAT, { source: "all" });
+  assert.ok(lin.every((x) => !x.rot));
+});
+
+test("board thickness rides the KB<mm> SKU prefix; the ½\" panel wins the wall pick over a thicker, bigger board", () => {
+  assert.equal(by("KB1212202440").thickMm, 12);
+  assert.equal(by("KB506252440").thickMm, 50);
+  // grammar alone marks the 2" board even when the size text is unreadable
+  assert.equal(classify({ sku: "KB506252440", name: "Kerdi-Board 2in Panel", size: "" }).thick2, true);
+  // a synthetic 5/8" 40 sf panel must NOT outrank the stocked ½" 32 sf one
+  const fat = classify({ sku: "KB1612203050", name: "KERDI-BOARD 5/8\" panel", size: '48"×120" = 40 sf', price: 150, cost: 100, stock: true });
+  assert.equal(fat.thickMm, 16);
+  const b = buildKit(cfg({ wallSys: "board" }), CAT.concat([fat]), { source: "all" });
+  const wall = b.lines.find((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+  assert.equal(wall.item.sku, "KB1212202440");
+});
+
+test("fastener quantity follows the box count (100-ct assumption scaled by ct)", () => {
+  const noBig = CAT.filter((i) => i.sku !== "KBZS35GT32Z100");
+  const c = cfg({ wallSys: "board" });
+  const sf = c.walls.reduce((s, x) => s + (x.len * x.h) / 144, 0);   // 79.33 sf of wall
+  const b = buildKit(c, noBig, { source: "all" });
+  const fast = b.lines.find((l) => l.item.fastener);
+  assert.equal(fast.item.ct, 40);
+  assert.equal(fast.qty, Math.ceil((sf * (100 / 60)) / 40));
+  // with the 100-ct box the math reduces to the old ceil(sf/60) — pinned so the recipe doesn't move
+  const b2 = buildKit(c, CAT, { source: "all" });
+  assert.equal(b2.lines.find((l) => l.item.fastener).qty, Math.ceil(sf / 60));
+});
+
 test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead", () => {
   const c = cfg({});
   const build = { ...buildKit(c, CAT, { source: "all" }), mode: "kit", cfg: c };
