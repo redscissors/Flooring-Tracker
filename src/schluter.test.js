@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening } from "./schluter.js";
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -379,4 +379,115 @@ test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead",
   const mortar = { name: "60 lb deck mud", price: 12, cost: 12, stock: true, sfPerBagAt15: 8 };
   const mrows = lineItems({ lines: [{ item: mortar, qty: 4 }], cfg: c }, {});
   assert.equal(mrows[0].brandColor, "60 lb deck mud");
+});
+
+// --- extra walls (cfg.xwalls) + the entry opening -------------------------
+
+test("an added wall's sf rides the wall pick and the ALL-SET count", () => {
+  const base = buildKit(cfg({}), CAT, { source: "all" });
+  const walled = buildKit(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
+  const note = (b) => b.lines.find((l) => l.g === "Walls" && !l.noteOnly).note;
+  assert.match(note(base), /^79 sf of wall/);
+  assert.match(note(walled), /^93 sf of wall/); // + 24×84/144 = 14 sf
+});
+
+test("an entry wall shortens the curb to the opening", () => {
+  const b = buildKit(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
+  const c = b.lines.find((l) => l.g === "Curb");
+  // 60 − 24 = 36" opening → the 38" curb covers it, not the 60"
+  assert.equal(c.item.len, 38);
+  assert.equal(c.qty, 1);
+  assert.match(c.note, /cut to the 3' entry opening/);
+});
+
+test("a fully walled entry carries no curb line at all", () => {
+  const b = buildKit(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 60, h: 84 }] }), CAT, { source: "all" });
+  assert.equal(b.lines.some((l) => l.g === "Curb"), false);
+  // and a curbless room still takes the ramp, walls or not
+  const r = buildKit(cfg({ curbed: false, xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
+  assert.equal(r.lines.some((l) => l.g === "Curb" && l.item.ramp), true);
+});
+
+test("entryOpening clamps walls past the entry width", () => {
+  assert.equal(entryOpening({ w: 60, xwalls: [{ edge: "entry", len: 999 }] }), 0);
+  assert.equal(entryOpening({ w: 60, xwalls: [{ edge: "left", len: 24 }] }), 60);
+});
+
+// --- the pinned drain (cfg.drainX/drainY) ---------------------------------
+
+test("a pinned drain splits the cut to land on the pin", () => {
+  // 50×38 room on the 60×38 tray: 10" total off the width. Unpinned the cut
+  // comes off the far side (drain stays at the moulded 30"); pinned at 20"
+  // from the left the split flips — 10" off the left lands it exactly.
+  const un = trayCandidates(cfg({ w: 50 }), CAT, { source: "all" })[0];
+  assert.equal(un.dx, 30);
+  assert.equal(un.cutL, 0);
+  assert.equal(un.pinned, undefined);
+  const c = trayCandidates(cfg({ w: 50, drainX: 20 }), CAT, { source: "all" })[0];
+  assert.equal(c.tray.sku, "KST965/1525");
+  assert.equal(c.dx, 20);
+  assert.equal(c.cutL, 10);
+  assert.equal(c.miss, 0);
+  assert.equal(c.pinned, true);
+});
+
+test("a pin past the cut's reach clamps and reports the miss", () => {
+  const c = trayCandidates(cfg({ w: 50, drainX: 5 }), CAT, { source: "all" })[0];
+  assert.equal(c.dx, 20); // moulded 30 − the full 10" cut
+  assert.equal(c.miss, 15);
+});
+
+test("pinned rooms rank by miss: a bigger cut that reaches the pin beats an exact tray that can't", () => {
+  const room = cfg({ w: 48, d: 48 });
+  assert.equal(trayCandidates(room, CAT, { source: "all" })[0].cut, 0);
+  // pin 8" off centre: the exact 48×48 trays miss by 8; the 48×72's whole
+  // 24" of cut comes off one width side and lands the pin exactly
+  const pinned = trayCandidates({ ...room, drainX: 16, drainY: 24 }, CAT, { source: "all" });
+  assert.equal(pinned[0].tray.sku, "KST1220/1830");
+  assert.equal(pinned[0].miss, 0);
+  assert.ok(pinned.every((c, i) => i === 0 || c.miss >= pinned[i - 1].miss));
+});
+
+test("a linear room ignores the pin", () => {
+  const c = trayCandidates(cfg({ w: 48, d: 48, drain: "linear", drainX: 10 }), CAT, { source: "all" })[0];
+  assert.equal(c.pinned, undefined);
+  assert.equal(c.miss, 0);
+});
+
+// --- drain preference "any" + corner cuts ---------------------------------
+
+test('"any" preference pools every tray and the PICK decides what gets billed', () => {
+  const room = cfg({ w: 48, d: 48, drain: "any" });
+  const cands = trayCandidates(room, CAT, { source: "all" });
+  // cheapest exact 48x48 leads; the linear 48x48 is in the pool too
+  assert.equal(cands[0].tray.sku, "KST1220BF");
+  const lin = cands.find((c) => c.tray.drain === "linear");
+  assert.ok(lin);
+  // billed off the picked tray, not the stated preference
+  const linBuild = buildKit(room, CAT, { source: "all", pick: lin });
+  assert.ok(linBuild.lines.some((l) => l.item.part === "channel"));
+  assert.equal(linBuild.lines.some((l) => l.item.corner), false);
+  const ptBuild = buildKit(room, CAT, { source: "all", pick: cands[0] });
+  assert.ok(ptBuild.lines.some((l) => l.item.part === "grate"));
+  assert.ok(ptBuild.lines.some((l) => l.item.corner === "inside"));
+});
+
+test('a pinned "any" room scores a linear tray against its channel run, never a free zero', () => {
+  const cands = trayCandidates(cfg({ w: 48, d: 48, drain: "any", drainX: 24, drainY: 24 }), CAT, { source: "all" });
+  assert.equal(cands[0].miss, 0);
+  assert.notEqual(cands[0].tray.drain, "linear");
+  const lin = cands.find((c) => c.tray.drain === "linear");
+  if (lin) assert.equal(lin.miss, 21.25); // pin 24 back vs the channel at 2.75
+});
+
+test("a cut FRONT corner adds the curb's diagonal; a back corner never does", () => {
+  const base = buildKit(cfg({}), CAT, { source: "all" });
+  const fl = buildKit(cfg({ corners: ["fl"] }), CAT, { source: "all" });
+  const bl = buildKit(cfg({ corners: ["bl"] }), CAT, { source: "all" });
+  const curbOf = (b) => b.lines.find((l) => l.g === "Curb");
+  assert.equal(curbOf(base).qty, 1);
+  // 60 + ~4.97 diagonal extra outruns the 60" curb — a second is cut on
+  assert.equal(curbOf(fl).qty, 2);
+  assert.match(curbOf(fl).note, /turns a cut corner diagonally/);
+  assert.equal(curbOf(bl).qty, 1);
 });

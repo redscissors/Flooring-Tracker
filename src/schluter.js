@@ -289,10 +289,29 @@ export function catalogOf(items) {
  * finds its tray; the candidate carries the effective dims as tw/td with
  * rot marking the turn. A linear tray never rotates — its channel edge is
  * directional and belongs at the back wall.
+ *
+ * A pinned drain (cfg.drainX from the left wall, cfg.drainY from the back —
+ * either alone works) splits the cut between the tray's sides instead of
+ * taking it all off the far edges: the moulded drain can land anywhere the
+ * total cut reaches, so each candidate carries the achieved position (dx/dy),
+ * the split (cutL/cutB — the rest comes off the right/front), and `miss`,
+ * how far the drain still lands off the pin. Pinned rooms rank by miss
+ * before cut size. The drain is moulded — a pin never re-pitches the tray,
+ * it only picks which sides the saw takes (the wedi waste-line doctrine).
  */
 export function trayCandidates(cfg, cat, { source } = {}) {
+  const pinX = Number.isFinite(+cfg.drainX) && +cfg.drainX > 0 ? +cfg.drainX : null;
+  const pinY = Number.isFinite(+cfg.drainY) && +cfg.drainY > 0 ? +cfg.drainY : null;
+  const pinned = cfg.drain !== "linear" && (pinX != null || pinY != null);
+  // moulded position → room position: target the pin (or the moulded spot),
+  // clamped to what the total cut can reach and 2" clear of the room edge
+  const place = (m, cutTotal, room, pin) => {
+    const lo = Math.max(2, m - cutTotal), hi = Math.min(room - 2, m);
+    return Math.min(Math.max(pin != null ? pin : m, Math.min(lo, hi)), hi);
+  };
   const pool = cat.filter((i) => i.g === "tray" && (source === "all" || i.stock) &&
-    (cfg.drain === "linear" ? i.drain === "linear"
+    (cfg.drain === "any" ? true
+     : cfg.drain === "linear" ? i.drain === "linear"
      : cfg.drain === "offset" ? i.drain !== "linear"
      : i.drain === "point"));
   const out = [];
@@ -303,15 +322,38 @@ export function trayCandidates(cfg, cat, { source } = {}) {
     let best = null;
     orients.forEach(([tw, td, rot]) => {
       if (!(tw >= cfg.w && td >= cfg.d && (tw - cfg.w) + (td - cfg.d) <= 26)) return;
-      const cut = (tw - cfg.w) + (td - cfg.d);
-      const cand = { tray, tw, td, rot, cut, deep: tw - cfg.w > 6 || td - cfg.d > 6, kind: cut === 0 ? "exact" : "cut" };
-      if (!best || cand.cut < best.cut) best = cand;
+      // round2: a max-mode room's fractional depth otherwise floats the cut
+      // into 10.869999… everywhere it prints
+      const cut = round2((tw - cfg.w) + (td - cfg.d));
+      const cand = { tray, tw, td, rot, cut, deep: tw - cfg.w > 6 || td - cfg.d > 6, kind: cut === 0 ? "exact" : "cut", miss: 0 };
+      if (tray.drain !== "linear") {
+        const mx = tw / 2, my = tray.drain === "offset" ? td * 0.27 : td / 2;
+        cand.dx = round2(place(mx, tw - cfg.w, cfg.w, pinX));
+        cand.dy = round2(place(my, td - cfg.d, cfg.d, pinY));
+        cand.cutL = round2(Math.min(Math.max(mx - cand.dx, 0), tw - cfg.w));
+        cand.cutB = round2(Math.min(Math.max(my - cand.dy, 0), td - cfg.d));
+        if (pinned) {
+          cand.pinned = true;
+          cand.miss = round2(Math.hypot(pinX != null ? cand.dx - pinX : 0, pinY != null ? cand.dy - pinY : 0));
+        }
+      } else if (pinned) {
+        // an "any"-preference pin can meet a linear tray: its channel is a
+        // fixed run at the back wall, so the miss is the pin's distance to
+        // the nearest point on that run — never a free 0 that would let a
+        // linear tray outrank a point tray actually chasing the pin
+        cand.pinned = true;
+        cand.miss = round2(Math.hypot(
+          pinX != null ? Math.min(Math.max(pinX, 4), cfg.w - 4) - pinX : 0,
+          pinY != null ? 2.75 - pinY : 0));
+      }
+      if (!best || (pinned ? cand.miss - best.miss || cand.cut - best.cut : cand.cut - best.cut) < 0) best = cand;
     });
     if (best) out.push(best);
   });
   out.sort((a, b) =>
     ((a.tray.drain === cfg.drain ? 0 : 1) - (b.tray.drain === cfg.drain ? 0 : 1)) ||
     (cfg.curbed === false ? (a.tray.thin ? 0 : 1) - (b.tray.thin ? 0 : 1) : 0) ||
+    (pinned ? a.miss - b.miss : 0) ||
     a.cut - b.cut ||
     a.tray.price - b.tray.price);
   if (!out.length) return [{ kind: "mortar", cut: 0, deep: false }];
@@ -369,8 +411,25 @@ function inches(n) {
   return n % 12 === 0 ? n / 12 + "'" : n + '"';
 }
 
+// The 45° corner-cut leg, the wedi CORNER_CUT default. Deliberately
+// duplicated in schluterdraw.js (the round2/inch precedent) — one number,
+// not worth a cross-module reach.
+const CORNER_CUT = 12;
+
+// Base walls plus any added runs (cfg.xwalls — entry returns, jogs): a wall
+// is wall sf to the material bill whichever edge it sits on.
 function wallArea(cfg) {
-  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + (w.len * w.h) / 144, 0);
+  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + (w.len * w.h) / 144, 0)
+    + (cfg.xwalls || []).reduce((s, x) => s + ((+x.len || 0) * (+x.h || 84)) / 144, 0);
+}
+
+// What the entry walls leave open — the run the curb actually spans. Walls
+// past the entry width can't narrow it below zero.
+export function entryOpening(cfg) {
+  const w = +cfg.w || 0;
+  const walled = (cfg.xwalls || []).filter((x) => x.edge === "entry")
+    .reduce((s, x) => s + Math.min(+x.len || 0, w), 0);
+  return Math.max(0, w - walled);
 }
 
 /**
@@ -418,7 +477,13 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
       (cand.cut ? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit"));
   }
 
-  if (cfg.drain === "linear") {
+  // under an "any" preference the PICKED tray decides what drain gets
+  // billed; a mortar-bed fallback has no tray, so the stated preference
+  // stands (point when the preference itself is "any")
+  const drain = cand.kind === "mortar"
+    ? (cfg.drain === "any" ? "point" : cfg.drain)
+    : cand.tray.drain;
+  if (drain === "linear") {
     // a channel can't be doubled like a curb: a stocked covering channel
     // wins, then a covering SO one (flagged), and only when nothing made
     // covers the run does a shorter channel land — saying it runs short
@@ -469,21 +534,29 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   // stock-narrowed pool must never quietly land one short roll
   const band = bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1];
   add("Seams", band, band ? Math.max(1, Math.ceil(lfNeed / band.lf)) : 0, "seams + tray perimeter");
-  if (cfg.drain !== "linear") {
+  if (drain !== "linear") {
     add("Seams", pickFrom(cat, (i) => i.corner === "inside", { source }), 2, "4 inside — factory kit recipe");
     add("Seams", pickFrom(cat, (i) => i.corner === "outside", { source }), 1, "2 outside — factory kit recipe");
     add("Seams", pickFrom(cat, (i) => i.seal === "pipe", { source }), 1);
     add("Seams", pickFrom(cat, (i) => i.seal === "valve", { source }), 1);
   }
 
-  if (cfg.curbed) {
+  const opening = entryOpening(cfg);
+  // a cut FRONT corner turns the curb diagonally across it: the run gives up
+  // the 12" leg but the diagonal piece is longer, ~5" extra per cut corner
+  const frontCuts = (cfg.corners || []).filter((k) => k === "fl" || k === "fr").length;
+  const curbNeed = round2(opening + frontCuts * (Math.hypot(CORNER_CUT, CORNER_CUT) - CORNER_CUT));
+  if (cfg.curbed && opening > 0) {
     // stock-only prefers stocked multiples cut end-to-end over a covering
     // special-order curb (the P2 example: a SO 60" loses to 2× stocked 48")
     const curbs = stockPool(cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len), source);
-    const c = curbs.find((x) => x.len >= cfg.w) || curbs[curbs.length - 1];
-    add("Curb", c, c ? Math.max(1, Math.ceil(cfg.w / c.len)) : 0,
-      c ? (c.len < cfg.w ? "cut to length end-to-end" : "cut to entry width") + " — incl. 2+2 Kereck corners" : undefined);
-  } else {
+    const c = curbs.find((x) => x.len >= curbNeed) || curbs[curbs.length - 1];
+    add("Curb", c, c ? Math.max(1, Math.ceil(curbNeed / c.len)) : 0,
+      c ? (c.len < curbNeed ? "cut to length end-to-end"
+        : opening < cfg.w ? `cut to the ${inches(opening)} entry opening` : "cut to entry width")
+        + (frontCuts ? ` — turns ${frontCuts === 1 ? "a cut corner" : "2 cut corners"} diagonally` : "")
+        + " — incl. 2+2 Kereck corners" : undefined);
+  } else if (!cfg.curbed) {
     add("Curb", pickFrom(cat, (i) => i.ramp, { source }), 1, '12" run, 1-1/4"→1/4" — ADA slope');
   }
 
