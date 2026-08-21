@@ -9,7 +9,7 @@
 //   { w, d, curbed, drain: "point"|"offset"|"linear",
 //     walls: [{ side: "back"|"left"|"right", on, len, h }] }
 
-import { solve, kitFor, tierPrice as wediTierPrice, round2 } from "./wedi.js";
+import { solve, kitFor, item, tierPrice as wediTierPrice, round2 } from "./wedi.js";
 import { trayCandidates, buildKit, tierPrice as schluterTierPrice } from "./schluter.js";
 
 export const COMPARE_CATS = ["Base", "Drain", "Walls", "Seams", "Curb", "Setting", "Extras"];
@@ -43,11 +43,16 @@ export function roomFromSchluter(cfg) {
 
 export function roomFromWedi(cfg) {
   cfg = cfg || {};
-  const input = (cfg.solve && cfg.solve.input) || {};
-  const drain = input.drain === "offset" ? "offset" : input.drain === "linear" ? "linear" : "point";
+  const input = (cfg.solve && cfg.solve.input) || null;
+  // A Kits-tab pick never ran the solver — kitFor stamps `solve: null` — so the
+  // PAN is the only record of what was built. Defaulting there quoted a linear
+  // or curbless build against a curbed point-drain house kit on the other side.
+  const pan = input ? null : (cfg.panKey ? item(cfg.panKey) : null);
+  const dr = input ? input.drain : (pan && pan.drain && pan.drain.type);
+  const drain = dr === "offset" ? "offset" : dr === "linear" ? "linear" : "point";
   return {
     w: (cfg.room && +cfg.room.w) || 0, d: (cfg.room && +cfg.room.d) || 0,
-    curbed: input.curb !== "curbless",
+    curbed: input ? input.curb !== "curbless" : !(pan && pan.sub === "curbless"),
     drain: drain,
     // a wedi cfg lists only the walls that are standing
     walls: (cfg.walls || []).map((w) => ({ side: w.side, on: true, len: +w.len || 0, h: +w.h || 84 })),

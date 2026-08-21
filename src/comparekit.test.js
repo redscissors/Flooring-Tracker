@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { catalogOf } from "./schluter.js";
-import { item, SKU } from "./wedi.js";
+import { item, kitFor, SKU } from "./wedi.js";
 import {
   COMPARE_CATS, roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
@@ -40,6 +40,47 @@ test("a 60x38 curbed point room round-trips schluter -> wedi -> room", () => {
 test("roomFromWedi reads curbless off the solve input", () => {
   const room = { ...room60x38(), curbed: false };
   assert.equal(roomFromWedi(wediBuildFor(room).cfg).curbed, false);
+});
+
+// A Kits-tab pick never ran the solver, so cfg.solve is null and the PAN is
+// the only record of what was built — reading the defaults there priced a
+// linear or curbless pan against a curbed point-drain Schluter kit.
+const kitCfg = (key) => {
+  const p = item(key);
+  return kitFor(key, { room: { w: Math.max(p.w, p.d), d: Math.min(p.w, p.d) }, mode: "kit" }).cfg;
+};
+
+test("roomFromWedi reads the drain off the pan when a kit build has no solve input", () => {
+  const linear = kitCfg("US9310001");     // 3'x5' Linear Shower Base
+  assert.equal(linear.solve, null);
+  assert.equal(roomFromWedi(linear).drain, "linear");
+  assert.equal(roomFromWedi(linear).curbed, true);
+  const offset = kitCfg("US9100005");     // 3'x6' Shower Base — Offset Drain
+  assert.equal(roomFromWedi(offset).drain, "offset");
+  assert.equal(roomFromWedi(kitCfg("US9100001")).drain, "point");
+});
+
+test("roomFromWedi reads curbless off the pan when a kit build has no solve input", () => {
+  const cfg = kitCfg("US9200001");        // 3'x4' Curbless Shower Base
+  assert.equal(cfg.solve, null);
+  assert.deepEqual(roomFromWedi(cfg), {
+    w: 48, d: 36, curbed: false, drain: "point",
+    walls: [{ side: "back", on: true, len: 48, h: 80 },
+      { side: "left", on: true, len: 36, h: 80 },
+      { side: "right", on: true, len: 36, h: 80 }],
+  });
+});
+
+test("a solve input still wins over the pan it picked", () => {
+  const cfg = { ...kitCfg("US9100001"), solve: { id: "x", input: { curb: "curbless", drain: "linear" } } };
+  const room = roomFromWedi(cfg);
+  assert.equal(room.curbed, false);
+  assert.equal(room.drain, "linear");
+});
+
+test("roomFromWedi still defaults to a curbed point drain with neither solve nor pan", () => {
+  assert.deepEqual(roomFromWedi({ room: { w: 60, d: 38 }, walls: [{ side: "back", len: 60, h: 84 }] }),
+    { w: 60, d: 38, curbed: true, drain: "point", walls: [{ side: "back", on: true, len: 60, h: 84 }] });
 });
 
 // --- (b) the wedi side ------------------------------------------------------

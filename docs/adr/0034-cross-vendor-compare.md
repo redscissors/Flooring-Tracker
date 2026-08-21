@@ -11,8 +11,10 @@ change could quietly undo.
 
 ### 1. `comparekit.js` is the one dual-engine module, and it never boots
 
-`src/comparekit.js` is the first — and should stay the only — module that
-imports `wedi.js` and `schluter.js` together. It owns the mapping and nothing
+`src/comparekit.js` is the first module to import `wedi.js` and `schluter.js`
+together, and outside the compare chunk it should stay the only one —
+`CompareTab.jsx` imports both engines too, for each side's `lineItems`, but
+that file is the compare chunk. It owns the mapping and nothing
 else: neither engine learns about the other, and neither engine's pinned
 totals can move because a compare feature changed (no edits to either engine
 landed this phase).

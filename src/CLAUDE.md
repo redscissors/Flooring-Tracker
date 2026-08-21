@@ -863,13 +863,16 @@ src/
                     # no-op `onQuoteOptions`; not part of the app build
   comparekit.js     # one room priced in BOTH shower systems (phase 5,
                     # ADR 0034) — the first module allowed to import wedi.js
-                    # and schluter.js
-                    # together, and the only one that should: it owns the
-                    # mapping and nothing else, so neither engine has to learn
-                    # about the other and neither engine's pinned totals can
-                    # move. A neutral room ({w,d,curbed,drain,walls[{side,on,
-                    # len,h}]}) sits between them — `roomFromSchluter`/
-                    # `roomFromWedi` read it off either engine's cfg,
+                    # and schluter.js together, and outside the compare chunk
+                    # the only one that should: it owns the mapping and nothing
+                    # else, so neither engine has to learn about the other and
+                    # neither engine's pinned totals can move. A neutral room
+                    # ({w,d,curbed,drain,walls[{side,on,len,h}]}) sits between
+                    # them — `roomFromSchluter`/`roomFromWedi` read it off
+                    # either engine's cfg (a Kits-tab wedi build has no solver
+                    # input — kitFor stamps `solve: null` — so roomFromWedi
+                    # falls back to the PAN's own drain type and curbless
+                    # family, never to a curbed point drain),
                     # `wediBuildFor` re-makes WediConfigurator's own
                     # solve()→kitFor() composition (top-ranked option, mode
                     # "kit", no popup customizations) and `schluterBuildFor`
@@ -889,13 +892,15 @@ src/
                     # substrate); `compareTotals` then excludes them
                     # (comparekit.test.js, over the frozen schluterfixture)
   CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
-                    # the fourth
-                    # tab in EITHER vendor popup — the category rail beside a
-                    # wedi column and a Schluter column, a Retail/Builder lens,
-                    # totals + the delta line (with the walls-aren't-apples-to-
-                    # apples caveat), the three diffnotes cards, and the
-                    # optional quote-options footer. The popup passes its raw
-                    # live cfg as `hostCfg` and the NEUTRAL ROOM is derived HERE
+                    # the fourth tab in EITHER vendor popup — the category rail
+                    # beside a wedi column and a Schluter column, a Retail/
+                    # Builder lens, totals + the delta line (with the
+                    # walls-aren't-apples-to-apples caveat), the three
+                    # diffnotes cards, and the optional quote-options footer,
+                    # whose confirm modal takes its own rung on the Esc ladder
+                    # (useEscClose, ADR 0028) so a press dismisses the modal
+                    # and leaves the live build standing. The popup passes its
+                    # raw live cfg as `hostCfg`, the NEUTRAL ROOM derived HERE
                     # (roomFromWedi/roomFromSchluter) — the popups must never
                     # import comparekit themselves, so the two engines only ever
                     # meet inside this lazy chunk. The HOST column shows that

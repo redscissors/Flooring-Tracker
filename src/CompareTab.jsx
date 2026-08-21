@@ -14,6 +14,7 @@ import {
   COMPARE_CATS, roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
 } from "./comparekit.js";
+import { useEscClose } from "./widgets.jsx";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { mortarItemFrom } from "./schluteradapter.js";
 import { lineItems as wediLineItems } from "./wedi.js";
@@ -110,6 +111,11 @@ export default function CompareTab({
 }) {
   const [lens, setLens] = useState("retail");
   const [confirm, setConfirm] = useState(null);
+
+  // The confirm modal is a layer of its own on the Esc ladder (ADR 0028): it
+  // registers ABOVE the host popup's handler, so one press dismisses the modal
+  // and the next closes the popup. Without it Esc threw away the live build.
+  useEscClose(!!confirm, () => setConfirm(null));
 
   const wPct = wediBuilderPct == null ? 18 : wediBuilderPct;
   const sPct = schluterBuilderPct == null ? 8 : schluterBuilderPct;
@@ -269,6 +275,9 @@ export default function CompareTab({
               <button className="xbtn" onClick={() => setConfirm(null)}><X size={14} /></button>
             </div>
             <div className="bb">
+              {/* The money here is the compare grid's own total, not a re-sum of the
+                  payload rows — they agree because compareTotals and each engine's
+                  lineItems both drop the noteOnly lines and both land RETAIL (ADR 0018). */}
               <div className="orow">
                 <span className="c">A</span><span>wedi — {confirm.wediLines.length} line{confirm.wediLines.length === 1 ? "" : "s"}</span>
                 <span className="v">{fm(wTot.retail)}</span>
