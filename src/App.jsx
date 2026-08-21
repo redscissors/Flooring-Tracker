@@ -24,7 +24,7 @@ import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, T
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
-import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto } from "./options.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
 import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
@@ -583,7 +583,7 @@ export default function App({ user, onSignOut }) {
   useEffect(() => {
     if (loading || restoreSpot || !restoreLayer) return;
     const L = restoreLayer;
-    if (L.kind === "sheoga" || L.kind === "wedi") {
+    if (L.kind === "sheoga" || L.kind === "wedi" || L.kind === "schluter") {
       if (!sel) { setRestoreLayer(null); return; } // the spot restore didn't land a project
       if (!sel._full) return; // full record still loading — re-runs on sel
       setRestoreLayer(null);
@@ -801,6 +801,13 @@ export default function App({ user, onSignOut }) {
   // (ADR 0003).
   const addWediLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
   const addSchluterLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
+  // Compare tab → two sibling option areas beside the host area, in ONE patch:
+  // usedirectory's setter is built off a stale closure, so two updateProject
+  // calls in the same tick would clobber each other.
+  const addCompareOptions = (aid, payload) => {
+    const patch = compareOptionsPatch(sel, aid, payload);
+    if (patch) updateProject(sel.id, patch);
+  };
   // Sheoga opened from the Apps hub has no row/project context. Its lines drop
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else
@@ -2554,12 +2561,19 @@ export default function App({ user, onSignOut }) {
             // wedi lines are the same product-row patches Sheoga emits, so the
             // hub's destination flow reuses the Sheoga landing helpers whole.
             builderPct: normPricing(settings.pricing).wediBuilderPct,
+            // The hub's wedi popup shows the Compare tab too, so it needs the
+            // Schluter side's registry bag and knob (no quote options here —
+            // there is no host area to hang them on).
+            schluterBuilderPct: normPricing(settings.pricing).schluterBuilderPct,
+            stockRows: stockItems, bookStockReady, books, loadBookItems,
+            mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
             currentName: sel?._full ? (sel.name || "Untitled project") : null,
             addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
             addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
           }}
           schluter={{
             builderPct: normPricing(settings.pricing).schluterBuilderPct,
+            wediBuilderPct: normPricing(settings.pricing).wediBuilderPct,
             stockRows: stockItems, bookStockReady, books, loadBookItems,
             mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
             currentName: sel?._full ? (sel.name || "Untitled project") : null,
@@ -2642,10 +2656,15 @@ export default function App({ user, onSignOut }) {
           <Suspense fallback={null}>
           <WediConfigurator seed={wediPop.seed}
             wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
+            schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
             onTierChange={(patch) => updateProject(sel.id, patch)}
             areaName={sel.categories.find((x) => x.id === wediPop.aid)?.name || "this area"}
             projectName={sel.name || ""}
+            stockRows={stockItems} bookStockReady={bookStockReady}
+            books={books} loadBookItems={loadBookItems}
+            mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setWediPop(null)} />
@@ -2666,6 +2685,7 @@ export default function App({ user, onSignOut }) {
           <Suspense fallback={null}>
           <SchluterConfigurator seed={schluterPop.seed}
             schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
+            wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
             onTierChange={(patch) => updateProject(sel.id, patch)}
             areaName={sel.categories.find((x) => x.id === schluterPop.aid)?.name || "this area"}
@@ -2673,6 +2693,7 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setSchluterPop(null)} />

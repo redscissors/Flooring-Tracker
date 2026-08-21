@@ -16,7 +16,15 @@ src/
                     # localStorage, dev builds console.table it (ADR 0026)
   Auth.jsx          # sign-in screen (sign-up disabled by design)
   App.jsx           # the FloorTrack application (props: { user, onSignOut }) —
-                    # the split files below carry its extracted pieces
+                    # the split files below carry its extracted pieces.
+                    # Boot-chunk hygiene (ADR 0026): it may import options.js
+                    # (`compareOptionsPatch` — model.js only) but NEVER
+                    # comparekit.js or CompareTab.jsx; the Compare tab reaches
+                    # it only through each popup's own React.lazy boundary.
+                    # `addCompareOptions(aid, payload)` is the landing —
+                    # ONE `updateProject` with compareOptionsPatch's single
+                    # patch, wired as `onQuoteOptions` on both job-context
+                    # vendor mounts (never on the Apps-hub copies)
   uiconst.js        # shared UI constants: TYPES/TLBL, tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
@@ -552,10 +560,25 @@ src/
                     # not just the walls, so it reads as a header action on every
                     # tab rather than a control of the Custom shower's Walls
                     # group, where it used to hide.
+                    # A FOURTH tab, Compare (phase 5), is the one surface that
+                    # spans the whole body: the build column and the drawings
+                    # rail step aside for CompareTab.jsx (its own React.lazy
+                    # chunk), handed host="wedi", the live `build.cfg` as raw
+                    # `hostCfg` — the neutral room is derived INSIDE CompareTab,
+                    # this popup must never import comparekit.js — the live
+                    # build, source, tier, both builder knobs, and the Schluter
+                    # registry bag (stockRows/bookStockReady/books/
+                    # loadBookItems/mortars/mortarDefault) the tab needs to
+                    # assemble the OTHER engine's catalog. No build yet, or no
+                    # registry rows, is a faint explanatory column, never a
+                    # crash. `onQuoteOptions` lands both bills as option areas
+                    # A/B and is passed only from the JOB-context mount.
                     # Also an Apps-hub tab beside Sheoga (embedded, still its
                     # own lazy chunk): the tier bar falls back to a local
                     # retail-seeded preview and Add raises the hub's shared
-                    # destination prompt (current project / new quick price)
+                    # destination prompt (current project / new quick price);
+                    # the hub gets the registry bag too (so Compare works
+                    # there) but no `onQuoteOptions` — there is no host area
   showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
                     # Iso's constants and math, extracted out of
                     # WediConfigurator.jsx (issue 097, ADR 0033) so a second
@@ -988,6 +1011,12 @@ src/
   AppsWorkspace.jsx # the Apps hub overlay (SettingsWorkspace-style shell) +
                     # the Label Generator UI (preset strip, SKU fill,
                     # drag-to-reorder lines + filler spacers, preview with
-                    # line-boxes toggle, label set, print)
+                    # line-boxes toggle, label set, print). Also hosts the
+                    # embedded vendor configurators, each fed by App.jsx's
+                    # `sheoga`/`wedi`/`schluter` prop bag — both shower bags now
+                    # carry the OTHER engine's builder knob (and the wedi bag
+                    # the Schluter registry props) so the hub's copies render
+                    # their Compare tab; neither gets `onQuoteOptions`, since
+                    # the hub has no host area to hang option A/B on
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 ```
