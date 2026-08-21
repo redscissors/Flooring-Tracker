@@ -32,6 +32,7 @@ test("membrane/band/board/curb/set", () => {
   assert.equal(by("SLRSETA50W").g, "set");
   assert.equal(by("SLRKSR3051220").ramp, true);
   assert.equal(by("SLRKSK9651525PVC").g, "kit");
+  assert.ok(Math.abs(by("KB506252440").sf - 16.33) < 0.01);
 });
 test("non-shower items are null", () => {
   assert.equal(classify({ sku: "SLRA100ATGB", name: '3/8" Schluter Jolly' }), null);

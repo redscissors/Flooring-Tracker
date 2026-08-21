@@ -102,6 +102,7 @@ function boardDims(item) {
   const nums = [...text.matchAll(/([\d.]+)\s*"/g)].map((m) => parseFloat(m[1]));
   if (nums.length === 3) {
     if (nums[0] === 2) out.thick2 = true;
+    // dims-derived sf (no sheet annotation on the 2" board); informational — bench build-up counts pieces, never area
     if (out.sf === undefined) out.sf = (nums[1] * nums[2]) / 144;
   } else if (nums.length === 2 && out.sf === undefined) {
     out.sf = (nums[0] * nums[1]) / 144;
