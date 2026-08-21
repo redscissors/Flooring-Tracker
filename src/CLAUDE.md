@@ -662,7 +662,19 @@ src/
                     # lipped one (decision 6: a curbed tray doesn't belong on
                     # a curbless install even if it cuts less), then cut size,
                     # then price; no fit at all is a single mortar-bed card,
-                    # never silently dropped. `pickFrom`/`stockPool` (phase 4)
+                    # never silently dropped. A pinned drain (cfg.drainX/
+                    # drainY, issue 100 — the wedi waste-line case) never
+                    # moves the MOULDED drain on the tray: it splits the
+                    # total cut between the sides (cutL/cutB vs the far
+                    # edges) to land the drain as close as the tray allows,
+                    # each candidate carrying dx/dy/miss, and pinned rooms
+                    # rank by miss before cut size — so a bigger tray whose
+                    # cut reaches the pin outranks an exact tray that can't.
+                    # Added walls (cfg.xwalls — entry returns, jogs, issue
+                    # 100) feed wallArea like any wall, and `entryOpening`
+                    # is what the entry walls leave open: the curb is picked
+                    # and cut to the OPENING, and a fully walled entry
+                    # carries no curb line at all (curbless still ramps). `pickFrom`/`stockPool` (phase 4)
                     # are the one stock-only rule every buildKit pick runs
                     # through: under "stock" a stocked match wins, a role with
                     # no stocked option lands flagged (grates and channels
@@ -775,14 +787,21 @@ src/
                     # builders the popup feeds to TopDown/Iso exactly as the
                     # wedi popup feeds its own — `schluterDiag` (one
                     # room-sized tray piece, cut dims riding it the wedi
-                    # cutdown way so cut edges dash; the drain at the UNCUT
-                    # tray's moulded position with an off-centre warning past
-                    # 1"; the Vario channel at cfg.w−8 along the back wall),
-                    # `schluterWalls` (the three fixed walls as dWalls;
+                    # cutdown way so cut edges dash; the drain at the
+                    # candidate's ACHIEVED position — the moulded spot, or
+                    # where a pinned drain's cut split lands it (issue 100) —
+                    # keeping the off-centre warning for unpinned cuts and
+                    # warning an unreachable pin's miss instead;
+                    # the Vario channel at cfg.w−8 along the back wall),
+                    # `schluterWalls` (the three fixed walls as dWalls, plus
+                    # cfg.xwalls appended in the wedi extra-wall shape,
+                    # anchored at whichever end their `at` says;
                     # 48"-panel course joints ONLY on board walls — membrane
                     # walls have no seams to tick — with y0/ch so the
                     # isometric draws the same joints), `schluterCurb` (one
-                    # entry run, the KBSC 4½"×6" profile; curbless = no band,
+                    # entry run over the OPENING the entry xwalls leave,
+                    # butting them — fully walled = no band —
+                    # the KBSC 4½"×6" profile; curbless = no band,
                     # the ramp is a build line), `schluterWallOn`. Never
                     # imports wedi.js (ADR 0033 chunk hygiene)
                     # (schluterdraw.test.js)
@@ -804,17 +823,36 @@ src/
   SchluterConfigurator.jsx  # the Schluter popup, a `React.lazy` chunk (ADR
                     # 0026) — the React port of the approved prototype
                     # (.scratch/097, P1/P2), wedi's sibling over the same
-                    # shell idioms: Kits (every tray a row — click one and
-                    # the build column fills the shelf kit; trays gray out
-                    # under Stock only) / Custom shower (room + entry +
-                    # drain, the WALL-SYSTEM FORK — KERDI-over-backer vs
+                    # shell idioms: Kits (every tray a row, grouped by TYPE —
+                    # Point/TT/Offset/Linear family headers, each sorted
+                    # smallest side then longest with the small side leading
+                    # the label, the wedi issue-075 idiom — click one and
+                    # the build column fills the shelf kit and you STAY on
+                    # the tab, the clicked row highlighted; a TT pick lands
+                    # curbless (issue 100 — the old click jumped to Custom);
+                    # trays gray out under Stock only) / Custom shower
+                    # (room + entry +
+                    # drain — with the wedi "from left × back" drain-pin
+                    # inputs, disabled on linear; the engine splits the cut
+                    # to chase the pin, the cards say what it lands, the cut
+                    # list says which sides the saw takes (issue 100) —
+                    # the WALL-SYSTEM FORK — KERDI-over-backer vs
                     # KERDI-BOARD, Schluter's one structural choice wedi
-                    # doesn't have — wall rows whose lengths follow the room,
-                    # ranked tray option cards, add-on chips off the live
-                    # catalog's extras (premade SB bench = decision 4's third
-                    # option, landed here), site-built bench chips, and the
+                    # doesn't have — wall rows whose lengths follow the room
+                    # plus wedi-style ADDED-wall rows (cfg.xwalls: end-flip
+                    # name button, len × h, ×-remove) and a "+ Add wall"
+                    # chip arming placing mode — TopDown's onEdge, which
+                    # half of the edge you click picks the end it returns
+                    # from (issue 100) —
+                    # ranked tray option cards, and the
                     # mortar-bed fallback card with its Settings → Materials
-                    # pick mapped through mortarItemFrom — decision 2) /
+                    # pick mapped through mortarItemFrom — decision 2. The
+                    # add-on chips (extras — premade SB bench = decision 4's
+                    # third option — and both site-built bench forms) moved
+                    # to the BUILD COLUMN's Add-ons group (issue 100, the
+                    # wedi idiom) so a shelf-kit pick reaches them on every
+                    # tab; the marker cfg carries xwalls/drainX/drainY and
+                    # any of them flips mode to "custom") /
                     # Browse (filter board over the classified groups,
                     # factory kits ONLY here — decision 5 — the thin-set/
                     # KERDI figurer, stock-tinted stepper rows), over the

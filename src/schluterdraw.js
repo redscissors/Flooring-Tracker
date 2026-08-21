@@ -24,22 +24,29 @@ const courseLens = (len) => {
 };
 
 const SIDE = ["back", "left", "right"];
+const EDGES = ["back", "left", "right", "entry"];
 
 /**
  * The on walls as showerdraw dWalls. Schluter's three fixed walls map to the
  * wedi side names; each is anchored at its low end and panels its inside face.
+ * Added runs (cfg.xwalls — entry returns, jogs) follow behind them, anchored
+ * at whichever end their `at` says, exactly the wedi extra-wall shape.
  */
 export function schluterWalls(cfg) {
-  return (cfg.walls || []).map((w, i) => ({ w, side: SIDE[i] })).filter(({ w }) => w.on)
-    .map(({ w, side }) => {
-      const h = +w.h || 84;
-      // one floor-to-top course: the plan ticks the 48" butt joints off lens,
-      // the isometric draws the same joints y0→y0+ch up the face
-      return {
-        side, len: +w.len || 0, h, at: "lo", faces: "in", wid: side, extra: false,
-        courses: cfg.wallSys === "board" ? [{ lens: courseLens(+w.len || 0), y0: 0, ch: h }] : [],
-      };
-    });
+  const wall = (side, len, h, at, wid, extra) => ({
+    side, len, h, at, faces: "in", wid, extra,
+    // one floor-to-top course: the plan ticks the 48" butt joints off lens,
+    // the isometric draws the same joints y0→y0+ch up the face
+    courses: cfg.wallSys === "board" ? [{ lens: courseLens(len), y0: 0, ch: h }] : [],
+  });
+  const out = (cfg.walls || []).map((w, i) => ({ w, side: SIDE[i] })).filter(({ w }) => w.on)
+    .map(({ w, side }) => wall(side, +w.len || 0, +w.h || 84, "lo", side, false));
+  (cfg.xwalls || []).forEach((x, i) => {
+    const len = +x.len || 0;
+    if (len > 0) out.push(wall(EDGES.includes(x.edge) ? x.edge : "entry", len, +x.h || 84,
+      x.at === "hi" ? "hi" : "lo", "x" + i, true));
+  });
+  return out;
 }
 
 /** TopDown's thumbnail on/off map, keyed the wedi way (side names). */
@@ -50,13 +57,22 @@ export function schluterWallOn(cfg) {
 }
 
 /**
- * Curb geometry: one run across the entry, the KBSC profile. Curbless builds
+ * Curb geometry: one run across the entry OPENING — the KBSC profile, butting
+ * any entry walls (cfg.xwalls) instead of running under them. Curbless builds
  * carry no curb band — the ramp/recess is a build line, not plan geometry.
  */
 export function schluterCurb(cfg) {
   if (!cfg.curbed) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
+  const w = +cfg.w || 0;
+  let lo = 0, hi = 0;
+  (cfg.xwalls || []).filter((x) => x.edge === "entry").forEach((x) => {
+    const len = Math.min(+x.len || 0, w);
+    if (x.at === "hi") hi = Math.max(hi, len); else lo = Math.max(lo, len);
+  });
+  const len = Math.max(0, w - lo - hi);
+  if (len <= 0) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
   return {
-    segs: [{ side: "entry", from: 0, len: +cfg.w || 0, ext0: 0, ext1: 0 }],
+    segs: [{ side: "entry", from: lo, len, ext0: 0, ext1: 0 }],
     diags: [], h: SCHLUTER_CURB_H, w: SCHLUTER_CURB_W,
   };
 }
@@ -81,11 +97,18 @@ export function schluterDiag(cfg, cand) {
   if (cfg.drain === "linear") {
     drain = { type: "linear", x: w / 2, y: 2.75, len: Math.max(10, w - 8), axis: "w", note: "" };
   } else {
-    const dx = tray ? Math.min(tw / 2, w - 2) : w / 2;
-    const dy = tray ? Math.min(cfg.drain === "offset" ? td * 0.27 : td / 2, d - 2) : d / 2;
+    // the candidate's achieved position (trayCandidates splits the cut to
+    // chase a pinned drain); the old anchored-at-0,0 formula stays as the
+    // fallback for a mortar card or a candidate without the fields
+    const dx = tray ? (cand.dx ?? Math.min(tw / 2, w - 2)) : w / 2;
+    const dy = tray ? (cand.dy ?? Math.min(cfg.drain === "offset" ? td * 0.27 : td / 2, d - 2)) : d / 2;
     drain = { type: "point", x: round2(dx), y: round2(dy), len: 0, axis: null, note: "" };
     const off = Math.max(Math.abs(dx - w / 2), cfg.drain === "offset" ? 0 : Math.abs(dy - d / 2));
-    if (cut && off > 1) warnings.push(`the moulded drain lands ${Math.round(off)}" off the room centre after the cut`);
+    // a pinned drain is off-centre on purpose — only a pin the cut can't
+    // reach warns; the room-centre warning stays for unpinned cuts
+    if (cand && cand.pinned) {
+      if (cand.miss > 0.5) warnings.push(`the moulded drain lands ${Math.round(cand.miss)}" off the pinned point — the cut can't reach further`);
+    } else if (cut && off > 1) warnings.push(`the moulded drain lands ${Math.round(off)}" off the room centre after the cut`);
   }
   return {
     pieces: [{

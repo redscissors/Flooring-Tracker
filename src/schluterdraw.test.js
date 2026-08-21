@@ -106,3 +106,42 @@ test("the classified tray feeding the diag is the adapter's shape too", () => {
   const o = schluterDiag(cfg({}), { tray, cut: 0, deep: false, kind: "exact" });
   assert.equal(o.title, tray.name);
 });
+
+test("added walls (cfg.xwalls) ride into dWalls, anchored at their end", () => {
+  const c = cfg({ wallSys: "board", xwalls: [{ edge: "entry", at: "hi", len: 24, h: 40 }] });
+  const dw = schluterWalls(c);
+  assert.equal(dw.length, 4);
+  const x = dw[3];
+  assert.deepEqual(
+    (({ side, at, len, h, extra }) => ({ side, at, len, h, extra }))(x),
+    { side: "entry", at: "hi", len: 24, h: 40, extra: true });
+  assert.deepEqual(x.courses, [{ lens: [24], y0: 0, ch: 40 }]);
+  // membrane walls carry no course ticks, added or not
+  assert.deepEqual(schluterWalls(cfg({ xwalls: [{ edge: "entry", len: 24, h: 40 }] }))[3].courses, []);
+});
+
+test("the curb spans the entry opening, butting the entry walls", () => {
+  const one = schluterCurb(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }));
+  assert.deepEqual(one.segs, [{ side: "entry", from: 24, len: 36, ext0: 0, ext1: 0 }]);
+  const both = schluterCurb(cfg({ xwalls: [
+    { edge: "entry", at: "lo", len: 12, h: 84 }, { edge: "entry", at: "hi", len: 18, h: 84 }] }));
+  assert.deepEqual(both.segs, [{ side: "entry", from: 12, len: 30, ext0: 0, ext1: 0 }]);
+  // fully walled entry: no curb band left to draw
+  assert.deepEqual(schluterCurb(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 60, h: 84 }] })).segs, []);
+  // a side wall never narrows the entry run
+  assert.equal(schluterCurb(cfg({ xwalls: [{ edge: "left", at: "lo", len: 24, h: 84 }] })).segs[0].len, 60);
+});
+
+test("a pinned candidate's achieved drain position draws, without the centre warning", () => {
+  const c = cfg({ w: 50, drainX: 20 });
+  const cand = candFor(c);
+  assert.equal(cand.miss, 0);
+  const o = schluterDiag(c, cand);
+  assert.equal(o.drain.x, 20);
+  assert.deepEqual(o.warnings, []);
+  // a pin the cut can't reach warns with the miss
+  const far = cfg({ w: 50, drainX: 5 });
+  const o2 = schluterDiag(far, candFor(far));
+  assert.equal(o2.warnings.length, 1);
+  assert.match(o2.warnings[0], /off the pinned point/);
+});

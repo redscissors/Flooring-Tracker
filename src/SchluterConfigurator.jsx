@@ -65,6 +65,12 @@ const GROUPS = ["Base", "Drain", "Walls", "Seams", "Curb", "Setting", "Extras"];
 const inches = (n) => (n % 12 === 0 ? n / 12 + "'" : n + '"');
 const szLbl = (t) => `${inches(t.w)}×${inches(t.d)}`;
 
+const EDGE_LBL = { back: "Back", left: "Left", right: "Right", entry: "Entry" };
+// Which end of its edge an added wall returns from (the wedi naming): a
+// back/entry wall reads left/right, a side wall back/entry.
+const endLabel = (x) => ((x.edge === "back" || x.edge === "entry")
+  ? (x.at === "hi" ? "right" : "left") : (x.at === "hi" ? "entry" : "back"));
+
 // Add-on chip labels: the catalog names are long; the chips keep the part
 // that differs (the prototype's replacements).
 const extraLbl = (name) => String(name || "")
@@ -113,6 +119,7 @@ const CSS = `
 .sch-pop .kitrow{display:flex;align-items:center;gap:10px;width:100%;padding:2px 6px;border:0;border-bottom:1px solid var(--ft-row-line);background:none;cursor:pointer;text-align:left;color:inherit;min-height:23px}
 .sch-pop .kitrow:hover{background:var(--ft-hover)}
 .sch-pop .kitrow.dis{opacity:.38;cursor:not-allowed}
+.sch-pop .kitrow.on{background:var(--ft-tint);box-shadow:inset 2px 0 0 var(--ft-brand)}
 .sch-pop .kitrow .sz{font-weight:800;width:110px;flex:none;font-size:12px;letter-spacing:-.01em}
 .sch-pop .kitrow .sz small{font-weight:600;color:var(--ft-faint);font-size:10px;margin-left:4px}
 .sch-pop .kitrow .tag{font-size:9.5px;font-weight:700;color:var(--ft-muted);background:var(--ft-sand);border-radius:4px;padding:1px 6px;flex:none}
@@ -133,6 +140,7 @@ const CSS = `
 .sch-pop .rfgrp.room{flex-grow:1.5}
 .sch-pop .rseg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .sch-pop .rf{max-width:100%}
+.sch-pop .rf.dim{opacity:.55}
 .sch-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:3px 8px;cursor:pointer;white-space:nowrap}
 .sch-pop .rseg button + button{border-left:1px solid var(--ft-border)}
 .sch-pop .rseg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
@@ -145,6 +153,14 @@ const CSS = `
 .sch-pop .win{width:40px;flex:none;border:1px solid var(--ft-border-strong);border-radius:4px;font-size:10.5px;font-weight:700;text-align:center;padding:2px;background:var(--ft-card);color:var(--ft-text)}
 .sch-pop .win:disabled{opacity:.5}
 .sch-pop .wallrow .wu{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sch-pop .wname small{font-weight:600;margin-left:3px;opacity:.8;font-size:8.5px;text-transform:none}
+.sch-pop .wname.x{width:auto;min-width:44px;padding:2px 6px}
+.sch-pop .xdel{cursor:pointer;color:var(--s-rust);font-weight:800;padding:0 2px}
+.sch-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 0 2px}
+.sch-pop .addchip{border:1px dashed var(--ft-border-strong);background:var(--ft-card);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;color:var(--ft-muted);cursor:pointer}
+.sch-pop .addchip.on{border-style:solid;background:var(--ft-brand-soft);border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.sch-pop .addchip:disabled{opacity:.4;cursor:not-allowed}
+.sch-pop .diagcol .dc-hint{background:#FBF3E4;border:1px solid #E5C07B;border-radius:6px;color:#7A5B1F;font-size:10.5px;font-weight:700;padding:6px 9px;margin-bottom:6px}
 .sch-pop .optrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:9px;margin-bottom:10px}
 .sch-pop .optcard{min-width:0;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:9px 11px;cursor:pointer;text-align:left;color:inherit}
 .sch-pop .optcard:hover{border-color:var(--ft-brand)}
@@ -157,11 +173,6 @@ const CSS = `
 .sch-pop .optcard .foot .pr{font-weight:800;font-size:12.5px;margin-left:auto;font-variant-numeric:tabular-nums}
 .sch-pop .stockdot{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px}
 .sch-pop .stockdot.so{color:var(--s-rust);background:var(--ft-hover-red,#F7E8E1)}
-.sch-pop .chipset{display:flex;gap:5px;flex-wrap:wrap}
-.sch-pop .chip{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-muted);border-radius:6px;font-size:11px;font-weight:700;padding:4px 9px;cursor:pointer}
-.sch-pop .chip:hover:not(.on):not(:disabled){background:var(--ft-hover);color:var(--ft-text)}
-.sch-pop .chip.on{background:var(--ft-seg-on-bg);border-color:var(--ft-brand);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 .5px var(--ft-brand)}
-.sch-pop .chip:disabled{opacity:.35;cursor:not-allowed}
 .sch-pop .mortarcard{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:11.5px;color:var(--ft-muted);font-weight:600;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .sch-pop .mortarcard select{border:1px solid var(--ft-border-strong);border-radius:6px;background:var(--ft-card);color:var(--ft-text);font-size:11.5px;font-weight:700;padding:3px 6px}
 .sch-pop .browsebar{display:flex;gap:8px;margin-bottom:10px}
@@ -261,7 +272,8 @@ const DEF_WALLS = [
 function seedState(seed) {
   const s = {
     tab: "kits", w: "60", d: "38", curbed: true, drain: "point", wallSys: "membrane",
-    walls: DEF_WALLS.map((x) => ({ ...x })), bench: null, mortarName: "",
+    walls: DEF_WALLS.map((x) => ({ ...x })), xwalls: [], bench: null, mortarName: "",
+    drainX: "", drainY: "",
     manual: [], q: "", source: "all", kitPick: false, pick: null,
   };
   if (!seed) return s;
@@ -276,6 +288,12 @@ function seedState(seed) {
     if (Array.isArray(cfg.walls) && cfg.walls.length === 3) {
       s.walls = s.walls.map((w, i) => ({ ...w, on: cfg.walls[i].on !== false, h: String(+cfg.walls[i].h || 84) }));
     }
+    s.xwalls = Array.isArray(cfg.xwalls) ? cfg.xwalls.map((x, i) => ({
+      id: i + 1, edge: ["back", "left", "right", "entry"].includes(x.edge) ? x.edge : "entry",
+      at: x.at === "hi" ? "hi" : "lo", len: String(+x.len || ""), h: String(+x.h || ""),
+    })) : [];
+    s.drainX = +cfg.drainX > 0 ? String(cfg.drainX) : "";
+    s.drainY = +cfg.drainY > 0 ? String(cfg.drainY) : "";
     s.bench = cfg.bench === "framed" || cfg.bench === "buildup" ? cfg.bench : null;
     s.mortarName = cfg.mortarItem?.name || "";
     s.manual = Array.isArray(cfg.manual) ? cfg.manual.map((m) => ({ ...m })) : [];
@@ -313,6 +331,11 @@ export default function SchluterConfigurator({
   const [drain, setDrain] = useState(s0.drain);
   const [wallSys, setWallSys] = useState(s0.wallSys);
   const [walls, setWalls] = useState(s0.walls);
+  const [xwalls, setXwalls] = useState(s0.xwalls);
+  const [placing, setPlacing] = useState(false);
+  const wallSeq = useRef(s0.xwalls.length);
+  const [drainX, setDrainX] = useState(s0.drainX);
+  const [drainY, setDrainY] = useState(s0.drainY);
   const [bench, setBench] = useState(s0.bench);
   const [mortarName, setMortarName] = useState(s0.mortarName);
   const [manual, setManual] = useState(s0.manual);
@@ -401,11 +424,17 @@ export default function SchluterConfigurator({
   const mortarItem = useMemo(
     () => mortarItemFrom(mortarName || mortarDefault || "", mortars || {}),
     [mortarName, mortarDefault, mortars]);
+  const liveXwalls = useMemo(
+    () => xwalls.filter((x) => +x.len > 0).map((x) => ({ edge: x.edge, at: x.at, len: +x.len, h: +x.h || 84 })),
+    [xwalls]);
   const cfg = useMemo(() => ({
     w: +w || 0, d: +d || 0, curbed, drain, wallSys, bench,
     walls: walls.map((x, i) => ({ name: x.name, on: x.on, len: i === 0 ? +w || 0 : +d || 0, h: +x.h || 84 })),
+    ...(liveXwalls.length ? { xwalls: liveXwalls } : {}),
+    ...(drain !== "linear" && +drainX > 0 ? { drainX: +drainX } : {}),
+    ...(drain !== "linear" && +drainY > 0 ? { drainY: +drainY } : {}),
     ...(mortarItem ? { mortarItem } : {}),
-  }), [w, d, curbed, drain, wallSys, bench, walls, mortarItem]);
+  }), [w, d, curbed, drain, wallSys, bench, walls, liveXwalls, drainX, drainY, mortarItem]);
 
   // a blanked size input mid-edit means "no room yet" — no candidates, no
   // build, no drawings (topGeom would divide by the room dims)
@@ -422,7 +451,7 @@ export default function SchluterConfigurator({
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, cat, source, pickCand, manual]);
-  const mode = kitPick && !manual.length && !bench ? "kit" : "custom";
+  const mode = kitPick && !manual.length && !bench && !liveXwalls.length && !cfg.drainX && !cfg.drainY ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
   // the candidate that was quoted, not whatever ranks first that day
   const markCfg = useMemo(() => ({ ...cfg, manual, source, pick: pickCand?.tray?.sku || null }), [cfg, manual, source, pickCand]);
@@ -473,7 +502,17 @@ export default function SchluterConfigurator({
     if (!build || !pickCand) return [];
     const out = [];
     if (pickCand.tray && pickCand.cut) {
-      out.push(`✂ Cut ${pickCand.tray.sku} to ${inches(cfg.w)} × ${inches(cfg.d)} (from ${inches(pickCand.tw)}×${inches(pickCand.td)}${pickCand.rot ? ", laid rotated" : ""})${pickCand.deep ? " — deep cut, drain moves off-centre" : ""}`);
+      // a pinned drain splits the cut between the sides — the saw plan says which
+      const bits = [];
+      if (pickCand.pinned) {
+        const cutR = round2((pickCand.tw - cfg.w) - (pickCand.cutL || 0));
+        const cutF = round2((pickCand.td - cfg.d) - (pickCand.cutB || 0));
+        if (pickCand.cutL > 0.05) bits.push(`${pickCand.cutL}″ off the left`);
+        if (cutR > 0.05) bits.push(`${cutR}″ off the right`);
+        if (pickCand.cutB > 0.05) bits.push(`${pickCand.cutB}″ off the back`);
+        if (cutF > 0.05) bits.push(`${cutF}″ off the front`);
+      }
+      out.push(`✂ Cut ${pickCand.tray.sku} to ${inches(cfg.w)} × ${inches(cfg.d)} (from ${inches(pickCand.tw)}×${inches(pickCand.td)}${pickCand.rot ? ", laid rotated" : ""})${bits.length ? " — " + bits.join(", ") + " to land the drain on the pin" : ""}${pickCand.deep ? " — deep cut, drain moves off-centre" : ""}`);
     }
     const ch = build.lines.find((l) => l.item.part === "channel");
     const chCut = ch && (ch.note || "").match(/cut to [\d.]+"/);
@@ -521,27 +560,55 @@ export default function SchluterConfigurator({
     </div>
   );
 
-  const trays = useMemo(() => cat.filter((i) => i.g === "tray")
-    .sort((a, b) => ((a.drain === "linear" ? 1 : 0) - (b.drain === "linear" ? 1 : 0)) || (a.w * a.d) - (b.w * b.d) || a.sku.localeCompare(b.sku)), [cat]);
+  const trays = useMemo(() => cat.filter((i) => i.g === "tray"), [cat]);
 
+  // The wedi Kits idiom (issue 075): families by TYPE, each sorted smallest
+  // side then longest so every 3-footer sits together. w is the longer dim
+  // (classify), so d leads the sort.
+  const TRAY_FAMS = [
+    ["point", "Point drain — KERDI-SHOWER-T", (t) => t.drain === "point" && !t.thin],
+    ["thin", "Curbless — TT (thin, no lip)", (t) => !!t.thin],
+    ["offset", "Offset drain — TS", (t) => t.drain === "offset"],
+    ["linear", "Linear drain — LTS", (t) => t.drain === "linear"],
+  ];
+  const bySize = (a, b) => (a.d - b.d) || (a.w - b.w) || a.sku.localeCompare(b.sku);
+  // the row leads with the SMALL side (the wedi convention) so the
+  // smallest-side sort reads as ascending down the family
+  const rowSz = (t) => `${inches(t.d)}×${inches(t.w)}`;
+
+  // A kit click fills the build column and STAYS here (the wedi Kits-tab
+  // behavior — the Custom tab is where a room gets tuned, not a detour every
+  // click takes). It hard-resets to the shelf kit: room = tray, add-ons and
+  // added walls cleared, curb following the tray's line (TT = curbless).
   const pickKit = (t) => {
-    setW(String(t.w)); setD(String(t.d)); setDrain(t.drain);
-    setBench(null); setManual([]); setPick(null); setKitPick(true); setTab("custom");
+    setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
+    setBench(null); setManual([]); setXwalls([]); setDrainX(""); setDrainY("");
+    setPick(t.sku); setKitPick(true); setPlacing(false);
   };
 
   const kitsTab = !catReady || !cat.length ? loadingPane : (
     <>
-      <div className="fam-h"><div className="t">Trays</div>
-        <div className="hint">the whole KST / LTS lineup — click one and the build column fills the shelf kit in. The factory boxed kits (special order) live in Browse → Factory kits</div></div>
-      {trays.map((t) => {
-        const dis = source === "stock" && !t.stock;
+      {TRAY_FAMS.map(([key, label, hit]) => {
+        const list = trays.filter(hit).sort(bySize);
+        if (!list.length) return null;
         return (
-          <button key={t.sku} className={"kitrow" + (dis ? " dis" : "")} disabled={dis} onClick={() => pickKit(t)} data-schluter-tray={t.sku}>
-            <span className="sz">{szLbl(t)}<small>{t.drain}</small></span>
-            <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
-            <span className="sku">{t.sku} — {t.name}</span>
-            <span className="pr" style={{ color: tierColor }}>{fm(tierOf(t))}</span>
-          </button>
+          <div key={key} style={{ marginBottom: 9 }}>
+            <div className="fam-h"><div className="t">{label}</div>
+              {key === "point" && <div className="hint">click one — the build column fills the shelf kit in and you stay here. The factory boxed kits (special order) live in Browse → Factory kits</div>}
+            </div>
+            {list.map((t) => {
+              const dis = source === "stock" && !t.stock;
+              const on = kitPick && pickCand?.tray?.sku === t.sku;
+              return (
+                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => pickKit(t)} data-schluter-tray={t.sku}>
+                  <span className="sz">{rowSz(t)}</span>
+                  <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
+                  <span className="sku">{t.sku} — {t.name}</span>
+                  <span className="pr" style={{ color: tierColor }}>{fm(tierOf(t))}</span>
+                </button>
+              );
+            })}
+          </div>
         );
       })}
     </>
@@ -560,8 +627,9 @@ export default function SchluterConfigurator({
         onClick={() => { setKitPick(false); setPick(c.tray.sku); }} data-schluter-opt={c.tray.sku}>
         <div className={"rank" + (c.deep ? " warn" : "")}>{c.kind === "exact" ? "Exact tray" : c.deep ? "Deep cut" : "Cut down"}</div>
         <div className="big">{szLbl(c.tray)}</div>
-        <div className="sub">{c.kind === "exact" ? `Drops in as-is${c.rot ? ", laid rotated" : ""}, drain on layout.`
-          : `Trim ${c.cut}″ total${c.rot ? ", laid rotated," : ""} to hit ${inches(cfg.w)}×${inches(cfg.d)}${c.deep ? " — past the 6″ soft rule, drain moves off-centre" : ""}.`}</div>
+        <div className="sub">{(c.kind === "exact" ? `Drops in as-is${c.rot ? ", laid rotated" : ""}, drain on layout.`
+          : `Trim ${c.cut}″ total${c.rot ? ", laid rotated," : ""} to hit ${inches(cfg.w)}×${inches(cfg.d)}${c.deep ? " — past the 6″ soft rule, drain moves off-centre" : ""}.`)
+          + (c.pinned ? (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the pin.` : " Cut split lands the drain on the pin.") : "")}</div>
         <div className="foot">
           <span className={"stockdot" + (c.tray.stock ? "" : " so")}>{c.tray.stock ? "stock" : "special order"}</span>
           <span className="pr" style={{ color: tierColor }}>{fm(tierOf(c.tray))}</span>
@@ -610,6 +678,19 @@ export default function SchluterConfigurator({
                   <button className={drain === "linear" ? "on" : ""} onClick={custom(() => setDrain("linear"))}>Linear at wall</button>
                 </div>
               </div>
+              <div className={"rf" + (drain === "linear" ? " dim" : "")}
+                title={drain === "linear" ? "a linear channel runs at the back wall — nothing to pin"
+                  : "pin an existing waste line — the tray's drain is moulded, so the cut is split between the sides to land it as close as the tray allows"}>
+                <label>Drain — from left × back</label>
+                <div className="dims">
+                  <input className="rinp" type="number" placeholder="auto" disabled={drain === "linear"} value={drainX}
+                    onChange={(e) => { setKitPick(false); setDrainX(e.target.value); }} data-schluter-dx />
+                  <span>×</span>
+                  <input className="rinp" type="number" placeholder="auto" disabled={drain === "linear"} value={drainY}
+                    onChange={(e) => { setKitPick(false); setDrainY(e.target.value); }} data-schluter-dy />
+                  <span>in</span>
+                </div>
+              </div>
             </div>
           </div>
           <div className="rfgrp">
@@ -633,29 +714,30 @@ export default function SchluterConfigurator({
                 <span className="wu">{x.on ? (((i === 0 ? +w : +d) || 0) * (+x.h || 0) / 144).toFixed(1) + " sf" : "off"}</span>
               </div>
             ))}
+            {xwalls.map((x) => (
+              <div className="wallrow" key={"x" + x.id}>
+                <button className="wname x on" title={"which end it returns from — click to move it (" + endLabel(x) + "). The × on the right removes it"}
+                  onClick={() => { setKitPick(false); setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, at: y.at === "hi" ? "lo" : "hi" } : y))); }}>
+                  {EDGE_LBL[x.edge]} <small>{endLabel(x)}</small></button>
+                <input className="win" type="number" value={x.len} placeholder="len"
+                  onChange={(e) => { const v = e.target.value; setKitPick(false); setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, len: v } : y))); }} />
+                <span>×</span>
+                <input className="win" type="number" value={x.h} placeholder="84"
+                  onChange={(e) => { const v = e.target.value; setKitPick(false); setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, h: v } : y))); }} />
+                <span className="wu">{(((+x.len || 0) * (+x.h || 84)) / 144).toFixed(1)} sf ·{" "}
+                  <b className="xdel" onClick={() => setXwalls((xs) => xs.filter((y) => y.id !== x.id))}>×</b></span>
+              </div>
+            ))}
+            <div className="addchips">
+              <button className={"addchip" + (placing ? " on" : "")}
+                onClick={() => setPlacing((v) => !v)}>{placing ? "Click an edge on the drawing…" : "+ Add wall"}</button>
+            </div>
           </div>
         </div>
       </div>
       {mortarCard}
-      <div className="fam-h"><div className="t">Options</div><div className="hint">ranked — click one to build from it</div></div>
+      <div className="fam-h"><div className="t">Options</div><div className="hint">ranked — click one to build from it. Add-ons and benches live on the build column, every tab (the wedi idiom)</div></div>
       <div className="optrow">{optCards}</div>
-      <div className="fam-h"><div className="t">Add-ons</div><div className="hint">niches, premade benches — land as build lines</div></div>
-      <div className="chipset">
-        {cat.filter((i) => i.g === "extra").map((x) => {
-          const on = qtyIn(x.sku) > 0;
-          const dis = source === "stock" && !x.stock;
-          return (
-            <button key={x.sku} className={"chip" + (on ? " on" : "")} disabled={dis}
-              onClick={() => setQty(x.sku, on ? 0 : 1)} data-schluter-extra={x.sku}>{extraLbl(x.name)}</button>
-          );
-        })}
-      </div>
-      <div className="fam-h" style={{ marginTop: 10 }}><div className="t">Site-built bench</div>
-        <div className="hint">the wedi bench doctrine — premade (above) sits on the tray; framed interrupts the envelope; 2″ board builds up on it</div></div>
-      <div className="chipset">
-        <button className={"chip" + (bench === "framed" ? " on" : "")} onClick={() => { setBench((b) => (b === "framed" ? null : "framed")); }}>Framed + ½″ board wrap</button>
-        <button className={"chip" + (bench === "buildup" ? " on" : "")} onClick={() => { setBench((b) => (b === "buildup" ? null : "buildup")); }}>2″ board build-up on tray</button>
-      </div>
     </>
   );
 
@@ -792,6 +874,30 @@ export default function SchluterConfigurator({
               </div>
             );
           })}
+          {/* The wedi add-on idiom: the chips live on the build column so a
+              shelf-kit pick gets its niches and benches without leaving the
+              Kits tab. Premades toggle a manual line; the two site-built
+              forms set cfg.bench and the engine bills them. */}
+          <div className="bgroup">
+            <div className="bg-h">Add-ons</div>
+            <div className="addchips">
+              {cat.filter((i) => i.g === "extra").map((x) => {
+                const on = qtyIn(x.sku) > 0;
+                const dis = source === "stock" && !x.stock;
+                return (
+                  <button key={x.sku} className={"addchip" + (on ? " on" : "")} disabled={dis}
+                    title={x.name + (x.stock ? "" : " — special order")}
+                    onClick={() => setQty(x.sku, on ? 0 : 1)} data-schluter-extra={x.sku}>{(on ? "✓ " : "+ ") + extraLbl(x.name)}</button>
+                );
+              })}
+              <button className={"addchip" + (bench === "framed" ? " on" : "")}
+                title="installer-framed bench, wrapped in ½″ KERDI-BOARD"
+                onClick={() => setBench((b) => (b === "framed" ? null : "framed"))}>{(bench === "framed" ? "✓ " : "+ ") + "Framed bench + ½″ wrap"}</button>
+              <button className={"addchip" + (bench === "buildup" ? " on" : "")}
+                title="2″ KERDI-BOARD build-up on the finished tray — top + face + supports"
+                onClick={() => setBench((b) => (b === "buildup" ? null : "buildup"))}>{(bench === "buildup" ? "✓ " : "+ ") + "2″ build-up bench"}</button>
+            </div>
+          </div>
           {stockStat && (
             <div className="bc-meter">
               <div className="mlab"><span>From stock</span><span>{stockStat.n} of {stockStat.of} lines · {fm(stockStat.val)} of {fm(stockStat.tot)}</span></div>
@@ -829,8 +935,20 @@ export default function SchluterConfigurator({
         <div className="dc-h">The shower</div>
         <div className="dc-empty">Pick a tray or solve a room — the drawings render here for whatever is selected.</div>
       </>) : (<>
+        {placing && <div className="dc-hint">Click an edge to add a wall — which half you click picks the end it returns from</div>}
         <TopDown o={diag} w={railFit.w} h={railFit.plan} wallOn={wallOn} dWalls={dWalls} benches={[]}
-          cuts={[]} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} />
+          cuts={[]} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} placing={placing}
+          onEdge={(edge, geo) => {
+            wallSeq.current += 1;
+            const at = geo.at === "hi" ? "hi" : "lo";
+            setXwalls((xs) => [...xs, {
+              id: wallSeq.current, edge, at,
+              len: String(round2(edge === "entry" ? Math.min(24, geo.rw) : edge === "back" ? geo.rw : geo.rd)),
+              h: "",
+            }]);
+            setPlacing(false);
+            setKitPick(false);
+          }} />
         <Iso o={diag} w={railFit.w} h={railFit.iso} dWalls={dWalls} benches={[]}
           cuts={[]} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w} />
         {cutList.length > 0 && (<>
