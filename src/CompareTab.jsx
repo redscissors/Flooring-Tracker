@@ -103,7 +103,7 @@ function Column({ rows, lens, cat, miss, first }) {
 }
 
 export default function CompareTab({
-  host, hostCfg, hostBuild, cat, source, tier,
+  host, hostCfg, hostBuild, cat, source, tier, hostMode = "custom",
   wediBuilderPct, schluterBuilderPct,
   stockRows, bookStockReady, books, loadBookItems,
   mortars, mortarDefault, areaName, onQuoteOptions,
@@ -166,7 +166,7 @@ export default function CompareTab({
   const openQuote = () => {
     const wediLines = wediBuild ? wediLineItems(wediBuild, { tier, builderPct: wPct }) : [];
     const schluterLines = sch.build
-      ? schluterLineItems({ ...sch.build, mode: "custom", cfg: sch.cfg || {} }, { builderPct: sPct })
+      ? schluterLineItems({ ...sch.build, mode: wediHost ? "custom" : hostMode, cfg: sch.cfg || {} }, { builderPct: sPct })
       : [];
     setConfirm({ wediLines, schluterLines });
   };
@@ -255,7 +255,7 @@ export default function CompareTab({
       {onQuoteOptions && (
         <div className="qfoot">
           <span className="hint">Land both builds on this area as quote options — the estimate prints them side by side.</span>
-          <button className="cbtn primary" disabled={!wediBuild && !sch.build} onClick={openQuote}>
+          <button className="cbtn primary" disabled={!!wediMiss || !!schMiss} onClick={openQuote}>
             Quote options: wedi → A · Schluter → B
           </button>
         </div>

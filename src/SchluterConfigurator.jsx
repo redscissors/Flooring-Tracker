@@ -906,6 +906,7 @@ export default function SchluterConfigurator({
   const compareTab = (
     <Suspense fallback={null}>
       <CompareTab host="schluter" hostCfg={markCfg} hostBuild={build} cat={cat}
+        hostMode={mode}
         source={source} tier={tierId}
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
         mortars={mortars} mortarDefault={mortarDefault}
