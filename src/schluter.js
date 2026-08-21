@@ -449,6 +449,7 @@ export function lineItems(build, cfg, opts) {
     const e = l.item;
     return {
       type: "misc",
+      // live registry rows are not fixture-shaped — a stock row may carry its shop number in sku with no erp field
       sku: e.stock ? e.erp || e.sku || "" : "",
       sizeText: e.size || "",
       brandColor: e.name,

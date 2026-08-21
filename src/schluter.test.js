@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, buildKit, linesTotal, tierPrice } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, buildKit, linesTotal, tierPrice, lineItems } from "./schluter.js";
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -133,4 +133,20 @@ test("tier lens", () => {
   assert.equal(tierPrice(tray, "cost", {}), 81.27);
   const kit = CAT.find((e) => e.g === "kit");
   assert.equal(tierPrice(kit, "retail", {}), +(kit.cost * 1.5).toFixed(2));
+});
+
+test("lineItems preserves sku when stock item has no erp (live registry shape)", () => {
+  // live registry rows may have shop number in sku with no erp field
+  const trayNoErp = {
+    ...FIXTURE_ITEMS.find((i) => i.sku === "KST965/1525"),
+    erp: undefined, // simulate live registry row without erp
+  };
+  const build = {
+    lines: [
+      { item: trayNoErp, qty: 1, noteOnly: false },
+    ],
+  };
+  const result = lineItems(build, cfg({}), {});
+  assert.equal(result.length, 1);
+  assert.equal(result[0].sku, "KST965/1525");
 });
