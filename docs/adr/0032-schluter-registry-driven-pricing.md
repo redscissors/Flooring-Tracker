@@ -36,7 +36,19 @@ up).
    `schluterfixture.js`'s pinned 2026-08-20 snapshot in tests — and derive
    every field by parsing the row's own `sku`/`size` text (the SKU grammar,
    tasks 2–5) rather than looking anything up in a shipped table. There is no
-   Schluter equivalent of `WEDI_STOCK`.
+   Schluter equivalent of `WEDI_STOCK`. **The fixture and a live row are NOT
+   the same shape**, though: `schluterfixture.js` is the prototype-shaped
+   snapshot (`name`, a per-item `stock` boolean, `erp`) the 2026-08-20 review
+   was approved against; a live row comes back through `normOrderItem`
+   (order-book rows) or the ERP stock export's `normBookItem`, which carry
+   `description` instead of `name`, a book-level `stockKind` instead of a
+   per-item `stock` boolean, and — for the ERP stock export specifically — a
+   `sku` that is the shop's own internal/ERP code, with the Schluter
+   manufacturer code living in `vendorSkus`/`description` instead. Code
+   written against the fixture's fields will silently miss on live rows;
+   `classify()`'s SKU-source widening (this decision's amendment, task 3 of
+   the final review) is a stopgap for the `sku`-vs-`vendorSkus` half of that
+   gap, not a fix for the rest.
 2. **A sheet re-import reprices and re-ranges the configurator with no code
    change.** New SKUs, retired rows, and cost/retail drift all flow through
    the registry book's own import/diff/drift machinery; the engine just
@@ -82,3 +94,14 @@ up).
   rule (rather than the app's flat-percent pattern) is still open — the
   prototype shows −8% with an asterisk, per `.scratch/097`'s owner questions;
   this ADR settles only that it is `schluterBuilderPct`, not a shared knob.
+- Because the fixture and a live row diverge (see decision 1), phase 3's
+  **first deliverable is a registry→engine adapter**, tested against a real
+  `normBookItem` row rather than the fixture, mapping: `description` →
+  `name`; the book's `stockKind` → the per-item `stock` boolean `classify()`/
+  `tierPrice` read; the ERP stock export's internal `sku` plus its
+  `vendorSkus`/`description` → the Schluter manufacturer code `classify()`'s
+  grammar actually parses; and a Settings `mortars` entry (`{tier1, tier2,
+  tier3, unit, price}`, keyed by product name) → the `cfg.mortarItem` shape
+  `buildKit` expects (`{name, price, cost, stock, sfPerBagAt15}`), including
+  a real `sfPerBagAt15` coverage rate the Settings shape has no field for
+  today.

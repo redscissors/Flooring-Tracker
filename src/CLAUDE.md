@@ -588,7 +588,11 @@ src/
                     # no-fit room falling back to `cfg.mortarItem` (a Settings
                     # -> Materials pick, its own rate) plus KERDI over the
                     # cured bed — decision 2, never a $0 by-installer line.
-                    # `tierPrice` is the ADR 0032 lens: retail is a stocked
+                    # `buildKit` implements only the two site-built bench
+                    # forms (framed / 2" build-up); the premade SB bench is
+                    # a catalog pick (`g: "extra"`), landed as a UI add-on in
+                    # phase 3 — decision 4's third option is deferred there,
+                    # not dropped. `tierPrice` is the ADR 0032 lens: retail is a stocked
                     # row's own registry price, or cost x1.5 for a
                     # special-order row with no shelf price of its own
                     # (the shop's own observed markup, not wedi's

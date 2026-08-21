@@ -91,6 +91,9 @@ export function seedFromQuery(q) {
       w: (p.size && p.size.w) || 36, d: (p.size && p.size.d) || 60,
       curbed: p.curbed, drain: p.drain, wallSys: p.wallSys,
     },
+    // Strips "kerdi" too, not just the brand word — everything in this popup
+    // is Kerdi, so the word is pure noise (wider than wediquery's single
+    // brand-word strip, which has no such all-Kerdi catalog to allow for).
     search: p.tab === "browse" ? String(q || "").replace(/\b(schluter|sch|kerdi)\b/gi, "").trim() : "",
     parsed: p,
   };

@@ -38,6 +38,14 @@ test("normP passes the schluter marker through", () => {
   assert.deepEqual(p.schluter, { mode: "custom", cfg: { w: 60 } });
 });
 
+test("normP defaults schluter to null so old records are unaffected", () => {
+  assert.equal(normP({ name: "x" }).schluter, null);
+});
+
+test("normP round-trips a schluter companion marker", () => {
+  assert.deepEqual(normP({ name: "x", schluter: { part: true } }).schluter, { part: true });
+});
+
 test("normP maps the legacy brand/color pair into brandColor", () => {
   assert.equal(normP({ brand: "Daltile", color: "Ash" }).brandColor, "Daltile / Ash");
 });

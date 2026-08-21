@@ -86,7 +86,7 @@ function curbLen(code) {
 // Prefer the sheet's own "= N sf" annotation; fall back to the roll-size
 // table by /<n>M suffix (or the plain/unsuffixed full roll) when it's absent.
 function membraneSf(item, code) {
-  const text = item.size || item.name || "";
+  const text = item.size || item.name || item.description || "";
   const explicit = /=\s*([\d.]+)\s*sf/i.exec(text);
   if (explicit) return parseFloat(explicit[1]);
   const suffix = /\/(\d+)M/.exec(code);
@@ -127,7 +127,17 @@ function boardDims(item) {
  */
 export function classify(item) {
   if (!item) return null;
-  const raw = item.sku || item.name || "";
+  // A live registry row's own sku can be the shop's internal/ERP code, not
+  // the Schluter grammar (ADR 0032 correction) — when that code matches
+  // nothing, retry against vendorSkus[0], the manufacturer code the ERP
+  // stock export carries separately (cheap floor; the phase-3 adapter does
+  // this properly).
+  return classifyCode(item, item.sku) ||
+    (item.vendorSkus && item.vendorSkus[0] ? classifyCode(item, item.vendorSkus[0]) : null);
+}
+
+function classifyCode(item, rawSku) {
+  const raw = rawSku || "";
   // Distributor rows carry an "SLR" reseller prefix the mfg code doesn't have.
   const code = raw.trim().replace(/^SLR/, "");
 
@@ -325,11 +335,17 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 
   if (cand.kind === "mortar") {
     const floorSfM = (cfg.w * cfg.d) / 144;
-    if (cfg.mortarItem) {
-      add("Base", cfg.mortarItem, Math.max(1, Math.ceil(floorSfM / cfg.mortarItem.sfPerBagAt15)),
+    // cfg.mortarItem is adapter-shaped ({name, price, cost, stock, sfPerBagAt15}) — the phase-3 adapter maps the Settings mortar into it
+    const rate = cfg.mortarItem && Number(cfg.mortarItem.sfPerBagAt15);
+    if (cfg.mortarItem && Number.isFinite(rate) && rate > 0) {
+      add("Base", cfg.mortarItem, Math.max(1, Math.ceil(floorSfM / rate)),
         "no tray fits" + (source === "stock" ? " from stock" : "") + " — mortar bed, qty at the picked product's rate");
     } else {
-      L.push({ g: "Base", item: { name: "Mortar bed — pick a mortar in Settings → Materials", price: 0, cost: 0, stock: true }, qty: 1, note: "no tray fits" + (source === "stock" ? " from stock" : ""), so: false, noteOnly: true });
+      const note = "no tray fits" + (source === "stock" ? " from stock" : "") +
+        (cfg.mortarItem && cfg.mortarItem.name
+          ? ` — ${cfg.mortarItem.name} needs a coverage rate (sfPerBagAt15) from the adapter`
+          : "");
+      L.push({ g: "Base", item: { name: "Mortar bed — pick a mortar in Settings → Materials", price: 0, cost: 0, stock: true }, qty: 1, note, so: false, noteOnly: true });
     }
     for (const p of pickRolls(floorSfM * 1.15, cat, { source }))
       L.push({ g: "Base", item: p.item, qty: p.qty, note: "KERDI over the cured bed", so: !p.item.stock });
@@ -357,7 +373,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const sf = wallArea(cfg);
   if (cfg.wallSys === "board") {
     const b = cat.find((i) => i.sf === 32 && i.g === "board");
-    add("Walls", b, Math.ceil((sf * 1.05) / b.sf), `${sf.toFixed(0)} sf of wall`);
+    add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
     add("Walls", cat.find((i) => i.g === "board" && i.size === "100 ct"), Math.max(1, Math.ceil(sf / 60)), "board fasteners");
   } else {
     for (const p of pickRolls(sf * 1.1, cat, { source })) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
@@ -381,8 +397,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   if (cfg.curbed) {
     const curbs = cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len);
     const c = curbs.find((x) => x.len >= cfg.w && (source === "all" || x.stock)) || curbs[curbs.length - 1];
-    add("Curb", c, Math.max(1, Math.ceil(cfg.w / c.len)),
-      (c.len < cfg.w ? "cut to length end-to-end" : "cut to entry width") + " — incl. 2+2 Kereck corners");
+    add("Curb", c, c ? Math.max(1, Math.ceil(cfg.w / c.len)) : 0,
+      c ? (c.len < cfg.w ? "cut to length end-to-end" : "cut to entry width") + " — incl. 2+2 Kereck corners" : undefined);
   } else {
     add("Curb", cat.find((i) => i.ramp), 1, '12" run, 1-1/4"→1/4" — ADA slope');
   }
@@ -396,7 +412,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 
   const floorSf = (cfg.w * cfg.d) / 144;
   const allset = cat.find((i) => i.sfPerBag);
-  add("Setting", allset, Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)), "sets membrane/board");
+  add("Setting", allset, allset ? Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)) : 0, "sets membrane/board");
   add("Setting", cat.find((i) => /KERDI-FIX/.test(i.name)), 1);
 
   return { lines: L, cand };

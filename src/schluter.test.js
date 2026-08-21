@@ -38,6 +38,13 @@ test("non-shower items are null", () => {
   assert.equal(classify({ sku: "SLRA100ATGB", name: '3/8" Schluter Jolly' }), null);
 });
 
+test("registry-shaped row (shop-code sku, mfg code in vendorSkus) classifies as a tray via vendorSkus", () => {
+  const row = { sku: "1509824", vendorSkus: ["KST965BF"], description: '38"x38" Kerdi Shower Tray…', stock: true, price: 101.14, cost: 67.42 };
+  const c = classify(row);
+  assert.ok(c);
+  assert.equal(c.g, "tray");
+});
+
 // Own test: every fixture row classifies — this fixture is all shower-system
 // rows plus kits, so the expected null set is empty. A row that legitimately
 // belongs outside the shower-system grammar would need to be named here.
@@ -123,6 +130,32 @@ test("bench build-up lands 2x 2-inch board", () => {
   const b = buildKit(cfg({ bench: "buildup" }), CAT, { source: "all" });
   const x = b.lines.find((l) => l.g === "Extras");
   assert.equal(x.item.thick2, true); assert.equal(x.qty, 2);
+});
+
+test("buildKit never throws on an empty catalog", () => {
+  const b = buildKit(cfg({}), [], { source: "all" });
+  assert.ok(Array.isArray(b.lines));
+});
+test("buildKit never throws on a partial catalog (trays only)", () => {
+  const traysOnly = CAT.filter((i) => i.g === "tray");
+  const b = buildKit(cfg({}), traysOnly, { source: "all" });
+  assert.ok(Array.isArray(b.lines));
+});
+
+test("mortar fallback with a real Settings-shaped mortar (no sfPerBagAt15) produces no NaN", () => {
+  const mortarItem = { tier1: 5.5, tier2: 6.5, tier3: 7.5, unit: "bag", price: 9.6 };
+  const b = buildKit(cfg({ w: 30, d: 90, mortarItem }), CAT, { source: "all" });
+  assert.ok(b.lines.every((l) => Number.isFinite(l.qty)));
+  const noteOnlyBase = b.lines.find((l) => l.g === "Base" && l.noteOnly);
+  assert.ok(noteOnlyBase, "placeholder noteOnly line present instead of a priced mortar line");
+  assert.equal(b.lines.some((l) => l.item === mortarItem), false);
+});
+
+test("mortar fallback names the picked mortar in the placeholder note when it has one", () => {
+  const mortarItem = { name: "Custom Blend Mortar", tier1: 5.5, tier2: 6.5, tier3: 7.5, unit: "bag", price: 9.6 };
+  const b = buildKit(cfg({ w: 30, d: 90, mortarItem }), CAT, { source: "all" });
+  const noteOnlyBase = b.lines.find((l) => l.g === "Base" && l.noteOnly);
+  assert.ok(/Custom Blend Mortar needs a coverage rate/.test(noteOnlyBase.note));
 });
 
 // --- Pricing lens (Task 5) ---
