@@ -1,71 +1,93 @@
-# HANDOFF — Schluter configurator build (session of 2026-08-20/21)
+# HANDOFF — Phase 6: the wedi S-Dry wall fork (written 2026-08-21, after phase 5 merged)
 
-For the next session picking this project up. Read this, the roadmap, and the
-two PR bodies; that is the whole state.
+For the next session picking up the Schluter-configurator roadmap. Read this,
+the roadmap (`docs/superpowers/plans/2026-08-20-schluter-configurator-roadmap.md`),
+and ADR 0034; that is the whole state. (The previous edition of this file was
+the phase-3 handoff — superseded; phases 3–5 are on main.)
 
 ## Where things stand
 
 | Piece | State |
 |---|---|
-| Prototype + owner decisions 1–8 | `.scratch/097_schluter-configurator/` on branch `claude/schluter-configurator-catalog-e1v6o8` (prototype.html, README.md with the decisions, pricelist-notes.md with the factory recipes) |
-| Plans | `docs/superpowers/plans/2026-08-20-*.md` on the same branch (roadmap + phase 1 + phase 2 task plans) |
-| **Phase 1 — drawing extraction** | **MERGED — PR #320** (2026-08-21). Byte-identical pixel proof under `.scratch/098_shower-drawing-extraction/`. ADR 0033. |
-| **Phase 2 — schluter engine** | **MERGED — PR #321** (2026-08-21, after a main merge-back resolving the ADR-index/CLAUDE.md overlap). 993 tests. ADR 0032. |
-| Phases 3–6 | Not started; phase plans get written when their inputs exist (roadmap has the map). |
+| Phase 1 — shared drawing module | MERGED — PR #320. ADR 0033. |
+| Phase 2 — schluter engine | MERGED — PR #321. ADR 0032. |
+| Phase 3 — SchluterConfigurator UI | MERGED — PR #322. |
+| Phase 4 — shared Stock only / Full catalog switch | MERGED — PR #323. |
+| Phase 5 — Compare tab + quote-options A/B | MERGED — PR #324 (2026-08-21). ADR 0034. Proof under `phase5-proof/`. |
+| **Phase 6 — wedi S-Dry wall fork** | **Not started. The last roadmap phase.** No plan doc yet — write it when the design is settled. |
 
-Both PRs went through per-task review + a whole-branch final review (fixes
-applied and verified) and are on main.
+Spec files (prototype.html, README.md with owner decisions 1–8,
+pricelist-notes.md) are all on main in this directory now.
 
-## Standing owner item
+## What phase 6 is
 
-The curbless **thin-outranks-cut** semantics merged as pinned (decision 6
-reading, owner-reviewable test in `schluter.test.js`). If the owner reads
-decision 6 the other way, flip the comparator term + test in a follow-up.
+Owner decision 1 (2026-08-20, binding): *"wedi gets the wall fork too:
+S-Dry is wedi's membrane-over-backer analog — design the same 'wall system'
+choice INTO the wedi configurator."* The model is the Schluter popup's
+`wallSys: "membrane" | "board"` fork (phase 3): one choice that swaps the
+wall recipe, the drawing's panel ticks, and the walls cost story.
 
-## Phase 3 — how to start (the next session's job)
+**Unlike phases 3–5, the wedi fork was never prototyped** — the approved
+prototype's P1 fork is Schluter-side only. Expect a design/brainstorm pass
+(owner sign-off on the recipe) before a plan doc; the repo's
+prototype-before-production convention (repo rule 3) applies.
 
-1. Branch `claude/schluter-configurator-ui-<suffix>` off latest main (both
-   prerequisites are merged).
-2. **FIRST deliverable, before any JSX: the registry→engine adapter** (ADR
-   0032 consequences records this as mandatory). Live `normOrderItem` rows ≠
-   the engine's fixture shape: `description`→`name`, `stockKind`→`stock`
-   boolean, mfg code out of `vendorSkus`/description→`sku`, shop `sku`→`erp`.
-   Test it against a REAL book row shape (orderbook.js `normOrderItem`).
-   `classify` already retries `vendorSkus[0]` as a floor.
-3. Then `SchluterConfigurator.jsx` per the prototype (the approved spec):
-   Kits (shelf trays only) / Custom shower / Browse (filter board, factory
-   kits live here) over the shared build column + the `showerdraw` rail
-   (`TopDown` needs `itemFn`/`normBenchFn` props when benches render — see
-   src/CLAUDE.md). Write the phase-3 plan doc first (writing-plans skill).
-4. The mortar Settings pick maps into the adapter-shaped
-   `cfg.mortarItem = { name, price, cost, stock, sfPerBagAt15 }`.
-5. Premade SB bench = UI add-on pick (decision 4's third option, deferred to
-   this phase).
+## Where S-Dry already lives in wedi.js (grep-verified 2026-08-21)
 
-## Ride-along list for phases 3–6 (from the final reviews)
+- S-Dry is a **pan family**, not a wall system, today: pan rows carry
+  `sub: "sdry"` (`wedi.js:4217`), are **excluded from `pans()` unless
+  `opts.sdry`** (`:4353`), rank last in the family order (`:4358`), and have
+  their own drains/covers/curbs (full + lean 72″)/corners/height kit under
+  `group: "sdry"` (catalog rows ~`:900-1070`; classifier `US..76…` →
+  `:4044`).
+- `kitFor` already lands `SKU.sdrySeal` + `sdrySealTrowel` ("field seal —
+  Subliner laps & perimeter") for sdry pans (`:5126-5127`).
+- Browse has an "S-DRY system" section (`:3869`) and a Kits family chip
+  (`:3846`); `benchPanRoom` treats sdry as a non-resolvable family
+  (`:4927`).
+- So the fork's open design question: is "wall system: S-Dry" a wall-recipe
+  toggle independent of pan choice (membrane + backer-by-others walls
+  instead of wedi building panels), or coupled to the sdry pan family? What
+  are the wall lines and their coverage/pricing? Does `solve()` rank sdry
+  pans differently under the S-Dry wall system? These are owner questions —
+  take them to the owner before writing the plan.
 
-- Promote buildKit's text/number lookups (`/inside corner/i`, `sf === 32`,
-  "100 ct"…) into classifier facts — 20-line refactor, cheaper now than later.
-- `lineItems` signature + `mode:"custom"` hardcode: introduce the kit mode
-  and restore the wedi-shaped signature in one move (phase 3).
-- Shared `pickFrom(cat, pred, source)` so stock-only filters every role
-  (phase 4, with the Stock/Full switch — wedi inherits the switch).
-- `brandColor` carries no vendor lead ("Schluter — …") — decide at UI time.
-- Persisted `cfg` embeds `mortarItem` whole; consider storing name/id.
-- wedi-branded strings + the global `wedi-hatch` SVG id inside showerdraw —
-  scoped rename when the second consumer mounts (ADR 0033 consequences).
-- Weak-word + size search queries can hit BOTH configurators' pinned rows —
-  phase-3 UI call.
-- wedi S-Dry wall fork = phase 6 (decision 1).
+## Couplings / ride-alongs to fold into phase 6
 
-## Data + environment notes
+- **ADR 0034 open item (a):** the Compare tab's derived Schluter side is
+  always `wallSys:"membrane"` — no like-for-like walls toggle. Once wedi
+  has its own wall fork, the natural move is a wallSys mapping across both
+  engines in `comparekit.js` (`roomFromWedi`/`schluterBuildFor`) + a
+  compare-surface toggle. Decide with the owner whether it rides phase 6 or
+  stays open.
+- **ADR 0034 open item (b):** landing quote Options A/B gives no
+  toast/auto-close in the popup — separate small UX call, tracker-worthy.
+- If the fork adds a field to the persisted wedi `cfg` (it will —
+  `seedState`/`markCfg` roundtrip): load the `floortrack-data-model` skill
+  first; `product.wedi` marker precedent governs; wedi.test.js pinned
+  totals must not move for the default wall system.
 
-- The real sheets (EFT SLR_EFT_25_10_01_2.xls, ERP Vendor SKU Analysis) are
-  NOT committed (shop pricing) — the owner uploads current editions when
-  needed; `src/schluterfixture.js` is the frozen test snapshot.
-- `assets.schluter.com` is egress-blocked in Claude sessions; the shower
-  chapter PDF was uploaded and transcribed into pricelist-notes.md already.
-- The interactive prototype artifact: https://claude.ai/code/artifact/f942b061-1b5a-4532-b858-5d4cd2139552
-- Pixel-parity methodology for any future drawing refactor: ADR 0033 +
-  `.scratch/098_shower-drawing-extraction/shoot-parity.mjs` (settle guard,
-  committed baselines, byte-compare — never re-bless a differing hash).
+## Process notes (what worked in phase 5)
+
+- Subagent-driven development off a written plan (writing-plans →
+  subagent-driven-development, one fresh implementer + reviewer per task,
+  final whole-branch review). The review loops caught four real bugs before
+  the PR; keep them.
+- Progress ledger at `.superpowers/sdd/progress.md` (gitignored) survives
+  context compaction — recreate it per session.
+- Preview rigs all exist: `wedi-preview.html` / `schluter-preview.html`
+  both feed fixture-backed registry rows and a no-op `onQuoteOptions`;
+  shot rigs committed under `phase5-proof/` (`shoot-compare.mjs`,
+  `final-review/shoot-final-review.mjs`); chromium at
+  `/opt/pw-browsers/chromium`; `npm run build` needs a local gitignored
+  `.env` (`%VITE_SUPABASE_URL%` interpolation).
+- Baseline at merge: `npm test` 1060/1060; ADR index through 0034.
+
+## Data + environment notes (unchanged)
+
+- Real sheets (EFT, ERP Vendor SKU Analysis) are NOT committed (shop
+  pricing); `src/schluterfixture.js` is the frozen test snapshot; wedi.js
+  carries its own tables. `assets.schluter.com` (and wedi's site) are
+  egress-blocked — owner uploads documents when needed.
+- Repo non-negotiables: no Supabase writes, no pushes to main (PR always),
+  preview proof before merge.
