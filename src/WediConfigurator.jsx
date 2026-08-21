@@ -648,7 +648,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const ro = new ResizeObserver(on);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // the Compare tab unmounts the rail — re-attach the observer to the new
+    // node when it comes back, or the drawings freeze at their last size
+  }, [tab]);
   const railFit = useMemo(() => railSplit(railBox, placing), [railBox, placing]);
 
   const [q, setQ] = useState(s0.q);
@@ -2341,7 +2343,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     <Suspense fallback={null}>
       <CompareTab host="wedi" hostCfg={build ? build.cfg : null} hostBuild={build}
         source={source} tier={tierId}
-        wediBuilderPct={wediBuilderPct} schluterBuilderPct={schluterBuilderPct}
+        wediBuilderPct={bPct} schluterBuilderPct={schluterBuilderPct}
         stockRows={stockRows} bookStockReady={bookStockReady}
         books={books} loadBookItems={loadBookItems}
         mortars={mortars} mortarDefault={mortarDefault}
