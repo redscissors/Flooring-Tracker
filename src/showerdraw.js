@@ -22,8 +22,10 @@ function inch(n) {
 
 // Geometry that used to live in the wedi module but is only ever read by the
 // drawings — moved here and re-exported (unchanged) from wedi so its other
-// callers (expandWallFaces, curbInsets, normBench, benchEdgeSpans, panThick's
-// own wedi.test coverage) keep working.
+// callers keep working: expandWallFaces, curbInsets, normBench,
+// benchEdgeSpans, and — for panThick specifically — two live wedi.js callers
+// of its own (kitFor's consumables pan-thickness check ~line 5068, and
+// solve()'s build-up warning ~line 5777), not just wedi.test coverage.
 export const WALL_THICK = 4;     // framing depth — the drawings draw it true
 export const CURB_LAP = 0.5;
 export const BENCH_DEPTH = 14;     // default seat depth along a wall (owner, 2026-07-31)

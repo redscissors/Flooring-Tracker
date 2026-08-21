@@ -17,11 +17,11 @@ import { useEscClose } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, CURB_LAP, curbWidth, panThick, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
-  normBench, benchFootprint, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_DEPTH, BENCH_CORNER_LBL,
+  normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
+  BENCH_CORNER_LBL,
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 

@@ -566,11 +566,19 @@ src/
                     # site cut doesn't re-pitch them (owner 2026-08-03). Iso draws
                     # the same build as 4"-thick wall slabs at per-wall heights,
                     # front (entry/right) walls clear with dashed edges, and the
-                    # panel courses dotted on the inner faces. All click targets
+                    # panel courses dotted on the inner faces. Bench rendering
+                    # lives here too — premade part tags, site/framed bench
+                    # bands in plan and iso, and the curb butting the bench
+                    # face where a bench zone meets a curb run. All click targets
                     # (onCorner/onEdge/onWallMenu/onBenchMenu) are callback props
                     # — the caller (WediConfigurator.jsx today) owns what a click
                     # DOES; this file only owns what gets drawn and where a click
-                    # landed
+                    # landed. `itemFn` (the catalog part lookup) and `normBenchFn`
+                    # (normBench) are REQUIRED whenever `benches` is non-empty —
+                    # a premade bench's tag reads itemFn(b.part), and the hover
+                    # preview reads normBenchFn(zone, room); only the mini
+                    # thumbnail (WediConfigurator.jsx's kit-card preview) omits
+                    # all three props, since it never renders benches
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
