@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, buildKit, linesTotal } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, buildKit, linesTotal, tierPrice } from "./schluter.js";
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -123,4 +123,14 @@ test("bench build-up lands 2x 2-inch board", () => {
   const b = buildKit(cfg({ bench: "buildup" }), CAT, { source: "all" });
   const x = b.lines.find((l) => l.g === "Extras");
   assert.equal(x.item.thick2, true); assert.equal(x.qty, 2);
+});
+
+// --- Pricing lens (Task 5) ---
+
+test("tier lens", () => {
+  const tray = CAT.find((e) => e.sku === "KST965/1525");
+  assert.equal(tierPrice(tray, "retail", {}), 121.91);
+  assert.equal(tierPrice(tray, "cost", {}), 81.27);
+  const kit = CAT.find((e) => e.g === "kit");
+  assert.equal(tierPrice(kit, "retail", {}), +(kit.cost * 1.5).toFixed(2));
 });

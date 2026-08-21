@@ -26,10 +26,10 @@ test("normTier / normPrintPricing default invalid values", () => {
 });
 
 test("normPricing defaults builder 8 / sale 10 / wedi builder 18 / Sheoga markup 40 / vent markup 50 and clamps", () => {
-  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, wediBuilderPct: 18, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
   // The wedi Builder stamp (issue 066): a discount off retail, so it clamps like
   // builderPct — 18 = the owner's ×0.82.
   assert.equal(normPricing({ wediBuilderPct: 25 }).wediBuilderPct, 25);

@@ -401,3 +401,64 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 export function linesTotal(lines, priceFn) {
   return lines.reduce((s, l) => s + priceFn(l.item) * l.qty, 0);
 }
+
+// ============================================================================
+// pricing lens
+// ============================================================================
+
+const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * Tier lens over a classified catalog entry (owner-decided pricing, task 5):
+ * retail is the stocked row's own `price`, or `cost × 1.5` for a special-order
+ * row (a factory kit has no shelf price of its own); builder is retail less
+ * `builderPct` (Settings' `pricing.schluterBuilderPct`, default 8); cost is
+ * the raw `cost` field. Mirrors wedi.js's own tierPrice shape.
+ */
+export function tierPrice(entry, tier, { builderPct } = {}) {
+  if (!entry) return 0;
+  const cost = +entry.cost || 0;
+  const retail = entry.stock ? +entry.price || 0 : round2(cost * 1.5);
+  switch (tier) {
+    case "cost": return round2(cost);
+    case "builder": return round2(retail * (1 - (builderPct == null ? 8 : builderPct) / 100));
+    default: return round2(retail);
+  }
+}
+
+// ============================================================================
+// product-row payloads
+// ============================================================================
+
+/**
+ * Turn a buildKit() bill into product-row payloads ready for the job sheet,
+ * mirroring product.wedi's marker shape (wedi.js lineItems, requirement 12):
+ * noteOnly lines (informational, $0 by-others placeholders) are dropped, and
+ * every surviving line lands RETAIL — the job sheet's own tier lens reprices
+ * it (ADR 0018) — with a builder-tier `tierPrice` snapshot riding along, like
+ * wedi's own Builder stamp. `cfg` is the room configuration buildKit() was
+ * given; it lands untouched on the anchor row so "Schluter — reconfigure" can
+ * re-run buildKit(cfg, …) and replace the kit's lines. Every companion line
+ * carries { part: true } instead.
+ */
+export function lineItems(build, cfg, opts) {
+  if (!build || !build.lines) return [];
+  opts = opts || {};
+  const mark = { mode: "custom", cfg: JSON.parse(JSON.stringify(cfg || {})) };
+  return build.lines.filter((l) => !l.noteOnly).map((l, i) => {
+    const e = l.item;
+    return {
+      type: "misc",
+      sku: e.stock ? e.erp || e.sku || "" : "",
+      sizeText: e.size || "",
+      brandColor: e.name,
+      qtyType: "count",
+      qty: String(l.qty),
+      priceSqft: String(tierPrice(e, "retail", {})),
+      costSqft: String(tierPrice(e, "cost", {})),
+      markupPct: "",
+      tierPrice: String(tierPrice(e, "builder", opts)),
+      schluter: i === 0 ? mark : { part: true },
+    };
+  });
+}

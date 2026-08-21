@@ -744,6 +744,9 @@ export const normOps = (raw) => {
 // wediBuilderPct is the wedi configurator's own Builder discount — the owner's
 // "0.82 versus the normal 8% off" (issue 066) — which the configurator bakes
 // into each line's `tierPrice` snapshot rather than reading here at calc time.
+// schluterBuilderPct is the same idea for the Schluter shower configurator
+// (schluter.js tierPrice) — its own knob rather than sharing wedi's or the
+// flat builderPct, even though its default (8) currently matches the latter.
 const pct100 = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : dflt; };
 // Markup can legitimately exceed 100% — its own clamp, not pct100.
 const pctMarkup = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(500, Math.max(0, n)) : dflt; };
@@ -763,7 +766,7 @@ const frac = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ?
 // finds NOTHING, so even a bad typo never leaves the salesperson empty. Only
 // fires when it is actually looser; drag it up to meet the strictness to switch
 // the wider retry off.
-export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), wediBuilderPct: pct100(raw?.wediBuilderPct, 18), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), quickMarkups: normQuickMarkups(raw?.quickMarkups), descLimit: chars(raw?.descLimit, 30), searchStrictness: frac(raw?.searchStrictness, 0.3), searchFallback: frac(raw?.searchFallback, 0.18) });
+export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), wediBuilderPct: pct100(raw?.wediBuilderPct, 18), schluterBuilderPct: pct100(raw?.schluterBuilderPct, 8), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), quickMarkups: normQuickMarkups(raw?.quickMarkups), descLimit: chars(raw?.descLimit, 30), searchStrictness: frac(raw?.searchStrictness, 0.3), searchFallback: frac(raw?.searchFallback, 0.18) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.
