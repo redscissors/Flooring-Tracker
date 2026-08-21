@@ -551,6 +551,86 @@ src/
                     # own lazy chunk): the tier bar falls back to a local
                     # retail-seeded preview and Add raises the hub's shared
                     # destination prompt (current project / new quick price)
+  schluter.js       # Schluter shower-system engine (issue 097 prototype ->
+                    # production, tasks 1-6) — wedi's sibling, deliberately
+                    # built the opposite way: TABLE-FREE. `classify()` is a
+                    # grammar over Schluter's SKU codes (KST/KSLT trays, KLVR
+                    # Vario drain, KERDI-DRAIN, KERDI-BOARD panels/curb/niche/
+                    # bench, KERDI membrane/band/corners/seals, ALL-SET/
+                    # KERDI-FIX) plus the shared mm->inch marketing-round
+                    # table every tray/curb/board/kit SKU is built from
+                    # (`MM_IN`, greedy-longest-key digit scan so a fused code
+                    # like 9151395 resolves to [915,1395] and not any other
+                    # split) — no per-item lookup table, so a caller feeds it
+                    # LIVE registry-book rows (`catalogOf`) and a re-import
+                    # reprices/re-ranges the configurator with no code change
+                    # (ADR 0032, the deliberate divergence from wedi.js's own
+                    # transcribed tables). `trayCandidates` ranks the fit
+                    # window (covers the room, total cut <=26") by drain
+                    # match, then — curbless only — a thin "TT" tray beats a
+                    # lipped one (decision 6: a curbed tray doesn't belong on
+                    # a curbless install even if it cuts less), then cut size,
+                    # then price; no fit at all is a single mortar-bed card,
+                    # never silently dropped. `pickRolls` is the same
+                    # greedy-ladder idea for membrane coverage (largest roll
+                    # for whole multiples, smallest single roll for the
+                    # remainder), reused for both floor and wall membrane.
+                    # `buildKit` is the ported prototype recipe (decisions
+                    # 2/4/6 pinned in the header comment): factory-kit corner
+                    # counts on point/offset (4 inside + 2 outside), the Vario
+                    # flange kit self-contained on linear builds, curb
+                    # multiples cut end-to-end with their own corners,
+                    # membrane walls +10% for laps with a by-others backer
+                    # note line, board walls at 1.05x coverage + fasteners,
+                    # ALL-SET at ceil((wallSf+floorSf)/55), a curbless build
+                    # taking the ramp instead of a curb, benches per decision
+                    # 4 (framed -> 1/2" wrap, buildup -> 2x 2" board), and a
+                    # no-fit room falling back to `cfg.mortarItem` (a Settings
+                    # -> Materials pick, its own rate) plus KERDI over the
+                    # cured bed — decision 2, never a $0 by-installer line.
+                    # `tierPrice` is the ADR 0032 lens: retail is a stocked
+                    # row's own registry price, or cost x1.5 for a
+                    # special-order row with no shelf price of its own
+                    # (the shop's own observed markup, not wedi's
+                    # publish-retail model); builder subtracts Settings'
+                    # `pricing.schluterBuilderPct` (its own knob, default 8%
+                    # — never shares wedi's or the flooring tier's percent).
+                    # `lineItems` mirrors `product.wedi`'s marker shape:
+                    # every surviving (non-`noteOnly`) line lands RETAIL for
+                    # the job sheet's own tier lens to reprice (ADR 0018),
+                    # with a builder-tier snapshot riding along; the anchor
+                    # row carries `cfg` untouched so "Schluter — reconfigure"
+                    # can re-run `buildKit` and replace the kit's lines,
+                    # companions carry `{ part: true }`. Geometry (the
+                    # Iso/TopDown drawings) is deliberately NOT this module's
+                    # concern — phase 3 adapts `buildKit`'s output + `cfg`
+                    # into the shared drawing shape wedi's popup already owns
+  schluterfixture.js  # the 2026-08-20 stock-sheet/EFT snapshot schluter.js's
+                    # tests are pinned against (schluter.test.js) — the ERP
+                    # Vendor SKU Analysis + dealer-cost EFT the prototype was
+                    # approved on. Production NEVER reads this file; it exists
+                    # so `classify`/`buildKit`/`tierPrice` have a real,
+                    # stable catalog to run against without a live Supabase
+                    # book (the registry-driven design, ADR 0032, means there
+                    # is no other fixture to fall back on)
+  schluterquery.js  # the Schluter search-entry recognizer — the BOOT half of
+                    # task 6, wediquery.js's sibling: `queryHit`/`parseQuery`/
+                    # `querySummary`/`seedFromQuery` over ~20 trade words
+                    # (KERDI/Vario/KST/KSLT/KBSC family vocabulary + generic
+                    # parts needing "shower" or a size beside them) and the
+                    # same size regex, so the pinned "Vendor configurators"
+                    # row can decide on every keystroke without schluter.js's
+                    # registry-fed catalog. Two binding word-list exclusions
+                    # (owner/task-brief): Ditra stays out — a Schluter brand,
+                    # but a floor product, not a shower part — and "wedi"
+                    # stays out, so either word routes to the OTHER vendor's
+                    # configurator, not this one. Bare "schluter"/"sch" is
+                    # recognized only by a prefix match (never listed as its
+                    # own word, same trick as wedi's own name in
+                    # wediquery.js) so a bare brand mention lands on the
+                    # shelf-kit tab rather than the catalog. Must NEVER
+                    # import the engine module — it re-exports these four
+                    # (ADR 0026, schluterquery.test.js)
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

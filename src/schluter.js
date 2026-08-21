@@ -6,6 +6,15 @@
 // sku doesn't encode, the sheet's "size" text) against the patterns Schluter
 // itself uses to build part numbers. The mm→inch table below is the one
 // constant every tray/curb/board/kit SKU is built from.
+//
+// Task 6 (the wedi.js precedent): the row search's pinned configurator entry
+// imports schluterquery.js instead of this file — a few hundred bytes of
+// word lists, never the registry-fed catalog — so this module re-exports its
+// four recognizer functions for a caller that already pays for the rest.
+
+import { queryHit, parseQuery, querySummary, seedFromQuery } from "./schluterquery.js";
+
+export { queryHit, parseQuery, querySummary, seedFromQuery };
 
 // Marketing-rounded metric pair Schluter encodes into tray/board/kit SKUs.
 const MM_IN = {
