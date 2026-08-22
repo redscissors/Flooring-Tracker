@@ -3,6 +3,9 @@
 // wedi.js; the drawing components take these shapes exactly as the wedi popup
 // hands them its own.
 
+import { benchFootprint } from "./showerdraw.js";
+import { benchTrayRoom } from "./schluter.js";
+
 // KERDI-BOARD-SC curb profile: 4½" wide on the plan, 6" tall in the
 // isometric — the prototype's massing, from the "6\"×4½\"×len" size text.
 export const SCHLUTER_CURB_W = 4.5;
@@ -43,8 +46,10 @@ export function schluterWalls(cfg) {
     .map(({ w, side }) => wall(side, +w.len || 0, +w.h || 84, "lo", side, false));
   (cfg.xwalls || []).forEach((x, i) => {
     const len = +x.len || 0;
+    // wid off the row's own id when it has one (the popup's wall menu keys on
+    // it); the index stays the fallback for id-less cfgs
     if (len > 0) out.push(wall(EDGES.includes(x.edge) ? x.edge : "entry", len, +x.h || 84,
-      x.at === "hi" ? "hi" : "lo", "x" + i, true));
+      x.at === "hi" ? "hi" : "lo", "x" + (x.id != null ? x.id : i), true));
   });
   return out;
 }
@@ -110,9 +115,9 @@ export function schluterCuts(cfg) {
  * shape); the run gives up the leg. Curbless builds carry no curb band —
  * the ramp/recess is a build line, not plan geometry.
  */
-export function schluterCurb(cfg) {
+export function schluterCurb(cfg, benches) {
   if (!cfg.curbed) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
-  const w = +cfg.w || 0;
+  const w = +cfg.w || 0, d = +cfg.d || 0;
   let lo = 0, hi = 0;
   (cfg.xwalls || []).filter((x) => x.edge === "entry").forEach((x) => {
     const len = Math.min(+x.len || 0, w);
@@ -129,8 +134,27 @@ export function schluterCurb(cfg) {
   const fl = cutSet.find((c) => c.corner === "fl"), fr = cutSet.find((c) => c.corner === "fr");
   if (fl && from <= 0.5) { const t = Math.min(fl.h, len); from += t; len -= t; diags.push(diagOf(fl)); }
   if (fr && from + len >= w - 0.5) { len -= Math.min(fr.h, len); diags.push(diagOf(fr)); }
+  // a FRAMED bench whose footprint reaches the entry edge claims its span —
+  // the curb butts the bench face instead of running under it (the wedi rule:
+  // only framed interrupts the envelope; build-ups and premades sit on the
+  // finished tray with the curb running beneath)
+  let parts = [[from, from + len]];
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    const f = benchFootprint(b, { w, d });
+    if (f.kind !== "rect" || f.y + f.d < d - 0.5) return;
+    const a = f.x, z = f.x + f.w;
+    parts = parts.flatMap(([p, q]) => {
+      if (z <= p + 0.5 || a >= q - 0.5) return [[p, q]];
+      const keep = [];
+      if (a > p + 0.5) keep.push([p, a]);
+      if (z < q - 0.5) keep.push([z, q]);
+      return keep;
+    });
+  });
   return {
-    segs: len > 0.5 ? [{ side: "entry", from: round2(from), len: round2(len), ext0: 0, ext1: 0 }] : [],
+    segs: parts.filter(([p, q]) => q - p > 0.5)
+      .map(([p, q]) => ({ side: "entry", from: round2(p), len: round2(q - p), ext0: 0, ext1: 0 })),
     diags, h: SCHLUTER_CURB_H, w: SCHLUTER_CURB_W,
   };
 }
@@ -142,29 +166,36 @@ export function schluterCurb(cfg) {
  * centre a warning says how far), a linear room's Vario channel along the
  * back wall at cfg.w − 8. A mortar-bed candidate draws the bare room.
  */
-export function schluterDiag(cfg, cand) {
+export function schluterDiag(cfg, cand, benches) {
   const w = +cfg.w || 0, d = +cfg.d || 0;
+  // a framed bench shrinks the room the tray fills (benchTrayRoom, the same
+  // reduction trayCandidates fit against) — the piece draws offset at x0/y0
+  // and the bench band butts its edge
+  const troom = benchTrayRoom(benches || [], { w, d });
+  const rw = troom.w, rd = troom.d;
   const tray = cand && cand.tray;
   // the candidate's EFFECTIVE orientation (tw/td, rot) — a point tray may lie
   // rotated (trayCandidates), and the ghost/cut/drain all follow the turn
-  const tw = tray ? (cand.tw ?? tray.w) : w;
-  const td = tray ? (cand.td ?? tray.d) : d;
-  const cut = tray && (tw > w || td > d);
+  const tw = tray ? (cand.tw ?? tray.w) : rw;
+  const td = tray ? (cand.td ?? tray.d) : rd;
+  const cut = tray && (tw > rw || td > rd);
   const warnings = [];
   let drain;
   // under an "any" preference the picked tray decides what gets drawn — the
   // same rule buildKit bills by; a mortar card falls back to the preference
   const dk = tray ? tray.drain : (cfg.drain === "any" ? "point" : cfg.drain);
+  // the tray region's own centre — with a framed bench it is NOT the room's
+  const cx = troom.x0 + rw / 2, cy = troom.y0 + rd / 2;
   if (dk === "linear") {
-    drain = { type: "linear", x: w / 2, y: 2.75, len: Math.max(10, w - 8), axis: "w", note: "" };
+    drain = { type: "linear", x: round2(cx), y: round2(troom.y0 + 2.75), len: Math.max(10, rw - 8), axis: "w", note: "" };
   } else {
     // the candidate's achieved position (trayCandidates splits the cut to
-    // chase a pinned drain); the old anchored-at-0,0 formula stays as the
-    // fallback for a mortar card or a candidate without the fields
-    const dx = tray ? (cand.dx ?? Math.min(tw / 2, w - 2)) : w / 2;
-    const dy = tray ? (cand.dy ?? Math.min(tray.drain === "offset" ? td * 0.27 : td / 2, d - 2)) : d / 2;
+    // chase a pinned drain, already in room coords); the old anchored formula
+    // stays as the fallback for a mortar card or a candidate without the fields
+    const dx = tray ? (cand.dx ?? Math.min(troom.x0 + tw / 2, troom.x0 + rw - 2)) : cx;
+    const dy = tray ? (cand.dy ?? Math.min(troom.y0 + (tray.drain === "offset" ? td * 0.27 : td / 2), troom.y0 + rd - 2)) : cy;
     drain = { type: "point", x: round2(dx), y: round2(dy), len: 0, axis: null, note: "" };
-    const off = Math.max(Math.abs(dx - w / 2), tray && tray.drain === "offset" ? 0 : Math.abs(dy - d / 2));
+    const off = Math.max(Math.abs(dx - cx), tray && tray.drain === "offset" ? 0 : Math.abs(dy - cy));
     // a pinned drain is off-centre on purpose — only a pin the cut can't
     // reach warns; the room-centre warning stays for unpinned cuts
     if (cand && cand.pinned) {
@@ -175,7 +206,7 @@ export function schluterDiag(cfg, cand) {
     pieces: [{
       kind: "pan",
       item: tray ? { name: tray.name, us: tray.sku } : { name: "Mortar bed + KERDI", us: "" },
-      x: 0, y: 0, w, d,
+      x: troom.x0, y: troom.y0, w: rw, d: rd,
       cut: cut ? { w: tw, d: td } : null,
     }],
     drain, room: { w, d }, warnings,
