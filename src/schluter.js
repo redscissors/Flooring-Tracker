@@ -102,7 +102,11 @@ function bandLf(code) {
 
 // Board sf: prefer the sheet's "= N sf" text; otherwise compute from the
 // dimension numbers in "size" (WxH, or thickness×W×H when three numbers are
-// present — a leading 2 there means the 2"-thick board, thick2).
+// present — a leading 2 there means the 2"-thick board, thick2). The mapped
+// import writes a three-dim board's size BARE ("48x96", "24.5x96") with the
+// thickness pulled into its own field (pricebook.js THREE_IN_RE), so a bare
+// L×W with no inch marks is a panel too — without it every EFT board carries
+// no sf and drops out of the wall pick.
 function boardDims(item) {
   const text = item.size || "";
   const out = {};
@@ -115,6 +119,9 @@ function boardDims(item) {
     if (out.sf === undefined) out.sf = (nums[1] * nums[2]) / 144;
   } else if (nums.length === 2 && out.sf === undefined) {
     out.sf = (nums[0] * nums[1]) / 144;
+  } else if (!nums.length && out.sf === undefined) {
+    const bare = /^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*$/i.exec(text);
+    if (bare) out.sf = (parseFloat(bare[1]) * parseFloat(bare[2])) / 144;
   }
   return out;
 }
@@ -224,6 +231,11 @@ function classifyCode(item, rawSku) {
     const m = /(\d+)\s*ct/i.exec(item.size || item.name || item.description || "");
     return { ...item, g: "board", fastener: true, ct: m ? Number(m[1]) : 0 };
   }
+  // Every other KERDI-BOARD-Z* accessory (ZA/ZC/ZFP hardware-attachment and
+  // edge profiles, ZT washers) is not a shower part — without this guard the
+  // KB catch-all below made the ZFP flat plastic profile a wall "board" and
+  // the wall pick landed hundreds of profile sticks instead of panels.
+  if (/^KBZ/.test(code)) return null;
   // Every other KERDI-BOARD panel/accessory. The two digits after KB are the
   // board thickness in mm (KB12 = ½", KB50 = 2") — the grammar marks the 2"
   // board even when the row's size text is unreadable, and the wall pick

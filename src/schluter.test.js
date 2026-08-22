@@ -38,6 +38,40 @@ test("non-shower items are null", () => {
   assert.equal(classify({ sku: "SLRA100ATGB", name: '3/8" Schluter Jolly' }), null);
 });
 
+test("KERDI-BOARD-Z* profiles are null, never wall boards (KBZS fastener boxes stay)", () => {
+  // the live EFT's ZFP flat plastic profile — a hardware-attachment stick,
+  // not a panel; it used to classify g:"board" with a bogus sf and win the
+  // wall pick when no other board carried an sf
+  assert.equal(classify({ sku: "KBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `5/16"x8'2-1/2"` }), null);
+  assert.equal(classify({ sku: "SLRKBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `8'2-1/2"` }), null);
+  assert.equal(classify({ sku: "KBZA160AE", name: "Kerdi-Board-Za Angle Profile", size: `8'2-1/2"` }), null);
+  assert.equal(classify(FIXTURE_ITEMS.find((i) => i.sku === "KBZS35GT32Z")).fastener, true);
+});
+
+test("an EFT-imported board's bare size (thickness split out by the import) still carries sf", () => {
+  // pricebook.js THREE_IN_RE writes "1/2IN X 48IN X 96IN" as size "48x96"
+  // with the thickness in its own field (ticket 083) — no inch marks
+  const b = classify({ sku: "KB1212202440", name: "Kerdi-Board 1/2in Panel", size: "48x96" });
+  assert.equal(b.sf, 32);
+  assert.equal(b.thickMm, 12);
+  assert.ok(!b.thick2);
+  const half = classify({ sku: "KB1212202440", name: "Kerdi-Board 1/2in Panel", size: "24.5x96" });
+  assert.ok(Math.abs(half.sf - 16.33) < 0.01);
+});
+
+test("full-catalog wall pick lands the EFT ½\" panel, never a Z-profile", () => {
+  const rows = [
+    { sku: "KBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `5/16"x8'2-1/2"`, price: 0, cost: 24.5, stock: false },
+    { sku: "KB1212202440", name: "Kerdi-Board 1/2in Panel", size: "48x96", price: 0, cost: 79.01, stock: false },
+  ];
+  const c = { w: 48, d: 48, curbed: true, drain: "point", wallSys: "board",
+    walls: [{ on: true, len: 48, h: 84 }, { on: true, len: 48, h: 84 }, { on: true, len: 48, h: 84 }] };
+  const b = buildKit(c, catalogOf(rows), { source: "all" });
+  const wall = b.lines.find((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+  assert.equal(wall.item.sku, "KB1212202440");
+  assert.equal(wall.qty, 3); // ceil(84 sf × 1.05 / 32)
+});
+
 test("registry-shaped row (shop-code sku, mfg code in vendorSkus) classifies as a tray via vendorSkus", () => {
   const row = { sku: "1509824", vendorSkus: ["KST965BF"], description: '38"x38" Kerdi Shower Tray…', stock: true, price: 101.14, cost: 67.42 };
   const c = classify(row);
