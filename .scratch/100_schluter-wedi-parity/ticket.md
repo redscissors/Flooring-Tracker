@@ -106,3 +106,22 @@ Any + 3/8″ tile, wall autos follow), `p6-corner-cuts.png` (both front
 corners cut: chamfered tray + diagonal curb in both views, 2× curb "turns
 2 cut corners diagonally", cut-list lines), `p7-flip.png` (pin carried
 through the flip). Tests: 1082 pass (7 new engine/draw cases); build clean.
+
+## Round 3 (owner, 2026-08-22): the drain pin's measurement datum
+
+"If a builder or a customer gives me the measurements based off of the
+right side for the drain, I don't wanna have to try to figure what that
+difference is from the left."
+
+The drain-pin X gains a **Left | Right** datum toggle (this is what wedi's
+"Pan against" was being used for): type the number as the builder gave it,
+the popup converts to the engine's canonical from-left `drainX` (the engine
+and drawings are untouched). The marker carries `drainRef: "right"` so
+Reconfigure reopens showing the number as given; the cut list echoes both
+("20″ off the RIGHT wall = 30″ from the left on the drawing") so the two
+spellings can't drift; the ⇄ flip converts to from-left before rotating and
+resets the datum; disabled on linear like the pin itself.
+
+Proof: `shoot3.mjs` → `p8-drain-from-right.png` (50×38 room, Right + 20 →
+"point drain @ 30″, 19″", echo line in the cut list; flip lands dy=30).
+Tests 1082 pass; build clean.

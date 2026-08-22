@@ -143,7 +143,8 @@ const CSS = `
 .sch-pop .rf.dim{opacity:.55}
 .sch-pop .rseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:3px 8px;cursor:pointer;white-space:nowrap}
 .sch-pop .rseg button + button{border-left:1px solid var(--ft-border)}
-.sch-pop .rseg button:hover:not(.on){background:var(--ft-hover);color:var(--ft-text)}
+.sch-pop .rseg button:hover:not(.on):not(:disabled){background:var(--ft-hover);color:var(--ft-text)}
+.sch-pop .rseg button:disabled{opacity:.5;cursor:not-allowed}
 .sch-pop .rseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .sch-pop .wsnote{font-size:10px;color:var(--ft-faint);font-weight:600;line-height:1.4;margin-top:3px;max-width:280px}
 .sch-pop .wallrow{display:flex;align-items:center;gap:5px;padding:2px 0;border-bottom:1px dashed var(--ft-row-line);font-size:10px;color:var(--ft-faint);font-weight:600}
@@ -291,7 +292,7 @@ function seedState(seed) {
     tab: "kits", w: "60", d: "38", curbed: true, drain: "point", wallSys: "membrane",
     walls: DEF_WALLS.map((x) => ({ ...x })), xwalls: [], wallH: String(DEF_WALL_H),
     corners: {}, maxIn: false, tileT: "", bench: null, mortarName: "",
-    drainX: "", drainY: "",
+    drainX: "", drainY: "", drainRef: "left",
     manual: [], q: "", source: "all", kitPick: false, pick: null,
   };
   if (!seed) return s;
@@ -326,7 +327,14 @@ function seedState(seed) {
       id: i + 1, edge: ["back", "left", "right", "entry"].includes(x.edge) ? x.edge : "entry",
       at: x.at === "hi" ? "hi" : "lo", len: String(+x.len || ""), h: String(+x.h || ""),
     })) : [];
-    s.drainX = +cfg.drainX > 0 ? String(cfg.drainX) : "";
+    // the marker's drainX is canonical from-left; a right-referenced build
+    // reopens showing the number the builder actually gave
+    if (cfg.drainRef === "right") {
+      s.drainRef = "right";
+      s.drainX = +cfg.drainX > 0 ? String(round2(+cfg.w - +cfg.drainX)) : "";
+    } else {
+      s.drainX = +cfg.drainX > 0 ? String(cfg.drainX) : "";
+    }
     s.drainY = +cfg.drainY > 0 ? String(cfg.drainY) : "";
     s.bench = cfg.bench === "framed" || cfg.bench === "buildup" ? cfg.bench : null;
     s.mortarName = cfg.mortarItem?.name || "";
@@ -374,6 +382,7 @@ export default function SchluterConfigurator({
   const [tileT, setTileT] = useState(s0.tileT);
   const [drainX, setDrainX] = useState(s0.drainX);
   const [drainY, setDrainY] = useState(s0.drainY);
+  const [drainRef, setDrainRef] = useState(s0.drainRef);
   const [bench, setBench] = useState(s0.bench);
   const [mortarName, setMortarName] = useState(s0.mortarName);
   const [manual, setManual] = useState(s0.manual);
@@ -486,7 +495,13 @@ export default function SchluterConfigurator({
       })),
       ...(liveXwalls.length ? { xwalls: liveXwalls } : {}),
       ...(inset > 0 ? { maxIn: true, ...(tileNum > 0 ? { tileT: tileNum } : {}) } : {}),
-      ...(drain !== "linear" && +drainX > 0 ? { drainX: +drainX } : {}),
+      // the engine's drainX is canonical FROM THE LEFT; a right-referenced
+      // measurement (the builder called it off the right wall) converts here
+      // so nobody does the subtraction by hand, and the marker carries the
+      // reference so Reconfigure shows the number as it was given
+      ...(drain !== "linear" && +drainX > 0 && (drainRef !== "right" || effW - +drainX > 0)
+        ? { drainX: drainRef === "right" ? round2(effW - +drainX) : +drainX, ...(drainRef === "right" ? { drainRef: "right" } : {}) }
+        : {}),
       ...(drain !== "linear" && +drainY > 0 ? { drainY: +drainY } : {}),
       ...(mortarItem ? { mortarItem } : {}),
     };
@@ -495,7 +510,7 @@ export default function SchluterConfigurator({
     const open = schluterOpenCorners(base);
     const cut = Object.keys(corners).filter((k) => corners[k] && open[k]).sort();
     return cut.length ? { ...base, corners: cut } : base;
-  }, [w, d, curbed, drain, wallSys, bench, walls, liveXwalls, drainX, drainY, mortarItem, maxIn, tileNum, wallHNum, corners]);
+  }, [w, d, curbed, drain, wallSys, bench, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners]);
 
   // a blanked size input mid-edit means "no room yet" — no candidates, no
   // build, no drawings (topGeom would divide by the room dims)
@@ -590,6 +605,9 @@ export default function SchluterConfigurator({
       const lbl = (CORNER_LBL.find((x) => x[0] === c.corner) || [])[1] || c.corner;
       out.push(`✂ Corner cut at ${lbl} — ${c.h}″ × ${c.v}″ legs (45°); cut the tray on site, glass or framing runs the line`);
     });
+    if (cfg.drainRef === "right" && cfg.drainX) {
+      out.push(`• Drain pinned as given: ${round2(cfg.w - cfg.drainX)}″ off the RIGHT wall (= ${cfg.drainX}″ from the left on the drawing)`);
+    }
     (diag?.warnings || []).forEach((x) => out.push("• " + x));
     if (cfg.wallSys === "membrane") out.push("• Backer behind the membrane is by others — cement board or drywall");
     if (!cfg.curbed) out.push("• Curbless needs the floor recessed or the ramp — KERDI-SHOWER-FRS recess system lands Fall 2026");
@@ -653,7 +671,7 @@ export default function SchluterConfigurator({
   // added walls cleared, curb following the tray's line (TT = curbless).
   const pickKit = (t) => {
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
-    setBench(null); setManual([]); setXwalls([]); setDrainX(""); setDrainY("");
+    setBench(null); setManual([]); setXwalls([]); setDrainX(""); setDrainY(""); setDrainRef("left");
     setCorners({}); setMaxIn(false); setTileT("");
     setWalls(DEF_WALLS.map((x) => ({ ...x })));
     setPick(t.sku); setKitPick(true); setPlacing(false);
@@ -781,7 +799,7 @@ export default function SchluterConfigurator({
               <div className={"rf" + (drain === "linear" ? " dim" : "")}
                 title={drain === "linear" ? "a linear channel runs at the back wall — nothing to pin"
                   : "pin an existing waste line — the tray's drain is moulded, so the cut is split between the sides to land it as close as the tray allows"}>
-                <label>Drain — from left × back</label>
+                <label>Drain — from {drainRef} × back</label>
                 <div className="dims">
                   <input className="rinp" type="number" placeholder="auto" disabled={drain === "linear"} value={drainX}
                     onChange={(e) => { setKitPick(false); setDrainX(e.target.value); }} data-schluter-dx />
@@ -789,6 +807,14 @@ export default function SchluterConfigurator({
                   <input className="rinp" type="number" placeholder="auto" disabled={drain === "linear"} value={drainY}
                     onChange={(e) => { setKitPick(false); setDrainY(e.target.value); }} data-schluter-dy />
                   <span>in</span>
+                  {/* the measurement DATUM — a builder calling the drain off
+                      the right wall types the number as given, no subtraction */}
+                  <div className="rseg" title="which wall the first number is measured from">
+                    <button className={drainRef !== "right" ? "on" : ""} disabled={drain === "linear"}
+                      onClick={() => { setKitPick(false); setDrainRef("left"); }}>Left</button>
+                    <button className={drainRef === "right" ? "on" : ""} disabled={drain === "linear"}
+                      onClick={() => { setKitPick(false); setDrainRef("right"); }} data-schluter-dref>Right</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -809,7 +835,11 @@ export default function SchluterConfigurator({
                 onClick={custom(() => {
                   const nw = d, nd = w;
                   setW(nw); setD(nd);
-                  setDrainX(drainY); setDrainY(drainX);
+                  // a right-referenced X converts to from-left before it
+                  // becomes the depth pin — the rotated axes read from
+                  // left/back again
+                  const fromLeftX = drainRef === "right" && +drainX > 0 ? String(round2((+w || 0) - +drainX)) : drainX;
+                  setDrainX(drainY); setDrainY(fromLeftX); setDrainRef("left");
                   setWalls((ws) => ws.map((x) => ({ ...x, len: "" })));
                 })} data-schluter-flip>⇄</button>
             </div>

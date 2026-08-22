@@ -879,7 +879,13 @@ src/
                     # (w↔d, the drain pin follows, typed lengths re-auto),
                     # and 45° corner cuts — "✂ Cut open corners" + a corner
                     # click on the drawing, openMap-gated, the curb turning
-                    # cut front corners diagonally. "Pan against" is the one
+                    # cut front corners diagonally. The drain pin's X carries
+                    # a Left|Right DATUM toggle (owner 2026-08-22: a builder
+                    # calls the drain off the right wall — type it as given):
+                    # the popup converts to the engine's canonical from-left
+                    # drainX, the marker carries drainRef so Reconfigure
+                    # shows the number as given, the cut list echoes both,
+                    # and the ⇄ flip converts to from-left before rotating. "Pan against" is the one
                     # wedi control deliberately NOT ported: a tray is cut to
                     # the whole room, so there is no anchoring choice — the
                     # drain pin already picks which sides the saw takes.
