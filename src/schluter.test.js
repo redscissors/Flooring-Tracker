@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, normBench, benchTrayRoom } from "./schluter.js";
+
+const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 test("fixture loads", () => assert.equal(FIXTURE_ITEMS.length >= 55, true));
 test("classify exists", () => assert.equal(typeof classify, "function"));
@@ -36,6 +38,40 @@ test("membrane/band/board/curb/set", () => {
 });
 test("non-shower items are null", () => {
   assert.equal(classify({ sku: "SLRA100ATGB", name: '3/8" Schluter Jolly' }), null);
+});
+
+test("KERDI-BOARD-Z* profiles are null, never wall boards (KBZS fastener boxes stay)", () => {
+  // the live EFT's ZFP flat plastic profile — a hardware-attachment stick,
+  // not a panel; it used to classify g:"board" with a bogus sf and win the
+  // wall pick when no other board carried an sf
+  assert.equal(classify({ sku: "KBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `5/16"x8'2-1/2"` }), null);
+  assert.equal(classify({ sku: "SLRKBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `8'2-1/2"` }), null);
+  assert.equal(classify({ sku: "KBZA160AE", name: "Kerdi-Board-Za Angle Profile", size: `8'2-1/2"` }), null);
+  assert.equal(classify(FIXTURE_ITEMS.find((i) => i.sku === "KBZS35GT32Z")).fastener, true);
+});
+
+test("an EFT-imported board's bare size (thickness split out by the import) still carries sf", () => {
+  // pricebook.js THREE_IN_RE writes "1/2IN X 48IN X 96IN" as size "48x96"
+  // with the thickness in its own field (ticket 083) — no inch marks
+  const b = classify({ sku: "KB1212202440", name: "Kerdi-Board 1/2in Panel", size: "48x96" });
+  assert.equal(b.sf, 32);
+  assert.equal(b.thickMm, 12);
+  assert.ok(!b.thick2);
+  const half = classify({ sku: "KB1212202440", name: "Kerdi-Board 1/2in Panel", size: "24.5x96" });
+  assert.ok(Math.abs(half.sf - 16.33) < 0.01);
+});
+
+test("full-catalog wall pick lands the EFT ½\" panel, never a Z-profile", () => {
+  const rows = [
+    { sku: "KBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `5/16"x8'2-1/2"`, price: 0, cost: 24.5, stock: false },
+    { sku: "KB1212202440", name: "Kerdi-Board 1/2in Panel", size: "48x96", price: 0, cost: 79.01, stock: false },
+  ];
+  const c = { w: 48, d: 48, curbed: true, drain: "point", wallSys: "board",
+    walls: [{ on: true, len: 48, h: 84 }, { on: true, len: 48, h: 84 }, { on: true, len: 48, h: 84 }] };
+  const b = buildKit(c, catalogOf(rows), { source: "all" });
+  const wall = b.lines.find((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+  assert.equal(wall.item.sku, "KB1212202440");
+  assert.equal(wall.qty, 3); // ceil(84 sf × 1.05 / 32)
 });
 
 test("registry-shaped row (shop-code sku, mfg code in vendorSkus) classifies as a tray via vendorSkus", () => {
@@ -490,4 +526,82 @@ test("a cut FRONT corner adds the curb's diagonal; a back corner never does", ()
   assert.equal(curbOf(fl).qty, 2);
   assert.match(curbOf(fl).note, /turns a cut corner diagonally/);
   assert.equal(curbOf(bl).qty, 1);
+});
+
+// --- benches (wedi parity round 3): normBench / benchTrayRoom / cfg.benches -
+
+test("normBench defaults: wall bench spans the run at 14\" deep, corner takes its legs", () => {
+  const wb = normBench({ kind: "wall", side: "back", build: "framed" }, { w: 60, d: 38 }, CAT);
+  assert.deepEqual(wb, { kind: "wall", side: "back", build: "framed", part: null, len: 60, depth: 14, h: 20 });
+  const cb = normBench({ kind: "corner", corner: "br" }, { w: 60, d: 38 }, CAT);
+  assert.equal(cb.build, "site");
+  assert.equal(cb.size, 24);
+});
+
+test("a premade SB bench's dims come off its SKU code", () => {
+  const tri = classify({ sku: "KBSB410TA", name: "Kerdi-Board-Sb Shower Bench" });
+  assert.equal(tri.extra, "bench");
+  assert.deepEqual(tri.bench, { corner: true, a: 16 });
+  const rect = classify({ sku: "KBSB4101220RA", name: "Kerdi-Board-Sb Shower Bench" });
+  assert.deepEqual(rect.bench, { d: 16, len: 48 });
+  // the 11½" bench must not round to 11"
+  const narrow = classify({ sku: "KBSB292965RA", name: "Kerdi-Board-Sb Shower Bench" });
+  assert.deepEqual(narrow.bench, { d: 11.5, len: 38 });
+  const n = normBench({ kind: "wall", side: "left", part: "KBSB4101220RA" }, { w: 60, d: 60 }, CAT.concat([rect]));
+  assert.equal(n.build, "premade");
+  assert.equal(n.len, 48);
+  assert.equal(n.depth, 16);
+});
+
+test("niches and the bench corner kit classify with their subtypes", () => {
+  assert.equal(by("KB12SN305508A1").extra, "niche");
+  assert.equal(by("KB12SNLT2WW").extra, "niche");
+  assert.equal(classify({ sku: "KERSB", name: "Kers-B Bench Corner Kit" }).extra, "benchkit");
+});
+
+test("only a framed wall bench shrinks the tray room", () => {
+  const dims = { w: 60, d: 38 };
+  const framed = normBench({ kind: "wall", side: "back", build: "framed" }, dims, CAT);
+  const site = normBench({ kind: "wall", side: "back", build: "site" }, dims, CAT);
+  assert.deepEqual(benchTrayRoom([framed], dims), { w: 60, d: 24, x0: 0, y0: 14 });
+  assert.deepEqual(benchTrayRoom([site], dims), { w: 60, d: 38, x0: 0, y0: 0 });
+  const left = normBench({ kind: "wall", side: "left", build: "framed" }, dims, CAT);
+  assert.deepEqual(benchTrayRoom([left], dims), { w: 46, d: 38, x0: 14, y0: 0 });
+});
+
+test("a framed bench re-fits the tray to the reduced room and says so on the line", () => {
+  // 60×38 with a framed back bench leaves 60×24 — the 60×38 tray now cuts 14"
+  const b = buildKit(cfg({ benches: [{ kind: "wall", side: "back", build: "framed" }] }), CAT, { source: "all" });
+  const base = b.lines.find((l) => l.g === "Base");
+  assert.match(base.note, /cut down to 5'×2'/);
+  assert.match(base.note, /stops at the framed bench face/);
+  const wrap = b.lines.find((l) => l.g === "Extras");
+  assert.match(wrap.note, /framed bench/);
+});
+
+test("cfg.benches bills per bench: site 2× 2\" board, premade its own line; legacy cfg.bench still lands", () => {
+  const two = buildKit(cfg({ benches: [
+    { kind: "wall", side: "back", build: "site" },
+    { kind: "corner", corner: "br", part: "KBSB410TA" },
+  ] }), CAT.concat([classify({ sku: "KBSB410TA", name: "Kerdi-Board-Sb Shower Bench", price: 153.13, cost: 102.09, stock: true })]), { source: "all" });
+  const extras = two.lines.filter((l) => l.g === "Extras");
+  assert.equal(extras.length, 2);
+  assert.equal(extras[0].item.thick2, true);
+  assert.equal(extras[0].qty, 2);
+  assert.equal(extras[1].item.sku, "KBSB410TA");
+  const legacy = buildKit(cfg({ bench: "buildup" }), CAT, { source: "all" });
+  assert.equal(legacy.lines.filter((l) => l.g === "Extras")[0].qty, 2);
+});
+
+test("a pinned drain follows the framed bench's shifted tray room", () => {
+  // framed LEFT bench (14" deep) on a 60×38 room: tray room 46×38 starting at
+  // x0=14 — a pin at the room centre (30) reads 16 in tray space and the
+  // achieved dx comes back in ROOM coords
+  const cands = trayCandidates(cfg({ w: 60, d: 38,
+    benches: [{ kind: "wall", side: "left", build: "framed" }], drainX: 30, drainY: 19 }), CAT, { source: "all" });
+  const c = cands[0];
+  assert.ok(c.tray);
+  assert.equal(c.x0, 14);
+  assert.ok(c.dx >= 14, "drain lands inside the tray region");
+  assert.equal(round2(c.miss), round2(Math.hypot(c.dx - 30, c.dy - 19)));
 });

@@ -13,6 +13,7 @@
 // four recognizer functions for a caller that already pays for the rest.
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./schluterquery.js";
+import { BENCH_DEPTH } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
 
@@ -102,7 +103,11 @@ function bandLf(code) {
 
 // Board sf: prefer the sheet's "= N sf" text; otherwise compute from the
 // dimension numbers in "size" (WxH, or thickness×W×H when three numbers are
-// present — a leading 2 there means the 2"-thick board, thick2).
+// present — a leading 2 there means the 2"-thick board, thick2). The mapped
+// import writes a three-dim board's size BARE ("48x96", "24.5x96") with the
+// thickness pulled into its own field (pricebook.js THREE_IN_RE), so a bare
+// L×W with no inch marks is a panel too — without it every EFT board carries
+// no sf and drops out of the wall pick.
 function boardDims(item) {
   const text = item.size || "";
   const out = {};
@@ -115,6 +120,9 @@ function boardDims(item) {
     if (out.sf === undefined) out.sf = (nums[1] * nums[2]) / 144;
   } else if (nums.length === 2 && out.sf === undefined) {
     out.sf = (nums[0] * nums[1]) / 144;
+  } else if (!nums.length && out.sf === undefined) {
+    const bare = /^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*$/i.exec(text);
+    if (bare) out.sf = (parseFloat(bare[1]) * parseFloat(bare[2])) / 144;
   }
   return out;
 }
@@ -214,9 +222,29 @@ function classifyCode(item, rawSku) {
   if (/^KSR/.test(code)) {
     return { ...item, g: "curb", ramp: true };
   }
-  // KERDI-BOARD-SN niche, -SB bench, KERS-B bench corner kit.
-  if (/^KB12SN/.test(code) || /^KBSB/.test(code) || /^KERSB/.test(code)) {
-    return { ...item, g: "extra" };
+  // KERDI-BOARD-SN niche, -SB bench, KERS-B bench corner kit — all "extra",
+  // subtyped so the popup can group its add-on chips and the bench menu can
+  // place a premade. An SB code carries the bench's own dims: KBSB<depth mm>
+  // [<length mm>]<TA|RA> — TA is the triangular corner seat (one leg figure),
+  // RA the rectangular wall bench. Half-inch rounding because the 11½" bench
+  // (292mm) must not read as 11".
+  if (/^KB12SN/.test(code)) {
+    return { ...item, g: "extra", extra: "niche" };
+  }
+  if (/^KBSB/.test(code)) {
+    const entry = { ...item, g: "extra", extra: "bench" };
+    const m = /^KBSB(\d+)([A-Z]*)/.exec(code);
+    if (m) {
+      const inH = (s) => Math.round((+s / 25.4) * 2) / 2;
+      if (/^T/.test(m[2] || "")) entry.bench = { corner: true, a: inH(m[1]) };
+      else entry.bench = m[1].length > 3
+        ? { d: inH(m[1].slice(0, 3)), len: inH(m[1].slice(3)) }
+        : { d: inH(m[1]) };
+    }
+    return entry;
+  }
+  if (/^KERSB/.test(code)) {
+    return { ...item, g: "extra", extra: "benchkit" };
   }
   // KBZS screws + washers: board fasteners, counted by the "N ct" in the
   // size text — never part of the wall-panel sf pick.
@@ -224,6 +252,11 @@ function classifyCode(item, rawSku) {
     const m = /(\d+)\s*ct/i.exec(item.size || item.name || item.description || "");
     return { ...item, g: "board", fastener: true, ct: m ? Number(m[1]) : 0 };
   }
+  // Every other KERDI-BOARD-Z* accessory (ZA/ZC/ZFP hardware-attachment and
+  // edge profiles, ZT washers) is not a shower part — without this guard the
+  // KB catch-all below made the ZFP flat plastic profile a wall "board" and
+  // the wall pick landed hundreds of profile sticks instead of panels.
+  if (/^KBZ/.test(code)) return null;
   // Every other KERDI-BOARD panel/accessory. The two digits after KB are the
   // board thickness in mm (KB12 = ½", KB50 = 2") — the grammar marks the 2"
   // board even when the row's size text is unreadable, and the wall pick
@@ -267,6 +300,77 @@ export function catalogOf(items) {
   return items.map(classify).filter(Boolean);
 }
 
+// ============================================================================
+// benches (wedi parity round 3) — the drawing's bench zones and decision 4's
+// three forms: premade SB piece, 2" build-up ("site"), installer-framed with
+// the ½" wrap. The bench shape mirrors wedi's normBench so showerdraw's zone
+// hover/menu machinery drives both configurators unchanged.
+// ============================================================================
+
+export const BENCH_H = 20;   // SB premades are 20" high (pricelist p.121); site builds match
+
+/**
+ * Normalize one bench row ({kind, side|corner, build, part?, len/depth/h/size})
+ * against the room and the live catalog. A premade's own dims come off its
+ * classified SB code (entry.bench); a wall bench defaults to the full run at
+ * the shared 14" seat depth. Schluter has no wedi "smaller pan" fork — the
+ * tray CUTS, so a framed bench simply shrinks the room trayCandidates fits
+ * (benchTrayRoom) and the ranking re-runs.
+ */
+export function normBench(b, dims, cat) {
+  b = b || {};
+  const part = b.part && cat ? cat.find((i) => i.sku === b.part) : null;
+  const pb = (part && part.bench) || null;
+  if (b.kind === "corner") {
+    return {
+      kind: "corner",
+      corner: ["bl", "br", "fl", "fr"].includes(b.corner) ? b.corner : "bl",
+      build: part ? "premade" : "site", part: part ? part.sku : null,
+      size: round2(+b.size || (pb && pb.a) || 24),
+      h: round2(+b.h || BENCH_H),
+    };
+  }
+  const side = ["left", "right", "back"].includes(b.side) ? b.side : "back";
+  const run = dims ? (side === "back" ? +dims.w || 0 : +dims.d || 0) : 0;
+  const build = part ? "premade" : b.build === "framed" ? "framed" : "site";
+  const len = +b.len || (pb && pb.len) || run || 48;
+  return {
+    kind: "wall", side, build, part: part ? part.sku : null,
+    len: round2(run ? Math.min(len, run) : len),
+    depth: round2(+b.depth || (pb && pb.d) || BENCH_DEPTH),
+    h: round2(+b.h || BENCH_H),
+  };
+}
+
+/**
+ * The room a framed bench leaves for the tray (the wedi benchPanRoom rule:
+ * only framed interrupts the envelope — build-ups and premades sit ON the
+ * finished tray). x0/y0 is where that reduced room starts in room coords, so
+ * the drawing and a pinned drain can shift with it.
+ */
+export function benchTrayRoom(benches, dims) {
+  let w = +dims.w || 0, d = +dims.d || 0, x0 = 0, y0 = 0;
+  (benches || []).forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    if (b.side === "back") { d -= b.depth; y0 += b.depth; }
+    else { w -= b.depth; if (b.side === "left") x0 += b.depth; }
+  });
+  return { w: round2(Math.max(0, w)), d: round2(Math.max(0, d)), x0: round2(x0), y0: round2(y0) };
+}
+
+/**
+ * The cfg's benches, normalized — cfg.benches when present, else the legacy
+ * cfg.bench flag ("framed"/"buildup", a saved pre-round-3 marker) as one
+ * back-wall bench, so old rows reopen unchanged.
+ */
+export function cfgBenches(cfg, cat) {
+  const list = Array.isArray(cfg.benches) ? cfg.benches
+    : cfg.bench === "framed" ? [{ kind: "wall", side: "back", build: "framed" }]
+      : cfg.bench === "buildup" ? [{ kind: "wall", side: "back", build: "site" }]
+        : [];
+  return list.map((b) => normBench(b, cfg, cat));
+}
+
 /**
  * Rank tray candidates for a shower config against the catalog.
  *
@@ -300,8 +404,13 @@ export function catalogOf(items) {
  * it only picks which sides the saw takes (the wedi waste-line doctrine).
  */
 export function trayCandidates(cfg, cat, { source } = {}) {
-  const pinX = Number.isFinite(+cfg.drainX) && +cfg.drainX > 0 ? +cfg.drainX : null;
-  const pinY = Number.isFinite(+cfg.drainY) && +cfg.drainY > 0 ? +cfg.drainY : null;
+  // a framed bench shrinks the room the tray has to cover (benchTrayRoom) —
+  // the fit window, cuts and drain placement all run in that reduced room,
+  // with x0/y0 shifting positions back into room coords for the pin/drawing
+  const troom = benchTrayRoom(cfgBenches(cfg, cat), cfg);
+  const rw = troom.w, rd = troom.d, x0 = troom.x0, y0 = troom.y0;
+  const pinX = Number.isFinite(+cfg.drainX) && +cfg.drainX > 0 ? round2(+cfg.drainX - x0) : null;
+  const pinY = Number.isFinite(+cfg.drainY) && +cfg.drainY > 0 ? round2(+cfg.drainY - y0) : null;
   const pinned = cfg.drain !== "linear" && (pinX != null || pinY != null);
   // moulded position → room position: target the pin (or the moulded spot),
   // clamped to what the total cut can reach and 2" clear of the room edge
@@ -321,20 +430,22 @@ export function trayCandidates(cfg, cat, { source } = {}) {
       : [[tray.w, tray.d, false], [tray.d, tray.w, true]];
     let best = null;
     orients.forEach(([tw, td, rot]) => {
-      if (!(tw >= cfg.w && td >= cfg.d && (tw - cfg.w) + (td - cfg.d) <= 26)) return;
+      if (!(tw >= rw && td >= rd && (tw - rw) + (td - rd) <= 26)) return;
       // round2: a max-mode room's fractional depth otherwise floats the cut
       // into 10.869999… everywhere it prints
-      const cut = round2((tw - cfg.w) + (td - cfg.d));
-      const cand = { tray, tw, td, rot, cut, deep: tw - cfg.w > 6 || td - cfg.d > 6, kind: cut === 0 ? "exact" : "cut", miss: 0 };
+      const cut = round2((tw - rw) + (td - rd));
+      const cand = { tray, tw, td, rot, cut, deep: tw - rw > 6 || td - rd > 6, kind: cut === 0 ? "exact" : "cut", miss: 0 };
+      if (x0 || y0) { cand.x0 = x0; cand.y0 = y0; }
       if (tray.drain !== "linear") {
         const mx = tw / 2, my = tray.drain === "offset" ? td * 0.27 : td / 2;
-        cand.dx = round2(place(mx, tw - cfg.w, cfg.w, pinX));
-        cand.dy = round2(place(my, td - cfg.d, cfg.d, pinY));
-        cand.cutL = round2(Math.min(Math.max(mx - cand.dx, 0), tw - cfg.w));
-        cand.cutB = round2(Math.min(Math.max(my - cand.dy, 0), td - cfg.d));
+        // placed in the tray's reduced room, carried in ROOM coords (+x0/y0)
+        cand.dx = round2(place(mx, tw - rw, rw, pinX) + x0);
+        cand.dy = round2(place(my, td - rd, rd, pinY) + y0);
+        cand.cutL = round2(Math.min(Math.max(mx - (cand.dx - x0), 0), tw - rw));
+        cand.cutB = round2(Math.min(Math.max(my - (cand.dy - y0), 0), td - rd));
         if (pinned) {
           cand.pinned = true;
-          cand.miss = round2(Math.hypot(pinX != null ? cand.dx - pinX : 0, pinY != null ? cand.dy - pinY : 0));
+          cand.miss = round2(Math.hypot(pinX != null ? (cand.dx - x0) - pinX : 0, pinY != null ? (cand.dy - y0) - pinY : 0));
         }
       } else if (pinned) {
         // an "any"-preference pin can meet a linear tray: its channel is a
@@ -343,7 +454,7 @@ export function trayCandidates(cfg, cat, { source } = {}) {
         // linear tray outrank a point tray actually chasing the pin
         cand.pinned = true;
         cand.miss = round2(Math.hypot(
-          pinX != null ? Math.min(Math.max(pinX, 4), cfg.w - 4) - pinX : 0,
+          pinX != null ? Math.min(Math.max(pinX, 4), rw - 4) - pinX : 0,
           pinY != null ? 2.75 - pinY : 0));
       }
       if (!best || (pinned ? cand.miss - best.miss || cand.cut - best.cut : cand.cut - best.cut) < 0) best = cand;
@@ -453,6 +564,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const add = (g, item, qty, note) => {
     if (item) L.push({ g, item, qty, note, so: !item.stock });
   };
+  const benches = cfgBenches(cfg, cat);
   const cand = pick || trayCandidates(cfg, cat, { source })[0];
 
   if (cand.kind === "mortar") {
@@ -472,9 +584,13 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     for (const p of pickRolls(floorSfM * 1.15, cat, { source }))
       L.push({ g: "Base", item: p.item, qty: p.qty, note: "KERDI over the cured bed", so: !p.item.stock });
   } else {
+    // a framed bench shrank the room the tray fills — the cut note says the
+    // TRAY's landed size, not the full room
+    const troom = benchTrayRoom(benches, cfg);
     add("Base", cand.tray, 1,
       (cand.tray.drain !== cfg.drain && cfg.drain === "offset" ? "centre-drain tray — offset size not made; " : "") +
-      (cand.cut ? `cut down to ${inches(cfg.w)}×${inches(cfg.d)}` : "exact fit"));
+      (cand.cut ? `cut down to ${inches(troom.w)}×${inches(troom.d)}` : "exact fit") +
+      (troom.w < cfg.w || troom.d < cfg.d ? " — stops at the framed bench face" : ""));
   }
 
   // under an "any" preference the PICKED tray decides what drain gets
@@ -560,13 +676,20 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     add("Curb", pickFrom(cat, (i) => i.ramp, { source }), 1, '12" run, 1-1/4"→1/4" — ADA slope');
   }
 
-  if (cfg.bench === "framed") {
-    add("Extras", stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
-      .sort((x, y) => y.sf - x.sf), source)[0], 1,
-      "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
-  } else if (cfg.bench === "buildup") {
-    add("Extras", pickFrom(cat, (i) => i.thick2, { source }), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
-  }
+  // decision 4's three bench forms, one line set per bench (cfg.benches; the
+  // legacy cfg.bench flag arrives here as one back-wall bench via cfgBenches)
+  benches.forEach((b) => {
+    if (b.build === "premade") {
+      add("Extras", cat.find((i) => i.sku === b.part), 1,
+        b.kind === "corner" ? "premade corner bench on the finished tray" : "premade bench on the finished tray");
+    } else if (b.build === "framed") {
+      add("Extras", stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+        .sort((x, y) => y.sf - x.sf), source)[0], 1,
+        "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
+    } else {
+      add("Extras", pickFrom(cat, (i) => i.thick2, { source }), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
+    }
+  });
 
   const floorSf = (cfg.w * cfg.d) / 144;
   const allset = pickFrom(cat, (i) => i.sfPerBag, { source });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, normBench } from "./schluter.js";
 import { schluterDiag, schluterWalls, schluterCurb, schluterWallOn, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
 
 const CAT = catalogOf(FIXTURE_ITEMS);
@@ -181,4 +181,44 @@ test('an "any" room draws whatever the picked tray is', () => {
   const lin = cands.find((c) => c.tray.drain === "linear");
   assert.equal(schluterDiag(room, lin).drain.type, "linear");
   assert.equal(schluterDiag(room, cands[0]).drain.type, "point");
+});
+
+// --- benches (wedi parity round 3) ------------------------------------------
+
+test("a framed back bench offsets and shrinks the tray piece; the drain follows", () => {
+  const bench = normBench({ kind: "wall", side: "back", build: "framed" }, { w: 60, d: 38 }, CAT);
+  const c = cfg({ benches: [{ kind: "wall", side: "back", build: "framed" }] });
+  const cand = candFor(c);
+  const o = schluterDiag(c, cand, [bench]);
+  const p = o.pieces[0];
+  assert.equal(p.y, 14);
+  assert.equal(p.d, 24);
+  assert.equal(p.w, 60);
+  assert.equal(o.room.d, 38);           // the room outline stays full size
+  assert.ok(o.drain.y >= 14, "drain sits inside the tray region");
+});
+
+test("a build-up bench never moves the tray piece", () => {
+  const bench = normBench({ kind: "wall", side: "back", build: "site" }, { w: 60, d: 38 }, CAT);
+  const c = cfg({ benches: [{ kind: "wall", side: "back", build: "site" }] });
+  const o = schluterDiag(c, candFor(c), [bench]);
+  assert.equal(o.pieces[0].y, 0);
+  assert.equal(o.pieces[0].d, 38);
+});
+
+test("the curb butts a framed left bench that reaches the entry; a build-up leaves it whole", () => {
+  const dims = { w: 60, d: 38 };
+  const framed = normBench({ kind: "wall", side: "left", build: "framed" }, dims, CAT);
+  const c = cfg({});
+  const cut = schluterCurb(c, [framed]);
+  assert.equal(cut.segs.length, 1);
+  assert.equal(cut.segs[0].from, 14);   // the run starts at the bench face
+  assert.equal(cut.segs[0].len, 46);
+  const site = normBench({ kind: "wall", side: "left", build: "site" }, dims, CAT);
+  const whole = schluterCurb(c, [site]);
+  assert.equal(whole.segs[0].from, 0);
+  assert.equal(whole.segs[0].len, 60);
+  // a framed bench short of the entry never touches the curb
+  const shortB = normBench({ kind: "wall", side: "left", build: "framed", len: 20 }, dims, CAT);
+  assert.equal(schluterCurb(c, [shortB]).segs[0].len, 60);
 });

@@ -708,11 +708,21 @@ src/
                     # no-fit room falling back to `cfg.mortarItem` (a Settings
                     # -> Materials pick, its own rate) plus KERDI over the
                     # cured bed — decision 2, never a $0 by-installer line.
-                    # `buildKit` implements only the two site-built bench
-                    # forms (framed / 2" build-up); the premade SB bench is
-                    # a catalog pick (`g: "extra"`), landed as a UI add-on in
-                    # phase 3 — decision 4's third option is deferred there,
-                    # not dropped. `tierPrice` is the ADR 0032 lens: retail is a stocked
+                    # Benches (parity round 3, 2026-08-22): `cfg.benches`
+                    # rides the wedi bench-row shape through this module's own
+                    # `normBench`/`cfgBenches` (a legacy `cfg.bench` flag
+                    # normalizes to one back-wall bench, so old markers keep
+                    # their bill) — decision 4's bill per bench: framed → the
+                    # ½" wrap board, site → 2× 2" board, premade → its own
+                    # line, the SB piece's dims derived off the KBSB SKU code
+                    # (`classify` stamps `extra: niche/bench/benchkit` +
+                    # `bench` dims so the popup's chips and menus never key on
+                    # name text). A FRAMED bench shrinks the room the tray
+                    # fits (`benchTrayRoom`, the wedi only-framed-interrupts
+                    # rule): trayCandidates runs in that reduced room with the
+                    # drain pin shifted by x0/y0 — Schluter's analog of wedi's
+                    # smaller-pan fork, since trays CUT and the ranking simply
+                    # re-runs for the clear space. `tierPrice` is the ADR 0032 lens: retail is a stocked
                     # row's own registry price, or cost x1.5 for a
                     # special-order row with no shelf price of its own
                     # (the shop's own observed markup, not wedi's
@@ -815,6 +825,13 @@ src/
                     # the ramp is a build line — and a cut FRONT corner
                     # the run reaches turns the curb DIAGONALLY across it
                     # in the wedi diag shape, the run giving up the leg),
+                    # (round 3: normalized benches thread through —
+                    # `schluterDiag(cfg, cand, benches)` draws the tray piece
+                    # offset/reduced where a framed bench holds it short, and
+                    # `schluterCurb(cfg, benches)` butts the entry run against
+                    # a framed bench footprint that reaches the entry edge —
+                    # both via schluter.js benchTrayRoom / showerdraw
+                    # benchFootprint so the bill and the drawing can't drift),
                     # `schluterWallOn`, and the round-2 corner pair:
                     # `schluterOpenCorners` (the wedi openCorners rule — a
                     # corner boxed by two walls can't be cut; the curb
@@ -865,11 +882,33 @@ src/
                     # ranked tray option cards, and the
                     # mortar-bed fallback card with its Settings → Materials
                     # pick mapped through mortarItemFrom — decision 2. The
-                    # add-on chips (extras — premade SB bench = decision 4's
-                    # third option — and both site-built bench forms) moved
+                    # add-on chips moved
                     # to the BUILD COLUMN's Add-ons group (issue 100, the
                     # wedi idiom) so a shelf-kit pick reaches them on every
-                    # tab. Round 2 (owner screenshot, same day) finished the
+                    # tab; round 3 (owner feedback 2026-08-22, .scratch/101)
+                    # made a chip with several possible parts open a PICKER
+                    # instead of one chip per catalog variant (the niches
+                    # collapse to one "+ Niche" chip; choice lists narrow to
+                    # stocked rows under Stock only unless none are) and
+                    # moved BENCHES onto the DRAWING entirely — the shared
+                    # showerdraw zone machinery (hover the tray along a wall
+                    # or into a corner) now drives a Schluter bench menu:
+                    # 2" build-up, framed + ½" wrap (wall zones only), or the
+                    # premade SB benches read live off the registry (corner
+                    # zones list the TA triangles, wall zones the RA
+                    # rectangles), with size fields, a build seg and Remove on
+                    # an existing bench's zone. Benches ride the marker as
+                    # cfg.benches (ids stay local; a legacy cfg.bench flag
+                    # reopens as one back-wall bench) and any bench flips
+                    # mode to "custom" like the other geometry. Wall bands
+                    # (plan AND isometric) take a right-click WALL MENU —
+                    # size × height writing into the same walls/xwalls rows
+                    # the Custom tab edits, End seg + "Both ends" mirror +
+                    # Remove on added walls, Turn off on base walls; no faces
+                    # seg, the membrane/board fork is whole-shower. Esc
+                    # ladder: payload → picker → bench menu → wall menu →
+                    # close; each menu also closes on a press outside.
+                    # Round 2 (owner screenshot, same day) finished the
                     # wedi form: an "Any" drain preference (pool everything,
                     # the pick decides), "Sizes are — Tray size | Max — curb
                     # inside" + Tile thickness (parseIn fractions; the entry
