@@ -717,12 +717,17 @@ src/
                     # line, the SB piece's dims derived off the KBSB SKU code
                     # (`classify` stamps `extra: niche/bench/benchkit` +
                     # `bench` dims so the popup's chips and menus never key on
-                    # name text). A FRAMED bench shrinks the room the tray
-                    # fits (`benchTrayRoom`, the wedi only-framed-interrupts
-                    # rule): trayCandidates runs in that reduced room with the
-                    # drain pin shifted by x0/y0 — Schluter's analog of wedi's
-                    # smaller-pan fork, since trays CUT and the ranking simply
-                    # re-runs for the clear space. `tierPrice` is the ADR 0032 lens: retail is a stocked
+                    # name text). A FRAMED bench holds the tray short of the
+                    # room (`benchTrayRoom`, the wedi only-framed-interrupts
+                    # rule) but the TRAY CHOICE never moves on its own (owner
+                    # 2026-08-24): the bench row's `trayFit` is the wedi
+                    # panFit fork — "cut" (default) ranks the FULL room and
+                    # the bench face cut is a site cut buildKit notes, while
+                    # "smaller" re-runs trayCandidates in the clear space
+                    # with the drain pin shifted by x0/y0 AND, unpinned,
+                    # auto-pins the clear space's CENTRE (cand.centered) so
+                    # the re-fit chases a centred drain; typed drainX/Y
+                    # always wins. `tierPrice` is the ADR 0032 lens: retail is a stocked
                     # row's own registry price, or cost x1.5 for a
                     # special-order row with no shelf price of its own
                     # (the shop's own observed markup, not wedi's
@@ -905,6 +910,12 @@ src/
                     # pick landing on the next open wall/corner zone, existing
                     # benches listed with click-to-remove; the drawing's zones
                     # stay where a bench moves, resizes or changes build.
+                    # Adding a bench (chip or drawing) bumps the popup onto
+                    # the Custom shower tab (owner rule 2026-08-24), a framed
+                    # bench's menu carries the wedi "Cut it down | Smaller
+                    # tray" seg (trayFit — see schluter.js), and "Clear
+                    # design" sits in the pop-head left of the Source switch
+                    # (the wedi header action; pickKit resets through it).
                     # Benches ride the marker as
                     # cfg.benches (ids stay local; a legacy cfg.bench flag
                     # reopens as one back-wall bench) and any bench flips

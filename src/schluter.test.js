@@ -532,10 +532,17 @@ test("a cut FRONT corner adds the curb's diagonal; a back corner never does", ()
 
 test("normBench defaults: wall bench spans the run at 14\" deep, corner takes its legs", () => {
   const wb = normBench({ kind: "wall", side: "back", build: "framed" }, { w: 60, d: 38 }, CAT);
-  assert.deepEqual(wb, { kind: "wall", side: "back", build: "framed", part: null, len: 60, depth: 14, h: 20 });
+  assert.deepEqual(wb, { kind: "wall", side: "back", build: "framed", part: null, len: 60, depth: 14, h: 20, trayFit: "cut" });
   const cb = normBench({ kind: "corner", corner: "br" }, { w: 60, d: 38 }, CAT);
   assert.equal(cb.build, "site");
   assert.equal(cb.size, 24);
+});
+
+test("only a framed bench carries trayFit — \"cut\" unless the row says smaller", () => {
+  const sm = normBench({ kind: "wall", side: "back", build: "framed", trayFit: "smaller" }, { w: 60, d: 38 }, CAT);
+  assert.equal(sm.trayFit, "smaller");
+  const site = normBench({ kind: "wall", side: "back", build: "site", trayFit: "smaller" }, { w: 60, d: 38 }, CAT);
+  assert.equal(site.trayFit, undefined);
 });
 
 test("a premade SB bench's dims come off its SKU code", () => {
@@ -569,14 +576,41 @@ test("only a framed wall bench shrinks the tray room", () => {
   assert.deepEqual(benchTrayRoom([left], dims), { w: 46, d: 38, x0: 14, y0: 0 });
 });
 
-test("a framed bench re-fits the tray to the reduced room and says so on the line", () => {
-  // 60×38 with a framed back bench leaves 60×24 — the 60×38 tray now cuts 14"
+test("a framed bench holds the tray at its face and says so — the tray choice never moves by default", () => {
+  // 60×38 with a framed back bench: the ranking stays the FULL room's (the
+  // exact 60×38 tray keeps winning, owner 2026-08-24) and the line says the
+  // landed 60×24 cut at the bench face
+  const bare = trayCandidates(cfg({}), CAT, { source: "all" });
+  const held = trayCandidates(cfg({ benches: [{ kind: "wall", side: "back", build: "framed" }] }), CAT, { source: "all" });
+  assert.deepEqual(held.map((c) => c.tray.sku), bare.map((c) => c.tray.sku));
+  assert.equal(held[0].cut, bare[0].cut);
+  assert.equal(held[0].x0, undefined);
   const b = buildKit(cfg({ benches: [{ kind: "wall", side: "back", build: "framed" }] }), CAT, { source: "all" });
   const base = b.lines.find((l) => l.g === "Base");
   assert.match(base.note, /cut down to 5'×2'/);
   assert.match(base.note, /stops at the framed bench face/);
   const wrap = b.lines.find((l) => l.g === "Extras");
   assert.match(wrap.note, /framed bench/);
+});
+
+test("trayFit \"smaller\" re-fits the clear space and centres the drain there unless pinned", () => {
+  // framed back bench (14") set to Smaller tray on 60×38: the ranking runs in
+  // the clear 60×24 and the auto pin is its centre — dy lands 12" into the
+  // clear space (26" in room coords)
+  const sm = trayCandidates(cfg({ benches: [
+    { kind: "wall", side: "back", build: "framed", trayFit: "smaller" }] }), CAT, { source: "all" });
+  const c = sm[0];
+  assert.ok(c.tray);
+  assert.equal(c.y0, 14);
+  assert.equal(c.centered, true);
+  assert.equal(c.dx, 30);
+  assert.equal(c.dy, 26);
+  assert.equal(c.miss, 0);
+  // typed drain dimensions beat the auto centre
+  const pinned = trayCandidates(cfg({ benches: [
+    { kind: "wall", side: "back", build: "framed", trayFit: "smaller" }], drainY: 30 }), CAT, { source: "all" });
+  assert.equal(pinned[0].centered, undefined);
+  assert.equal(pinned[0].dy, 30);
 });
 
 test("cfg.benches bills per bench: site 2× 2\" board, premade its own line; legacy cfg.bench still lands", () => {
@@ -593,12 +627,12 @@ test("cfg.benches bills per bench: site 2× 2\" board, premade its own line; leg
   assert.equal(legacy.lines.filter((l) => l.g === "Extras")[0].qty, 2);
 });
 
-test("a pinned drain follows the framed bench's shifted tray room", () => {
-  // framed LEFT bench (14" deep) on a 60×38 room: tray room 46×38 starting at
-  // x0=14 — a pin at the room centre (30) reads 16 in tray space and the
-  // achieved dx comes back in ROOM coords
+test("a pinned drain follows a smaller-tray bench's shifted tray room", () => {
+  // framed LEFT bench (14" deep, Smaller tray) on a 60×38 room: tray room
+  // 46×38 starting at x0=14 — a pin at the room centre (30) reads 16 in tray
+  // space and the achieved dx comes back in ROOM coords
   const cands = trayCandidates(cfg({ w: 60, d: 38,
-    benches: [{ kind: "wall", side: "left", build: "framed" }], drainX: 30, drainY: 19 }), CAT, { source: "all" });
+    benches: [{ kind: "wall", side: "left", build: "framed", trayFit: "smaller" }], drainX: 30, drainY: 19 }), CAT, { source: "all" });
   const c = cands[0];
   assert.ok(c.tray);
   assert.equal(c.x0, 14);

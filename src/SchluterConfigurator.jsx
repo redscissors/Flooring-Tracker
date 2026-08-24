@@ -92,6 +92,8 @@ const CSS = `
 .sch-pop .name small{font-weight:600;color:var(--ft-muted);font-size:12px;margin-left:6px}
 .sch-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
 .sch-pop .headctl{margin-left:auto;display:flex;align-items:center;gap:10px}
+.sch-pop .rclear{border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;white-space:nowrap}
+.sch-pop .rclear:hover{background:var(--ft-hover);color:var(--ft-text)}
 .sch-pop .srcseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .sch-pop .srcseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
 .sch-pop .srcseg button + button{border-left:1px solid var(--ft-border-strong)}
@@ -687,7 +689,7 @@ export default function SchluterConfigurator({
         if (pickCand.cutB > 0.05) bits.push(`${pickCand.cutB}″ off the back`);
         if (cutF > 0.05) bits.push(`${cutF}″ off the front`);
       }
-      out.push(`✂ Cut ${pickCand.tray.sku} to ${inches(troom.w)} × ${inches(troom.d)} (from ${inches(pickCand.tw)}×${inches(pickCand.td)}${pickCand.rot ? ", laid rotated" : ""})${troom.w < cfg.w || troom.d < cfg.d ? " — stops at the framed bench face" : ""}${bits.length ? " — " + bits.join(", ") + " to land the drain on the pin" : ""}${pickCand.deep ? " — deep cut, drain moves off-centre" : ""}`);
+      out.push(`✂ Cut ${pickCand.tray.sku} to ${inches(troom.w)} × ${inches(troom.d)} (from ${inches(pickCand.tw)}×${inches(pickCand.td)}${pickCand.rot ? ", laid rotated" : ""})${troom.w < cfg.w || troom.d < cfg.d ? " — stops at the framed bench face" : ""}${bits.length ? " — " + bits.join(", ") + " to land the drain " + (pickCand.centered ? "centred in the clear space" : "on the pin") : ""}${pickCand.deep ? " — deep cut, drain moves off-centre" : ""}`);
     }
     const ch = build.lines.find((l) => l.item.part === "channel");
     const chCut = ch && (ch.note || "").match(/cut to [\d.]+"/);
@@ -758,17 +760,27 @@ export default function SchluterConfigurator({
   // smallest-side sort reads as ascending down the family
   const rowSz = (t) => `${inches(t.d)}×${inches(t.w)}`;
 
+  // "Clear design" (the wedi header action): wipe the whole build — room back
+  // to the default, walls, benches, add-ons, hand-set quantities — on any tab.
+  const clearDesign = () => {
+    setW("60"); setD("38"); setCurbed(true); setDrain("point"); setWallSys("membrane");
+    setWalls(DEF_WALLS.map((x) => ({ ...x })));
+    setXwalls([]); setPlacing(false); setWallH(String(DEF_WALL_H));
+    setCorners({}); setMaxIn(false); setTileT("");
+    setDrainX(""); setDrainY(""); setDrainRef("left");
+    setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
+    setMortarName(""); setManual([]); setQtyOv({});
+    setPick(null); setKitPick(false);
+  };
+
   // A kit click fills the build column and STAYS here (the wedi Kits-tab
   // behavior — the Custom tab is where a room gets tuned, not a detour every
   // click takes). It hard-resets to the shelf kit: room = tray, add-ons and
   // added walls cleared, curb following the tray's line (TT = curbless).
   const pickKit = (t) => {
+    clearDesign();
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
-    setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
-    setManual([]); setQtyOv({}); setXwalls([]); setDrainX(""); setDrainY(""); setDrainRef("left");
-    setCorners({}); setMaxIn(false); setTileT("");
-    setWalls(DEF_WALLS.map((x) => ({ ...x })));
-    setPick(t.sku); setKitPick(true); setPlacing(false);
+    setPick(t.sku); setKitPick(true);
   };
 
   const kitsTab = !catReady || !cat.length ? loadingPane : (
@@ -814,7 +826,9 @@ export default function SchluterConfigurator({
         <div className="big">{szLbl(c.tray)}</div>
         <div className="sub">{(c.kind === "exact" ? `Drops in as-is${c.rot ? ", laid rotated" : ""}, drain on layout.`
           : `Trim ${c.cut}″ total${c.rot ? ", laid rotated," : ""} to hit ${inches(cfg.w)}×${inches(cfg.d)}${c.deep ? " — past the 6″ soft rule, drain moves off-centre" : ""}.`)
-          + (c.pinned ? (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the pin.` : " Cut split lands the drain on the pin.") : "")}</div>
+          + (c.pinned ? (c.centered
+            ? (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the clear-space centre.` : " Drain centred in the clear space.")
+            : (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the pin.` : " Cut split lands the drain on the pin.")) : "")}</div>
         <div className="foot">
           <span className={"stockdot" + (c.tray.stock ? "" : " so")}>{c.tray.stock ? "stock" : "special order"}</span>
           <span className="pr" style={{ color: tierColor }}>{fm(tierOf(c.tray))}</span>
@@ -1403,6 +1417,9 @@ export default function SchluterConfigurator({
         ...(benchMenu.kind === "corner" ? { corner: benchMenu.corner } : { side: benchMenu.side }),
         ...spec,
       }]);
+      // a bench is room tuning — the Custom shower tab is where it gets
+      // worked (owner rule 2026-08-24)
+      setTab("custom");
     });
     const upd = geom((patch) => setBenches((xs) => xs.map((b) => (b === row ? { ...b, ...patch } : b))));
     const del = geom(() => { setBenches((xs) => xs.filter((b) => b !== row)); setBenchMenu(null); });
@@ -1412,7 +1429,9 @@ export default function SchluterConfigurator({
     const framedNote = (() => {
       if (!norm || norm.build !== "framed") return "";
       const t = benchTrayRoom([norm], cfg);
-      return `the tray stops at the bench face — the options re-rank for the clear ${inches(t.w)}×${inches(t.d)}`;
+      return norm.trayFit === "smaller"
+        ? `the options re-rank for the clear ${inches(t.w)}×${inches(t.d)} — the drain chases its centre unless pinned`
+        : `the tray stays as picked and cuts to ${inches(t.w)}×${inches(t.d)} at the bench face — "Smaller tray" re-ranks for the clear space`;
     })();
     return createPortal(
       <div className="sch-swap sch-wallmenu sch-benchmenu" style={style} data-schluter-benchmenu
@@ -1424,7 +1443,7 @@ export default function SchluterConfigurator({
           </button>
           {benchMenu.kind !== "corner" && (
             <button className="bm-opt" onClick={() => add({ build: "framed" })} data-schluter-bench-framed>
-              <b>Framed by the installer</b><small>wrapped with ½″ KERDI-BOARD — the tray stops at the bench face and the options re-rank for what is left</small>
+              <b>Framed by the installer</b><small>wrapped with ½″ KERDI-BOARD — the tray cuts at the bench face; its Smaller-tray option re-ranks for what is left</small>
             </button>
           )}
           {pres.length > 0 && <div className="ph">Premade KERDI-BOARD benches</div>}
@@ -1476,6 +1495,19 @@ export default function SchluterConfigurator({
               </span>
             </div>
           )}
+          {norm.build === "framed" && (
+            // the wedi panFit fork: the tray choice never moves on its own —
+            // "Smaller tray" is the opt-in that re-fits the clear space
+            <div className="wm-row">
+              <label>Tray</label>
+              <span className="pfseg">
+                <button className={norm.trayFit !== "smaller" ? "on" : ""} title="keep the tray as ranked for the full room — it cuts at the bench face"
+                  onClick={() => upd({ trayFit: "cut" })} data-schluter-trayfit-cut>Cut it down</button>
+                <button className={norm.trayFit === "smaller" ? "on" : ""} title="re-rank the tray options for the clear space — the drain chases its centre unless pinned"
+                  onClick={() => upd({ trayFit: "smaller" })} data-schluter-trayfit-smaller>Smaller tray</button>
+              </span>
+            </div>
+          )}
           {norm.build !== "premade" && (
             <div className="wm-note">
               {norm.build === "framed" ? framedNote
@@ -1511,6 +1543,9 @@ export default function SchluterConfigurator({
         if (!zone) return;
         benchSeq.current += 1;
         setBenches((xs) => [...xs, { id: benchSeq.current, kind, ...(kind === "corner" ? { corner: zone } : { side: zone }), ...spec }]);
+        // a bench is room tuning — the Custom shower tab is where it gets
+        // worked (owner rule 2026-08-24)
+        setTab("custom");
       });
       return createPortal(
         <div className="sch-swap sch-picker sch-benchmenu" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
@@ -1536,7 +1571,7 @@ export default function SchluterConfigurator({
             <b>2″ corner build-up</b><small>triangle in a corner on the finished tray — 2″ top, face &amp; supports</small>
           </button>
           <button className="bm-opt" disabled={!freeSide} onClick={add("wall", { build: "framed" })} data-schluter-benchpick-framed>
-            <b>Framed by the installer</b><small>wrapped with ½″ KERDI-BOARD — the tray stops at the bench face and the options re-rank for what is left</small>
+            <b>Framed by the installer</b><small>wrapped with ½″ KERDI-BOARD — the tray cuts at the bench face; its Smaller-tray option re-ranks for what is left</small>
           </button>
           {(wallPres.length > 0 || cornerPres.length > 0) && <div className="ph">Premade KERDI-BOARD benches</div>}
           {wallPres.map((e) => (
@@ -1635,6 +1670,9 @@ export default function SchluterConfigurator({
             <div className="name">Schluter <small>shower systems · registry-priced (retail = 1.5× cost)</small></div>
           </div>
           <div className="headctl">
+            <button className="rclear" data-schluter-clear
+              title="wipe the build — room, walls, benches, add-ons — and reset the form"
+              onClick={clearDesign}>Clear design</button>
             <SourceSwitch source={source} onChange={(s) => { setSource(s); setPick(null); }} />
             {tierBar}
             {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
