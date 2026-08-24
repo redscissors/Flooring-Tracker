@@ -183,6 +183,32 @@ test("laminate stepnose columns keep their profile: Overlap vs Flush stay distin
   assert.equal(flush.cost, 52.3);
 });
 
+test("the stair-tread column reads SimpleStairs, however the PDF splits the word", () => {
+  // The stacked header breaks mid-word, and an earlier normalization misread
+  // the joined tokens as "SimpleStart" (Marcus 2026-08-19, Mannington 438602).
+  const items = [
+    word(378, 10, "LVT"),
+    word(9, 100, "ADURA Flex Plank (FXP)"), word(433, 100, "Warranty: Limited"),
+    word(494, 150, "SimpleSt"), word(497, 158, "airs"), word(492, 166, '48"'),
+    word(30, 175, "Pattern"), word(96, 175, "Width"), word(144, 175, "Color"),
+    word(184, 175, "Color"), word(200, 175, "Code"), word(233, 175, "Catalog"), word(258, 175, "#"),
+    word(269, 175, "SQ.Ft."), word(301, 175, "Carton"), word(459, 175, "Profile"),
+    word(497, 175, "$171.16"),
+    word(12, 190, "Napa"), word(97, 190, "6X48"), word(145, 190, "Dry Cork"),
+    word(189, 190, "FXP060"), word(236, 190, "554300"),
+    word(271, 190, "$3.39"), word(301, 190, "$92.85"), word(336, 190, "27.39"),
+    word(363, 190, "1170.000"), word(403, 190, "50"), word(423, 190, "38.320"), word(457, 190, "Painted"),
+    word(496, 190, "438602"),
+  ];
+  const { items: parsed } = run(items);
+  const stair = parsed.find((i) => i.sku === "438602");
+  assert.ok(stair, "stair tread keyed by its catalog number");
+  assert.match(stair.description, /SimpleStairs/);
+  assert.ok(!stair.description.includes("SimpleStart"));
+  assert.equal(stair.size, '48"');
+  assert.equal(stair.cost, 171.16);
+});
+
 test("laminate page maps to laminate type", () => {
   const lam = page("Laminate", "Restoration Collection (RST8V)", [
     { pattern: "Hillside Hickory", size: "8", color: "Acorn", code: "28210", catalog: "553376",

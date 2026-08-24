@@ -195,7 +195,9 @@ test("calcStocked looks up by species + color, not table position", () => {
   const c = calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 5.25 });
   assert.equal(c.cost, 5.85);
   assert.equal(c.cartonSf, 20.5);
-  assert.equal(c.desc, '5¼" White Oak Natural Character Stocked prefinished 30 sheen');
+  // "Prefinished", never "Stocked" — stock status is the warn line's job, not
+  // the description's (Marcus 2026-08-21).
+  assert.equal(c.desc, '5¼" White Oak Natural Character Prefinished 30 sheen');
   assert.deepEqual(c.warn, ["Stocked item — ships from Sheoga stock"]);
   assert.equal(stockedItem({ sp: "White Oak", color: "Natural" }).sheen, 30);
 });
@@ -206,7 +208,7 @@ test("calcStocked: off-standard sheen adds a flat $250 fee line, stays at cost",
   const off = calcStocked({ ...base, sheen: "5" });
   assert.equal(off.cost, 5.85); // fee never folds into $/sf
   assert.deepEqual(off.fees, [{ label: "Non-standard sheen — 5-sheen (standard 30)", amt: 250 }]);
-  assert.ok(off.desc.endsWith("Stocked prefinished 5 sheen"));
+  assert.ok(off.desc.endsWith("Prefinished 5 sheen"));
   assert.ok(off.warn[0].includes("made to order"));
   // a product whose standard is 20 (White Oak Caramel) doesn't charge at 20
   assert.deepEqual(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }).fees, []);

@@ -98,14 +98,25 @@ test("printProduct: a roll-billed floor prices per SF and orders in whole rolls"
   assert.equal(c.qtyText, "2 rl");
 });
 
-test("orderEntryRow: a roll line is keyed and tagged in rolls", () => {
+test("orderEntryRow: a roll line keys in rolls but wears no unit tag — only CT leads", () => {
+  // Marcus 2026-08-20: any start other than CT reads as noise at the desk, so
+  // the tag is carton-only. The panel's qty/cost/sell still read in rolls.
   const p = { ...newProduct(), type: "misc", qtyType: "count", qty: "3", priceSqft: "84.2", sellUnit: "RL", brandColor: "Schluter Kerdi-Band", sku: "23015" };
   const r = orderEntryRow(p, s, "Master Bath", 0, []);
   assert.equal(r.qty, 3);
   assert.equal(r.unitCode, "RL");
   assert.equal(r.qtyText, "3 RL");
-  assert.equal(r.tag, "RL"); // the desk can't key this as a plain "each"
+  assert.equal(r.tag, "");
   assert.equal(r.perSell, 84.2);
+});
+
+test("orderEntryRow: a carton line still leads with CT — the one keyed-in-bundles unit", () => {
+  const p = { ...newProduct(), type: "tile", qty: "100", priceSqft: "5", cartonSf: "12.5", cartonUnit: "CT", sku: "TL-9", brandColor: "Hanoi White" };
+  const r = orderEntryRow(p, s, "Kitchen", 0, new Set());
+  assert.equal(r.tag, "CT");
+  // a sheet-billed line drops its SH start the same as the roll above
+  const sh = { ...newProduct(), type: "tile", qty: "20", priceSqft: "22.5", cartonSf: "0.97", cartonUnit: "SH", sku: "MOS-1", brandColor: "Hex Mosaic" };
+  assert.equal(orderEntryRow(sh, s, "Kitchen", 0, new Set()).tag, "");
 });
 
 // A plain each line is what the panel has always shown — no tag, no change.

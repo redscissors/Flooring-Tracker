@@ -68,7 +68,10 @@ function trimLabel(parts) {
     .replace(/\b(?:Cn|Piece)\b/gi, " ")
     .replace(/\s+/g, " ").trim();
   if (/^Qtr\b/i.test(s)) s = s.replace(/^Qtr/i, "Quarter");
-  if (/^SimpleSt/i.test(s)) s = "SimpleStart";
+  // The stair-tread system is "SimpleStairs" — the stacked header splits the
+  // word unpredictably, and an earlier normalization misread it as
+  // "SimpleStart" (Marcus 2026-08-19, Claude issue on Mannington 438602).
+  if (/^SimpleSt/i.test(s)) s = "SimpleStairs";
   return s || "Trim";
 }
 

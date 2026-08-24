@@ -128,13 +128,15 @@ export function printMatList(cust, s) {
 // Per-unit values are the extended totals ÷ ordered qty, so they read in the
 // sell unit (per carton / sheet / roll / piece / sf). The item text
 // splits at the SKU: size + color on top, SKU + coverage beneath — thickness
-// dropped, spaces only. Rows bought in anything but pieces lead with their unit
-// tag (also in the copied text) since the order-entry system can't be switched
-// off "each". A row with no quantity yet keys as one and sets `qtyAssumed` so
+// dropped, spaces only. Carton-keyed rows lead with a CT tag (also in the
+// copied text); every other unit start is dropped (Marcus 2026-08-20 — see the
+// tag below). A row with no quantity yet keys as one and sets `qtyAssumed` so
 // the panel can flag it (orderQty). `bookBrands` (bookId → the book's brand
 // label, optional) lets orderDescription drop a leading brand first when the
-// field runs tight. Read-only; no math is mutated.
-export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands) {
+// field runs tight. `stockSkus` (optional, every stock-cache SKU in every
+// skuKeys spelling) lets isSpecialOrder file a hand-entered row with an
+// unstocked SKU as a special order. Read-only; no math is mutated.
+export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands, stockSkus) {
   const isMisc = p.type === "misc";
   // A carton-sold count line orders in CARTONS (the vendor's sell unit) — the
   // desk keys the order in cartons even though the row quotes per piece.
@@ -151,9 +153,14 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands) {
   const qty = qtyAssumed ? Math.max(rowQty(row, c), minQty) : minQty;
   const rawUnit = isMisc ? (c.PC ? c.PC.unit : c.countUnit) : (c.C ? c.C.unit : (p.qtyType === "sqft" ? "sf" : c.countUnit));
   const code = unitCode(rawUnit);
-  // Anything the desk can't key as a plain "each" gets the tag — the bundling
-  // units, and now a line whose own sell unit isn't a piece (a Schluter roll).
-  const tag = c.C || c.PC || (code !== "EA" && code !== "SF") ? code : "";
+  // Only a carton line wears the leading tag (Marcus 2026-08-20): CT is the one
+  // unit where the keyed quantity counts bundles the desk could misread as
+  // pieces. The other unit starts (PC, RL, SH, GL…) read as noise at the desk,
+  // so they're dropped — the trade-off is that a sheet- or roll-keyed line no
+  // longer announces its unit in the description; the coverage tail ("150
+  // SF/RL") still names it when there's room, and qty/cost/sell keep reading in
+  // the sell unit on the panel itself.
+  const tag = code === "CT" ? code : "";
   const sizePlain = tightSize(p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || ""));
   const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${code}` : c.PC ? `${c.PC.per} PC/${code}` : "";
   const extSell = c.line;
@@ -165,7 +172,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands) {
   // Sheoga sells by description, not SKU — the description IS the order.
   const byDesc = !!p.sheoga && !p.sku;
   const r = {
-    id: p.id, special: isSpecialOrder(p, stockBookIds), byDesc, area,
+    id: p.id, special: isSpecialOrder(p, stockBookIds, stockSkus), byDesc, area,
     tag, sizePlain, name, brand: (p.bookId && bookBrands?.get(p.bookId)) || "", sku: p.sku, coverage, sheoga: p.sheoga,
     qty, qtyAssumed, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,

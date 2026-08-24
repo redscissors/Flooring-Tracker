@@ -156,6 +156,12 @@ src/
                     # preview proof for the diff review's unfolding new/changed/
                     # retiring lists + per-line Flag for Claude (2026-08-17);
                     # not part of the app build
+  orderentrypreview.jsx  # dev-only harness (order-entry-preview.html): the REAL
+                    # OrderEntryPanel over rows built through the REAL
+                    # orderEntryRow, no Supabase — preview proof for the
+                    # 2026-08 job-line flag batch (.scratch/104: stock-SKU
+                    # special-order rule, Sheoga lead kept, CT-only tag);
+                    # not part of the app build
   custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
                     # group-by-salesman over the boot's light rows (custbrowser.test.js)
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
@@ -1093,15 +1099,24 @@ src/
   orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` (a row
                     # is a special order when it carries a price-book `bookId` OR
                     # a `sheoga` marker — Sheoga floors AND their at-cost fee
-                    # lines, which carry `sheoga` with no `cfg`), plus
+                    # lines, which carry `sheoga` with no `cfg` — OR, with the
+                    # stock cache up, no bookId and a SKU the shop doesn't stock
+                    # in any skuKeys spelling: a hand-entered vendor line can't
+                    # key as stock SKU ⇥ qty — Marcus 2026-08-21), plus
                     # `orderDescription` (the row -> descfit ladder, flowing
                     # unit · size · product · SKU · coverage; a Sheoga row
-                    # abbreviates losslessly off `sheoga.descParts`, anything else
-                    # is arbitrary vendor text with no short rung. The buy/sell
-                    # unit tag LEADS and never drops (rank 0, 2026-08-01) — the
-                    # ERP has no unit field and keys every line as each, so a
-                    # carton line not saying CT in its own text orders 44 tiles
-                    # instead of 44 cartons; `tightSize` makes a dimension one
+                    # abbreviates losslessly off `sheoga.descParts` and keeps a
+                    # rank-0 "Sheoga" lead that never drops — a Sheoga order is
+                    # keyed by description, so the brand is identity, Marcus
+                    # 2026-08-21 — anything else
+                    # is arbitrary vendor text with no short rung. A CARTON
+                    # line's CT tag LEADS and never drops (rank 0) — the ERP has
+                    # no unit field and keys every line as each, so a carton
+                    # line not saying CT in its own text orders 44 tiles instead
+                    # of 44 cartons; every other unit start (PC/RL/SH/GL…) is
+                    # dropped as desk noise (Marcus 2026-08-20 — the coverage
+                    # tail still names the unit when it fits); `tightSize` makes
+                    # a dimension one
                     # token, `12"x24"`, collapsing only between digits so a "Hex
                     # Tile" keeps its spaces) and
                     # `orderCopyText` (the description field's contents, nothing
