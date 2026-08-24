@@ -313,9 +313,10 @@ export const BENCH_H = 20;   // SB premades are 20" high (pricelist p.121); site
  * Normalize one bench row ({kind, side|corner, build, part?, len/depth/h/size})
  * against the room and the live catalog. A premade's own dims come off its
  * classified SB code (entry.bench); a wall bench defaults to the full run at
- * the shared 14" seat depth. Schluter has no wedi "smaller pan" fork — the
- * tray CUTS, so a framed bench simply shrinks the room trayCandidates fits
- * (benchTrayRoom) and the ranking re-runs.
+ * the shared 14" seat depth. A framed bench carries the wedi panFit fork as
+ * `trayFit` (owner 2026-08-24): "cut" (default) keeps the tray choice as the
+ * full room ranks it — the tray just cuts at the bench face — while "smaller"
+ * re-runs trayCandidates for the clear space (benchTrayRoom).
  */
 export function normBench(b, dims, cat) {
   b = b || {};
@@ -339,6 +340,7 @@ export function normBench(b, dims, cat) {
     len: round2(run ? Math.min(len, run) : len),
     depth: round2(+b.depth || (pb && pb.d) || BENCH_DEPTH),
     h: round2(+b.h || BENCH_H),
+    ...(build === "framed" ? { trayFit: b.trayFit === "smaller" ? "smaller" : "cut" } : {}),
   };
 }
 
@@ -404,14 +406,23 @@ export function cfgBenches(cfg, cat) {
  * it only picks which sides the saw takes (the wedi waste-line doctrine).
  */
 export function trayCandidates(cfg, cat, { source } = {}) {
-  // a framed bench shrinks the room the tray has to cover (benchTrayRoom) —
-  // the fit window, cuts and drain placement all run in that reduced room,
-  // with x0/y0 shifting positions back into room coords for the pin/drawing
-  const troom = benchTrayRoom(cfgBenches(cfg, cat), cfg);
+  // Only a framed bench set to "Smaller tray" shrinks the room the ranking
+  // fits (benchTrayRoom) — the default "cut" leaves the choice exactly as the
+  // full room ranks it, and the bench face cut is a site cut buildKit notes
+  // (owner 2026-08-24, the wedi panFit fork). x0/y0 shift positions back into
+  // room coords for the pin/drawing.
+  const troom = benchTrayRoom(cfgBenches(cfg, cat).filter((b) => b.trayFit === "smaller"), cfg);
   const rw = troom.w, rd = troom.d, x0 = troom.x0, y0 = troom.y0;
-  const pinX = Number.isFinite(+cfg.drainX) && +cfg.drainX > 0 ? round2(+cfg.drainX - x0) : null;
-  const pinY = Number.isFinite(+cfg.drainY) && +cfg.drainY > 0 ? round2(+cfg.drainY - y0) : null;
-  const pinned = cfg.drain !== "linear" && (pinX != null || pinY != null);
+  let pinX = Number.isFinite(+cfg.drainX) && +cfg.drainX > 0 ? round2(+cfg.drainX - x0) : null;
+  let pinY = Number.isFinite(+cfg.drainY) && +cfg.drainY > 0 ? round2(+cfg.drainY - y0) : null;
+  let pinned = cfg.drain !== "linear" && (pinX != null || pinY != null);
+  // a smaller-tray re-fit with no typed pin chases the CLEAR space's centre,
+  // so the drain lands centred on the reduced area (owner rule 2026-08-24);
+  // typed drain dimensions always win
+  let centered = false;
+  if (!pinned && cfg.drain !== "linear" && (rw < (+cfg.w || 0) || rd < (+cfg.d || 0))) {
+    pinX = round2(rw / 2); pinY = round2(rd / 2); pinned = true; centered = true;
+  }
   // moulded position → room position: target the pin (or the moulded spot),
   // clamped to what the total cut can reach and 2" clear of the room edge
   const place = (m, cutTotal, room, pin) => {
@@ -445,6 +456,7 @@ export function trayCandidates(cfg, cat, { source } = {}) {
         cand.cutB = round2(Math.min(Math.max(my - (cand.dy - y0), 0), td - rd));
         if (pinned) {
           cand.pinned = true;
+          if (centered) cand.centered = true;
           cand.miss = round2(Math.hypot(pinX != null ? (cand.dx - x0) - pinX : 0, pinY != null ? (cand.dy - y0) - pinY : 0));
         }
       } else if (pinned) {
@@ -453,6 +465,7 @@ export function trayCandidates(cfg, cat, { source } = {}) {
         // the nearest point on that run — never a free 0 that would let a
         // linear tray outrank a point tray actually chasing the pin
         cand.pinned = true;
+        if (centered) cand.centered = true;
         cand.miss = round2(Math.hypot(
           pinX != null ? Math.min(Math.max(pinX, 4), rw - 4) - pinX : 0,
           pinY != null ? 2.75 - pinY : 0));
@@ -584,13 +597,15 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     for (const p of pickRolls(floorSfM * 1.15, cat, { source }))
       L.push({ g: "Base", item: p.item, qty: p.qty, note: "KERDI over the cured bed", so: !p.item.stock });
   } else {
-    // a framed bench shrank the room the tray fills — the cut note says the
-    // TRAY's landed size, not the full room
+    // a framed bench holds the tray short of the room whatever its trayFit —
+    // the cut note says the TRAY's landed size, not the full room, and an
+    // exact full-room fit still cuts at the bench face
     const troom = benchTrayRoom(benches, cfg);
+    const held = troom.w < cfg.w || troom.d < cfg.d;
     add("Base", cand.tray, 1,
       (cand.tray.drain !== cfg.drain && cfg.drain === "offset" ? "centre-drain tray — offset size not made; " : "") +
-      (cand.cut ? `cut down to ${inches(troom.w)}×${inches(troom.d)}` : "exact fit") +
-      (troom.w < cfg.w || troom.d < cfg.d ? " — stops at the framed bench face" : ""));
+      (cand.cut || held ? `cut down to ${inches(troom.w)}×${inches(troom.d)}` : "exact fit") +
+      (held ? " — stops at the framed bench face" : ""));
   }
 
   // under an "any" preference the PICKED tray decides what drain gets

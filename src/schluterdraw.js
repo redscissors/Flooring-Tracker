@@ -197,10 +197,19 @@ export function schluterDiag(cfg, cand, benches) {
     drain = { type: "point", x: round2(dx), y: round2(dy), len: 0, axis: null, note: "" };
     const off = Math.max(Math.abs(dx - cx), tray && tray.drain === "offset" ? 0 : Math.abs(dy - cy));
     // a pinned drain is off-centre on purpose — only a pin the cut can't
-    // reach warns; the room-centre warning stays for unpinned cuts
+    // reach warns; the room-centre warning stays for unpinned cuts. A
+    // smaller-tray re-fit's auto pin is the clear space's centre, so its
+    // miss reads against that, not a typed point
     if (cand && cand.pinned) {
-      if (cand.miss > 0.5) warnings.push(`the moulded drain lands ${Math.round(cand.miss)}" off the pinned point — the cut can't reach further`);
+      if (cand.miss > 0.5) warnings.push(cand.centered
+        ? `the moulded drain lands ${Math.round(cand.miss)}" off the clear space's centre — the cut can't reach further`
+        : `the moulded drain lands ${Math.round(cand.miss)}" off the pinned point — the cut can't reach further`);
     } else if (cut && off > 1) warnings.push(`the moulded drain lands ${Math.round(off)}" off the room centre after the cut`);
+    // a kept tray's drain can end up behind a framed bench face ("Cut it
+    // down" keeps the full-room placement) — that hole is under the seat
+    if (dx < troom.x0 || dx > troom.x0 + rw || dy < troom.y0 || dy > troom.y0 + rd) {
+      warnings.push('the drain lands under the framed bench — set the bench to "Smaller tray" or pin the drain clear of it');
+    }
   }
   return {
     pieces: [{

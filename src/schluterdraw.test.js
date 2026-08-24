@@ -198,6 +198,17 @@ test("a framed back bench offsets and shrinks the tray piece; the drain follows"
   assert.ok(o.drain.y >= 14, "drain sits inside the tray region");
 });
 
+test("a kept tray whose drain ends up behind the bench face warns", () => {
+  // a 22"-deep framed bench on "Cut it down": the full-room 60×38 tray keeps
+  // its centred drain at y=19, but the clear space starts at y=22
+  const row = { kind: "wall", side: "back", build: "framed", depth: 22 };
+  const bench = normBench(row, { w: 60, d: 38 }, CAT);
+  const c = cfg({ benches: [row] });
+  const o = schluterDiag(c, candFor(c), [bench]);
+  assert.equal(o.pieces[0].y, 22);
+  assert.ok(o.warnings.some((w) => /under the framed bench/.test(w)));
+});
+
 test("a build-up bench never moves the tray piece", () => {
   const bench = normBench({ kind: "wall", side: "back", build: "site" }, { w: 60, d: 38 }, CAT);
   const c = cfg({ benches: [{ kind: "wall", side: "back", build: "site" }] });
