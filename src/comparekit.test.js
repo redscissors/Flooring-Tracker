@@ -176,10 +176,14 @@ test("schluter rows bucket into COMPARE_CATS and keep the noteOnly backer at $0"
 test("schluter rows price through the engine's own tier lens, extended by qty", () => {
   const { build } = schluterBuildFor(room60x38(), CAT);
   const rows = schluterCompareRows(build, { builderPct: 8 });
-  const corners = rows.find((r) => r.sub.startsWith("KERECK/FI2"));
-  assert.equal(corners.qty, 2);
-  assert.deepEqual([corners.retail, corners.builder, corners.cost], [30.64, 28.18, 20.42]);
-  assert.equal(corners.sub, "KERECK/FI2 · 4 inside — factory kit recipe");
+  const set = rows.find((r) => r.sub && r.sub.startsWith("SLRSETA50W"));
+  assert.equal(set.qty, 2);
+  assert.deepEqual([set.retail, set.builder, set.cost], [78.42, 72.14, 52.28]);
+  const flange = rows.find((r) => r.sub && r.sub.startsWith("KD2FLKPVC"));
+  assert.deepEqual([flange.retail, flange.builder, flange.cost], [84.62, 77.85, 56.41]);
+  assert.match(flange.sub, /incl\. 4\+2 corners, pipe \+ valve seals/);
+  // corners + seals ride the flange kit box — never their own compare rows
+  assert.equal(rows.some((r) => r.sub && /KERECK|KERDI-SEAL/.test(r.sub + r.name)), false);
 });
 
 test("a mortar item threads through to the no-fit base line", () => {

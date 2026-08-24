@@ -167,12 +167,15 @@ test("curbless thin-priority order pinned in trayCandidates", () => {
 const retail = (it) => it.stock ? it.price : it.cost * 1.5;
 
 test("60x38 curbed point membrane — the approved bill", () => {
-  // re-pinned 2026-08-24 (was 12 lines / $759.75): KERDI-FIX left the
-  // standing recipe by owner ask — it rides the tub kit, not every shower
+  // re-pinned 2026-08-24 twice: KERDI-FIX left the standing recipe by owner
+  // ask (12 lines / $759.75 → 11 / $734.09), then the standalone corner and
+  // seal lines left too — the KD flange kit boxes 4+2 KERECK corners and
+  // both KERDI-SEALs, so separate packs double-billed (→ 7 / $671.87)
   const b = buildKit(cfg({}), CAT, { source: "all" });
-  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 11);
+  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 7);
   assert.equal(b.lines.some((l) => l.item.adhesive), false);
-  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 73409); // $734.09
+  assert.equal(b.lines.some((l) => l.item.corner || l.item.seal), false);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 67187); // $671.87
   assert.equal(b.lines.filter((l) => l.so).length, 0);
 });
 test("linear build: Vario kit carries the seals", () => {
@@ -423,10 +426,11 @@ test("stock-only linear channel: a covering SO channel beats a short stocked one
 });
 
 test("the pinned 60×38 truth-table total is untouched by the pickFrom refactor", () => {
-  // re-pinned 2026-08-24 with the KERDI-FIX removal ($759.75 − 25.66)
+  // re-pinned 2026-08-24: KERDI-FIX removal ($759.75 − 25.66), then the
+  // corner/seal removal ($734.09 − 62.22 — they ride the flange kit box)
   const retail = (e) => tierPrice(e, "retail", {});
   const b = buildKit(cfg({}), CAT, { source: "all" });
-  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 73409);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 67187);
 });
 
 test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead", () => {
@@ -541,7 +545,7 @@ test('"any" preference pools every tray and the PICK decides what gets billed', 
   assert.equal(linBuild.lines.some((l) => l.item.corner), false);
   const ptBuild = buildKit(room, CAT, { source: "all", pick: cands[0] });
   assert.ok(ptBuild.lines.some((l) => l.item.part === "grate"));
-  assert.ok(ptBuild.lines.some((l) => l.item.corner === "inside"));
+  assert.match(ptBuild.lines.find((l) => l.item.part === "flange").note, /incl\. 4\+2 corners/);
 });
 
 test('a pinned "any" room scores a linear tray against its channel run, never a free zero', () => {
